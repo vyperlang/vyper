@@ -42,6 +42,7 @@ class EnumT(_UserType):
     _as_darray = True
     _is_prim_word = True
     _as_hashmap_key = True
+    _as_hashmap_value = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
@@ -266,6 +267,7 @@ class InterfaceT(_UserType):
     _is_prim_word = True
     _as_array = True
     _as_hashmap_key = True
+    _as_hashmap_value = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
@@ -479,6 +481,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
 
 class StructT(_UserType):
     _as_array = True
+    _as_hashmap_value = True
 
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)

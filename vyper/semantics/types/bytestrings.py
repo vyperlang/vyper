@@ -30,6 +30,7 @@ class _BytestringT(VyperType):
     # bytestrings, but not static arrays of bytestrings
     _as_darray = True
     _as_hashmap_key = True
+    _as_hashmap_value = True
     _equality_attrs = ("_length", "_min_length")
     _is_bytestring: bool = True
 

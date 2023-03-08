@@ -17,6 +17,7 @@ class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
     _as_hashmap_key = True
+    _as_hashmap_value = True
     _as_array = True
 
 

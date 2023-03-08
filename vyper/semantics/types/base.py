@@ -54,6 +54,7 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
+    _as_hashmap_value: bool = False
 
     size_in_bytes = 32  # default; override for larger types
 

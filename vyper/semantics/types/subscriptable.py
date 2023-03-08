@@ -40,6 +40,7 @@ class _SubscriptableT(VyperType):
 
 class HashMapT(_SubscriptableT):
     _id = "HashMap"
+    _as_hashmap_value = True
 
     _equality_attrs = ("key_type", "value_type")
 
@@ -81,6 +82,10 @@ class HashMapT(_SubscriptableT):
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
         value_type = type_from_annotation(v_ast)
+        if not value_type._as_hashmap_value:
+            raise StructureException(
+                f"{value_type} is not a valid type for a HashMap's value", v_ast
+            )
 
         return cls(key_type, value_type)
 
@@ -95,6 +100,7 @@ class _SequenceT(_SubscriptableT):
         Number of items in the type.
     """
 
+    _as_hashmap_value = True
     _equality_attrs: tuple = ("value_type", "length")
 
     _is_array_type: bool = True
