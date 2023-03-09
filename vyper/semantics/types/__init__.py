@@ -6,7 +6,7 @@ from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from .user import EnumT, EventT, InterfaceT, StructT
 
 
-def get_primitive_types():
+def _get_primitive_types():
     res = [BoolT(), DecimalT()]
 
     res.extend(IntegerT.all())
@@ -45,8 +45,4 @@ def _get_sequence_types():
     return ret
 
 
-def get_types():
-    result = {}
-    result.update(get_primitive_types())
-
-    return result
+PRIMITIVE_TYPES = _get_primitive_types()

@@ -118,11 +118,20 @@ class _ExprAnalyser:
         -------
         Type object
         """
-        types_list = self.get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
+        # this method is a perf hotspot, so we cache the result on the node
+        k = f"cached_type_{include_type_exprs}"
+        if k not in node._metadata:
 
-        if len(types_list) > 1:
-            raise StructureException("Ambiguous type", node)
-        return types_list[0]
+            types_list = self.get_possible_types_from_node(
+                node, include_type_exprs=include_type_exprs
+            )
+
+            if len(types_list) > 1:
+                raise StructureException("Ambiguous type", node)
+
+            node._metadata[k] = types_list[0]
+
+        return node._metadata[k]
 
     def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
@@ -144,20 +153,27 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
-        fn = self._find_fn(node)
-        ret = fn(node)
+        # this method is a perf hotspot, so we cache the result on the node
+        k = f"cached_possible_types_{include_type_exprs}"
 
-        if not include_type_exprs:
-            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-            if invalid is not None:
-                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+        if k not in node._metadata:
 
-        if all(isinstance(i, IntegerT) for i in ret):
-            # for numeric types, sort according by number of bits descending
-            # this ensures literals are cast with the largest possible type
-            ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
+            fn = self._find_fn(node)
+            ret = fn(node)
 
-        return ret
+            if not include_type_exprs:
+                invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+                if invalid is not None:
+                    raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+
+            if all(isinstance(i, IntegerT) for i in ret):
+                # for numeric types, sort according by number of bits descending
+                # this ensures literals are cast with the largest possible type
+                ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
+
+            node._metadata[k] = ret
+
+        return node._metadata[k].copy()
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -260,7 +276,7 @@ class _ExprAnalyser:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for t in types.get_primitive_types().values():
+        for t in types.PRIMITIVE_TYPES.values():
             try:
                 # clarity and perf note: will be better to construct a
                 # map from node types to valid vyper types
@@ -295,7 +311,7 @@ class _ExprAnalyser:
         if _is_empty_list(node):
             # empty list literal `[]`
             # subtype can be anything
-            types_list = types.get_types()
+            types_list = types.PRIMITIVE_TYPES
             # 1 is minimum possible length for dynarray, assignable to anything
             ret = [DArrayT(t, 1) for t in types_list.values()]
             return ret
@@ -414,7 +430,6 @@ def get_exact_type_from_node(node):
     BaseType
         Type object.
     """
-
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
@@ -444,9 +459,11 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
         common = [i for i in common_types if _is_type_in_list(i, new_types)]
+
         rejected = [i for i in common_types if i not in common]
         common += [i for i in new_types if _is_type_in_list(i, rejected)]
 
+        # print(nodes[0].node_source_code,item.node_source_code,common,rejected,common_types)
         common_types = common
 
     if filter_fn is not None:
