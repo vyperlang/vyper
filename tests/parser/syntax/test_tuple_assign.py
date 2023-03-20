@@ -90,6 +90,26 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     ),
     (
         """
+A: immutable(uint256)
+B: immutable(uint256)
+
+@external
+def __init__(a: uint256, b: uint256):
+    A = a
+    B = b
+
+@internal
+def foo() -> (uint256, uint256):
+    return (1, 2)
+
+@external
+def bar():
+    A, B = self.foo()
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
 x: public(uint256)
 
 @internal
