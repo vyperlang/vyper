@@ -93,7 +93,9 @@ class _ExprAnalyser:
             is_constant = any((getattr(i, "is_constant", False) for i in types))
             is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
-            return ExprInfo(t, location=location, is_constant=is_constant, is_immutable=is_immutable)
+            return ExprInfo(
+                t, location=location, is_constant=is_constant, is_immutable=is_immutable
+            )
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
