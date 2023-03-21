@@ -77,6 +77,17 @@ def code_slice(x: address) -> uint256:
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
+            """
+a: HashMap[Bytes[30], uint256]
+
+@external
+def foo(x: address):
+    self.a[x.code] += 1
+""",
+            StructureException,
+            "(address).code is only allowed inside of a slice function with a constant length",
+        ),
+        (
             # `len` not supported
             """
 @external
