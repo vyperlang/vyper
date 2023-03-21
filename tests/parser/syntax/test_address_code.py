@@ -78,7 +78,7 @@ def code_slice(x: address) -> uint256:
         ),
         (
             """
-a: HashMap[Bytes[30], uint256]
+a: HashMap[Bytes[4], uint256]
 
 @external
 def foo(x: address):
