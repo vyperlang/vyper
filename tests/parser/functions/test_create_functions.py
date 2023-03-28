@@ -1,6 +1,6 @@
+import eth_abi as abi
 import pytest
 import rlp
-from eth_abi import encode_single
 from hexbytes import HexBytes
 
 from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
@@ -330,7 +330,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    encoded_args = encode_single("(string,(string))", (FOO, BAR))
+    encoded_args = abi.encode(["(string,(string))"], [(FOO, BAR)])
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     d.test3(f.address, encoded_args, transact={})

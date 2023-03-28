@@ -52,7 +52,7 @@ def keccak():
 @pytest.fixture
 def abi_encode(w3):
     def f(abi_t, py_val):
-        return w3.codec.encode_single(abi_t, py_val)
+        return w3.codec.encode([abi_t], [py_val])
 
     return f
 
