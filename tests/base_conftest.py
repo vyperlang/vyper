@@ -4,7 +4,7 @@ from eth_tester.exceptions import TransactionFailed
 from eth_utils.toolz import compose
 from hexbytes import HexBytes
 from web3 import Web3
-from web3.contract import Contract, mk_collision_prop
+from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
@@ -58,7 +58,7 @@ class VyperContract:
         for fn_name in self._classic_contract.functions:
             # Override namespace collisions
             if fn_name in protected_fn_names:
-                _concise_method = mk_collision_prop(fn_name)
+                raise AttributeError(f"{fn_name} is protected!")
             else:
                 _classic_method = getattr(self._classic_contract.functions, fn_name)
                 _concise_method = method_class(
