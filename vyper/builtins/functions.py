@@ -2421,8 +2421,7 @@ class ABIEncode(BuiltinFunction):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
+        ret = BytesT(maxlen)
         return ret
 
     @staticmethod
@@ -2444,6 +2443,9 @@ class ABIEncode(BuiltinFunction):
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)
 
+        # section: find length
+        # (NOTE this section is probably redundant now that
+        # backend type system is same as frontend)
         # figure out the required length for the output buffer
         if len(args) == 1 and not ensure_tuple:
             # special case, no tuple
@@ -2456,9 +2458,12 @@ class ABIEncode(BuiltinFunction):
         if method_id is not None:
             maxlen += 4
 
+        return_t = expr._metadata["type"]
         buf_t = BytesT(maxlen)
-        assert self.fetch_call_return(expr).length == maxlen
         buf = context.new_internal_variable(buf_t)
+        assert return_t.length == buf_t.length, (return_t, buf_t)
+        # end section: find length
+
 
         ret = ["seq"]
         if method_id is not None:
