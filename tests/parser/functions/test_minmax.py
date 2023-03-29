@@ -24,7 +24,7 @@ def goo() -> uint256:
 
 
 @pytest.mark.parametrize("return_type", sorted(IntegerT.all()))
-def test_minmax_var_and_literal(get_contract_with_gas_estimation, return_type):
+def test_minmax_var_and_literal_and_bultin(get_contract_with_gas_estimation, return_type):
     """
     Tests to verify that min and max work as expected when a variable/literal
     and a literal are passed for all integer types.
@@ -51,12 +51,22 @@ def both_literals_max() -> {return_type}:
 @external
 def both_literals_min() -> {return_type}:
     return min({lo}, 2)
+
+@external
+def both_builtins_max() -> {return_type}:
+    return max(min_value({return_type}), max_value({return_type}))
+
+@external
+def both_builtins_min() -> {return_type}:
+    return min(min_value({return_type}), max_value({return_type}))
 """
     c = get_contract_with_gas_estimation(code)
     assert c.foo() == hi
     assert c.bar() == lo
     assert c.both_literals_max() == hi
     assert c.both_literals_min() == lo
+    assert c.both_builtins_max() == hi
+    assert c.both_builtins_min() == lo
 
 
 def test_max_var_uint256_literal_int128(get_contract_with_gas_estimation):

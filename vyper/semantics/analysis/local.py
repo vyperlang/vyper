@@ -40,6 +40,7 @@ from vyper.semantics.types import (
     IntegerT,
     SArrayT,
     StringT,
+    StructT,
     TupleT,
     is_type_t,
 )
@@ -381,6 +382,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
+                if not type_list:
+                    raise TypeMismatch("Iterator values are of different types", node.iter)
+
         else:
             # iteration over a variable or literal list
             if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
@@ -483,6 +487,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         fn_type = get_exact_type_from_node(node.value.func)
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
+
+        if is_type_t(fn_type, StructT):
+            raise StructureException("Struct creation without assignment is disallowed", node)
 
         if isinstance(fn_type, ContractFunctionT):
             if (
