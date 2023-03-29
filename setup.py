@@ -29,7 +29,7 @@ extras_require = {
         "isort==5.9.3",
         "mypy==0.910",
     ],
-    "docs": ["recommonmark", "sphinx>=3.0,<4.0", "sphinx_rtd_theme>=0.5,<0.6"],
+    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
