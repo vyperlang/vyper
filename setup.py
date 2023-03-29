@@ -22,8 +22,7 @@ extras_require = {
         "hypothesis[lark]>=5.37.1,<6.0",
     ],
     "lint": [
-        "black==21.9b0",
-        "click<8.1.0",  # temporary pin - black21.9b0 fails with 8.1.0
+        "black==23.3.0",
         "flake8==3.9.2",
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
