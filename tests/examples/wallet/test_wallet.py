@@ -1,5 +1,6 @@
 import pytest
 from eth_account import Account
+from eth_account.messages import encode_defunct
 from eth_keys import KeyAPI
 from eth_utils import is_same_address
 
@@ -99,11 +100,11 @@ def test_javascript_signatures(w3, get_contract):
         + (25).to_bytes(32, "big")
         + b""
     )  # noqa: E501
-    h2 = w3.keccak(b"\x19Ethereum Signed Message:\n32" + h)
+    h2 = encode_defunct(h)
 
     # Check to make sure the signatures are valid
-    assert is_same_address(Account.recoverHash(h2, sigs[0]), accounts[0])
-    assert is_same_address(Account.recoverHash(h2, sigs[1]), accounts[1])
+    assert is_same_address(Account.recover_message(h2, sigs[0]), accounts[0])
+    assert is_same_address(Account.recover_message(h2, sigs[1]), accounts[1])
 
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
