@@ -127,7 +127,7 @@ def foo() -> {typ}:
     ys += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     # mirror signed integer tests
-    assert 2 ** (bits - 1) in xs and (2**bits) - 1 in ys
+    assert 2 ** (bits - 1) in xs and (2 ** bits) - 1 in ys
 
     for x, y in itertools.product(xs, ys):
         expected = fn(x, y)
@@ -211,13 +211,13 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
 
     assert c._uint256_addmod(1, 2, 2) == 1
     assert c._uint256_addmod(32, 2, 32) == 2
-    assert c._uint256_addmod((2**256) - 1, 0, 2) == 1
-    assert c._uint256_addmod(2**255, 2**255, 6) == 4
+    assert c._uint256_addmod((2 ** 256) - 1, 0, 2) == 1
+    assert c._uint256_addmod(2 ** 255, 2 ** 255, 6) == 4
     assert_tx_failed(lambda: c._uint256_addmod(1, 2, 0))
     assert c._uint256_mulmod(3, 1, 2) == 1
     assert c._uint256_mulmod(200, 3, 601) == 600
-    assert c._uint256_mulmod(2**255, 1, 3) == 2
-    assert c._uint256_mulmod(2**255, 2, 6) == 4
+    assert c._uint256_mulmod(2 ** 255, 1, 3) == 2
+    assert c._uint256_mulmod(2 ** 255, 2, 6) == 4
     assert_tx_failed(lambda: c._uint256_mulmod(2, 2, 0))
 
 

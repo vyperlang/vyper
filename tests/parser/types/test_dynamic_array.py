@@ -1093,7 +1093,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     assert c.foo() == data
 
 
-@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2**127)])
+@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2 ** 127)])
 def test_append_invalid_literal(get_contract, assert_compile_failed, subtyp, lit):
     code = f"""
 @external

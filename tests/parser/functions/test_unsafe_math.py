@@ -39,7 +39,7 @@ def foo(x: {typ}) -> {typ}:
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
-    mod_bound = 2**typ.bits
+    mod_bound = 2 ** typ.bits
 
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
