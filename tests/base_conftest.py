@@ -181,7 +181,7 @@ def get_contract(w3, no_optimize):
 def get_logs(w3):
     def get_logs(tx_hash, c, event_name):
         tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
-        return c._classic_contract.events[event_name]().processReceipt(tx_receipt)
+        return c._classic_contract.events[event_name]().process_receipt(tx_receipt)
 
     return get_logs
 

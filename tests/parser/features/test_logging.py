@@ -764,11 +764,11 @@ def ioo(inp: Bytes[100]):
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
 
-    assert w3.toText(logs[0]["data"]) == "moo"
+    assert w3.to_text(logs[0]["data"]) == "moo"
     tx_hash = c.goo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo2"
+    assert w3.to_text(logs[0]["data"]) == "moo2"
     assert (
         logs[0]["topics"][0] == "0x1234567812345678123456781234567812345678123456781234567812345678"
     )  # noqa: E501
@@ -776,12 +776,12 @@ def ioo(inp: Bytes[100]):
     tx_hash = c.hoo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo3"
+    assert w3.to_text(logs[0]["data"]) == "moo3"
 
     tx_hash = c.ioo(b"moo4", transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo4"
+    assert w3.to_text(logs[0]["data"]) == "moo4"
 
     print("Passed raw log tests")
 
@@ -803,10 +803,10 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert logs[0]["data"] == w3.toHex((1234).to_bytes(32, "big"))
-    assert logs[1]["data"] == w3.toHex((4321).to_bytes(32, "big"))
-    assert logs[2]["data"] == w3.toHex(b"testmessage").ljust(32 * 2 + 2, "0")
-    assert logs[3]["data"] == w3.toHex(keccak256(b""))
+    assert logs[0]["data"] == w3.to_hex((1234).to_bytes(32, "big"))
+    assert logs[1]["data"] == w3.to_hex((4321).to_bytes(32, "big"))
+    assert logs[2]["data"] == w3.to_hex(b"testmessage").ljust(32 * 2 + 2, "0")
+    assert logs[3]["data"] == w3.to_hex(keccak256(b""))
 
 
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):

@@ -42,7 +42,7 @@ def foo(bar: uint256) -> Bytes[36]:
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
     method_id = keccak(text="foo(uint256)").hex()[2:10]  # 2fbebd38
-    encoded_42 = w3.toBytes(42).hex()  # 2a
+    encoded_42 = w3.to_bytes(42).hex()  # 2a
     expected_result = method_id + "00" * 31 + encoded_42
 
     assert contract.foo(42).hex() == expected_result

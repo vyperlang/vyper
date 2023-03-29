@@ -17,7 +17,7 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     del tx["gasPrice"]
 
     tx["from"] = w3.eth.accounts[0]
-    res = w3.toBytes(hexstr=tester.call(tx))
+    res = w3.to_bytes(hexstr=tester.call(tx))
 
     static_offset = int.from_bytes(res[:32], "big")
     assert static_offset == 32
