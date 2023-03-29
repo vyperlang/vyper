@@ -58,18 +58,20 @@ class VyperContract:
         protected_fn_names = [fn for fn in dir(self) if not fn.endswith("__")]
 
         try:
-            for fn_name in self._classic_contract.functions:
-                # Override namespace collisions
-                if fn_name in protected_fn_names:
-                    raise AttributeError(f"{fn_name} is protected!")
-                else:
-                    _classic_method = getattr(self._classic_contract.functions, fn_name)
-                    _concise_method = method_class(
-                        _classic_method, self._classic_contract._return_data_normalizers
-                    )
-                setattr(self, fn_name, _concise_method)
+            fn_names = [fn["name"] for fn in self._classic_contract.functions._functions]
         except web3.exceptions.NoABIFunctionsFound:
-            pass
+            return
+
+        for fn_name in fn_names:
+            # Override namespace collisions
+            if fn_name in protected_fn_names:
+                raise AttributeError(f"{fn_name} is protected!")
+            else:
+                _classic_method = getattr(self._classic_contract.functions, fn_name)
+                _concise_method = method_class(
+                    _classic_method, self._classic_contract._return_data_normalizers
+                )
+            setattr(self, fn_name, _concise_method)
 
     @classmethod
     def factory(cls, *args, **kwargs):
