@@ -110,7 +110,9 @@ def test_pause(erc1155, w3, assert_tx_failed):
     )
 
     # check safetransferfrom and safebatchtransferfrom
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1})
+    )
     assert_tx_failed(
         lambda: erc1155.safeBatchTransferFrom(
             a1, a2, [21, 22, 23], [1, 1, 1], DUMMY_BYTES_DATA, transact={"from": a1}
@@ -174,28 +176,40 @@ def test_safeTransferFrom_balanceOf_single(erc1155, w3, assert_tx_failed):
     owner, a1, a2, a3, a4, a5 = w3.eth.accounts[0:6]
     assert erc1155.balanceOf(a1, 24) == 1
     # transfer by non-owner
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 1, DUMMY_BYTES_DATA, transact={"from": a2}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 24, 1, DUMMY_BYTES_DATA, transact={"from": a2})
+    )
 
     # transfer to zero address
     assert_tx_failed(
-        lambda: erc1155.safeTransferFrom(a1, ZERO_ADDRESS, 24, 1, DUMMY_BYTES_DATA, transact={"from": a1})
+        lambda: erc1155.safeTransferFrom(
+            a1, ZERO_ADDRESS, 24, 1, DUMMY_BYTES_DATA, transact={"from": a1}
+        )
     )
 
     # transfer to self
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a1, 24, 1, DUMMY_BYTES_DATA, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a1, 24, 1, DUMMY_BYTES_DATA, transact={"from": a1})
+    )
 
     # transfer more than owned
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, DUMMY_BYTES_DATA, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 24, 500, DUMMY_BYTES_DATA, transact={"from": a1})
+    )
 
     # transfer item not owned / not existing
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 500, 1, DUMMY_BYTES_DATA, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 500, 1, DUMMY_BYTES_DATA, transact={"from": a1})
+    )
 
     erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1})
 
     assert erc1155.balanceOf(a2, 21) == 1
 
     # try to transfer item again
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1}))
+    assert_tx_failed(
+        lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1})
+    )
     assert erc1155.balanceOf(a1, 21) == 0
 
 
@@ -258,7 +272,9 @@ def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, assert_tx_failed):  
             a1, a2, [21, 22, 500], [1, 1, 1], DUMMY_BYTES_DATA, transact={"from": a1}
         )
     )
-    assert erc1155.safeBatchTransferFrom(a1, a2, [21, 22, 23], [1, 1, 1], DUMMY_BYTES_DATA, transact={"from": a1})
+    assert erc1155.safeBatchTransferFrom(
+        a1, a2, [21, 22, 23], [1, 1, 1], DUMMY_BYTES_DATA, transact={"from": a1}
+    )
 
     # try to transfer again, our balances are zero now, should fail
     assert_tx_failed(

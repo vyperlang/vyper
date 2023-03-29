@@ -1,11 +1,9 @@
 import pytest
 
-from web3 import Web3
-from eth.codecs.abi import encode as abi_encode
-
 
 PROPOSAL_1_NAME = b"Clinton" + b"\x00" * 25
 PROPOSAL_2_NAME = b"Trump" + b"\x00" * 27
+
 
 @pytest.fixture
 def c(get_contract):

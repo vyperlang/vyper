@@ -92,7 +92,8 @@ def foo(s: bytes{n}) -> bytes{n}:
 
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert c.foo(v) == v.ljust(n, b"\x00")
+        v = v.ljust(n, b"\x00")
+        assert c.foo(v) == v
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))

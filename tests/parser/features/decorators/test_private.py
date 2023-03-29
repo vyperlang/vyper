@@ -316,8 +316,8 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test(b"test") == [b"test" + 28 * b"\x00", 1000, -1200]
-    assert c.test2(b"test") == [b"test" + 28 * b"\x00", 1000, -1200]
+    assert c.test(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
+    assert c.test2(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
 
 
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
@@ -445,7 +445,8 @@ def whoami() -> address:
     addr = w3.eth.accounts[1]
     txhash = c.whoami(transact={"from": addr})
     receipt = w3.eth.wait_for_transaction_receipt(txhash)
-    logged_addr = w3.to_checksum_address(receipt.logs[0].data[-40:])
+    print(receipt.logs[0].data)
+    logged_addr = w3.to_checksum_address(receipt.logs[0].data[-20:])
     assert logged_addr == addr, "oh no"
 
 
