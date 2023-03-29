@@ -435,6 +435,17 @@ struct B:
     """,
         NamespaceCollision,
     ),
+    (
+        """
+struct Foo:
+    a: uint256
+
+@external
+def foo():
+    Foo({a: 1})
+    """,
+        StructureException,
+    ),
 ]
 
 

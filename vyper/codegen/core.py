@@ -114,7 +114,6 @@ def make_byte_array_copier(dst, src):
 
     with src.cache_when_complex("src") as (b1, src):
         with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-
             max_bytes = src.typ.maxlen
 
             ret = ["seq"]
@@ -171,7 +170,6 @@ def _dynarray_make_setter(dst, src):
         return ret
 
     with src.cache_when_complex("darray_src") as (b1, src):
-
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
         should_loop = src.encoding == Encoding.ABI and src.typ.value_type.abi_type.is_dynamic()
@@ -237,7 +235,6 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
-
         assert isinstance(length_bound, int) and length_bound >= 0
 
         # correctness: do not clobber dst
@@ -484,7 +481,6 @@ def has_length_word(typ):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, array_bounds_check):
-
     assert is_array_like(parent.typ)
 
     if not is_integer_type(key.typ):
@@ -750,9 +746,9 @@ def _check_assign_tuple(left, right):
     else:
         if len(left.typ.member_types) != len(right.typ.member_types):
             FAIL()  # pragma: notest
-        for (l, r) in zip(left.typ.member_types, right.typ.member_types):
+        for l_, r_ in zip(left.typ.member_types, right.typ.member_types):
             # TODO recurse into left, right if literals?
-            check_assign(dummy_node_for_type(l), dummy_node_for_type(r))
+            check_assign(dummy_node_for_type(l_), dummy_node_for_type(r_))
 
 
 # sanity check an assignment
@@ -886,7 +882,6 @@ def _complex_make_setter(left, right):
     # general case
     # TODO use copy_bytes when the generated code is above a certain size
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
-
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
             r_i = get_element_ptr(right, k, array_bounds_check=False)

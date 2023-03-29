@@ -810,7 +810,6 @@ def foo():
 
 
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -828,7 +827,6 @@ def foo():
 
 
 def test_literal_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -845,7 +843,6 @@ def foo():
 
 
 def test_storage_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -872,7 +869,6 @@ def set_list():
 
 
 def test_passed_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -910,7 +906,6 @@ def foo():
 
 
 def test_storage_byte_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event MyLog:
     arg1: Bytes[29]
@@ -937,7 +932,6 @@ def setbytez():
 
 
 def test_storage_decimal_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: decimal[4]

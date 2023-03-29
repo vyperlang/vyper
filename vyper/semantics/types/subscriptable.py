@@ -100,8 +100,7 @@ class _SequenceT(_SubscriptableT):
     _is_array_type: bool = True
 
     def __init__(self, value_type: VyperType, length: int):
-
-        if not 0 < length < 2 ** 256:
+        if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
 
         super().__init__(UINT256_T, value_type)
