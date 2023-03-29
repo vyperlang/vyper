@@ -445,7 +445,6 @@ def whoami() -> address:
     addr = w3.eth.accounts[1]
     txhash = c.whoami(transact={"from": addr})
     receipt = w3.eth.wait_for_transaction_receipt(txhash)
-    print(receipt.logs[0].data)
     logged_addr = w3.to_checksum_address(receipt.logs[0].data[-20:])
     assert logged_addr == addr, "oh no"
 
