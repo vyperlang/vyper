@@ -1093,7 +1093,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     assert c.foo() == data
 
 
-@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2 ** 127)])
+@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2**127)])
 def test_append_invalid_literal(get_contract, assert_compile_failed, subtyp, lit):
     code = f"""
 @external
@@ -1688,6 +1688,7 @@ def foo() -> {typ}:
 
 
 # TODO test negative public(DynArray) cases?
+
 
 # CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
 # negative tests so we know if/when the typechecker is fixed.

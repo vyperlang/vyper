@@ -154,11 +154,11 @@ class NumericT(_PrimT):
             # TODO double check: this code seems duplicated with constant eval
             # constant folding ensures one of `(left, right)` is never a literal
             if isinstance(left, vy_ast.Int):
-                if left.value >= 2 ** value_bits:
+                if left.value >= 2**value_bits:
                     raise OverflowException(
                         "Base is too large, calculation will always overflow", left
                     )
-                elif left.value < -(2 ** value_bits):
+                elif left.value < -(2**value_bits):
                     raise OverflowException(
                         "Base is too small, calculation will always underflow", left
                     )
@@ -284,7 +284,7 @@ class DecimalT(NumericT):
 
     @cached_property
     def divisor(self) -> int:
-        return 10 ** self.decimals
+        return 10**self.decimals
 
     @cached_property
     def epsilon(self) -> Decimal:

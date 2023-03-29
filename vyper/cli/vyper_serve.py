@@ -64,7 +64,6 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         return
 
     def do_POST(self):
-
         if self.path == "/compile":
             content_len = int(self.headers.get("content-length"))
             post_body = self.rfile.read(content_len)

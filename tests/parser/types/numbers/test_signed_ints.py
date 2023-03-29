@@ -86,7 +86,7 @@ def foo() -> int16:
     return y
     """
     c = get_contract(code)
-    assert c.foo() == -(2 ** 15)
+    assert c.foo() == -(2**15)
 
 
 @pytest.mark.parametrize("base,power", itertools.product((-2, -1, 0, 1, 2), (0, 1)))
@@ -99,7 +99,7 @@ def foo() -> int256:
     return x ** {power}
     """
     c = get_contract(code)
-    assert c.foo() == base ** power
+    assert c.foo() == base**power
 
 
 @pytest.mark.parametrize("typ", types)
@@ -118,7 +118,7 @@ def foo(x: {typ}) -> {typ}:
         if x * 2 >= typ.bits or x < 0:  # out of bounds
             assert_tx_failed(lambda: c.foo(x))
         else:
-            assert c.foo(x) == 4 ** x
+            assert c.foo(x) == 4**x
 
 
 @pytest.mark.parametrize("typ", types)
@@ -285,7 +285,7 @@ def foo() -> {typ}:
     # edge cases that are tricky to reason about and MUST be tested
     assert lo in xs and -1 in ys
 
-    for (x, y) in itertools.product(xs, ys):
+    for x, y in itertools.product(xs, ys):
         expected = fn(x, y)
         in_bounds = lo <= expected <= hi
 

@@ -16,7 +16,7 @@ def foo():
     """
     c = get_contract_with_gas_estimation(code)
     a0 = w3.eth.accounts[0]
-    gas_sent = 10 ** 6
+    gas_sent = 10**6
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     # More info on receipt status:
     # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.

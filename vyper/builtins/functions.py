@@ -133,7 +133,6 @@ class TypenameFoldedFunction(FoldedFunction):
 
 
 class Floor(BuiltinFunction):
-
     _id = "floor"
     _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
@@ -161,7 +160,6 @@ class Floor(BuiltinFunction):
 
 
 class Ceil(BuiltinFunction):
-
     _id = "ceil"
     _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
@@ -189,7 +187,6 @@ class Ceil(BuiltinFunction):
 
 
 class Convert(BuiltinFunction):
-
     _id = "convert"
 
     def fetch_call_return(self, node):
@@ -283,7 +280,6 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
 class Slice(BuiltinFunction):
-
     _id = "slice"
     _inputs = [
         ("b", (BYTES32_T, BytesT.any(), StringT.any())),
@@ -344,7 +340,6 @@ class Slice(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-
         src, start, length = args
 
         # Handle `msg.data`, `self.code`, and `<address>.code`
@@ -362,7 +357,6 @@ class Slice(BuiltinFunction):
             b2,
             start,
         ), length.cache_when_complex("length") as (b3, length):
-
             if is_bytes32:
                 src_maxlen = 32
             else:
@@ -458,7 +452,6 @@ class Slice(BuiltinFunction):
 
 
 class Len(BuiltinFunction):
-
     _id = "len"
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
@@ -484,7 +477,6 @@ class Len(BuiltinFunction):
 
 
 class Concat(BuiltinFunction):
-
     _id = "concat"
 
     def fetch_call_return(self, node):
@@ -557,7 +549,6 @@ class Concat(BuiltinFunction):
 
         # TODO: optimize for the case where all lengths are statically known.
         for arg in args:
-
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
@@ -569,7 +560,6 @@ class Concat(BuiltinFunction):
                     argdata = bytes_data_ptr(arg)
 
                     with get_bytearray_length(arg).cache_when_complex("len") as (b2, arglen):
-
                         do_copy = [
                             "seq",
                             copy_bytes(dst_data, argdata, arglen, arg.typ.maxlen),
@@ -592,7 +582,6 @@ class Concat(BuiltinFunction):
 
 
 class Keccak256(BuiltinFunction):
-
     _id = "keccak256"
     # TODO allow any BytesM_T
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
@@ -641,7 +630,6 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 
 
 class Sha256(BuiltinFunction):
-
     _id = "sha256"
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
@@ -714,7 +702,6 @@ class Sha256(BuiltinFunction):
 
 
 class MethodID(FoldedFunction):
-
     _id = "method_id"
 
     def evaluate(self, node):
@@ -755,7 +742,6 @@ class MethodID(FoldedFunction):
 
 
 class ECRecover(BuiltinFunction):
-
     _id = "ecrecover"
     _inputs = [
         ("hash", BYTES32_T),
@@ -805,7 +791,6 @@ def _getelem(arg, ind):
 
 
 class ECAdd(BuiltinFunction):
-
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
@@ -832,7 +817,6 @@ class ECAdd(BuiltinFunction):
 
 
 class ECMul(BuiltinFunction):
-
     _id = "ecmul"
     _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
     _return_type = SArrayT(UINT256_T, 2)
@@ -871,7 +855,6 @@ def _storage_element_getter(index):
 
 
 class Extract32(BuiltinFunction):
-
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
@@ -984,20 +967,19 @@ class Extract32(BuiltinFunction):
 
 
 class AsWeiValue(BuiltinFunction):
-
     _id = "as_wei_value"
     _inputs = [("value", (IntegerT.any(), DecimalT())), ("unit", StringT.any())]
     _return_type = UINT256_T
 
     wei_denoms = {
         ("wei",): 1,
-        ("femtoether", "kwei", "babbage"): 10 ** 3,
-        ("picoether", "mwei", "lovelace"): 10 ** 6,
-        ("nanoether", "gwei", "shannon"): 10 ** 9,
-        ("microether", "szabo"): 10 ** 12,
-        ("milliether", "finney"): 10 ** 15,
-        ("ether",): 10 ** 18,
-        ("kether", "grand"): 10 ** 21,
+        ("femtoether", "kwei", "babbage"): 10**3,
+        ("picoether", "mwei", "lovelace"): 10**6,
+        ("nanoether", "gwei", "shannon"): 10**9,
+        ("microether", "szabo"): 10**12,
+        ("milliether", "finney"): 10**15,
+        ("ether",): 10**18,
+        ("kether", "grand"): 10**21,
     }
 
     def get_denomination(self, node):
@@ -1025,7 +1007,7 @@ class AsWeiValue(BuiltinFunction):
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
-        if isinstance(value, int) and value >= 2 ** 256:
+        if isinstance(value, int) and value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if isinstance(value, Decimal) and value > SizeLimits.MAX_AST_DECIMAL:
             raise InvalidLiteral("Value out of range for decimal", node.args[0])
@@ -1083,7 +1065,6 @@ empty_value = IRnode.from_list(0, typ=BYTES32_T)
 
 
 class RawCall(BuiltinFunction):
-
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
@@ -1230,7 +1211,6 @@ class RawCall(BuiltinFunction):
 
 
 class Send(BuiltinFunction):
-
     _id = "send"
     _inputs = [("to", AddressT()), ("value", UINT256_T)]
     # default gas stipend is 0
@@ -1246,7 +1226,6 @@ class Send(BuiltinFunction):
 
 
 class SelfDestruct(BuiltinFunction):
-
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
     _return_type = None
@@ -1261,7 +1240,6 @@ class SelfDestruct(BuiltinFunction):
 
 
 class BlockHash(BuiltinFunction):
-
     _id = "blockhash"
     _inputs = [("block_num", UINT256_T)]
     _return_type = BYTES32_T
@@ -1275,7 +1253,6 @@ class BlockHash(BuiltinFunction):
 
 
 class RawRevert(BuiltinFunction):
-
     _id = "raw_revert"
     _inputs = [("data", BytesT.any())]
 
@@ -1296,7 +1273,6 @@ class RawRevert(BuiltinFunction):
 
 
 class RawLog(BuiltinFunction):
-
     _id = "raw_log"
     _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT.any()))]
 
@@ -1348,7 +1324,6 @@ class RawLog(BuiltinFunction):
 
 
 class BitwiseAnd(BuiltinFunction):
-
     _id = "bitwise_and"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1363,7 +1338,7 @@ class BitwiseAnd(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value & node.args[1].value
@@ -1375,7 +1350,6 @@ class BitwiseAnd(BuiltinFunction):
 
 
 class BitwiseOr(BuiltinFunction):
-
     _id = "bitwise_or"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1390,7 +1364,7 @@ class BitwiseOr(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value | node.args[1].value
@@ -1402,7 +1376,6 @@ class BitwiseOr(BuiltinFunction):
 
 
 class BitwiseXor(BuiltinFunction):
-
     _id = "bitwise_xor"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1417,7 +1390,7 @@ class BitwiseXor(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = node.args[0].value ^ node.args[1].value
@@ -1429,7 +1402,6 @@ class BitwiseXor(BuiltinFunction):
 
 
 class BitwiseNot(BuiltinFunction):
-
     _id = "bitwise_not"
     _inputs = [("x", UINT256_T)]
     _return_type = UINT256_T
@@ -1445,10 +1417,10 @@ class BitwiseNot(BuiltinFunction):
             raise UnfoldableNode
 
         value = node.args[0].value
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
-        value = (2 ** 256 - 1) - value
+        value = (2**256 - 1) - value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1457,7 +1429,6 @@ class BitwiseNot(BuiltinFunction):
 
 
 class Shift(BuiltinFunction):
-
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift", IntegerT.any())]
     _return_type = UINT256_T
@@ -1467,7 +1438,7 @@ class Shift(BuiltinFunction):
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
-        if value < 0 or value >= 2 ** 256:
+        if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -256 or shift > 256:
             # this validation is performed to prevent the compiler from hanging
@@ -1478,7 +1449,7 @@ class Shift(BuiltinFunction):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2 ** 256)
+            value = (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1507,7 +1478,6 @@ class Shift(BuiltinFunction):
 
 
 class _AddMulMod(BuiltinFunction):
-
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
 
@@ -1518,7 +1488,7 @@ class _AddMulMod(BuiltinFunction):
         for arg in node.args:
             if not isinstance(arg, vy_ast.Num):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2 ** 256:
+            if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(node.args[0].value, node.args[1].value) % node.args[2].value
@@ -1557,7 +1527,7 @@ class PowMod256(BuiltinFunction):
         if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
-        value = pow(left.value, right.value, 2 ** 256)
+        value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
@@ -1603,6 +1573,7 @@ class Abs(BuiltinFunction):
 
 
 # CREATE* functions
+
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
@@ -1686,7 +1657,6 @@ def eip1167_bytecode():
 # returns the code starting from 0x0b with len `codesize`.
 # NOTE: it assumes codesize <= 2**24.
 def _create_preamble(codesize):
-
     from vyper.ir.compile_ir import assembly_to_evm
 
     evm_len = 0x0B  # 11 bytes
@@ -1750,7 +1720,6 @@ class CreateMinimalProxyTo(_CreateBase):
         return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
     def _build_create_IR(self, expr, args, context, value, salt):
-
         target_address = args[0]
 
         buf = context.new_internal_variable(BytesT(96))
@@ -1794,7 +1763,6 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 
 
 class CreateCopyOf(_CreateBase):
-
     _id = "create_copy_of"
     _inputs = [("target", AddressT())]
 
@@ -1840,7 +1808,6 @@ class CreateCopyOf(_CreateBase):
 
 
 class CreateFromBlueprint(_CreateBase):
-
     _id = "create_from_blueprint"
     _inputs = [("target", AddressT())]
     _kwargs = {
@@ -1934,7 +1901,6 @@ class CreateFromBlueprint(_CreateBase):
 
 
 class _UnsafeMath(BuiltinFunction):
-
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerT.any()), ("b", IntegerT.any())]
 
@@ -1977,7 +1943,7 @@ class _UnsafeMath(BuiltinFunction):
             else:
                 # e.g. uint8 -> (mod (add x y) 256)
                 # TODO mod_bound could be a really large literal
-                ret = ["mod", ret, 2 ** a.typ.bits]
+                ret = ["mod", ret, 2**a.typ.bits]
 
         return IRnode.from_list(ret, typ=otyp)
 
@@ -2001,7 +1967,6 @@ class UnsafeDiv(_UnsafeMath):
 
 
 class _MinMax(BuiltinFunction):
-
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
     def evaluate(self, node):
@@ -2051,7 +2016,6 @@ class _MinMax(BuiltinFunction):
             b2,
             right,
         ):
-
             if left.typ == right.typ:
                 if left.typ != UINT256_T:
                     # if comparing like types that are not uint256, use SLT or SGT
@@ -2105,7 +2069,6 @@ class Uint2Str(BuiltinFunction):
         n_digits = return_t.maxlen
 
         with args[0].cache_when_complex("val") as (b1, val):
-
             buf = context.new_internal_variable(return_t)
 
             i = IRnode.from_list(context.fresh_varname("uint2str_i"), typ=UINT256_T)
@@ -2150,7 +2113,6 @@ class Uint2Str(BuiltinFunction):
 
 
 class Sqrt(BuiltinFunction):
-
     _id = "sqrt"
     _inputs = [("d", DecimalT())]
     _return_type = DecimalT()
@@ -2207,7 +2169,6 @@ else:
 
 
 class ISqrt(BuiltinFunction):
-
     _id = "isqrt"
     _inputs = [("d", UINT256_T)]
     _return_type = UINT256_T
@@ -2242,7 +2203,7 @@ class ISqrt(BuiltinFunction):
                     ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
                 ],
             ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2 ** 16]], 2 ** 18]])
+            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
 
             for _ in range(7):
                 ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
@@ -2258,7 +2219,6 @@ class ISqrt(BuiltinFunction):
 
 
 class Empty(TypenameFoldedFunction):
-
     _id = "empty"
 
     def fetch_call_return(self, node):
@@ -2535,7 +2495,6 @@ class ABIDecode(BuiltinFunction):
 
         data = ensure_in_memory(data, context)
         with data.cache_when_complex("to_decode") as (b1, data):
-
             data_ptr = bytes_data_ptr(data)
             data_len = get_bytearray_length(data)
 

@@ -49,7 +49,6 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
-
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
     err_list = ExceptionList()
@@ -160,7 +159,6 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
-
     ignored_types = (vy_ast.Constant, vy_ast.Pass)
     scope_name = "function"
 
