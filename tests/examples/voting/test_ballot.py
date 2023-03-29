@@ -1,6 +1,5 @@
 import pytest
 
-
 PROPOSAL_1_NAME = b"Clinton" + b"\x00" * 25
 PROPOSAL_2_NAME = b"Trump" + b"\x00" * 27
 

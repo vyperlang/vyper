@@ -56,7 +56,7 @@ class VyperContract:
         self._classic_contract = classic_contract
         self.address = self._classic_contract.address
         protected_fn_names = [fn for fn in dir(self) if not fn.endswith("__")]
-        
+
         try:
             for fn_name in self._classic_contract.functions:
                 # Override namespace collisions
