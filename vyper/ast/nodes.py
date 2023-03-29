@@ -939,7 +939,7 @@ class Invert(Operator):
     _pretty = "~"
 
     def _op(self, value):
-        return (2**256 - 1) ^ value
+        return (2 ** 256 - 1) ^ value
 
 
 class BinOp(ExprNode):
@@ -1048,7 +1048,7 @@ class Pow(Operator):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
-        return int(left**right)
+        return int(left ** right)
 
 
 class BitAnd(Operator):

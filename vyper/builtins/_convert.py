@@ -109,7 +109,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     if arg_hi > out_hi:
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
         # add an assertion, just in case this assumption ever changes.
-        assert out_hi < 2**256 - 1, "bad assumption in numeric convert"
+        assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
         CLAMP_OP = "sle" if arg_is_signed else "le"
         arg = clamp(CLAMP_OP, arg, out_hi)
 
@@ -357,7 +357,7 @@ def to_decimal(expr, arg, out_typ):
 
     elif arg.typ == BoolT():
         # TODO: consider adding is_signed and bits to bool so we can use _int_to_fixed
-        arg = ["mul", arg, 10**out_typ.decimals]
+        arg = ["mul", arg, 10 ** out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest

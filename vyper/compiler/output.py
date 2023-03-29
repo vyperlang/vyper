@@ -252,7 +252,7 @@ def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
 
 
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
-EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
+EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
 
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
