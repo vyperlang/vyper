@@ -2,6 +2,11 @@
 
 version: 2
 
+# Set the version of Python and other tools you might need
+build:
+  tools:
+    python: "3.10"
+
 # Build from the docs/ directory with Sphinx
 sphinx:
   configuration: docs/conf.py
@@ -9,8 +14,7 @@ sphinx:
 formats: all
 
 
-# Explicitly set the version of Python and its requirements
+# Optionally declare the Python requirements required to build your docs
 python:
-  version: 3.10
   install:
     - requirements: requirements-docs.txt
