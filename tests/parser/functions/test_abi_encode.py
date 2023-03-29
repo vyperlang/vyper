@@ -309,7 +309,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = b"\x00" * 32
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi_encode("(bytes)", (bs,))]
 
 
 def test_abi_encode_private_dynarray(get_contract, abi_encode):

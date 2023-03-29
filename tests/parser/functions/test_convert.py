@@ -4,7 +4,8 @@ import itertools
 # import random
 from decimal import Decimal
 
-import eth_abi as abi
+import eth.codecs.abi as abi
+import eth.codecs.abi.exceptions
 import eth_abi.exceptions
 import pytest
 
@@ -188,7 +189,7 @@ def _filter_cases(cases, i_typ):
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth_codec.abi.exceptions.EncodeError:
             return False
 
     return [c for c in cases if _in_bounds(c)]
@@ -234,14 +235,14 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return abi.decode([o_typ.abi_type.selector_name()], [val_bits])
-    except eth_abi.exceptions.NonEmptyPaddingBytes:
+        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+    except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    return abi.encode([i_typ.abi_type.selector_name()], [val])
+    return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
 def _signextend(val_bytes, bits):
@@ -294,7 +295,10 @@ def _py_convert(val, i_typ, o_typ):
         # Note: Decimal(True) == Decimal("1")
         return _convert_int_to_decimal(val, o_typ)
 
-    val_bits = _to_bits(val, i_typ)
+    try:
+        val_bits = _to_bits(val, i_typ)
+    except eth.codecs.abi.exceptions.EncodeError:
+        return None
 
     if isinstance(i_typ, (BytesT, StringT)):
         val_bits = val_bits[32:]
@@ -366,7 +370,7 @@ def cases_for_pair(i_typ, o_typ):
             c = _py_convert(c, o_typ, i_typ)
             if c is not None:
                 cases.append(c)
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth.codecs.abi.exceptions.DecodeError:
             pass
 
     # _CASES_CACHE[(i_typ, o_typ)] = cases
