@@ -102,7 +102,7 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
         c.abi_encode2(arg, True, True).hex() == (method_id + abi_encode("(string)", (arg,))).hex()
     )
 
-    test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
+    test_addr = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
@@ -308,8 +308,8 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    bs = "0" * 32
-    assert c.foo(bs) == [2**256 - 1, abi_encode("(bytes)", (bs,))]
+    bs = b"\x00" * 32
+    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
 
 
 def test_abi_encode_private_dynarray(get_contract, abi_encode):

@@ -4,8 +4,7 @@ import pytest
 
 from vyper.exceptions import ArgumentException, StructureException
 
-TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20))
-EXPECTED_TEST_ADDR = "0x" + TEST_ADDR.hex()
+TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 def test_abi_decode_complex(get_contract, abi_encode):
@@ -58,7 +57,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     encoding = "(address,int128,bool,fixed168x10,bytes32)"
     encoded = abi_encode(encoding, args)
     assert tuple(c.abi_decode(encoded)) == (
-        EXPECTED_TEST_ADDR,
+        TEST_ADDR,
         -1,
         True,
         Decimal("-123.4"),
@@ -75,7 +74,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     human_encoded = abi_encode(human_t, (human_tuple,))
     assert tuple(c.abi_decode_struct(human_encoded)) == (
         "foobar",
-        ("vyper", EXPECTED_TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
     )
 
 
@@ -93,7 +92,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     ],
 )
 def test_abi_decode_single(
-    get_contract, abi_encode, expected, input_len, output_typ, abi_typ, unwrap_tuple
+    w3, get_contract, abi_encode, expected, input_len, output_typ, abi_typ, unwrap_tuple
 ):
     contract = f"""
 @external
@@ -107,6 +106,7 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     if unwrap_tuple is True:
         encode_arg = (expected,)
 
+    #encoded = w3.codec.encode([abi_typ], [encode_arg])
     encoded = abi_encode(abi_typ, encode_arg)
     assert c.foo(encoded) == expected
 
@@ -115,10 +115,10 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     "arg,expected,input_len,output_typ1,output_typ2,abi_typ",
     [
         ((123, 456), (123, 456), 64, "uint256", "uint256", "(uint256,uint256)"),
-        ((TEST_ADDR, 123), (EXPECTED_TEST_ADDR, 123), 64, "address", "int128", "(address,int128)"),
+        ((TEST_ADDR, 123), (TEST_ADDR, 123), 64, "address", "int128", "(address,int128)"),
         (
             ("vyper", TEST_ADDR),
-            ("vyper", EXPECTED_TEST_ADDR),
+            ("vyper", TEST_ADDR),
             128,
             "String[5]",
             "address",
@@ -322,7 +322,7 @@ def abi_decode(x: Bytes[64]) -> (address, int128):
 
     encoded = abi_encode("(address,int128)", (TEST_ADDR, 123))
 
-    assert tuple(c.abi_decode(encoded)) == (EXPECTED_TEST_ADDR, 123)
+    assert tuple(c.abi_decode(encoded)) == (TEST_ADDR, 123)
 
 
 def test_abi_decode_annassign(get_contract, abi_encode):
