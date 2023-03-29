@@ -187,7 +187,6 @@ VALID_IMPORT_CODE = [
 
 @pytest.mark.parametrize("code", VALID_IMPORT_CODE)
 def test_extract_file_interface_imports(code):
-
     assert extract_file_interface_imports(code[0]) == {"Foo": code[1]}
 
 
@@ -249,8 +248,8 @@ def test():
 @pytest.mark.parametrize(
     "kwarg,typ,expected",
     [
-        ("max_value(uint256)", "uint256", 2 ** 256 - 1),
-        ("min_value(int128)", "int128", -(2 ** 127)),
+        ("max_value(uint256)", "uint256", 2**256 - 1),
+        ("min_value(int128)", "int128", -(2**127)),
         ("empty(uint8[2])", "uint8[2]", [0, 0]),
         ('method_id("vyper()", output_type=bytes4)', "bytes4", b"\x82\xcbE\xfb"),
         ("epsilon(decimal)", "decimal", Decimal("1E-10")),
@@ -372,7 +371,7 @@ def test_fail3() -> int256:
         interface_codes={"BadCode": {"type": "vyper", "code": external_contract}},
     )
     assert bad_c.ok() == 1
-    assert bad_c.should_fail() == -(2 ** 255)
+    assert bad_c.should_fail() == -(2**255)
 
     assert c.test_ok() == 1
     assert_tx_failed(lambda: c.test_fail())

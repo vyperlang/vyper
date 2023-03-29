@@ -284,7 +284,7 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     c = get_contract(code)
     bs = [1, 2, 3]
     encoded = abi_encode("(uint256[])", (bs,))
-    assert c.foo(encoded) == [2 ** 256 - 1, bs]
+    assert c.foo(encoded) == [2**256 - 1, bs]
 
 
 def test_abi_decode_private_nested_dynarray(get_contract, abi_encode):
@@ -308,7 +308,7 @@ def foo(bs: Bytes[1696]) -> (uint256, DynArray[DynArray[DynArray[uint256, 3], 3]
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
     encoded = abi_encode("(uint256[][][])", (bs,))
-    assert c.foo(encoded) == [2 ** 256 - 1, bs]
+    assert c.foo(encoded) == [2**256 - 1, bs]
 
 
 def test_abi_decode_return(get_contract, abi_encode):

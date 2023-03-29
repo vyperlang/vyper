@@ -82,7 +82,7 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     # test each method once each with ensure_tuple set to True and False
 
@@ -149,7 +149,7 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     arg = [123, 456, 789]
     assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[]", arg).hex()
@@ -193,7 +193,7 @@ def abi_encode(
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][]", args).hex()
     assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][])", (args,)).hex()
@@ -244,7 +244,7 @@ def abi_encode(
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][][]", args).hex()
     assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][][])", (args,)).hex()
@@ -285,7 +285,7 @@ def foo(addr: address) -> Bytes[164]:
 
     c2 = get_contract(contract_2)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     # call to get_counter() should be evaluated only once
     get_counter_encoded = abi_encode("((uint256,string))", ((1, "hello"),))
@@ -309,7 +309,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = "0" * 32
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi_encode("(bytes)", (bs,))]
 
 
 def test_abi_encode_private_dynarray(get_contract, abi_encode):
@@ -326,7 +326,7 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi_encode("(uint256[])", (bs,))]
 
 
 def test_abi_encode_private_nested_dynarray(get_contract, abi_encode):
@@ -348,7 +348,7 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi_encode("(uint256[][][])", (bs,))]
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))

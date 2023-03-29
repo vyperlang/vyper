@@ -43,7 +43,7 @@ def fou() -> int256:
     assert c.x_ceil() == 505
     assert c.foo() == 1
     assert c.fop() == 1
-    assert c.foq() == math.ceil(Decimal(2 ** 167) / 10 ** 10)
+    assert c.foq() == math.ceil(Decimal(2**167) / 10**10)
     assert c.fos() == 0
     assert c.fou() == 4
 
@@ -100,7 +100,7 @@ def ceil_param(p: decimal) -> int256:
     assert c.fop() == -5
     assert c.foq() == 0
     assert c.fos() == -5472
-    assert c.fot() == math.ceil(-(Decimal(2 ** 167 - 1)) / 10 ** 10)
+    assert c.fot() == math.ceil(-(Decimal(2**167 - 1)) / 10**10)
     assert c.fou() == -3
     assert c.ceil_param(Decimal("-0.5")) == 0
     assert c.ceil_param(Decimal("-7777777.7777777")) == -7777777

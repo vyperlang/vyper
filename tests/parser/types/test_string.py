@@ -56,7 +56,7 @@ def get(k: String[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={"gas": 10 ** 6})
+    c.set(b"a" * 34, 6789, transact={"gas": 10**6})
 
     assert c.get(b"a" * 34) == 6789
 
@@ -152,7 +152,6 @@ def test(addr: address) -> (int128, address, String[10]):
 
 
 def test_default_arg_string(get_contract_with_gas_estimation):
-
     code = """
 @external
 def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
