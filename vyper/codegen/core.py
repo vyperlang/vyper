@@ -746,9 +746,9 @@ def _check_assign_tuple(left, right):
     else:
         if len(left.typ.member_types) != len(right.typ.member_types):
             FAIL()  # pragma: notest
-        for l, r in zip(left.typ.member_types, right.typ.member_types):
+        for left_, right_ in zip(left.typ.member_types, right.typ.member_types):
             # TODO recurse into left, right if literals?
-            check_assign(dummy_node_for_type(l), dummy_node_for_type(r))
+            check_assign(dummy_node_for_type(left_), dummy_node_for_type(right_))
 
 
 # sanity check an assignment
