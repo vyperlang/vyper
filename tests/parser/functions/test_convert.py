@@ -6,7 +6,6 @@ from decimal import Decimal
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
-import eth_abi.exceptions
 import pytest
 
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
@@ -189,7 +188,7 @@ def _filter_cases(cases, i_typ):
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
-        except eth_codec.abi.exceptions.EncodeError:
+        except eth.codec.abi.exceptions.EncodeError:
             return False
 
     return [c for c in cases if _in_bounds(c)]
