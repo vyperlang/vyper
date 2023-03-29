@@ -95,21 +95,6 @@ def __default__():
     pass
     """,
     """
-    # multiple functions and default func, payable
-@external
-def foo() -> bool:
-    return True
-
-@external
-def bar() -> bool:
-    return True
-
-@external
-@payable
-def __default__():
-    pass
-    """,
-    """
 # multiple functions, nonpayable (view)
 @external
 def foo() -> bool:
@@ -132,33 +117,6 @@ def foo() -> bool:
     return True
     """,
     """
-# payable default function
-@external
-@payable
-def __default__():
-    a: int128 = 1
-
-@external
-def foo() -> bool:
-    return True
-    """,
-    """
-# payable default function and other function
-@external
-@payable
-def __default__():
-    a: int128 = 1
-
-@external
-def foo() -> bool:
-    return True
-
-@external
-@payable
-def bar() -> bool:
-    return True
-    """,
-    """
 # several functions, one payable
 @external
 def foo() -> bool:
@@ -177,14 +135,11 @@ def baz() -> bool:
 
 
 @pytest.mark.parametrize("code", nonpayable_code)
-def test_nonpayable_runtime_assertion(assert_tx_failed, get_contract, code):
+def test_nonpayable_runtime_assertion(w3, assert_tx_failed, get_contract, code):
     c = get_contract(code)
 
     c.foo(transact={"value": 0})
-
-    # TODO: web3.py now validates value for non-payable functions
-    # https://github.com/ethereum/web3.py/blob/master/web3/_utils/contracts.py#L387
-    # assert_tx_failed(lambda: c.foo(transact={"value": 10**18}))
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10**18}))
 
 
 payable_code = [
