@@ -5,7 +5,7 @@ from hypothesis import strategies as st
 from vyper import ast as vy_ast
 from vyper.exceptions import ZeroDivisionException
 
-st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
+st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
 
 
 @pytest.mark.fuzzing
@@ -38,7 +38,7 @@ def foo(a: int128, b: int128) -> int128:
         assert_tx_failed(lambda: contract.foo(left, right))
 
 
-st_uint64 = st.integers(min_value=0, max_value=2 ** 64)
+st_uint64 = st.integers(min_value=0, max_value=2**64)
 
 
 @pytest.mark.fuzzing

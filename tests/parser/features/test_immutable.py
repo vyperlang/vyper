@@ -5,8 +5,8 @@ import pytest
     "typ,value",
     [
         ("uint256", 42),
-        ("int256", -(2 ** 200)),
-        ("int128", -(2 ** 126)),
+        ("int256", -(2**200)),
+        ("int128", -(2**126)),
         ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
         ("bytes32", b"deadbeef" * 4),
         ("bool", True),
@@ -32,7 +32,7 @@ def get_value() -> {typ}:
     assert c.get_value() == value
 
 
-@pytest.mark.parametrize("val", [0, 1, 2 ** 256 - 1])
+@pytest.mark.parametrize("val", [0, 1, 2**256 - 1])
 def test_usage_in_constructor(get_contract, val):
     code = """
 A: immutable(uint256)
@@ -101,7 +101,7 @@ def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
 def get_my_struct() -> MyStruct:
     return my_struct
     """
-    values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2 ** 200))
+    values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2**200))
     c = get_contract(code, *values)
     assert c.get_my_struct() == values
 

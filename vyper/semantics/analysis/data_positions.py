@@ -53,7 +53,7 @@ class StorageAllocator:
             self._reserve_slot(slot, var_name)
 
     def _reserve_slot(self, slot: int, var_name: str) -> None:
-        if slot < 0 or slot >= 2 ** 256:
+        if slot < 0 or slot >= 2**256:
             raise StorageLayoutException(
                 f"Invalid storage slot for var {var_name}, out of bounds: {slot}"
             )

@@ -815,7 +815,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    assert c.foo() == [(2**160) - 1, b"dog", (2**160) - 2]
     result = c2.bar(c.address)
     assert len(result) == 3
     assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
@@ -848,7 +848,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert c.foo() == [(2**160) - 1, b"dog", 2**160]
     assert_tx_failed(lambda: c2.bar(c.address))
 
 

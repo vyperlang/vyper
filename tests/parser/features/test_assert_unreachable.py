@@ -7,7 +7,7 @@ def foo():
 
     c = get_contract(code)
     a0 = w3.eth.accounts[0]
-    gas_sent = 10 ** 6
+    gas_sent = 10**6
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
 

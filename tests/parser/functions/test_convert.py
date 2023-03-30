@@ -249,7 +249,7 @@ def _signextend(val_bytes, bits):
 
     as_sint = unsigned_to_signed(as_uint, bits)
 
-    return (as_sint % 2 ** 256).to_bytes(32, byteorder="big")
+    return (as_sint % 2**256).to_bytes(32, byteorder="big")
 
 
 def _convert_int_to_int(val, o_typ):
@@ -472,7 +472,7 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
-@pytest.mark.parametrize("val", [1, 2, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+@pytest.mark.parametrize("val", [1, 2, 2**128, 2**256 - 1, 2**256 - 2])
 def test_enum_conversion(get_contract_with_gas_estimation, assert_compile_failed, val, typ):
     roles = "\n    ".join([f"ROLE_{i}" for i in range(256)])
     contract = f"""
@@ -496,7 +496,7 @@ def bar(a: uint256) -> Roles:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
-@pytest.mark.parametrize("val", [1, 2, 3, 4, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+@pytest.mark.parametrize("val", [1, 2, 3, 4, 2**128, 2**256 - 1, 2**256 - 2])
 def test_enum_conversion_2(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, val, typ
 ):

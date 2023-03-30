@@ -20,10 +20,10 @@ def negate(a: int128) -> int128:
     """
     c = get_contract(code)
     # This test should revert on overflow condition
-    assert_tx_failed(lambda: c.negate(-(2 ** 127)))
+    assert_tx_failed(lambda: c.negate(-(2**127)))
 
 
-@pytest.mark.parametrize("val", [-(2 ** 127) + 1, 0, 2 ** 127 - 1])
+@pytest.mark.parametrize("val", [-(2**127) + 1, 0, 2**127 - 1])
 def test_unary_sub_int128_pass(get_contract, val):
     code = """@external
 def negate(a: int128) -> int128:
@@ -33,8 +33,8 @@ def negate(a: int128) -> int128:
     assert c.negate(val) == -val
 
 
-min_decimal = -(2 ** 127) + 1
-max_decimal = 2 ** 127 - 1
+min_decimal = -(2**127) + 1
+max_decimal = 2**127 - 1
 
 
 @pytest.mark.parametrize("val", [min_decimal, 0, max_decimal])
@@ -79,5 +79,5 @@ def bar() -> int128:
     return -(a+1)
     """
     c = get_contract(code)
-    assert c.foo() == -(2 ** 127)
-    assert c.bar() == 2 ** 127 - 1
+    assert c.foo() == -(2**127)
+    assert c.bar() == 2**127 - 1

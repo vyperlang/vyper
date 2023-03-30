@@ -40,7 +40,7 @@ def test(a: uint256) -> uint256:
     val = 3333
     assert c.test(val) == math.isqrt(val)
 
-    val = 10 ** 17
+    val = 10**17
     assert c.test(val) == math.isqrt(val)
     assert c.test(0) == 0
 

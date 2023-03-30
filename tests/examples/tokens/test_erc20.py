@@ -5,7 +5,7 @@ import pytest
 from web3.exceptions import ValidationError
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value
+MAX_UINT256 = (2**256) - 1  # Max uint256 value
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18

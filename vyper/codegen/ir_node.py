@@ -152,7 +152,7 @@ class IRnode:
             _check(len(self.args) == 0, "int can't have arguments")
 
             # integers must be in the range (MIN_INT256, MAX_UINT256)
-            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+            _check(-(2**255) <= self.value < 2**256, "out of range")
 
             self.valency = 1
             self._gas = 5
