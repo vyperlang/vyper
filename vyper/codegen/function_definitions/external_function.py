@@ -28,7 +28,6 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
-
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):

@@ -5,7 +5,7 @@ import pytest
 def c(w3, get_contract):
     with open("examples/stock/company.vy") as f:
         contract_code = f.read()
-        contract = get_contract(contract_code, *[w3.eth.accounts[0], 1000, 10 ** 6])
+        contract = get_contract(contract_code, *[w3.eth.accounts[0], 1000, 10**6])
     return contract
 
 
@@ -107,7 +107,7 @@ def test_logs(w3, c, get_logs):
     assert logs[0].args.value == 4
 
     # Pay is logged
-    amount = 10 ** 4
+    amount = 10**4
     logs = get_logs(c.payBill(a3, amount, transact={}), c, "Pay")
     assert len(logs) == 1
     assert logs[0].args.amount == amount

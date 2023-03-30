@@ -11,8 +11,8 @@ def market_maker(get_contract):
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
-TOKEN_INITIAL_SUPPLY = 21 * 10 ** 6
-TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
+TOKEN_INITIAL_SUPPLY = 21 * 10**6
+TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10**TOKEN_DECIMALS)
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_initiate(w3, market_maker, erc20, assert_tx_failed):
     )
     assert market_maker.totalEthQty() == w3.toWei(2, "ether")
     assert market_maker.totalTokenQty() == w3.toWei(1, "ether")
-    assert market_maker.invariant() == 2 * 10 ** 36
+    assert market_maker.invariant() == 2 * 10**36
     assert market_maker.owner() == a0
     assert erc20.name() == TOKEN_NAME
     assert erc20.decimals() == TOKEN_DECIMALS

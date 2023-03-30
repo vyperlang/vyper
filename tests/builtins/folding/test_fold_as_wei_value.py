@@ -39,7 +39,7 @@ def foo(a: decimal) -> uint256:
 
 @pytest.mark.fuzzing
 @settings(max_examples=10, deadline=1000)
-@given(value=st.integers(min_value=0, max_value=2 ** 128))
+@given(value=st.integers(min_value=0, max_value=2**128))
 @pytest.mark.parametrize("denom", denoms)
 def test_integer(get_contract, value, denom):
     source = f"""

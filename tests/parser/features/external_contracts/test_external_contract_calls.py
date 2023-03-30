@@ -815,7 +815,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    assert c.foo() == [(2**160) - 1, b"dog", (2**160) - 2]
     result = c2.bar(c.address)
     assert len(result) == 3
     assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
@@ -848,7 +848,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert c.foo() == [(2**160) - 1, b"dog", 2**160]
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
@@ -1438,7 +1438,6 @@ def call_baz():
 
 
 def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1455,7 +1454,6 @@ def get_lucky(amount_to_send: int128) -> int128:
 
 
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1508,7 +1506,6 @@ def foo(a: address, x: uint256, y: uint256):
 
 @pytest.mark.parametrize("bad_code", FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
-
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 

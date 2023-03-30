@@ -188,10 +188,8 @@ class ContractFunctionT(VyperType):
                 )
 
         else:
-
             # FunctionDef with decorators (normal functions)
             for decorator in node.decorator_list:
-
                 if isinstance(decorator, vy_ast.Call):
                     if "nonreentrant" in kwargs:
                         raise StructureException(

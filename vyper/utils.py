@@ -45,7 +45,7 @@ def fourbytes_to_int(inp):
 
 # Converts an integer to four bytes
 def int_to_fourbytes(n: int) -> bytes:
-    assert n < 2 ** 32
+    assert n < 2**32
     return n.to_bytes(4, byteorder="big")
 
 
@@ -60,7 +60,7 @@ def signed_to_unsigned(int_, bits, strict=False):
         lo, hi = int_bounds(signed=True, bits=bits)
         assert lo <= int_ <= hi
     if int_ < 0:
-        return int_ + 2 ** bits
+        return int_ + 2**bits
     return int_
 
 
@@ -75,7 +75,7 @@ def unsigned_to_signed(int_, bits, strict=False):
         lo, hi = int_bounds(signed=False, bits=bits)
         assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
-        return int_ - (2 ** bits)
+        return int_ - (2**bits)
     return int_
 
 
@@ -188,7 +188,7 @@ GAS_CALLDATACOPY_WORD = 3
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
-DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_DIVISOR = 10**MAX_DECIMAL_PLACES
 DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
@@ -200,13 +200,13 @@ def int_bounds(signed, bits):
     """
     if signed:
         return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
-    return 0, (2 ** bits) - 1
+    return 0, (2**bits) - 1
 
 
 # e.g. -1 -> -(2**256 - 1)
 def evm_twos_complement(x: int) -> int:
     # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
-    return ((2 ** 256 - 1) ^ x) + 1
+    return ((2**256 - 1) ^ x) + 1
 
 
 # EVM div semantics as a python function
@@ -231,7 +231,7 @@ def evm_mod(x, y):
 # (which can generated, for ex. in the unevaluated branch of the Shift builtin)
 def evm_pow(x, y):
     assert x >= 0 and y >= 0
-    return pow(x, y, 2 ** 256)
+    return pow(x, y, 2**256)
 
 
 # memory used for system purposes, not for variables
@@ -243,18 +243,18 @@ class MemoryPositions:
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    MAX_INT128 = 2 ** 127 - 1
-    MIN_INT128 = -(2 ** 127)
-    MAX_INT256 = 2 ** 255 - 1
-    MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
-    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
+    MAX_INT128 = 2**127 - 1
+    MIN_INT128 = -(2**127)
+    MAX_INT256 = 2**255 - 1
+    MIN_INT256 = -(2**255)
+    MAXDECIMAL = 2**167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2**167)  # mindecimal as EVM value
     # min decimal allowed as Python value
-    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    MIN_AST_DECIMAL = -decimal.Decimal(2**167) / DECIMAL_DIVISOR
     # max decimal allowed as Python value
-    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
-    MAX_UINT8 = 2 ** 8 - 1
-    MAX_UINT256 = 2 ** 256 - 1
+    MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
+    MAX_UINT8 = 2**8 - 1
+    MAX_UINT256 = 2**256 - 1
 
 
 # Otherwise reserved words that are whitelisted for function declarations
