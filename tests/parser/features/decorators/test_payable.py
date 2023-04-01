@@ -182,7 +182,9 @@ def test_nonpayable_runtime_assertion(w3, keccak, assert_tx_failed, get_contract
 
     c.foo(transact={"value": 0})
     sig = keccak("foo()".encode()).hex()[:10]
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18}))
+    assert_tx_failed(
+        lambda: w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18})
+    )
 
 
 payable_code = [
