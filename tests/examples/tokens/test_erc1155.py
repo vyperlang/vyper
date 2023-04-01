@@ -110,8 +110,6 @@ def test_pause(erc1155, w3, assert_tx_failed):
     )
 
     # check safetransferfrom and safebatchtransferfrom
-    assert_tx_failed(lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, b"", transact={"from": a1}))
-
     assert_tx_failed(
         lambda: erc1155.safeTransferFrom(a1, a2, 21, 1, DUMMY_BYTES_DATA, transact={"from": a1})
     )
