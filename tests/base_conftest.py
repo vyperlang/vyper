@@ -60,7 +60,7 @@ class VyperContract:
         try:
             fn_names = [fn["name"] for fn in self._classic_contract.functions._functions]
         except web3.exceptions.NoABIFunctionsFound:
-            return
+            fn_names = []
 
         for fn_name in fn_names:
             # Override namespace collisions

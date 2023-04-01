@@ -100,7 +100,6 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     if unwrap_tuple is True:
         encode_arg = (expected,)
 
-    # encoded = w3.codec.encode([abi_typ], [encode_arg])
     encoded = abi_encode(abi_typ, encode_arg)
     assert c.foo(encoded) == expected
 
