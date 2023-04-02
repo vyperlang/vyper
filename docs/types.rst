@@ -186,7 +186,7 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    The Bitwise not operator is currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
 
 Decimals
 --------
