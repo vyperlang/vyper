@@ -30,7 +30,10 @@ def test_keys():
             "deployedBytecode": {
                 "object": data["bytecode_runtime"],
                 "opcodes": data["opcodes_runtime"],
+                "breakpoints": data["breakpoints"],
+                "pcBreakpoints": data["pc_breakpoints"],
                 "sourceMap": data["source_map"]["pc_pos_map_compressed"],
+                "errorMap": data["error_map"],
             },
             "methodIdentifiers": data["method_identifiers"],
         },
