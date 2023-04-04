@@ -48,7 +48,7 @@ def fou() -> int256:
     assert c.fou() == 4
 
 
-# ceil(x) should yeild the smallest integer greater than or equal to x
+# ceil(x) should yield the smallest integer greater than or equal to x
 def test_ceil_negative(get_contract_with_gas_estimation):
     code = """
 x: decimal
