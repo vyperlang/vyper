@@ -285,7 +285,7 @@ def build_error_map_output(compiler_data: CompilerData) -> OrderedDict:
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
-    out["error_map"] = dict((k, v) for k, v in out["error_map"].items() if v)    
+    out["error_map"] = dict((k, v) for k, v in out["error_map"].items() if v)
     return out["error_map"]
 
 
