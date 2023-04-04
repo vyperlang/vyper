@@ -755,7 +755,7 @@ def note_line_num(line_number_map, item, pos):
 
 def note_breakpoint(line_number_map, item, pos):
     # Record line number attached to pos.
-    if item == "DEBUG":
+    if item in ("BREAKPOINT", "DEBUG"):
         # Is PC debugger, create PC breakpoint.
         if item.pc_debugger:
             line_number_map["pc_breakpoints"].add(pos)
