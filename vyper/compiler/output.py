@@ -198,7 +198,7 @@ def _build_asm(asm_list):
     return output_string
 
 
-def build_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
+def build_breakpoints_output(compiler_data: CompilerData) -> list:
     _, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime,
         insert_vyper_signature=True,
@@ -208,7 +208,7 @@ def build_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
     return sorted(line_number_map["breakpoints"])
 
 
-def build_pc_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
+def build_pc_breakpoints_output(compiler_data: CompilerData) -> list:
     _, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime,
         insert_vyper_signature=True,
