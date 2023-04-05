@@ -7,6 +7,10 @@ from vyper.compiler import OUTPUT_FORMATS, compile_codes
 FOO_CODE = """
 @external
 def foo() -> bool:
+    breakpoint()
+    y: uint256 = 3
+    x: uint256 = y + 1
+    breakpoint()
     return True
 """
 
