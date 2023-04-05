@@ -210,6 +210,26 @@ interface MyInterface:
 
 kickers: HashMap[address, MyInterface]
     """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(constant(uint256)) = 1
+    """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(immutable(uint256))
+
+@external
+def __init__(x: uint256):
+    foo = x
+    """,
 ]
 
 
