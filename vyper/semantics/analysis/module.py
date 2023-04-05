@@ -219,9 +219,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
-            return
 
-        if node.value:
+            if not node.is_public:
+                return
+
+        if node.value and not node.is_constant:
             var_type = "Immutable" if node.is_immutable else "Storage"
             raise VariableDeclarationException(
                 f"{var_type} variables cannot have an initial value", node.value
@@ -237,12 +239,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
-            return
 
-        try:
-            self.namespace.validate_assignment(name)
-        except NamespaceCollision as exc:
-            raise exc.with_annotation(node) from None
+            if not node.is_public:
+                return
+
+        if not node.is_constant and not node.is_immutable:
+            try:
+                self.namespace.validate_assignment(name)
+            except NamespaceCollision as exc:
+                raise exc.with_annotation(node) from None
+
         try:
             self.namespace["self"].typ.add_member(name, var_info)
             node.target._metadata["type"] = type_
