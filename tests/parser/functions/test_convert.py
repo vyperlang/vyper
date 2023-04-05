@@ -188,7 +188,7 @@ def _filter_cases(cases, i_typ):
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
-        except eth.codec.abi.exceptions.EncodeError:
+        except eth.codecs.abi.exceptions.EncodeError:
             return False
 
     return [c for c in cases if _in_bounds(c)]
@@ -294,10 +294,7 @@ def _py_convert(val, i_typ, o_typ):
         # Note: Decimal(True) == Decimal("1")
         return _convert_int_to_decimal(val, o_typ)
 
-    try:
-        val_bits = _to_bits(val, i_typ)
-    except eth.codecs.abi.exceptions.EncodeError:
-        return None
+    val_bits = _to_bits(val, i_typ)
 
     if isinstance(i_typ, (BytesT, StringT)):
         val_bits = val_bits[32:]
@@ -369,7 +366,7 @@ def cases_for_pair(i_typ, o_typ):
             c = _py_convert(c, o_typ, i_typ)
             if c is not None:
                 cases.append(c)
-        except eth.codecs.abi.exceptions.DecodeError:
+        except eth.codecs.abi.exceptions.EncodeError:
             pass
 
     # _CASES_CACHE[(i_typ, o_typ)] = cases
