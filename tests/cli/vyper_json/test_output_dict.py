@@ -22,6 +22,7 @@ def test_keys():
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
     data = compiler_data["foo.vy"]
     assert output_json["sources"]["foo.vy"] == {"id": 0, "ast": data["ast_dict"]["ast"]}
+    assert data["breakpoints"] == [5, 8]
     assert output_json["contracts"]["foo.vy"]["foo"] == {
         "abi": data["abi"],
         "devdoc": data["devdoc"],
