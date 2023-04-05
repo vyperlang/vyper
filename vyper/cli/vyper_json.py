@@ -429,9 +429,9 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             if "opcodes_runtime" in data:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "breakpoints" in data:
-                evm["breakpoints"] = data["breakpoints"]
+                evm["breakpoints"] = sorted(data["breakpoints"])
             if "pc_breakpoints" in data:
-                evm["pcBreakpoints"] = data["pc_breakpoints"]
+                evm["pcBreakpoints"] = sorted(data["pc_breakpoints"])
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
             if "error_map" in data:

@@ -205,12 +205,7 @@ def build_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
         disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
     )
 
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
-
-    return out["breakpoints"]
+    return sorted(line_number_map["breakpoints"])
 
 
 def build_pc_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
@@ -220,12 +215,7 @@ def build_pc_breakpoints_output(compiler_data: CompilerData) -> OrderedDict:
         disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
     )
 
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
-
-    return out["pc_breakpoints"]
+    return sorted(line_number_map["pc_breakpoints"])
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
