@@ -669,12 +669,31 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for arg in reversed(code.args):
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
+        # l r
         o.extend(
+            #["DUP2", "DUP2", "MUL"]  # mul l r -> p; l r p
+            # check p/r==l OR r==0
+            # SWAP2 p r l
+            # DUP2 p r l r
+            # DUP4 p r l r p
+            # DIV p r l p/r
+            # EQ p r (p/r==l)
+            # SWAP1 p (p/r==l) r
+            # ISZERO p (p/r==l) r==0
+            # OR p (p/r==l | r==0)
+            # JUMPI
+
+            # p (r==0) (p/r==l)
+
+            # DUP2 -> l r l
+            # DUP2 -> l r l r
+            # MUL -> l r p
             ["DUP2", "DUP2", "MUL"]  # mul l r -> p; l r p
             # check p/r==l OR r==0
-            + ["SWAP2", "DUP2", "ISZERO"]  # p r l (r==0)
-            + ["SWAP1", "DUP4"]  # p (r==0) r l p
-            + ["DIV", "EQ", "OR"]  # p (r==0 | r==p/l)
+            + ["SWAP2", "DUP2", "DUP4"]  # p r l r p
+            + ["DIV", "EQ"]  # p r (l==p/r)
+            + ["SWAP1", "ISZERO"]  # p (p/r==l) (r==0)
+            + ["OR"]  # p (p/r==l | r==0)
             + ["ISZERO", _revert_label, "JUMPI"]  # revert if nonzero
         )
         return o
