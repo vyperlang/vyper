@@ -198,26 +198,6 @@ def _build_asm(asm_list):
     return output_string
 
 
-def build_breakpoints_output(compiler_data: CompilerData) -> list:
-    _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
-    )
-
-    return sorted(line_number_map["breakpoints"])
-
-
-def build_pc_breakpoints_output(compiler_data: CompilerData) -> list:
-    _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
-    )
-
-    return sorted(line_number_map["pc_breakpoints"])
-
-
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime,
@@ -261,22 +241,6 @@ def _compress_source_map(code, pos_map, jump_map, source_id):
         ret.append(":".join(str(i) for i in current_pos))
 
     return ";".join(ret)
-
-
-def build_error_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
-    )
-
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
-
-    out["error_map"] = dict((k, v) for k, v in out["error_map"].items() if v)
-    return out["error_map"]
 
 
 def build_bytecode_output(compiler_data: CompilerData) -> str:
