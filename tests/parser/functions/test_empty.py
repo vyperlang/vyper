@@ -525,9 +525,8 @@ def delete(key: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    bytes_len = 32
-    key = b"test".ljust(bytes_len)
-    val = b"value".ljust(bytes_len)
+    key = b"test".ljust(32)
+    val = b"value".ljust(32)
 
     assert c.get(key) == b"\x00" * 32
     c.set(key, val, transact={})
