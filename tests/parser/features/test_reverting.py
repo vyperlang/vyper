@@ -41,7 +41,9 @@ def foo():
     )
 
 
-def test_revert_reason_typed_no_variable(w3, abi_encode, assert_tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed_no_variable(
+    w3, abi_encode, assert_tx_failed, get_contract_with_gas_estimation
+):
     reverty_code = """
 @external
 def foo():
