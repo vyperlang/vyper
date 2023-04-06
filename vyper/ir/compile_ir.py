@@ -666,19 +666,18 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
     elif code.value == "safemul":
-        o = []           
+        o = []
         for arg in reversed(code.args):
             o.extend(_compile_to_assembly(arg, withargs, existing_labels, break_dest, height))
-        o.extend(        
+        o.extend(
             ["DUP2", "DUP2", "MUL"]  # mul l r -> p; l r p
             # check p/r==l OR r==0
             + ["SWAP2", "DUP2", "ISZERO"]  # p r l (r==0)
             + ["SWAP1", "DUP4"]  # p (r==0) r l p
             + ["DIV", "EQ", "OR"]  # p (r==0 | r==p/l)
             + ["ISZERO", "_sym_revert0", "JUMPI"]  # revert if nonzero
-        )                
-        return o         
-
+        )
+        return o
 
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
