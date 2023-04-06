@@ -38,7 +38,7 @@ def test_keys():
                 "breakpoints": data["breakpoints"],
                 "pcBreakpoints": data["pc_breakpoints"],
                 "sourceMap": data["source_map"]["pc_pos_map_compressed"],
-                "pcPosMap": data["source_map"]["pc_pos_map"],
+                "sourceMapFull": data["source_map"],
                 "errorMap": data["error_map"],
             },
             "methodIdentifiers": data["method_identifiers"],

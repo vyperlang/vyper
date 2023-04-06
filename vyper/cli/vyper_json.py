@@ -26,7 +26,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.breakpoints": "breakpoints",
     "evm.deployedBytecode.pcBreakpoints": "pc_breakpoints",
     "evm.deployedBytecode.sourceMap": "source_map",
-    "evm.deployedBytecode.pcPosMap": "pc_pos_map",
+    "evm.deployedBytecode.sourceMapFull": "source_map_full",
     "evm.deployedBytecode.errorMap": "error_map",
     "interface": "interface",
     "ir": "ir_dict",
@@ -422,7 +422,13 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        pc_maps_keys = ("breakpoints", "pc_breakpoints", "source_map", "pc_pos_map", "error_map")
+        pc_maps_keys = (
+            "breakpoints",
+            "pc_breakpoints",
+            "source_map",
+            "source_map_full",
+            "error_map",
+        )
         if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
@@ -435,8 +441,8 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
                 evm["pcBreakpoints"] = sorted(data["pc_breakpoints"])
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
-            if "pc_pos_map" in data:
-                evm["pcPosMap"] = data["source_map"]["pc_pos_map"]
+            if "source_map_full" in data:
+                evm["sourceMapFull"] = data["source_map"]
             if "error_map" in data:
                 evm["errorMap"] = data["error_map"]
 
