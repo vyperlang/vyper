@@ -102,8 +102,18 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
-.. note::
-    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -176,7 +186,7 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    Bitwise operations are currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
 
 Decimals
 --------
@@ -551,7 +561,7 @@ The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, arrays or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::

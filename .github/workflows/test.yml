@@ -17,10 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: "3.10"
 
     - name: Install Dependencies
       run: pip install .[lint]
@@ -42,10 +42,10 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Set up Python 3.8
+      - name: Set up Python 3.10
         uses: actions/setup-python@v1
         with:
-          python-version: 3.8
+          python-version: "3.10"
 
       - name: Install Tox
         run: pip install tox
@@ -59,10 +59,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: "3.10"
 
     - name: Install Tox
       run: pip install tox
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.8", "38"], ["3.9", "39"], ["3.10", "310"]]
+        python-version: [["3.10", "310"]]
         # run in default (optimized) and --no-optimize mode
         flag: ["core", "no-opt"]
 
@@ -126,10 +126,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: "3.10"
 
     - name: Install Tox
       run: pip install tox
@@ -167,10 +167,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: "3.10"
 
     - name: Install Tox
       run: pip install tox

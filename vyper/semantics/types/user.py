@@ -261,7 +261,6 @@ class EventT(_UserType):
 
 
 class InterfaceT(_UserType):
-
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     _as_array = True

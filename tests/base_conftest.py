@@ -85,7 +85,7 @@ CONCISE_NORMALIZERS = (_none_addr,)
 def tester():
     # set absurdly high gas limit so that london basefee never adjusts
     # (note: 2**63 - 1 is max that evm allows)
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10 ** 10})
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10**10})
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
@@ -114,7 +114,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     parse_vyper_source(source_code)  # Test grammar.
     abi = out["abi"]
     bytecode = out["bytecode"]
-    value = kwargs.pop("value_in_eth", 0) * 10 ** 18  # Handle deploying with an eth value.
+    value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
     c = w3.eth.contract(abi=abi, bytecode=bytecode)
     deploy_transaction = c.constructor(*args)
     tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}

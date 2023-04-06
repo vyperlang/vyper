@@ -57,7 +57,6 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
-
     scope_name = "module"
 
     def __init__(
@@ -124,7 +123,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
         for fn_name in sorted(function_names):
-
             if fn_name not in self_members:
                 # the referenced function does not exist - this is an issue, but we'll report
                 # it later when parsing the function so we can give more meaningful output

@@ -22,15 +22,14 @@ extras_require = {
         "hypothesis[lark]>=5.37.1,<6.0",
     ],
     "lint": [
-        "black==21.9b0",
-        "click<8.1.0",  # temporary pin - black21.9b0 fails with 8.1.0
+        "black==23.3.0",
         "flake8==3.9.2",
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
         "isort==5.9.3",
         "mypy==0.910",
     ],
-    "docs": ["recommonmark", "sphinx>=3.0,<4.0", "sphinx_rtd_theme>=0.5,<0.6"],
+    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
@@ -89,7 +88,7 @@ setup(
     keywords="ethereum evm smart contract language",
     include_package_data=True,
     packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.8,<4",
+    python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
         "asttokens>=2.0.5,<3",
@@ -112,8 +111,6 @@ setup(
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
