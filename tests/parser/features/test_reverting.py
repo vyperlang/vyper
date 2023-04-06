@@ -1,4 +1,3 @@
-import eth_abi as abi
 import pytest
 from eth_tester.exceptions import TransactionFailed
 
@@ -24,7 +23,7 @@ def foo():
     )
 
 
-def test_revert_reason_typed(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed(w3, abi_encode, assert_tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -33,7 +32,7 @@ def foo():
     raw_revert(data)
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + abi.encode(["(uint256)"], [(5,)])
+    revert_bytes = method_id("NoFives(uint256)") + abi_encode("(uint256)", (5,))
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
@@ -42,7 +41,7 @@ def foo():
     )
 
 
-def test_revert_reason_typed_no_variable(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed_no_variable(w3, abi_encode, assert_tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -50,7 +49,7 @@ def foo():
     raw_revert(_abi_encode(val, method_id=method_id("NoFives(uint256)")))
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + abi.encode(["(uint256)"], [(5,)])
+    revert_bytes = method_id("NoFives(uint256)") + abi_encode("(uint256)", (5,))
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),

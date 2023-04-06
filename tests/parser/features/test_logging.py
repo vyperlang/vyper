@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-import eth_abi as abi
 import pytest
 
 from vyper.exceptions import (
@@ -1058,7 +1057,7 @@ def set_list():
     assert log.args["arg5"] == [1024, 2048]
 
 
-def test_hashed_indexed_topics_calldata(tester, keccak, get_contract):
+def test_hashed_indexed_topics_calldata(tester, abi_encode, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[36])
@@ -1081,7 +1080,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     topic1 = f"0x{keccak256(b'bar').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{abi.encode(['int128'], [1]).hex()}"
+    topic2 = f"0x{abi_encode('int128', 1).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'weird').hex()}"
@@ -1100,7 +1099,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     }
 
 
-def test_hashed_indexed_topics_memory(tester, keccak, get_contract):
+def test_hashed_indexed_topics_memory(tester, abi_encode, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[10])
@@ -1126,7 +1125,7 @@ def foo():
     topic1 = f"0x{keccak256(b'potato').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{abi.encode(['int128'], [-777]).hex()}"
+    topic2 = f"0x{abi_encode('int128', -777).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
@@ -1145,7 +1144,7 @@ def foo():
     }
 
 
-def test_hashed_indexed_topics_storage(tester, keccak, get_contract):
+def test_hashed_indexed_topics_storage(tester, abi_encode, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[32])
@@ -1180,7 +1179,7 @@ def foo():
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{abi.encode(['int128'], [-2109]).hex()}"
+    topic2 = f"0x{abi_encode('int128', -2109).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'yessir').hex()}"
@@ -1199,7 +1198,7 @@ def foo():
     }
 
 
-def test_hashed_indexed_topics_storxxage(tester, keccak, get_contract):
+def test_hashed_indexed_topics_storxxage(tester, abi_encode, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[64])
@@ -1222,7 +1221,7 @@ def foo():
     topic1 = f"0x{keccak256(b'wow').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{abi.encode(['int128'], [666]).hex()}"
+    topic2 = f"0x{abi_encode('int128', 666).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"
