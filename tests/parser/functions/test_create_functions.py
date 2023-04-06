@@ -329,7 +329,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    encoded_args = abi_encode("(string,(string))", [FOO, BAR])
+    encoded_args = abi_encode("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     d.test3(f.address, encoded_args, transact={})
@@ -360,7 +360,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     FOO = "01" * 129
     BAR = ("",)
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
-    encoded = abi_encode("(address,string,(string))", [f.address, FOO, BAR]).hex()
+    encoded = abi_encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     assert_tx_failed(lambda: w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"}))
 
 
