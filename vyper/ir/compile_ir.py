@@ -675,7 +675,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             + ["SWAP2", "DUP2", "ISZERO"]  # p r l (r==0)
             + ["SWAP1", "DUP4"]  # p (r==0) r l p
             + ["DIV", "EQ", "OR"]  # p (r==0 | r==p/l)
-            + ["ISZERO", "_sym_revert0", "JUMPI"]  # revert if nonzero
+            + ["ISZERO", _revert_label, "JUMPI"]  # revert if nonzero
         )
         return o
 

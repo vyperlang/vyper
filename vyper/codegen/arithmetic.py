@@ -234,7 +234,7 @@ def safe_mul(x, y):
         ok = [1]  # True
 
         if typ.bits > 128:  # check overflow mod 256
-            res = IRnode.from_list(["safemul", x, y])
+            res = IRnode.from_list(["safemul", x, y], typ=x.typ)
 
         # int256
         if typ.is_signed and typ.bits == 256:
