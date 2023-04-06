@@ -38,6 +38,7 @@ OUTPUT_FORMATS = {
     "breakpoints": output.build_breakpoints_output,
     "pc_breakpoints": output.build_pc_breakpoints_output,
     "source_map": output.build_source_map_output,
+    "pc_pos_map": output.build_source_map_output,
     "error_map": output.build_error_map_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
