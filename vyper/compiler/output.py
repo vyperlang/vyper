@@ -236,27 +236,6 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     return out
 
 
-def build_source_map_full_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
-    )
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
-
-    out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
-    )
-    out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
-    out["error_map"] = dict((k, v) for k, v in out["error_map"].items() if v)
-    out["breakpoints"] = sorted(line_number_map["breakpoints"])
-    out["pc_breakpoints"] = sorted(line_number_map["pc_breakpoints"])
-    return out
-
-
 def _compress_source_map(code, pos_map, jump_map, source_id):
     linenos = asttokens.LineNumbers(code)
     ret = [f"-1:-1:{source_id}:-"]
