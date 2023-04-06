@@ -22,7 +22,7 @@ def test_keys():
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
     data = compiler_data["foo.vy"]
     assert output_json["sources"]["foo.vy"] == {"id": 0, "ast": data["ast_dict"]["ast"]}
-    assert data["breakpoints"] == [5, 8]
+    assert data["source_map_full"]["breakpoints"] == [5, 8]
     assert output_json["contracts"]["foo.vy"]["foo"] == {
         "abi": data["abi"],
         "devdoc": data["devdoc"],
@@ -35,11 +35,8 @@ def test_keys():
             "deployedBytecode": {
                 "object": data["bytecode_runtime"],
                 "opcodes": data["opcodes_runtime"],
-                "breakpoints": data["breakpoints"],
-                "pcBreakpoints": data["pc_breakpoints"],
                 "sourceMap": data["source_map"]["pc_pos_map_compressed"],
                 "sourceMapFull": data["source_map"],
-                "errorMap": data["error_map"],
             },
             "methodIdentifiers": data["method_identifiers"],
         },
