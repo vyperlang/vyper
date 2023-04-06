@@ -1,13 +1,14 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
-import vyper.evm.opcodes as evm
-import vyper.ovm as ovm
 from vyper import ast as vy_ast
-from vyper.lll import compile_lll, optimizer
-from vyper.old_codegen import parser
-from vyper.old_codegen.global_context import GlobalContext
+from vyper.ast.signatures.function_signature import FunctionSignatures
+from vyper.codegen import module
+from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.ir_node import IRnode
+from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
 
@@ -28,10 +29,10 @@ class CompilerData:
         Folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
-    lll_nodes : LLLnode
-        LLL used to generate deployment bytecode
-    lll_runtime : LLLnode
-        LLL used to generate runtime bytecode
+    ir_nodes : IRnode
+        IR used to generate deployment bytecode
+    ir_runtime : IRnode
+        IR used to generate runtime bytecode
     assembly : list
         Assembly instructions for deployment bytecode
     assembly_runtime : list
@@ -48,7 +49,10 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
-        use_ovm: bool = False,
+        no_optimize: bool = False,
+        storage_layout: StorageLayout = None,
+        show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -65,92 +69,103 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
-        use_ovm: bool, optional
-            Whether to compile for OVM
+        no_optimize: bool, optional
+            Turn off optimizations. Defaults to False
+        show_gas_estimates: bool, optional
+            Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
-        self.use_ovm = use_ovm
+        self.no_optimize = no_optimize
+        self.storage_layout_override = storage_layout
+        self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
 
-        if use_ovm:
-            for opcodes_for_evm_version in evm._evm_opcodes.values():
-                ovm.monkeypatch_evm_opcodes(opcodes_for_evm_version)
-
-    @property
+    @cached_property
     def vyper_module(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module"):
-            self._vyper_module = generate_ast(self.source_code, self.source_id, self.contract_name)
+        return generate_ast(self.source_code, self.source_id, self.contract_name)
 
-        return self._vyper_module
+    @cached_property
+    def vyper_module_unfolded(self) -> vy_ast.Module:
+        # This phase is intended to generate an AST for tooling use, and is not
+        # used in the compilation process.
+
+        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
+
+    @cached_property
+    def _folded_module(self):
+        return generate_folded_ast(
+            self.vyper_module, self.interface_codes, self.storage_layout_override
+        )
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
-            )
-
-        return self._vyper_module_folded
+        module, storage_layout = self._folded_module
+        return module
 
     @property
     def storage_layout(self) -> StorageLayout:
-        if not hasattr(self, "_storage_layout"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes
-            )
-
-        return self._storage_layout
+        module, storage_layout = self._folded_module
+        return storage_layout
 
     @property
     def global_ctx(self) -> GlobalContext:
-        if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(
-                self.vyper_module_folded, self.interface_codes
-            )
+        return GlobalContext(self.vyper_module_folded)
 
-        return self._global_ctx
-
-    def _gen_lll(self) -> None:
-        # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime = generate_lll_nodes(self.global_ctx, self.use_ovm)
+    @cached_property
+    def _ir_output(self):
+        # fetch both deployment and runtime IR
+        return generate_ir_nodes(self.global_ctx, self.no_optimize)
 
     @property
-    def lll_nodes(self) -> parser.LLLnode:
-        if not hasattr(self, "_lll_nodes"):
-            self._gen_lll()
-        return self._lll_nodes
+    def ir_nodes(self) -> IRnode:
+        ir, ir_runtime, sigs = self._ir_output
+        return ir
 
     @property
-    def lll_runtime(self) -> parser.LLLnode:
-        if not hasattr(self, "_lll_runtime"):
-            self._gen_lll()
-        return self._lll_runtime
+    def ir_runtime(self) -> IRnode:
+        ir, ir_runtime, sigs = self._ir_output
+        return ir_runtime
 
     @property
+    def function_signatures(self) -> FunctionSignatures:
+        ir, ir_runtime, sigs = self._ir_output
+        return sigs
+
+    @cached_property
     def assembly(self) -> list:
-        if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.lll_nodes, self.use_ovm)
-        return self._assembly
+        return generate_assembly(self.ir_nodes, self.no_optimize)
 
-    @property
+    @cached_property
     def assembly_runtime(self) -> list:
-        if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.lll_runtime, self.use_ovm)
-        return self._assembly_runtime
+        return generate_assembly(self.ir_runtime, self.no_optimize)
 
-    @property
+    @cached_property
     def bytecode(self) -> bytes:
-        if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly)
-        return self._bytecode
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
-    @property
+    @cached_property
     def bytecode_runtime(self) -> bytes:
-        if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime)
-        return self._bytecode_runtime
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
+
+    @cached_property
+    def blueprint_bytecode(self) -> bytes:
+        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
+        blueprint_bytecode = blueprint_preamble + self.bytecode
+
+        # the length of the deployed code in bytes
+        len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
+        deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
+
+        return deploy_bytecode + blueprint_bytecode
 
 
 def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
@@ -174,8 +189,23 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
     return vy_ast.parse_to_ast(source_code, source_id, contract_name)
 
 
-def generate_folded_ast(
+def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+) -> vy_ast.Module:
+
+    vy_ast.validation.validate_literal_nodes(vyper_module)
+    vy_ast.folding.replace_builtin_constants(vyper_module)
+    vy_ast.folding.replace_builtin_functions(vyper_module)
+    # note: validate_semantics does type inference on the AST
+    validate_semantics(vyper_module, interface_codes)
+
+    return vyper_module
+
+
+def generate_folded_ast(
+    vyper_module: vy_ast.Module,
+    interface_codes: Optional[InterfaceImports],
+    storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
     Perform constant folding operations on the Vyper AST.
@@ -198,85 +228,55 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
     vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
-    symbol_tables = set_data_positions(vyper_module_folded)
+    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
 
 
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports],
-) -> GlobalContext:
+def generate_ir_nodes(
+    global_ctx: GlobalContext, no_optimize: bool
+) -> Tuple[IRnode, IRnode, FunctionSignatures]:
     """
-    Generate a contextualized AST from the Vyper AST.
+    Generate the intermediate representation (IR) from the contextualized AST.
 
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
+    This phase also includes IR-level optimizations.
 
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-
-
-def generate_lll_nodes(
-    global_ctx: GlobalContext, use_ovm: bool
-) -> Tuple[parser.LLLnode, parser.LLLnode]:
-    """
-    Generate the intermediate representation (LLL) from the contextualized AST.
-
-    This phase also includes LLL-level optimizations.
-
-    This function returns two values, one for generating deployment bytecode and
-    the other for generating runtime bytecode. The remaining compilation phases
-    may be called with either value, depending on the desired final output.
+    This function returns three values: deployment bytecode, runtime bytecode
+    and the function signatures of the contract
 
     Arguments
     ---------
     global_ctx : GlobalContext
         Contextualized Vyper AST
-    use_ovm: bool, optional
-        Whether to compile for OVM
 
     Returns
     -------
-    (LLLnode, LLLnode)
-        LLL to generate deployment bytecode
-        LLL to generate runtime bytecode
+    (IRnode, IRnode)
+        IR to generate deployment bytecode
+        IR to generate runtime bytecode
     """
-    lll_nodes, lll_runtime = parser.parse_tree_to_lll(global_ctx)
-    lll_nodes = optimizer.optimize(lll_nodes)
-    lll_runtime = optimizer.optimize(lll_runtime)
-    if use_ovm:
-        lll_nodes = ovm.rewrite_lll_for_ovm(lll_nodes)
-        lll_runtime = ovm.rewrite_lll_for_ovm(lll_runtime)
-    return lll_nodes, lll_runtime
+    ir_nodes, ir_runtime, function_sigs = module.generate_ir_for_module(global_ctx)
+    if not no_optimize:
+        ir_nodes = optimizer.optimize(ir_nodes)
+        ir_runtime = optimizer.optimize(ir_runtime)
+    return ir_nodes, ir_runtime, function_sigs
 
 
-def generate_assembly(lll_nodes: parser.LLLnode, use_ovm: bool = False) -> list:
+def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
     """
-    Generate assembly instructions from LLL.
+    Generate assembly instructions from IR.
 
     Arguments
     ---------
-    lll_nodes : str
-        Top-level LLL nodes. Can be deployment or runtime LLL.
-    use_ovm: bool, optional
-        Whether to compile for OVM
+    ir_nodes : str
+        Top-level IR nodes. Can be deployment or runtime IR.
 
     Returns
     -------
     list
         List of assembly instructions.
     """
-    assembly = compile_lll.compile_to_assembly(lll_nodes)
-    if use_ovm:
-        assembly = ovm.rewrite_asm_for_ovm(assembly)
+    assembly = compile_ir.compile_to_assembly(ir_nodes, no_optimize=no_optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
@@ -294,7 +294,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -308,4 +310,6 @@ def generate_bytecode(assembly: list) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_lll.assembly_to_evm(assembly)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]

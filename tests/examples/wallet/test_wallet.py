@@ -11,7 +11,7 @@ def c(w3, get_contract):
         code = f.read()
     # Sends wei to the contract for future transactions gas costs
     c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
-    w3.eth.sendTransaction({"to": c.address, "value": 10 ** 17})
+    w3.eth.send_transaction({"to": c.address, "value": 10 ** 17})
     return c
 
 
@@ -110,12 +110,12 @@ def test_javascript_signatures(w3, get_contract):
         owners = [w3.toChecksumAddress(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 
-    w3.eth.sendTransaction({"to": x2.address, "value": 10 ** 17})
+    w3.eth.send_transaction({"to": x2.address, "value": 10 ** 17})
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures
     x2.approve(
-        0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={"to": x2.address, "value": 10 ** 17},
+        0, recipient, 25, b"", sigs + [[0, 0, 0]] * 3, call={"to": x2.address, "value": 10 ** 17}
     )
 
     print("Javascript signature tests passed")

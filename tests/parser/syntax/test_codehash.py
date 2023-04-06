@@ -7,7 +7,7 @@ from vyper.utils import keccak256
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-def test_get_extcodehash(get_contract, evm_version):
+def test_get_extcodehash(get_contract, evm_version, no_optimize):
     code = """
 a: address
 
@@ -38,7 +38,9 @@ def foo4() -> bytes32:
             compile_code(code, evm_version=evm_version)
         return
 
-    compiled = compile_code(code, ["bytecode_runtime"], evm_version=evm_version)
+    compiled = compile_code(
+        code, ["bytecode_runtime"], evm_version=evm_version, no_optimize=no_optimize
+    )
     bytecode = bytes.fromhex(compiled["bytecode_runtime"][2:])
     hash_ = keccak256(bytecode)
 

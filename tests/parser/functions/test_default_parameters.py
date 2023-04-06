@@ -197,18 +197,6 @@ def callMeMaybe() -> (Bytes[100], uint256, Bytes[20]):
     assert c.callMeMaybe() == [b"here is my number", 555123456, b"baby"]
 
 
-def test_builtin_constants_as_default(get_contract):
-    code = """
-@external
-def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
-    return a, b
-    """
-    c = get_contract(code)
-    assert c.foo() == [-(2 ** 127), 2 ** 127 - 1]
-    assert c.foo(31337) == [31337, 2 ** 127 - 1]
-    assert c.foo(13, 42) == [13, 42]
-
-
 def test_environment_vars_as_default(get_contract):
     code = """
 xx: uint256
@@ -270,6 +258,10 @@ def foo(a: decimal = 3.14, b: decimal[2] = [1.337, 2.69]): pass
 def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.coinbase]): pass
     """,
     """
+@internal
+def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.coinbase]): pass
+    """,
+    """
 @external
 @payable
 def foo(a: uint256 = msg.value): pass
@@ -277,7 +269,41 @@ def foo(a: uint256 = msg.value): pass
     """
 @external
 def foo(a: uint256 = 2**8): pass
-     """,
+    """,
+    """
+struct Bar:
+    a: address
+    b: uint256
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: 1})): pass
+    """,
+    """
+struct Baz:
+    c: address
+    d: int128
+
+struct Bar:
+    a: address
+    b: Baz
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
+    """,
+    """
+A: public(address)
+
+@external
+def foo(a: address = empty(address)):
+    self.A = a
+    """,
+    """
+A: public(int112)
+
+@external
+def foo(a: int112 = min_value(int112)):
+    self.A = a
+    """,
 ]
 
 
@@ -372,14 +398,6 @@ def foo(a: uint256[2] = [2, self.x]): pass
 def foo(a: uint256 = msg.value): pass
 """,
         NonPayableViolation,
-    ),
-    (
-        """
-# msg.sender in a private function
-@internal
-def foo(a: address = msg.sender): pass
-    """,
-        StateAccessViolation,
     ),
 ]
 

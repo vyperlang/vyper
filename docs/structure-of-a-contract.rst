@@ -12,7 +12,7 @@ This section provides a quick overview of the types of data present within a con
 Version Pragma
 ==============
 
-Vyper supports a version pragma to ensure that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/misc/semver>`_ style syntax.
+Vyper supports a version pragma to ensure that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax.
 
 .. code-block:: python
 
@@ -107,7 +107,7 @@ See the :ref:`Interfaces <interfaces>` documentation for more information.
 Structs
 =======
 
-A struct is custom defined type that can allows you to group several variables together:
+A struct is a custom defined type that allows you to group several variables together:
 
 .. code-block:: python
 

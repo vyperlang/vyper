@@ -283,6 +283,60 @@ def foo() -> (Bytes[5], Bytes[5]):
     assert a == b == b""
 
 
+@pytest.mark.parametrize(
+    "length,value,result",
+    [
+        (1, "a", False),
+        (1, "", True),
+        (8, "helloooo", False),
+        (8, "hello", False),
+        (8, "", True),
+        (40, "a", False),
+        (40, "hellohellohellohellohellohellohellohello", False),
+        (40, "", True),
+    ],
+)
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_empty_string_comparison(get_contract_with_gas_estimation, length, value, result, op):
+    contract = f"""
+@external
+def foo(xs: String[{length}]) -> bool:
+    return xs {op} empty(String[{length}])
+    """
+    c = get_contract_with_gas_estimation(contract)
+    if op == "==":
+        assert c.foo(value) == result
+    elif op == "!=":
+        assert c.foo(value) != result
+
+
+@pytest.mark.parametrize(
+    "length,value,result",
+    [
+        (1, b"a", False),
+        (1, b"", True),
+        (8, b"helloooo", False),
+        (8, b"hello", False),
+        (8, b"", True),
+        (40, b"a", False),
+        (40, b"hellohellohellohellohellohellohellohello", False),
+        (40, b"", True),
+    ],
+)
+@pytest.mark.parametrize("op", ["==", "!="])
+def test_empty_bytes_comparison(get_contract_with_gas_estimation, length, value, result, op):
+    contract = f"""
+@external
+def foo(xs: Bytes[{length}]) -> bool:
+    return empty(Bytes[{length}]) {op} xs
+    """
+    c = get_contract_with_gas_estimation(contract)
+    if op == "==":
+        assert c.foo(value) == result
+    elif op == "!=":
+        assert c.foo(value) != result
+
+
 def test_empty_struct(get_contract_with_gas_estimation):
     code = """
 struct FOOBAR:
@@ -330,6 +384,27 @@ def foo():
     assert bar.d == 0.0
     assert bar.e == 0x0000000000000000000000000000000000000000000000000000000000000000
     assert bar.f == ZERO_ADDRESS
+    """
+
+    c = get_contract_with_gas_estimation(code)
+    c.foo()
+
+
+def test_empty_dynarray(get_contract_with_gas_estimation):
+    code = """
+foobar: DynArray[uint256, 10]
+bar: uint256
+
+@external
+def foo():
+    self.bar = 1
+    self.foobar = [1,2,3,4,5]
+    assert len(self.foobar) == 5
+
+    self.foobar = empty(DynArray[uint256, 10])
+
+    assert len(self.foobar) == 0
+    assert self.bar == 1
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -616,3 +691,17 @@ def foo():
     assert log.args.arg3 == 314159
     assert log.args.arg4 == b"help" * 11
     assert log.args.arg5 == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
+@external
+def test():
+    a: uint256 = empty(HashMap[uint256, uint256])[0]
+    """
+    ],
+)
+def test_invalid_types(contract, get_contract, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)

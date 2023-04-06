@@ -1,79 +1,68 @@
 from pytest import raises
 
-from vyper.old_codegen.types import (
-    BaseType,
-    ByteArrayType,
-    ListType,
-    MappingType,
-    StructType,
-    TupleType,
-    canonicalize_type,
-    get_size_of_type,
+from vyper.semantics.types import (
+    AddressT,
+    BytesT,
+    DecimalT,
+    HashMapT,
+    IntegerT,
+    SArrayT,
+    StructT,
+    TupleT,
 )
+
+# TODO: this module should be merged in with other tests/functional/semantics/types/ tests.
 
 
 def test_bytearray_node_type():
 
-    node1 = ByteArrayType(12)
-    node2 = ByteArrayType(12)
+    node1 = BytesT(12)
+    node2 = BytesT(12)
 
     assert node1 == node2
 
-    node3 = ByteArrayType(13)
-    node4 = BaseType("int128")
+    node3 = BytesT(13)
+    node4 = IntegerT(True, 128)
 
     assert node1 != node3
     assert node1 != node4
 
 
 def test_mapping_node_types():
-
-    with raises(Exception):
-        MappingType(int, int)
-
-    node1 = MappingType(BaseType("int128"), BaseType("int128"))
-    node2 = MappingType(BaseType("int128"), BaseType("int128"))
+    node1 = HashMapT(IntegerT(True, 128), IntegerT(True, 128))
+    node2 = HashMapT(IntegerT(True, 128), IntegerT(True, 128))
     assert node1 == node2
     assert str(node1) == "HashMap[int128, int128]"
 
 
 def test_tuple_node_types():
-    node1 = TupleType([BaseType("int128"), BaseType("decimal")])
-    node2 = TupleType([BaseType("int128"), BaseType("decimal")])
+    node1 = TupleT([IntegerT(True, 128), DecimalT()])
+    node2 = TupleT([IntegerT(True, 128), DecimalT()])
 
     assert node1 == node2
     assert str(node1) == "(int128, decimal)"
 
 
 def test_canonicalize_type():
-    # Non-basetype not allowed
-    with raises(Exception):
-        canonicalize_type(int)
-    # List of byte arrays not allowed
-    a = ListType(ByteArrayType(12), 2)
-    with raises(Exception):
-        canonicalize_type(a)
+    # TODO add more types
+
     # Test ABI format of multiple args.
-    c = TupleType([BaseType("int128"), BaseType("address")])
-    assert canonicalize_type(c) == "(int128,address)"
+    c = TupleT([IntegerT(True, 128), AddressT()])
+    assert c.abi_type.selector_name() == "(int128,address)"
 
 
-def test_get_size_of_type():
-    assert get_size_of_type(BaseType("int128")) == 1
-    assert get_size_of_type(ByteArrayType(12)) == 3
-    assert get_size_of_type(ByteArrayType(33)) == 4
-    assert get_size_of_type(ListType(BaseType("int128"), 10)) == 10
+def test_type_storage_sizes():
+    assert IntegerT(True, 128).storage_size_in_words == 1
+    assert BytesT(12).storage_size_in_words == 2
+    assert BytesT(33).storage_size_in_words == 3
+    assert SArrayT(IntegerT(True, 128), 10).storage_size_in_words == 10
 
-    _tuple = TupleType([BaseType("int128"), BaseType("decimal")])
-    assert get_size_of_type(_tuple) == 2
+    tuple_ = TupleT([IntegerT(True, 128), DecimalT()])
+    assert tuple_.storage_size_in_words == 2
 
-    _struct = StructType({"a": BaseType("int128"), "b": BaseType("decimal")}, "Foo")
-    assert get_size_of_type(_struct) == 2
+    struct_ = StructT("Foo", {"a": IntegerT(True, 128), "b": DecimalT()})
+    assert struct_.storage_size_in_words == 2
 
     # Don't allow unknown types.
     with raises(Exception):
-        get_size_of_type(int)
-
-    # Maps are not supported for function arguments or outputs
-    with raises(Exception):
-        get_size_of_type(MappingType(BaseType("int128"), BaseType("int128")))
+        _ = int.storage_size_in_words

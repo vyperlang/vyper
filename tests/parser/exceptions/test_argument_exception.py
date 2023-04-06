@@ -42,7 +42,7 @@ def foo():
     """
 @external
 def foo():
-    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
+    x: Bytes[4] = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 x: public()
@@ -60,7 +60,7 @@ def foo():
     """
 @external
 def foo():
-    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
+    x: Bytes[4] = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @external
@@ -88,31 +88,6 @@ def foo():
 def foo():
     for i in range(1, 2, 3, 4):
         pass
-    """,
-    """
-struct Foo:
-    a: Bytes[32]
-
-@external
-def foo(a: Foo):
-    pass
-    """,
-    """
-struct Foo:
-    a: String[32]
-
-@external
-def foo(a: Foo):
-    pass
-    """,
-    """
-struct Foo:
-    b: uint256
-    a: String[32]
-
-@external
-def foo(a: Foo):
-    pass
     """,
 ]
 

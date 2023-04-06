@@ -5,13 +5,10 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
-from vyper.cli.utils import (
-    extract_file_interface_imports,
-    get_interface_file_path,
-)
+from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.typing import ContractCodes, ContractPath
@@ -28,7 +25,9 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map",
     "interface": "interface",
-    "ir": "ir",
+    "ir": "ir_dict",
+    "ir_runtime": "ir_runtime_dict",
+    # "metadata": "metadata",  # don't include  in "*" output for now
     "layout": "layout",
     "userdoc": "userdoc",
 }
@@ -49,7 +48,7 @@ def _parse_args(argv):
         nargs="?",
     )
     parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}",
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "-o",
@@ -112,10 +111,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
     }
     if hasattr(exception, "message"):
         err_dict.update(
-            {
-                "message": exception.message,  # type: ignore
-                "formattedMessage": str(exception),
-            }
+            {"message": exception.message, "formattedMessage": str(exception)}  # type: ignore
         )
     if file_path is not None:
         err_dict["sourceLocation"] = {"file": file_path}
@@ -127,26 +123,29 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
                 }
             )
 
-    output_json = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "errors": [err_dict],
-    }
+    output_json = {"compiler": f"vyper-{vyper.__version__}", "errors": [err_dict]}
     return output_json
 
 
 def _standardize_path(path_str: str) -> str:
-    root_path = Path("/__vyper").resolve()
-    path = root_path.joinpath(path_str.lstrip("/")).resolve()
     try:
-        path = path.relative_to(root_path)
+        path = Path(path_str)
+
+        if path.is_absolute():
+            path = path.resolve()
+        else:
+            pwd = Path(".").resolve()
+            path = path.resolve().relative_to(pwd)
+
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
+
     return path.as_posix()
 
 
-def get_input_dict_settings(input_dict: Dict) -> Dict:
+def get_evm_version(input_dict: Dict) -> str:
     if "settings" not in input_dict:
-        return {"evm_version": DEFAULT_EVM_VERSION}
+        return DEFAULT_EVM_VERSION
 
     evm_version = input_dict["settings"].get("evmVersion", DEFAULT_EVM_VERSION)
     if evm_version in ("homestead", "tangerineWhistle", "spuriousDragon"):
@@ -154,7 +153,7 @@ def get_input_dict_settings(input_dict: Dict) -> Dict:
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
-    return {"evm_version": evm_version}
+    return evm_version
 
 
 def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
@@ -181,22 +180,47 @@ def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
 
 def get_input_dict_interfaces(input_dict: Dict) -> Dict:
     interface_sources: Dict = {}
+
     for path, value in input_dict.get("interfaces", {}).items():
         key = _standardize_path(path)
+
         if key.endswith(".json"):
-            if "abi" not in value:
+            # EthPM Manifest v3 (EIP-2678)
+            if "contractTypes" in value:
+                for name, ct in value["contractTypes"].items():
+                    if name in interface_sources:
+                        raise JSONError(f"Interface namespace collision: {name}")
+
+                    interface_sources[name] = {"type": "json", "code": ct["abi"]}
+
+                continue  # Skip to next interface
+
+            # ABI JSON file (`{"abi": List[ABI]}`)
+            elif "abi" in value:
+                interface = {"type": "json", "code": value["abi"]}
+
+            # ABI JSON file (`List[ABI]`)
+            elif isinstance(value, list):
+                interface = {"type": "json", "code": value}
+
+            else:
                 raise JSONError(f"Interface '{path}' must have 'abi' field")
-            interface = {"type": "json", "code": value["abi"]}
+
         elif key.endswith(".vy"):
             if "content" not in value:
                 raise JSONError(f"Interface '{path}' must have 'content' field")
+
             interface = {"type": "vyper", "code": value["content"]}
+
         else:
             raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
+
         key = key.rsplit(".", maxsplit=1)[0]
         if key in interface_sources:
             raise JSONError(f"Interface namespace collision: {key}")
+
         interface_sources[key] = interface
+
     return interface_sources
 
 
@@ -213,12 +237,14 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
         if "*" in outputs:
-            outputs = sorted(TRANSLATE_MAP.values())
+            outputs = TRANSLATE_MAP.values()
         else:
             try:
-                outputs = sorted(TRANSLATE_MAP[i] for i in outputs)
+                outputs = [TRANSLATE_MAP[i] for i in outputs]
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
+
+        outputs = sorted(set(outputs))
 
         if path == "*":
             output_keys = list(contract_sources.keys())
@@ -245,6 +271,11 @@ def get_interface_codes(
     code = contract_sources[contract_path]
     interface_codes = extract_file_interface_imports(code)
     for interface_name, interface_path in interface_codes.items():
+        # If we know the interfaces already (e.g. EthPM Manifest file)
+        if interface_name in interface_sources:
+            interfaces[interface_name] = interface_sources[interface_name]
+            continue
+
         path = Path(contract_path).parent.joinpath(interface_path).as_posix()
         keys = [_standardize_path(path)]
         if not interface_path.startswith("."):
@@ -278,7 +309,29 @@ def get_interface_codes(
         with valid_path.open() as fh:
             code = fh.read()
         if valid_path.suffix == ".json":
-            interfaces[interface_name] = {"type": "json", "code": json.loads(code.encode())}
+            code_dict = json.loads(code.encode())
+            # EthPM Manifest v3 (EIP-2678)
+            if "contractTypes" in code_dict:
+                if interface_name not in code_dict["contractTypes"]:
+                    raise JSONError(f"'{interface_name}' not found in '{valid_path}'")
+
+                if "abi" not in code_dict["contractTypes"][interface_name]:
+                    raise JSONError(f"Missing abi for '{interface_name}' in '{valid_path}'")
+
+                abi = code_dict["contractTypes"][interface_name]["abi"]
+                interfaces[interface_name] = {"type": "json", "code": abi}
+
+            # ABI JSON (`{"abi": List[ABI]}`)
+            elif "abi" in code_dict:
+                interfaces[interface_name] = {"type": "json", "code": code_dict["abi"]}
+
+            # ABI JSON (`List[ABI]`)
+            elif isinstance(code_dict, list):
+                interfaces[interface_name] = {"type": "json", "code": code_dict}
+
+            else:
+                raise JSONError(f"Unexpected type in file: '{valid_path}'")
+
         else:
             interfaces[interface_name] = {"type": "vyper", "code": code}
 
@@ -299,7 +352,9 @@ def compile_from_input_dict(
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    settings = get_input_dict_settings(input_dict)
+    evm_version = get_evm_version(input_dict)
+    no_optimize = not input_dict["settings"].get("optimize", True)
+    no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -321,7 +376,9 @@ def compile_from_input_dict(
                     output_formats[contract_path],
                     interface_codes=interface_codes,
                     initial_id=id_,
-                    evm_version=settings["evm_version"],
+                    no_optimize=no_optimize,
+                    evm_version=evm_version,
+                    no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
@@ -333,11 +390,7 @@ def compile_from_input_dict(
 
 
 def format_to_output_dict(compiler_data: Dict) -> Dict:
-    output_dict: Dict = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "contracts": {},
-        "sources": {},
-    }
+    output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
 
         output_dict["sources"][path] = {"id": id_}
@@ -348,7 +401,10 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
         output_dict["contracts"][path] = {name: {}}
         output_contracts = output_dict["contracts"][path][name]
 
-        for key in ("abi", "devdoc", "interface", "ir", "userdoc"):
+        if "ir_dict" in data:
+            output_contracts["ir"] = data["ir_dict"]
+
+        for key in ("abi", "devdoc", "interface", "metadata", "userdoc"):
             if key in data:
                 output_contracts[key] = data[key]
 
@@ -356,14 +412,14 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        if next((i for i in evm_keys if i in data), False):
+        if any(i in data for i in evm_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:
                 evm["object"] = data["bytecode"]
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        if next((i for i in evm_keys if i + "_runtime" in data), False) or "source_map" in data:
+        if any(i + "_runtime" in data for i in evm_keys) or "source_map" in data:
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
@@ -375,6 +431,21 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
     return output_dict
 
 
+# https://stackoverflow.com/a/49518779
+def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
+    """
+    Raise JSONError if a duplicate key exists in provided ordered list
+    of pairs, otherwise return a dict.
+    """
+    dict_out = {}
+    for key, val in ordered_pairs:
+        if key in dict_out:
+            raise JSONError(f"Duplicate key: {key}")
+        else:
+            dict_out[key] = val
+    return dict_out
+
+
 def compile_json(
     input_json: Union[Dict, str],
     exc_handler: Callable = exc_handler_raises,
@@ -384,7 +455,9 @@ def compile_json(
     try:
         if isinstance(input_json, str):
             try:
-                input_dict: Dict = json.loads(input_json)
+                input_dict: Dict = json.loads(
+                    input_json, object_pairs_hook=_raise_on_duplicate_keys
+                )
             except json.decoder.JSONDecodeError as exc:
                 new_exc = JSONError(str(exc), exc.lineno, exc.colno)
                 return exc_handler(json_path, new_exc, "json")

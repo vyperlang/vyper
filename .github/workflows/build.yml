@@ -1,0 +1,74 @@
+name: Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        default: ''
+  push:
+    tags:
+      - '*'
+    branches:
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  unix-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            # grab the commit passed in via `tag`, if any
+            ref: ${{ github.event.inputs.tag }}
+            # need to fetch unshallow so that setuptools_scm can infer the version
+            fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Generate Binary
+        run: >-
+          pip install . &&
+          pip install pyinstaller &&
+          make freeze
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/vyper.*
+
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            # grab the commit passed in via `tag`, if any
+            ref: ${{ github.event.inputs.tag }}
+            # need to fetch unshallow so that setuptools_scm can infer the version
+            fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Generate Binary
+        run: >-
+          pip install . &&
+          pip install pyinstaller &&
+          ./make.cmd freeze
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/vyper.*

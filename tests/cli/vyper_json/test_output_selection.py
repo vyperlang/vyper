@@ -35,7 +35,7 @@ def test_translate_map(output):
 def test_star():
     input_json = {"settings": {"outputSelection": {"*": ["*"]}}}
     sources = {"foo.vy": "", "bar.vy": ""}
-    expected = sorted(TRANSLATE_MAP.values())
+    expected = sorted(set(TRANSLATE_MAP.values()))
     result = get_input_dict_output_formats(input_json, sources)
     assert result == {"foo.vy": expected, "bar.vy": expected}
 
@@ -51,4 +51,4 @@ def test_evm():
 def test_solc_style():
     input_json = {"settings": {"outputSelection": {"foo.vy": {"": ["abi"], "foo.vy": ["ir"]}}}}
     sources = {"foo.vy": ""}
-    assert get_input_dict_output_formats(input_json, sources) == {"foo.vy": ["abi", "ir"]}
+    assert get_input_dict_output_formats(input_json, sources) == {"foo.vy": ["abi", "ir_dict"]}

@@ -51,6 +51,24 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     print("Passed single fixed-size argument self-call test")
 
 
+# test that side-effecting self calls do not get optimized out
+def test_selfcall_optimizer(get_contract):
+    code = """
+counter: uint256
+
+@internal
+def increment_counter() -> uint256:
+    self.counter += 1
+    return self.counter
+@external
+def foo() -> (uint256, uint256):
+    x: uint256 = unsafe_mul(self.increment_counter(), 0)
+    return x, self.counter
+    """
+    c = get_contract(code)
+    assert c.foo() == [0, 1]
+
+
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
     selfcall_code_3 = """
 @internal
@@ -449,6 +467,15 @@ def bar(a: int128) -> int128:
 def foo() -> int128:
     return self.bar(1, 2)
     """,
+    """
+@internal
+def _foo(x: uint256, y: uint256 = 1):
+    pass
+
+@external
+def foo(x: uint256, y: uint256):
+    self._foo(x, y=y)
+    """,
 ]
 
 
@@ -531,3 +558,87 @@ def test() -> (int128, String[{ln}], Bytes[{ln}]):
     c = get_contract_with_gas_estimation(contract)
 
     assert c.test() == [i, s, bytes(s, "utf-8")]
+
+
+def test_dynamically_sized_struct_as_arg(get_contract_with_gas_estimation):
+    contract = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+@internal
+def _foo(x: X) -> Bytes[6]:
+    return x.y
+
+@external
+def bar() -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return self._foo(_X)
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+
+    assert c.bar() == b"hello"
+
+
+def test_dynamically_sized_struct_as_arg_2(get_contract_with_gas_estimation):
+    contract = """
+struct X:
+    x: uint256
+    y: String[6]
+
+@internal
+def _foo(x: X) -> String[6]:
+    return x.y
+
+@external
+def bar() -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return self._foo(_X)
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+
+    assert c.bar() == "hello"
+
+
+def test_dynamically_sized_struct_member_as_arg(get_contract_with_gas_estimation):
+    contract = """
+struct X:
+    x: uint256
+    y: Bytes[6]
+
+@internal
+def _foo(s: Bytes[6]) -> Bytes[6]:
+    return s
+
+@external
+def bar() -> Bytes[6]:
+    _X: X = X({x: 1, y: b"hello"})
+    return self._foo(_X.y)
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+
+    assert c.bar() == b"hello"
+
+
+def test_dynamically_sized_struct_member_as_arg_2(get_contract_with_gas_estimation):
+    contract = """
+struct X:
+    x: uint256
+    y: String[6]
+
+@internal
+def _foo(s: String[6]) -> String[6]:
+    return s
+
+@external
+def bar() -> String[6]:
+    _X: X = X({x: 1, y: "hello"})
+    return self._foo(_X.y)
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+
+    assert c.bar() == "hello"

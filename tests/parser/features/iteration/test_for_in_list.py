@@ -26,6 +26,38 @@ def data() -> int128:
     return -1""",
         3,
     ),
+    # basic for-in-dynamic array
+    (
+        """
+@external
+def data() -> int128:
+    s: DynArray[int128, 10] = [1, 2, 3, 4, 5]
+    for i in s:
+        if i >= 3:
+            return i
+    return -1""",
+        3,
+    ),
+    # test more complicated type
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    sss: DynArray[DynArray[S, 10], 10] = [
+        [S({x:1, y:2})],
+        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        ]
+    ret: int128 = 0
+    for ss in sss:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        sum(range(1, 11)),
+    ),
     # basic for-in-list literal
     (
         """
@@ -36,6 +68,72 @@ def data() -> int128:
             return i
     return -1""",
         7,
+    ),
+    (
+        # test variable string dynarray
+        """
+@external
+def data() -> String[33]:
+    xs: DynArray[String[33], 3] = ["hello", ",", "world"]
+    for x in xs:
+        if x == ",":
+            return x
+    return ""
+    """,
+        ",",
+    ),
+    (
+        # test literal string dynarray
+        """
+@external
+def data() -> String[33]:
+    for x in ["hello", ",", "world"]:
+        if x == ",":
+            return x
+    return ""
+    """,
+        ",",
+    ),
+    (
+        # test nested string dynarray
+        """
+@external
+def data() -> DynArray[String[33], 2]:
+    for x in [["hello", "world"], ["goodbye", "world!"]]:
+        if x[1] == "world":
+            return x
+    return []
+    """,
+        ["hello", "world"],
+    ),
+    # test nested array
+    (
+        """
+@external
+def data() -> int128:
+    ret: int128 = 0
+    xss: int128[3][3] = [[1,2,3],[4,5,6],[7,8,9]]
+    for xs in xss:
+        for x in xs:
+            ret += x
+    return ret""",
+        sum(range(1, 10)),
+    ),
+    # test more complicated literal
+    (
+        """
+struct S:
+    x: int128
+    y: int128
+
+@external
+def data() -> int128:
+    ret: int128 = 0
+    for ss in [[S({x:1, y:2})]]:
+        for s in ss:
+            ret += s.x + s.y
+    return ret""",
+        1 + 2,
     ),
     # basic for-in-list addresses
     (
@@ -86,6 +184,31 @@ def data() -> int128:
     assert c.data() == -1
     c.set(transact={})
     assert c.data() == 7
+
+
+def test_basic_for_dyn_array_storage(get_contract_with_gas_estimation):
+    code = """
+x: DynArray[int128, 4]
+
+@external
+def set(xs: DynArray[int128, 4]):
+    self.x = xs
+
+@external
+def data() -> int128:
+    t: int128 = 0
+    for i in self.x:
+        t += i
+    return t
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.data() == 0
+    # test all sorts of lists
+    for xs in [[3, 5, 7, 9], [4, 6, 8], [1, 2], [5], []]:
+        c.set(xs, transact={})
+        assert c.data() == sum(xs)
 
 
 def test_basic_for_list_storage_address(get_contract_with_gas_estimation):
@@ -169,6 +292,26 @@ def func(amounts: uint256[3]) -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.func([100, 200, 300]) == 600
+
+
+def test_for_in_dyn_array(get_contract_with_gas_estimation):
+    code = """
+@external
+@view
+def func(amounts: DynArray[uint256, 3]) -> uint256:
+    total: uint256 = 0
+
+    # calculate total
+    for amount in amounts:
+        total += amount
+
+    return total
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.func([100, 200, 300]) == 600
+    assert c.func([100, 200]) == 300
 
 
 GOOD_CODE = [
@@ -333,6 +476,80 @@ def data() -> int128:
     """,
         ImmutableViolation,
     ),
+    # alter nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter doubly nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+struct Bar:
+    bar: Foo
+    baz: uint256
+
+my_array2: Bar
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.bar.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.bar.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter entire struct with nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff():
+    self.my_array2.foo = [
+        block.timestamp + 1,
+        block.timestamp + 2,
+        block.timestamp + 3,
+        block.timestamp + 4
+    ]
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff()
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
     # invalid nested loop
     (
         """
@@ -364,6 +581,58 @@ def foo(x: int128):
     """,
         ImmutableViolation,
     ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.append(x)
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[DynArray[uint256, 5], 5] = [[1,2,3]]
+    for x in xs:
+        x.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+array: DynArray[uint256, 5]
+@internal
+def a():
+    self.b()
+
+@internal
+def b():
+    self.array.pop()
+
+@external
+def foo():
+    for x in self.array:
+        self.a()
+    """,
+        ImmutableViolation,
+    ),
     (
         """
 @external
@@ -387,6 +656,20 @@ def foo():
 @external
 def foo():
     for i in range(0):
+        pass
+    """,
+    """
+@external
+def foo():
+    for i in []:
+        pass
+    """,
+    """
+FOO: constant(DynArray[uint256, 3]) = []
+
+@external
+def foo():
+    for i in FOO:
         pass
     """,
     (
@@ -480,27 +763,12 @@ def foo():
     """,
         IteratorException,
     ),
-    # nested lists
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x:
-        pass
-    """,
-    """
-@external
-def foo():
-    x: uint256[5][2] = [[0, 1, 2, 3, 4], [2, 4, 6, 8, 10]]
-    for i in x[1]:
-        pass
-    """,
     (
         """
 @external
 def test_for() -> int128:
     a: int128 = 0
-    for i in range(MAX_INT128, MAX_INT128+2):
+    for i in range(max_value(int128), max_value(int128)+2):
         a = i
     return a
     """,

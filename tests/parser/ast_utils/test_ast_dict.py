@@ -52,13 +52,12 @@ a: int128
             "node_id": 4,
             "src": "4:6:0",
         },
-        "ast_type": "AnnAssign",
+        "ast_type": "VariableDecl",
         "col_offset": 0,
         "end_col_offset": 9,
         "end_lineno": 2,
         "lineno": 2,
         "node_id": 1,
-        "simple": 1,
         "src": "1:9:0",
         "target": {
             "ast_type": "Name",
@@ -71,6 +70,53 @@ a: int128
             "src": "1:1:0",
         },
         "value": None,
+        "is_constant": False,
+        "is_immutable": False,
+        "is_public": False,
+    }
+
+
+def test_implements_ast():
+    code = """
+interface Foo:
+    def foo() -> uint256: view
+
+implements: Foo
+
+@external
+@view
+def foo() -> uint256:
+    return 1
+    """
+    dict_out = compiler.compile_code(code, ["ast_dict"])
+    assert dict_out["ast_dict"]["ast"]["body"][1] == {
+        "col_offset": 0,
+        "annotation": {
+            "col_offset": 12,
+            "end_col_offset": 15,
+            "node_id": 12,
+            "src": "60:3:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "Foo",
+        },
+        "end_col_offset": 15,
+        "node_id": 9,
+        "src": "48:15:0",
+        "ast_type": "ImplementsDecl",
+        "target": {
+            "col_offset": 0,
+            "end_col_offset": 10,
+            "node_id": 10,
+            "src": "48:10:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "implements",
+        },
+        "end_lineno": 5,
+        "lineno": 5,
     }
 
 

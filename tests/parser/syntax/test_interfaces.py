@@ -4,7 +4,9 @@ from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
     InvalidReference,
+    InvalidType,
     StructureException,
+    SyntaxException,
     TypeMismatch,
     UnknownAttribute,
 )
@@ -36,7 +38,7 @@ from vyper.interfaces import ERC20
 
 a: address(ERC20) # invalid syntax now.
     """,
-        StructureException,
+        SyntaxException,
     ),
     (
         """
@@ -46,7 +48,7 @@ from vyper.interfaces import ERC20
 def test():
     a: address(ERC20) = ZERO_ADDRESS
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """
@@ -66,6 +68,43 @@ def test(a: address):
     my_address: address = ERC20()
     """,
         ArgumentException,
+    ),
+    (
+        """
+from vyper.interfaces import ERC20
+
+implements: ERC20 = 1
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+interface A:
+    @external
+    def foo(): nonpayable
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: self.x
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: 123
+    """,
+        StructureException,
+    ),
+    (
+        """
+struct Foo:
+    a: uint256
+
+implements: Foo
+    """,
+        StructureException,
     ),
 ]
 
@@ -100,6 +139,15 @@ def test():
     assert exchange == self.token.address
     assert self.token.totalSupply() > 0
     """,
+    """
+interface Foo:
+    def foo(): view
+
+@external
+def test() -> (bool, Foo):
+    x: Foo = Foo(msg.sender)
+    return True, x
+    """
     """
 from vyper.interfaces import ERC20
 
@@ -144,6 +192,23 @@ a: public(ERC20)
 @external
 def test():
     b: address = self.a.address
+    """,
+    """
+interface MyInterface:
+    def some_func(): nonpayable
+
+my_interface: MyInterface[3]
+idx: uint256
+
+@external
+def __init__():
+    self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
+    """,
+    """
+interface MyInterface:
+    def kick(): payable
+
+kickers: HashMap[address, MyInterface]
     """,
 ]
 

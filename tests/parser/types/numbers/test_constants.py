@@ -1,6 +1,11 @@
+import itertools
 from decimal import Decimal
 
+import pytest
+
 from vyper.compiler import compile_code
+from vyper.exceptions import InvalidType
+from vyper.utils import MemoryPositions
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -17,22 +22,22 @@ def test_empty_bytes32(a: bytes32) -> bool:
 
 @external
 def test_int128(a: int128) -> (bool, bool):
-    return a == MAX_INT128, a == MIN_INT128
+    return a == max_value(int128), a == min_value(int128)
 
 
 @external
 def test_decimal(a: decimal) -> (bool, bool):
-    return a == MAX_DECIMAL, a == MIN_DECIMAL
+    return a == max_value(decimal), a == min_value(decimal)
 
 
 @external
 def test_uint256(a: uint256) -> bool:
-    return a == MAX_UINT256
+    return a == max_value(uint256)
 
 
 @external
 def test_arithmetic(a: int128) -> int128:
-    return MAX_INT128 - a
+    return max_value(int128) - a
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -47,8 +52,14 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_int128(-(2 ** 127)) == [False, True]
     assert c.test_int128(0) == [False, False]
 
-    assert c.test_decimal(Decimal(2 ** 127 - 1)) == [True, False]
-    assert c.test_decimal(Decimal("-170141183460469231731687303715884105728")) == [False, True]
+    assert c.test_decimal(Decimal("18707220957835557353007165858768422651595.9365500927")) == [
+        True,
+        False,
+    ]
+    assert c.test_decimal(Decimal("-18707220957835557353007165858768422651595.9365500928")) == [
+        False,
+        True,
+    ]
     assert c.test_decimal(Decimal("0.1")) == [False, False]
 
     assert c.test_uint256(2 ** 256 - 1) is True
@@ -60,12 +71,12 @@ def test_builtin_constants_assignment(get_contract_with_gas_estimation):
     code = """
 @external
 def foo() -> int128:
-    bar: int128 = MAX_INT128
+    bar: int128 = max_value(int128)
     return bar
 
 @external
 def goo() -> int128:
-    bar: int128 = MIN_INT128
+    bar: int128 = min_value(int128)
     return bar
 
 @external
@@ -80,17 +91,17 @@ def joo() -> address:
 
 @external
 def koo() -> decimal:
-    bar: decimal = MAX_DECIMAL
+    bar: decimal = max_value(decimal)
     return bar
 
 @external
 def loo() -> decimal:
-    bar: decimal = MIN_DECIMAL
+    bar: decimal = min_value(decimal)
     return bar
 
 @external
 def zoo() -> uint256:
-    bar: uint256 = MAX_UINT256
+    bar: uint256 = max_value(uint256)
     return bar
     """
 
@@ -103,8 +114,8 @@ def zoo() -> uint256:
 
     assert c.joo() is None
 
-    assert c.koo() == Decimal(2 ** 127 - 1)
-    assert c.loo() == Decimal(-(2 ** 127))
+    assert c.koo() == Decimal(2 ** 167 - 1) / 10 ** 10
+    assert c.loo() == Decimal(-(2 ** 167)) / 10 ** 10
 
     assert c.zoo() == 2 ** 256 - 1
 
@@ -125,6 +136,22 @@ def test_add(a: uint256) -> uint256:
 
     assert c.test() == 33
     assert c.test_add(7) == 40
+
+
+# Would be nice to put this somewhere accessible, like in vyper.types or something
+integer_types = ["uint8", "int128", "int256", "uint256"]
+
+
+@pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
+def test_custom_constants_fail(get_contract, assert_compile_failed, storage_type, return_type):
+    code = f"""
+MY_CONSTANT: constant({storage_type}) = 1
+
+@external
+def foo() -> {return_type}:
+    return MY_CONSTANT
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidType)
 
 
 def test_constant_address(get_contract):
@@ -175,11 +202,14 @@ SOME_PRIME: constant(uint256) = {some_prime}
 def test() -> uint256:
     # calculate some constant which is really unlikely to be randomly
     # in bytecode
-    return 2**SOME_CONSTANT * SOME_PRIME
+    ret: uint256 = 2**SOME_CONSTANT * SOME_PRIME
+    return ret
     """
 
-    lll = compile_code(code, ["ir"])["ir"]
-    assert search_for_sublist(lll, ["mstore", [0], [2 ** 12 * some_prime]])
+    ir = compile_code(code, ["ir"])["ir"]
+    assert search_for_sublist(
+        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
+    )
 
 
 def test_constant_lists(get_contract):

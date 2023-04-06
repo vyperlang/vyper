@@ -21,7 +21,7 @@ def test_pure_call(get_contract_with_gas_estimation_for_constants):
 def _foo() -> int128:
     return 5
 
-@view
+@pure
 @external
 def foo() -> int128:
     return self._foo()
@@ -83,11 +83,25 @@ def foo() -> uint256:
     )
 
 
-def test_invalid_call(get_contract, assert_compile_failed):
+def test_invalid_self_access(get_contract, assert_compile_failed):
     assert_compile_failed(
         lambda: get_contract(
             """
 @pure
+@external
+def foo() -> address:
+    return self
+    """
+        ),
+        StateAccessViolation,
+    )
+
+
+def test_invalid_call(get_contract, assert_compile_failed):
+    assert_compile_failed(
+        lambda: get_contract(
+            """
+@view
 @internal
 def _foo() -> uint256:
     return 5
@@ -95,7 +109,7 @@ def _foo() -> uint256:
 @pure
 @external
 def foo() -> uint256:
-    return self._foo()  # Fails because of self.
+    return self._foo()  # Fails because of calling non-pure fn
     """
         ),
         StateAccessViolation,

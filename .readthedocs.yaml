@@ -1,0 +1,16 @@
+# File: .readthedocs.yaml
+
+version: 2
+
+# Build from the docs/ directory with Sphinx
+sphinx:
+  configuration: docs/conf.py
+
+formats: all
+
+
+# Explicitly set the version of Python and its requirements
+python:
+  version: 3.8
+  install:
+    - requirements: requirements-docs.txt

@@ -8,6 +8,7 @@ from vyper.exceptions import (
     EventDeclarationException,
     InvalidType,
     NamespaceCollision,
+    StructureException,
     TypeMismatch,
     UndeclaredDefinition,
 )
@@ -274,7 +275,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = w3.eth.getBlock(w3.eth.blockNumber).timestamp
+    timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
 
     assert logs[0].args.arg1 == [1, 2]
@@ -422,7 +423,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = w3.eth.getBlock(w3.eth.blockNumber).timestamp
+    timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
     args = logs[0].args
     assert args.arg1 == 123
@@ -474,17 +475,25 @@ def test_event_logging_with_multiple_logs_topics_and_data(
     w3, tester, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
+struct SmallStruct:
+    t: String[5]
+    w: decimal
+struct MyStruct:
+    x: uint256
+    y: Bytes[3]
+    z: SmallStruct
+
 event MyLog:
     arg1: indexed(int128)
     arg2: Bytes[3]
 event YourLog:
     arg1: indexed(address)
-    arg2: Bytes[5]
+    arg2: MyStruct
 
 @external
 def foo():
     log MyLog(1, b'bar')
-    log YourLog(self, b'house')
+    log YourLog(self, MyStruct({x: 1, y: b'abc', z: SmallStruct({t: 'house', w: 13.5})}))
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
@@ -494,7 +503,7 @@ def foo():
     logs1 = receipt["logs"][0]
     logs2 = receipt["logs"][1]
     event_id1 = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
-    event_id2 = keccak(bytes("YourLog(address,bytes)", "utf-8"))
+    event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
 
     # Event id is always the first topic
     assert logs1["topics"][0] == event_id1.hex()
@@ -512,8 +521,24 @@ def foo():
     assert c._classic_contract.abi[1] == {
         "name": "YourLog",
         "inputs": [
-            {"type": "address", "name": "arg1", "indexed": True},
-            {"type": "bytes", "name": "arg2", "indexed": False},
+            {"name": "arg1", "type": "address", "indexed": True},
+            {
+                "name": "arg2",
+                "type": "tuple",
+                "components": [
+                    {"name": "x", "type": "uint256"},
+                    {"name": "y", "type": "bytes"},
+                    {
+                        "name": "z",
+                        "type": "tuple",
+                        "components": [
+                            {"name": "t", "type": "string"},
+                            {"name": "w", "type": "fixed168x10"},
+                        ],
+                    },
+                ],
+                "indexed": False,
+            },
         ],
         "anonymous": False,
         "type": "event",
@@ -527,7 +552,7 @@ def foo():
     logs = get_logs(tx_hash, c, "YourLog")
     args = logs[0].args
     assert args.arg1 == c.address
-    assert args.arg2 == b"house"
+    assert args.arg2 == (1, b"abc", ("house", Decimal("13.5")))
 
 
 def test_fails_when_input_is_the_wrong_type(assert_tx_failed, get_contract_with_gas_estimation):
@@ -1208,3 +1233,54 @@ def foo():
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"
     assert receipt["logs"][0]["topics"][3] == topic3
+
+
+fail_list = [
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    a: DynArray[bytes32, 1] = [0x1234567812345678123456781234567812345678123456781234567812345678]
+    raw_log(a, b"moo2")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([b"cow"], b"dog")
+    """,
+        (StructureException, InvalidType),
+    ),
+    (
+        """
+@external
+def foo():
+    # bytes20 instead of bytes32
+    raw_log([], 0x1234567890123456789012345678901234567890)
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_raw_log_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

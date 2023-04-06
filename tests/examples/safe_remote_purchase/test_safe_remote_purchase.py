@@ -26,7 +26,7 @@ def get_balance(w3):
     def get_balance():
         a0, a1 = w3.eth.accounts[:2]
         # balance of a1 = seller, a2 = buyer
-        return w3.eth.getBalance(a0), w3.eth.getBalance(a1)
+        return w3.eth.get_balance(a0), w3.eth.get_balance(a1)
 
     return get_balance
 
@@ -44,7 +44,7 @@ def test_initial_state(w3, assert_tx_failed, get_contract, get_balance, contract
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert get_balance() == ((a1_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
+    assert get_balance() == ((a0_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
 
 
 def test_abort(w3, assert_tx_failed, get_balance, get_contract, contract_code):
@@ -140,8 +140,8 @@ def __default__():
     buyer_contract = get_contract(buyer_contract_code, *[c.address])
     buyer_contract_address = buyer_contract.address
     init_bal_a0, init_bal_buyer_contract = (
-        w3.eth.getBalance(a0),
-        w3.eth.getBalance(buyer_contract_address),
+        w3.eth.get_balance(a0),
+        w3.eth.get_balance(buyer_contract_address),
     )
     # Start purchase
     buyer_contract.start_purchase(transact={"value": 4, "from": w3.eth.accounts[1], "gas": 100000})
@@ -152,7 +152,7 @@ def __default__():
     buyer_contract.start_received(transact={"from": w3.eth.accounts[1], "gas": 100000})
 
     # Final check if everything worked. 1 value has been transferred
-    assert w3.eth.getBalance(a0), w3.eth.getBalance(buyer_contract_address) == (
+    assert w3.eth.get_balance(a0), w3.eth.get_balance(buyer_contract_address) == (
         init_bal_a0 + 1,
         init_bal_buyer_contract - 1,
     )

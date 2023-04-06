@@ -7,6 +7,14 @@ valid_list = [
 x: public(int128)
     """,
     """
+x: public(constant(int128)) = 0
+y: public(immutable(int128))
+
+@external
+def __init__():
+    y = 0
+    """,
+    """
 x: public(int128)
 y: public(int128)
 z: public(int128)

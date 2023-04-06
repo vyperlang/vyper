@@ -1,11 +1,6 @@
 import pytest
 
-from vyper.exceptions import (
-    ImmutableViolation,
-    InvalidType,
-    SyntaxException,
-    TypeMismatch,
-)
+from vyper.exceptions import ImmutableViolation, InvalidType, TypeMismatch
 
 
 def test_augassign(get_contract_with_gas_estimation):
@@ -117,17 +112,6 @@ def foo2() -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.foo2() == 5
-
-
-def test_calculate_literals_invalid(assert_compile_failed, get_contract_with_gas_estimation):
-    code = """
-@external
-def foo2() -> uint256:
-    x: uint256 = 0
-    x = 3 ^ 3  # invalid operator
-    return x
-"""
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), SyntaxException)
 
 
 # See #838. Confirm that nested keys and structs work properly.
@@ -255,7 +239,7 @@ def foo():
     ],
 )
 def test_invalid_implicit_conversions(
-    contract, assert_compile_failed, get_contract_with_gas_estimation,
+    contract, assert_compile_failed, get_contract_with_gas_estimation
 ):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
 

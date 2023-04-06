@@ -408,23 +408,45 @@ def __default__():
 
     c = get_contract_with_gas_estimation(code)
 
-    w3.eth.sendTransaction({"to": c.address, "value": w3.toWei(1, "ether")})
-    assert w3.eth.getBalance(c.address) == w3.toWei(1, "ether")
+    w3.eth.send_transaction({"to": c.address, "value": w3.toWei(1, "ether")})
+    assert w3.eth.get_balance(c.address) == w3.toWei(1, "ether")
     a3 = w3.eth.accounts[2]
-    assert w3.eth.getBalance(a3) == w3.toWei(1000000, "ether")
+    assert w3.eth.get_balance(a3) == w3.toWei(1000000, "ether")
     c.test(True, a3, w3.toWei(0.05, "ether"), transact={})
-    assert w3.eth.getBalance(a3) == w3.toWei(1000000.05, "ether")
-    assert w3.eth.getBalance(c.address) == w3.toWei(0.95, "ether")
+    assert w3.eth.get_balance(a3) == w3.toWei(1000000.05, "ether")
+    assert w3.eth.get_balance(c.address) == w3.toWei(0.95, "ether")
 
 
-def test_private_msg_sender(get_contract, assert_compile_failed):
+def test_private_msg_sender(get_contract, w3):
     code = """
+event Addr:
+    addr: address
+
 @internal
+@view
 def _whoami() -> address:
     return msg.sender
+
+@external
+@view
+def i_am_me() -> bool:
+    return msg.sender == self._whoami()
+
+@external
+@view
+def whoami() -> address:
+    log Addr(self._whoami())
+    return self._whoami()
     """
 
-    assert_compile_failed(lambda: get_contract(code))
+    c = get_contract(code)
+    assert c.i_am_me()
+
+    addr = w3.eth.accounts[1]
+    txhash = c.whoami(transact={"from": addr})
+    receipt = w3.eth.wait_for_transaction_receipt(txhash)
+    logged_addr = w3.toChecksumAddress(receipt.logs[0].data[-40:])
+    assert logged_addr == addr, "oh no"
 
 
 def test_nested_static_params_only(get_contract, assert_tx_failed):
@@ -568,6 +590,22 @@ def foo(a: int128) -> (int128, int128):
     (
         """
 struct A:
+    one: uint8
+
+@internal
+def _foo(_one: uint8) ->A:
+    return A({one: _one})
+
+@external
+def foo() -> A:
+    return self._foo(1)
+    """,
+        (),
+        (1,),
+    ),
+    (
+        """
+struct A:
     many: uint256[4]
     one: uint256
 
@@ -580,7 +618,7 @@ def foo() -> A:
     return self._foo([1, 2, 3, 4], 5)
     """,
         (),
-        [[1, 2, 3, 4], 5],
+        ([1, 2, 3, 4], 5),
     ),
     (
         """

@@ -9,7 +9,7 @@ fail_list = [
 def foo() -> int128:
     x: int128 = 45
     return x.codesize
-    """,
+    """
 ]
 
 
@@ -31,6 +31,15 @@ def foo() -> uint256:
 @external
 def foo() -> uint256:
     return self.codesize
+    """,
+    """
+struct Foo:
+    t: address
+foo: Foo
+
+@external
+def bar() -> uint256:
+    return self.foo.t.codesize
     """,
 ]
 

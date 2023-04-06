@@ -1,11 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    StructureException,
-    UndeclaredDefinition,
-    UnknownAttribute,
-)
+from vyper.exceptions import StructureException, UndeclaredDefinition, UnknownAttribute
 
 fail_list = [
     (
@@ -20,9 +16,9 @@ def foo() -> uint256:
     (
         """
 @external
-def foo() -> uint256:
-    convert(2, uint256)
-    return convert(2, uint256)
+def foo(x: int256) -> uint256:
+    convert(x, uint256)
+    return convert(x, uint256)
 
     """,
         StructureException,
@@ -53,8 +49,8 @@ def test_functions_call_fail(bad_code, exc):
 valid_list = [
     """
 @external
-def foo() -> uint256:
-    return convert(2, uint256)
+def foo(x: int128) -> uint256:
+    return convert(x, uint256)
     """,
     """
 from vyper.interfaces import ERC20

@@ -1,7 +1,7 @@
 import pytest
 
-from vyper.old_codegen.context import Context
-from vyper.old_codegen.types import BaseType
+from vyper.codegen.context import Context
+from vyper.codegen.core import get_type_for_exact_size
 
 
 class ContextMock(Context):
@@ -13,7 +13,9 @@ class ContextMock(Context):
     def internal_memory_scope(self):
         if not self._mock_vars:
             for i in range(20):
-                self._new_variable(f"#mock{i}", BaseType(self._size), self._size, bool(i % 2))
+                self._new_variable(
+                    f"#mock{i}", get_type_for_exact_size(self._size), self._size, bool(i % 2)
+                )
             self._mock_vars = True
         return super().internal_memory_scope()
 
@@ -45,5 +47,5 @@ def pytest_collection_modifyitems(items, config):
 @pytest.fixture
 def memory_mocker(monkeypatch, request):
     if request.param:
-        monkeypatch.setattr("vyper.old_codegen.context.Context", ContextMock)
+        monkeypatch.setattr("vyper.codegen.context.Context", ContextMock)
         ContextMock.set_mock_var_size(request.param)

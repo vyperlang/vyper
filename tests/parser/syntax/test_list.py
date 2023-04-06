@@ -1,12 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    InvalidLiteral,
-    InvalidType,
-    StructureException,
-    TypeMismatch,
-)
+from vyper.exceptions import InvalidLiteral, InvalidType, StructureException, TypeMismatch
 
 fail_list = [
     (
@@ -99,7 +94,7 @@ bar: int128[3]
 def foo():
     self.bar = []
     """,
-        InvalidLiteral,
+        InvalidType,
     ),
     (
         """

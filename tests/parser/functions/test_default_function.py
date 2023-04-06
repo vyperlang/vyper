@@ -9,11 +9,11 @@ def __init__():
     c = get_contract_with_gas_estimation(code)
 
     assert c.x() == 123
-    assert w3.eth.getBalance(c.address) == 0
+    assert w3.eth.get_balance(c.address) == 0
     assert_tx_failed(
-        lambda: w3.eth.sendTransaction({"to": c.address, "value": w3.toWei(0.1, "ether")})
+        lambda: w3.eth.send_transaction({"to": c.address, "value": w3.toWei(0.1, "ether")})
     )
-    assert w3.eth.getBalance(c.address) == 0
+    assert w3.eth.get_balance(c.address) == 0
 
 
 def test_basic_default(w3, get_logs, get_contract_with_gas_estimation):
@@ -28,9 +28,9 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    logs = get_logs(w3.eth.sendTransaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
     assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.getBalance(c.address) == w3.toWei(0.1, "ether")
+    assert w3.eth.get_balance(c.address) == w3.toWei(0.1, "ether")
 
 
 def test_basic_default_default_param_function(w3, get_logs, get_contract_with_gas_estimation):
@@ -51,9 +51,9 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    logs = get_logs(w3.eth.sendTransaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
     assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.getBalance(c.address) == w3.toWei(0.1, "ether")
+    assert w3.eth.get_balance(c.address) == w3.toWei(0.1, "ether")
 
 
 def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
@@ -67,7 +67,7 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert_tx_failed(lambda: w3.eth.sendTransaction({"to": c.address, "value": 10 ** 17}))
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}))
 
 
 def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
@@ -121,12 +121,12 @@ def __default__():
 
     assert c.blockHashAskewLimitary(0) == 7
 
-    logs = get_logs(w3.eth.sendTransaction({"to": c.address, "value": 0}), c, "Sent")
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0}), c, "Sent")
     assert 1 == logs[0].args.sig
 
     logs = get_logs(
         # call blockHashAskewLimitary
-        w3.eth.sendTransaction({"to": c.address, "value": 0, "data": "0x00000000"}),
+        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x" + "00" * 36}),
         c,
         "Sent",
     )

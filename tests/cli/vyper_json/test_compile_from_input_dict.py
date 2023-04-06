@@ -121,7 +121,7 @@ def test_source_ids_increment():
 def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
     assert sorted(result.keys()) == ["contracts/bar.vy", "contracts/foo.vy"]
-    assert sorted(result["contracts/bar.vy"].keys()) == sorted(TRANSLATE_MAP.values())
+    assert sorted(result["contracts/bar.vy"].keys()) == sorted(set(TRANSLATE_MAP.values()))
 
 
 def test_relative_import_paths():

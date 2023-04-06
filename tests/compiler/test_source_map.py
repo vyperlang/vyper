@@ -32,7 +32,7 @@ def test_jump_map():
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    assert len([v for v in jump_map.values() if v == "o"]) == 3
+    assert len([v for v in jump_map.values() if v == "o"]) == 1
     assert len([v for v in jump_map.values() if v == "i"]) == 2
 
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
@@ -62,10 +62,23 @@ def test_pos_map_offsets():
             lineno, col_offset, end_lineno, end_col_offset = next(pc_iter)
             assert code_lines[lineno - 1][col_offset] == TEST_CODE[start]
             assert length == (
-                sum(len(i) for i in code_lines[lineno - 1 : end_lineno])  # noqa: E203
+                sum(len(i) for i in code_lines[lineno - 1 : end_lineno])
                 - col_offset
                 - (len(code_lines[end_lineno - 1]) - end_col_offset)
             )
+
+
+def test_error_map():
+    code = """
+foo: uint256
+
+@external
+def update_foo():
+    self.foo += 1
+    """
+    error_map = compile_code(code, ["source_map"])["source_map"]["error_map"]
+    assert "safeadd" in list(error_map.values())
+    assert "fallback function" in list(error_map.values())
 
 
 def test_compress_source_map():
@@ -77,7 +90,7 @@ def foo() -> uint256:
     compressed = _compress_source_map(
         code, {"0": None, "2": (2, 0, 4, 13), "3": (2, 0, 2, 8), "5": (2, 0, 2, 8)}, {"3": "o"}, 2
     )
-    assert compressed == "-1:-1:2:-;1:45;:8::o;;"
+    assert compressed == "-1:-1:2:-;1:45;:8::o;"
 
 
 def test_expand_source_map():

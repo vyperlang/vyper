@@ -11,11 +11,12 @@ Environment variables always exist in the namespace and are primarily used to pr
 Block and Transaction Properties
 --------------------------------
 
-==================== ================ =============================================
+==================== ================ =========================================================
 Name                 Type             Value
-==================== ================ =============================================
-``block.coinbase``   ``address``      Current block miner’s address
+==================== ================ =========================================================
+``block.coinbase``   ``address``      Current block miner's address
 ``block.difficulty`` ``uint256``      Current block difficulty
+``block.prevrandao`` ``uint256``      Current randomness beacon provided by the beacon chain
 ``block.number``     ``uint256``      Current block number
 ``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
 ``block.timestamp``  ``uint256``      Current block epoch timestamp
@@ -25,15 +26,16 @@ Name                 Type             Value
 ``msg.sender``       ``address``      Sender of the message (current call)
 ``msg.value``        ``uint256``      Number of wei sent with the message
 ``tx.origin``        ``address``      Sender of the transaction (full call chain)
-==================== ================ =============================================
+``tx.gasprice``      ``uint256``      Gas price of current transaction in wei
+==================== ================ =========================================================
 
 .. note::
 
-    ``msg.data``, ``msg.sender`` and ``msg.value`` can only be accessed from external functions. If you require these values within a private function they must be passed as parameters.
+    ``block.prevrandao`` is an alias for ``block.difficulty``. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
 
 .. note::
 
-    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.   
+    ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.
 
 .. _constants-self:
 
@@ -86,27 +88,10 @@ Calling Internal Functions
 
 .. _types-constants:
 
-Built In Constants
-==================
-
-Vyper has a few convenience constants builtin.
-
-================= ================ ==============================================
-Name              Type             Value
-================= ================ ==============================================
-``ZERO_ADDRESS``  ``address``      ``0x0000000000000000000000000000000000000000``
-``EMPTY_BYTES32`` ``bytes32``      ``0x0000000000000000000000000000000000000000000000000000000000000000``
-``MAX_INT128``    ``int128``       ``2**127 - 1``
-``MIN_INT128``    ``int128``       ``-2**127``
-``MAX_DECIMAL``   ``decimal``      ``(2**127 - 1)``
-``MIN_DECIMAL``   ``decimal``      ``(-2**127)``
-``MAX_UINT256``   ``uint256``      ``2**256 - 1``
-================= ================ ==============================================
-
 Custom Constants
 ================
 
-Custom constants can be defined at a global level in Vyper. To define a constant make use of the ``constant`` keyword.
+Custom constants can be defined at a global level in Vyper. To define a constant, make use of the ``constant`` keyword.
 
 .. code-block:: python
 

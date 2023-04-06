@@ -2,16 +2,16 @@ def test_extract32_extraction(assert_tx_failed, get_contract_with_gas_estimation
     extract32_code = """
 y: Bytes[100]
 @external
-def extrakt32(inp: Bytes[100], index: int128) -> bytes32:
+def extrakt32(inp: Bytes[100], index: uint256) -> bytes32:
     return extract32(inp, index)
 
 @external
-def extrakt32_mem(inp: Bytes[100], index: int128) -> bytes32:
+def extrakt32_mem(inp: Bytes[100], index: uint256) -> bytes32:
     x: Bytes[100] = inp
     return extract32(x, index)
 
 @external
-def extrakt32_storage(index: int128, inp: Bytes[100]) -> bytes32:
+def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
     self.y = inp
     return extract32(self.y, index)
     """
@@ -20,7 +20,6 @@ def extrakt32_storage(index: int128, inp: Bytes[100]) -> bytes32:
     test_cases = (
         (b"c" * 31, 0),
         (b"c" * 32, 0),
-        (b"c" * 32, -1),
         (b"c" * 33, 0),
         (b"c" * 33, 1),
         (b"c" * 33, 2),
@@ -35,7 +34,7 @@ def extrakt32_storage(index: int128, inp: Bytes[100]) -> bytes32:
     )
 
     for S, i in test_cases:
-        expected_result = S[i : i + 32] if 0 <= i <= len(S) - 32 else None  # noqa: E203
+        expected_result = S[i : i + 32] if 0 <= i <= len(S) - 32 else None
         if expected_result is None:
             assert_tx_failed(lambda: c.extrakt32(S, i))
         else:

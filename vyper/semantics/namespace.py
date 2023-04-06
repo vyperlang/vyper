@@ -1,3 +1,4 @@
+import contextlib
 import re
 
 from vyper.evm.opcodes import OPCODES
@@ -7,6 +8,7 @@ from vyper.exceptions import (
     StructureException,
     UndeclaredDefinition,
 )
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):
@@ -22,14 +24,16 @@ class Namespace(dict):
     def __init__(self):
         super().__init__()
         self._scopes = []
-        # FLAG cyclic imports!
-        from vyper.builtin_functions.functions import get_builtin_functions
+        # NOTE cyclic imports!
+        # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
+        from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
+        from vyper.semantics.analysis.base import VarInfo
         from vyper.semantics.types import get_types
 
         self.update(get_types())
         self.update(environment.get_constant_vars())
-        self.update(get_builtin_functions())
+        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other
@@ -38,11 +42,13 @@ class Namespace(dict):
         if self._scopes:
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
+        assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):
         if key not in self:
-            raise UndeclaredDefinition(f"'{key}' has not been declared")
+            suggestions_str = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared. {suggestions_str}")
         return super().__getitem__(key)
 
     def __enter__(self):
@@ -62,7 +68,7 @@ class Namespace(dict):
         Called as a context manager, e.g. `with namespace.enter_scope():`
         All items that are added within the context are removed upon exit.
         """
-        # FLAG cyclic imports!
+        # NOTE cyclic imports!
         from vyper.semantics import environment
 
         self._scopes.append(set())
@@ -100,6 +106,19 @@ def get_namespace():
         return _namespace
 
 
+@contextlib.contextmanager
+def override_global_namespace(ns):
+    global _namespace
+    tmp = _namespace
+    try:
+        # clobber global namespace
+        _namespace = ns
+        yield
+    finally:
+        # unclobber
+        _namespace = tmp
+
+
 def validate_identifier(attr):
     namespace = get_namespace()
     if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
@@ -117,9 +136,15 @@ RESERVED_KEYWORDS = {
     "external",
     "nonpayable",
     "constant",
+    "immutable",
     "internal",
     "payable",
     "nonreentrant",
+    # "class" keywords
+    "interface",
+    "struct",
+    "event",
+    "enum",
     # control flow
     "if",
     "for",
@@ -133,6 +158,7 @@ RESERVED_KEYWORDS = {
     "assert",
     "raise",
     "throw",
+    "unreachable",
     # special functions (no name mangling)
     "init",
     "_init_",
@@ -175,6 +201,8 @@ RESERVED_KEYWORDS = {
     # `address` members
     "balance",
     "codesize",
+    "codehash",
+    "code",
     "is_contract",
     # units
     "units",
@@ -183,8 +211,6 @@ RESERVED_KEYWORDS = {
     "empty_bytes32",
     "max_int128",
     "min_int128",
-    "max_int256",
-    "min_int256",
     "max_decimal",
     "min_decimal",
     "max_uint256",

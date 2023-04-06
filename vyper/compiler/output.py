@@ -5,11 +5,11 @@ from pathlib import Path
 import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
+from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
-from vyper.lll import compile_lll
-from vyper.old_codegen.lll_node import LLLnode
+from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -35,10 +35,13 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    name = Path(compiler_data.contract_name).stem.capitalize()
+    stem = Path(compiler_data.contract_name).stem
+    # capitalize words separated by '_'
+    # ex: test_interface.vy -> TestInterface
+    name = "".join([x.capitalize() for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
-    for func in interface.members.values():
+    for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
         args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
@@ -59,9 +62,9 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
 
-    if interface.members:
+    if interface.functions:
         out = f"{out}\n# Functions\n\n"
-        for func in interface.members.values():
+        for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
@@ -73,33 +76,90 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def build_ir_output(compiler_data: CompilerData) -> LLLnode:
-    return compiler_data.lll_nodes
+def build_ir_output(compiler_data: CompilerData) -> IRnode:
+    if compiler_data.show_gas_estimates:
+        IRnode.repr_show_gas = True
+    return compiler_data.ir_nodes
+
+
+def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
+    if compiler_data.show_gas_estimates:
+        IRnode.repr_show_gas = True
+    return compiler_data.ir_runtime
+
+
+def _ir_to_dict(ir_node):
+    args = ir_node.args
+    if len(args) > 0 or ir_node.value == "seq":
+        return {ir_node.value: [_ir_to_dict(x) for x in args]}
+    return ir_node.value
+
+
+def build_ir_dict_output(compiler_data: CompilerData) -> dict:
+    return _ir_to_dict(compiler_data.ir_nodes)
+
+
+def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
+    return _ir_to_dict(compiler_data.ir_runtime)
+
+
+def build_metadata_output(compiler_data: CompilerData) -> dict:
+    warnings.warn("metadata output format is unstable!")
+    sigs = compiler_data.function_signatures
+
+    def _var_rec_dict(variable_record):
+        ret = vars(variable_record)
+        ret["typ"] = str(ret["typ"])
+        if ret["data_offset"] is None:
+            del ret["data_offset"]
+        for k in ("blockscopes", "defined_at", "encoding"):
+            del ret[k]
+        ret["location"] = ret["location"].name
+        return ret
+
+    def _to_dict(sig):
+        ret = vars(sig)
+        ret["return_type"] = str(ret["return_type"])
+        ret["_ir_identifier"] = sig._ir_identifier
+        for attr in ("gas_estimate", "func_ast_code"):
+            del ret[attr]
+        for attr in ("args", "base_args", "default_args"):
+            if attr in ret:
+                ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr]}
+        for k in ret["default_values"]:
+            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+            ret["default_values"][k] = ret["default_values"][k].node_source_code
+        ret["frame_info"] = vars(ret["frame_info"])
+        for k in ret["frame_info"]["frame_vars"].keys():
+            ret["frame_info"]["frame_vars"][k] = _var_rec_dict(ret["frame_info"]["frame_vars"][k])
+        return ret
+
+    return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.members.values()
+    functions = interface.functions.values()
 
     return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
-    # Add gas estimates for each function to ABI
-    gas_estimates = build_gas_estimates(compiler_data.lll_nodes)
-    for func in abi:
-        try:
-            func_signature = func["name"]
-        except KeyError:
-            # constructor and fallback functions don't have a name
-            continue
+    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
+    if compiler_data.show_gas_estimates:
+        # Add gas estimates for each function to ABI
+        gas_estimates = build_gas_estimates(compiler_data.function_signatures)
+        for func in abi:
+            try:
+                func_signature = func["name"]
+            except KeyError:
+                # constructor and fallback functions don't have a name
+                continue
 
-        func_name, _, _ = func_signature.partition("(")
-        # This check ensures we skip __init__ since it has no estimate
-        if func_name in gas_estimates:
-            # TODO: mutation
-            func["gas"] = gas_estimates[func_name]
+            func_name, _, _ = func_signature.partition("(")
+            # This check ensures we skip __init__ since it has no estimate
+            if func_name in gas_estimates:
+                func["gas"] = gas_estimates[func_name]
     return abi
 
 
@@ -115,33 +175,43 @@ def build_layout_output(compiler_data: CompilerData) -> StorageLayout:
 
 def _build_asm(asm_list):
     output_string = ""
-    skip_newlines = 0
+    in_push = 0
     for node in asm_list:
+
         if isinstance(node, list):
-            output_string += _build_asm(node)
+            output_string += "{ " + _build_asm(node) + "} "
             continue
 
-        is_push = isinstance(node, str) and node.startswith("PUSH")
-
-        output_string += str(node) + " "
-        if skip_newlines:
-            skip_newlines -= 1
-        elif is_push:
-            skip_newlines = int(node[4:]) - 1
+        if in_push > 0:
+            assert isinstance(node, int), node
+            output_string += hex(node)[2:].rjust(2, "0")
+            if in_push == 1:
+                output_string += " "
+            in_push -= 1
         else:
-            output_string += "\n"
+            output_string += str(node) + " "
+
+            if isinstance(node, str) and node.startswith("PUSH"):
+                assert in_push == 0
+                in_push = int(node[4:])
+                output_string += "0x"
+
     return output_string
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_lll.assembly_to_evm(compiler_data.assembly_runtime)
+    _, line_number_map = compile_ir.assembly_to_evm(
+        compiler_data.assembly_runtime,
+        insert_vyper_signature=True,
+        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
+    )
     # Sort line_number_map
     out = OrderedDict()
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id,
+        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
     )
     out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
     return out
@@ -149,7 +219,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
 
 def _compress_source_map(code, pos_map, jump_map, source_id):
     linenos = asttokens.LineNumbers(code)
-    compressed_map = f"-1:-1:{source_id}:-;"
+    ret = [f"-1:-1:{source_id}:-"]
     last_pos = [-1, -1, source_id]
 
     for pc in sorted(pos_map)[1:]:
@@ -169,13 +239,17 @@ def _compress_source_map(code, pos_map, jump_map, source_id):
             else:
                 current_pos[i] = ""
 
-        compressed_map += ":".join(str(i) for i in current_pos) + ";"
+        ret.append(":".join(str(i) for i in current_pos))
 
-    return compressed_map
+    return ";".join(ret)
 
 
 def build_bytecode_output(compiler_data: CompilerData) -> str:
     return f"0x{compiler_data.bytecode.hex()}"
+
+
+def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
+    return f"0x{compiler_data.blueprint_bytecode.hex()}"
 
 
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
