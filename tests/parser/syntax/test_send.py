@@ -143,6 +143,16 @@ def foo():
     send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 5, gas=5000)
     """,
     """
+    # Test custom send method
+@internal
+def send(a: address, w: uint256):
+    send(0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe, 1)
+@external
+@payable
+def foo():
+    self.send(msg.sender, msg.value)
+    """,
+    """
 x: uint256
 
 #Test send gas stipend
