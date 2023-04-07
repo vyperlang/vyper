@@ -1255,6 +1255,8 @@ class BlockHash(BuiltinFunction):
 class RawRevert(BuiltinFunction):
     _id = "raw_revert"
     _inputs = [("data", BytesT.any())]
+    _return_type = None
+    _is_terminus = True
 
     def fetch_call_return(self, node):
         return None
