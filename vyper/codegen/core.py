@@ -917,7 +917,10 @@ def eval_seq(ir_node):
 
 # TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
-    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
+    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
+        "raw_revert",
+        "selfdestruct",
+    ):
         return True
     if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
         return True
