@@ -164,10 +164,36 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if name is None:
             raise VariableDeclarationException("Invalid module-level assignment", node)
 
+        data_loc = (
+            DataLocation.CODE
+            if node.is_immutable
+            else DataLocation.UNSET
+            if node.is_constant
+            else DataLocation.STORAGE
+        )
+
+        type_ = type_from_annotation(node.annotation)
+        var_info = VarInfo(
+            type_,
+            decl_node=node,
+            location=data_loc,
+            is_constant=node.is_constant,
+            is_public=node.is_public,
+            is_immutable=node.is_immutable,
+        )
+
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
             node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
+
+            try:
+                self.namespace["self"].typ.add_member(name, var_info)
+                node.target._metadata["type"] = type_
+            except NamespaceCollision:
+                raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
 
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
@@ -188,23 +214,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
-        data_loc = (
-            DataLocation.CODE
-            if node.is_immutable
-            else DataLocation.UNSET
-            if node.is_constant
-            else DataLocation.STORAGE
-        )
-
-        type_ = type_from_annotation(node.annotation)
-        var_info = VarInfo(
-            type_,
-            decl_node=node,
-            location=data_loc,
-            is_constant=node.is_constant,
-            is_public=node.is_public,
-            is_immutable=node.is_immutable,
-        )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
@@ -220,10 +229,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-            if not node.is_public:
-                return
+            return
 
-        if node.value and not node.is_constant:
+        if node.value:
             var_type = "Immutable" if node.is_immutable else "Storage"
             raise VariableDeclarationException(
                 f"{var_type} variables cannot have an initial value", node.value
@@ -240,21 +248,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-            if not node.is_public:
-                return
-
-        if not node.is_constant and not node.is_immutable:
-            try:
-                self.namespace.validate_assignment(name)
-            except NamespaceCollision as exc:
-                raise exc.with_annotation(node) from None
+            return
 
         try:
-            self.namespace["self"].typ.add_member(name, var_info)
-            node.target._metadata["type"] = type_
-        except NamespaceCollision:
-            raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
-        except VyperException as exc:
+            self.namespace.validate_assignment(name)
+        except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
 
     def visit_EnumDef(self, node):
