@@ -209,14 +209,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node._metadata["type"] = type_
 
         def _finalize():
-            if not node.is_public:
+            if (node.is_constant or node.is_immutable) and not node.is_public:
                 return
 
             try:
                 self.namespace["self"].typ.add_member(name, var_info)
                 node.target._metadata["type"] = type_
             except NamespaceCollision:
-                raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
+                raise NamespaceCollision(
+                    f"Value '{name}' has already been declared", node
+                ) from None
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
