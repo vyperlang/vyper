@@ -40,19 +40,19 @@ def test_initial_state(w3, assert_tx_failed, get_contract, get_balance, contract
     # Check that the seller is set correctly
     assert c.seller() == w3.eth.accounts[0]
     # Check if item value is set correctly (Half of deposit)
-    assert c.value() == w3.toWei(1, "ether")
+    assert c.value() == w3.to_wei(1, "ether")
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert get_balance() == ((a0_pre_bal - w3.toWei(2, "ether")), a1_pre_bal)
+    assert get_balance() == ((a0_pre_bal - w3.to_wei(2, "ether")), a1_pre_bal)
 
 
 def test_abort(w3, assert_tx_failed, get_balance, get_contract, contract_code):
     a0, a1, a2 = w3.eth.accounts[:3]
 
     a0_pre_bal, a1_pre_bal = get_balance()
-    c = get_contract(contract_code, value=w3.toWei(2, "ether"))
-    assert c.value() == w3.toWei(1, "ether")
+    c = get_contract(contract_code, value=w3.to_wei(2, "ether"))
+    assert c.value() == w3.to_wei(1, "ether")
     # Only sender can trigger refund
     assert_tx_failed(lambda: c.abort(transact={"from": a2}))
     # Refund works correctly
@@ -100,7 +100,6 @@ def test_received(w3, get_contract, assert_tx_failed, get_balance, contract_code
 
 
 def test_received_reentrancy(w3, get_contract, assert_tx_failed, get_balance, contract_code):
-
     buyer_contract_code = """
 interface PurchaseContract:
 

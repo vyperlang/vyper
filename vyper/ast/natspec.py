@@ -73,7 +73,6 @@ def _parse_docstring(
     params: Optional[Tuple] = None,
     return_length: int = 0,
 ) -> dict:
-
     natspec: dict = {}
     if params is None:
         params = tuple()

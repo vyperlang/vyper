@@ -188,10 +188,8 @@ class ContractFunctionT(VyperType):
                 )
 
         else:
-
             # FunctionDef with decorators (normal functions)
             for decorator in node.decorator_list:
-
                 if isinstance(decorator, vy_ast.Call):
                     if "nonreentrant" in kwargs:
                         raise StructureException(
@@ -317,7 +315,7 @@ class ContractFunctionT(VyperType):
             raise FunctionDeclarationException(
                 "Constructor may not have a return type", node.returns
             )
-        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
+        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript)):
             return_type = type_from_annotation(node.returns)
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()

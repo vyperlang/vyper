@@ -42,13 +42,13 @@ def foo(bar: uint256) -> Bytes[36]:
 
     # 2fbebd38000000000000000000000000000000000000000000000000000000000000002a
     method_id = keccak(text="foo(uint256)").hex()[2:10]  # 2fbebd38
-    encoded_42 = w3.toBytes(42).hex()  # 2a
+    encoded_42 = w3.to_bytes(42).hex()  # 2a
     expected_result = method_id + "00" * 31 + encoded_42
 
     assert contract.foo(42).hex() == expected_result
 
 
-@pytest.mark.parametrize("bar", [0, 1, 42, 2 ** 256 - 1])
+@pytest.mark.parametrize("bar", [0, 1, 42, 2**256 - 1])
 def test_calldata_private(get_contract, bar):
     code = """
 @external
@@ -73,7 +73,7 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == [2 ** 256 - 1, bytes(keccak(text="foo()")[:4]), 2 ** 256 - 1]
+    assert contract.foo() == [2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1]
 
 
 def test_assignment_to_storage(w3, get_contract, keccak):
@@ -127,6 +127,16 @@ def foo() -> Bytes[7]:
 def foo() -> uint256:
     bar: uint256 = convert(msg.data, uint256)
     return bar
+    """,
+        StructureException,
+    ),
+    (
+        """
+a: HashMap[Bytes[10], uint256]
+
+@external
+def foo():
+    self.a[msg.data] += 1
     """,
         StructureException,
     ),

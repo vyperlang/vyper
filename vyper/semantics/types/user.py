@@ -261,7 +261,6 @@ class EventT(_UserType):
 
 
 class InterfaceT(_UserType):
-
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     _as_array = True
@@ -425,21 +424,6 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
             func = ContractFunctionT.from_FunctionDef(node)
-            if node.name in functions:
-                # compare the input arguments of the new function and the previous one
-                # if one function extends the inputs, this is a valid function name overload
-                existing_args = list(functions[node.name].arguments)
-                new_args = list(func.arguments)
-                for a, b in zip(existing_args, new_args):
-                    if not isinstance(a, type(b)):
-                        raise NamespaceCollision(
-                            f"Interface contains multiple functions named '{node.name}' "
-                            "with incompatible input types",
-                            base_node,
-                        )
-                if len(new_args) <= len(existing_args):
-                    # only keep the `ContractFunctionT` with the longest set of input args
-                    continue
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
         name = node.target.id

@@ -159,7 +159,6 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
@@ -203,7 +202,7 @@ class Expr:
         ):
             # 0, 1, 2, .. 255
             enum_id = typ._enum_members[self.expr.attr]
-            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
@@ -602,7 +601,7 @@ class Expr:
                 # `operand`. `mask` could be a very large constant and
                 # hurt codesize, but most user enums will likely have few
                 # enough members that the mask will not be large.
-                mask = (2 ** n_members) - 1
+                mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
             if operand.typ == UINT256_T:

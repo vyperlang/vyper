@@ -83,8 +83,6 @@ class _ExprAnalyser:
                 return ExprInfo.from_varinfo(t)
 
             # it's something else, like my_struct.foo
-            # sanity check
-            assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
         if isinstance(node, vy_ast.Tuple):
@@ -93,8 +91,11 @@ class _ExprAnalyser:
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
             is_constant = any((getattr(i, "is_constant", False) for i in types))
+            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
-            return ExprInfo(t, location=location, is_constant=is_constant)
+            return ExprInfo(
+                t, location=location, is_constant=is_constant, is_immutable=is_immutable
+            )
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
@@ -290,7 +291,6 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
-
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
@@ -457,7 +457,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 # TODO push this into `ArrayT.validate_literal()`
 def _validate_literal_array(node, expected):
-
     # validate that every item within an array has the same type
     if isinstance(expected, SArrayT):
         if len(node.elements) != expected.length:
