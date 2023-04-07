@@ -91,8 +91,11 @@ class _ExprAnalyser:
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
             is_constant = any((getattr(i, "is_constant", False) for i in types))
+            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
-            return ExprInfo(t, location=location, is_constant=is_constant)
+            return ExprInfo(
+                t, location=location, is_constant=is_constant, is_immutable=is_immutable
+            )
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
