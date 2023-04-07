@@ -35,9 +35,8 @@ OUTPUT_FORMATS = {
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
-    # sourceMapFull in json output corresponds to source_map in CLI for
-    # historical compatibility reasons
     "source_map": output.build_source_map_output,
+    "source_map_full": output.build_source_map_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
     "bytecode_runtime": output.build_bytecode_runtime_output,
