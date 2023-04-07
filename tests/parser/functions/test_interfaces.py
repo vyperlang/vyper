@@ -510,7 +510,7 @@ def balanceOf(owner: address) -> uint256:
     interface_codes = {"BalanceOf": {"type": "vyper", "code": interface_code}}
     c = get_contract(code, interface_codes=interface_codes)
 
-    assert c.balanceOf(w3.eth.accounts[0]) == w3.toWei(1, "ether")
+    assert c.balanceOf(w3.eth.accounts[0]) == w3.to_wei(1, "ether")
 
 
 def test_local_and_global_interface_namespaces():

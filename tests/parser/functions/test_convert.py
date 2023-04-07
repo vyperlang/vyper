@@ -4,9 +4,9 @@ import itertools
 # import random
 from decimal import Decimal
 
-import eth_abi.exceptions
+import eth.codecs.abi as abi
+import eth.codecs.abi.exceptions
 import pytest
-from eth_abi import decode_single, encode_single
 
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -188,7 +188,7 @@ def _filter_cases(cases, i_typ):
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth.codecs.abi.exceptions.EncodeError:
             return False
 
     return [c for c in cases if _in_bounds(c)]
@@ -234,14 +234,14 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
     try:
-        return decode_single(o_typ.abi_type.selector_name(), val_bits)
-    except eth_abi.exceptions.NonEmptyPaddingBytes:
+        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+    except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    return encode_single(i_typ.abi_type.selector_name(), val)
+    return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
 def _signextend(val_bytes, bits):
@@ -366,7 +366,7 @@ def cases_for_pair(i_typ, o_typ):
             c = _py_convert(c, o_typ, i_typ)
             if c is not None:
                 cases.append(c)
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth.codecs.abi.exceptions.EncodeError:
             pass
 
     # _CASES_CACHE[(i_typ, o_typ)] = cases

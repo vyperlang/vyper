@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from eth.codecs import abi
 from eth_utils import keccak
 
 from vyper.evm.opcodes import EVM_VERSIONS
@@ -14,10 +15,10 @@ def _make_tx(w3, address, signature, values):
     w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
 
 
-def _make_abi_encode_tx(w3, abi_encode, address, signature, input_types, values):
+def _make_abi_encode_tx(w3, address, signature, input_types, values):
     # helper function to broadcast transactions where data is constructed from abi_encode
     sig = keccak(signature.encode()).hex()[:8]
-    data = abi_encode(input_types, values).hex()
+    data = abi.encode(input_types, values).hex()
     w3.eth.send_transaction({"to": address, "data": f"0x{sig}{data}"})
 
 
@@ -92,7 +93,8 @@ def foo(s: bytes{n}) -> bytes{n}:
 
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert c.foo(v) == v.ljust(n, b"\x00")
+        v = v.ljust(n, b"\x00")
+        assert c.foo(v) == v
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -453,9 +455,7 @@ def foo(a: uint256, b: DynArray[int128, 5], c: uint256) -> DynArray[int128, 5]:
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(5))
-def test_int128_dynarray_clamper_failing(
-    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
-):
+def test_int128_dynarray_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external
@@ -525,7 +525,7 @@ def foo(
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(4))
 def test_multidimension_dynarray_clamper_failing(
-    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
+    w3, assert_tx_failed, get_contract, bad_value, idx
 ):
     code = """
 @external
@@ -550,7 +550,7 @@ def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
-def test_dynarray_list_clamper_passing(w3, abi_encode, get_contract, value):
+def test_dynarray_list_clamper_passing(w3, get_contract, value):
     code = """
 @external
 def foo(
@@ -567,9 +567,7 @@ def foo(
 
 @pytest.mark.parametrize("bad_value", [2**127, -(2**127) - 1, 2**255 - 1, -(2**255)])
 @pytest.mark.parametrize("idx", range(10))
-def test_dynarray_list_clamper_failing(
-    w3, abi_encode, assert_tx_failed, get_contract, bad_value, idx
-):
+def test_dynarray_list_clamper_failing(w3, assert_tx_failed, get_contract, bad_value, idx):
     # ensure the invalid value is detected at all locations in the array
     code = """
 @external

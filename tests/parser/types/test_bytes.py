@@ -255,7 +255,7 @@ def test2(l: bytes{m} = {vyper_literal}) -> bool:
 
     assert c.test() is True
     assert c.test2() is True
-    assert c.test2(val) is True
+    assert c.test2(vyper_literal) is True
 
 
 def test_zero_padding_with_private(get_contract):

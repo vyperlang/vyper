@@ -80,7 +80,7 @@ def create_and_return_proxy(inp: address) -> address:
     c3 = c2.create_and_return_proxy(c.address, call={})
     c2.create_and_return_proxy(c.address, transact={})
 
-    c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
+    c3_contract_code = w3.to_bytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
