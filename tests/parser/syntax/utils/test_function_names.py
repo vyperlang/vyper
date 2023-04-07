@@ -68,6 +68,15 @@ def wei(i: int128) -> int128:
 def floor():
     pass
     """,
+    """
+@internal
+def append():
+    pass
+
+@external
+def foo():
+    self.append()
+    """,
 ]
 
 

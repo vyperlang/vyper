@@ -210,6 +210,24 @@ interface MyInterface:
 
 kickers: HashMap[address, MyInterface]
     """,
+    """
+interface Foo:
+    def append(a: uint256): payable
+
+@external
+def bar(x: address):
+    a: Foo = Foo(x)
+    a.append(1)
+    """,
+    """
+interface Foo:
+    def pop(): payable
+
+@external
+def foo(x: address):
+    a: Foo = Foo(x)
+    a.pop()
+    """,
 ]
 
 
