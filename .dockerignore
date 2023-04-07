@@ -49,10 +49,6 @@ docs/vyper.*.rst
 .mypy_cache/
 .hypothesis/
 
-# vyper
-vyper/version.py
-vyper/vyper_git_version.txt
-vyper/vyper_git_commithash.txt
 *.spec
 
 # mac
