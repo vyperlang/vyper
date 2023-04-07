@@ -12,7 +12,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier_with_namespace, validate_identifier_name
+from vyper.semantics.namespace import validate_identifier_name, validate_identifier_with_namespace
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
