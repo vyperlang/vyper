@@ -531,7 +531,11 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            typ = type_from_annotation(node.annotation)
+            if isinstance(typ, EventT):
+                raise StructureException("Struct member cannot be an event", node.annotation)
+
+            members[member_name] = typ
 
         return cls(struct_name, members, ast_def=base_node)
 

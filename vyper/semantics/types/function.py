@@ -283,6 +283,9 @@ class ContractFunctionT(VyperType):
         min_arg_count = max_arg_count - len(node.args.defaults)
         defaults = [None] * min_arg_count + node.args.defaults
 
+        # TODO: fix circular import
+        from vyper.semantics.types.user import EventT
+
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
@@ -298,6 +301,8 @@ class ContractFunctionT(VyperType):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_ = type_from_annotation(arg.annotation)
+            if isinstance(type_, EventT):
+                raise StructureException("Argument cannot be an event", arg.annotation)
 
             if value is not None:
                 if not check_kwargable(value):
@@ -324,6 +329,9 @@ class ContractFunctionT(VyperType):
             return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
+
+        if isinstance(return_type, EventT):
+            raise StructureException("Function return type cannot be an event", node.returns)
 
         return cls(node.name, arguments, min_arg_count, max_arg_count, return_type, **kwargs)
 

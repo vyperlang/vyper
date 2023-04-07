@@ -81,6 +81,11 @@ class HashMapT(_SubscriptableT):
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
         value_type = type_from_annotation(v_ast)
+        # TODO: fix circular import
+        from vyper.semantics.types.user import EventT
+
+        if isinstance(value_type, EventT):
+            raise InvalidType(f"{value_type} is not a valid type for HashMap value", v_ast)
 
         return cls(key_type, value_type)
 
