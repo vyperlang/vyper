@@ -446,6 +446,16 @@ def foo():
     """,
         StructureException,
     ),
+    (
+        """
+event Foo:
+    a: uint256
+
+struct Bar:
+    a: Foo
+    """,
+        StructureException,
+    ),
 ]
 
 
