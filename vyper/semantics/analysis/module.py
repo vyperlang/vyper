@@ -208,6 +208,23 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
+        def _finalize():
+            # add the variable name to `self` namespace if the variable is either
+            # 1. a public constant or immutable; or
+            # 2. a storage variable, whether private or public
+            if (node.is_constant or node.is_immutable) and not node.is_public:
+                return
+
+            try:
+                self.namespace["self"].typ.add_member(name, var_info)
+                node.target._metadata["type"] = type_
+            except NamespaceCollision:
+                raise NamespaceCollision(
+                    f"Value '{name}' has already been declared", node
+                ) from None
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
@@ -219,7 +236,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
-            return
+
+            return _finalize()
 
         if node.value:
             var_type = "Immutable" if node.is_immutable else "Storage"
@@ -237,19 +255,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace[name] = var_info
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
-            return
+
+            return _finalize()
 
         try:
             self.namespace.validate_assignment(name)
         except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
-        try:
-            self.namespace["self"].typ.add_member(name, var_info)
-            node.target._metadata["type"] = type_
-        except NamespaceCollision:
-            raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+
+        return _finalize()
 
     def visit_EnumDef(self, node):
         obj = EnumT.from_EnumDef(node)
