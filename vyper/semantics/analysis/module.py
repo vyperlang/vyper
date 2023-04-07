@@ -209,6 +209,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node._metadata["type"] = type_
 
         def _finalize():
+            # add the variable name to `self` namespace if the variable is either
+            # 1. a public constant or immutable; or
+            # 2. a storage variable, whether private or public
             if (node.is_constant or node.is_immutable) and not node.is_public:
                 return
 
