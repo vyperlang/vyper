@@ -88,7 +88,8 @@ class Namespace(dict):
         self.__init__()
 
     def validate_assignment(self, attr):
-        validate_identifier(attr)
+        validate_identifier_name(attr)
+        validate_identifier_with_namespace(attr)
         if attr in self:
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
@@ -119,12 +120,15 @@ def override_global_namespace(ns):
         _namespace = tmp
 
 
-def validate_identifier(attr):
+def validate_identifier_with_namespace(attr):
     namespace = get_namespace()
     if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
         raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
     if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
         raise StructureException(f"'{attr}' is a reserved keyword")
+
+
+def validate_identifier_name(attr):
     if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
         raise StructureException(f"'{attr}' contains invalid character(s)")
 

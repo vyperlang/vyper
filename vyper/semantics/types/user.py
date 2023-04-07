@@ -268,7 +268,7 @@ class InterfaceT(_UserType):
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
-        super().__init__(members)
+        super().__init__(members, skip_namespace_validation=True)
 
         self._id = _id
         self.events = events
