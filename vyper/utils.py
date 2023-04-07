@@ -257,9 +257,6 @@ class SizeLimits:
     MAX_UINT256 = 2**256 - 1
 
 
-# Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {"send"}
-
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
 VALID_IR_MACROS = {
