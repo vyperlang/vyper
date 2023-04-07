@@ -132,6 +132,16 @@ def foo() -> uint256:
     ),
     (
         """
+a: HashMap[Bytes[10], uint256]
+
+@external
+def foo():
+    self.a[msg.data] += 1
+    """,
+        StructureException,
+    ),
+    (
+        """
 @external
 def foo(bar: uint256) -> bytes32:
     ret_val: bytes32 = slice(msg.data, 4, 32)
