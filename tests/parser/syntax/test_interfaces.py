@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArgumentException,
     InvalidReference,
     InvalidType,
+    StructureException,
     SyntaxException,
     TypeMismatch,
     UnknownAttribute,
@@ -75,6 +76,35 @@ from vyper.interfaces import ERC20
 implements: ERC20 = 1
     """,
         SyntaxException,
+    ),
+    (
+        """
+interface A:
+    @external
+    def foo(): nonpayable
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: self.x
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: 123
+    """,
+        StructureException,
+    ),
+    (
+        """
+struct Foo:
+    a: uint256
+
+implements: Foo
+    """,
+        StructureException,
     ),
 ]
 

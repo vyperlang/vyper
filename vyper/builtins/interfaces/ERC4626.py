@@ -1,13 +1,13 @@
 interface_code = """
 # Events
 event Deposit:
-    depositor: indexed(address)
-    receiver: indexed(address)
+    sender: indexed(address)
+    owner: indexed(address)
     assets: uint256
     shares: uint256
 
 event Withdraw:
-    withdrawer: indexed(address)
+    sender: indexed(address)
     receiver: indexed(address)
     owner: indexed(address)
     assets: uint256
@@ -16,17 +16,22 @@ event Withdraw:
 # Functions
 @view
 @external
+def asset() -> address:
+    pass
+
+@view
+@external
 def totalAssets() -> uint256:
     pass
 
 @view
 @external
-def convertToAssets(shareAmount: uint256) -> uint256:
+def convertToShares(assetAmount: uint256) -> uint256:
     pass
 
 @view
 @external
-def convertToShares(assetAmount: uint256) -> uint256:
+def convertToAssets(shareAmount: uint256) -> uint256:
     pass
 
 @view

@@ -12,7 +12,6 @@ variables = "abcdefghij"
 @given(values=st.lists(st.booleans(), min_size=2, max_size=10))
 @pytest.mark.parametrize("comparator", ["and", "or"])
 def test_boolop_simple(get_contract, values, comparator):
-
     input_value = ",".join(f"{i}: bool" for i in variables[: len(values)])
     return_value = f" {comparator} ".join(variables[: len(values)])
 
@@ -39,7 +38,6 @@ def foo({input_value}) -> bool:
     comparators=st.lists(st.sampled_from(["and", "or"]), min_size=11, max_size=11),
 )
 def test_boolop_nested(get_contract, values, comparators):
-
     input_value = ",".join(f"{i}: bool" for i in variables[: len(values)])
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], comparators))
     return_value = return_value.rsplit(maxsplit=1)[0]

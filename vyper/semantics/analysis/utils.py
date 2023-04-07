@@ -83,8 +83,6 @@ class _ExprAnalyser:
                 return ExprInfo.from_varinfo(t)
 
             # it's something else, like my_struct.foo
-            # sanity check
-            assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
         if isinstance(node, vy_ast.Tuple):
@@ -95,6 +93,11 @@ class _ExprAnalyser:
             is_constant = any((getattr(i, "is_constant", False) for i in types))
 
             return ExprInfo(t, location=location, is_constant=is_constant)
+
+        # If it's a Subscript, propagate the subscriptable varinfo
+        if isinstance(node, vy_ast.Subscript):
+            info = self.get_expr_info(node.value)
+            return info.copy_with_type(t)
 
         return ExprInfo(t)
 
@@ -172,7 +175,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                # ex. foo.bar(). bar() is a ContractFunction
+                # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -285,7 +288,6 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
-
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
@@ -452,7 +454,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 # TODO push this into `ArrayT.validate_literal()`
 def _validate_literal_array(node, expected):
-
     # validate that every item within an array has the same type
     if isinstance(expected, SArrayT):
         if len(node.elements) != expected.length:
@@ -545,8 +546,8 @@ def validate_unique_method_ids(functions: List) -> None:
 
     Arguments
     ---------
-    functions : List[ContractFunction]
-        A list of ContractFunction objects.
+    functions : List[ContractFunctionT]
+        A list of ContractFunctionT objects.
     """
     method_ids = [x for i in functions for x in i.method_ids.values()]
     seen = set()

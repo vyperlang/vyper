@@ -164,6 +164,7 @@ The ``__init__`` Function
 
     owner: address
 
+    @external
     def __init__():
         self.owner = msg.sender
 
@@ -222,7 +223,7 @@ The ``for`` statement is a control flow construct used to iterate over a value:
     for i in <ITERABLE>:
         ...
 
-The iterated value can be a static array, or generated from the built-in ``range`` function.
+The iterated value can be a static array, a dynamic array, or generated from the built-in ``range`` function.
 
 Array Iteration
 ---------------
@@ -263,7 +264,7 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: python
 
-    for i in range(start, stop):
+    for i in range(START, STOP):
         ...
 
 ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.

@@ -198,7 +198,7 @@ def testsome_storage(y: Bytes[1]) -> bool:
     assert c.getsome() == b"\x0e"
     assert c.testsome(b"a")
     assert c.testsome(b"\x61")
-    assert c.testsome(0b1100001 .to_bytes(1, "big"))
+    assert c.testsome(0b1100001.to_bytes(1, "big"))
     assert not c.testsome(b"b")
     assert c.testsome_storage(b"a")
     assert not c.testsome_storage(b"x")

@@ -158,6 +158,7 @@ RESERVED_KEYWORDS = {
     "assert",
     "raise",
     "throw",
+    "unreachable",
     # special functions (no name mangling)
     "init",
     "_init_",

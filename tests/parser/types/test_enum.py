@@ -67,11 +67,11 @@ def is_not_boss(a: Roles) -> bool:
     c = get_contract(code)
 
     for i in range(4):
-        assert c.is_boss(2 ** i) is False
-        assert c.is_not_boss(2 ** i) is True
+        assert c.is_boss(2**i) is False
+        assert c.is_not_boss(2**i) is True
 
-    assert c.is_boss(2 ** 4) is True
-    assert c.is_not_boss(2 ** 4) is False
+    assert c.is_boss(2**4) is True
+    assert c.is_not_boss(2**4) is False
 
 
 def test_bitwise(get_contract, assert_tx_failed):
@@ -257,3 +257,39 @@ def baz(a: Roles) -> bool:
     assert c.baz(0b00001) is True  # Roles.USER should pass
     assert c.baz(0b00100) is True  # Roles.ADMIN should pass
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
+
+
+def test_struct_with_enum(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+
+struct Foo:
+    a: uint256
+    b: Foobar
+
+@external
+def get_enum_from_struct() -> Foobar:
+    f: Foo = Foo({a: 1, b: Foobar.BAR})
+    return f.b
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_enum_from_struct() == 2
+
+
+def test_mapping_with_enum(get_contract_with_gas_estimation):
+    code = """
+enum Foobar:
+    FOO
+    BAR
+
+fb: HashMap[Foobar, uint256]
+
+@external
+def get_key(f: Foobar, i: uint256) -> uint256:
+    self.fb[f] = i
+    return self.fb[f]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.get_key(1, 777) == 777

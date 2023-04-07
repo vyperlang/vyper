@@ -397,7 +397,7 @@ Cryptography
 
     Return a ``keccak256`` hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -415,7 +415,7 @@ Cryptography
 
     Return a ``sha256`` (SHA2 256-bit output) hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -434,7 +434,7 @@ Data Manipulation
 
 .. py:function:: concat(a, b, *args) -> Union[Bytes, String]
 
-    Take 2 or more bytes arrays of type ``bytes32``, ``Bytes`` or ``String`` and combine them into a single value.
+    Take 2 or more bytes arrays of type ``bytesM``, ``Bytes`` or ``String`` and combine them into a single value.
 
     If the input arguments are ``String`` the return type is ``String``.  Otherwise the return type is ``Bytes``.
 
@@ -699,6 +699,7 @@ Math
         10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
+    
     Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
@@ -909,7 +910,7 @@ Utilities
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
 
-    * ``typename``: Name of the type
+    * ``typename``: Name of the type, except ``HashMap[_KeyType, _ValueType]``
 
     .. code-block:: python
 
@@ -918,9 +919,9 @@ Utilities
         def foo():
             x: uint256[2][5] = empty(uint256[2][5])
 
-.. py:function:: len(b: Union[Bytes, String]) -> uint256
+.. py:function:: len(b: Union[Bytes, String, DynArray[_Type, _Integer]]) -> uint256
 
-    Return the length of a given ``Bytes`` or ``String``.
+    Return the length of a given ``Bytes``, ``String`` or ``DynArray[_Type, _Integer]``.
 
     .. code-block:: python
 

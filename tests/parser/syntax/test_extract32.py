@@ -49,7 +49,6 @@ def foo(inp: Bytes[32]) -> bool:
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_extract32_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
 
 

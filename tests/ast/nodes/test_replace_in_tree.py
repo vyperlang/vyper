@@ -5,12 +5,12 @@ from vyper.exceptions import CompilerPanic
 
 
 def test_assumptions():
-    # ASTs generated seperately from the same source should compare equal
+    # ASTs generated separately from the same source should compare equal
     test_tree = vy_ast.parse_to_ast("foo = 42")
     expected_tree = vy_ast.parse_to_ast("foo = 42")
     assert vy_ast.compare_nodes(test_tree, expected_tree)
 
-    # ASTs generated seperately with different source should compare not-equal
+    # ASTs generated separately with different source should compare not-equal
     test_tree = vy_ast.parse_to_ast("foo = 42")
     expected_tree = vy_ast.parse_to_ast("bar = 666")
     assert not vy_ast.compare_nodes(test_tree, expected_tree)

@@ -4,7 +4,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.stmt import parse_body
 from vyper.semantics.analysis.local import FunctionNodeVisitor
 from vyper.semantics.namespace import Namespace, override_global_namespace
-from vyper.semantics.types.function import ContractFunction, FunctionVisibility, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
 
 
 def _strip_source_pos(ir_node):
@@ -20,14 +20,14 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
     namespace.update(variables_2)
     with override_global_namespace(namespace):
         # Initialise a placeholder `FunctionDef` AST node and corresponding
-        # `ContractFunction` type to rely on the annotation visitors in semantics
+        # `ContractFunctionT` type to rely on the annotation visitors in semantics
         # module.
-        ast_code.body[0]._metadata["type"] = ContractFunction(
+        ast_code.body[0]._metadata["type"] = ContractFunctionT(
             "sqrt_builtin", {}, 0, 0, None, FunctionVisibility.INTERNAL, StateMutability.NONPAYABLE
         )
-        sv = FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
-        for n in ast_code.body[0].body:
-            sv.visit(n)
+        # The FunctionNodeVisitor's constructor performs semantic checks
+        # annotate the AST as side effects.
+        FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
 
     new_context = Context(
         vars_=variables, global_ctx=GlobalContext(), memory_allocator=memory_allocator

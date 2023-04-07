@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -18,7 +19,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.function import ContractFunction
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -34,21 +35,36 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
+# note: enum behaves a lot like uint256, or uints in general.
 class EnumT(_UserType):
+    # this is a carveout because currently we allow dynamic arrays of
+    # enums, but not static arrays of enums
+    _as_darray = True
+    _is_prim_word = True
+    _as_hashmap_key = True
+
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
-        super().__init__(members)
+        super().__init__()
         self._id = name
-        self._enum_members = VyperType(members)
+
+        self._enum_members = members
+
+        # use a VyperType for convenient access to the `get_member` function
+        # also conveniently checks well-formedness of the members namespace
+        self._helper = VyperType(members)
+
+        # set the name for exception handling in `get_member`
+        self._helper._id = name
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        self._enum_members.get_member(key, node)
+        self._helper.get_member(key, node)
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.members)
+        arg_types = ",".join(repr(a) for a in self._enum_members)
         return f"enum {self.name}({arg_types})"
 
     @property
@@ -94,9 +110,12 @@ class EnumT(_UserType):
         members: Dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise EnumDeclarationException("Enum must have members")
+            raise EnumDeclarationException("Enum must have members", base_node)
 
         for i, node in enumerate(base_node.body):
+            if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
+                raise EnumDeclarationException("Invalid syntax for enum member", node)
+
             member_name = node.value.id
             if member_name in members:
                 raise EnumDeclarationException(
@@ -242,9 +261,10 @@ class EventT(_UserType):
 
 
 class InterfaceT(_UserType):
-
     _type_members = {"address": AddressT()}
+    _is_prim_word = True
     _as_array = True
+    _as_hashmap_key = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
@@ -289,7 +309,7 @@ class InterfaceT(_UserType):
             if name not in vyper_self.members:
                 return False
             s = vyper_self.members[name]
-            if isinstance(s, ContractFunction):
+            if isinstance(s, ContractFunctionT):
                 to_compare = vyper_self.members[name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
@@ -301,7 +321,7 @@ class InterfaceT(_UserType):
 
         # check for missing functions
         for name, type_ in self.members.items():
-            if not isinstance(type_, ContractFunction):
+            if not isinstance(type_, ContractFunctionT):
                 # ex. address
                 continue
 
@@ -334,7 +354,7 @@ class InterfaceT(_UserType):
 
     @property
     def functions(self):
-        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunction)}
+        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunctionT)}
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -366,7 +386,7 @@ class InterfaceT(_UserType):
             )
 
         for item in [i for i in abi if i.get("type") == "function"]:
-            members[item["name"]] = ContractFunction.from_abi(item)
+            members[item["name"]] = ContractFunctionT.from_abi(item)
         for item in [i for i in abi if i.get("type") == "event"]:
             events[item["name"]] = EventT.from_abi(item)
 
@@ -403,7 +423,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     events: Dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
-            func = ContractFunction.from_FunctionDef(node)
+            func = ContractFunctionT.from_FunctionDef(node)
             if node.name in functions:
                 # compare the input arguments of the new function and the previous one
                 # if one function extends the inputs, this is a valid function name overload
@@ -417,7 +437,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
                             base_node,
                         )
                 if len(new_args) <= len(existing_args):
-                    # only keep the `ContractFunction` with the longest set of input args
+                    # only keep the `ContractFunctionT` with the longest set of input args
                     continue
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
@@ -426,7 +446,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{name}'", base_node
             )
-        functions[name] = ContractFunction.getter_from_VariableDecl(node)
+        functions[name] = ContractFunctionT.getter_from_VariableDecl(node)
     for node in base_node.get_children(vy_ast.EventDef):
         name = node.name
         if name in functions or name in events:
@@ -438,7 +458,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     return functions, events
 
 
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunction]:
+def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunctionT]:
     functions = {}
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
@@ -447,7 +467,11 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
             raise NamespaceCollision(
                 f"Interface contains multiple functions named '{node.name}'", node
             )
-        functions[node.name] = ContractFunction.from_FunctionDef(node, is_interface=True)
+        if len(node.decorator_list) > 0:
+            raise StructureException(
+                "Function definition in interface cannot be decorated", node.decorator_list[0]
+            )
+        functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
 
     return functions
 
@@ -465,6 +489,29 @@ class StructT(_UserType):
         for n, t in self.members.items():
             if isinstance(t, HashMapT):
                 raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
+
+    @cached_property
+    def name(self) -> str:
+        # Alias for API compatibility with codegen
+        return self._id
+
+    # duplicated code in TupleT
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    # duplicated code in TupleT
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        return list(self.members.items())
+
+    @cached_property
+    def member_types(self):
+        """
+        Alias to match TupleT API without shadowing `members` on TupleT
+        """
+        return self.members
 
     @classmethod
     def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
@@ -512,14 +559,14 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.members.values())
+        return sum(i.size_in_bytes for i in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self.members.values()])
+        return ABI_Tuple([t.abi_type for t in self.member_types.values()])
 
     def to_abi_arg(self, name: str = "") -> dict:
-        components = [t.to_abi_arg(name=k) for k, t in self.members.items()]
+        components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
     # TODO breaking change: use kwargs instead of dict
@@ -531,13 +578,13 @@ class StructT(_UserType):
             raise VariableDeclarationException(
                 "Struct values must be declared via dictionary", node.args[0]
             )
-        if next((i for i in self.members.values() if isinstance(i, HashMapT)), False):
+        if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        members = self.members.copy()
-        keys = list(self.members.keys())
+        members = self.member_types.copy()
+        keys = list(self.member_types.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
                 suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
@@ -549,7 +596,7 @@ class StructT(_UserType):
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
                     f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
-                    f"keys in this struct are {list(self.members.items())})",
+                    f"keys in this struct are {list(self.member_types.items())})",
                     key,
                 )
 
@@ -560,4 +607,4 @@ class StructT(_UserType):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructT(self._id, self.members)
+        return StructT(self._id, self.member_types)
