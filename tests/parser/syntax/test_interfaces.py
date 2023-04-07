@@ -227,6 +227,8 @@ interface Foo:
 def foo(x: address):
     a: Foo = Foo(x)
     a.pop()
+    """,
+    """
 interface ITestInterface:
     def foo() -> uint256: view
 
