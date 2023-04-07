@@ -208,6 +208,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
+        def _finalize():
+            if not node.is_public:
+                return
+
+            try:
+                self.namespace["self"].typ.add_member(name, var_info)
+                node.target._metadata["type"] = type_
+            except NamespaceCollision:
+                raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
@@ -220,10 +232,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-            if not node.is_public:
-                return
+            return _finalize()
 
-        if node.value and not node.is_constant:
+        if node.value:
             var_type = "Immutable" if node.is_immutable else "Storage"
             raise VariableDeclarationException(
                 f"{var_type} variables cannot have an initial value", node.value
@@ -240,8 +251,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-            if not node.is_public:
-                return
+            return _finalize()
 
         if not node.is_constant and not node.is_immutable:
             try:
@@ -249,13 +259,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except NamespaceCollision as exc:
                 raise exc.with_annotation(node) from None
 
-        try:
-            self.namespace["self"].typ.add_member(name, var_info)
-            node.target._metadata["type"] = type_
-        except NamespaceCollision:
-            raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        return _finalize()
 
     def visit_EnumDef(self, node):
         obj = EnumT.from_EnumDef(node)
