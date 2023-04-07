@@ -2,7 +2,6 @@ import logging
 from functools import wraps
 
 import pytest
-from eth.codecs import abi
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
 from hexbytes import HexBytes
@@ -48,14 +47,6 @@ def no_optimize(pytestconfig):
 @pytest.fixture
 def keccak():
     return Web3.keccak
-
-
-@pytest.fixture
-def abi_encode(w3):
-    def f(abi_t, py_val):
-        return abi.encode(abi_t, py_val)
-
-    return f
 
 
 @pytest.fixture

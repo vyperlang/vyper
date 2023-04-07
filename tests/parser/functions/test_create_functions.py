@@ -1,5 +1,6 @@
 import pytest
 import rlp
+from eth.codecs import abi
 from hexbytes import HexBytes
 
 from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
@@ -248,7 +249,7 @@ def test(code_ofst: uint256) -> address:
 
 # test create_from_blueprint with args
 def test_create_from_blueprint_args(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, abi_encode, assert_tx_failed
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, assert_tx_failed
 ):
     code = """
 struct Bar:
@@ -329,7 +330,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    encoded_args = abi_encode("(string,(string))", (FOO, BAR))
+    encoded_args = abi.encode("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     d.test3(f.address, encoded_args, transact={})
@@ -360,7 +361,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     FOO = "01" * 129
     BAR = ("",)
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
-    encoded = abi_encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
+    encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     assert_tx_failed(lambda: w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"}))
 
 

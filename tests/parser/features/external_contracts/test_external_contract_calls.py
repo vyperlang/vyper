@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from eth.codecs import abi
 
 from vyper.exceptions import (
     ArgumentException,
@@ -2455,7 +2456,7 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 @pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
-def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+def test_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: {typ}):
@@ -2463,7 +2464,7 @@ def foo(a: {typ}):
     """
     c1 = get_contract(code)
     sig = keccak(f"foo({typ})".encode()).hex()[:10]
-    encoded = abi_encode(f"({typ})", (val,)).hex()
+    encoded = abi.encode(f"({typ})", (val,)).hex()
     data = f"{sig}{encoded}"
 
     # Static size is short by 1 byte
@@ -2478,7 +2479,7 @@ def foo(a: {typ}):
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
-def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: DynArray[{typ}, 3], b: String[5]):
@@ -2487,7 +2488,7 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
 
     c1 = get_contract(code)
     sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
-    encoded = abi_encode(f"({typ}[],string)", val).hex()
+    encoded = abi.encode(f"({typ}[],string)", val).hex()
     data = f"{sig}{encoded}"
 
     # Dynamic size is short by 1 byte
