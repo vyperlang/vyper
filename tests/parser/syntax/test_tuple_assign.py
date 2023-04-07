@@ -90,12 +90,10 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     ),
     (
         """
-A: immutable(uint256)
 B: immutable(uint256)
 
 @external
-def __init__(a: uint256, b: uint256):
-    A = a
+def __init__(b: uint256):
     B = b
 
 @internal
