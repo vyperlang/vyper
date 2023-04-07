@@ -253,11 +253,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             return _finalize()
 
-        if not node.is_constant and not node.is_immutable:
-            try:
-                self.namespace.validate_assignment(name)
-            except NamespaceCollision as exc:
-                raise exc.with_annotation(node) from None
+        try:
+            self.namespace.validate_assignment(name)
+        except NamespaceCollision as exc:
+            raise exc.with_annotation(node) from None
 
         return _finalize()
 
