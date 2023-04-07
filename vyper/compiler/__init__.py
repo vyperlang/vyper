@@ -35,8 +35,6 @@ OUTPUT_FORMATS = {
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
-    # sourceMapFull in json output corresponds to source_map in CLI for
-    # historical compatibility reasons
     "source_map": output.build_source_map_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
@@ -45,6 +43,11 @@ OUTPUT_FORMATS = {
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
+
+
+# sourceMapFull in json output corresponds to source_map in CLI for
+# historical compatibility reasons
+VYPER_JSON_ONLY_FORMATS = ("source_map_full",)
 
 
 @evm_wrapper
@@ -133,6 +136,8 @@ def compile_codes(
             no_bytecode_metadata,
         )
         for output_format in output_formats[contract_name]:
+            if output_format in VYPER_JSON_ONLY_FORMATS:
+                continue
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
             try:

@@ -11,6 +11,7 @@ from vyper.cli.vyper_json import (
     exc_handler_raises,
     exc_handler_to_dict,
 )
+from vyper.compiler import VYPER_JSON_ONLY_FORMATS
 from vyper.exceptions import InvalidType, JSONError, SyntaxException
 
 FOO_CODE = """
@@ -121,7 +122,9 @@ def test_source_ids_increment():
 def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
     assert sorted(result.keys()) == ["contracts/bar.vy", "contracts/foo.vy"]
-    assert sorted(result["contracts/bar.vy"].keys()) == sorted(set(TRANSLATE_MAP.values()))
+    assert sorted(result["contracts/bar.vy"].keys()) == sorted(
+        set(TRANSLATE_MAP.values()) - set(VYPER_JSON_ONLY_FORMATS)
+    )
 
 
 def test_relative_import_paths():
