@@ -1,5 +1,6 @@
 import pytest
 from eth_account import Account
+from eth_account.messages import encode_defunct
 from eth_keys import KeyAPI
 from eth_utils import is_same_address
 
@@ -33,7 +34,7 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     k0, k1, k2, k3, k4, k5, k6, k7 = tester.backend.account_keys[:8]
 
     to, value, data = b"\x35" * 20, 10**16, b""
-    to_address = w3.toChecksumAddress(to)
+    to_address = w3.to_checksum_address(to)
 
     def pack_and_sign(seq, *args):
         sigs = [sign(seq, to, value, data, k) if k else [0, 0, 0] for k in args]
@@ -88,26 +89,26 @@ def test_javascript_signatures(w3, get_contract):
 
     # Turns the raw sigs into sigs
     sigs = [
-        (w3.toInt(x[64:]), w3.toInt(x[:32]), w3.toInt(x[32:64]))  # v  # r  # s
-        for x in map(lambda z: w3.toBytes(hexstr=z[2:]), raw_sigs)
+        (w3.to_int(x[64:]), w3.to_int(x[:32]), w3.to_int(x[32:64]))  # v  # r  # s
+        for x in map(lambda z: w3.to_bytes(hexstr=z[2:]), raw_sigs)
     ]
 
     h = w3.keccak(
         (0).to_bytes(32, "big")
         + b"\x00" * 12
-        + w3.toBytes(hexstr=recipient[2:])
+        + w3.to_bytes(hexstr=recipient[2:])
         + (25).to_bytes(32, "big")
         + b""
     )  # noqa: E501
-    h2 = w3.keccak(b"\x19Ethereum Signed Message:\n32" + h)
+    h2 = encode_defunct(h)
 
     # Check to make sure the signatures are valid
-    assert is_same_address(Account.recoverHash(h2, sigs[0]), accounts[0])
-    assert is_same_address(Account.recoverHash(h2, sigs[1]), accounts[1])
+    assert is_same_address(Account.recover_message(h2, sigs[0]), accounts[0])
+    assert is_same_address(Account.recover_message(h2, sigs[1]), accounts[1])
 
     # Set the owners to zero addresses
     with open("examples/wallet/wallet.vy") as f:
-        owners = [w3.toChecksumAddress(x) for x in accounts + [a3, zero_address, zero_address]]
+        owners = [w3.to_checksum_address(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 
     w3.eth.send_transaction({"to": x2.address, "value": 10**17})

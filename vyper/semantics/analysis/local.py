@@ -266,6 +266,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.target)
 
     def visit_Raise(self, node):
         if node.exc:
