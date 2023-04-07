@@ -104,7 +104,8 @@ def foo() -> (uint256, uint256):
 
 @external
 def bar():
-    A, B = self.foo()
+    a: uint256 = 1
+    a, B = self.foo()
     """,
         ImmutableViolation,
     ),
