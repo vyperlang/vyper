@@ -297,7 +297,7 @@ class ContractFunctionT(VyperType):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_ = type_from_annotation(arg.annotation)
+            type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if value is not None:
                 if not check_kwargable(value):
@@ -316,15 +316,16 @@ class ContractFunctionT(VyperType):
                 "Constructor may not have a return type", node.returns
             )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript)):
-            return_type = type_from_annotation(node.returns)
+            print("subscript branch")
+            return_type = type_from_annotation(node.returns, DataLocation.MEMORY)
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
-                tuple_types += (type_from_annotation(n),)
+                tuple_types += (type_from_annotation(n, DataLocation.MEMORY),)
             return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
-
+        print("return type checked")
         return cls(node.name, arguments, min_arg_count, max_arg_count, return_type, **kwargs)
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
@@ -355,7 +356,7 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

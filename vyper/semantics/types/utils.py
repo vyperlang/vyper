@@ -2,6 +2,7 @@ from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType
+from vyper.semantics.analysis.base import DataLocation
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
@@ -60,7 +61,9 @@ def type_from_abi(abi_type: Dict) -> VyperType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
-def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+def type_from_annotation(
+    node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET
+) -> VyperType:
     """
     Return a type object for the given AST node.
 
@@ -85,16 +88,23 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
 
+        if location in (DataLocation.STORAGE, DataLocation.CALLDATA):
+            raise InvalidType("Tuples are not instantiable in memory and calldata", node)
+
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
+        value_id = node.value.get("id")
         # ex. HashMap, DynArray, Bytes, static arrays
-        if node.value.get("id") in ("HashMap", "Bytes", "String", "DynArray"):
+        if value_id in ("HashMap", "Bytes", "String", "DynArray"):
             assert isinstance(node.value, vy_ast.Name)  # mypy hint
             type_ctor = namespace[node.value.id]
         else:
             # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
+
+        if value_id == "HashMap" and location in (DataLocation.MEMORY, DataLocation.CALLDATA):
+            raise InvalidType("HashMaps are not instantiable in memory and calldata", node)
 
         return type_ctor.from_annotation(node)
 
@@ -104,7 +114,18 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if node.id not in namespace:
         _failwith(node.node_source_code)
 
-    return namespace[node.id]
+    type_ = namespace[node.id]
+
+    from vyper.semantics.types.user import EventT
+
+    if isinstance(type_, EventT) and location in (
+        DataLocation.MEMORY,
+        DataLocation.STORAGE,
+        DataLocation.CALLDATA,
+    ):
+        raise InvalidType("Events are not instantiable", node)
+
+    return type_
 
 
 def get_index_value(node: vy_ast.Index) -> int:
