@@ -89,7 +89,7 @@ class Namespace(dict):
 
     def validate_assignment(self, attr):
         validate_identifier_name(attr)
-        validate_identifier_with_namespace(attr)
+        validate_namespace_availability(attr)
         if attr in self:
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
@@ -120,7 +120,7 @@ def override_global_namespace(ns):
         _namespace = tmp
 
 
-def validate_identifier_with_namespace(attr):
+def validate_namespace_availability(attr):
     namespace = get_namespace()
     if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
         raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
@@ -138,84 +138,82 @@ PYTHON_KEYWORDS = set({"if", "for", "while", "pass", "def", "assert", "continue"
 
 
 # Cannot be used for variable or member naming
-RESERVED_KEYWORDS = set(
-    {
-        # decorators
-        "public",
-        "external",
-        "nonpayable",
-        "constant",
-        "immutable",
-        "internal",
-        "payable",
-        "nonreentrant",
-        # "class" keywords
-        "interface",
-        "struct",
-        "event",
-        "enum",
-        # EVM operations
-        "send",
-        "selfdestruct",
-        "assert",
-        "raise",
-        "throw",
-        "unreachable",
-        # special functions (no name mangling)
-        "init",
-        "_init_",
-        "___init___",
-        "____init____",
-        "default",
-        "_default_",
-        "___default___",
-        "____default____",
-        # environment variables
-        "chainid",
-        "blockhash",
-        "timestamp",
-        "timedelta",
-        # boolean literals
-        "true",
-        "false",
-        # more control flow and special operations
-        "this",
-        "continue",
-        "range",
-        # None sentinal value
-        "none",
-        # more special operations
-        "indexed",
-        # denominations
-        "ether",
-        "wei",
-        "finney",
-        "szabo",
-        "shannon",
-        "lovelace",
-        "ada",
-        "babbage",
-        "gwei",
-        "kwei",
-        "mwei",
-        "twei",
-        "pwei",
-        # `address` members
-        "balance",
-        "codesize",
-        "codehash",
-        "code",
-        "is_contract",
-        # units
-        "units",
-        # sentinal constant values
-        "zero_address",
-        "empty_bytes32",
-        "max_int128",
-        "min_int128",
-        "max_decimal",
-        "min_decimal",
-        "max_uint256",
-        "zero_wei",
-    }
-).union(PYTHON_KEYWORDS)
+RESERVED_KEYWORDS = {
+    # decorators
+    "public",
+    "external",
+    "nonpayable",
+    "constant",
+    "immutable",
+    "internal",
+    "payable",
+    "nonreentrant",
+    # "class" keywords
+    "interface",
+    "struct",
+    "event",
+    "enum",
+    # EVM operations
+    "send",
+    "selfdestruct",
+    "assert",
+    "raise",
+    "throw",
+    "unreachable",
+    # special functions (no name mangling)
+    "init",
+    "_init_",
+    "___init___",
+    "____init____",
+    "default",
+    "_default_",
+    "___default___",
+    "____default____",
+    # environment variables
+    "chainid",
+    "blockhash",
+    "timestamp",
+    "timedelta",
+    # boolean literals
+    "true",
+    "false",
+    # more control flow and special operations
+    "this",
+    "continue",
+    "range",
+    # None sentinal value
+    "none",
+    # more special operations
+    "indexed",
+    # denominations
+    "ether",
+    "wei",
+    "finney",
+    "szabo",
+    "shannon",
+    "lovelace",
+    "ada",
+    "babbage",
+    "gwei",
+    "kwei",
+    "mwei",
+    "twei",
+    "pwei",
+    # `address` members
+    "balance",
+    "codesize",
+    "codehash",
+    "code",
+    "is_contract",
+    # units
+    "units",
+    # sentinal constant values
+    "zero_address",
+    "empty_bytes32",
+    "max_int128",
+    "min_int128",
+    "max_decimal",
+    "min_decimal",
+    "max_uint256",
+    "zero_wei",
+}.union(PYTHON_KEYWORDS)
