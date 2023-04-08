@@ -2584,6 +2584,21 @@ class Epsilon(TypenameFoldedFunction):
         return vy_ast.Decimal.from_node(node, value=input_type.epsilon)
 
 
+class System(BuiltinFunction):
+    _id = "system"
+    _inputs = [("bytecode", BytesT.any())]
+    _return_type = None
+
+    def build_IR(self, expr, context):
+        bytes_expr = expr.args[0]
+        if not isinstance(bytes_expr, vy_ast.Bytes):
+            raise TypeMismatch("__system__() must use literal bytes", bytes_expr)
+
+        bytecode = bytes_expr.value
+
+        return IRnode.from_list(["system", bytecode])
+
+
 DISPATCH_TABLE = {
     "_abi_encode": ABIEncode(),
     "_abi_decode": ABIDecode(),
@@ -2643,6 +2658,7 @@ STMT_DISPATCH_TABLE = {
     "create_forwarder_to": CreateForwarderTo(),
     "create_copy_of": CreateCopyOf(),
     "create_from_blueprint": CreateFromBlueprint(),
+    "__system__": System(),
 }
 
 BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()

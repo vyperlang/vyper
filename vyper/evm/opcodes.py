@@ -212,6 +212,7 @@ PSEUDO_OPCODES: OpcodeMap = {
     "ISTORE": (None, 2, 0, 6),
     "DLOAD": (None, 1, 1, 9),
     "DLOADBYTES": (None, 3, 0, 3),
+    "SYSTEM": (None, 1, 0, 0),
 }
 
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}

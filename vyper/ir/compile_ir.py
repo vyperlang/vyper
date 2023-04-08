@@ -723,6 +723,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
         return []
 
+    elif code.value == "system":
+        bytecode = code.args[0].value
+        assert isinstance(bytecode, bytes)
+        return ["SYSTEM", bytecode]
+
     elif code.value == "exit_to":
         raise CodegenPanic("exit_to not implemented yet!")
 
@@ -1075,6 +1080,8 @@ def assembly_to_evm(
             pc -= 1
         elif item == "BLANK":
             pc += 0
+        elif item == "SYSTEM":
+            pc += len(assembly[i + 1])
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             # _DEPLOY_MEM_OFST is assembly magic which will
             # get removed during final assembly-to-bytecode
@@ -1118,6 +1125,10 @@ def assembly_to_evm(
 
         elif isinstance(item, str) and item.startswith("_DEPLOY_MEM_OFST_"):
             continue
+
+        elif item == "SYSTEM":
+            o += assembly[i + 1]
+            to_skip = 1
 
         elif is_symbol(item):
             if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":

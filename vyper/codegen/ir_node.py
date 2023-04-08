@@ -156,6 +156,14 @@ class IRnode:
 
             self.valency = 1
             self._gas = 5
+        elif self.value == "system":
+            _check(len(args) == 1, "system requires 1 arg")
+            _check(isinstance(args[0].value, bytes), "system requires bytes")
+            self.valency = 0
+            self._gas = 0
+        elif isinstance(self.value, bytes):
+            self.valency = 0
+            self._gas = 0
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in get_ir_opcodes():
