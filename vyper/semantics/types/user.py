@@ -9,7 +9,6 @@ from vyper.exceptions import (
     EventDeclarationException,
     InterfaceViolation,
     InvalidAttribute,
-    InvalidType,
     NamespaceCollision,
     StructureException,
     UnknownAttribute,
@@ -475,7 +474,7 @@ class StructT(_UserType):
 
         self.ast_def = ast_def
 
-        for n, t in self.members.items():
+        for t in self.members.values():
             if not t._is_storage_instantiable or isinstance(t, HashMapT):
                 raise StructureException(f"{t} is not a valid type for a struct member", ast_def)
 
