@@ -14,7 +14,7 @@ from vyper.exceptions import (
     UnknownAttribute,
     VariableDeclarationException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import DataLocation, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
@@ -471,10 +471,6 @@ class StructT(_UserType):
 
         self.ast_def = ast_def
 
-        for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
-
     @cached_property
     def name(self) -> str:
         # Alias for API compatibility with codegen
@@ -531,7 +527,8 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            # Use strictest location to validate members are instantiable
+            members[member_name] = type_from_annotation(node.annotation, DataLocation.CALLDATA)
 
         return cls(struct_name, members, ast_def=base_node)
 

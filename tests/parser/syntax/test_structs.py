@@ -298,7 +298,7 @@ struct Nom:
     a: HashMap[int128, C]
     b: int128
     """,
-        StructureException,
+        InvalidType,
     ),
     """
 struct C1:
@@ -454,14 +454,14 @@ event Foo:
 struct Bar:
     a: Foo
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """
 struct Bar:
     a: (uint256, uint256)
     """,
-        StructureException,
+        InvalidType,
     ),
 ]
 
