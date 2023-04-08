@@ -7,8 +7,9 @@ from vyper.exceptions import NamespaceCollision, StructureException, SyntaxExcep
 from vyper.semantics.namespace import RESERVED_KEYWORDS
 from vyper.semantics.types.primitives import AddressT
 
+BUILTIN_CONSTANTS = set(BUILTIN_CONSTANTS.keys())
 ALL_RESERVED_KEYWORDS = (
-    set(BUILTIN_CONSTANTS.keys()) | BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
+    BUILTIN_CONSTANTS | BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
 )
 
 
@@ -47,7 +48,9 @@ def test({constant}: int128):
 PYTHON_KEYWORDS = {"if", "for", "while", "pass", "def", "assert", "continue", "raise"}
 
 SELF_NAMESPACE_MEMBERS = set(AddressT._type_members.keys())
-DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | PYTHON_KEYWORDS | RESERVED_KEYWORDS
+DISALLOWED_FN_NAMES = (
+    SELF_NAMESPACE_MEMBERS | PYTHON_KEYWORDS | RESERVED_KEYWORDS | BUILTIN_CONSTANTS
+)
 ALLOWED_FN_NAMES = ALL_RESERVED_KEYWORDS - DISALLOWED_FN_NAMES
 
 
@@ -68,4 +71,6 @@ def test_reserved_keywords_fns_fail(constant, get_contract, assert_compile_faile
 def {constant}(var: int128):
     pass
     """
-    assert_compile_failed(lambda: get_contract(code), (SyntaxException, NamespaceCollision))
+    assert_compile_failed(
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
+    )
