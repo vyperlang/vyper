@@ -324,7 +324,6 @@ class ContractFunctionT(VyperType):
             return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
-        print("return type checked")
         return cls(node.name, arguments, min_arg_count, max_arg_count, return_type, **kwargs)
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
