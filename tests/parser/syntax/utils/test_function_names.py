@@ -10,7 +10,19 @@ fail_list = [
 def ő1qwerty(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
+    """,
     """
+@external
+def false(i: int128) -> int128:
+    temp_var : int128 = i
+    return temp_var
+    """,
+    """
+@external
+def wei(i: int128) -> int128:
+    temp_var : int128 = i
+    return temp_var1
+    """,
 ]
 
 
@@ -48,18 +60,6 @@ def int128(i: int128) -> int128:
     """
 @external
 def decimal(i: int128) -> int128:
-    temp_var : int128 = i
-    return temp_var
-    """,
-    """
-@external
-def false(i: int128) -> int128:
-    temp_var : int128 = i
-    return temp_var
-    """,
-    """
-@external
-def wei(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
