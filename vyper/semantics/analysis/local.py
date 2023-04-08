@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -516,16 +517,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
 
             if fn_type.is_external and not is_await:
-                raise StructureException(
+                warnings.warn(
                     "Calls to external contracts must use the `await` keyword. "
-                    f"Did you mean `await {node.node_source_code}`?",
+                    "Starting in vyper 0.4.0, this will be an error."
+                    + str(StructureException("", node))
                 )
             if not fn_type.is_external and is_await:
-                raise StructureException(
-                    "Calls to internal functions cannot use the `await` keyword. "
-                    f"Did you mean `{node.value.node_source_code}`?",
+                warnings.warn(
+                    "Calls to internal functions cannot use the `await` keyword."
+                    "Starting in vyper 0.4.0, this will be an error."
+                    + str(StructureException("", node))
                 )
-
 
         if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
             # it's a dotted function call like dynarray.pop()
@@ -570,6 +572,9 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def visit_BoolOp(self, node: vy_ast.BoolOp) -> None:
         for value in node.values:  # type: ignore[attr-defined]
             self.visit(value)
+
+    def visit_Await(self, node: vy_ast.Await) -> None:
+        self.visit(node.value)
 
     def visit_Call(self, node: vy_ast.Call) -> None:
         self.visit(node.func)
