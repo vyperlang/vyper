@@ -89,7 +89,7 @@ class Namespace(dict):
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
-        validate_namespace_availability(attr)
+
         if attr in self:
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
@@ -120,17 +120,11 @@ def override_global_namespace(ns):
         _namespace = tmp
 
 
-def validate_namespace_availability(ident):
-    namespace = get_namespace()
-    if ident in namespace and ident not in [x for i in namespace._scopes for x in i]:
-        raise NamespaceCollision(f"Cannot assign to '{ident}', it is a builtin")
-    if ident.lower() in RESERVED_KEYWORDS or ident.upper() in OPCODES:
-        raise StructureException(f"'{ident}' is a reserved keyword")
-
-
 def validate_identifier(attr):
     if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
         raise StructureException(f"'{attr}' contains invalid character(s)")
+    if attr.lower() in RESERVED_KEYWORDS:
+        raise StructureException(f"'{attr}' is a reserved keyword")
 
 
 # Reserved python keywords
@@ -154,9 +148,6 @@ RESERVED_KEYWORDS = {
     "event",
     "enum",
     # EVM operations
-    "send",
-    "selfdestruct",
-    "throw",
     "unreachable",
     # special functions (no name mangling)
     "init",
@@ -167,11 +158,6 @@ RESERVED_KEYWORDS = {
     "_default_",
     "___default___",
     "____default____",
-    # environment variables
-    "chainid",
-    "blockhash",
-    "timestamp",
-    "timedelta",
     # boolean literals
     "true",
     "false",
@@ -196,21 +182,4 @@ RESERVED_KEYWORDS = {
     "mwei",
     "twei",
     "pwei",
-    # `address` members
-    "balance",
-    "codesize",
-    "codehash",
-    "code",
-    "is_contract",
-    # units
-    "units",
-    # sentinal constant values
-    "zero_address",
-    "empty_bytes32",
-    "max_int128",
-    "min_int128",
-    "max_decimal",
-    "min_decimal",
-    "max_uint256",
-    "zero_wei",
 } | PYTHON_KEYWORDS

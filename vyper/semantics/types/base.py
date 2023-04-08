@@ -12,7 +12,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier, validate_namespace_availability
+from vyper.semantics.namespace import validate_identifier
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -57,9 +57,7 @@ class VyperType:
 
     size_in_bytes = 32  # default; override for larger types
 
-    def __init__(
-        self, members: Optional[Dict] = None, skip_namespace_validation: bool = False
-    ) -> None:
+    def __init__(self, members: Optional[Dict] = None) -> None:
         self.members: Dict = {}
 
         # add members that are on the class instance.
@@ -67,11 +65,11 @@ class VyperType:
             for k, v in self._type_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
-                self.add_member(k, v, skip_namespace_validation=True)
+                self.add_member(k, v)
 
         members = members or {}
         for k, v in members.items():
-            self.add_member(k, v, skip_namespace_validation=skip_namespace_validation)
+            self.add_member(k, v)
 
     def _get_equality_attrs(self):
         return tuple(getattr(self, attr) for attr in self._equality_attrs)
@@ -279,13 +277,7 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(
-        self, name: str, type_: "VyperType", skip_namespace_validation: bool = False
-    ) -> None:
-        # skip_namespace_validation provides a way of bypassing validate_identifier, which
-        # introduces a dependency cycle with the builtin_functions module
-        if not skip_namespace_validation:
-            validate_namespace_availability(name)
+    def add_member(self, name: str, type_: "VyperType") -> None:
         validate_identifier(name)
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
