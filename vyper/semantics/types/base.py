@@ -12,7 +12,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier_name, validate_namespace_availability
+from vyper.semantics.namespace import validate_identifier, validate_namespace_availability
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -286,7 +286,7 @@ class VyperType:
         # introduces a dependency cycle with the builtin_functions module
         if not skip_namespace_validation:
             validate_namespace_availability(name)
-        validate_identifier_name(name)
+        validate_identifier(name)
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_

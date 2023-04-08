@@ -88,7 +88,7 @@ class Namespace(dict):
         self.__init__()
 
     def validate_assignment(self, attr):
-        validate_identifier_name(attr)
+        validate_identifier(attr)
         validate_namespace_availability(attr)
         if attr in self:
             obj = super().__getitem__(attr)
@@ -120,21 +120,21 @@ def override_global_namespace(ns):
         _namespace = tmp
 
 
-def validate_namespace_availability(attr):
+def validate_namespace_availability(ident):
     namespace = get_namespace()
-    if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
-        raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
-    if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
-        raise StructureException(f"'{attr}' is a reserved keyword")
+    if ident in namespace and ident not in [x for i in namespace._scopes for x in i]:
+        raise NamespaceCollision(f"Cannot assign to '{ident}', it is a builtin")
+    if ident.lower() in RESERVED_KEYWORDS or ident.upper() in OPCODES:
+        raise StructureException(f"'{ident}' is a reserved keyword")
 
 
-def validate_identifier_name(attr):
+def validate_identifier(attr):
     if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
         raise StructureException(f"'{attr}' contains invalid character(s)")
 
 
 # Reserved python keywords
-PYTHON_KEYWORDS = set({"if", "for", "while", "pass", "def", "assert", "continue", "raise"})
+PYTHON_KEYWORDS = {"if", "for", "while", "pass", "def", "assert", "continue", "raise"}
 
 
 # Cannot be used for variable or member naming
@@ -216,4 +216,4 @@ RESERVED_KEYWORDS = {
     "min_decimal",
     "max_uint256",
     "zero_wei",
-}.union(PYTHON_KEYWORDS)
+} | PYTHON_KEYWORDS
