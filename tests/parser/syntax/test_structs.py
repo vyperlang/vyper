@@ -461,7 +461,7 @@ struct Bar:
 struct Bar:
     a: (uint256, uint256)
     """,
-        StructureException
+        StructureException,
     ),
 ]
 
