@@ -156,8 +156,6 @@ RESERVED_KEYWORDS = {
     # EVM operations
     "send",
     "selfdestruct",
-    "assert",
-    "raise",
     "throw",
     "unreachable",
     # special functions (no name mangling)
@@ -179,7 +177,6 @@ RESERVED_KEYWORDS = {
     "false",
     # more control flow and special operations
     "this",
-    "continue",
     "range",
     # None sentinal value
     "none",
