@@ -43,6 +43,15 @@ def foo():
     f: Foo = Foo(1)
     pass
     """,
+    """
+@internal
+def _foo() -> (uint256, uint256):
+    return 1, 2
+
+@external
+def foo():
+    a: (uint256, uint256) = self._foo()
+    """,
 ]
 
 

@@ -107,23 +107,6 @@ m1: HashMap[uint8, uint8]
 def __init__():
     self.m1 = 234
     """,
-    """
-event Foo:
-    a: uint256
-
-@external
-def foo(f: Foo):
-    pass
-    """,
-    """
-event Foo:
-    a: uint256
-
-@external
-def foo(x: uint256) -> Foo:
-    f: Foo = Foo(2)
-    return f
-    """,
 ]
 
 

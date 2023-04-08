@@ -456,6 +456,13 @@ struct Bar:
     """,
         StructureException,
     ),
+    (
+        """
+struct Bar:
+    a: (uint256, uint256)
+    """,
+        StructureException
+    ),
 ]
 
 

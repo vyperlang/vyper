@@ -72,6 +72,29 @@ x: Bytes <= wei
     """
 x: 5
     """,
+    """
+event Foo:
+    a: uint256
+
+@external
+def foo() -> Foo:
+    return Foo(2)
+    """,
+    """
+event Foo:
+    a: uint256
+
+@external
+def foo() -> (uint256, Foo):
+    return 1, Foo(2)
+    """,
+    """
+a: HashMap[uint256, uint256]
+
+@external
+def foo() -> HashMap[uint256, uint256]:
+    return self.a
+    """,
 ]
 
 
