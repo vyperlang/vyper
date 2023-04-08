@@ -197,6 +197,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation)
+        if not type_._is_storage_instantiable:
+            raise VariableDeclarationException(
+                f"{type_} cannot be instantiated as storage variable", node.annotation
+            )
+
         var_info = VarInfo(
             type_,
             decl_node=node,

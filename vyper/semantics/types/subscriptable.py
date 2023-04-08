@@ -40,6 +40,7 @@ class _SubscriptableT(VyperType):
 
 class HashMapT(_SubscriptableT):
     _id = "HashMap"
+    _is_storage_instantiable: bool = True
 
     _equality_attrs = ("key_type", "value_type")
 
@@ -81,6 +82,8 @@ class HashMapT(_SubscriptableT):
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
         value_type = type_from_annotation(v_ast)
+        if not value_type._is_storage_instantiable:
+            raise InvalidType(f"{value_type} cannot be instantiated as HashMap value", v_ast)
 
         return cls(key_type, value_type)
 
@@ -98,6 +101,7 @@ class _SequenceT(_SubscriptableT):
     _equality_attrs: tuple = ("value_type", "length")
 
     _is_array_type: bool = True
+    _is_storage_instantiable: bool = True
 
     def __init__(self, value_type: VyperType, length: int):
         if not 0 < length < 2**256:

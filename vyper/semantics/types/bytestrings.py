@@ -29,9 +29,9 @@ class _BytestringT(VyperType):
     # this is a carveout because currently we allow dynamic arrays of
     # bytestrings, but not static arrays of bytestrings
     _as_darray = True
-    _as_hashmap_key = True
     _equality_attrs = ("_length", "_min_length")
     _is_bytestring: bool = True
+    _is_storage_instantiable: bool = True
 
     def __init__(self, length: int = 0) -> None:
         super().__init__()

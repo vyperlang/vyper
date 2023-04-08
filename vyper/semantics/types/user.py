@@ -9,6 +9,7 @@ from vyper.exceptions import (
     EventDeclarationException,
     InterfaceViolation,
     InvalidAttribute,
+    InvalidType,
     NamespaceCollision,
     StructureException,
     UnknownAttribute,
@@ -42,6 +43,7 @@ class EnumT(_UserType):
     _as_darray = True
     _is_prim_word = True
     _as_hashmap_key = True
+    _is_storage_instantiable: bool = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
@@ -265,6 +267,7 @@ class InterfaceT(_UserType):
     _is_prim_word = True
     _as_array = True
     _as_hashmap_key = True
+    _is_storage_instantiable: bool = True
 
     def __init__(self, _id: str, members: dict, events: dict) -> None:
         validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
@@ -463,6 +466,7 @@ def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFu
 
 class StructT(_UserType):
     _as_array = True
+    _is_storage_instantiable: bool = True
 
     def __init__(self, _id, members, ast_def=None):
         super().__init__(members)
@@ -472,8 +476,8 @@ class StructT(_UserType):
         self.ast_def = ast_def
 
         for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
+            if not t._is_storage_instantiable or isinstance(t, HashMapT):
+                raise StructureException(f"{t} is not a valid type for a struct member", ast_def)
 
     @cached_property
     def name(self) -> str:
@@ -531,7 +535,9 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            members[member_name] = type_from_annotation(node.annotation)
+            type_ = type_from_annotation(node.annotation)
+
+            members[member_name] = type_
 
         return cls(struct_name, members, ast_def=base_node)
 
