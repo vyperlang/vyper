@@ -196,7 +196,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else DataLocation.STORAGE
         )
 
-        # Override storage location to validate if the type is instantiable
+        # Use storage location to validate if the type is instantiable
         type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         var_info = VarInfo(
             type_,
