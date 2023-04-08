@@ -1,7 +1,7 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, cast
 
 import asttokens
 
@@ -179,7 +179,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         Python uses `Num` to represent floats and integers. Integers may also
         be given in binary, octal, decimal, or hexadecimal format. This method
-        modifies `ast_type` to seperate `Num` into more granular Vyper node
+        modifies `ast_type` to separate `Num` into more granular Vyper node
         classes.
         """
         # modify vyper AST type according to the format of the literal value
@@ -230,11 +230,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         self.generic_visit(node)
 
-        # TODO once grammar is updated, remove this
-        # UAdd has no effect on the value of it's operand, so it is discarded
-        if isinstance(node.op, python_ast.UAdd):
-            return node.operand
-
         is_sub = isinstance(node.op, python_ast.USub)
         is_num = (
             hasattr(node.operand, "n")
@@ -274,7 +269,7 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    tokens = asttokens.ASTTokens(source_code, tree=parsed_ast)
+    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(source_code, modification_offsets, tokens, source_id, contract_name)
     visitor.visit(parsed_ast)
 

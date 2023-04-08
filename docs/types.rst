@@ -102,8 +102,18 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
-.. note::
-    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -176,7 +186,7 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    Bitwise operations are currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
 
 Decimals
 --------
@@ -284,7 +294,7 @@ This is an M-byte-wide byte array that is otherwise similar to dynamically sized
     # Assignment
     self.hash = _hash
 
-    some_method_id: bytes4 = 0x01abcdefab
+    some_method_id: bytes4 = 0x01abcdef
 
 Operators
 *********
@@ -443,7 +453,7 @@ Fixed-size Lists
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Lists can be declared with ``_name: _ValueType[_Integer]``.
+Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and enums.
 
 .. code-block:: python
 
@@ -480,7 +490,7 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
 Dynamic Arrays
 ----------------
 
-Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type (except ``Bytes[N]`` and ``String[N]``) or reference type (except mappings).
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type or reference type (except mappings).
 
 .. code-block:: python
 
@@ -507,7 +517,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 .. note::
-    To keep code easy to reason about, modifying an array while using it as an iterator it is disallowed by the language. For instance, the following usage is not allowed:
+    To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
 
     .. code-block:: python
 
@@ -551,7 +561,7 @@ The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, arrays or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::
@@ -622,5 +632,6 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Narrowing conversions (e.g., ``int256 -> int128``) check that the input is in bounds for the output type.
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
+* Enums can be converted to and from ``uint256`` only.
 
 A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.

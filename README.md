@@ -16,7 +16,8 @@ See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.ht
 See [Tools and Resources](https://github.com/vyperlang/vyper/wiki/Vyper-tools-and-resources) for an additional list of framework and tools with vyper support.
 See [Documentation](http://vyper.readthedocs.io/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
-See [Learn.Vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**. 
+See [Learn.Vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
+See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
 **Note: Vyper is beta software, use with care**
 
@@ -29,6 +30,13 @@ To compile a contract, use:
 ```bash
 vyper your_file_name.vy
 ```
+***generate bytecode***
+
+    vyper -f bytecode file-name.vy > file-name.bin
+
+***generate abi***
+
+    vyper -f abi file-name.vy > file-name.abi
 
 There is also an [online compiler](https://vyper.online/) available you can use to experiment with
 the language and compile to ``bytecode`` and/or ``IR``.
@@ -41,11 +49,12 @@ be a bit behind the latest version found in the master branch of this repository
 (Complete [installation steps](https://vyper.readthedocs.io/en/latest/installing-vyper.html) first.)
 
 ```bash
+make dev-init
 python setup.py test
 ```
 
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue
-* For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/abJEARdx3Q)
+* For further discussions and questions, post in [Discussions](https://github.com/vyperlang/vyper/discussions) or talk to us on [Discord](https://discord.gg/6tw7PTM7C2)
 * For more information, see [Contributing](http://vyper.readthedocs.io/en/latest/contributing.html)

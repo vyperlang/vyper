@@ -85,7 +85,6 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
-
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
@@ -133,6 +132,13 @@ def add_record():
 @external
 def foo():
     x: uint256 = block.difficulty + 185
+    if tx.origin == self:
+        y: Bytes[35] = concat(block.prevhash, b"dog")
+    """,
+    """
+@external
+def foo():
+    x: uint256 = block.prevrandao + 185
     if tx.origin == self:
         y: Bytes[35] = concat(block.prevhash, b"dog")
     """,

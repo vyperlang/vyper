@@ -4,7 +4,9 @@ from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
     InvalidReference,
+    InvalidType,
     StructureException,
+    SyntaxException,
     TypeMismatch,
     UnknownAttribute,
 )
@@ -36,7 +38,7 @@ from vyper.interfaces import ERC20
 
 a: address(ERC20) # invalid syntax now.
     """,
-        StructureException,
+        SyntaxException,
     ),
     (
         """
@@ -46,7 +48,7 @@ from vyper.interfaces import ERC20
 def test():
     a: address(ERC20) = ZERO_ADDRESS
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """
@@ -66,6 +68,43 @@ def test(a: address):
     my_address: address = ERC20()
     """,
         ArgumentException,
+    ),
+    (
+        """
+from vyper.interfaces import ERC20
+
+implements: ERC20 = 1
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+interface A:
+    @external
+    def foo(): nonpayable
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: self.x
+    """,
+        StructureException,
+    ),
+    (
+        """
+implements: 123
+    """,
+        StructureException,
+    ),
+    (
+        """
+struct Foo:
+    a: uint256
+
+implements: Foo
+    """,
+        StructureException,
     ),
 ]
 
@@ -170,6 +209,26 @@ interface MyInterface:
     def kick(): payable
 
 kickers: HashMap[address, MyInterface]
+    """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(constant(uint256)) = 1
+    """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(immutable(uint256))
+
+@external
+def __init__(x: uint256):
+    foo = x
     """,
 ]
 

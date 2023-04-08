@@ -71,6 +71,14 @@ def foo():
 def foo():
     x: address = 0x123456789012345678901234567890123456789
     """,
+    """
+a: internal(uint256)
+    """,
+    """
+@external
+def foo():
+    x: uint256 = +1  # test UAdd ast blocked
+    """,
 ]
 
 

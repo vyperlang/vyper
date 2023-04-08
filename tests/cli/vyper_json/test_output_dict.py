@@ -31,6 +31,7 @@ def test_keys():
                 "object": data["bytecode_runtime"],
                 "opcodes": data["opcodes_runtime"],
                 "sourceMap": data["source_map"]["pc_pos_map_compressed"],
+                "sourceMapFull": data["source_map_full"],
             },
             "methodIdentifiers": data["method_identifiers"],
         },

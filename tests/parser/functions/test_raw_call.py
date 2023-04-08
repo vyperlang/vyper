@@ -1,7 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper.builtin_functions import eip1167_bytecode
+from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
@@ -80,7 +80,7 @@ def create_and_return_proxy(inp: address) -> address:
     c3 = c2.create_and_return_proxy(c.address, call={})
     c2.create_and_return_proxy(c.address, transact={})
 
-    c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
+    c3_contract_code = w3.to_bytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -205,7 +205,6 @@ def foo_call(_addr: address):
 
 
 def test_static_call(get_contract):
-
     target_source = """
 @external
 @view
@@ -262,7 +261,6 @@ def __default__():
 
 
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
-
     target_source = """
 baz: int128
 
@@ -292,7 +290,6 @@ def foo(_addr: address) -> int128:
 
 
 def test_checkable_raw_call(get_contract, assert_tx_failed):
-
     target_source = """
 baz: int128
 @external

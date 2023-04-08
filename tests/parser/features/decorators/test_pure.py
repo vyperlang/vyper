@@ -83,6 +83,20 @@ def foo() -> uint256:
     )
 
 
+def test_invalid_self_access(get_contract, assert_compile_failed):
+    assert_compile_failed(
+        lambda: get_contract(
+            """
+@pure
+@external
+def foo() -> address:
+    return self
+    """
+        ),
+        StateAccessViolation,
+    )
+
+
 def test_invalid_call(get_contract, assert_compile_failed):
     assert_compile_failed(
         lambda: get_contract(

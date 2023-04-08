@@ -58,7 +58,7 @@ def get(k: Bytes[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={"gas": 10 ** 6})
+    c.set(b"a" * 34, 6789, transact={"gas": 10**6})
 
     assert c.get(b"a" * 34) == 6789
 

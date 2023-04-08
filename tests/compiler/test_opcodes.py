@@ -43,7 +43,7 @@ def test_version_check(evm_version):
 
 def test_get_opcodes(evm_version):
     op = opcodes.get_opcodes()
-    if evm_version == "berlin":
+    if evm_version in ("paris", "berlin"):
         assert "CHAINID" in op
         assert op["SLOAD"][-1] == 2100
     elif evm_version == "istanbul":

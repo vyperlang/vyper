@@ -3,7 +3,7 @@ from typing import Dict, Optional
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
-active_evm_version: int = 3
+active_evm_version: int = 4
 
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
@@ -24,11 +24,12 @@ EVM_VERSIONS: Dict[str, int] = {
     "petersburg": 1,
     "istanbul": 2,
     "berlin": 3,
+    "paris": 4,
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
 }
-DEFAULT_EVM_VERSION: str = "berlin"
+DEFAULT_EVM_VERSION: str = "paris"
 
 
 # opcode as hex value
@@ -84,6 +85,7 @@ OPCODES: OpcodeMap = {
     "TIMESTAMP": (0x42, 0, 1, 2),
     "NUMBER": (0x43, 0, 1, 2),
     "DIFFICULTY": (0x44, 0, 1, 2),
+    "PREVRANDAO": (0x44, 0, 1, 2),
     "GASLIMIT": (0x45, 0, 1, 2),
     "CHAINID": (0x46, 0, 1, (None, None, 2)),
     "SELFBALANCE": (0x47, 0, 1, (None, None, 5)),
@@ -180,6 +182,7 @@ OPCODES: OpcodeMap = {
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
+    "BREAKPOINT": (0xA6, 0, 0, 0),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {

@@ -1,7 +1,11 @@
 import binascii
+import contextlib
 import decimal
+import functools
 import sys
+import time
 import traceback
+import warnings
 from typing import List, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
@@ -10,8 +14,14 @@ from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
-            # CMC 2022-03-27: should we raise a warning instead of an exception?
-            raise DecimalOverrideException("Overriding decimal precision disabled")
+            if value < 78:
+                # definitely don't want this to happen
+                raise DecimalOverrideException("Overriding decimal precision disabled")
+            elif value > 78:
+                # not sure it's incorrect, might not be end of the world
+                warnings.warn("Changing decimals precision could have unintended side effects!")
+            # else: no-op, is ok
+
         super().__setattr__(name, value)
 
 
@@ -27,16 +37,16 @@ except ImportError:
 
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
-try:
-    # available py3.8+
-    from functools import cached_property
-except ImportError:
-    from cached_property import cached_property  # type: ignore
-
 
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
+
+
+# Converts an integer to four bytes
+def int_to_fourbytes(n: int) -> bytes:
+    assert n < 2**32
+    return n.to_bytes(4, byteorder="big")
 
 
 def signed_to_unsigned(int_, bits, strict=False):
@@ -50,7 +60,7 @@ def signed_to_unsigned(int_, bits, strict=False):
         lo, hi = int_bounds(signed=True, bits=bits)
         assert lo <= int_ <= hi
     if int_ < 0:
-        return int_ + 2 ** bits
+        return int_ + 2**bits
     return int_
 
 
@@ -65,7 +75,7 @@ def unsigned_to_signed(int_, bits, strict=False):
         lo, hi = int_bounds(signed=False, bits=bits)
         assert lo <= int_ <= hi
     if int_ > (2 ** (bits - 1)) - 1:
-        return int_ - (2 ** bits)
+        return int_ - (2**bits)
     return int_
 
 
@@ -96,8 +106,13 @@ def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
 # TODO replace manual calculations in codebase with this
-def abi_method_id(method_sig):
-    return fourbytes_to_int(keccak256(bytes(method_sig, "utf-8"))[:4])
+def method_id_int(method_sig: str) -> int:
+    method_id_bytes = method_id(method_sig)
+    return fourbytes_to_int(method_id_bytes)
+
+
+def method_id(method_str: str) -> bytes:
+    return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
 # map a string to only-alphanumeric chars
@@ -173,25 +188,25 @@ GAS_CALLDATACOPY_WORD = 3
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
-DECIMAL_DIVISOR = 10 ** MAX_DECIMAL_PLACES
+DECIMAL_DIVISOR = 10**MAX_DECIMAL_PLACES
 DECIMAL_EPSILON = decimal.Decimal(1) / DECIMAL_DIVISOR
 
 
 def int_bounds(signed, bits):
     """
     calculate the bounds on an integer type
-    ex. int_bounds(8, True) -> (-128, 127)
-        int_bounds(8, False) -> (0, 255)
+    ex. int_bounds(True, 8) -> (-128, 127)
+        int_bounds(False, 8) -> (0, 255)
     """
     if signed:
         return -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
-    return 0, (2 ** bits) - 1
+    return 0, (2**bits) - 1
 
 
 # e.g. -1 -> -(2**256 - 1)
 def evm_twos_complement(x: int) -> int:
     # return ((o + 2 ** 255) % 2 ** 256) - 2 ** 255
-    return ((2 ** 256 - 1) ^ x) + 1
+    return ((2**256 - 1) ^ x) + 1
 
 
 # EVM div semantics as a python function
@@ -212,6 +227,13 @@ def evm_mod(x, y):
     return sign * (abs(x) % abs(y))  # adapted from py-evm
 
 
+# EVM pow which wraps instead of hanging on "large" numbers
+# (which can generated, for ex. in the unevaluated branch of the Shift builtin)
+def evm_pow(x, y):
+    assert x >= 0 and y >= 0
+    return pow(x, y, 2**256)
+
+
 # memory used for system purposes, not for variables
 class MemoryPositions:
     FREE_VAR_SPACE = 0
@@ -221,32 +243,18 @@ class MemoryPositions:
 
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
-    MAX_INT128 = 2 ** 127 - 1
-    MIN_INT128 = -(2 ** 127)
-    MAX_INT256 = 2 ** 255 - 1
-    MIN_INT256 = -(2 ** 255)
-    MAXDECIMAL = 2 ** 167 - 1  # maxdecimal as EVM value
-    MINDECIMAL = -(2 ** 167)  # mindecimal as EVM value
+    MAX_INT128 = 2**127 - 1
+    MIN_INT128 = -(2**127)
+    MAX_INT256 = 2**255 - 1
+    MIN_INT256 = -(2**255)
+    MAXDECIMAL = 2**167 - 1  # maxdecimal as EVM value
+    MINDECIMAL = -(2**167)  # mindecimal as EVM value
     # min decimal allowed as Python value
-    MIN_AST_DECIMAL = -decimal.Decimal(2 ** 167) / DECIMAL_DIVISOR
+    MIN_AST_DECIMAL = -decimal.Decimal(2**167) / DECIMAL_DIVISOR
     # max decimal allowed as Python value
-    MAX_AST_DECIMAL = decimal.Decimal(2 ** 167 - 1) / DECIMAL_DIVISOR
-    MAX_UINT8 = 2 ** 8 - 1
-    MAX_UINT256 = 2 ** 256 - 1
-
-    @classmethod
-    def in_bounds(cls, type_str, value):
-        # TODO: fix this circular import
-        from vyper.codegen.types import parse_decimal_info, parse_integer_typeinfo
-
-        assert isinstance(type_str, str)
-        if type_str == "decimal":
-            info = parse_decimal_info(type_str)
-        else:
-            info = parse_integer_typeinfo(type_str)
-
-        (lo, hi) = int_bounds(info.is_signed, info.bits)
-        return lo <= value <= hi
+    MAX_AST_DECIMAL = decimal.Decimal(2**167 - 1) / DECIMAL_DIVISOR
+    MAX_UINT8 = 2**8 - 1
+    MAX_UINT256 = 2**256 - 1
 
 
 # Otherwise reserved words that are whitelisted for function declarations
@@ -321,6 +329,27 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
         raise ValueError("Unrecognized indentation characters value")
 
     return "".join(indented_lines)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
+        return result
+
+    return timeit_wrapper
+
+
+@contextlib.contextmanager
+def timer(msg):
+    t0 = time.time()
+    yield
+    t1 = time.time()
+    print(f"{msg} took {t1 - t0}s")
 
 
 def annotate_source_code(
@@ -398,6 +427,3 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
-
-
-__all__ = ["cached_property"]

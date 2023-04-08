@@ -5,12 +5,12 @@ from vyper.exceptions import CompilerPanic
 
 
 def test_assumptions():
-    # ASTs generated seperately from the same source should compare equal
+    # ASTs generated separately from the same source should compare equal
     test_tree = vy_ast.parse_to_ast("foo = 42")
     expected_tree = vy_ast.parse_to_ast("foo = 42")
     assert vy_ast.compare_nodes(test_tree, expected_tree)
 
-    # ASTs generated seperately with different source should compare not-equal
+    # ASTs generated separately with different source should compare not-equal
     test_tree = vy_ast.parse_to_ast("foo = 42")
     expected_tree = vy_ast.parse_to_ast("bar = 666")
     assert not vy_ast.compare_nodes(test_tree, expected_tree)
@@ -56,16 +56,6 @@ def test_parents_children():
 
     assert old_node not in test_tree.get_descendants()
     assert new_node in test_tree.get_descendants()
-
-
-def test_node_does_not_exist():
-    test_tree = vy_ast.parse_to_ast("foo = 42")
-    old_node = test_tree.body[0].target
-
-    new_node = vy_ast.parse_to_ast("42").body[0].value
-
-    with pytest.raises(CompilerPanic):
-        test_tree.replace_in_tree(new_node, old_node)
 
 
 def test_cannot_replace_twice():

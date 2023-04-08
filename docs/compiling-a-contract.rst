@@ -90,9 +90,9 @@ Importing Interfaces
 
 ``vyper-json`` searches for imported interfaces in the following sequence:
 
-1. Interfaces defined in the ``interfaces`` field of the input JSON
-2. Derived interfaces generated from contracts in the ``sources`` field of the input JSON
-3. (Optional) The local filesystem, if a root path was explicitely declared via the ``-p`` flag.
+1. Interfaces defined in the ``interfaces`` field of the input JSON.
+2. Derived interfaces generated from contracts in the ``sources`` field of the input JSON.
+3. (Optional) The local filesystem, if a root path was explicitly declared via the ``-p`` flag.
 
 See :ref:`searching_for_imports` for more information on Vyper's import system.
 
@@ -102,17 +102,17 @@ Online Compilers
 Remix IDE
 ---------
 
-`Remix IDE <https://remix.ethereum.org>`_ is a compiler and Javascript VM for developing and testing contracts in Vyper as well as Solidity.
+`Remix IDE <https://remix.ethereum.org>`_ is a compiler and JavaScript VM for developing and testing contracts in Vyper, as well as Solidity.
 
 .. note::
 
-   While the vyper version of the Remix IDE compiler is updated on a regular basis it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
+   While the Vyper version of the Remix IDE compiler is updated on a regular basis, it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
 
 
 Setting the Target EVM Version
 ==============================
 
-When you compile your contract code you can specify the Ethereum virtual machine version to compile for to avoid particular features or behaviours.
+When you compile your contract code, you can specify the Ethereum Virtual Machine version to compile for, to avoid particular features or behaviours.
 
 .. warning::
 
@@ -151,7 +151,7 @@ The following is a list of supported EVM versions, and changes in the compiler i
 
 .. py:attribute:: petersburg
 
-   - The compiler behaves the same way as with consantinople.
+   - The compiler behaves the same way as with constantinople.
 
 .. py:attribute:: istanbul (default)
 
@@ -172,7 +172,7 @@ Where possible, the Vyper JSON compiler formats follow those of `Solidity <https
 Input JSON Description
 ----------------------
 
-The following example describes the expected input format of ``vyper-json``. Comments are of course not permitted and used here only for explanatory purposes.
+The following example describes the expected input format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
 .. code-block:: javascript
 
@@ -208,6 +208,9 @@ The following example describes the expected input format of ``vyper-json``. Com
             // optional, whether or not optimizations are turned on
             // defaults to true
             "optimize": true,
+            // optional, whether or not the bytecode should include Vyper's signature
+            // defaults to true
+            "bytecodeMetadata": true,
             // The following is used to select desired outputs based on file names.
             // File names are given as keys, a star as a file name matches all files.
             // Outputs can also follow the Solidity format where second level keys
@@ -246,7 +249,7 @@ The following example describes the expected input format of ``vyper-json``. Com
 Output JSON Description
 -----------------------
 
-The following example describes the output format of ``vyper-json``. Comments are of course not permitted and used here only for explanatory purposes.
+The following example describes the output format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
 .. code-block:: javascript
 
@@ -328,8 +331,8 @@ Errors
 
 Each error includes a ``component`` field, indicating the stage at which it occurred:
 
-* ``json``: Errors that occur while parsing the input JSON. Usually a result of invalid JSON or a required value that is missing.
-* ``parser``: Errors that occur while parsing the contracts. Usually a result of invalid Vyper syntax.
+* ``json``: Errors that occur while parsing the input JSON. Usually, a result of invalid JSON or a required value that is missing.
+* ``parser``: Errors that occur while parsing the contracts. Usually, a result of invalid Vyper syntax.
 * ``compiler``: Errors that occur while compiling the contracts.
 * ``vyper``: Unexpected errors that occur within Vyper. If you receive an error of this type, please open an issue.
 

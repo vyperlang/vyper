@@ -4,10 +4,12 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    ImmutableViolation,
     InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     VariableDeclarationException,
 )
 
@@ -108,6 +110,27 @@ c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
     ),
+    (
+        # constant(public()) banned
+        """
+S: constant(public(uint256)) = 3
+    """,
+        SyntaxException,
+    ),
+    # cannot re-assign constant value
+    (
+        """
+struct Foo:
+    a : uint256
+
+x: constant(Foo) = Foo({a: 1})
+
+@external
+def hello() :
+    x.a =  2
+    """,
+        ImmutableViolation,
+    ),
 ]
 
 
@@ -144,7 +167,10 @@ test_a : constant(uint256) = 218882428718392752222464057452572750886963111572978
 test_a : constant(int128) = 2188824287183927522224640574525
     """,
     """
-test_a: constant(uint256) = MAX_UINT256
+test_a: constant(uint256) = max_value(uint256)
+    """,
+    """
+test_a: constant(address) = empty(address)
     """,
     """
 TEST_C: constant(uint256) = 1

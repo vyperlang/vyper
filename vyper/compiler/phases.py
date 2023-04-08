@@ -1,5 +1,6 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -51,6 +52,7 @@ class CompilerData:
         no_optimize: bool = False,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -71,6 +73,8 @@ class CompilerData:
             Turn off optimizations. Defaults to False
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -79,99 +83,89 @@ class CompilerData:
         self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
 
-    @property
+    @cached_property
     def vyper_module(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module"):
-            self._vyper_module = generate_ast(self.source_code, self.source_id, self.contract_name)
+        return generate_ast(self.source_code, self.source_id, self.contract_name)
 
-        return self._vyper_module
-
-    @property
+    @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
-        if not hasattr(self, "_vyper_module_unfolded"):
-            self._vyper_module_unfolded = generate_unfolded_ast(
-                self.vyper_module, self.interface_codes
-            )
 
-        return self._vyper_module_unfolded
+        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
-
-        return self._vyper_module_folded
-
-    @property
-    def storage_layout(self) -> StorageLayout:
-        if not hasattr(self, "_storage_layout"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
-
-        return self._storage_layout
-
-    @property
-    def global_ctx(self) -> GlobalContext:
-        if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(
-                self.vyper_module_folded, self.interface_codes
-            )
-
-        return self._global_ctx
-
-    def _gen_ir(self) -> None:
-        # fetch both deployment and runtime IR
-        self._ir_nodes, self._ir_runtime, self._function_signatures = generate_ir_nodes(
-            self.global_ctx, self.no_optimize
+    @cached_property
+    def _folded_module(self):
+        return generate_folded_ast(
+            self.vyper_module, self.interface_codes, self.storage_layout_override
         )
 
     @property
+    def vyper_module_folded(self) -> vy_ast.Module:
+        module, storage_layout = self._folded_module
+        return module
+
+    @property
+    def storage_layout(self) -> StorageLayout:
+        module, storage_layout = self._folded_module
+        return storage_layout
+
+    @property
+    def global_ctx(self) -> GlobalContext:
+        return GlobalContext(self.vyper_module_folded)
+
+    @cached_property
+    def _ir_output(self):
+        # fetch both deployment and runtime IR
+        return generate_ir_nodes(self.global_ctx, self.no_optimize)
+
+    @property
     def ir_nodes(self) -> IRnode:
-        if not hasattr(self, "_ir_nodes"):
-            self._gen_ir()
-        return self._ir_nodes
+        ir, ir_runtime, sigs = self._ir_output
+        return ir
 
     @property
     def ir_runtime(self) -> IRnode:
-        if not hasattr(self, "_ir_runtime"):
-            self._gen_ir()
-        return self._ir_runtime
+        ir, ir_runtime, sigs = self._ir_output
+        return ir_runtime
 
     @property
     def function_signatures(self) -> FunctionSignatures:
-        if not hasattr(self, "_function_signatures"):
-            self._gen_ir()
-        return self._function_signatures
+        ir, ir_runtime, sigs = self._ir_output
+        return sigs
 
-    @property
+    @cached_property
     def assembly(self) -> list:
-        if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.ir_nodes, self.no_optimize)
-        return self._assembly
+        return generate_assembly(self.ir_nodes, self.no_optimize)
 
-    @property
+    @cached_property
     def assembly_runtime(self) -> list:
-        if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.ir_runtime, self.no_optimize)
-        return self._assembly_runtime
+        return generate_assembly(self.ir_runtime, self.no_optimize)
 
-    @property
+    @cached_property
     def bytecode(self) -> bytes:
-        if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly, is_runtime=False)
-        return self._bytecode
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
-    @property
+    @cached_property
     def bytecode_runtime(self) -> bytes:
-        if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime, is_runtime=True)
-        return self._bytecode_runtime
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
+
+    @cached_property
+    def blueprint_bytecode(self) -> bytes:
+        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
+        blueprint_bytecode = blueprint_preamble + self.bytecode
+
+        # the length of the deployed code in bytes
+        len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
+        deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
+
+        return deploy_bytecode + blueprint_bytecode
 
 
 def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
@@ -198,7 +192,6 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
-
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
@@ -237,27 +230,6 @@ def generate_folded_ast(
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
-
-
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> GlobalContext:
-    """
-    Generate a contextualized AST from the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_ir_nodes(
@@ -321,7 +293,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -335,4 +309,6 @@ def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]

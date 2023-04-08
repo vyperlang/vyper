@@ -37,11 +37,13 @@ ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 hex-ir             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
+no-bytecode-metadata - Do not add metadata to bytecode
 """
 
 combined_json_outputs = [
     "bytecode",
     "bytecode_runtime",
+    "blueprint_bytecode",
     "abi",
     "layout",
     "source_map",
@@ -105,13 +107,16 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
+    )
+    parser.add_argument(
         "--traceback-limit",
         help="Set the traceback limit for error messages reported by the compiler",
         type=int,
     )
     parser.add_argument(
-        "--debug",
-        help="Turn on compiler debug information. "
+        "--verbose",
+        help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
         "may add more information in the future",
         action="store_true",
@@ -133,7 +138,7 @@ def _parse_args(argv):
         sys.tracebacklimit = args.traceback_limit
     elif VYPER_TRACEBACK_LIMIT is not None:
         sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
-    elif args.debug:
+    elif args.verbose:
         sys.tracebacklimit = 1000
     else:
         # Python usually defaults sys.tracebacklimit to 1000.  We use a default
@@ -154,6 +159,7 @@ def _parse_args(argv):
         args.evm_version,
         args.no_optimize,
         args.storage_layout,
+        args.no_bytecode_metadata,
     )
 
     if args.output_path:
@@ -193,7 +199,6 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
 
         interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-
             base_paths = [parent_path]
             if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
                 base_paths.append(root_path)
@@ -249,8 +254,8 @@ def compile_files(
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
     storage_layout: Iterable[str] = None,
+    no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
-
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
@@ -293,6 +298,7 @@ def compile_files(
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__
