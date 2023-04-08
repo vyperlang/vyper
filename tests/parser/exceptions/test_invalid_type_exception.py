@@ -95,6 +95,39 @@ a: HashMap[uint256, uint256]
 def foo() -> HashMap[uint256, uint256]:
     return self.a
     """,
+    """
+event Foo:
+    a: uint256
+
+@external
+def foo(x: Foo):
+    pass
+    """,
+    """
+@external
+def foo(x: HashMap[uint256, uint256]):
+    pass
+    """,
+    """
+@external
+def foo(x: (uint256, uint256)):
+    pass
+    """,
+    """
+event Foo:
+    a: uint256
+
+foo: Foo
+    """,
+    """
+event Foo:
+    a: uint256
+
+@external
+def foo():
+    f: Foo = Foo(1)
+    pass
+    """,
 ]
 
 

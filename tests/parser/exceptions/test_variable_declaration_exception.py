@@ -29,21 +29,6 @@ def foo():
     bar.x: int128 = 0
     """,
     """
-event Foo:
-    a: uint256
-
-foo: Foo
-    """,
-    """
-event Foo:
-    a: uint256
-
-@external
-def foo():
-    f: Foo = Foo(1)
-    pass
-    """,
-    """
 @internal
 def _foo() -> (uint256, uint256):
     return 1, 2

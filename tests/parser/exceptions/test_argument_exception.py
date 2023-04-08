@@ -89,24 +89,6 @@ def foo():
     for i in range(1, 2, 3, 4):
         pass
     """,
-    """
-event Foo:
-    a: uint256
-
-@external
-def foo(x: Foo):
-    pass
-    """,
-    """
-@external
-def foo(x: HashMap[uint256, uint256]):
-    pass
-    """,
-    """
-@external
-def foo(x: (uint256, uint256)):
-    pass
-    """,
 ]
 
 
