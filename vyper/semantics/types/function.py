@@ -26,7 +26,7 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.subscriptable import TupleT
+from vyper.semantics.types.subscriptable import HashMapT, TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
 
@@ -298,6 +298,10 @@ class ContractFunctionT(VyperType):
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
             type_ = type_from_annotation(arg.annotation)
+            if not type_._is_storage_instantiable or isinstance(type_, HashMapT):
+                raise ArgumentException(
+                    f"{type_} is not a valid function argument type", arg.annotation
+                )
 
             if value is not None:
                 if not check_kwargable(value):
@@ -317,10 +321,17 @@ class ContractFunctionT(VyperType):
             )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript)):
             return_type = type_from_annotation(node.returns)
+            if not return_type._is_storage_instantiable or isinstance(return_type, HashMapT):
+                raise InvalidType(
+                    f"{return_type} is not a valid function return type", node.returns
+                )
         elif isinstance(node.returns, vy_ast.Tuple):
             tuple_types: Tuple = ()
             for n in node.returns.elements:
-                tuple_types += (type_from_annotation(n),)
+                type_ = type_from_annotation(n)
+                if not type_._is_storage_instantiable or isinstance(type_, HashMapT):
+                    raise InvalidType(f"{type_} is not a valid function return type", n)
+                tuple_types += (type_,)
             return_type = TupleT(tuple_types)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
