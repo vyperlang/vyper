@@ -232,11 +232,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_ = type_from_annotation(node.annotation)
-        if not type_._is_storage_instantiable or isinstance(type_, HashMapT):
-            raise VariableDeclarationException(
-                f"{type_} cannot be instantiated as a memory variable", node
-            )
-
         validate_expected_type(node.value, type_)
 
         try:

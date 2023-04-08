@@ -18,7 +18,6 @@ class _PrimT(VyperType):
     _equality_attrs: tuple = ()
     _as_hashmap_key = True
     _as_array = True
-    _is_storage_instantiable = True
 
 
 # should inherit from uint8?

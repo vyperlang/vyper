@@ -51,7 +51,6 @@ class VyperType:
     _equality_attrs: Optional[Tuple] = None
     _is_array_type: bool = False
     _is_bytestring: bool = False  # is it a bytes or a string?
-    _is_storage_instantiable: bool = False
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
