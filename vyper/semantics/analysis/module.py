@@ -197,11 +197,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation)
-        if isinstance(type_, EventT):
-            raise VariableDeclarationException(
-                f"{type_} is not a valid type for a variable", node.annotation
-            )
-
         var_info = VarInfo(
             type_,
             decl_node=node,

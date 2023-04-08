@@ -232,11 +232,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_ = type_from_annotation(node.annotation)
-        if isinstance(type_, EventT):
-            raise VariableDeclarationException(
-                f"{type_} is not a valid type for a variable", node.annotation
-            )
-
         validate_expected_type(node.value, type_)
 
         try:
