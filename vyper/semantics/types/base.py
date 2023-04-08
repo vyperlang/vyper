@@ -65,7 +65,7 @@ class VyperType:
             for k, v in self._type_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
-                self.add_member(k, v, skip_namespace_validation=True)
+                self.add_member(k, v)
 
         members = members or {}
         for k, v in members.items():
@@ -277,13 +277,8 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(
-        self, name: str, type_: "VyperType", skip_namespace_validation: bool = False
-    ) -> None:
-        # skip_namespace_validation provides a way of bypassing validate_identifier, which
-        # introduces a dependency cycle with the builtin_functions module
-        if not skip_namespace_validation:
-            validate_identifier(name)
+    def add_member(self, name: str, type_: "VyperType") -> None:
+        validate_identifier(name)
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_
