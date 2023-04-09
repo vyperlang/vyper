@@ -308,6 +308,7 @@ def replace_constant(
                     if k.id == member_name:
                         node = parent
                         propagated_node = v
+                        assert isinstance(propagated_type, StructT)  # mypy hint
                         propagated_type = propagated_type.get_member(member_name, replacement_node)
 
                 # move one level up in the AST (or one level down in the nested attribute)
