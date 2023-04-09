@@ -174,13 +174,12 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
     # manually populate namespace with structs
     namespace = get_namespace()
-    struct_defs = vyper_module.get_children(vy_ast.StructDef)
+    struct_defs = list(vyper_module.get_children(vy_ast.StructDef))  # explicit list cast for mypy
     while len(struct_defs) > 0:
         try:
             struct_def = struct_defs.pop(0)
             namespace[struct_def.name] = StructT.from_ast_def(struct_def)
         except UnknownType:
-            print("error while populating namespace")
             struct_defs.append(struct_def)
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
@@ -299,13 +298,14 @@ def replace_constant(
 
             while not is_top_level:
                 member_name = parent.attr
+                assert isinstance(replacement_node, vy_ast.Call)  # mypy hint
                 values_dict = replacement_node.args[0]
 
                 for k, v in zip(values_dict.keys, values_dict.values):
                     if k.id == member_name:
                         node = parent
                         replacement_node = v
-                        type_ = type_.members.get(member_name)
+                        type_ = type_.get_member(member_name, replacement_node)
 
                 # move one level up in the AST (or one level down in the nested attribute)
                 parent = parent.get_ancestor(vy_ast.Attribute)
