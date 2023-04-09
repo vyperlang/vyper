@@ -266,8 +266,11 @@ def replace_constant(
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
-        parent = node.get_ancestor()
+        # store a copy in case it needs to be modified for structs
+        propagated_type = type_
+        propagated_node = replacement_node
 
+        parent = node.get_ancestor()
         if isinstance(parent, vy_ast.Call) and node == parent.func:
             # do not replace calls because splicing a constant into a callable site is
             # never valid and it worsens the error message
@@ -298,14 +301,14 @@ def replace_constant(
 
             while not is_top_level:
                 member_name = parent.attr
-                assert isinstance(replacement_node, vy_ast.Call)  # mypy hint
-                values_dict = replacement_node.args[0]
+                assert isinstance(propagated_node, vy_ast.Call)  # mypy hint
+                values_dict = propagated_node.args[0]
 
                 for k, v in zip(values_dict.keys, values_dict.values):
                     if k.id == member_name:
                         node = parent
-                        replacement_node = v
-                        type_ = type_.get_member(member_name, replacement_node)
+                        propagated_node = v
+                        propagated_type = propagated_type.get_member(member_name, replacement_node)
 
                 # move one level up in the AST (or one level down in the nested attribute)
                 parent = parent.get_ancestor(vy_ast.Attribute)
@@ -314,7 +317,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            new_node = _replace(node, replacement_node, type_=type_)
+            new_node = _replace(node, propagated_node, type_=propagated_type)
         except UnfoldableNode:
             if raise_on_error:
                 raise
