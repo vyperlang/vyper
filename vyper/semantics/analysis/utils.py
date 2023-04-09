@@ -591,6 +591,15 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(_check_literal(item) for item in node.elements)
+    elif isinstance(node, vy_ast.Attribute):
+        type_ = get_exact_type_from_node(node)
+
+        from vyper.semantics.types.user import EnumT
+
+        member_name = node.attr
+        if isinstance(type_, EnumT):
+            return type_.get_type_member(member_name, node)
+
     return False
 
 
