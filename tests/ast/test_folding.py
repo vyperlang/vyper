@@ -292,6 +292,56 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
+userdefined_struct_member = [("x: uint256 = FOO.a", "x: uint256 = 123")]
+
+
+@pytest.mark.parametrize("source", userdefined_struct_member)
+def test_replace_userdefined_struct_member(source):
+    preamble = """
+struct Foo:
+    a: uint256
+
+FOO: constant(Foo) = Foo({a: 123})
+    """
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.replace_user_defined_constants(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
+userdefined_nested_struct_member = [("x: uint256 = BAZ.c.b.a", "x: uint256 = 123")]
+
+
+@pytest.mark.parametrize("source", userdefined_nested_struct_member)
+def test_replace_userdefined_nested_struct_member(source):
+    preamble = """
+struct Foo:
+    a: uint256
+
+struct Bar:
+    b: Foo
+
+struct Baz:
+    c: Bar
+
+BAZ: constant(Baz) = Baz({c: Bar({b: Foo({a: 123})})})
+    """
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.replace_user_defined_constants(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
 builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
 
 builtin_folding_sources = [
