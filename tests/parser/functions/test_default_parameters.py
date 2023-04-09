@@ -103,7 +103,7 @@ enum Foo:
 
 @external
 def bar(a: uint256, b: Foo = Foo.Fo) -> Foo:
-    return b 
+    return b
     """
     c = get_contract(code)
 

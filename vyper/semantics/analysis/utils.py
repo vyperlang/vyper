@@ -598,8 +598,8 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
         from vyper.semantics.types.user import EnumT
 
         member_name = node.attr
-        if isinstance(type_, EnumT):
-            return type_.get_type_member(member_name, node)
+        if isinstance(type_, EnumT) and member_name in type_._enum_members:
+            return True
 
     return False
 
