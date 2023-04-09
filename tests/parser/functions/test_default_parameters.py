@@ -93,6 +93,24 @@ def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 99
     assert c.fooBar(b"booo", 12321) == [b"booo", 12321, c_default, d_default]
 
 
+def test_default_param_enum(get_contract):
+    code = """
+enum Foo:
+    Fe
+    Fi
+    Fo
+    Fum
+
+@external
+def bar(a: uint256, b: Foo = Foo.Fo) -> Foo:
+    return b 
+    """
+    c = get_contract(code)
+
+    assert c.bar(1) == 2**2
+    assert c.bar(1, 2**0) == 2**0
+
+
 def test_default_param_array(get_contract):
     code = """
 @external
