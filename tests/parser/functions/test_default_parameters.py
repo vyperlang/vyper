@@ -111,6 +111,42 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
 
 
+def test_default_param_constant_struct_member(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+
+FOO: constant(Foo) = Foo({a: 123})
+
+@external
+def foo(x: uint256 = FOO.a) -> uint256:
+    return x + 1
+    """
+    c = get_contract(code)
+    assert c.foo() == 124
+
+
+def test_default_param_nested_constant_struct_member(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+
+struct Bar:
+    b: Foo
+
+struct Baz:
+    c: Bar
+
+BAZ: constant(Baz) = Baz({c: Bar({b: Foo({a: 123})})})
+
+@external
+def foo(x: uint256 = BAZ.c.b.a) -> uint256:
+    return x + 1
+    """
+    c = get_contract(code)
+    assert c.foo() == 124
+
+
 def test_default_param_internal_function(get_contract):
     code = """
 @internal
