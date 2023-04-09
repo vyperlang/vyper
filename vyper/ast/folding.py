@@ -4,7 +4,9 @@ from typing import Optional, Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.user import StructT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import SizeLimits
 
@@ -170,6 +172,17 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     changed_nodes = 0
 
+    # manually populate namespace with structs
+    namespace = get_namespace()
+    struct_defs = vyper_module.get_children(vy_ast.StructDef)
+    while len(struct_defs) > 0:
+        try:
+            struct_def = struct_defs.pop(0)
+            namespace[struct_def.name] = StructT.from_ast_def(struct_def)
+        except UnknownType:
+            print("error while populating namespace")
+            struct_defs.append(struct_def)
+
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
@@ -179,18 +192,14 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         # Extract type definition from propagated annotation
-        type_ = None
-        try:
-            type_ = type_from_annotation(node.annotation)
-        except UnknownType:
-            # handle user-defined types e.g. structs - it's OK to not
-            # propagate the type annotation here because user-defined
-            # types can be unambiguously inferred at typechecking time
-            pass
+        type_ = type_from_annotation(node.annotation)
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
+
+    # clear namespace to prevent collision in semantics pass
+    namespace.clear()
 
     return changed_nodes
 
@@ -281,6 +290,27 @@ def replace_constant(
         # do not replace enum members
         if node.get_ancestor(vy_ast.EnumDef):
             continue
+
+        # derive the type and replacement node for struct members
+        # and change the node to be replaced to the top level `vy_ast.Attribute` node
+        # (i.e. the most nested attribute)
+        if isinstance(parent, vy_ast.Attribute) and isinstance(type_, StructT):
+            is_top_level = False
+
+            while not is_top_level:
+                member_name = parent.attr
+                values_dict = replacement_node.args[0]
+
+                for k, v in zip(values_dict.keys, values_dict.values):
+                    if k.id == member_name:
+                        node = parent
+                        replacement_node = v
+                        type_ = type_.members.get(member_name)
+
+                # move one level up in the AST (or one level down in the nested attribute)
+                parent = parent.get_ancestor(vy_ast.Attribute)
+                if parent is None:
+                    is_top_level = True
 
         try:
             # note: _replace creates a copy of the replacement_node
