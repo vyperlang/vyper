@@ -594,6 +594,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     elif isinstance(node, vy_ast.Attribute):
         type_ = get_exact_type_from_node(node)
 
+        # TODO fixme circular import
         from vyper.semantics.types.user import EnumT
 
         member_name = node.attr
