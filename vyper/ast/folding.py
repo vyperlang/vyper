@@ -1,4 +1,3 @@
-import warnings
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
@@ -6,7 +5,6 @@ from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import SizeLimits
 
 
 def fold(vyper_module: vy_ast.Module) -> None:

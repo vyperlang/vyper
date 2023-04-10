@@ -41,7 +41,7 @@ event Sent:
 @external
 @payable
 def fooBar(a: int128 = 12345) -> int128:
-    log Sent(ZERO_ADDRESS)
+    log Sent(empty(address))
     return a
 
 @external

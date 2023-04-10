@@ -46,7 +46,7 @@ from vyper.interfaces import ERC20
 
 @external
 def test():
-    a: address(ERC20) = ZERO_ADDRESS
+    a: address(ERC20) = empty(address)
     """,
         InvalidType,
     ),
@@ -202,7 +202,7 @@ idx: uint256
 
 @external
 def __init__():
-    self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
+    self.my_interface[self.idx] = MyInterface(empty(address))
     """,
     """
 interface MyInterface:

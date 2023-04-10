@@ -775,9 +775,9 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
@@ -808,9 +808,9 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
@@ -841,9 +841,9 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
@@ -1538,7 +1538,7 @@ interface Test:
 @external
 def test(addr: address) -> (int128, address, Bytes[10]):
     a: int128 = 0
-    b: address = ZERO_ADDRESS
+    b: address = empty(address)
     c: Bytes[10] = b""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c

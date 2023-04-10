@@ -25,7 +25,7 @@ struct Human:
 
 @external
 def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: int128 = 0
     c: bool = False
     d: decimal = 0.0
@@ -39,7 +39,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
         name: "",
         pet: Animal({
             name: "",
-            address_: ZERO_ADDRESS,
+            address_: empty(address),
             id_: 0,
             is_furry: False,
             price: 0.0,

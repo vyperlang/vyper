@@ -41,7 +41,7 @@ def out_literals() -> (int128, int128, Bytes[10]):
 @external
 def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
-    b: address = ZERO_ADDRESS
+    b: address = empty(address)
     a, b = self.out_literals()  # tuple count mismatch
     return
     """,
