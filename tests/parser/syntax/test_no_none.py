@@ -30,7 +30,7 @@ def foo():
         """
 @external
 def foo():
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     bar = None
     """,
         """
