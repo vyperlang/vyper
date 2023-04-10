@@ -175,12 +175,11 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     # manually populate namespace with structs
     namespace = get_namespace()
     struct_defs = list(vyper_module.get_children(vy_ast.StructDef))  # explicit list cast for mypy
-    while len(struct_defs) > 0:
+    for struct_def in struct_defs:
         try:
-            struct_def = struct_defs.pop(0)
             namespace[struct_def.name] = StructT.from_ast_def(struct_def)
         except UnknownType:
-            struct_defs.append(struct_def)
+            continue
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         if not isinstance(node.target, vy_ast.Name):
@@ -191,7 +190,12 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         # Extract type definition from propagated annotation
-        type_ = type_from_annotation(node.annotation)
+        type_ = None
+        try:
+            type_ = type_from_annotation(node.annotation)
+        except UnknownType:
+            # handle structs defined out of order
+            pass
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
