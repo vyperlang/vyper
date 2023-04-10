@@ -291,8 +291,6 @@ class ContractFunctionT(VyperType):
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
-            if arg.arg in namespace:
-                raise NamespaceCollision(arg.arg, arg)
 
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
