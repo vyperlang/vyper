@@ -72,6 +72,14 @@ VAL: uint256
     """,
         NamespaceCollision,
     ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: constant(uint256) = 1
+    """,
+        NamespaceCollision,
+    ),
     # signature variable with same name
     (
         """
