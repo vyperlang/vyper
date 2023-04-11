@@ -11,7 +11,6 @@ from vyper.exceptions import (
     CompilerPanic,
     FunctionDeclarationException,
     InvalidType,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
 )
@@ -22,7 +21,6 @@ from vyper.semantics.analysis.base import (
     StorageSlot,
 )
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -283,7 +281,6 @@ class ContractFunctionT(VyperType):
         min_arg_count = max_arg_count - len(node.args.defaults)
         defaults = [None] * min_arg_count + node.args.defaults
 
-        namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
