@@ -72,6 +72,14 @@ VAL: uint256
     """,
         NamespaceCollision,
     ),
+    # global with same type and name
+    (
+        """
+VAL: constant(uint256) = 1
+VAL: uint256
+    """,
+        NamespaceCollision,
+    ),
     # global with same type and name, different order
     (
         """
