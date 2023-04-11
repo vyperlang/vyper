@@ -6,6 +6,18 @@ from vyper.semantics.analysis import validate_semantics
 from vyper.semantics.analysis.module import ModuleAnalyzer
 
 
+def test_self_function_call(namespace):
+    code = """
+@internal
+def foo():
+    self.foo()
+    """
+    vyper_module = parse_to_ast(code)
+    with namespace.enter_scope():
+        with pytest.raises(CallViolation):
+            ModuleAnalyzer(vyper_module, {}, namespace)
+
+
 def test_cyclic_function_call(namespace):
     code = """
 @internal
