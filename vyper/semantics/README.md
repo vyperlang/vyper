@@ -10,47 +10,42 @@ Vyper abstract syntax tree (AST).
 `vyper.semantics` has the following structure:
 
 * [`types/`](types): Subpackage of classes and methods used to represent types
-  * [`types/indexable/`](types/indexable)
-    * [`mapping.py`](types/indexable/mapping.py): Mapping type
-    * [`sequence.py`](types/indexable/sequence.py): Array and Tuple types
-  * [`types/user/`](types/user)
-    * [`interface.py`](types/user/interface.py): Contract interface types and getter functions
-    * [`struct.py`](types/user/struct.py): Struct types and getter functions
-  * [`types/value/`](types/value)
-    * [`address.py`](types/value/address.py): Address type
-    * [`array_value.py`](types/value/array_value.py): Single-value subscript types (bytes, string)
-    * [`boolean.py`](types/value/boolean.py): Boolean type
-    * [`bytes_fixed.py`](types/value/bytes_fixed.py): Fixed length byte types
-    * [`numeric.py`](types/value/numeric.py): Integer and decimal types
-  * [`abstract.py`](types/abstract.py): Abstract data type classes
   * [`bases.py`](types/bases.py): Common base classes for all type objects
-  * [`event.py`](types/user/event.py): `Event` type class
-  * [`function.py`](types/function.py): `ContractFunction` type class
+  * [`bytestrings.py`](types/bytestrings.py): Single-value subscript types (bytes, string)
+  * [`function.py`](types/function.py): Contract function and member function types
+  * [`primitives.py`](types/primitives.py): Address, boolean, fixed length byte, integer and decimal types
+  * [`shortcuts.py`](types/shortcuts.py): Helper constants for commonly used types
+  * [`subscriptable.py`](types/subscriptable.py): Mapping, array and tuple types
+  * [`user.py`](types/user.py): Enum, event, interface and struct types
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
-* [`validation/`](validation): Subpackage for type checking and syntax verification logic
-  * [`base.py`](validation/base.py): Base validation class
-  * [`local.py`](validation/local.py): Validates the local namespace of each function within a contract
-  * [`module.py`](validation/module.py): Validates the module namespace of a contract.
-  * [`utils.py`](validation/utils.py): Functions for comparing and validating types
+* [`analysis/`](analysis): Subpackage for type checking and syntax verification logic
+  * [`annotation.py`](analysis/annotation.py): Annotates statements and expressions with the appropriate type information
+  * [`base.py`](analysis/base.py): Base validation class
+  * [`common.py`](analysis/common.py): Base AST visitor class
+  * [`data_positions`](analysis/data_positions.py): Functions for tracking storage variables and allocating storage slots
+  * [`levenhtein_utils.py`](analysis/levenshtein_utils.py): Helper for better error messages
+  * [`local.py`](analysis/local.py): Validates the local namespace of each function within a contract
+  * [`module.py`](analysis/module.py): Validates the module namespace of a contract.
+  * [`utils.py`](analysis/utils.py): Functions for comparing and validating types
 * [`environment.py`](environment.py): Environment variables and builtin constants
 * [`namespace.py`](namespace.py): `Namespace` object, a `dict` subclass representing the namespace of a contract
 
 ## Control Flow
 
-The [`validation`](validation) subpackage contains the top-level `validate_semantics`
+The [`analysis`](analysis) subpackage contains the top-level `validate_semantics`
 function. This function is used to verify and type-check a contract. The process
 consists of three steps:
 
 1. Preparing the builtin namespace
 2. Validating the module-level scope
-3. Validating local scopes
+3. Annotating and validating local scopes
 
 ### 1. Preparing the builtin namespace
 
 The [`Namespace`](namespace.py) object represents the namespace for a contract.
 Builtins are added upon initialization of the object. This includes:
 
-* Adding primitive type classes from the [`types/`](types) subpackage
+* Adding type classes from the [`types/`](types) subpackage
 * Adding environment variables and builtin constants from [`environment.py`](environment.py)
 * Adding builtin functions from the [`functions`](../builtins/functions.py) package
 * Adding / resetting `self` and `log`
@@ -65,11 +60,11 @@ of a contract. This includes:
 and functions
 * Validating import statements and function signatures
 
-### 3. Validating the Local Scopes
+### 3. Annotating and validating the Local Scopes
 
 [`validation/local.py`](validation/local.py) validates the local scope within each
 function in a contract. `FunctionNodeVisitor` is used to iterate over the statement
-nodes in each function body and apply appropriate checks.
+nodes in each function body, annotate them and apply appropriate checks.
 
 To learn more about the checks on each node type, read the docstrings on the methods
 of `FunctionNodeVisitor`.
@@ -105,45 +100,6 @@ The array is given a type of `int128[2]`.
 ### Types Classes
 
 All type classes are found within the [`semantics/types/`](types) subpackage.
-
-Type classes rely on inheritance to define their structure and functionlity.
-Vyper uses three broad categories to represent types within the compiler.
-
-#### Primitive Types
-
-A **primitive type** (or just primitive) defines the base attributes of a given type.
-There is only one primitive type object created for each Vyper type. All primitive
-classes are subclasses of `BasePrimitive`.
-
-Along with the builtin primitive types, user-defined ones may be created. These
-primitives are defined in the modules within [`semantics/types/user`](types/user).
-See the docstrings there for more information.
-
-#### Type Definitions
-
-A **type definition** (or just definition) is a type that has been assigned to a
-specific variable, literal, or other value. Definition objects are typically derived
-from primitives. They include additional information such as the constancy,
-visibility and scope of the associated value.
-
-A primitive type always has a corresponding type definition. However, not all
-type definitions have a primitive type, e.g. arrays and tuples.
-
-Comparing a definition to it's related primitive type will always evaluate `True`.
-Comparing two definitions of the same class can sometimes evaluate false depending
-on certain attributes. All definition classes are subclasses of `BaseTypeDefinition`.
-
-Additionally, literal values sometimes have multiple _potential type definitions_.
-In this case, a membership check determines if the literal is valid by comparing
-the list of potential types against a specific type.
-
-#### Abstract Types
-
-An **abstract type** is an inherited class shared by two or more definition
-classes. Abstract types do not implement any functionality and may not be directly
-assigned to any values. They are used for broad type checking, in cases where
-e.g. a function expects any numeric value, or any bytes value. All abstract type
-classes are subclasses of `AbstractDataType`.
 
 ### Namespace
 
@@ -190,12 +146,12 @@ namespace['foo']  # this raises an UndeclaredDefinition
 
 Validation is handled by calling methods within each type object. In general:
 
-* Primitive type objects include one or both of `from_annotation` and `from_literal`
-methods, which validate an AST node and a produce definition object
-* Definition objects include a variety of `get_<thing>` and `validate_<action>` methods,
+* Type objects include one or both of `from_annotation` and `from_literal`
+methods, which validate an AST node and produce a type object
+* Type objects include a variety of `get_<thing>` and `validate_<action>` methods,
 which are used to validate interactions and obtain new types based on AST nodes
 
-All possible methods for primitives and definitions are outlined within the base
+All possible methods for type objects are outlined within the base
 classes in [`types/bases.py`](types/bases.py). The functionality within the methods
 of the base classes is typically to raise and give a meaningful explanation
 for _why_ the syntax not valid.
@@ -208,9 +164,7 @@ Here are some examples:
 foo: int128
 ```
 
-1. We look up `int128` in `namespace`. We retrieve an `Int128Primitive` object.
-2. We call `Int128Primitive.from_annotation` with the AST node of the statement. This
-method validates the statement and returns an `Int128Definition` object.
+1. We look up `int128` in `namespace`. We retrieve an `IntegerT` object.
 3. We store the new definition under the key `foo` within `namespace`.
 
 #### 2. Modifying the value of a variable
@@ -219,15 +173,14 @@ method validates the statement and returns an `Int128Definition` object.
 foo += 6
 ```
 
-1. We look up `foo` in `namespace` and retrieve the `Int128Definition`.
+1. We look up `foo` in `namespace` and retrieve an `IntegerT` with `_is_signed=True` and `_bits=128`.
 2. We call `get_potential_types_from_node` with the target node
 and are returned a list of types that are valid for the literal `6`. In this
-case, the list includes `Int128Definition`. The type check for the statement
-passes.
+case, the list includes an `IntegerT` with `_is_signed=True` and `_bits=128`. The type check for the statement passes.
 3. We call the `validate_modification` method on the definition object
 for `foo` to confirm that it is a value that may be modified (not a constant).
 4. Because the statement involves a mathematical operator, we also call the
-`validate_numeric_operation` method on `foo` to confirm that the operation is
+`validate_numeric_op` method on `foo` to confirm that the operation is
 allowed.
 
 #### 3. Calling a builtin function
@@ -240,7 +193,7 @@ bar: bytes32 = sha256(b"hash me!")
 function.
 2. We call `fetch_call_return` on the function definition object, with the AST
 node representing the call. This method validates the input arguments, and returns
-a `Bytes32Definition`.
+a `BytesM_T` with `m=32`.
 3. We validation of the delcaration of `bar` in the same manner as the first
 example, and compare the generated type to that returned by `sha256`.
 
