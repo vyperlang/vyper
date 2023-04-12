@@ -496,8 +496,8 @@ def validate_expected_type(node, expected_type):
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 
-    if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        # special case - for literal arrays or tuples we individually validate each item
+    if isinstance(node, vy_ast.List):
+        # special case - for literal arrays we individually validate each item
         for expected in expected_type:
             if not isinstance(expected, (DArrayT, SArrayT)):
                 continue
