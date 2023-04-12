@@ -684,7 +684,7 @@ class DocStr(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ("args", "defaults", "default")
-    _only_empty_fields = ("vararg", "kwonlyargs", "kwarg", "kw_defaults")
+    _only_empty_fields = ("posonlyargs", "vararg", "kwonlyargs", "kwarg", "kw_defaults")
 
 
 class arg(VyperNode):
