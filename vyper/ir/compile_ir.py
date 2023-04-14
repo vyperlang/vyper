@@ -150,7 +150,7 @@ def _add_postambles(asm_ops):
 
     global _revert_label
 
-    _revert_string = [_revert_label, "JUMPDEST"] + PUSH(0) + ["DUP1", "REVERT"]
+    _revert_string = [_revert_label, "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
     if _revert_label in asm_ops:
         # shared failure block
@@ -555,11 +555,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "sha3_32":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
-            *PUSH(MemoryPositions.FREE_VAR_SPACE),
-            "MSTORE",
-            *PUSH(32),
-            *PUSH(MemoryPositions.FREE_VAR_SPACE),
-            "SHA3",
+            [
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "MSTORE",
+                *PUSH(32),
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "SHA3",
+            ]
         )
         return o
     # SHA3 a 64 byte value
@@ -567,13 +569,15 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend(
-            *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-            "MSTORE",
-            *PUSH(MemoryPositions.FREE_VAR_SPACE),
-            "MSTORE",
-            *PUSH(64),
-            *PUSH(MemoryPositions.FREE_VAR_SPACE),
-            "SHA3",
+            [
+                *PUSH(MemoryPositions.FREE_VAR_SPACE2),
+                "MSTORE",
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "MSTORE",
+                *PUSH(64),
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "SHA3",
+            ]
         )
         return o
     elif code.value == "select":
