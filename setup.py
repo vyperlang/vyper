@@ -15,7 +15,7 @@ extras_require = {
         "pytest-split>=0.7.0,<1.0",
         "pytest-rerunfailures>=10.2,<11",
         "eth-tester[py-evm]>=0.8.0b3,<0.9",
-        "py-evm>=0.6.1a2,<0.7",
+        "py-evm>=0.7.0a1,<0.8",
         "web3==6.0.0",
         "tox>=3.15,<4.0",
         "lark==1.1.2",
