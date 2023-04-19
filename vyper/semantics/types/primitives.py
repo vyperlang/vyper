@@ -141,10 +141,13 @@ class NumericT(_PrimT):
         if isinstance(node.op, self._invalid_ops):
             self._raise_invalid_op(node)
 
-        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and self._bits != 256:
-            raise InvalidOperation(
-                f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
-            )
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if self._bits != 256:
+                raise InvalidOperation(
+                    f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
+                )
+            if not isinstance(node.right, vy_ast.Int):
+                raise InvalidOperation(f"Cannot {node.op.description} by non-integer amount!", node)
 
         if isinstance(node.op, vy_ast.Pow):
             if isinstance(node, vy_ast.BinOp):

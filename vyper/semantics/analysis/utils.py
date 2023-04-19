@@ -198,7 +198,12 @@ class _ExprAnalyser:
 
     def types_from_BinOp(self, node):
         # binary operation: `x + y`
-        types_list = get_common_types(node.left, node.right)
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            types_list = get_possible_types_from_node(node.left)
+            # ad-hoc handling for LShift and RShift, since operands
+            # can be different types
+        else:
+            types_list = get_common_types(node.left, node.right)
 
         if (
             isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
@@ -208,6 +213,7 @@ class _ExprAnalyser:
             # CMC 2022-07-20 this seems like unreachable code -
             # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
+
 
         return _validate_op(node, types_list, "validate_numeric_op")
 
