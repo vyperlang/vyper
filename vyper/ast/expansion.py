@@ -30,20 +30,24 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node.
     """
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "public"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
         func_type = node._metadata["func_type"]
-        input_types, return_type = func_type.get_signature()
+        input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
-        # use the annotation node as a base to build the input args and return type
-        # starting with `args[0]` to remove the surrounding `public()` call`
-        annotation = copy.copy(node.annotation.args[0])
+        # use the annotation node to build the input args and return type
+        annotation = copy.copy(node.annotation)
 
-        # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
-        # for each input type we wrap it in a `Subscript` to access a specific member
-        return_stmt: vy_ast.VyperNode = vy_ast.Attribute(
-            value=vy_ast.Name(id="self"), attr=func_type.name
-        )
+        return_stmt: vy_ast.VyperNode
+        # constants just return a value
+        if node.is_constant:
+            return_stmt = node.value
+        elif node.is_immutable:
+            return_stmt = vy_ast.Name(id=func_type.name)
+        else:
+            # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
+            # for each input type we wrap it in a `Subscript` to access a specific member
+            return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
         return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
@@ -53,6 +57,9 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             if annotation.value.get("id") == "HashMap":  # type: ignore
                 # for a HashMap, split the key/value types and use the key type as the next arg
                 arg, annotation = annotation.slice.value.elements  # type: ignore
+            elif annotation.value.get("id") == "DynArray":
+                arg = vy_ast.Name(id=type_._id)
+                annotation = annotation.slice.value.elements[0]  # type: ignore
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
@@ -66,7 +73,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             )
 
         # after iterating the input types, the remaining annotation node is our return type
-        return_node = annotation
+        return_node = copy.copy(annotation)
 
         # join everything together as a new `FunctionDef` node, annotate it
         # with the type, and append it to the existing `Module` node
@@ -97,9 +104,9 @@ def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
     """
 
     # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"annotation.func.id": "constant"}):
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
         vyper_module.remove_from_body(node)
 
     # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"target.id": "implements"}):
+    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
         vyper_module.remove_from_body(node)

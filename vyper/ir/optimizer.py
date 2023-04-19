@@ -31,7 +31,7 @@ def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
 
     if unsigned and ret < 0:
         return signed_to_unsigned(ret, 256, strict=True)
-    elif not unsigned and ret > 2 ** 255 - 1:
+    elif not unsigned and ret > 2**255 - 1:
         return unsigned_to_signed(ret, 256, strict=True)
 
     return ret
@@ -97,7 +97,7 @@ def _shorten_annotation(annotation):
 
 
 def _wrap256(x, unsigned=UNSIGNED):
-    x %= 2 ** 256
+    x %= 2**256
     # wrap in a signed way.
     if not unsigned:
         x = unsigned_to_signed(x, 256, strict=True)
@@ -376,8 +376,10 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        if binop == "ne":
-            # trigger other optimizations
+        if binop == "ne" and parent_op == "iszero":
+            # for iszero, trigger other optimizations
+            # (for `if` and `assert`, `ne` will generate two ISZEROs
+            # which will get optimized out during assembly)
             return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
@@ -519,7 +521,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
                 # return the first branch
                 return finalize("seq", [argz[1]])
 
-        elif len(argz) == 3 and argz[0].value != "iszero":
+        elif len(argz) == 3 and argz[0].value not in ("iszero", "ne"):
             # if(x) compiles to jumpi(_, iszero(x))
             # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
             # so we swap the branches here to activate that optimization.

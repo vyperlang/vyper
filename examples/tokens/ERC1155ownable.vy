@@ -91,7 +91,7 @@ event ApprovalForAll:
 event URI:
     # This emits when the URI gets changed
     value: String[MAX_URI_LENGTH]
-    id: uint256
+    id: indexed(uint256)
 
 ############### interfaces ###############
 implements: ERC165
@@ -170,7 +170,7 @@ def transferOwnership(newOwner: address):
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     assert newOwner != self.owner, "This account already owns the contract"
-    assert newOwner != ZERO_ADDRESS, "Transfer to ZERO_ADDRESS not allowed. Use renounceOwnership() instead."
+    assert newOwner != empty(address), "Transfer to the zero address not allowed. Use renounceOwnership() instead."
     oldOwner: address = self.owner
     self.owner = newOwner
     log OwnershipTransferred(oldOwner, newOwner)
@@ -178,14 +178,14 @@ def transferOwnership(newOwner: address):
 @external
 def renounceOwnership():
     """
-    @dev Transfer the ownership to ZERO_ADDRESS, this will lock the contract
-    @dev emits an OwnershipTransferred event with the old and new ZERO_ADDRESS owner addresses
+    @dev Transfer the ownership to the zero address, this will lock the contract
+    @dev emits an OwnershipTransferred event with the old and new zero owner addresses
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Ownable: caller is not the owner"
     oldOwner: address = self.owner
-    self.owner = ZERO_ADDRESS
-    log OwnershipTransferred(oldOwner, ZERO_ADDRESS)
+    self.owner = empty(address)
+    log OwnershipTransferred(oldOwner, empty(address))
 
 @external
 @view
@@ -207,7 +207,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
 
 ## mint ##
 @external
-def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
+def mint(receiver: address, id: uint256, amount:uint256):
     """
     @dev mint one new token with a certain ID
     @dev this can be a new token or "topping up" the balance of a non-fungible token ID
@@ -218,14 +218,14 @@ def mint(receiver: address, id: uint256, amount:uint256, data:bytes32):
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
-    assert receiver != ZERO_ADDRESS, "Can not mint to ZERO ADDRESS"
+    assert receiver != empty(address), "Can not mint to ZERO ADDRESS"
     operator: address = msg.sender
     self.balanceOf[receiver][id] += amount
-    log TransferSingle(operator, ZERO_ADDRESS, receiver, id, amount)
+    log TransferSingle(operator, empty(address), receiver, id, amount)
 
 
 @external
-def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE], data: bytes32):
+def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
     """
     @dev mint a batch of new tokens with the passed IDs
     @dev this can be new tokens or "topping up" the balance of existing non-fungible token IDs in the contract
@@ -236,7 +236,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
-    assert receiver != ZERO_ADDRESS, "Can not mint to ZERO ADDRESS"
+    assert receiver != empty(address), "Can not mint to ZERO ADDRESS"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
     
@@ -245,7 +245,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
             break
         self.balanceOf[receiver][ids[i]] += amounts[i]
     
-    log TransferBatch(operator, ZERO_ADDRESS, receiver, ids, amounts)
+    log TransferBatch(operator, empty(address), receiver, ids, amounts)
 
 ## burn ##
 @external
@@ -259,7 +259,7 @@ def burn(id: uint256, amount: uint256):
     assert not self.paused, "The contract has been paused"
     assert self.balanceOf[msg.sender][id] > 0 , "caller does not own this ID"
     self.balanceOf[msg.sender][id] -= amount
-    log TransferSingle(msg.sender, msg.sender, ZERO_ADDRESS, id, amount)
+    log TransferSingle(msg.sender, msg.sender, empty(address), id, amount)
     
 @external
 def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BATCH_SIZE]):
@@ -279,7 +279,7 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
             break
         self.balanceOf[msg.sender][ids[i]] -= amounts[i]
     
-    log TransferBatch(msg.sender, msg.sender, ZERO_ADDRESS, ids, amounts)
+    log TransferBatch(msg.sender, msg.sender, empty(address), ids, amounts)
 
 ## approval ##
 @external
@@ -306,7 +306,7 @@ def safeTransferFrom(sender: address, receiver: address, id: uint256, amount: ui
     @param amount the amount of tokens for the specified id
     """
     assert not self.paused, "The contract has been paused"
-    assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
+    assert receiver != empty(address), "ERC1155: transfer to the zero address"
     assert sender != receiver
     assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert self.balanceOf[sender][id] > 0 , "caller does not own this ID or ZERO balance"
@@ -325,7 +325,7 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     @param amounts a dynamic array of the amounts for the specified list of ids.
     """
     assert not self.paused, "The contract has been paused"
-    assert receiver != ZERO_ADDRESS, "ERC1155: transfer to the zero address"
+    assert receiver != empty(address), "ERC1155: transfer to the zero address"
     assert sender != receiver
     assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"

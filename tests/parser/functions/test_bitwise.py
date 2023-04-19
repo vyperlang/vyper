@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 from vyper.utils import unsigned_to_signed
 
 code = """
@@ -51,12 +51,12 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._bitwise_and(x, y) == (x & y)
     assert c._bitwise_or(x, y) == (x | y)
     assert c._bitwise_xor(x, y) == (x ^ y)
-    assert c._bitwise_not(x) == 2 ** 256 - 1 - x
+    assert c._bitwise_not(x) == 2**256 - 1 - x
 
     for t in (x, y):
         for s in (0, 1, 3, 255, 256):
             assert c._shr(t, s) == t >> s
-            assert c._shl(t, s) == (t << s) % (2 ** 256)
+            assert c._shl(t, s) == (t << s) % (2**256)
 
 
 POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
@@ -81,7 +81,7 @@ def _shl(x: int256, y: int256) -> int256:
     for t in cases:
         for s in (0, 1, 3, 255, 256):
             assert c._sar(t, s) == t >> s
-            assert c._shl(t, s) == unsigned_to_signed((t << s) % (2 ** 256), 256)
+            assert c._shl(t, s) == unsigned_to_signed((t << s) % (2**256), 256)
 
 
 def test_precedence(get_contract):
@@ -129,7 +129,23 @@ def foo(x: uint8, y: int128) -> uint256:
     return x << y
     """,
         TypeMismatch,
-    )
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return shift(2, 257)
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return shift(2, -257)
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 

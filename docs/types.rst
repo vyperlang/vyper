@@ -102,8 +102,18 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
-.. note::
-    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -176,7 +186,7 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    Bitwise operations are currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
 
 Decimals
 --------
@@ -443,7 +453,7 @@ Fixed-size Lists
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Lists can be declared with ``_name: _ValueType[_Integer]``.
+Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and enums.
 
 .. code-block:: python
 
@@ -480,7 +490,7 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
 Dynamic Arrays
 ----------------
 
-Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type (except ``Bytes[N]`` and ``String[N]``) or reference type (except mappings).
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type or reference type (except mappings).
 
 .. code-block:: python
 
@@ -507,7 +517,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 .. note::
-    To keep code easy to reason about, modifying an array while using it as an iterator it is disallowed by the language. For instance, the following usage is not allowed:
+    To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
 
     .. code-block:: python
 
@@ -551,7 +561,7 @@ The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, arrays or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::

@@ -1,5 +1,6 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -10,7 +11,6 @@ from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.utils import cached_property
 
 
 class CompilerData:
@@ -52,6 +52,7 @@ class CompilerData:
         no_optimize: bool = False,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -72,6 +73,8 @@ class CompilerData:
             Turn off optimizations. Defaults to False
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -80,6 +83,7 @@ class CompilerData:
         self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
 
     @cached_property
     def vyper_module(self) -> vy_ast.Module:
@@ -110,7 +114,7 @@ class CompilerData:
 
     @property
     def global_ctx(self) -> GlobalContext:
-        return generate_global_context(self.vyper_module_folded, self.interface_codes)
+        return GlobalContext(self.vyper_module_folded)
 
     @cached_property
     def _ir_output(self):
@@ -142,11 +146,15 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        return generate_bytecode(self.assembly, is_runtime=False)
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, is_runtime=True)
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -184,7 +192,6 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
-
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
@@ -223,27 +230,6 @@ def generate_folded_ast(
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
-
-
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> GlobalContext:
-    """
-    Generate a contextualized AST from the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_ir_nodes(
@@ -307,7 +293,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -321,4 +309,6 @@ def generate_bytecode(assembly: list, is_runtime: bool = False) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=is_runtime)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]

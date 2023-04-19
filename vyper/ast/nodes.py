@@ -7,10 +7,12 @@ from typing import Any, Optional, Union
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
+    ArgumentException,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
+    StructureException,
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
@@ -63,14 +65,16 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
-    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-    # Parent node is required for context to determine whether replacement should happen.
-    if (
-        ast_struct["ast_type"] == "AnnAssign"
-        and isinstance(parent, Module)
-        and not getattr(ast_struct["target"], "id", None) in ("implements",)
-    ):
-        ast_struct["ast_type"] = "VariableDecl"
+    if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
+        # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
+        if getattr(ast_struct["target"], "id", None) == "implements":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "ImplementsDecl"
+        # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
+        # Parent node is required for context to determine whether replacement should happen.
+        else:
+            ast_struct["ast_type"] = "VariableDecl"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -680,39 +684,55 @@ class DocStr(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ("args", "defaults", "default")
-    _only_empty_fields = ("vararg", "kwonlyargs", "kwarg", "kw_defaults")
+    _only_empty_fields = ("posonlyargs", "vararg", "kwonlyargs", "kwarg", "kw_defaults")
 
 
 class arg(VyperNode):
     __slots__ = ("arg", "annotation")
 
 
-class Return(VyperNode):
+# base class for stmt nodes. doesn't do anything except classification
+class Stmt(VyperNode):
+    pass
+
+
+class Return(Stmt):
     __slots__ = ("value",)
     _is_terminus = True
 
 
-class Log(VyperNode):
+class Expr(Stmt):
     __slots__ = ("value",)
 
 
-class EnumDef(VyperNode):
+class Log(Stmt):
+    __slots__ = ("value",)
+
+
+class EnumDef(TopLevel):
     __slots__ = ("name", "body")
 
 
-class EventDef(VyperNode):
+class EventDef(TopLevel):
     __slots__ = ("name", "body")
 
 
-class InterfaceDef(VyperNode):
+class InterfaceDef(TopLevel):
     __slots__ = ("name", "body")
 
 
-class StructDef(VyperNode):
+class StructDef(TopLevel):
     __slots__ = ("name", "body")
 
 
-class Constant(VyperNode):
+# base class for expression nodes
+# note that it is named ExprNode to avoid a conflict with
+# the Expr type (which is a type of statement node, see python AST docs).
+class ExprNode(VyperNode):
+    __slots__ = ("_expr_info",)
+
+
+class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
@@ -797,6 +817,20 @@ class Hex(Constant):
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
+    @property
+    def n_nibbles(self):
+        """
+        The number of nibbles this hex value represents
+        """
+        return len(self.value) - 2
+
+    @property
+    def n_bytes(self):
+        """
+        The number of bytes this hex value represents
+        """
+        return self.n_nibbles // 2
+
 
 class Str(Constant):
     __slots__ = ()
@@ -834,12 +868,12 @@ class Bytes(Constant):
         return self.value
 
 
-class List(VyperNode):
+class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
 
-class Tuple(VyperNode):
+class Tuple(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
@@ -848,7 +882,7 @@ class Tuple(VyperNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
-class Dict(VyperNode):
+class Dict(ExprNode):
     __slots__ = ("keys", "values")
 
 
@@ -856,18 +890,14 @@ class NameConstant(Constant):
     __slots__ = ("value",)
 
 
-class Name(VyperNode):
+class Name(ExprNode):
     __slots__ = ("id",)
 
 
-class Expr(VyperNode):
-    __slots__ = ("value",)
-
-
-class UnaryOp(VyperNode):
+class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
-    def evaluate(self) -> VyperNode:
+    def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
 
@@ -888,28 +918,34 @@ class UnaryOp(VyperNode):
         return type(self.operand).from_node(self, value=value)
 
 
-class USub(VyperNode):
+class Operator(VyperNode):
+    pass
+
+
+class USub(Operator):
     __slots__ = ()
     _description = "negation"
     _op = operator.neg
 
 
-class Not(VyperNode):
+class Not(Operator):
     __slots__ = ()
     _op = operator.not_
 
 
-class Invert(VyperNode):
+class Invert(Operator):
     __slots__ = ()
     _description = "bitwise not"
     _pretty = "~"
-    _op = operator.inv
+
+    def _op(self, value):
+        return (2**256 - 1) ^ value
 
 
-class BinOp(VyperNode):
+class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
 
-    def evaluate(self) -> VyperNode:
+    def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the arithmetic operation.
 
@@ -929,21 +965,21 @@ class BinOp(VyperNode):
         return type(left).from_node(self, value=value)
 
 
-class Add(VyperNode):
+class Add(Operator):
     __slots__ = ()
     _description = "addition"
     _pretty = "+"
     _op = operator.add
 
 
-class Sub(VyperNode):
+class Sub(Operator):
     __slots__ = ()
     _description = "subtraction"
     _pretty = "-"
     _op = operator.sub
 
 
-class Mult(VyperNode):
+class Mult(Operator):
     __slots__ = ()
     _description = "multiplication"
     _pretty = "*"
@@ -960,7 +996,7 @@ class Mult(VyperNode):
             return value
 
 
-class Div(VyperNode):
+class Div(Operator):
     __slots__ = ()
     _description = "division"
     _pretty = "/"
@@ -987,7 +1023,7 @@ class Div(VyperNode):
             return value
 
 
-class Mod(VyperNode):
+class Mod(Operator):
     __slots__ = ()
     _description = "modulus"
     _pretty = "%"
@@ -1002,7 +1038,7 @@ class Mod(VyperNode):
         return value
 
 
-class Pow(VyperNode):
+class Pow(Operator):
     __slots__ = ()
     _description = "exponentiation"
     _pretty = "**"
@@ -1012,48 +1048,48 @@ class Pow(VyperNode):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
-        return int(left ** right)
+        return int(left**right)
 
 
-class BitAnd(VyperNode):
+class BitAnd(Operator):
     __slots__ = ()
     _description = "bitwise and"
     _pretty = "&"
     _op = operator.and_
 
 
-class BitOr(VyperNode):
+class BitOr(Operator):
     __slots__ = ()
     _description = "bitwise or"
     _pretty = "|"
     _op = operator.or_
 
 
-class BitXor(VyperNode):
+class BitXor(Operator):
     __slots__ = ()
     _description = "bitwise xor"
     _pretty = "^"
     _op = operator.xor
 
 
-class LShift(VyperNode):
+class LShift(Operator):
     __slots__ = ()
     _description = "bitwise left shift"
     _pretty = "<<"
     _op = operator.lshift
 
 
-class RShift(VyperNode):
+class RShift(Operator):
     __slots__ = ()
     _description = "bitwise right shift"
     _pretty = ">>"
     _op = operator.rshift
 
 
-class BoolOp(VyperNode):
+class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
-    def evaluate(self) -> VyperNode:
+    def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
 
@@ -1073,29 +1109,29 @@ class BoolOp(VyperNode):
         return NameConstant.from_node(self, value=value)
 
 
-class And(VyperNode):
+class And(Operator):
     __slots__ = ()
     _description = "logical and"
     _op = all
 
 
-class Or(VyperNode):
+class Or(Operator):
     __slots__ = ()
     _description = "logical or"
     _op = any
 
 
-class Compare(VyperNode):
+class Compare(ExprNode):
     """
     A comparison of two values.
 
     Attributes
     ----------
-    left : VyperNode
+    left : ExprNode
         The left-hand value in the comparison.
-    op : VyperNode
+    op : Operator
         The comparison operator.
-    right : VyperNode
+    right : ExprNode
         The right-hand value in the comparison.
     """
 
@@ -1109,7 +1145,7 @@ class Compare(VyperNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def evaluate(self) -> VyperNode:
+    def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the comparison.
 
@@ -1122,6 +1158,8 @@ class Compare(VyperNode):
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
+        # CMC 2022-08-04 we could probably remove these evaluation rules as they
+        # are taken care of in the IR optimizer now.
         if isinstance(self.op, (In, NotIn)):
             if not isinstance(right, List):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1142,43 +1180,43 @@ class Compare(VyperNode):
         return NameConstant.from_node(self, value=value)
 
 
-class Eq(VyperNode):
+class Eq(Operator):
     __slots__ = ()
     _description = "equality"
     _op = operator.eq
 
 
-class NotEq(VyperNode):
+class NotEq(Operator):
     __slots__ = ()
     _description = "non-equality"
     _op = operator.ne
 
 
-class Lt(VyperNode):
+class Lt(Operator):
     __slots__ = ()
     _description = "less than"
     _op = operator.lt
 
 
-class LtE(VyperNode):
+class LtE(Operator):
     __slots__ = ()
     _description = "less-or-equal"
     _op = operator.le
 
 
-class Gt(VyperNode):
+class Gt(Operator):
     __slots__ = ()
     _description = "greater than"
     _op = operator.gt
 
 
-class GtE(VyperNode):
+class GtE(Operator):
     __slots__ = ()
     _description = "greater-or-equal"
     _op = operator.ge
 
 
-class In(VyperNode):
+class In(Operator):
     __slots__ = ()
     _description = "membership"
 
@@ -1186,7 +1224,7 @@ class In(VyperNode):
         return left in right
 
 
-class NotIn(VyperNode):
+class NotIn(Operator):
     __slots__ = ()
     _description = "exclusion"
 
@@ -1194,7 +1232,7 @@ class NotIn(VyperNode):
         return left not in right
 
 
-class Call(VyperNode):
+class Call(ExprNode):
     __slots__ = ("func", "args", "keywords", "keyword")
 
 
@@ -1202,14 +1240,14 @@ class keyword(VyperNode):
     __slots__ = ("arg", "value")
 
 
-class Attribute(VyperNode):
+class Attribute(ExprNode):
     __slots__ = ("attr", "value")
 
 
-class Subscript(VyperNode):
+class Subscript(ExprNode):
     __slots__ = ("slice", "value")
 
-    def evaluate(self) -> VyperNode:
+    def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the subscript.
 
@@ -1218,7 +1256,7 @@ class Subscript(VyperNode):
 
         Returns
         -------
-        VyperNode
+        ExprNode
             Node representing the result of the evaluation.
         """
         if not isinstance(self.value, List):
@@ -1237,7 +1275,7 @@ class Index(VyperNode):
     __slots__ = ("value",)
 
 
-class Assign(VyperNode):
+class Assign(Stmt):
     """
     An assignment.
 
@@ -1245,7 +1283,7 @@ class Assign(VyperNode):
     ----------
     target : VyperNode
         Left-hand side of the assignment.
-    value : VyperNode
+    value : ExprNode
         Right-hand side of the assignment.
     """
 
@@ -1294,44 +1332,51 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
 
+        def _check_args(annotation, call_name):
+            # do the same thing as `validate_call_args`
+            # (can't be imported due to cyclic dependency)
+            if len(annotation.args) != 1:
+                raise ArgumentException("Invalid number of arguments to `{call_name}`:", self)
+
+        # the annotation is a "function" call, e.g.
+        # `foo: public(constant(uint256))`
+        # pretend we were parsing actual Vyper AST. annotation would be
+        # TYPE | PUBLIC "(" TYPE | ((IMMUTABLE | CONSTANT) "(" TYPE ")") ")"
+        if self.annotation.get("func.id") == "public":
+            _check_args(self.annotation, "public")
+            self.is_public = True
+            # unwrap one layer
+            self.annotation = self.annotation.args[0]
+
+        if self.annotation.get("func.id") in ("immutable", "constant"):
+            _check_args(self.annotation, self.annotation.func.id)
+            setattr(self, f"is_{self.annotation.func.id}", True)
+            # unwrap one layer
+            self.annotation = self.annotation.args[0]
+
         if isinstance(self.annotation, Call):
-            # the annotation is a function call, e.g. `foo: constant(uint256)`
-            call_name = self.annotation.get("func.id")
-            if call_name == "constant":
-                # declaring a constant
-                self.is_constant = True
-
-            elif call_name == "public":
-                # declaring a public variable
-                self.is_public = True
-
-            elif call_name == "immutable":
-                # declaring an immutable variable
-                self.is_immutable = True
-
-            else:
-                _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
+            _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
 
-class AugAssign(VyperNode):
+class AugAssign(Stmt):
     __slots__ = ("op", "target", "value")
 
 
-class Raise(VyperNode):
+class Raise(Stmt):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
     _is_terminus = True
 
 
-class Assert(VyperNode):
+class Assert(Stmt):
     __slots__ = ("test", "msg")
 
 
-class Pass(VyperNode):
+class Pass(Stmt):
     __slots__ = ()
 
 
-class _Import(VyperNode):
+class _Import(Stmt):
     __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
@@ -1351,18 +1396,41 @@ class ImportFrom(_Import):
     __slots__ = ("level", "module")
 
 
-class If(VyperNode):
+class ImplementsDecl(Stmt):
+    """
+    An `implements` declaration.
+
+    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : Name
+        Name node for the `implements` keyword
+    annotation : Name
+        Name node for the interface to be implemented
+    """
+
+    __slots__ = ("target", "annotation")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not isinstance(self.annotation, Name):
+            raise StructureException("not an identifier", self.annotation)
+
+
+class If(Stmt):
     __slots__ = ("test", "body", "orelse")
 
 
-class For(VyperNode):
+class For(Stmt):
     __slots__ = ("iter", "target", "body")
     _only_empty_fields = ("orelse",)
 
 
-class Break(VyperNode):
+class Break(Stmt):
     __slots__ = ()
 
 
-class Continue(VyperNode):
+class Continue(Stmt):
     __slots__ = ()

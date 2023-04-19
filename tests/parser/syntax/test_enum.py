@@ -5,7 +5,9 @@ from vyper.exceptions import (
     EnumDeclarationException,
     InvalidOperation,
     NamespaceCollision,
+    StructureException,
     TypeMismatch,
+    UnknownAttribute,
 )
 
 fail_list = [
@@ -57,16 +59,62 @@ enum Roles:
     ADMIN
 
 @external
+def foo(x: Roles) -> Roles:
+    return x.USER  # can't dereference on enum instance
+    """,
+        StructureException,
+    ),
+    (
+        """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+
+@external
 def foo(x: Roles) -> bool:
     return x >= Roles.STAFF
     """,
         InvalidOperation,
     ),
+    (
+        """
+enum Functions:
+    def foo():nonpayable
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    a:constant(uint256) = a
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Numbers:
+    12
+    """,
+        EnumDeclarationException,
+    ),
+    (
+        """
+enum Roles:
+    ADMIN
+    USER
+
+@external
+def foo() -> Roles:
+    return Roles.GUEST
+    """,
+        UnknownAttribute,
+    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_interfaces_fail(bad_code):
+def test_fail_cases(bad_code):
     with pytest.raises(bad_code[1]):
         compiler.compile_code(bad_code[0])
 
@@ -102,6 +150,12 @@ def run() -> Order:
         })
     """,
     "enum Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
+    """
+a: constant(uint256) = 1
+
+enum A:
+    a
+    """,
 ]
 
 

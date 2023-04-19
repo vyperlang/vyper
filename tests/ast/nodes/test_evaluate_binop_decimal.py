@@ -8,7 +8,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 
 st_decimals = st.decimals(
-    min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
+    min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10
 )
 
 
@@ -75,7 +75,7 @@ def foo({input_value}) -> decimal:
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
-        is_valid = -(2 ** 127) <= expected < 2 ** 127
+        is_valid = -(2**127) <= expected < 2**127
     except (OverflowException, ZeroDivisionException):
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False

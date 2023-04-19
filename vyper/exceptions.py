@@ -104,7 +104,7 @@ class VyperException(Exception):
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
                 if module_node.get("name") not in (None, "<unknown>"):
-                    node_msg = f'{node_msg}contract "{module_node.name}", '
+                    node_msg = f'{node_msg}contract "{module_node.name}:{node.lineno}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
