@@ -199,9 +199,11 @@ class _ExprAnalyser:
     def types_from_BinOp(self, node):
         # binary operation: `x + y`
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
-            types_list = get_possible_types_from_node(node.left)
             # ad-hoc handling for LShift and RShift, since operands
             # can be different types
+            types_list = get_possible_types_from_node(node.left)
+            # check rhs is integer
+            validate_expected_type(node.right, IntegerT.any())
         else:
             types_list = get_common_types(node.left, node.right)
 

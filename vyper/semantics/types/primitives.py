@@ -150,13 +150,10 @@ class NumericT(_PrimT):
                 raise CompilerPanic(f"Unexpected node type for numeric op: {type(node).__name__}")
 
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
-            left, right = _get_lr()
             if self._bits != 256:
                 raise InvalidOperation(
                     f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
                 )
-            if not isinstance(right, vy_ast.Int):
-                raise InvalidOperation(f"Cannot {node.op.description} by non-integer amount!", node)
 
         if isinstance(node.op, vy_ast.Pow):
             left, right = _get_lr()
