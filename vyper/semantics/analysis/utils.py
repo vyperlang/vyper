@@ -214,7 +214,6 @@ class _ExprAnalyser:
             # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
-
         return _validate_op(node, types_list, "validate_numeric_op")
 
     def types_from_BoolOp(self, node):
