@@ -1082,12 +1082,6 @@ class LShift(Operator):
     __slots__ = ()
     _description = "bitwise left shift"
     _pretty = "<<"
-
-    @classmethod
-    def _op(x, y):
-        if y > 256:
-            raise InvalidLiteral()
-
     _op = operator.lshift
 
 
