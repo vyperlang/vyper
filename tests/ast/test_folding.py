@@ -293,13 +293,17 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
 
 
 userdefined_foldable_value = [
-    ("b: uint256 = FOO", "b: uint256 = 115792089210356248756420345214020892766250353992003419616917011526809519390720")
+    (
+        "b: uint256 = FOO",
+        "b: uint256 = 1461501636990620551282746369252908412224164331520",
+    )
 ]
+
 
 @pytest.mark.parametrize("source", userdefined_foldable_value)
 def test_replace_userdefined_foldable_value(source):
     preamble = """
-FOO: constant(uint256) = shift(2**32 - 1, 224) 
+FOO: constant(uint256) = shift(2**32 - 1, 128)
     """
     l_source = f"{preamble}\n{source[0]}"
     r_source = f"{preamble}\n{source[1]}"

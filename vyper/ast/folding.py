@@ -153,12 +153,16 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
             warnings.warn(f"{name} is deprecated. Please use `{replacement}` instead.")
 
 
-def _is_folded(value_node: Union[vy_ast.Call, vy_ast.Constant]):
+def _is_folded(value_node: Union[vy_ast.Call, vy_ast.Constant]) -> bool:
     # check if a node requires further folding
     if isinstance(value_node, vy_ast.Constant):
         return True
     # for structs, check each member recursively
-    if isinstance(value_node, vy_ast.Call) and len(value_node.args) == 1 and isinstance(value_node.args[0], vy_ast.Dict):
+    if (
+        isinstance(value_node, vy_ast.Call)
+        and len(value_node.args) == 1
+        and isinstance(value_node.args[0], vy_ast.Dict)
+    ):
         return all([_is_folded(v) for v in value_node.args[0].values])
     return False
 
