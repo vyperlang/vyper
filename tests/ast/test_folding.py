@@ -292,6 +292,27 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
+userdefined_foldable_value = [
+    ("b: uint256 = FOO", "b: uint256 = 115792089210356248756420345214020892766250353992003419616917011526809519390720")
+]
+
+@pytest.mark.parametrize("source", userdefined_foldable_value)
+def test_replace_userdefined_foldable_value(source):
+    preamble = """
+FOO: constant(uint256) = shift(2**32 - 1, 224) 
+    """
+    l_source = f"{preamble}\n{source[0]}"
+    r_source = f"{preamble}\n{source[1]}"
+
+    l_ast = vy_ast.parse_to_ast(l_source)
+    folding.fold(l_ast)
+
+    r_ast = vy_ast.parse_to_ast(r_source)
+    folding.fold(r_ast)
+
+    assert vy_ast.compare_nodes(l_ast, r_ast)
+
+
 builtin_folding_functions = [("ceil(4.2)", "5"), ("floor(4.2)", "4")]
 
 builtin_folding_sources = [
