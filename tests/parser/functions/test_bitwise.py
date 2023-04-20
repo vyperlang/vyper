@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.exceptions import InvalidLiteral, TypeMismatch, InvalidOperation
 from vyper.utils import unsigned_to_signed
 
 code = """
@@ -128,13 +128,13 @@ fail_list = [
 def foo(x: uint8, y: int128) -> uint256:
     return x << y
     """,
-        TypeMismatch,
+        InvalidOperation,
     ),
     (
         """
 @external
 def foo() -> uint256:
-    return shift(2, 257)
+    return 2 << 257
     """,
         InvalidLiteral,
     ),
@@ -142,7 +142,7 @@ def foo() -> uint256:
         """
 @external
 def foo() -> uint256:
-    return shift(2, -257)
+    return 2 >> -257
     """,
         InvalidLiteral,
     ),
