@@ -202,8 +202,8 @@ class _ExprAnalyser:
             # ad-hoc handling for LShift and RShift, since operands
             # can be different types
             types_list = get_possible_types_from_node(node.left)
-            # check rhs is integer
-            validate_expected_type(node.right, IntegerT.any())
+            # check rhs is unsigned integer
+            validate_expected_type(node.right, IntegerT.unsigneds())
         else:
             types_list = get_common_types(node.left, node.right)
 

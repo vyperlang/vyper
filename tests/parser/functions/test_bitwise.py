@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidLiteral, TypeMismatch, InvalidOperation
+from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
 from vyper.utils import unsigned_to_signed
 
 code = """
@@ -66,11 +66,11 @@ POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
 def test_signed_shift(get_contract_with_gas_estimation, evm_version):
     code = """
 @external
-def _sar(x: int256, y: int256) -> int256:
+def _sar(x: int256, y: uint256) -> int256:
     return x >> y
 
 @external
-def _shl(x: int256, y: int256) -> int256:
+def _shl(x: int256, y: uint256) -> int256:
     return x << y
     """
     c = get_contract_with_gas_estimation(code, evm_version=evm_version)
@@ -123,14 +123,34 @@ def _shl(x: uint256) -> uint256:
 
 fail_list = [
     (
+        # cannot shift non-uint256/int256 argument
         """
 @external
-def foo(x: uint8, y: int128) -> uint256:
+def foo(x: uint8, y: uint8) -> uint8:
     return x << y
     """,
         InvalidOperation,
     ),
     (
+        # cannot shift non-uint256/int256 argument
+        """
+@external
+def foo(x: int8, y: uint8) -> int8:
+    return x << y
+    """,
+        InvalidOperation,
+    ),
+    (
+        # cannot shift by non-uint bits
+        """
+@external
+def foo(x: uint256, y: int128) -> uint256:
+    return x << y
+    """,
+        TypeMismatch,
+    ),
+    (
+        # cannot left shift by more than 256 bits
         """
 @external
 def foo() -> uint256:
@@ -139,10 +159,20 @@ def foo() -> uint256:
         InvalidLiteral,
     ),
     (
+        # cannot shift by negative amount
         """
 @external
 def foo() -> uint256:
-    return 2 >> -257
+    return 2 << -1
+    """,
+        InvalidLiteral,
+    ),
+    (
+        # cannot shift by negative amount
+        """
+@external
+def foo() -> uint256:
+    return 2 << -1
     """,
         InvalidLiteral,
     ),

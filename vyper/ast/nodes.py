@@ -960,6 +960,12 @@ class BinOp(ExprNode):
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
+
         value = self.op._op(left.value, right.value)
         _validate_numeric_bounds(self, value)
         return type(left).from_node(self, value=value)
@@ -1076,6 +1082,12 @@ class LShift(Operator):
     __slots__ = ()
     _description = "bitwise left shift"
     _pretty = "<<"
+
+    @classmethod
+    def _op(x, y):
+        if y > 256:
+            raise InvalidLiteral()
+
     _op = operator.lshift
 
 
