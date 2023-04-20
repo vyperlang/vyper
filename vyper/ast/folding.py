@@ -153,6 +153,16 @@ def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
             warnings.warn(f"{name} is deprecated. Please use `{replacement}` instead.")
 
 
+def _is_folded(value_node: Union[vy_ast.Call, vy_ast.Constant]):
+    # check if a node requires further folding
+    if isinstance(value_node, vy_ast.Constant):
+        return True
+    # for structs, check each member recursively
+    if isinstance(value_node, vy_ast.Call) and len(value_node.args) == 1 and isinstance(value_node.args[0], vy_ast.Dict):
+        return all([_is_folded(v) for v in value_node.args[0].values])
+    return False
+
+
 def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     """
     Find user-defined constant assignments, and replace references
@@ -187,6 +197,10 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # propagate the type annotation here because user-defined
             # types can be unambiguously inferred at typechecking time
             pass
+
+        # defer replacement until value has been folded
+        if not _is_folded(node.value):
+            continue
 
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
