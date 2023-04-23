@@ -51,7 +51,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     try:
         new_node = old_node.evaluate()
         # force bounds check, no-op because validate_numeric_bounds
-        # already does this, but leave in for hygeine (in case
+        # already does this, but leave in for hygiene (in case
         # more types are added).
         validate_expected_type(new_node, UINT256_T)
     # compile time behavior does not match runtime behavior.
