@@ -129,7 +129,7 @@ Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int2
 
 
 .. note::
-   While at runtime shifts can be for any number of bits, to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
 
 
 .. index:: ! uint, ! uintN, ! unsigned integer
@@ -219,7 +219,7 @@ Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint
 
 
 .. note::
-   While at runtime shifts can be for any number of bits, to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
 
 
 
