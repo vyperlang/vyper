@@ -20,6 +20,7 @@ T = TypeVar("T")
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
+blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
 source_map         - Vyper source map
