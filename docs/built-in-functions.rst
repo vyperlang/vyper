@@ -201,11 +201,11 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. The output of ``vyper -f blueprint_bytecode`` will produce bytecode which deploys an ERC-5202 compatible blueprint.
 
 .. warning::
 
-    It is recommended to deploy blueprints with the ERC5202 preamble ``0xfe7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+    It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
 
     .. code-block:: python
 
