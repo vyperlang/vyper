@@ -1188,7 +1188,9 @@ class RawCall(BuiltinFunction):
 
             if revert_on_failure:
                 typ = bytes_ty
+                # check the call success flag, and store returndata in memory
                 ret_ir = ["seq", check_external_call(call_ir), store_output_size]
+                return IRnode.from_list(ret_ir, typ=typ, location=MEMORY)
             else:
                 typ = TupleT([bool_ty, bytes_ty])
                 ret_ir = [
@@ -1198,16 +1200,22 @@ class RawCall(BuiltinFunction):
                     IRnode.from_list(call_ir, typ=bool_ty),
                     IRnode.from_list(store_output_size, typ=bytes_ty, location=MEMORY),
                 ]
+                # return an IR tuple of call success flag and returndata pointer
+                return IRnode.from_list(ret_ir, typ=typ)
+
+        # max_outsize is 0.
+
+        if not revert_on_failure:
+            # return call flag as stack item
+            typ = bool_ty
+            return IRnode.from_list(call_ir, typ=typ)
 
         else:
-            if revert_on_failure:
-                typ = None
-                ret_ir = check_external_call(call_ir)
-            else:
-                typ = bool_ty
-                ret_ir = call_ir
+            # check the call success flag and don't return anything
+            ret_ir = check_external_call(call_ir)
+            return IRnode.from_list(ret_ir, typ=None)
 
-        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY)
+        raise CompilerPanic("unreachable!")
 
 
 class Send(BuiltinFunction):
