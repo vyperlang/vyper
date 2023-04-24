@@ -106,6 +106,11 @@ Bitwise Operations
         >>> ExampleContract.foo(2, 8)
         512
 
+.. note::
+
+  This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
+
 Chain Interaction
 =================
 

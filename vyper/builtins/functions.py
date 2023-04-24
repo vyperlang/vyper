@@ -1440,10 +1440,15 @@ class BitwiseNot(BuiltinFunction):
 
 class Shift(BuiltinFunction):
     _id = "shift"
-    _inputs = [("x", (UINT256_T, INT256_T)), ("_shift", IntegerT.any())]
+    _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode

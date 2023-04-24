@@ -141,13 +141,22 @@ class NumericT(_PrimT):
         if isinstance(node.op, self._invalid_ops):
             self._raise_invalid_op(node)
 
-        if isinstance(node.op, vy_ast.Pow):
+        def _get_lr():
             if isinstance(node, vy_ast.BinOp):
-                left, right = node.left, node.right
+                return node.left, node.right
             elif isinstance(node, vy_ast.AugAssign):
-                left, right = node.target, node.value
+                return node.target, node.value
             else:
                 raise CompilerPanic(f"Unexpected node type for numeric op: {type(node).__name__}")
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if self._bits != 256:
+                raise InvalidOperation(
+                    f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
+                )
+
+        if isinstance(node.op, vy_ast.Pow):
+            left, right = _get_lr()
 
             value_bits = self._bits - (1 if self._is_signed else 0)
 
