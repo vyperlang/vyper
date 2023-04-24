@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics import environment
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types import get_types
+from vyper.semantics.types import PRIMITIVE_TYPES
 
 
 def test_get_namespace():
@@ -22,13 +22,13 @@ def test_builtin_context_manager(namespace):
 
 
 def test_builtin_types(namespace):
-    for key, value in get_types().items():
+    for key, value in PRIMITIVE_TYPES.items():
         assert namespace[key] == value
 
 
 def test_builtin_types_persist_after_clear(namespace):
     namespace.clear()
-    for key, value in get_types().items():
+    for key, value in PRIMITIVE_TYPES.items():
         assert namespace[key] == value
 
 

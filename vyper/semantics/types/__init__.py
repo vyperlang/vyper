@@ -46,4 +46,5 @@ def _get_sequence_types():
     return ret
 
 
+# note: it might be good to make this a frozen dict of some sort
 PRIMITIVE_TYPES = _get_primitive_types()
