@@ -74,7 +74,7 @@ def foq(inp: Bytes[32]) -> address:
 
     assert_tx_failed(lambda: c.foo(b"\x80" + b"\x00" * 30))
 
-    assert c.bar(b"\x80" + b"\x00" * 31) == 2 ** 255
+    assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
 
     assert c.baz(b"crow" * 8) == b"crow" * 8
     assert c.fop(b"crow" * 8) == b"crow" * 8

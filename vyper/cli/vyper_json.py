@@ -24,6 +24,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.object": "bytecode_runtime",
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map",
+    "evm.deployedBytecode.sourceMapFull": "source_map_full",
     "interface": "interface",
     "ir": "ir_dict",
     "ir_runtime": "ir_runtime_dict",
@@ -392,7 +393,6 @@ def compile_from_input_dict(
 def format_to_output_dict(compiler_data: Dict) -> Dict:
     output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
-
         output_dict["sources"][path] = {"id": id_}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
@@ -419,7 +419,8 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        if any(i + "_runtime" in data for i in evm_keys) or "source_map" in data:
+        pc_maps_keys = ("source_map", "source_map_full")
+        if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
@@ -427,6 +428,8 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
+            if "source_map_full" in data:
+                evm["sourceMapFull"] = data["source_map"]
 
     return output_dict
 

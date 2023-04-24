@@ -62,14 +62,6 @@ def double_nonreentrant():
     pass
     """,
     """
-CALLDATACOPY: int128
-    """,
-    """
-@external
-def foo():
-    BALANCE: int128 = 45
-    """,
-    """
 @external
 def foo():
     true: int128 = 3

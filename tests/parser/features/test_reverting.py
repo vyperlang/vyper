@@ -1,5 +1,5 @@
 import pytest
-from eth_abi import encode_single
+from eth.codecs import abi
 from eth_tester.exceptions import TransactionFailed
 
 from vyper.utils import method_id
@@ -33,7 +33,7 @@ def foo():
     raw_revert(data)
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + encode_single("(uint256)", [5])
+    revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),
@@ -50,7 +50,7 @@ def foo():
     raw_revert(_abi_encode(val, method_id=method_id("NoFives(uint256)")))
     """
 
-    revert_bytes = method_id("NoFives(uint256)") + encode_single("(uint256)", [5])
+    revert_bytes = method_id("NoFives(uint256)") + abi.encode("(uint256)", (5,))
 
     assert_tx_failed(
         lambda: get_contract_with_gas_estimation(reverty_code).foo(transact={}),

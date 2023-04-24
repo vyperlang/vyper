@@ -17,6 +17,9 @@ from vyper.codegen.core import (
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
+    sar,
+    shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
@@ -159,7 +162,6 @@ class Expr:
 
     # Variable names
     def parse_Name(self):
-
         if self.expr.id == "self":
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
@@ -203,7 +205,7 @@ class Expr:
         ):
             # 0, 1, 2, .. 255
             enum_id = typ._enum_members[self.expr.attr]
-            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
@@ -358,9 +360,11 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        # Sanity check - ensure that we aren't dealing with different types
-        # This should be unreachable due to the type check pass
-        assert left.typ == right.typ, f"unreachable, {left.typ}!={right.typ}"
+        if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            assert left.typ == right.typ, f"unreachable, {left.typ} != {right.typ}"
+
         assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         out_typ = left.typ
@@ -371,6 +375,21 @@ class Expr:
             return IRnode.from_list(["or", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitXor):
             return IRnode.from_list(["xor", left, right], typ=out_typ)
+
+        if isinstance(self.expr.op, vy_ast.LShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                return
+            return IRnode.from_list(shl(right, left), typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.RShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. promote_signed_int(op(right, left), bits)
+                return
+            op = shr if not left.typ.is_signed else sar
+            # note: sar NotImplementedError for pre-constantinople
+            return IRnode.from_list(op(right, left), typ=new_typ)
 
         # enums can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
@@ -602,7 +621,7 @@ class Expr:
                 # `operand`. `mask` could be a very large constant and
                 # hurt codesize, but most user enums will likely have few
                 # enough members that the mask will not be large.
-                mask = (2 ** n_members) - 1
+                mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
             if operand.typ == UINT256_T:

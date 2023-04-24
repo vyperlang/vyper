@@ -5,7 +5,7 @@ from hypothesis import strategies as st
 from vyper import ast as vy_ast
 from vyper.builtins import functions as vy_fn
 
-st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
+st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
 
 @pytest.mark.fuzzing

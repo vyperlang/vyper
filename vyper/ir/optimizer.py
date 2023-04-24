@@ -31,7 +31,7 @@ def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
 
     if unsigned and ret < 0:
         return signed_to_unsigned(ret, 256, strict=True)
-    elif not unsigned and ret > 2 ** 255 - 1:
+    elif not unsigned and ret > 2**255 - 1:
         return unsigned_to_signed(ret, 256, strict=True)
 
     return ret
@@ -97,7 +97,7 @@ def _shorten_annotation(annotation):
 
 
 def _wrap256(x, unsigned=UNSIGNED):
-    x %= 2 ** 256
+    x %= 2**256
     # wrap in a signed way.
     if not unsigned:
         x = unsigned_to_signed(x, 256, strict=True)

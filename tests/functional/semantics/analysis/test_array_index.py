@@ -41,7 +41,7 @@ def foo():
         validate_semantics(vyper_module, {})
 
 
-@pytest.mark.parametrize("value", [-1, 3, -(2 ** 127), 2 ** 127 - 1, 2 ** 256 - 1])
+@pytest.mark.parametrize("value", [-1, 3, -(2**127), 2**127 - 1, 2**256 - 1])
 def test_out_of_bounds(namespace, value):
     code = f"""
 

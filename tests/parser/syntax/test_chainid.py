@@ -69,7 +69,6 @@ def foo(inp: Bytes[10]) -> Bytes[3]:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_chain_fail(bad_code):
-
     if isinstance(bad_code, tuple):
         with pytest.raises(bad_code[1]):
             compiler.compile_code(bad_code[0], evm_version="istanbul")

@@ -4,7 +4,6 @@ from vyper.exceptions import StructureException
 
 
 class VyperNodeVisitorBase:
-
     ignored_types: Tuple = ()
     scope_name = ""
 

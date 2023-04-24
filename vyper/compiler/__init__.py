@@ -36,6 +36,7 @@ OUTPUT_FORMATS = {
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
     "source_map": output.build_source_map_output,
+    "source_map_full": output.build_source_map_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
     "bytecode_runtime": output.build_bytecode_runtime_output,

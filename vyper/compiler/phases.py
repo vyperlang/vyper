@@ -192,7 +192,6 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
-
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)

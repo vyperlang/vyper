@@ -53,7 +53,7 @@ class StorageAllocator:
             self._reserve_slot(slot, var_name)
 
     def _reserve_slot(self, slot: int, var_name: str) -> None:
-        if slot < 0 or slot >= 2 ** 256:
+        if slot < 0 or slot >= 2**256:
             raise StorageLayoutException(
                 f"Invalid storage slot for var {var_name}, out of bounds: {slot}"
             )
@@ -112,7 +112,6 @@ def set_storage_slots_with_overrides(
 
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-
         # Ignore immutable parameters
         if node.get("annotation.func.id") == "immutable":
             continue
@@ -178,7 +177,6 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         storage_slot += 1
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-
         # skip non-storage variables
         if node.is_constant or node.is_immutable:
             continue
@@ -210,7 +208,6 @@ def set_memory_offsets(fn_node: vy_ast.FunctionDef) -> None:
 
 
 def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
-
     ret = {}
     offset = 0
 

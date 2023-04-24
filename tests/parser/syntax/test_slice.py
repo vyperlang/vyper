@@ -33,7 +33,6 @@ def foo(inp: Bytes[10]) -> Bytes[3]:
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_slice_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 

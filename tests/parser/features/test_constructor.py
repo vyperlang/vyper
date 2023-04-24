@@ -82,10 +82,10 @@ def foo(x: int128) -> int128:
 
     c = get_contract_with_gas_estimation(large_input_code)
     c.foo(1274124)
-    c.foo(2 ** 120)
+    c.foo(2**120)
 
     with pytest.raises(ValidationError):
-        c.foo(2 ** 130)
+        c.foo(2**130)
 
 
 def test_large_input_code_2(w3, get_contract_with_gas_estimation):
@@ -102,7 +102,7 @@ def foo() -> int128:
     get_contract_with_gas_estimation(large_input_code_2, *[17])
 
     with pytest.raises(TypeError):
-        get_contract_with_gas_estimation(large_input_code_2, *[2 ** 130])
+        get_contract_with_gas_estimation(large_input_code_2, *[2**130])
 
     print("Passed invalid input tests")
 
