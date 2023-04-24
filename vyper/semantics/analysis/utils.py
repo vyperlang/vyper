@@ -122,7 +122,6 @@ class _ExprAnalyser:
         # this method is a perf hotspot, so we cache the result on the node
         k = f"cached_type_{include_type_exprs}"
         if k not in node._metadata:
-
             types_list = self.get_possible_types_from_node(
                 node, include_type_exprs=include_type_exprs
             )
@@ -158,7 +157,6 @@ class _ExprAnalyser:
         k = f"cached_possible_types_{include_type_exprs}"
 
         if k not in node._metadata:
-
             fn = self._find_fn(node)
             ret = fn(node)
 
