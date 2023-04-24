@@ -220,7 +220,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
     * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
