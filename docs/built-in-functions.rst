@@ -214,13 +214,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
-.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
     * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
