@@ -28,9 +28,9 @@ class Namespace(dict):
         from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
         from vyper.semantics.analysis.base import VarInfo
-        from vyper.semantics.types import get_types
+        from vyper.semantics.types import PRIMITIVE_TYPES
 
-        self.update(get_types())
+        self.update(PRIMITIVE_TYPES)
         self.update(environment.get_constant_vars())
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
