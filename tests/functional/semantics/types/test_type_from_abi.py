@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.exceptions import UnknownType
-from vyper.semantics.types import SArrayT, PRIMITIVE_TYPES
+from vyper.semantics.types import PRIMITIVE_TYPES, SArrayT
 from vyper.semantics.types.utils import type_from_abi
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]

@@ -57,6 +57,13 @@ class _ExprAnalyser:
     class's method resolution order is examined to decide which method to call.
     """
 
+    # this allows for a very simple commit/rollback scheme for metadata
+    # caching. in the case that an exception is thrown and caught during
+    # type checking (currently, only during for loop iterator variable
+    # type inference), we can roll back any state updates due to type
+    # checking.
+    _tainted_nodes = set()
+
     def __init__(self):
         self.namespace = get_namespace()
 
@@ -119,19 +126,12 @@ class _ExprAnalyser:
         -------
         Type object
         """
-        # this method is a perf hotspot, so we cache the result on the node
-        k = f"cached_type_{include_type_exprs}"
-        if k not in node._metadata:
-            types_list = self.get_possible_types_from_node(
-                node, include_type_exprs=include_type_exprs
-            )
+        types_list = self.get_possible_types_from_node(node, include_type_exprs=include_type_exprs)
 
-            if len(types_list) > 1:
-                raise StructureException("Ambiguous type", node)
+        if len(types_list) > 1:
+            raise StructureException("Ambiguous type", node)
 
-            node._metadata[k] = types_list[0]
-
-        return node._metadata[k]
+        return types_list[0]
 
     def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
@@ -153,9 +153,9 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
-        # this method is a perf hotspot, so we cache the result on the node
-        k = f"cached_possible_types_{include_type_exprs}"
-
+        # this method is a perf hotspot, so we cache the result and
+        # try to return it if found.
+        k = f"possible_types_from_node_{include_type_exprs}"
         if k not in node._metadata:
             fn = self._find_fn(node)
             ret = fn(node)
@@ -171,8 +171,27 @@ class _ExprAnalyser:
                 ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
 
             node._metadata[k] = ret
+            # register with list of tainted nodes, in case the cache
+            # needs to be invalidated in case of a state rollback
+            self._tainted_nodes.add((node, k))
 
         return node._metadata[k].copy()
+
+    @classmethod
+    def _rollback_taint(cls):
+        for node, k in cls._tainted_nodes:
+            node._metadata.pop(k, None)
+        # taint has been rolled back, no need to track it anymore
+        cls._reset_taint()
+
+    @classmethod
+    def _commit_taint(cls):
+        cls._reset_taint()
+
+    @classmethod
+    def _reset_taint(cls):
+        cls._tainted_nodes.clear()
+
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
