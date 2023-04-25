@@ -62,7 +62,7 @@ class _ExprAnalyser:
     # type checking (currently, only during for loop iterator variable
     # type inference), we can roll back any state updates due to type
     # checking.
-    _tainted_nodes = set()
+    _tainted_nodes: set[tuple[vy_ast.VyperNode, str]] = set()
 
     def __init__(self):
         self.namespace = get_namespace()
@@ -191,7 +191,6 @@ class _ExprAnalyser:
     @classmethod
     def _reset_taint(cls):
         cls._tainted_nodes.clear()
-
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
