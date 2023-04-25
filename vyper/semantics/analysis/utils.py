@@ -468,7 +468,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         rejected = [i for i in common_types if i not in common]
         common += [i for i in new_types if _is_type_in_list(i, rejected)]
 
-        # print(nodes[0].node_source_code,item.node_source_code,common,rejected,common_types)
         common_types = common
 
     if filter_fn is not None:
