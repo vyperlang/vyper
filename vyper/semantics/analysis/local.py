@@ -21,6 +21,7 @@ from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
 from vyper.semantics.analysis.base import DataLocation, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
+    _ExprAnalyser,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -454,12 +455,23 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 try:
                     for n in node.body:
                         self.visit(n)
-                    # type information is applied directly because the scope is
-                    # closed prior to the call to `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = type_
-                    return
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
+                    # rollback any changes to the tree
+                    _ExprAnalyser._rollback_taint()
+                else:
+                    # type information is applied directly here because the
+                    # scope is closed prior to the call to
+                    # `StatementAnnotationVisitor`
+                    node.target._metadata["type"] = type_
+
+                    # perf - persist all calculated types
+                    _ExprAnalyser._commit_taint()
+                    # success -- bail out instead of error handling.
+                    return
+
+        # if we have gotten here, there was an error for
+        # every type tried for the iterator
 
         if len(set(str(i) for i in for_loop_exceptions)) == 1:
             # if every attempt at type checking raised the same exception
