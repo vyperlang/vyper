@@ -3,7 +3,9 @@ import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+
 from vyper import ast as vy_ast
+from vyper.utils import OrderedSet
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
@@ -89,7 +91,7 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions: Set["ContractFunctionT"] = set()
+        self.called_functions = OrderedSet()
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {

@@ -11,6 +11,11 @@ from typing import List, Union
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
+class OrderedSet(dict):
+    def add(self, item):
+        self[item] = None
+
+
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
