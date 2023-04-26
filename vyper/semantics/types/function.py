@@ -1,11 +1,9 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Set, Tuple
-
+from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.utils import OrderedSet
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
@@ -30,7 +28,7 @@ from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import OrderedSet, keccak256
 
 
 class ContractFunctionT(VyperType):
