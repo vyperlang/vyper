@@ -292,9 +292,7 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
     assert vy_ast.compare_nodes(l_ast, r_ast)
 
 
-userdefined_foldable_value = [
-    ("b: uint256 = FOO", "b: uint256 = 1")
-]
+userdefined_foldable_value = [("b: uint256 = FOO", "b: uint256 = 1")]
 
 
 @pytest.mark.parametrize("source", userdefined_foldable_value)
