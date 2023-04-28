@@ -1243,9 +1243,7 @@ class SelfDestruct(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         if not self._warned:
-            vyper_warn(
-                "`selfdestruct` is deprecated! The underlying opcode will eventually undergo breaking changes, and its use is not recommended."
-            )
+            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
