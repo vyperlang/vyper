@@ -320,6 +320,9 @@ class Expr:
             sub = Expr(self.expr.value, self.context).ir_node
             # contract type
             if isinstance(sub.typ, InterfaceT):
+                # MyInterface.address
+                assert self.expr.attr == "address"
+                sub.typ = typ
                 return sub
             if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
                 return get_element_ptr(sub, self.expr.attr)
