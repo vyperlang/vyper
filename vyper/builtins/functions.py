@@ -1238,6 +1238,7 @@ class SelfDestruct(BuiltinFunction):
     _inputs = [("to", AddressT())]
     _return_type = None
     _is_terminus = True
+    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
