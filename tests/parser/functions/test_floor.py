@@ -45,7 +45,7 @@ def fou() -> int256:
     assert c.x_floor() == 504
     assert c.foo() == 1
     assert c.fop() == 1
-    assert c.foq() == math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
+    assert c.foq() == math.floor(Decimal(2**167 - 1) / 10**10)
     assert c.fos() == 0
     assert c.fot() == 0
     assert c.fou() == 3
@@ -104,7 +104,7 @@ def floor_param(p: decimal) -> int256:
     assert c.fop() == -27
     assert c.foq() == -9001
     assert c.fos() == -1
-    assert c.fot() == math.floor(-Decimal(2 ** 167) / 10 ** 10)
+    assert c.fot() == math.floor(-Decimal(2**167) / 10**10)
     assert c.fou() == -4
     assert c.floor_param(Decimal("-5.6")) == -6
     assert c.floor_param(Decimal("-0.0000000001")) == -1

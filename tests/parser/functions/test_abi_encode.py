@@ -1,10 +1,11 @@
 from decimal import Decimal
 
 import pytest
+from eth.codecs import abi
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
-def test_abi_encode(get_contract, abi_encode):
+def test_abi_encode(get_contract):
     code = """
 struct Animal:
   name: String[5]
@@ -82,27 +83,27 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     # test each method once each with ensure_tuple set to True and False
 
     arg = 123
-    assert c.abi_encode3(arg, False, False).hex() == abi_encode("uint256", arg).hex()
-    assert c.abi_encode3(arg, True, False).hex() == abi_encode("(uint256)", (arg,)).hex()
-    assert c.abi_encode3(arg, False, True).hex() == (method_id + abi_encode("uint256", arg)).hex()
+    assert c.abi_encode3(arg, False, False).hex() == abi.encode("uint256", arg).hex()
+    assert c.abi_encode3(arg, True, False).hex() == abi.encode("(uint256)", (arg,)).hex()
+    assert c.abi_encode3(arg, False, True).hex() == (method_id + abi.encode("uint256", arg)).hex()
     assert (
-        c.abi_encode3(arg, True, True).hex() == (method_id + abi_encode("(uint256)", (arg,))).hex()
+        c.abi_encode3(arg, True, True).hex() == (method_id + abi.encode("(uint256)", (arg,))).hex()
     )
 
     arg = "some string"
-    assert c.abi_encode2(arg, False, False).hex() == abi_encode("string", arg).hex()
-    assert c.abi_encode2(arg, True, False).hex() == abi_encode("(string)", (arg,)).hex()
-    assert c.abi_encode2(arg, False, True).hex() == (method_id + abi_encode("string", arg)).hex()
+    assert c.abi_encode2(arg, False, False).hex() == abi.encode("string", arg).hex()
+    assert c.abi_encode2(arg, True, False).hex() == abi.encode("(string)", (arg,)).hex()
+    assert c.abi_encode2(arg, False, True).hex() == (method_id + abi.encode("string", arg)).hex()
     assert (
-        c.abi_encode2(arg, True, True).hex() == (method_id + abi_encode("(string)", (arg,))).hex()
+        c.abi_encode2(arg, True, True).hex() == (method_id + abi.encode("(string)", (arg,))).hex()
     )
 
-    test_addr = b"".join(chr(i).encode("utf-8") for i in range(20))
+    test_addr = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
     human_tuple = (
         "foobar",
@@ -110,11 +111,11 @@ def abi_encode3(x: uint256, ensure_tuple: bool, include_method_id: bool) -> Byte
     )
     args = tuple([human_tuple[0]] + list(human_tuple[1]))
     human_t = "(string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32))"
-    human_encoded = abi_encode(human_t, human_tuple)
+    human_encoded = abi.encode(human_t, human_tuple)
     assert c.abi_encode(*args, False, False).hex() == human_encoded.hex()
     assert c.abi_encode(*args, False, True).hex() == (method_id + human_encoded).hex()
 
-    human_encoded = abi_encode(f"({human_t})", (human_tuple,))
+    human_encoded = abi.encode(f"({human_t})", (human_tuple,))
     assert c.abi_encode(*args, True, False).hex() == human_encoded.hex()
     assert c.abi_encode(*args, True, True).hex() == (method_id + human_encoded).hex()
 
@@ -134,7 +135,7 @@ def foo():
     assert_compile_failed(lambda: get_contract(code))
 
 
-def test_abi_encode_dynarray(get_contract, abi_encode):
+def test_abi_encode_dynarray(get_contract):
     code = """
 @external
 def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: bool) -> Bytes[164]:
@@ -149,14 +150,14 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     arg = [123, 456, 789]
-    assert c.abi_encode(arg, False, False).hex() == abi_encode("uint256[]", arg).hex()
-    assert c.abi_encode(arg, True, False).hex() == abi_encode("(uint256[])", (arg,)).hex()
-    assert c.abi_encode(arg, False, True).hex() == (method_id + abi_encode("uint256[]", arg)).hex()
+    assert c.abi_encode(arg, False, False).hex() == abi.encode("uint256[]", arg).hex()
+    assert c.abi_encode(arg, True, False).hex() == abi.encode("(uint256[])", (arg,)).hex()
+    assert c.abi_encode(arg, False, True).hex() == (method_id + abi.encode("uint256[]", arg)).hex()
     assert (
-        c.abi_encode(arg, True, True).hex() == (method_id + abi_encode("(uint256[])", (arg,))).hex()
+        c.abi_encode(arg, True, True).hex() == (method_id + abi.encode("(uint256[])", (arg,))).hex()
     )
 
 
@@ -176,7 +177,7 @@ nested_2d_array_args = [
 
 
 @pytest.mark.parametrize("args", nested_2d_array_args)
-def test_abi_encode_nested_dynarray(get_contract, abi_encode, args):
+def test_abi_encode_nested_dynarray(get_contract, args):
     code = """
 @external
 def abi_encode(
@@ -193,16 +194,16 @@ def abi_encode(
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
-    assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][]", args).hex()
-    assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][])", (args,)).hex()
+    assert c.abi_encode(args, False, False).hex() == abi.encode("uint256[][]", args).hex()
+    assert c.abi_encode(args, True, False).hex() == abi.encode("(uint256[][])", (args,)).hex()
     assert (
-        c.abi_encode(args, False, True).hex() == (method_id + abi_encode("uint256[][]", args)).hex()
+        c.abi_encode(args, False, True).hex() == (method_id + abi.encode("uint256[][]", args)).hex()
     )
     assert (
         c.abi_encode(args, True, True).hex()
-        == (method_id + abi_encode("(uint256[][])", (args,))).hex()
+        == (method_id + abi.encode("(uint256[][])", (args,))).hex()
     )
 
 
@@ -225,7 +226,7 @@ nested_3d_array_args = [
 
 
 @pytest.mark.parametrize("args", nested_3d_array_args)
-def test_abi_encode_nested_dynarray_2(get_contract, abi_encode, args):
+def test_abi_encode_nested_dynarray_2(get_contract, args):
     code = """
 @external
 def abi_encode(
@@ -244,21 +245,21 @@ def abi_encode(
     """
     c = get_contract(code)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
-    assert c.abi_encode(args, False, False).hex() == abi_encode("uint256[][][]", args).hex()
-    assert c.abi_encode(args, True, False).hex() == abi_encode("(uint256[][][])", (args,)).hex()
+    assert c.abi_encode(args, False, False).hex() == abi.encode("uint256[][][]", args).hex()
+    assert c.abi_encode(args, True, False).hex() == abi.encode("(uint256[][][])", (args,)).hex()
     assert (
         c.abi_encode(args, False, True).hex()
-        == (method_id + abi_encode("uint256[][][]", args)).hex()
+        == (method_id + abi.encode("uint256[][][]", args)).hex()
     )
     assert (
         c.abi_encode(args, True, True).hex()
-        == (method_id + abi_encode("(uint256[][][])", (args,))).hex()
+        == (method_id + abi.encode("(uint256[][][])", (args,))).hex()
     )
 
 
-def test_side_effects_evaluation(get_contract, abi_encode):
+def test_side_effects_evaluation(get_contract):
     contract_1 = """
 counter: uint256
 
@@ -285,16 +286,16 @@ def foo(addr: address) -> Bytes[164]:
 
     c2 = get_contract(contract_2)
 
-    method_id = 0xDEADBEEF .to_bytes(4, "big")
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
 
     # call to get_counter() should be evaluated only once
-    get_counter_encoded = abi_encode("((uint256,string))", ((1, "hello"),))
+    get_counter_encoded = abi.encode("((uint256,string))", ((1, "hello"),))
 
     assert c2.foo(c.address).hex() == (method_id + get_counter_encoded).hex()
 
 
 # test _abi_encode in private functions to check buffer overruns
-def test_abi_encode_private(get_contract, abi_encode):
+def test_abi_encode_private(get_contract):
     code = """
 bytez: Bytes[96]
 @internal
@@ -308,11 +309,11 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    bs = "0" * 32
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(bytes)", (bs,))]
+    bs = b"\x00" * 32
+    assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
 
 
-def test_abi_encode_private_dynarray(get_contract, abi_encode):
+def test_abi_encode_private_dynarray(get_contract):
     code = """
 bytez: Bytes[160]
 @internal
@@ -326,10 +327,10 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
 
 
-def test_abi_encode_private_nested_dynarray(get_contract, abi_encode):
+def test_abi_encode_private_nested_dynarray(get_contract):
     code = """
 bytez: Bytes[1696]
 @internal
@@ -348,11 +349,11 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2 ** 256 - 1, abi_encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[][][])", (bs,))]
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))
-def test_abi_encode_empty_string(get_contract, abi_encode, empty_literal):
+def test_abi_encode_empty_string(get_contract, empty_literal):
     code = f"""
 @external
 def foo(ensure_tuple: bool) -> Bytes[96]:

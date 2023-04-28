@@ -1,7 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
-from vyper.builtin_functions import eip1167_bytecode
+from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
@@ -80,7 +80,7 @@ def create_and_return_proxy(inp: address) -> address:
     c3 = c2.create_and_return_proxy(c.address, call={})
     c2.create_and_return_proxy(c.address, transact={})
 
-    c3_contract_code = w3.toBytes(w3.eth.get_code(c3))
+    c3_contract_code = w3.to_bytes(w3.eth.get_code(c3))
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -205,7 +205,6 @@ def foo_call(_addr: address):
 
 
 def test_static_call(get_contract):
-
     target_source = """
 @external
 @view
@@ -262,7 +261,6 @@ def __default__():
 
 
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
-
     target_source = """
 baz: int128
 
@@ -292,15 +290,16 @@ def foo(_addr: address) -> int128:
 
 
 def test_checkable_raw_call(get_contract, assert_tx_failed):
-
     target_source = """
 baz: int128
 @external
 def fail1(should_raise: bool):
     if should_raise:
         raise "fail"
+
 # test both paths for raw_call -
 # they are different depending if callee has or doesn't have returntype
+# (fail2 fails because of staticcall)
 @external
 def fail2(should_raise: bool) -> int128:
     if should_raise:
@@ -323,6 +322,7 @@ def foo(_addr: address, should_raise: bool) -> uint256:
     )
     assert success == (not should_raise)
     return 1
+
 @external
 @view
 def bar(_addr: address, should_raise: bool) -> uint256:
@@ -337,6 +337,19 @@ def bar(_addr: address, should_raise: bool) -> uint256:
     )
     assert success == (not should_raise)
     return 2
+
+# test max_outsize not set case
+@external
+@nonpayable
+def baz(_addr: address, should_raise: bool) -> uint256:
+    success: bool = True
+    success = raw_call(
+        _addr,
+        _abi_encode(should_raise, method_id=method_id("fail1(bool)")),
+        revert_on_failure=False,
+    )
+    assert success == (not should_raise)
+    return 3
     """
 
     target = get_contract(target_source)
@@ -346,6 +359,8 @@ def bar(_addr: address, should_raise: bool) -> uint256:
     assert caller.foo(target.address, False) == 1
     assert caller.bar(target.address, True) == 2
     assert caller.bar(target.address, False) == 2
+    assert caller.baz(target.address, True) == 3
+    assert caller.baz(target.address, False) == 3
 
 
 uncompilable_code = [

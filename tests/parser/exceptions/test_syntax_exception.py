@@ -1,7 +1,5 @@
 import pytest
-from pytest import raises
 
-from vyper import compiler
 from vyper.exceptions import SyntaxException
 
 fail_list = [
@@ -74,10 +72,23 @@ def foo():
     """
 a: internal(uint256)
     """,
+    """
+@external
+def foo():
+    x: uint256 = +1  # test UAdd ast blocked
+    """,
+    """
+@internal
+def f(a:uint256,/):  # test posonlyargs blocked
+    return
+
+@external
+def g():
+    self.f()
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_syntax_exception(bad_code):
-    with raises(SyntaxException):
-        compiler.compile_code(bad_code)
+def test_syntax_exception(assert_compile_failed, get_contract, bad_code):
+    assert_compile_failed(lambda: get_contract(bad_code), SyntaxException)

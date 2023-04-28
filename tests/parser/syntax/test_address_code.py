@@ -5,7 +5,7 @@ from eth_tester.exceptions import TransactionFailed
 from web3 import Web3
 
 from vyper import compiler
-from vyper.exceptions import StructureException, VyperException
+from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501
@@ -77,6 +77,17 @@ def code_slice(x: address) -> uint256:
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
+            """
+a: HashMap[Bytes[4], uint256]
+
+@external
+def foo(x: address):
+    self.a[x.code] += 1
+""",
+            StructureException,
+            "(address).code is only allowed inside of a slice function with a constant length",
+        ),
+        (
             # `len` not supported
             """
 @external
@@ -103,17 +114,8 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
             """
 code: public(Bytes[4])
 """,
-            StructureException,
-            "'code' is a reserved keyword",
-        ),
-        (
-            # User defined struct with `code` attribute
-            """
-struct S:
-    code: Bytes[4]
-""",
-            StructureException,
-            "'code' is a reserved keyword",
+            NamespaceCollision,
+            "Value 'code' has already been declared",
         ),
     ],
 )

@@ -32,10 +32,10 @@ def foo(a: uint256) -> uint256:
 
     c = get_contract(code)
 
-    value = (2 ** 256 - 1) // (10 ** multiplier)
-    assert c.foo(value) == value * (10 ** multiplier)
+    value = (2**256 - 1) // (10**multiplier)
+    assert c.foo(value) == value * (10**multiplier)
 
-    value = (2 ** 256 - 1) // (10 ** (multiplier - 1))
+    value = (2**256 - 1) // (10 ** (multiplier - 1))
     assert_tx_failed(lambda: c.foo(value))
 
 
@@ -48,9 +48,9 @@ def foo(a: int128) -> uint256:
     """
 
     c = get_contract(code)
-    value = (2 ** 127 - 1) // (10 ** multiplier)
+    value = (2**127 - 1) // (10**multiplier)
 
-    assert c.foo(value) == value * (10 ** multiplier)
+    assert c.foo(value) == value * (10**multiplier)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
@@ -62,12 +62,12 @@ def foo(a: decimal) -> uint256:
     """
 
     c = get_contract(code)
-    value = Decimal((2 ** 127 - 1) / (10 ** multiplier))
+    value = Decimal((2**127 - 1) / (10**multiplier))
 
-    assert c.foo(value) == value * (10 ** multiplier)
+    assert c.foo(value) == value * (10**multiplier)
 
 
-@pytest.mark.parametrize("value", (-1, -(2 ** 127)))
+@pytest.mark.parametrize("value", (-1, -(2**127)))
 @pytest.mark.parametrize("data_type", ["decimal", "int128"])
 def test_negative_value_reverts(get_contract, assert_tx_failed, value, data_type):
     code = f"""

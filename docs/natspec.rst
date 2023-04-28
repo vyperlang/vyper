@@ -49,7 +49,7 @@ All tags are optional. The following table explains the purpose of each NatSpec 
 Tag          Description                              Context
 ============ ======================================== ==================
 ``@title``   Title that describes the contract        contract
-``@licence`` License of the contract                  contract
+``@license`` License of the contract                  contract
 ``@author``  Name of the author                       contract, function
 ``@notice``  Explain to an end user what this does    contract, function
 ``@dev``     Explain to a developer any extra details contract, function

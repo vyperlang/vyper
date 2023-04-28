@@ -102,6 +102,11 @@ def foo6() -> DynArray[DynArray[String[32], 2], 2]:
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
+enum Foobar:
+    FOO
+    BAR
+
+y: DynArray[Foobar, 2]
 z: DynArray[int128, 2]
 
 @external
@@ -180,6 +185,20 @@ def qoo(inp: DynArray[int128, 2]) -> DynArray[DynArray[int128, 2], 2]:
 @external
 def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     return [inp, [3.0, 4.0]]
+
+@external
+def soo() -> DynArray[Foobar, 2]:
+    x: DynArray[Foobar, 2] = [Foobar.FOO, Foobar.BAR]
+    return x
+
+@external
+def too() -> DynArray[Foobar, 2]:
+    self.y = [Foobar.BAR, Foobar.FOO]
+    return self.y
+
+@external
+def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
+    return [inp, [Foobar.BAR, Foobar.FOO]]
     """
 
     c = get_contract_with_gas_estimation(list_output_tester_code)
@@ -200,6 +219,9 @@ def roo(inp: DynArray[decimal, 2]) -> DynArray[DynArray[decimal, 2], 2]:
     assert c.poo([[1, 2], [3, 4]]) == [[1, 2], [3, 4]]
     assert c.qoo([1, 2]) == [[1, 2], [3, 4]]
     assert c.roo([1, 2]) == [[1.0, 2.0], [3.0, 4.0]]
+    assert c.soo() == [1, 2]
+    assert c.too() == [2, 1]
+    assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
 
     print("Passed list output tests")
 
@@ -506,25 +528,6 @@ def check2(a: address) -> bool:
     assert c.check2("0x0000000000000000000000000000000000000036") is True
     assert c.check2("0x0000000000000000000000000000000000000048") is True
     assert c.check2("0x0000000000000000000000000000000000000024") is False
-
-
-(
-    "bytes32",
-    [
-        [
-            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xca",  # noqa: E501
-            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcb",  # noqa: E501
-        ],
-        [
-            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501
-            b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd",  # noqa: E501
-        ],
-    ],
-    [
-        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcc",  # noqa: E501,
-        b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xce",  # noqa: E501
-    ],
-),
 
 
 def test_member_in_nested_bytes32_list(get_contract_with_gas_estimation):
@@ -1090,7 +1093,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     assert c.foo() == data
 
 
-@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2 ** 127)])
+@pytest.mark.parametrize("subtyp,lit", [("uint8", 256), ("uint256", -1), ("int128", 2**127)])
 def test_append_invalid_literal(get_contract, assert_compile_failed, subtyp, lit):
     code = f"""
 @external
@@ -1227,7 +1230,8 @@ def foo(x: {typ}) -> {typ}:
 
 @pytest.mark.parametrize("code_template,check_result", append_pop_complex_tests)
 @pytest.mark.parametrize(
-    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+    "subtype",
+    ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "DynArray[Foobar, 3]"],
 )
 # TODO change this to fuzz random data
 def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
@@ -1242,6 +1246,15 @@ struct Foo:
     z: uint256
         """
         code = struct_def + "\n" + code
+    elif subtype == "DynArray[Foobar, 3]":
+        enum_def = """
+enum Foobar:
+    FOO
+    BAR
+    BAZ
+        """
+        code = enum_def + "\n" + code
+        test_data = [2 ** (i - 1) for i in test_data]
 
     c = get_contract(code)
     expected_result = check_result(test_data)
@@ -1279,20 +1292,27 @@ def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
 
 def test_list_of_structs_arg(get_contract):
     code = """
+enum Foobar:
+    FOO
+    BAR
+
 struct Foo:
     x: uint256
     y: uint256
+    z: Foobar
 
 @external
 def bar(_baz: DynArray[Foo, 3]) -> uint256:
     sum: uint256 = 0
     for i in range(3):
-        sum += _baz[i].x * _baz[i].y
+        e: Foobar = _baz[i].z
+        f: uint256 = convert(e, uint256)
+        sum += _baz[i].x * _baz[i].y + f
     return sum
     """
     c = get_contract(code)
-    c_input = [[x, y] for x, y in zip(range(3), range(3))]
-    assert c.bar(c_input) == 5  # 0 * 0 + 1 * 1 + 2 * 2
+    c_input = [[x, y, 1] for x, y in zip(range(3), range(3))]
+    assert c.bar(c_input) == 8  # (0 * 0 + 1) + (1 * 1 + 1) + (2 * 2 + 1)
 
 
 def test_list_of_structs_arg_with_dynamic_type(get_contract):
@@ -1545,10 +1565,11 @@ def _foo2() -> Foo:
 
 @internal
 def _foo3(f: Foo) -> Foo:
-    f.b1[0][1][0].a1[0][0] = [0, 0]
-    f.b1[1][0][0].a1[0][1] = [0, 0]
-    f.b1[1][1][0].a1[1][1] = [0, 0]
-    return f
+    new_f: Foo = f
+    new_f.b1[0][1][0].a1[0][0] = [0, 0]
+    new_f.b1[1][0][0].a1[0][1] = [0, 0]
+    new_f.b1[1][1][0].a1[1][1] = [0, 0]
+    return new_f
 
 @external
 def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
@@ -1667,6 +1688,7 @@ def foo() -> {typ}:
 
 
 # TODO test negative public(DynArray) cases?
+
 
 # CMC 2022-08-04 these are blocked due to typechecker bug; leaving as
 # negative tests so we know if/when the typechecker is fixed.

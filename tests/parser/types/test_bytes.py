@@ -198,7 +198,7 @@ def testsome_storage(y: Bytes[1]) -> bool:
     assert c.getsome() == b"\x0e"
     assert c.testsome(b"a")
     assert c.testsome(b"\x61")
-    assert c.testsome(0b1100001 .to_bytes(1, "big"))
+    assert c.testsome(0b1100001.to_bytes(1, "big"))
     assert not c.testsome(b"b")
     assert c.testsome_storage(b"a")
     assert not c.testsome_storage(b"x")
@@ -255,7 +255,7 @@ def test2(l: bytes{m} = {vyper_literal}) -> bool:
 
     assert c.test() is True
     assert c.test2() is True
-    assert c.test2(val) is True
+    assert c.test2(vyper_literal) is True
 
 
 def test_zero_padding_with_private(get_contract):
@@ -268,9 +268,8 @@ def to_little_endian_64(_value: uint256) -> Bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
     for _ in range(8):
-        y = shift(y, 8)
-        y = y + (x & 255)
-        x = shift(x, -8)
+        y = (y << 8) | (x & 255)
+        x >>= 8
     return slice(convert(y, bytes32), 24, 8)
 
 @external

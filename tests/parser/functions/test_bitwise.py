@@ -2,7 +2,8 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
+from vyper.utils import unsigned_to_signed
 
 code = """
 @external
@@ -22,12 +23,12 @@ def _bitwise_not(x: uint256) -> uint256:
     return ~x
 
 @external
-def _shift(x: uint256, y: int128) -> uint256:
-    return shift(x, y)
+def _shl(x: uint256, y: uint256) -> uint256:
+    return x << y
 
 @external
-def _negatedShift(x: uint256, y: int128) -> uint256:
-    return shift(x, -y)
+def _shr(x: uint256, y: uint256) -> uint256:
+    return x >> y
     """
 
 
@@ -50,23 +51,12 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
     assert c._bitwise_and(x, y) == (x & y)
     assert c._bitwise_or(x, y) == (x | y)
     assert c._bitwise_xor(x, y) == (x ^ y)
-    assert c._bitwise_not(x) == 2 ** 256 - 1 - x
-    assert c._shift(x, 3) == x * 8
-    assert c._shift(x, 255) == 0
-    assert c._shift(y, 255) == 2 ** 255
-    assert c._shift(x, 256) == 0
-    assert c._shift(x, 0) == x
-    assert c._shift(x, -1) == x // 2
-    assert c._shift(x, -3) == x // 8
-    assert c._shift(x, -256) == 0
-    assert c._negatedShift(x, -3) == x * 8
-    assert c._negatedShift(x, -255) == 0
-    assert c._negatedShift(y, -255) == 2 ** 255
-    assert c._negatedShift(x, -256) == 0
-    assert c._negatedShift(x, -0) == x
-    assert c._negatedShift(x, 1) == x // 2
-    assert c._negatedShift(x, 3) == x // 8
-    assert c._negatedShift(x, 256) == 0
+    assert c._bitwise_not(x) == 2**256 - 1 - x
+
+    for t in (x, y):
+        for s in (0, 1, 3, 255, 256):
+            assert c._shr(t, s) == t >> s
+            assert c._shl(t, s) == (t << s) % (2**256)
 
 
 POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
@@ -76,8 +66,12 @@ POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
 def test_signed_shift(get_contract_with_gas_estimation, evm_version):
     code = """
 @external
-def _signedShift(x: int256, y: int128) -> int256:
-    return shift(x, y)
+def _sar(x: int256, y: uint256) -> int256:
+    return x >> y
+
+@external
+def _shl(x: int256, y: uint256) -> int256:
+    return x << y
     """
     c = get_contract_with_gas_estimation(code, evm_version=evm_version)
     x = 126416208461208640982146408124
@@ -85,10 +79,9 @@ def _signedShift(x: int256, y: int128) -> int256:
     cases = [x, y, -x, -y]
 
     for t in cases:
-        assert c._signedShift(t, 0) == t >> 0
-        assert c._signedShift(t, -1) == t >> 1
-        assert c._signedShift(t, -3) == t >> 3
-        assert c._signedShift(t, -256) == t >> 256
+        for s in (0, 1, 3, 255, 256):
+            assert c._sar(t, s) == t >> s
+            assert c._shl(t, s) == unsigned_to_signed((t << s) % (2**256), 256)
 
 
 def test_precedence(get_contract):
@@ -115,28 +108,74 @@ def baz(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
 def test_literals(get_contract, evm_version):
     code = """
 @external
-def left(x: uint256) -> uint256:
-    return shift(x, -3)
+def _shr(x: uint256) -> uint256:
+    return x >> 3
 
 @external
-def right(x: uint256) -> uint256:
-    return shift(x, 3)
+def _shl(x: uint256) -> uint256:
+    return x << 3
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert c.left(80) == 10
-    assert c.right(80) == 640
+    assert c._shr(80) == 10
+    assert c._shl(80) == 640
 
 
 fail_list = [
     (
+        # cannot shift non-uint256/int256 argument
         """
 @external
-def foo(x: uint8, y: int128) -> uint256:
-    return shift(x, y)
+def foo(x: uint8, y: uint8) -> uint8:
+    return x << y
+    """,
+        InvalidOperation,
+    ),
+    (
+        # cannot shift non-uint256/int256 argument
+        """
+@external
+def foo(x: int8, y: uint8) -> int8:
+    return x << y
+    """,
+        InvalidOperation,
+    ),
+    (
+        # cannot shift by non-uint bits
+        """
+@external
+def foo(x: uint256, y: int128) -> uint256:
+    return x << y
     """,
         TypeMismatch,
-    )
+    ),
+    (
+        # cannot left shift by more than 256 bits
+        """
+@external
+def foo() -> uint256:
+    return 2 << 257
+    """,
+        InvalidLiteral,
+    ),
+    (
+        # cannot shift by negative amount
+        """
+@external
+def foo() -> uint256:
+    return 2 << -1
+    """,
+        InvalidLiteral,
+    ),
+    (
+        # cannot shift by negative amount
+        """
+@external
+def foo() -> uint256:
+    return 2 << -1
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 

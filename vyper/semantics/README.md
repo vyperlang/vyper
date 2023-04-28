@@ -52,7 +52,7 @@ Builtins are added upon initialization of the object. This includes:
 
 * Adding primitive type classes from the [`types/`](types) subpackage
 * Adding environment variables and builtin constants from [`environment.py`](environment.py)
-* Adding builtin functions from the [`functions`](../builtin_functions/functions.py) package
+* Adding builtin functions from the [`functions`](../builtins/functions.py) package
 * Adding / resetting `self` and `log`
 
 ### 2. Validating the Module Scope
@@ -158,7 +158,7 @@ To ensure that only one copy of `Namespace` exists throughout the package, you
 should access it using the `get_namespace` method:
 
 ```python
-from brownie.context.namespace import get_namespace
+from vyper.semantics.namespace import get_namespace
 
 namespace = get_namespace()
 ```

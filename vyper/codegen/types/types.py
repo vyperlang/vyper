@@ -105,7 +105,7 @@ class DecimalTypeInfo(NumericTypeInfo):
 
     @property
     def divisor(self) -> int:
-        return 10 ** self.decimals
+        return 10**self.decimals
 
     @property
     def epsilon(self) -> Decimal:
@@ -487,7 +487,6 @@ def parse_type(item, sigs, custom_structs, enums):
                 return SArrayType(value_type, length)
 
         elif item.value.id == "DynArray":
-
             _sanity_check(isinstance(item.slice.value, vy_ast.Tuple))
             length = item.slice.value.elements[1].n
             _sanity_check(isinstance(length, int) and length > 0)
