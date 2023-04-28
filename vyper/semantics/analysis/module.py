@@ -194,8 +194,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else DataLocation.UNSET
             if node.is_constant
             # XXX: needed if we want separate transient allocator
-            #else DataLocation.TRANSIENT
-            #if node.is_transient
+            # else DataLocation.TRANSIENT
+            # if node.is_transient
             else DataLocation.STORAGE
         )
 
