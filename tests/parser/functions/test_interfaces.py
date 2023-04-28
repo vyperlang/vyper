@@ -322,7 +322,7 @@ def test():
 
 
 def test_address_member(w3, get_contract):
-    code = f"""
+    code = """
 interface Foo:
     def foo(): payable
 
