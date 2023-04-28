@@ -25,6 +25,7 @@ EVM_VERSIONS: Dict[str, int] = {
     "istanbul": 2,
     "berlin": 3,
     "paris": 4,
+    "cancun": 6,
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
