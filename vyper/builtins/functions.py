@@ -1238,9 +1238,14 @@ class SelfDestruct(BuiltinFunction):
     _inputs = [("to", AddressT())]
     _return_type = None
     _is_terminus = True
+    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        if not self._warned:
+            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            self._warned = True
+
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(
             ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
