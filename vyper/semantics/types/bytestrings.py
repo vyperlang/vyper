@@ -104,19 +104,12 @@ class _BytestringT(VyperType):
         if not super().compare_type(other):
             return False
 
-        # CMC 2022-03-18 TODO this method should be refactored so it does not have side effects
-
         # when comparing two literals, both now have an equal min-length
         if not self._length and not other._length:
-            min_length = max(self._min_length, other._min_length)
-            self.set_min_length(min_length)
-            other.set_min_length(min_length)
             return True
 
-        # comparing a defined length to a literal causes the literal to have a fixed length
+        # comparing a defined length to a literal
         if self._length:
-            if not other._length:
-                other.set_length(max(self._length, other._min_length))
             return self._length >= other._length
 
         return other.compare_type(self)
