@@ -1,14 +1,19 @@
-from hypothesis import given, settings
-from hypothesis.strategies import text , lists
 import random
 import string
+
 import pytest
-from vyper.compiler.phases import CompilerData
+from hypothesis import given, settings
+from hypothesis.strategies import lists, text
+
 import vyper.ast as vy_ast
+from vyper.compiler.phases import CompilerData
+
 
 # random names for functions
 @settings(max_examples=20, deadline=1000)
-@given(lists(text(alphabet=string.ascii_lowercase, min_size=1), unique=True,min_size=1, max_size=10))
+@given(
+    lists(text(alphabet=string.ascii_lowercase, min_size=1), unique=True, min_size=1, max_size=10)
+)
 @pytest.mark.fuzzing
 def test_call_graph_stability_fuzz(func_names):
     def generate_func_def(func_name, i):
@@ -17,10 +22,10 @@ def test_call_graph_stability_fuzz(func_names):
 def {func_name}() -> uint256:
     return {i}
         """
+
     func_defs = "\n".join(generate_func_def(s, i) for i, s in enumerate(func_names))
 
- 
-    for i in range(10):
+    for _ in range(10):
         fs = func_names.copy()
         random.shuffle(fs)
 
