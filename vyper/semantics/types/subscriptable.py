@@ -103,6 +103,9 @@ class _SequenceT(_SubscriptableT):
         if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
 
+        if length >= 2**64:
+            warnings.warn("Use of large arrays can be unsafe!")
+
         super().__init__(UINT256_T, value_type)
         self.length = length
 
