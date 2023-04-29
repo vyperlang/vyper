@@ -231,7 +231,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
+                    if possible_type.value_type == type_:
                         base_type = possible_type
                         break
 
