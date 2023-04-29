@@ -6,7 +6,6 @@ import sys
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
-
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,

@@ -1,4 +1,5 @@
 import contextlib
+from typing import Any
 
 from vyper.exceptions import VyperException
 
