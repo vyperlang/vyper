@@ -76,11 +76,12 @@ class _NodeMetadataJournal:
         self._node_updates.append(set())
         try:
             yield
-        except VyperException:
+        except VyperException as e:
             # note: would be better to only catch typechecker exceptions here.
-            self.rollback_inner()
+            self._rollback_inner()
+            raise e from e
         else:
-            self.commit_inner()
+            self._commit_inner()
 
     def _rollback_inner(self):
         for node, k, prev in self._node_updates[-1]:
@@ -90,7 +91,7 @@ class _NodeMetadataJournal:
                 node._metadata[k] = prev
         self._pop_inner()
 
-    def commit_inner(self):
+    def _commit_inner(self):
         self._pop_inner()
 
     def _pop_inner(self):

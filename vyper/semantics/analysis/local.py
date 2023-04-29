@@ -446,15 +446,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
-            with self.namespace.enter_scope(), _ExprAnalyser.speculate():
+            with self.namespace.enter_scope():
                 try:
                     self.namespace[iter_name] = VarInfo(type_, is_constant=True)
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 
                 try:
-                    for n in node.body:
-                        self.visit(n)
+                    with _ExprAnalyser.speculate():
+                        for n in node.body:
+                            self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
