@@ -1,5 +1,4 @@
-# TODO this doesn't really belong in "validation"
-import math
+# TODO this module doesn't really belong in "validation"
 from typing import Dict, List
 
 from vyper import ast as vy_ast
@@ -190,7 +189,6 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
         ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
-
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         # skip non-storage variables

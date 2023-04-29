@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
