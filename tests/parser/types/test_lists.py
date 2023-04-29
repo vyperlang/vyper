@@ -685,7 +685,7 @@ def foo() -> bool:
     return a
     """
     c = get_contract(code)
-    assert c.foo() == True
+    assert c.foo() is True
 
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
