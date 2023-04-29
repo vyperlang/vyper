@@ -1,6 +1,5 @@
-import contextlib
 import itertools
-from typing import Any, Callable, List
+from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -48,56 +47,6 @@ def _validate_op(node, types_list, validation_fn_name):
     raise err_list[0]
 
 
-# a commit/rollback scheme for metadata caching. in the case that an
-# exception is thrown and caught during type checking (currently, only
-# during for loop iterator variable type inference), we can roll back
-# any state updates due to type checking.
-# this is implemented as a stack of changesets, because we need to
-# handle nested rollbacks in the case of nested for loops
-class _NodeMetadataJournal:
-    _NOT_FOUND = object()
-
-    def __init__(self):
-        self._node_updates: list[set[tuple[vy_ast.VyperNode, str, Any]]] = []
-
-    def register_update(self, node, k, new):
-        prev = node._metadata.get(k, self._NOT_FOUND)
-        node._metadata[k] = new
-
-        # if we are not in a context where we need to journal,
-        # perform an "autocommit".
-        if len(self._node_updates) == 0:
-            return
-
-        self._node_updates[-1].add((node, k, prev))
-
-    @contextlib.contextmanager
-    def enter(self):
-        self._node_updates.append(set())
-        try:
-            yield
-        except VyperException as e:
-            # note: would be better to only catch typechecker exceptions here.
-            self._rollback_inner()
-            raise e from e
-        else:
-            self._commit_inner()
-
-    def _rollback_inner(self):
-        for node, k, prev in self._node_updates[-1]:
-            if prev is self._NOT_FOUND:
-                node._metadata.pop(k, None)
-            else:
-                node._metadata[k] = prev
-        self._pop_inner()
-
-    def _commit_inner(self):
-        self._pop_inner()
-
-    def _pop_inner(self):
-        del self._node_updates[-1]
-
-
 class _ExprAnalyser:
     """
     Node type-checker class.
@@ -108,16 +57,8 @@ class _ExprAnalyser:
     class's method resolution order is examined to decide which method to call.
     """
 
-    _node_update_journal: _NodeMetadataJournal = _NodeMetadataJournal()
-
     def __init__(self):
         self.namespace = get_namespace()
-
-    @classmethod
-    @contextlib.contextmanager
-    def speculate(cls):
-        with cls._node_update_journal.enter():
-            yield
 
     def get_expr_info(self, node: vy_ast.VyperNode) -> ExprInfo:
         t = self.get_exact_type_from_node(node)
@@ -222,9 +163,7 @@ class _ExprAnalyser:
                 # this ensures literals are cast with the largest possible type
                 ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
 
-            # register with list of tainted nodes, in case the cache
-            # needs to be invalidated in case of a state rollback
-            self._node_update_journal.register_update(node, k, ret)
+            node._metadata[k] = ret
 
         return node._metadata[k].copy()
 
