@@ -17,8 +17,10 @@ from vyper.compiler.phases import CompilerData
 @pytest.mark.fuzzing
 def test_call_graph_stability_fuzz(func_names):
     def generate_func_def(func_name, i):
+        mutability = random.choice(["@pure", "@view", "@nonpayable", "@payable"])
         return f"""
 @internal
+{mutability}
 def {func_name}() -> uint256:
     return {i}
         """
