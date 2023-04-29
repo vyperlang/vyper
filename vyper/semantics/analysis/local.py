@@ -446,7 +446,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
-            with self.namespace.enter_scope():
+            with self.namespace.enter_scope(), _ExprAnalyser.speculate():
                 try:
                     self.namespace[iter_name] = VarInfo(type_, is_constant=True)
                 except VyperException as exc:
@@ -457,16 +457,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
-                    # rollback any changes to the tree
-                    _ExprAnalyser._rollback_taint()
                 else:
                     # type information is applied directly here because the
                     # scope is closed prior to the call to
                     # `StatementAnnotationVisitor`
                     node.target._metadata["type"] = type_
 
-                    # perf - persist all calculated types
-                    _ExprAnalyser._commit_taint()
                     # success -- bail out instead of error handling.
                     return
 
