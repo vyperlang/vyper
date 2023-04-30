@@ -110,7 +110,7 @@ class _BytestringT(VyperType):
 
         # comparing a defined length to a literal
         if self._length:
-            return self._length >= other._length
+            return self._length >= other._min_length
 
         return other.compare_type(self)
 
