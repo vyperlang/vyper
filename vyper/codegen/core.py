@@ -673,6 +673,9 @@ def dummy_node_for_type(typ):
 
 
 def _check_assign_bytes(left, right):
+    if left.typ.maxlen == 0:
+        return
+
     if right.typ.maxlen > left.typ.maxlen:
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
 
