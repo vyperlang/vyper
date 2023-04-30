@@ -5,7 +5,16 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_possible_types_from_node,
 )
-from vyper.semantics.types import TYPE_T, BytesT, EnumT, EventT, SArrayT, StringT, StructT, is_type_t
+from vyper.semantics.types import (
+    TYPE_T,
+    BytesT,
+    EnumT,
+    EventT,
+    SArrayT,
+    StringT,
+    StructT,
+    is_type_t,
+)
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
