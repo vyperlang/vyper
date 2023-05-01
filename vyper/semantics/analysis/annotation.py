@@ -152,10 +152,17 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 # We should only see special kwargs
                 self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
 
-            # override return type to handle JSON interfaces with bytestrings
-            # as return types since they are initialized to length `0`
+            # override return type if it has at least one bytestring with length 0
+            # (i.e. ABI JSON imports)
             ret_typ = call_type.return_type
+            if isinstance(ret_typ, (BytesT, StringT)) and ret_typ._length == 0:
                 call_type.return_type = type_
+            if isinstance(ret_typ, TupleT):
+                bytestring_members = [
+                    t for t in ret_typ.tuple_members() if isinstance(t, (BytesT, StringT))
+                ]
+                if len(bytestring_members) > 0 and any(m._length == 0 for m in bytestring_members):
+                    call_type.return_type = type_
 
         elif is_type_t(call_type, EventT):
             # events have no kwargs
