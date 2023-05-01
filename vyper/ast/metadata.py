@@ -14,15 +14,15 @@ class _NodeMetadataJournal:
     _NOT_FOUND = object()
 
     def __init__(self):
-        self._node_updates: list[list[tuple[NodeMetadata, str, Any]]] = []
+        self._node_updates: list[dict[tuple[int, str, Any], NodeMetadata]] = []
 
     def register_update(self, metadata, k):
         prev = metadata.get(k, self._NOT_FOUND)
-        self._node_updates[-1].append((metadata, k, prev))
+        self._node_updates[-1][(id(metadata), k)] = (metadata, prev)
 
     @contextlib.contextmanager
     def enter(self):
-        self._node_updates.append([])
+        self._node_updates.append({})
         try:
             yield
         except VyperException as e:
@@ -33,7 +33,7 @@ class _NodeMetadataJournal:
             self._commit_inner()
 
     def _rollback_inner(self):
-        for metadata, k, prev in self._node_updates[-1]:
+        for (_, k), (metadata, prev) in self._node_updates[-1].items():
             if prev is self._NOT_FOUND:
                 metadata.pop(k, None)
             else:
@@ -41,10 +41,21 @@ class _NodeMetadataJournal:
         self._pop_inner()
 
     def _commit_inner(self):
-        self._pop_inner()
+        inner = self._pop_inner()
+
+        if len(self._node_updates) == 0:
+            return
+
+        outer = self._node_updates[-1]
+
+        # register with previous frame in case inner gets commited
+        # but outer needs to be rolled back
+        for (_, k), (metadata, prev) in inner.items():
+            if (id(metadata), k) not in outer:
+                outer[(id(metadata), k)] = (metadata, prev)
 
     def _pop_inner(self):
-        del self._node_updates[-1]
+        return self._node_updates.pop()
 
 
 class NodeMetadata(dict):
