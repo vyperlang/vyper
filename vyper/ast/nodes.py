@@ -1269,6 +1269,8 @@ class Subscript(ExprNode):
             raise UnfoldableNode("Subscript object is not a literal list")
         elements = self.value.elements
         if len(set([type(i) for i in elements])) > 1:
+            if all(isinstance(i, Constant) for i in elements):
+                raise TypeMismatch("List contains multiple literal types", self.value)
             raise UnfoldableNode("List contains multiple node types")
         idx = self.slice.get("value.value")
         if not isinstance(idx, int) or idx < 0 or idx >= len(elements):

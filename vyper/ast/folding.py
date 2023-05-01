@@ -39,8 +39,8 @@ def fold(vyper_module: vy_ast.Module) -> None:
         changed_nodes = 0
         changed_nodes += replace_user_defined_constants(vyper_module)
         changed_nodes += replace_literal_ops(vyper_module)
-        changed_nodes += replace_subscripts(vyper_module)
         changed_nodes += replace_builtin_functions(vyper_module)
+        changed_nodes += replace_subscripts(vyper_module)
 
 
 def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
