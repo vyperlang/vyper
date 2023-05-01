@@ -696,3 +696,34 @@ def test_call(a: address, b: {type_str}) -> {type_str}:
         code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}}
     )
     assert c3.test_call(c1.address, value) == value
+
+
+interface_tuple_return_test_code = """
+@external
+@view
+def test_json(a: {0}) -> (uint256, {0}):
+    return 1, a
+    """
+
+
+@pytest.mark.parametrize("type_str,value", type_str_params)
+def test_json_interface_calls_tuple_return(get_contract, type_str, value):
+    code = interface_tuple_return_test_code.format(type_str)
+
+    abi = compile_code(code, ["abi"])["abi"]
+    c1 = get_contract(code)
+
+    code = f"""
+import jsonabi as jsonabi
+
+@external
+@view
+def test_call(a: address, b: {type_str}) -> (uint256, {type_str}):
+    return jsonabi(a).test_json(b)
+    """
+    c2 = get_contract(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
+    assert c2.test_call(c1.address, value) == [1, value]
+    c3 = get_contract(
+        code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}}
+    )
+    assert c3.test_call(c1.address, value) == [1, value]
