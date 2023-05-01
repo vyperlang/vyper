@@ -10,6 +10,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     SyntaxException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -130,6 +131,22 @@ def hello() :
     x.a =  2
     """,
         ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = [1.0, 1][1]
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = [max_value(decimal), max_value(uint256)][1]
+    """,
+        TypeMismatch,
     ),
 ]
 
