@@ -104,7 +104,7 @@ class _BytestringT(VyperType):
         if not super().compare_type(other):
             return False
 
-        # when comparing two literals, both now have an equal min-length
+        # comparing two literals
         if not self._length and not other._length:
             return True
 
