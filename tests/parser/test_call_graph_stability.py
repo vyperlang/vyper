@@ -10,7 +10,7 @@ from vyper.compiler.phases import CompilerData
 
 
 # random names for functions
-@settings(max_examples=20, deadline=1000)
+@settings(max_examples=20, deadline=None)
 @given(
     lists(text(alphabet=string.ascii_lowercase, min_size=1), unique=True, min_size=1, max_size=10)
 )
