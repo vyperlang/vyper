@@ -453,7 +453,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise exc.with_annotation(node) from None
 
                 try:
-                    with NodeMetadata.speculate():
+                    with NodeMetadata.enter_typechecker_speculation():
                         for n in node.body:
                             self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:

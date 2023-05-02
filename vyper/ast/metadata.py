@@ -75,6 +75,6 @@ class NodeMetadata(dict):
 
     @classmethod
     @contextlib.contextmanager
-    def speculate(cls):
+    def enter_typechecker_speculation(cls):
         with cls._JOURNAL.enter():
             yield
