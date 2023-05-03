@@ -1,9 +1,9 @@
 import random
 import string
 
+import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
-from hypothesis.strategies import lists, text
 
 import vyper.ast as vy_ast
 from vyper.compiler.phases import CompilerData
@@ -12,12 +12,19 @@ from vyper.compiler.phases import CompilerData
 # random names for functions
 @settings(max_examples=20, deadline=None)
 @given(
-    lists(text(alphabet=string.ascii_lowercase, min_size=1), unique=True, min_size=1, max_size=10)
+    st.lists(
+        st.tuples(
+            st.sampled_from(["@pure", "@view", "@nonpayable", "@payable"]),
+            st.text(alphabet=string.ascii_lowercase, min_size=1),
+        ),
+        unique_by=lambda x: x[1],  # unique on function name
+        min_size=1,
+        max_size=10,
+    )
 )
 @pytest.mark.fuzzing
-def test_call_graph_stability_fuzz(func_names):
-    def generate_func_def(func_name, i):
-        mutability = random.choice(["@pure", "@view", "@nonpayable", "@payable"])
+def test_call_graph_stability_fuzz(funcs):
+    def generate_func_def(mutability, func_name, i):
         return f"""
 @internal
 {mutability}
@@ -25,11 +32,11 @@ def {func_name}() -> uint256:
     return {i}
         """
 
-    func_defs = "\n".join(generate_func_def(s, i) for i, s in enumerate(func_names))
+    func_defs = "\n".join(generate_func_def(m, s, i) for i, (m, s) in enumerate(funcs))
 
     for _ in range(10):
-        fs = func_names.copy()
-        random.shuffle(fs)
+        func_names = [f for (_, f) in funcs]
+        random.shuffle(func_names)
 
         self_calls = "\n".join(f"  self.{f}()" for f in func_names)
         code = f"""
