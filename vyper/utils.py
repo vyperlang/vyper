@@ -12,6 +12,14 @@ from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
 class OrderedSet(dict):
+    """
+    a minimal "ordered set" class. this is needed in some places
+    because, while dict guarantees you can recover insertion order
+    vanilla sets do not.
+    no attempt is made to fully implement the set API, will add
+    functionality as needed.
+    """
+
     def add(self, item):
         self[item] = None
 
