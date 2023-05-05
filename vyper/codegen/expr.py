@@ -39,7 +39,6 @@ from vyper.semantics.types import (
     BoolT,
     BytesT,
     DArrayT,
-    _BytestringT,
     DecimalT,
     EnumT,
     HashMapT,
