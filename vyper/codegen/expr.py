@@ -39,6 +39,7 @@ from vyper.semantics.types import (
     BoolT,
     BytesT,
     DArrayT,
+    _BytestringT,
     DecimalT,
     EnumT,
     HashMapT,
@@ -339,7 +340,7 @@ class Expr:
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, BytesT):
+            if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
                 assert len(index.args) == 1
                 index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
