@@ -106,7 +106,11 @@ class _BytestringT(VyperType):
 
         # comparing two literals
         if not self._length and not other._length:
-            return True
+            # widen bytestring types by deriving the larger of common types
+            if self._min_length <= other._min_length:
+                return True
+            else:
+                return False
 
         # comparing a defined length to a literal
         if self._length:
