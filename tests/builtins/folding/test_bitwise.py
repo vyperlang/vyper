@@ -3,7 +3,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
-from vyper.exceptions import OverflowException
+from vyper.exceptions import InvalidType, OverflowException
 from vyper.semantics.analysis.utils import validate_expected_type
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import unsigned_to_signed
@@ -83,7 +83,8 @@ def foo(a: int256, b: uint256) -> int256:
         validate_expected_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
-    except OverflowException:  # here: check the wrapped value matches runtime
+    except (InvalidType, OverflowException):
+        # check the wrapped value matches runtime
         assert op == "<<"
         assert contract.foo(a, b) == unsigned_to_signed((a << b) % (2**256), 256)
     else:
