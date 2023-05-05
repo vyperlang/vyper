@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -21,7 +22,6 @@ from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
 from vyper.semantics.analysis.base import DataLocation, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
-    _ExprAnalyser,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -453,20 +453,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise exc.with_annotation(node) from None
 
                 try:
-                    for n in node.body:
-                        self.visit(n)
+                    with NodeMetadata.enter_typechecker_speculation():
+                        for n in node.body:
+                            self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
-                    # rollback any changes to the tree
-                    _ExprAnalyser._rollback_taint()
                 else:
                     # type information is applied directly here because the
                     # scope is closed prior to the call to
                     # `StatementAnnotationVisitor`
                     node.target._metadata["type"] = type_
 
-                    # perf - persist all calculated types
-                    _ExprAnalyser._commit_taint()
                     # success -- bail out instead of error handling.
                     return
 
