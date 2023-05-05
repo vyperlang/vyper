@@ -611,7 +611,7 @@ class Keccak256(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         assert len(args) == 1
-        return keccak256_helper(expr, args[0], context)
+        return keccak256_helper(args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
