@@ -727,3 +727,31 @@ def test_call(a: address, b: {type_str}) -> (uint256, {type_str}):
         code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}}
     )
     assert c3.test_call(c1.address, value) == [1, value]
+
+
+@pytest.mark.parametrize("typ,length,value", [("Bytes", 4, b"newp"), ("String", 6, "potato")])
+def test_json_interface_calls_bytestring_widening(get_contract, typ, length, value):
+    type_str = f"{typ}[{length}]"
+    code = interface_test_code.format(type_str)
+
+    abi = compile_code(code, ["abi"])["abi"]
+    c1 = get_contract(code)
+
+    widened_typ1_str = f"{typ}[{length + 1}]"
+    widened_typ2_str = f"{typ}[{length + 2}]"
+    code = f"""
+import jsonabi as jsonabi
+
+@external
+@view
+def test_call(a: address, b: {type_str}) -> ({widened_typ1_str}, {widened_typ2_str}):
+    x: {widened_typ1_str} = jsonabi(a).test_json(b)
+    y: {widened_typ2_str} = jsonabi(a).test_json(b)
+    return x, y
+    """
+    c2 = get_contract(code, interface_codes={"jsonabi": {"type": "json", "code": abi}})
+    assert c2.test_call(c1.address, value) == [value, value]
+    c3 = get_contract(
+        code, interface_codes={"jsonabi": {"type": "json", "code": convert_v1_abi(abi)}}
+    )
+    assert c3.test_call(c1.address, value) == [value, value]
