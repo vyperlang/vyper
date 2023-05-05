@@ -338,11 +338,10 @@ class Expr:
 
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
-            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, _BytestringT):
+            index = Expr(self.expr.slice.value, self.context).ir_node
+            if isinstance(sub.typ, _BytestringT):
                 # we have to hash the key to get a storage location
-                assert len(index.args) == 1
-                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
+                index = keccak256_helper(index, self.context)
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
@@ -528,8 +527,8 @@ class Expr:
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
 
-            left_keccak = keccak256_helper(self.expr, left, self.context)
-            right_keccak = keccak256_helper(self.expr, right, self.context)
+            left_keccak = keccak256_helper(left, self.context)
+            right_keccak = keccak256_helper(right, self.context)
 
             if op not in ("eq", "ne"):
                 return  # raises
