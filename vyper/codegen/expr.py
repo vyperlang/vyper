@@ -339,7 +339,7 @@ class Expr:
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
             index = Expr(self.expr.slice.value, self.context).ir_node
-            if isinstance(sub.typ, _BytestringT):
+            if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
                 index = keccak256_helper(index, self.context)
 
