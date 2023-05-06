@@ -153,6 +153,13 @@ class EventT(_UserType):
         Name of the event.
     """
 
+    _invalid_locations = (
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+        DataLocation.STORAGE,
+    )
+
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         super().__init__(members=arguments)
         self.name = name
@@ -527,7 +534,7 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            # Use strictest location to validate members are instantiable
+            # Use strictest possible location to validate members are instantiable
             members[member_name] = type_from_annotation(node.annotation, DataLocation.CALLDATA)
 
         return cls(struct_name, members, ast_def=base_node)

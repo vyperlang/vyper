@@ -55,6 +55,8 @@ class VyperType:
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
 
+    _invalid_locations: Tuple = ()
+
     size_in_bytes = 32  # default; override for larger types
 
     def __init__(self, members: Optional[Dict] = None) -> None:

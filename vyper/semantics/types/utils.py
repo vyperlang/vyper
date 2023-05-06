@@ -85,12 +85,13 @@ def type_from_annotation(
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
+    def _check_location(typ):
+        if location in typ._invalid_locations:
+            raise InvalidType(f"{typ} is not instantiable in {location.name.lower()}", node)
+
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-
-        if location in (DataLocation.STORAGE, DataLocation.CALLDATA):
-            raise InvalidType("Tuples are not instantiable in memory and calldata", node)
-
+        _check_location(tuple_t)
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
@@ -103,10 +104,9 @@ def type_from_annotation(
             # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
 
-        if value_id == "HashMap" and location in (DataLocation.MEMORY, DataLocation.CALLDATA):
-            raise InvalidType("HashMaps are not instantiable in memory and calldata", node)
-
-        return type_ctor.from_annotation(node)
+        typ_ = type_ctor.from_annotation(node)
+        _check_location(typ_)
+        return typ_
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
@@ -114,23 +114,14 @@ def type_from_annotation(
     if node.id not in namespace:
         _failwith(node.node_source_code)
 
-    type_ = namespace[node.id]
-
-    from vyper.semantics.types.user import EventT
-
-    if isinstance(type_, EventT) and location in (
-        DataLocation.MEMORY,
-        DataLocation.STORAGE,
-        DataLocation.CALLDATA,
-    ):
-        raise InvalidType("Events are not instantiable", node)
-
     typ_ = namespace[node.id]
     if hasattr(typ_, "from_annotation"):
         # cases where the object in the namespace is an uninstantiated
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
+
+    _check_location(typ_)
 
     return typ_
 

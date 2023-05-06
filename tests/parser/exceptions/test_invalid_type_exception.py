@@ -128,6 +128,18 @@ def foo():
     f: Foo = Foo(1)
     pass
     """,
+    """
+event Foo:
+    a: uint256
+
+b: HashMap[uint256, Foo]
+    """,
+    """
+event Foo:
+    a: uint256
+
+b: HashMap[Foo, uint256]
+    """,
 ]
 
 

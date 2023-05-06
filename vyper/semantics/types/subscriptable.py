@@ -44,6 +44,7 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
+    _invalid_locations = (DataLocation.CALLDATA, DataLocation.MEMORY)
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
@@ -74,8 +75,6 @@ class HashMapT(_SubscriptableT):
                 ),
                 node,
             )
-        # if location != DataLocation.STORAGE or is_immutable:
-        #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
         k_ast, v_ast = node.slice.value.elements
         key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
@@ -297,6 +296,7 @@ class TupleT(VyperType):
     """
 
     _equality_attrs = ("members",)
+    _invalid_locations = (DataLocation.CALLDATA, DataLocation.STORAGE)
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
