@@ -23,7 +23,7 @@ class _BytestringT(VyperType):
     # bytestrings, but not static arrays of bytestrings
     _as_darray = True
     _as_hashmap_key = True
-    _equality_attrs: tuple = ("_length",)
+    _equality_attrs = ("_length",)
     _is_bytestring: bool = True
     _is_literal: bool = False
 
