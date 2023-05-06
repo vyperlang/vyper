@@ -82,12 +82,12 @@ class _BytestringT(VyperType):
             return False
 
         if self._length and other._length:
-            # when comparing two literals, invert the comparison result so that the smaller
-            # type can be widened by deriving the larger of common types during annotation
+            # when comparing two literals, invert the comparison so that the 
+            # larger type is derived during annotation of the smaller type for widening
             if self._is_literal and other._is_literal:
                 return self._length <= other._length
 
-            # otherwise, ensure that the current length fits within the other
+            # otherwise, ensure the current length fits within the other
             return self._length >= other._length
 
         # relax typechecking if length has not been set for other type
