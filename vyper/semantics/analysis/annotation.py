@@ -155,7 +155,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # set the length of bytestrings with length 0 (i.e. ABI JSON imports)
             ret_typ = call_type.return_type
             if type_:
-                if isinstance(ret_typ, (BytesT, StringT)) and ret_typ._length == 0:
+                if isinstance(ret_typ, (BytesT, StringT)) and ret_typ.length == 0:
                     # sanity check
                     assert isinstance(type_, (BytesT, StringT))
                     call_type.return_type.set_length(type_.length)
@@ -165,7 +165,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                     for orig_typ, propagated_typ in zip(
                         ret_typ.tuple_members(), type_.tuple_members()
                     ):
-                        if isinstance(orig_typ, (BytesT, StringT)) and orig_typ._length == 0:
+                        if isinstance(orig_typ, (BytesT, StringT)) and orig_typ.length == 0:
                             # sanity check
                             assert isinstance(propagated_typ, (BytesT, StringT))
                             orig_typ.set_length(propagated_typ.length)
