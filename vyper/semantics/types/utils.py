@@ -125,7 +125,14 @@ def type_from_annotation(
     ):
         raise InvalidType("Events are not instantiable", node)
 
-    return type_
+    typ_ = namespace[node.id]
+    if hasattr(typ_, "from_annotation"):
+        # cases where the object in the namespace is an uninstantiated
+        # type object, ex. Bytestring or DynArray (with no length provided).
+        # call from_annotation to produce a better error message.
+        typ_.from_annotation(node)
+
+    return typ_
 
 
 def get_index_value(node: vy_ast.Index) -> int:

@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -103,6 +104,9 @@ class _SequenceT(_SubscriptableT):
     def __init__(self, value_type: VyperType, length: int):
         if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
+
+        if length >= 2**64:
+            warnings.warn("Use of large arrays can be unsafe!")
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -217,16 +221,8 @@ class DArrayT(_SequenceT):
 
         from vyper.semantics.types.function import MemberFunctionT
 
-        self.add_member(
-            "append",
-            MemberFunctionT(self, "append", [self.value_type], None, True),
-            skip_namespace_validation=True,
-        )
-        self.add_member(
-            "pop",
-            MemberFunctionT(self, "pop", [], self.value_type, True),
-            skip_namespace_validation=True,
-        )
+        self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
+        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"

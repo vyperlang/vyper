@@ -284,8 +284,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         func = ContractFunctionT.from_FunctionDef(node)
 
         try:
-            # TODO sketchy elision of namespace validation
-            self.namespace["self"].typ.add_member(func.name, func, skip_namespace_validation=True)
+            self.namespace["self"].typ.add_member(func.name, func)
             node._metadata["type"] = func
         except VyperException as exc:
             raise exc.with_annotation(node) from None

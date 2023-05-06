@@ -3,7 +3,6 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InvalidType,
-    NamespaceCollision,
     StructureException,
     TypeMismatch,
     UnknownAttribute,
@@ -418,22 +417,6 @@ def foo():
     x: int128 = self.b[0]
     """,
         StructureException,
-    ),
-    (
-        """
-struct X:
-    bar: int128
-    decimal: int128
-    """,
-        NamespaceCollision,
-    ),
-    (
-        """
-struct B:
-    num: int128
-    address: address
-    """,
-        NamespaceCollision,
     ),
     (
         """

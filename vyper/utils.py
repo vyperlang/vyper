@@ -11,6 +11,19 @@ from typing import List, Union
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
+class OrderedSet(dict):
+    """
+    a minimal "ordered set" class. this is needed in some places
+    because, while dict guarantees you can recover insertion order
+    vanilla sets do not.
+    no attempt is made to fully implement the set API, will add
+    functionality as needed.
+    """
+
+    def add(self, item):
+        self[item] = None
+
+
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
@@ -256,9 +269,6 @@ class SizeLimits:
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
 
-
-# Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {"send"}
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py

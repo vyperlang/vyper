@@ -275,7 +275,7 @@ def safe_mul(x, y):
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
 
-        check = IRnode.from_list(["assert", ok], error_msg="safediv")
+        check = IRnode.from_list(["assert", ok], error_msg="safemul")
         res = IRnode.from_list(["seq", check, res], typ=res.typ)
 
         return b1.resolve(res)
@@ -333,7 +333,7 @@ def safe_div(x, y):
             # TODO maybe use safe_mul
             res = clamp_basetype(res)
 
-        check = IRnode.from_list(["assert", ok], error_msg="safemul")
+        check = IRnode.from_list(["assert", ok], error_msg="safediv")
         return IRnode.from_list(b1.resolve(["seq", check, res]))
 
 
@@ -341,7 +341,7 @@ def safe_div(x, y):
 def safe_mod(x, y):
     typ = x.typ
     MOD = "smod" if typ.is_signed else "mod"
-    return IRnode.from_list([MOD, x, clamp("gt", y, 0)])
+    return IRnode.from_list([MOD, x, clamp("gt", y, 0)], error_msg="safemod")
 
 
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:

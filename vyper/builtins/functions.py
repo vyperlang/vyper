@@ -611,7 +611,7 @@ class Keccak256(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         assert len(args) == 1
-        return keccak256_helper(expr, args[0], context)
+        return keccak256_helper(args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -1188,7 +1188,9 @@ class RawCall(BuiltinFunction):
 
             if revert_on_failure:
                 typ = bytes_ty
+                # check the call success flag, and store returndata in memory
                 ret_ir = ["seq", check_external_call(call_ir), store_output_size]
+                return IRnode.from_list(ret_ir, typ=typ, location=MEMORY)
             else:
                 typ = TupleT([bool_ty, bytes_ty])
                 ret_ir = [
@@ -1198,16 +1200,22 @@ class RawCall(BuiltinFunction):
                     IRnode.from_list(call_ir, typ=bool_ty),
                     IRnode.from_list(store_output_size, typ=bytes_ty, location=MEMORY),
                 ]
+                # return an IR tuple of call success flag and returndata pointer
+                return IRnode.from_list(ret_ir, typ=typ)
+
+        # max_outsize is 0.
+
+        if not revert_on_failure:
+            # return call flag as stack item
+            typ = bool_ty
+            return IRnode.from_list(call_ir, typ=typ)
 
         else:
-            if revert_on_failure:
-                typ = None
-                ret_ir = check_external_call(call_ir)
-            else:
-                typ = bool_ty
-                ret_ir = call_ir
+            # check the call success flag and don't return anything
+            ret_ir = check_external_call(call_ir)
+            return IRnode.from_list(ret_ir, typ=None)
 
-        return IRnode.from_list(ret_ir, typ=typ, location=MEMORY)
+        raise CompilerPanic("unreachable!")
 
 
 class Send(BuiltinFunction):
@@ -1230,9 +1238,14 @@ class SelfDestruct(BuiltinFunction):
     _inputs = [("to", AddressT())]
     _return_type = None
     _is_terminus = True
+    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        if not self._warned:
+            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            self._warned = True
+
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(
             ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
@@ -1255,6 +1268,8 @@ class BlockHash(BuiltinFunction):
 class RawRevert(BuiltinFunction):
     _id = "raw_revert"
     _inputs = [("data", BytesT.any())]
+    _return_type = None
+    _is_terminus = True
 
     def fetch_call_return(self, node):
         return None
@@ -1430,10 +1445,15 @@ class BitwiseNot(BuiltinFunction):
 
 class Shift(BuiltinFunction):
     _id = "shift"
-    _inputs = [("x", (UINT256_T, INT256_T)), ("_shift", IntegerT.any())]
+    _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
+    _warned = False
 
     def evaluate(self, node):
+        if not self.__class__._warned:
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            self.__class__._warned = True
+
         validate_call_args(node, 2)
         if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
             raise UnfoldableNode
