@@ -327,8 +327,6 @@ class Slice(BuiltinFunction):
         # we know the length statically
         if length_literal is not None:
             return_type.set_length(length_literal)
-        else:
-            return_type.set_min_length(arg_type.length)
 
         return return_type
 
@@ -1096,7 +1094,7 @@ class RawCall(BuiltinFunction):
 
         if outsize.value:
             return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type.set_length(outsize.value)
 
             if revert_on_failure:
                 return return_type

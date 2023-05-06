@@ -11,33 +11,28 @@ class _BytestringT(VyperType):
     Private base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
 
-    Types for literals have an inferred minimum length. For example, `b"hello"`
-    has a length of 5 of more and so can be used in an operation with `bytes[5]`
-    or `bytes[10]`, but not `bytes[4]`. Upon comparison to a fixed length type,
-    the minimum length is discarded and the type assumes the fixed length it was
-    compared against.
+    Types for literals are initialized to the literal's length, but typechecking is
+    relaxed so that the length can be widened by deriving the larger of the common
+    types during annotation.
 
     Attributes
     ----------
     _length : int
-        The maximum allowable length of the data within the type.
-    _min_length: int
-        The minimum length of the data within the type. Used when the type
-        is applied to a literal definition.
+        The length of the data within the type.
     """
 
     # this is a carveout because currently we allow dynamic arrays of
     # bytestrings, but not static arrays of bytestrings
     _as_darray = True
     _as_hashmap_key = True
-    _equality_attrs = ("_length", "_min_length")
+    _equality_attrs: tuple = ("_length",)
     _is_bytestring: bool = True
+    _is_literal: bool = False
 
     def __init__(self, length: int = 0) -> None:
         super().__init__()
 
         self._length = length
-        self._min_length = length
 
     def __repr__(self):
         return f"{self._id}[{self.length}]"
@@ -47,9 +42,7 @@ class _BytestringT(VyperType):
         """
         Property method used to check the length of a type.
         """
-        if self._length:
-            return self._length
-        return self._min_length
+        return self._length
 
     @property
     def maxlen(self):
@@ -63,7 +56,7 @@ class _BytestringT(VyperType):
 
         if len(node.value) != self.length:
             # should always be constructed with correct length
-            # at the point that validate_literal is calle.d
+            # at the point that validate_literal is called
             raise CompilerPanic("unreachable")
 
     @property
@@ -85,36 +78,24 @@ class _BytestringT(VyperType):
         if self._length:
             raise CompilerPanic("Type already has a fixed length")
         self._length = length
-        self._min_length = length
-
-    def set_min_length(self, min_length):
-        """
-        Sets the minimum length of the type.
-
-        May only be used to increase the minimum length. May not be called if
-        an exact length has been set.
-        """
-        if self._length:
-            raise CompilerPanic("Type already has a fixed length")
-        if self._min_length > min_length:
-            raise CompilerPanic("Cannot reduce the min_length of ArrayValueType")
-        self._min_length = min_length
 
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
 
-        # comparing two literals
-        if not self._length and not other._length:
-            # widen bytestring types by deriving the larger of common types
-            if self._min_length <= other._min_length:
-                return True
-            else:
-                return False
+        if self._length and other._length:
+            # when comparing two literals, invert the comparison result so that the smaller
+            # type can be widened by deriving the larger of common types during annotation
+            if self._is_literal and other._is_literal:
+                return self._length <= other._length
 
-        # comparing a defined length to a literal
+            # otherwise, ensure that the current length fits within the other
+            return self._length >= other._length
+
+        # relax typechecking if length has not been set for other type
+        # (e.g. JSON ABI import) so that it can be updated in annotation phase
         if self._length:
-            return self._length >= other._min_length
+            return True
 
         return other.compare_type(self)
 
@@ -137,7 +118,8 @@ class _BytestringT(VyperType):
         if not isinstance(node, cls._valid_literal):
             raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
         t = cls()
-        t.set_min_length(len(node.value))
+        t.set_length(len(node.value))
+        t._is_literal = True
         return t
 
 
