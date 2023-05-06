@@ -11,9 +11,7 @@ class _BytestringT(VyperType):
     Private base class for single-value types which occupy multiple memory slots
     and where a maximum length must be given via a subscript (string, bytes).
 
-    Types for literals are initialized to the literal's length, but typechecking is
-    relaxed so that the length can be widened by deriving the larger of the common
-    types during annotation.
+    Types for literals are initialized to the literal's length.
 
     Attributes
     ----------
