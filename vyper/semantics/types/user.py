@@ -399,7 +399,7 @@ class InterfaceT(_UserType):
     @classmethod
     def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
         """
-        Generate an `InterfacePrimitive` object from a Vyper ast node.
+        Generate an `InterfaceT` object from a Vyper ast node.
 
         Arguments
         ---------
@@ -407,7 +407,7 @@ class InterfaceT(_UserType):
             Vyper ast node defining the interface
         Returns
         -------
-        InterfacePrimitive
+        InterfaceT
             primitive interface type
         """
         if isinstance(node, vy_ast.Module):

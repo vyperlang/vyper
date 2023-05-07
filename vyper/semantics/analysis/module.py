@@ -88,7 +88,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
-        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        # generate an `InterfaceT` from the top-level node - used for building the ABI
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream

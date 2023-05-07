@@ -219,8 +219,6 @@ class _ExprAnalyser:
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
-            # CMC 2022-07-20 this seems like unreachable code -
-            # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
