@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
@@ -102,6 +103,9 @@ class _SequenceT(_SubscriptableT):
     def __init__(self, value_type: VyperType, length: int):
         if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
+
+        if length >= 2**64:
+            warnings.warn("Use of large arrays can be unsafe!")
 
         super().__init__(UINT256_T, value_type)
         self.length = length

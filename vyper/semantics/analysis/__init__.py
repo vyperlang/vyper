@@ -2,6 +2,7 @@ from .. import types  # break a dependency cycle.
 from ..namespace import get_namespace
 from .local import validate_functions
 from .module import add_module_namespace
+from .utils import _ExprAnalyser
 
 
 def validate_semantics(vyper_ast, interface_codes):

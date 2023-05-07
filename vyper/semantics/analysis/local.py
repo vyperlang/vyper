@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -452,14 +453,22 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise exc.with_annotation(node) from None
 
                 try:
-                    for n in node.body:
-                        self.visit(n)
-                    # type information is applied directly because the scope is
-                    # closed prior to the call to `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = type_
-                    return
+                    with NodeMetadata.enter_typechecker_speculation():
+                        for n in node.body:
+                            self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
+                else:
+                    # type information is applied directly here because the
+                    # scope is closed prior to the call to
+                    # `StatementAnnotationVisitor`
+                    node.target._metadata["type"] = type_
+
+                    # success -- bail out instead of error handling.
+                    return
+
+        # if we have gotten here, there was an error for
+        # every type tried for the iterator
 
         if len(set(str(i) for i in for_loop_exceptions)) == 1:
             # if every attempt at type checking raised the same exception

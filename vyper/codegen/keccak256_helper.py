@@ -8,7 +8,7 @@ from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.utils import SHA3_BASE, SHA3_PER_WORD, MemoryPositions, bytes_to_int, keccak256
 
 
-def _check_byteslike(typ, _expr):
+def _check_byteslike(typ):
     if not isinstance(typ, _BytestringT) and typ != BYTES32_T:
         # NOTE this may be checked at a higher level, but just be safe
         raise CompilerPanic("keccak256 only accepts bytes-like objects")
@@ -18,8 +18,8 @@ def _gas_bound(num_words):
     return SHA3_BASE + num_words * SHA3_PER_WORD
 
 
-def keccak256_helper(expr, to_hash, context):
-    _check_byteslike(to_hash.typ, expr)
+def keccak256_helper(to_hash, context):
+    _check_byteslike(to_hash.typ)
 
     # Can hash literals
     # TODO this is dead code.
