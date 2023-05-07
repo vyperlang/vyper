@@ -7,6 +7,3 @@ class DataLocation(enum.Enum):
     STORAGE = 2
     CALLDATA = 3
     CODE = 4
-
-
-LOCATIONS = tuple(i for i in DataLocation if i != DataLocation.UNSET)

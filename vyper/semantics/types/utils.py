@@ -80,7 +80,8 @@ def type_from_annotation(
     typ_ = _type_from_annotation(node)
 
     if location in typ_._invalid_locations:
-        raise InvalidType(f"{typ_} is not instantiable in {location}", node)
+        location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
+        raise InvalidType(f"{typ_} is not instantiable {location_str}", node)
 
     return typ_
 
