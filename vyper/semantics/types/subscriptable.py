@@ -291,17 +291,10 @@ class TupleT(VyperType):
     """
     Tuple type definition.
 
-    This class is used to represent multiple return values from
-    functions.
+    This class is used to represent multiple return values from functions.
     """
 
     _equality_attrs = ("members",)
-    _invalid_locations = (
-        DataLocation.CALLDATA,
-        DataLocation.CODE,
-        DataLocation.MEMORY,
-        DataLocation.STORAGE,
-    )
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
