@@ -78,8 +78,9 @@ def type_from_annotation(
         Type definition object.
     """
     typ_ = _type_from_annotation(node)
+
     if location in typ_._invalid_locations:
-        raise InvalidType(f"{typ_} is not instantiable in {location.name.lower()}", node)
+        raise InvalidType(f"{typ_} is not instantiable in {location}", node)
 
     return typ_
 

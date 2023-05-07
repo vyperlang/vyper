@@ -140,6 +140,20 @@ event Foo:
 
 b: HashMap[Foo, uint256]
     """,
+    """
+b: immutable(HashMap[uint256, uint256])
+
+@external
+def __init__():
+    b = empty(HashMap[uint256, uint256])
+    """,
+    """
+b: immutable((uint256, uint256))
+
+@external
+def __init__():
+    b = (0, 0)
+    """,
 ]
 
 
