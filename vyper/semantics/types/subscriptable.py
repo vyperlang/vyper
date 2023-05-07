@@ -296,6 +296,14 @@ class TupleT(VyperType):
 
     _equality_attrs = ("members",)
 
+    # note: docs say that tuples are not instantiable but they
+    # are in fact instantiable and the codegen works. if we
+    # wanted to be stricter in the typechecker, we could
+    # add _invalid_locations = everything but UNSET and RETURN_VALUE.
+    # (we would need to add a DataLocation.RETURN_VALUE in order for
+    # tuples to be instantiable as return values but not in memory).
+    # _invalid_locations = ...
+
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()
         self.member_types = member_types
