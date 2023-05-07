@@ -234,9 +234,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         type_ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        if isinstance(type_, TupleT):
-            raise VariableDeclarationException("Memory variables cannot be of tuple type", node)
-
         validate_expected_type(node.value, type_)
 
         try:

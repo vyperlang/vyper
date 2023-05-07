@@ -86,19 +86,6 @@ def type_from_annotation(
 
 
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
-    """
-    Return a type object for the given AST node.
-
-    Arguments
-    ---------
-    node : VyperNode
-        Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
-
-    Returns
-    -------
-    VyperType
-        Type definition object.
-    """
     namespace = get_namespace()
 
     def _failwith(type_name):
