@@ -40,6 +40,8 @@ class VyperType:
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
+    _invalid_locations : Tuple
+        A tuple of invalid `DataLocation`s for this type
     _is_prim_word: bool, optional
         This is a word type like uint256, int8, bytesM or address
     """
@@ -47,6 +49,7 @@ class VyperType:
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
+    _invalid_locations: Tuple = ()
     _is_prim_word: bool = False
     _equality_attrs: Optional[Tuple] = None
     _is_array_type: bool = False
@@ -54,8 +57,6 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
-
-    _invalid_locations: Tuple = ()
 
     size_in_bytes = 32  # default; override for larger types
 

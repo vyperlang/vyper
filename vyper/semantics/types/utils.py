@@ -65,6 +65,27 @@ def type_from_annotation(
     node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET
 ) -> VyperType:
     """
+    Return a type object for the given AST node after validating its location.
+
+    Arguments
+    ---------
+    node : VyperNode
+        Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
+
+    Returns
+    -------
+    VyperType
+        Type definition object.
+    """
+    typ_ = _type_from_annotation(node)
+    if location in typ._invalid_locations:
+        raise InvalidType(f"{typ} is not instantiable in {location.name.lower()}", node)
+
+    return typ_
+
+
+def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+    """
     Return a type object for the given AST node.
 
     Arguments
@@ -85,28 +106,20 @@ def type_from_annotation(
             f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
         ) from None
 
-    def _check_location(typ):
-        if location in typ._invalid_locations:
-            raise InvalidType(f"{typ} is not instantiable in {location.name.lower()}", node)
-
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-        _check_location(tuple_t)
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
-        value_id = node.value.get("id")
         # ex. HashMap, DynArray, Bytes, static arrays
-        if value_id in ("HashMap", "Bytes", "String", "DynArray"):
+        if node.value.get("id") in ("HashMap", "Bytes", "String", "DynArray"):
             assert isinstance(node.value, vy_ast.Name)  # mypy hint
             type_ctor = namespace[node.value.id]
         else:
             # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
 
-        typ_ = type_ctor.from_annotation(node)
-        _check_location(typ_)
-        return typ_
+        return type_ctor.from_annotation(node)
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
@@ -120,8 +133,6 @@ def type_from_annotation(
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
-
-    _check_location(typ_)
 
     return typ_
 
