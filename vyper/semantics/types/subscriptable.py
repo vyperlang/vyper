@@ -44,6 +44,8 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
+
+    # disallow everything but storage
     _invalid_locations = (
         DataLocation.UNSET,
         DataLocation.CALLDATA,
