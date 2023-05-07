@@ -14,9 +14,10 @@ from vyper.exceptions import (
     UnknownAttribute,
     VariableDeclarationException,
 )
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.function import ContractFunctionT

@@ -2,8 +2,8 @@ from typing import Dict
 
 from vyper import ast as vy_ast
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType
-from vyper.semantics.analysis.base import DataLocation
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 
@@ -78,8 +78,8 @@ def type_from_annotation(
         Type definition object.
     """
     typ_ = _type_from_annotation(node)
-    if location in typ._invalid_locations:
-        raise InvalidType(f"{typ} is not instantiable in {location.name.lower()}", node)
+    if location in typ_._invalid_locations:
+        raise InvalidType(f"{typ_} is not instantiable in {location.name.lower()}", node)
 
     return typ_
 

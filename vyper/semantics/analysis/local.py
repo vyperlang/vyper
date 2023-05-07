@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -28,6 +28,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.data_locations import DataLocation
 
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS

@@ -15,13 +15,9 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import (
-    DataLocation,
-    FunctionVisibility,
-    StateMutability,
-    StorageSlot,
-)
+from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT

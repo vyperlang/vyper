@@ -12,6 +12,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import validate_identifier
 
 
