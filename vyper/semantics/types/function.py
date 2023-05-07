@@ -312,11 +312,8 @@ class ContractFunctionT(VyperType):
                 "Constructor may not have a return type", node.returns
             )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
-            return_type = type_from_annotation(node.returns)
-            if not return_type.as_ret_val:
-                raise InvalidType(
-                    f"Function return value cannot be of type {return_type}", node.returns
-                )
+            # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
+            return_type = type_from_annotation(node.returns, DataLocation.MEMORY)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 

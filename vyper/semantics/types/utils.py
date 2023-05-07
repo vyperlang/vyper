@@ -1,7 +1,13 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType, InstantiationException
+from vyper.exceptions import (
+    ArrayIndexException,
+    InstantiationException,
+    InvalidType,
+    StructureException,
+    UnknownType,
+)
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace

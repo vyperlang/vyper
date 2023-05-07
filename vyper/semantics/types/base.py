@@ -57,7 +57,6 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
-    _as_ret_val: bool = True
 
     size_in_bytes = 32  # default; override for larger types
 
@@ -133,13 +132,6 @@ class VyperType:
         The canonical name of this type. Used for ABI types and generating function signatures.
         """
         return self.abi_type.selector_name()
-
-    @property
-    def as_ret_val(self) -> bool:
-        """
-        Type is valid for a function return value
-        """
-        return self._as_ret_val
 
     def to_abi_arg(self, name: str = "") -> Dict[str, Any]:
         """
