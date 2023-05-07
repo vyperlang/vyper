@@ -9,4 +9,4 @@ class DataLocation(enum.Enum):
     CODE = 4
 
 
-LOCATIONS = tuple(iter(DataLocation))
+LOCATIONS = tuple(i for i in DataLocation if i != DataLocation.UNSET)

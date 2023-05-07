@@ -155,6 +155,7 @@ class EventT(_UserType):
     """
 
     _invalid_locations = LOCATIONS
+    _as_ret_val = False
 
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         super().__init__(members=arguments)

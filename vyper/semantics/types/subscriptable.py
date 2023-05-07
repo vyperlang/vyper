@@ -44,12 +44,8 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
-    _invalid_locations = (
-        DataLocation.CALLDATA,
-        DataLocation.CODE,
-        DataLocation.MEMORY,
-        DataLocation.UNSET,
-    )
+    _invalid_locations = (DataLocation.CALLDATA, DataLocation.CODE, DataLocation.MEMORY)
+    _as_ret_val = False
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
@@ -346,6 +342,10 @@ class TupleT(VyperType):
     @property
     def size_in_bytes(self):
         return sum(i.size_in_bytes for i in self.member_types)
+
+    @property
+    def as_ret_val(self):
+        return all(i.as_ret_val for i in self.member_types)
 
     def validate_index_type(self, node):
         if not isinstance(node, vy_ast.Int):
