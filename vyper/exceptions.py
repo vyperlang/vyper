@@ -151,6 +151,10 @@ class StructureException(VyperException):
     """Invalid structure for parsable syntax."""
 
 
+class InstantiationException(StructureException):
+    """Variable or expression cannot be instantiated"""
+
+
 class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
