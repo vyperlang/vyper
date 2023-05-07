@@ -9,6 +9,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     VyperInternalException,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 
 
@@ -90,15 +91,6 @@ class StateMutability(_StringEnum):
             return StateMutability.NONPAYABLE
         # NOTE: The state mutability nonpayable is reflected in Solidity by not
         #       specifying a state mutability modifier at all. Do the same here.
-
-
-# TODO: move me to locations.py?
-class DataLocation(enum.Enum):
-    UNSET = 0
-    MEMORY = 1
-    STORAGE = 2
-    CALLDATA = 3
-    CODE = 4
 
 
 class DataPosition:

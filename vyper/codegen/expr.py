@@ -3,7 +3,6 @@ import math
 
 import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
@@ -24,6 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,

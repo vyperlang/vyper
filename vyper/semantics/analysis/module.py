@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
@@ -26,6 +26,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
@@ -196,7 +197,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else DataLocation.STORAGE
         )
 
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, data_loc)
         var_info = VarInfo(
             type_,
             decl_node=node,

@@ -1,6 +1,5 @@
 from typing import Any, Optional
 
-from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
@@ -13,6 +12,7 @@ from vyper.codegen.core import (
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.address_space import MEMORY
 
 Stmt = Any  # mypy kludge
 

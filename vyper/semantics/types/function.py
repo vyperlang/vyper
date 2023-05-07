@@ -15,13 +15,9 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import (
-    DataLocation,
-    FunctionVisibility,
-    StateMutability,
-    StorageSlot,
-)
+from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -297,7 +293,7 @@ class ContractFunctionT(VyperType):
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_ = type_from_annotation(arg.annotation)
+            type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if value is not None:
                 if not check_kwargable(value):
@@ -316,7 +312,8 @@ class ContractFunctionT(VyperType):
                 "Constructor may not have a return type", node.returns
             )
         elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
-            return_type = type_from_annotation(node.returns)
+            # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
+            return_type = type_from_annotation(node.returns, DataLocation.MEMORY)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -350,7 +347,7 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

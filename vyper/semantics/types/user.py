@@ -17,6 +17,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.function import ContractFunctionT
@@ -152,6 +153,8 @@ class EventT(_UserType):
     name : str
         Name of the event.
     """
+
+    _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         super().__init__(members=arguments)
@@ -470,10 +473,6 @@ class StructT(_UserType):
         self._id = _id
 
         self.ast_def = ast_def
-
-        for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
     @cached_property
     def name(self) -> str:

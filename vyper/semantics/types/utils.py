@@ -1,8 +1,15 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType
+from vyper.exceptions import (
+    ArrayIndexException,
+    InstantiationException,
+    InvalidType,
+    StructureException,
+    UnknownType,
+)
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 
@@ -60,9 +67,11 @@ def type_from_abi(abi_type: Dict) -> VyperType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
-def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+def type_from_annotation(
+    node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET
+) -> VyperType:
     """
-    Return a type object for the given AST node.
+    Return a type object for the given AST node after validating its location.
 
     Arguments
     ---------
@@ -74,6 +83,16 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     VyperType
         Type definition object.
     """
+    typ_ = _type_from_annotation(node)
+
+    if location in typ_._invalid_locations:
+        location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
+        raise InstantiationException(f"{typ_} is not instantiable {location_str}", node)
+
+    return typ_
+
+
+def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     namespace = get_namespace()
 
     def _failwith(type_name):
@@ -84,7 +103,6 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
