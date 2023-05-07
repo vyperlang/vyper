@@ -1,4 +1,3 @@
-from vyper.address_space import MEMORY
 from vyper.codegen.core import (
     STORE,
     add_ofst,
@@ -9,6 +8,7 @@ from vyper.codegen.core import (
     zero_pad,
 )
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T

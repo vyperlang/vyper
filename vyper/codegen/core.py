@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
-from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
