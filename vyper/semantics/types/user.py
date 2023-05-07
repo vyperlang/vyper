@@ -530,8 +530,7 @@ class StructT(_UserType):
                     f"struct member '{member_name}' has already been declared", node.value
                 )
 
-            # Use strictest possible location to validate members are instantiable
-            members[member_name] = type_from_annotation(node.annotation, DataLocation.CALLDATA)
+            members[member_name] = type_from_annotation(node.annotation)
 
         return cls(struct_name, members, ast_def=base_node)
 

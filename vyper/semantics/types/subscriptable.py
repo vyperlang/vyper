@@ -44,7 +44,12 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
-    _invalid_locations = (DataLocation.CALLDATA, DataLocation.CODE, DataLocation.MEMORY)
+    _invalid_locations = (
+        DataLocation.UNSET,
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+    )
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"

@@ -439,13 +439,6 @@ struct Bar:
     """,
         InvalidType,
     ),
-    (
-        """
-struct Bar:
-    a: (uint256, uint256)
-    """,
-        InvalidType,
-    ),
 ]
 
 
