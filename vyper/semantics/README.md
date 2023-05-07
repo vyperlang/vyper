@@ -27,6 +27,7 @@ Vyper abstract syntax tree (AST).
   * [`local.py`](analysis/local.py): Validates the local namespace of each function within a contract
   * [`module.py`](analysis/module.py): Validates the module namespace of a contract.
   * [`utils.py`](analysis/utils.py): Functions for comparing and validating types
+* [`data_locations.py`](data_locations.py): `DataLocation` object for type location information
 * [`environment.py`](environment.py): Environment variables and builtin constants
 * [`namespace.py`](namespace.py): `Namespace` object, a `dict` subclass representing the namespace of a contract
 
