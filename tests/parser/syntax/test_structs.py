@@ -2,6 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.exceptions import (
+    InstantiationException,
     InvalidType,
     StructureException,
     TypeMismatch,
@@ -297,7 +298,7 @@ struct Nom:
     a: HashMap[int128, C]
     b: int128
     """,
-        InvalidType,
+        InstantiationException,
     ),
     """
 struct C1:
@@ -437,7 +438,7 @@ event Foo:
 struct Bar:
     a: Foo
     """,
-        InvalidType,
+        InstantiationException,
     ),
 ]
 
