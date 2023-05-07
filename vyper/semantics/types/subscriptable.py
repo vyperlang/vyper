@@ -44,7 +44,12 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
-    _invalid_locations = (DataLocation.CALLDATA, DataLocation.CODE, DataLocation.MEMORY)
+    _invalid_locations = (
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+        DataLocation.UNSET,
+    )
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
@@ -296,7 +301,12 @@ class TupleT(VyperType):
     """
 
     _equality_attrs = ("members",)
-    _invalid_locations = (DataLocation.CALLDATA, DataLocation.CODE, DataLocation.STORAGE)
+    _invalid_locations = (
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+        DataLocation.STORAGE,
+    )
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()

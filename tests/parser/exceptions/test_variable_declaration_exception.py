@@ -28,15 +28,6 @@ foo.a: int128
 def foo():
     bar.x: int128 = 0
     """,
-    """
-@internal
-def _foo() -> (uint256, uint256):
-    return 1, 2
-
-@external
-def foo():
-    a: (uint256, uint256) = self._foo()
-    """,
 ]
 
 

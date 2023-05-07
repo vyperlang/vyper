@@ -154,6 +154,15 @@ b: immutable((uint256, uint256))
 def __init__():
     b = (0, 0)
     """,
+    """
+@internal
+def _foo() -> (uint256, uint256):
+    return 1, 2
+
+@external
+def foo():
+    a: (uint256, uint256) = self._foo()
+    """,
 ]
 
 
