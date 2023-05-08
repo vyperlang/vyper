@@ -28,13 +28,6 @@ def set_evm_verbose_logging():
     logger.setLevel("DEBUG2")
 
 
-# Useful options to comment out whilst working:
-# set_evm_verbose_logging()
-#
-# from vdb import vdb
-# vdb.set_evm_opcode_debugger()
-
-
 def pytest_addoption(parser):
     parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
 

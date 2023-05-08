@@ -120,11 +120,7 @@ class FunctionSignature:
     # Get a signature from a function definition
     @classmethod
     def from_definition(
-        cls,
-        func_ast,  # vy_ast.FunctionDef
-        global_ctx,
-        interface_def=False,
-        is_from_json=False,
+        cls, func_ast, global_ctx, interface_def=False, is_from_json=False  # vy_ast.FunctionDef
     ):
         name = func_ast.name
 
