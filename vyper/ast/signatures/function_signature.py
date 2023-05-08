@@ -124,7 +124,6 @@ class FunctionSignature:
         func_ast,  # vy_ast.FunctionDef
         global_ctx,
         interface_def=False,
-        constant_override=False,  # CMC 20210907 what does this do?
         is_from_json=False,
     ):
         name = func_ast.name
@@ -151,12 +150,6 @@ class FunctionSignature:
                 is_internal = False
             elif isinstance(dec, vy_ast.Call) and dec.func.id == "nonreentrant":
                 nonreentrant_key = dec.args[0].s
-
-        if constant_override:
-            # In case this override is abused, match previous behavior
-            if mutability == "payable":
-                raise StructureException(f"Function {name} cannot be both constant and payable.")
-            mutability = "view"
 
         # Determine the return type and whether or not it's constant. Expects something
         # of the form:
