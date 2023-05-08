@@ -267,7 +267,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
-    if isinstance(arg.typ, BytesT):
+    if isinstance(arg.typ, (BytesT, StringT)):
         # no clamp. checks for any nonzero bytes.
         arg = _bytes_to_num(arg, out_typ, signed=False)
 
