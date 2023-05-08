@@ -79,6 +79,7 @@ def generate_ir_for_function(
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
+        assert sig.frame_info is not None  # mypy hint
         o.add_gas_estimate += calc_mem_gas(sig.frame_info.mem_used)
 
     sig.gas_estimate = o.gas
