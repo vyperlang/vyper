@@ -18,6 +18,7 @@ def generate_ir_for_function(
     sigs: Dict[str, Dict[str, FunctionSignature]],  # all signatures in all namespaces
     global_ctx: GlobalContext,
     skip_nonpayable_check: bool,
+    is_ctor_context: bool = False,
 ) -> IRnode:
     """
     Parse a function and produce IR code for the function, includes:
@@ -51,6 +52,7 @@ def generate_ir_for_function(
         memory_allocator=memory_allocator,
         constancy=Constancy.Constant if sig.mutability in ("view", "pure") else Constancy.Mutable,
         sig=sig,
+        is_ctor_context=is_ctor_context,
     )
 
     if sig.internal:
@@ -65,7 +67,12 @@ def generate_ir_for_function(
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 
-    sig.set_frame_info(FrameInfo(allocate_start, frame_size, context.vars))
+    frame_info = FrameInfo(allocate_start, frame_size, context.vars)
+
+    if sig.frame_info is None:
+        sig.set_frame_info(frame_info)
+    else:
+        assert frame_info == sig.frame_info
 
     if not sig.internal:
         # adjust gas estimate to include cost of mem expansion
