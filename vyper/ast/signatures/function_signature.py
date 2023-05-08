@@ -128,12 +128,10 @@ class FunctionSignature:
         is_from_json=False,
     ):
         name = func_ast.name
+        typ = func_ast._metadata["type"]
 
         args = []
-        for arg in func_ast.args.args:
-            argname = arg.arg
-            argtyp = global_ctx.parse_type(arg.annotation)
-
+        for arg, (argname, argtyp) in zip(func_ast.args.args, typ.arguments.items()):
             args.append(FunctionArg(argname, argtyp, arg))
 
         mutability = "nonpayable"  # Assume nonpayable by default
@@ -158,22 +156,10 @@ class FunctionSignature:
                 raise StructureException(f"Function {name} cannot be both constant and payable.")
             mutability = "view"
 
-        # Determine the return type and whether or not it's constant. Expects something
-        # of the form:
-        # def foo(): ...
-        # def foo() -> int128: ...
-        # If there is no return type, ie. it's of the form def foo(): ...
-        # and NOT def foo() -> type: ..., then it's null
-        return_type = None
-        if func_ast.returns:
-            return_type = global_ctx.parse_type(func_ast.returns)
-            # sanity check: Output type must be canonicalizable
-            assert return_type.abi_type.selector_name()
-
         return cls(
             name,
             args,
-            return_type,
+            typ.return_type,
             mutability,
             is_internal,
             nonreentrant_key,
