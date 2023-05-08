@@ -3,7 +3,7 @@ from functools import cached_property
 from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.utils import MemoryPositions, mkalphanum
 
