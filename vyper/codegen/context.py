@@ -240,9 +240,6 @@ class Context:
         var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
-    def parse_type(self, ast_node):
-        return self.global_ctx.parse_type(ast_node)
-
     def lookup_var(self, varname):
         return self.vars[varname]
 

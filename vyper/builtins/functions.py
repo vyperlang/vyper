@@ -223,7 +223,8 @@ class Convert(BuiltinFunction):
         return [value_type, TYPE_T(target_type)]
 
     def build_IR(self, expr, context):
-        return convert(expr, context)
+        ret_typ = self.fetch_call_return(expr)
+        return convert(expr, context, ret_typ)
 
 
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]

@@ -648,18 +648,19 @@ class Expr:
 
         if isinstance(self.expr.func, vy_ast.Name):
             function_name = self.expr.func.id
+            typ = self.expr._metadata["type"]
 
             if function_name in DISPATCH_TABLE:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
-            elif isinstance(self.expr._metadata["type"], StructT):
+            elif isinstance(typ, StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], function_name, self.context)
+                    return Expr.struct_literals(args[0], function_name, self.context, typ)
 
             # Interface assignment. Bar(<address>).
-            elif isinstance(self.expr._metadata["type"], InterfaceT):
+            elif isinstance(typ, InterfaceT):
                 (arg0,) = self.expr.args
                 arg_ir = Expr(arg0, self.context).ir_node
 
@@ -702,7 +703,7 @@ class Expr:
         return multi_ir
 
     @staticmethod
-    def struct_literals(expr, name, context):
+    def struct_literals(expr, name, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
@@ -713,10 +714,8 @@ class Expr:
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructT(name, member_typs),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
         )
 
     # Parse an expression that results in a value

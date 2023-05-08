@@ -452,14 +452,10 @@ def to_enum(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-def convert(expr, context):
-    if len(expr.args) != 2:
-        raise StructureException("The convert function expects two parameters.", expr)
-
+def convert(expr, context, out_typ):
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
-    out_typ = context.parse_type(expr.args[1])
 
     if arg.typ._is_prim_word:
         arg = unwrap_location(arg)
