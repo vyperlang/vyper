@@ -123,10 +123,10 @@ class ContractFunctionT(VyperType):
         self.frame_info: Optional[FrameInfo] = None
 
         # for backwards compatibility
-        self.args = None
-        self.base_args = None
-        self.default_args = None
-        self.default_values = None
+        self.args: List[FunctionArg] = None
+        self.base_args: List[FunctionArg] = None
+        self.default_args: List[FunctionArg] = None
+        self.default_values: List[vy_ast.VyperNode] = None
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
