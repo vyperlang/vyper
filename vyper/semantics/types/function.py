@@ -1,6 +1,8 @@
 import re
 import warnings
 from collections import OrderedDict
+from dataclasses import dataclass
+from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -24,7 +26,19 @@ from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import OrderedSet, keccak256
+from vyper.utils import MemoryPositions, OrderedSet, keccak256
+
+
+@dataclass
+class FrameInfo:
+    frame_start: int
+    frame_size: int
+    frame_vars: Dict[str, Tuple[int, VyperType]]
+
+    @property
+    def mem_used(self):
+        return self.frame_size + MemoryPositions.RESERVED_MEMORY
+
 
 
 class ContractFunctionT(VyperType):
@@ -535,6 +549,46 @@ class ContractFunctionT(VyperType):
             return result
         else:
             return [abi_dict]
+
+    def set_frame_info(self, frame_info):
+        if self.frame_info is not None:
+            raise CompilerPanic("sig.frame_info already set!")
+        self.frame_info = frame_info
+
+    @cached_property
+    def _ir_identifier(self) -> str:
+        # we could do a bit better than this but it just needs to be unique
+        visibility = "internal" if self.is_internal else "external"
+        argz = ",".join([str(arg.typ) for arg in self.args])
+        ret = f"{visibility} {self.name} ({argz})"
+        return mkalphanum(ret)
+
+    # calculate the abi signature for a given set of kwargs
+    def abi_signature_for_kwargs(self, kwargs):
+        arg_typs = self.arguments.values()
+        return self.name + "(" + ",".join([typ.abi_type.selector_name() for typ in arg_typs]) + ")"
+
+    @cached_property
+    def base_signature(self):
+        return self.abi_signature_for_kwargs([])
+
+    @property
+    # common entry point for external function with kwargs
+    def external_function_base_entry_label(self):
+        assert not self.is_internal
+
+        return self._ir_identifier + "_common"
+
+    @property
+    def internal_function_label(self):
+        assert self.is_internal, "why are you doing this"
+
+        return self._ir_identifier
+
+    @property
+    def exit_sequence_label(self):
+        return self._ir_identifier + "_cleanup"
+
 
 
 class MemberFunctionT(VyperType):
