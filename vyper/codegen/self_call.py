@@ -2,6 +2,7 @@ from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation, StructureException
+from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types.subscriptable import TupleT
 
 _label_counter = 0
@@ -38,7 +39,7 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
-    if context.is_constant() and sig.mutability not in ("view", "pure"):
+    if context.is_constant() and sig.mutability not in (StateMutability.VIEW, StateMutability.PURE):
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
@@ -46,7 +47,7 @@ def ir_for_self_call(stmt_expr, context):
         )
 
     # TODO move me to type checker phase
-    if not sig.internal:
+    if not sig.is_internal:
         raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
     return_label = _generate_label(f"{sig.internal_function_label}_call")
@@ -61,7 +62,7 @@ def ir_for_self_call(stmt_expr, context):
         return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
-    dst_tuple_t = TupleT([arg.typ for arg in sig.args])
+    dst_tuple_t = TupleT(tuple(sig.arguments.values()))
     args_dst = IRnode(sig.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument

@@ -1,13 +1,13 @@
 from vyper import ast as vy_ast
-from vyper.ast.signatures import FunctionSignature
 from vyper.codegen.context import Context
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
+from vyper.semantics.types.function import ContractFunctionT
 
 
 def generate_ir_for_internal_function(
-    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context
+    code: vy_ast.FunctionDef, sig: ContractFunctionT, context: Context
 ) -> IRnode:
     """
     Parse a internal function (FuncDef), and produce full function body.

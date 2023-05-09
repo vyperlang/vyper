@@ -26,7 +26,17 @@ from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import MemoryPositions, OrderedSet, keccak256
+from vyper.utils import MemoryPositions, OrderedSet, keccak256, mkalphanum
+
+
+FunctionSignatures = Dict[str, "ContractFunctionT"]
+
+
+@dataclass
+class FunctionArg:
+    name: str
+    typ: VyperType
+    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
@@ -38,7 +48,6 @@ class FrameInfo:
     @property
     def mem_used(self):
         return self.frame_size + MemoryPositions.RESERVED_MEMORY
-
 
 
 class ContractFunctionT(VyperType):
@@ -109,6 +118,16 @@ class ContractFunctionT(VyperType):
             "default_return_value": KwargSettings(return_type, None),
         }
 
+        self.gas_estimate = None
+        # frame info is metadata that will be generated during codegen.
+        self.frame_info: Optional[FrameInfo] = None
+
+        # for backwards compatibility
+        self.args = None
+        self.base_args = None
+        self.default_args = None
+        self.default_values = None
+
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"contract function {self.name}({arg_types})"
@@ -135,7 +154,6 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
-
         arguments = OrderedDict()
         for item in abi["inputs"]:
             arguments[item["name"]] = type_from_abi(item)
@@ -589,6 +607,26 @@ class ContractFunctionT(VyperType):
     def exit_sequence_label(self):
         return self._ir_identifier + "_cleanup"
 
+    def generate_fn_args(self, node: vy_ast.FunctionDef):
+        fn_args = []
+        for argnode in node.args.args:
+            argname = argnode.arg
+            fn_arg = FunctionArg(argname, self.arguments[argname], argnode)
+            fn_args.append(fn_arg)
+
+        self.args = fn_args
+        self.set_default_args(node)
+
+    def set_default_args(self, node: vy_ast.FunctionDef):
+        """Split base from kwargs and set member data structures"""
+
+        defaults = getattr(node.args, "defaults", [])
+
+        self.base_args = self.args[: self.min_arg_count]
+        self.default_args = self.args[self.min_arg_count :]
+
+        # Keep all the value to assign to default parameters.
+        self.default_values = dict(zip([arg.name for arg in self.default_args], defaults))
 
 
 class MemberFunctionT(VyperType):

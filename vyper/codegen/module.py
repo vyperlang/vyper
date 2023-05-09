@@ -3,13 +3,12 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import StateMutability
+from vyper.semantics.types.function import ContractFunctionT, FunctionSignatures, StateMutability
 
 
 def _topsort_helper(functions, lookup):
@@ -34,12 +33,12 @@ def _topsort(functions):
     return list(dict.fromkeys(_topsort_helper(functions, lookup)))
 
 
-def _is_init_func(func_ast):
-    return func_ast._metadata["signature"].is_init_func
+def _is_constructor(func_ast):
+    return func_ast._metadata["type"].is_constructor
 
 
-def _is_default_func(func_ast):
-    return func_ast._metadata["signature"].is_default_func
+def _is_fallback(func_ast):
+    return func_ast._metadata["type"].is_fallback
 
 
 def _is_internal(func_ast):
@@ -58,10 +57,10 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
-    default_function = next((f for f in external_functions if _is_default_func(f)), None)
+    default_function = next((f for f in external_functions if _is_fallback(f)), None)
 
     # functions that need to go exposed in the selector section
-    regular_functions = [f for f in external_functions if not _is_default_func(f)]
+    regular_functions = [f for f in external_functions if not _is_fallback(f)]
     payables = [f for f in regular_functions if _is_payable(f)]
     nonpayables = [f for f in regular_functions if not _is_payable(f)]
 
@@ -146,18 +145,16 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
     # generate all signatures
     # TODO really this should live in GlobalContext
     for f in function_defs:
-        sig = FunctionSignature.from_definition(f, global_ctx)
+        sig = f._metadata["type"]
+        sig.generate_fn_args(f)
         # add it to the global namespace.
         local_sigs[sig.name] = sig
-        # a little hacky, eventually FunctionSignature should be
-        # merged with ContractFunction and we can remove this.
-        f._metadata["signature"] = sig
 
     assert "self" not in all_sigs
     all_sigs["self"] = local_sigs
 
-    runtime_functions = [f for f in function_defs if not _is_init_func(f)]
-    init_function = next((f for f in function_defs if _is_init_func(f)), None)
+    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
+    init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
     runtime, internal_functions = _runtime_ir(runtime_functions, all_sigs, global_ctx)
 
@@ -170,7 +167,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["signature"].frame_info.mem_used
+        init_mem_used = init_function._metadata["type"].frame_info.mem_used
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else

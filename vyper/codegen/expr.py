@@ -182,7 +182,7 @@ class Expr:
 
             ofst = varinfo.position.offset
 
-            if self.context.sig.is_init_func:
+            if self.context.sig.is_constructor:
                 mutable = True
                 location = IMMUTABLES
             else:

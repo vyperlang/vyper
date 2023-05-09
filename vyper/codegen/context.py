@@ -6,6 +6,7 @@ from typing import Any, Optional
 from vyper.codegen.ir_node import Encoding
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types import VyperType
 
 
@@ -99,11 +100,11 @@ class Context:
     # convenience propreties
     @property
     def is_payable(self):
-        return self.sig.mutability == "payable"
+        return self.sig.mutability == StateMutability.PAYABLE
 
     @property
     def is_internal(self):
-        return self.sig.internal
+        return self.sig.is_internal
 
     @property
     def return_type(self):
@@ -258,13 +259,13 @@ class Context:
 
         # these should have been caught during type checking; sanity check
         _check(sig is not None)
-        _check(sig.internal)
-        _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
+        _check(sig.is_internal)
+        _check(sig.min_arg_count <= len(args_ir) <= sig.max_arg_count)
         # more sanity check, that the types match
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
-        num_provided_kwargs = len(args_ir) - len(sig.base_args)
-        num_kwargs = len(sig.default_args)
+        num_provided_kwargs = len(args_ir) - sig.min_arg_count
+        num_kwargs = sig.max_arg_count - sig.min_arg_count
         kwargs_needed = num_kwargs - num_provided_kwargs
 
         kw_vals = list(sig.default_values.values())[:kwargs_needed]
