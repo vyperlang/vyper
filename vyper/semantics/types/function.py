@@ -573,7 +573,7 @@ class ContractFunctionT(VyperType):
         else:
             return [abi_dict]
 
-    def set_frame_info(self, frame_info) -> None:
+    def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:
             raise CompilerPanic("sig.frame_info already set!")
         self.frame_info = frame_info
@@ -587,7 +587,7 @@ class ContractFunctionT(VyperType):
         return mkalphanum(ret)
 
     # calculate the abi signature for a given set of kwargs
-    def abi_signature_for_kwargs(self, kwargs) -> str:
+    def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
         args = self.base_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
