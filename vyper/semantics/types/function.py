@@ -583,8 +583,8 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs):
-        arg_typs = self.arguments.values()
-        return self.name + "(" + ",".join([typ.abi_type.selector_name() for typ in arg_typs]) + ")"
+        args = self.base_args + kwargs
+        return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @cached_property
     def base_signature(self):
