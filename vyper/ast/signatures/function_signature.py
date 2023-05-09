@@ -3,7 +3,7 @@ from functools import cached_property
 from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.utils import MemoryPositions, mkalphanum
 
@@ -120,12 +120,7 @@ class FunctionSignature:
     # Get a signature from a function definition
     @classmethod
     def from_definition(
-        cls,
-        func_ast,  # vy_ast.FunctionDef
-        global_ctx,
-        interface_def=False,
-        constant_override=False,  # CMC 20210907 what does this do?
-        is_from_json=False,
+        cls, func_ast, global_ctx, interface_def=False, is_from_json=False  # vy_ast.FunctionDef
     ):
         name = func_ast.name
         typ = func_ast._metadata["type"]
@@ -149,12 +144,6 @@ class FunctionSignature:
                 is_internal = False
             elif isinstance(dec, vy_ast.Call) and dec.func.id == "nonreentrant":
                 nonreentrant_key = dec.args[0].s
-
-        if constant_override:
-            # In case this override is abused, match previous behavior
-            if mutability == "payable":
-                raise StructureException(f"Function {name} cannot be both constant and payable.")
-            mutability = "view"
 
         return cls(
             name,
