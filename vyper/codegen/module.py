@@ -8,7 +8,7 @@ from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import ContractFunctionT, FunctionSignatures, StateMutability
+from vyper.semantics.types.function import FunctionSignatures, StateMutability
 
 
 def _topsort_helper(functions, lookup):
