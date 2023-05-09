@@ -4,12 +4,12 @@ from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignatures
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics.types.function import FunctionSignatures
 from vyper.typing import InterfaceImports, StorageLayout
 
 
