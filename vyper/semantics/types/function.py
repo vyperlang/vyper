@@ -121,10 +121,8 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
-        # for backwards compatibility with codegen
+        # populated at codegen
         self.args: List[FunctionArg] = []
-        self.base_args: List[FunctionArg] = []
-        self.default_args: List[FunctionArg] = []
         self.default_values: Dict[str, vy_ast.VyperNode] = {}
 
     def __repr__(self):
@@ -588,7 +586,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = self.base_args + kwargs
+        args = self.args[: self.min_arg_count] + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @property
@@ -608,7 +606,6 @@ class ContractFunctionT(VyperType):
     def exit_sequence_label(self) -> str:
         return self._ir_identifier + "_cleanup"
 
-    # for backwards compatibility with codegen
     def generate_signature(self, node: vy_ast.FunctionDef) -> None:
         fn_args = []
         for argnode in node.args.args:
@@ -617,18 +614,10 @@ class ContractFunctionT(VyperType):
             fn_args.append(fn_arg)
 
         self.args = fn_args
-        self.set_default_args(node.args)
-
-    def set_default_args(self, args: vy_ast.arguments) -> None:
-        """Split base from kwargs and set member data structures"""
-
-        defaults = getattr(args, "defaults", [])
-
-        self.base_args = self.args[: self.min_arg_count]
-        self.default_args = self.args[self.min_arg_count :]
 
         # Keep all the value to assign to default parameters.
-        self.default_values = dict(zip([arg.name for arg in self.default_args], defaults))
+        defaults = getattr(node.args, "defaults", [])
+        self.default_values = dict(zip([k for k in self.kwarg_keys], defaults))
 
 
 class MemberFunctionT(VyperType):

@@ -20,7 +20,8 @@ def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IR
     ret = []
 
     # the type of the calldata
-    base_args_t = TupleT(tuple(arg.typ for arg in sig.base_args))
+    base_args = sig.args[: sig.min_arg_count]
+    base_args_t = TupleT(tuple(arg.typ for arg in base_args))
 
     # tuple with the abi_encoded args
     if sig.is_constructor:
@@ -28,7 +29,7 @@ def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IR
     else:
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
-    for i, arg in enumerate(sig.base_args):
+    for i, arg in enumerate(base_args):
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):
@@ -72,7 +73,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
     #    goto external_function_common_ir
 
     def handler_for(calldata_kwargs, default_kwargs):
-        calldata_args = sig.base_args + calldata_kwargs
+        calldata_args = sig.args[: sig.min_arg_count] + calldata_kwargs
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
@@ -145,7 +146,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
 
     ret = ["seq"]
 
-    keyword_args = sig.default_args
+    keyword_args = sig.args[sig.min_arg_count :]
 
     # allocate variable slots in memory
     for arg in keyword_args:
