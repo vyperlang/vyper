@@ -121,7 +121,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = sig._ir_identifier
-        for attr in ("gas_estimate", "func_ast_code"):
+        for attr in ("gas_estimate",):
             del ret[attr]
         for attr in ("args", "base_args", "default_args"):
             if attr in ret:
