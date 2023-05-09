@@ -35,7 +35,7 @@ FunctionSignatures = Dict[str, "ContractFunctionT"]
 class FunctionArg:
     name: str
     typ: VyperType
-    ast_source: Optional[vy_ast.VyperNode] = None
+    ast_source: vy_ast.VyperNode
 
 
 @dataclass
