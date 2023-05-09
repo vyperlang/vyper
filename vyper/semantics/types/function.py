@@ -122,7 +122,7 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
-        # for backwards compatibility
+        # for backwards compatibility with codegen
         self.args: List[FunctionArg] = None
         self.base_args: List[FunctionArg] = None
         self.default_args: List[FunctionArg] = None
@@ -613,7 +613,8 @@ class ContractFunctionT(VyperType):
     def exit_sequence_label(self):
         return self._ir_identifier + "_cleanup"
 
-    def generate_fn_args(self, node: vy_ast.FunctionDef):
+    # for backwards compatibility with codegen
+    def generate_signature(self, node: vy_ast.FunctionDef):
         fn_args = []
         for argnode in node.args.args:
             argname = argnode.arg
