@@ -591,10 +591,6 @@ class ContractFunctionT(VyperType):
         args = self.base_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
-    @cached_property
-    def base_signature(self) -> str:
-        return self.abi_signature_for_kwargs([])
-
     @property
     # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
