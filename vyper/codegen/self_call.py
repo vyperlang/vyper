@@ -2,7 +2,6 @@ from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation, StructureException
-from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types.subscriptable import TupleT
 
 _label_counter = 0
@@ -39,7 +38,7 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
-    if context.is_constant() and sig.mutability not in (StateMutability.VIEW, StateMutability.PURE):
+    if context.is_constant() and sig.is_mutable:
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",

@@ -8,7 +8,7 @@ from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import FunctionSignatures, StateMutability
+from vyper.semantics.types.function import FunctionSignatures
 
 
 def _topsort_helper(functions, lookup):
@@ -46,7 +46,7 @@ def _is_internal(func_ast):
 
 
 def _is_payable(func_ast):
-    return func_ast._metadata["type"].mutability == StateMutability.PAYABLE
+    return func_ast._metadata["type"].is_payable
 
 
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines

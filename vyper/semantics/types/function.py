@@ -437,6 +437,14 @@ class ContractFunctionT(VyperType):
         return self.visibility == FunctionVisibility.INTERNAL
 
     @property
+    def is_mutable(self) -> bool:
+        return self.mutability not in (StateMutability.PURE, StateMutability.VIEW)
+
+    @property
+    def is_payable(self) -> bool:
+        return self.mutability == StateMutability.PAYABLE
+
+    @property
     def method_ids(self) -> Dict[str, int]:
         """
         Dict of `{signature: four byte selector}` for this function.

@@ -9,7 +9,6 @@ from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY
-from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types import TupleT
 from vyper.semantics.types.function import ContractFunctionT
 
@@ -190,7 +189,7 @@ def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
     # generate the main body of the function
     body += handle_base_args
 
-    if sig.mutability != StateMutability.PAYABLE and not skip_nonpayable_check:
+    if not sig.is_payable and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         body += [["assert", ["iszero", "callvalue"]]]

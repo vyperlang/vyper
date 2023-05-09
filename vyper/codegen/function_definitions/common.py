@@ -9,7 +9,6 @@ from vyper.codegen.function_definitions.internal_function import generate_ir_for
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
-from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types.function import ContractFunctionT, FrameInfo
 from vyper.utils import MemoryPositions, calc_mem_gas
 
@@ -50,9 +49,7 @@ def generate_ir_for_function(
         global_ctx=global_ctx,
         sigs=sigs,
         memory_allocator=memory_allocator,
-        constancy=Constancy.Constant
-        if sig.mutability in (StateMutability.VIEW, StateMutability.PURE)
-        else Constancy.Mutable,
+        constancy=Constancy.Mutable if sig.is_mutable else Constancy.Constant,
         sig=sig,
     )
 
@@ -60,7 +57,7 @@ def generate_ir_for_function(
         assert skip_nonpayable_check is False
         o = generate_ir_for_internal_function(code, sig, context)
     else:
-        if sig.mutability == StateMutability.PAYABLE:
+        if sig.is_payable:
             assert skip_nonpayable_check is False  # nonsense
         o = generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
 

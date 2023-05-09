@@ -6,7 +6,6 @@ from typing import Any, Optional
 from vyper.codegen.ir_node import Encoding
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
-from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.types import VyperType
 
 
@@ -100,7 +99,7 @@ class Context:
     # convenience propreties
     @property
     def is_payable(self):
-        return self.sig.mutability == StateMutability.PAYABLE
+        return self.sig.is_payable
 
     @property
     def is_internal(self):
