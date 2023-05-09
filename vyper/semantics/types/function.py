@@ -622,12 +622,12 @@ class ContractFunctionT(VyperType):
             fn_args.append(fn_arg)
 
         self.args = fn_args
-        self.set_default_args(node)
+        self.set_default_args(node.args)
 
-    def set_default_args(self, node: vy_ast.FunctionDef):
+    def set_default_args(self, args: vy_ast.arguments):
         """Split base from kwargs and set member data structures"""
 
-        defaults = getattr(node.args, "defaults", [])
+        defaults = getattr(args, "defaults", [])
 
         self.base_args = self.args[: self.min_arg_count]
         self.default_args = self.args[self.min_arg_count :]
