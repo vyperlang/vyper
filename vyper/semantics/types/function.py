@@ -28,7 +28,6 @@ from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import MemoryPositions, OrderedSet, keccak256, mkalphanum
 
-
 FunctionSignatures = Dict[str, "ContractFunctionT"]
 
 
@@ -574,7 +573,7 @@ class ContractFunctionT(VyperType):
         else:
             return [abi_dict]
 
-    def set_frame_info(self, frame_info):
+    def set_frame_info(self, frame_info) -> None:
         if self.frame_info is not None:
             raise CompilerPanic("sig.frame_info already set!")
         self.frame_info = frame_info
@@ -588,33 +587,33 @@ class ContractFunctionT(VyperType):
         return mkalphanum(ret)
 
     # calculate the abi signature for a given set of kwargs
-    def abi_signature_for_kwargs(self, kwargs):
+    def abi_signature_for_kwargs(self, kwargs) -> str:
         args = self.base_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @cached_property
-    def base_signature(self):
+    def base_signature(self) -> str:
         return self.abi_signature_for_kwargs([])
 
     @property
     # common entry point for external function with kwargs
-    def external_function_base_entry_label(self):
+    def external_function_base_entry_label(self) -> str:
         assert not self.is_internal
 
         return self._ir_identifier + "_common"
 
     @property
-    def internal_function_label(self):
+    def internal_function_label(self) -> str:
         assert self.is_internal, "why are you doing this"
 
         return self._ir_identifier
 
     @property
-    def exit_sequence_label(self):
+    def exit_sequence_label(self) -> str:
         return self._ir_identifier + "_cleanup"
 
     # for backwards compatibility with codegen
-    def generate_signature(self, node: vy_ast.FunctionDef):
+    def generate_signature(self, node: vy_ast.FunctionDef) -> None:
         fn_args = []
         for argnode in node.args.args:
             argname = argnode.arg
@@ -624,7 +623,7 @@ class ContractFunctionT(VyperType):
         self.args = fn_args
         self.set_default_args(node.args)
 
-    def set_default_args(self, args: vy_ast.arguments):
+    def set_default_args(self, args: vy_ast.arguments) -> None:
         """Split base from kwargs and set member data structures"""
 
         defaults = getattr(args, "defaults", [])
