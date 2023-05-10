@@ -42,7 +42,7 @@ jobs:
     - name: Install dependencies
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        apt install cmake ninja-build clang-13 lld-13 parallel pkg-config
+        sudo apt install cmake ninja-build clang-13 lld-13 parallel pkg-config
         cd era-compiler-tester
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
