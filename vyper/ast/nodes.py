@@ -1430,6 +1430,10 @@ class If(Stmt):
     __slots__ = ("test", "body", "orelse")
 
 
+class IfExp(ExprNode):
+    __slots__ = ("test", "body", "orelse")
+
+
 class For(Stmt):
     __slots__ = ("iter", "target", "body")
     _only_empty_fields = ("orelse",)

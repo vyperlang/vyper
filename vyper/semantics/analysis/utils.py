@@ -363,6 +363,11 @@ class _ExprAnalyser:
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
 
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+        return types_list
+
 
 def _is_empty_list(node):
     # Checks if a node is a `List` node with an empty list for `elements`,

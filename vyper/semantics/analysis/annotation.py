@@ -5,7 +5,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_possible_types_from_node,
 )
-from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT, is_type_t
+from vyper.semantics.types import TYPE_T, BoolT, EnumT, EventT, SArrayT, StructT, is_type_t
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
@@ -258,3 +258,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 type_ = type_.pop()
         node._metadata["type"] = type_
         self.visit(node.operand, type_)
+
+    def visit_IfExp(self, node, type_):
+        if type_ is None:
+            ts = get_common_types(node.body, node.orelse)
+            if len(type_) == 1:
+                type_ = ts.pop()
+
+        node._metadata["type"] = type_
+        self.visit(node.test, BoolT())
+        self.visit(node.body, type_)
+        self.visit(node.orelse, type_)
