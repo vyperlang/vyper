@@ -28,7 +28,7 @@ jobs:
         python-version: ${{ matrix.python-version[0] }}
 
     - name: Install Vyper
-      run: make init
+      run: python setup.py install
 
     - name: Initialize repository and submodules
       run: |
