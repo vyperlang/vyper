@@ -718,7 +718,7 @@ class Expr:
 
         typ = self.expr._metadata["type"]
         location = body.location
-        return IRnode.from_list(["select", test, body, orelse], typ=typ, location=location)
+        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
     @staticmethod
     def struct_literals(expr, name, context):
