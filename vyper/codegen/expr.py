@@ -702,7 +702,7 @@ class Expr:
         return multi_ir
 
     def parse_IfExp(self):
-        test = Expr(self.expr.test, self.context).ir_node
+        test = Expr.parse_value_expr(self.expr.test, self.context)
         assert test.typ == BoolT()  # sanity check
 
         body = Expr(self.expr.body, self.context).ir_node
