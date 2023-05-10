@@ -44,6 +44,7 @@ jobs:
       run: |
         sudo apt install cmake ninja-build clang-13 lld-13 parallel pkg-config
         cd era-compiler-tester
+        cargo install compiler-llvm-builder
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
         cd ..
