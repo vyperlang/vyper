@@ -708,9 +708,12 @@ class Expr:
         body = Expr(self.expr.body, self.context).ir_node
         orelse = Expr(self.expr.orelse, self.context).ir_node
 
-        if body.location != orelse.location:
-            body = ensure_in_memory(body)
-            orelse = ensure_in_memory(orelse)
+        # if they are in the same location, we can skip copying
+        # into memory. also for the case where they are literals,
+        # copy to memory (to avoid crashing in make_setter, XXX fixme).
+        if body.location != orelse.location or body.value == "multi":
+            body = ensure_in_memory(body, self.context)
+            orelse = ensure_in_memory(orelse, self.context)
 
         assert body.location == orelse.location
         # check this once compare_type has no side effects:
