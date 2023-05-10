@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import TypeMismatch, InvalidType
+from vyper.exceptions import InvalidType, TypeMismatch
 
 good_list = [
     # basic test
@@ -41,11 +41,11 @@ def foo(t: bool) -> DynArray[uint256, 1]:
     return [2] if t else [1]
     """,
     # TODO: get this working, depends #3377
-#    """
-#@external
-#def foo(t: bool) -> DynArray[uint256, 1]:
-#    return [] if t else [1]
-#    """,
+    #    """
+    # @external
+    # def foo(t: bool) -> DynArray[uint256, 1]:
+    #    return [] if t else [1]
+    #    """,
     """
 @external
 def foo(t: bool) -> (uint256, uint256):
@@ -55,64 +55,80 @@ def foo(t: bool) -> (uint256, uint256):
     """,
 ]
 
+
 @pytest.mark.parametrize("code", good_list)
 def test_ternary_good(code):
     assert compile_code(code) is not None
 
 
 fail_list = [
-    ( # bad test type
-    """
+    (  # bad test type
+        """
 @external
 def foo() -> uint256:
     return 1 if 1 else 2
-    """, InvalidType),
-    ( # bad test type: constant
-    """
+    """,
+        InvalidType,
+    ),
+    (  # bad test type: constant
+        """
 TEST: constant(uint256) = 1
 @external
 def foo() -> uint256:
     return 1 if TEST else 2
-    """, InvalidType),
-    ( # bad test type: variable
-    """
+    """,
+        InvalidType,
+    ),
+    (  # bad test type: variable
+        """
 TEST: constant(uint256) = 1
 @external
 def foo(t: uint256) -> uint256:
     return 1 if t else 2
-    """, TypeMismatch),
-  
-    ( # mismatched body and orelse: literal
-    """
+    """,
+        TypeMismatch,
+    ),
+    (  # mismatched body and orelse: literal
+        """
 @external
 def foo() -> uint256:
     return 1 if True else 2.0
-    """, TypeMismatch),
-    ( # mismatched body and orelse: literal and known type
-    """
+    """,
+        TypeMismatch,
+    ),
+    (  # mismatched body and orelse: literal and known type
+        """
 T: constant(uint256) = 1
 @external
 def foo() -> uint256:
     return T if True else 2.0
-    """, TypeMismatch),
-    ( # mismatched body and orelse: both variable
-    """
+    """,
+        TypeMismatch,
+    ),
+    (  # mismatched body and orelse: both variable
+        """
 @external
 def foo(x: uint256, y: uint8) -> uint256:
     return x if True else y
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
     (  # mismatched tuple types
-    """
+        """
 @external
 def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
     return (a, b) if True else (a, b, c)
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
     (  # mismatched tuple types - other direction
-    """
+        """
 @external
 def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
     return (a, b, c) if True else (a, b)
-    """, TypeMismatch),
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
