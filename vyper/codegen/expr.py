@@ -709,8 +709,9 @@ class Expr:
         orelse = Expr(self.expr.orelse, self.context).ir_node
 
         # if they are in the same location, we can skip copying
-        # into memory. also for the case where they are literals,
-        # copy to memory (to avoid crashing in make_setter, XXX fixme).
+        # into memory. also for the case where either body or orelse are
+        # literal `multi` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter, XXX fixme).
         if body.location != orelse.location or body.value == "multi":
             body = ensure_in_memory(body, self.context)
             orelse = ensure_in_memory(orelse, self.context)

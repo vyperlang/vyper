@@ -86,11 +86,19 @@ def foo(t: bool, x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[u
     """,
         ([], [1]),
     ),
-    (  # literal dynarray
+    (  # variable + literal dynarray
         """
 @external
 def foo(t: bool, x: DynArray[uint256, 3], _y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
     return x if t else {y}
+    """,
+        ([], [1]),
+    ),
+    (  # literal + variable dynarray
+        """
+@external
+def foo(t: bool, _x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
+    return {x} if t else y
     """,
         ([], [1]),
     ),
