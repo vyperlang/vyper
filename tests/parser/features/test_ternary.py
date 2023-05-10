@@ -7,8 +7,7 @@ simple_cases = [
 def foo(t: bool, x: uint256, y: uint256) -> uint256:
     return x if t else y
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # literal test
         """
@@ -16,8 +15,7 @@ def foo(t: bool, x: uint256, y: uint256) -> uint256:
 def foo(_t: bool, x: uint256, y: uint256) -> uint256:
     return x if {test} else y
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # literal body
         """
@@ -25,8 +23,7 @@ def foo(_t: bool, x: uint256, y: uint256) -> uint256:
 def foo(t: bool, _x: uint256, y: uint256) -> uint256:
     return {x} if t else y
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # literal orelse
         """
@@ -34,8 +31,7 @@ def foo(t: bool, _x: uint256, y: uint256) -> uint256:
 def foo(t: bool, x: uint256, _y: uint256) -> uint256:
     return x if t else {y}
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # literal body/orelse
         """
@@ -43,8 +39,7 @@ def foo(t: bool, x: uint256, _y: uint256) -> uint256:
 def foo(t: bool, _x: uint256, _y: uint256) -> uint256:
     return {x} if t else {y}
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # literal everything
         """
@@ -52,8 +47,7 @@ def foo(t: bool, _x: uint256, _y: uint256) -> uint256:
 def foo(_t: bool, _x: uint256, _y: uint256) -> uint256:
     return {x} if {test} else {y}
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # body/orelse in storage and memory
         """
@@ -63,8 +57,7 @@ def foo(t: bool, x: uint256, y: uint256) -> uint256:
     self.s = x
     return self.s if t else y
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # body/orelse in memory and storage
         """
@@ -74,8 +67,7 @@ def foo(t: bool, x: uint256, y: uint256) -> uint256:
     self.s = x
     return self.s if t else y
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # body/orelse in memory and constant
         """
@@ -84,8 +76,7 @@ S: constant(uint256) = {y}
 def foo(t: bool, x: uint256, _y: uint256) -> uint256:
     return x if t else S
     """,
-        1,
-        2,
+        (1, 2),
     ),
     (  # dynarray
         """
@@ -93,8 +84,7 @@ def foo(t: bool, x: uint256, _y: uint256) -> uint256:
 def foo(t: bool, x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
     return x if t else y
     """,
-        [],
-        [1],
+        ([], [1]),
     ),
     (  # literal dynarray
         """
@@ -102,8 +92,7 @@ def foo(t: bool, x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[u
 def foo(t: bool, x: DynArray[uint256, 3], _y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
     return x if t else {y}
     """,
-        [],
-        [1],
+        ([], [1]),
     ),
     (  # storage dynarray
         """
@@ -113,8 +102,7 @@ def foo(t: bool, x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[u
     self.s = y
     return x if t else self.s
     """,
-        [],
-        [1],
+        ([], [1]),
     ),
     (  # static array
         """
@@ -122,8 +110,7 @@ def foo(t: bool, x: DynArray[uint256, 3], y: DynArray[uint256, 3]) -> DynArray[u
 def foo(t: bool, x: uint256[1], y: uint256[1]) -> uint256[1]:
     return x if t else y
     """,
-        [2],
-        [1],
+        ([2], [1]),
     ),
     (  # static array literal
         """
@@ -131,8 +118,7 @@ def foo(t: bool, x: uint256[1], y: uint256[1]) -> uint256[1]:
 def foo(t: bool, x: uint256[1], _y: uint256[1]) -> uint256[1]:
     return x if t else {y}
     """,
-        [2],
-        [1],
+        ([2], [1]),
     ),
     (  # strings
         """
@@ -140,8 +126,7 @@ def foo(t: bool, x: uint256[1], _y: uint256[1]) -> uint256[1]:
 def foo(t: bool, x: String[10], y: String[10]) -> String[10]:
     return x if t else y
     """,
-        "hello",
-        "world",
+        ("hello", "world"),
     ),
     (  # string literal
         """
@@ -149,8 +134,7 @@ def foo(t: bool, x: String[10], y: String[10]) -> String[10]:
 def foo(t: bool, x: String[10], _y: String[10]) -> String[10]:
     return x if t else {y}
     """,
-        "hello",
-        "world",
+        ("hello", "world"),
     ),
     (  # bytes
         """
@@ -158,15 +142,15 @@ def foo(t: bool, x: String[10], _y: String[10]) -> String[10]:
 def foo(t: bool, x: Bytes[10], y: Bytes[10]) -> Bytes[10]:
     return x if t else y
     """,
-        b"hello",
-        b"world",
+        (b"hello", b"world"),
     ),
 ]
 
 
-@pytest.mark.parametrize("code,x,y", simple_cases)
+@pytest.mark.parametrize("code,inputs", simple_cases)
 @pytest.mark.parametrize("test", [True, False])
-def test_ternary_simple(get_contract, code, test, x, y):
+def test_ternary_simple(get_contract, code, test, inputs):
+    x, y = inputs
     # note: repr to escape strings
     code = code.format(test=test, x=repr(x), y=repr(y))
     c = get_contract(code)
@@ -237,3 +221,37 @@ def foo(t1: bool, t2: bool, x: uint256, y: uint256, z: uint256) -> uint256:
 
     x, y, z = 1, 2, 3
     assert c.foo(test1, test2, x, y, z) == (x if test1 else y if test2 else z)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_side_effects(get_contract, test):
+    code = """
+track_taint_x: public(uint256)
+track_taint_y: public(uint256)
+foo_retval: public(uint256)
+
+@internal
+def x() -> uint256:
+    self.track_taint_x += 1
+    return 5
+
+@internal
+def y() -> uint256:
+    self.track_taint_y += 1
+    return 7
+
+@external
+def foo(t: bool):
+    self.foo_retval = self.x() if t else self.y()
+    """
+    c = get_contract(code)
+
+    c.foo(test, transact={})
+    assert c.foo_retval() == (5 if test else 7)
+
+    if test:
+        assert c.track_taint_x() == 1
+        assert c.track_taint_y() == 0
+    else:
+        assert c.track_taint_x() == 0
+        assert c.track_taint_y() == 1
