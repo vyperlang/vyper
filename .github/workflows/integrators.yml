@@ -60,5 +60,5 @@ jobs:
     - name: Run tester with optimization for Vyper
       run: |
         cd era-compiler-tester
-        cargo run --release --bin compiler-tester -- -v --path='tests/vyper/' --mode='M0B0'
+        cargo run --release --bin compiler-tester -- -v --path='tests/vyper/' --mode='M*B* 0.3.8'
         cd ..
