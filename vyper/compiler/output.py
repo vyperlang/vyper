@@ -44,7 +44,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
-        args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+        args = ", ".join([f"{name}: {fn_arg.typ}" for name, fn_arg in func.args.items()])
         return_value = f" -> {func.return_type}" if func.return_type is not None else ""
         mutability = func.mutability.value
         out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
@@ -69,7 +69,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
                 out = f"{out}@{func.mutability.value}\n"
-            args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+            args = ", ".join([f"{name}: {fn_arg.typ}" for name, fn_arg in func.args.items()])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
             out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
 
