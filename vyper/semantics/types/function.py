@@ -119,32 +119,6 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
-    @property
-    def kwarg_keys(self) -> List[str]:
-        if self.min_arg_count < self.max_arg_count:
-            return list(self.arguments.keys())[self.min_arg_count :]
-        return []
-
-    # for backwards compatibility
-    @property
-    def base_args(self) -> List[FunctionArg]:
-        return list(self.arguments.values())[: self.min_arg_count]
-
-    # for backwards compatibility
-    @property
-    def default_args(self) -> List[FunctionArg]:
-        return list(self.arguments.values())[self.min_arg_count :]
-
-    @property
-    def arguments_typs(self) -> List[VyperType]:
-        return [arg.typ for arg in self.arguments.values()]
-
-    def set_argument_nodes(self, node: vy_ast.FunctionDef):
-        args = node.args.args
-        assert len(args) == len(self.arguments)
-        for argnode, fn_arg in zip(args, self.arguments.values()):
-            fn_arg.ast_source = argnode
-
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments_typs)
         return f"contract function {self.name}({arg_types})"
@@ -458,6 +432,26 @@ class ContractFunctionT(VyperType):
         return True
 
     @property
+    def kwarg_keys(self) -> List[str]:
+        if self.min_arg_count < self.max_arg_count:
+            return list(self.arguments.keys())[self.min_arg_count :]
+        return []
+
+    # for backwards compatibility
+    @property
+    def base_args(self) -> List[FunctionArg]:
+        return list(self.arguments.values())[: self.min_arg_count]
+
+    # for backwards compatibility
+    @property
+    def default_args(self) -> List[FunctionArg]:
+        return list(self.arguments.values())[self.min_arg_count :]
+
+    @property
+    def arguments_typs(self) -> List[VyperType]:
+        return [arg.typ for arg in self.arguments.values()]
+
+    @property
     def is_external(self) -> bool:
         return self.visibility == FunctionVisibility.EXTERNAL
 
@@ -491,20 +485,6 @@ class ContractFunctionT(VyperType):
         for i in range(self.min_arg_count, self.max_arg_count + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
-
-    # for caller-fills-args calling convention
-    def get_args_buffer_offset(self) -> int:
-        """
-        Get the location of the args buffer in the function frame (caller sets)
-        """
-        return 0
-
-    # TODO is this needed?
-    def get_args_buffer_len(self) -> int:
-        """
-        Get the length of the argument buffer in the function frame
-        """
-        return sum(arg_t.size_in_bytes() for arg_t in self.arguments_typs)
 
     @property
     def is_constructor(self) -> bool:
@@ -607,6 +587,12 @@ class ContractFunctionT(VyperType):
             return result
         else:
             return [abi_dict]
+
+    def set_argument_nodes(self, node: vy_ast.FunctionDef) -> None:
+        args = node.args.args
+        assert len(args) == len(self.arguments)
+        for argnode, fn_arg in zip(args, self.arguments.values()):
+            fn_arg.ast_source = argnode
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:
