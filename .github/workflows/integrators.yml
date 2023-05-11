@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
   
     steps:
+    - name: Get latest commit hash
+      run: |
+        echo "ERA_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-tester/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
+
     - name: Checkout
       uses: actions/checkout@v1
 
@@ -27,10 +31,24 @@ jobs:
       with:
         python-version: ${{ matrix.python-version[0] }}
 
-    - name: Install Vyper
-      run: pip install .
+    - name: Get cache
+      id: cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          **/target
+          **/target-llvm
+          **/compiler_tester
+          **/llvm
+          **/era-compiler-tester
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}
 
     - name: Initialize repository and install dependencies
+      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       run: |
         git clone --depth 1 https://github.com/matter-labs/era-compiler-tester.git
         cd era-compiler-tester
@@ -42,8 +60,9 @@ jobs:
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
 
-    - name: Copy Vyper binary
+    - name: Install Vyper
       run: |
+        ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
         mkdir era-compiler-tester/vyper-bin
         echo $(which vyper)
         cp $(which vyper) era-compiler-tester/vyper-bin/vyper-0.3.8
