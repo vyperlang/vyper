@@ -9,8 +9,8 @@ examples, courses and other learning material.
 General
 -------
 
--  `Ape Academy - Learn how to build vyper projects <https://academy.apeworx.io/> by ApeWorX`__
-- `More Vyper by Example <https://vyper-by-example.org/> by Smart Contract Engineer`__
+- `Ape Academy - Learn how to build vyper projects <https://academy.apeworx.io/>`__ by ApeWorX
+- `More Vyper by Example <https://vyper-by-example.org/>`__ by Smart Contract Engineer
 - `Vyper cheat Sheet <https://reference.auditless.com/cheatsheet>`__
 - `Vyper Hub for development <https://github.com/zcor/vyper-dev>`__
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`__
