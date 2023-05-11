@@ -61,7 +61,7 @@ def ir_for_self_call(stmt_expr, context):
         return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
-    dst_tuple_t = TupleT(tuple(sig.arguments.values()))
+    dst_tuple_t = TupleT(tuple(sig.argument_typs))
     args_dst = IRnode(sig.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument

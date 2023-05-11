@@ -126,11 +126,6 @@ class ContractFunctionT(VyperType):
         self.default_values: Dict[str, vy_ast.VyperNode] = {}
 
     @property
-    def arguments(self) -> OrderedDict:
-        ret = OrderedDict({argname: arg.typ for argname, arg in self.args.items()})
-        return ret
-
-    @property
     def argument_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.args.values()]
 
