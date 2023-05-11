@@ -173,7 +173,8 @@ class ContractFunctionT(VyperType):
         """
         arguments = OrderedDict()
         for item in abi["inputs"]:
-            arguments[item["name"]] = FunctionArg(item["name"], type_from_abi(item))
+            argname = item["name"]
+            arguments[argname] = FunctionArg(argname, type_from_abi(item))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
@@ -401,7 +402,8 @@ class ContractFunctionT(VyperType):
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
-            args_dict[f"arg{len(args_dict)}"] = FunctionArg(f"arg{len(args_dict)}", item)
+            argname = f"arg{len(args_dict)}"
+            args_dict[argname] = FunctionArg(argname, item)
 
         return cls(
             node.target.id,
