@@ -261,7 +261,7 @@ class Context:
         _check(sig.is_internal)
         _check(sig.min_arg_count <= len(args_ir) <= sig.max_arg_count)
         # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
+        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.arguments))
 
         num_provided_kwargs = len(args_ir) - sig.min_arg_count
         num_kwargs = sig.max_arg_count - sig.min_arg_count

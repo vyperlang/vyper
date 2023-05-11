@@ -96,13 +96,13 @@ class ContractFunctionT(VyperType):
         super().__init__()
 
         self.name = name
-        self.args = arguments
+        self.arguments = arguments
         self.min_arg_count = min_arg_count
         self.max_arg_count = max_arg_count
         self.return_type = return_type
         self.kwarg_keys = []
         if min_arg_count < max_arg_count:
-            self.kwarg_keys = list(self.args)[min_arg_count:]
+            self.kwarg_keys = list(self.arguments)[min_arg_count:]
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
@@ -124,20 +124,20 @@ class ContractFunctionT(VyperType):
 
     @property
     def base_args(self) -> List[FunctionArg]:
-        return list(self.args.values())[: self.min_arg_count]
+        return list(self.arguments.values())[: self.min_arg_count]
 
     @property
     def default_args(self) -> List[FunctionArg]:
-        return list(self.args.values())[self.min_arg_count :]
+        return list(self.arguments.values())[self.min_arg_count :]
 
     @property
     def argument_typs(self) -> List[VyperType]:
-        return [arg.typ for arg in self.args.values()]
+        return [arg.typ for arg in self.arguments.values()]
 
     def set_argument_nodes(self, node: vy_ast.FunctionDef):
         args = node.args.args
-        assert len(args) == len(self.args)
-        for argnode, fn_arg in zip(args, self.args.values()):
+        assert len(args) == len(self.arguments)
+        for argnode, fn_arg in zip(args, self.arguments.values()):
             fn_arg.ast_source = argnode
 
     def __repr__(self):
@@ -583,7 +583,7 @@ class ContractFunctionT(VyperType):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [v.typ.to_abi_arg(name=k) for k, v in self.args.items()]
+        abi_dict["inputs"] = [v.typ.to_abi_arg(name=k) for k, v in self.arguments.items()]
 
         typ = self.return_type
         if typ is None:
@@ -618,7 +618,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = list(self.args.values())[: self.min_arg_count] + kwargs
+        args = list(self.arguments.values())[: self.min_arg_count] + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @property

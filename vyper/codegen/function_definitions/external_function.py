@@ -112,7 +112,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             lhs.source_pos = getpos(x.ast_source)
-            kw_ast_val = sig.args[x.name].default_value  # e.g. `3` in x: int = 3
+            kw_ast_val = sig.arguments[x.name].default_value  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
@@ -143,7 +143,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
 
     ret = ["seq"]
 
-    keyword_args = list(sig.args.values())[sig.min_arg_count :]
+    keyword_args = sig.default_args
 
     # allocate variable slots in memory
     for arg in keyword_args:
