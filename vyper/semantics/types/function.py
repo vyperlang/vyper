@@ -123,6 +123,14 @@ class ContractFunctionT(VyperType):
         self.frame_info: Optional[FrameInfo] = None
 
     @property
+    def base_args(self) -> List[FunctionArg]:
+        return list(self.args.values())[: self.min_arg_count]
+
+    @property
+    def default_args(self) -> List[FunctionArg]:
+        return list(self.args.values())[self.min_arg_count :]
+
+    @property
     def argument_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.args.values()]
 
@@ -137,7 +145,13 @@ class ContractFunctionT(VyperType):
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
-        input_name = "def " + self.name + "(" + ",".join([str(argtyp) for argtyp in self.argument_typs]) + ")"
+        input_name = (
+            "def "
+            + self.name
+            + "("
+            + ",".join([str(argtyp) for argtyp in self.argument_typs])
+            + ")"
+        )
         if self.return_type:
             return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
