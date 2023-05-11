@@ -40,8 +40,10 @@ def generate_ir_for_internal_function(
     func_type = code._metadata["type"]
 
     # Get nonreentrant lock
+    print("sig.args: ", sig.args)
 
-    for arg in sig.args:
+    for argname, arg in sig.args.items():
+        print("arg: ", arg)
         # allocate a variable for every arg, setting mutability
         # to False to comply with vyper semantics, function arguments are immutable
         context.new_variable(arg.name, arg.typ, is_mutable=False)

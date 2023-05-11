@@ -17,9 +17,9 @@ from vyper.semantics.types.function import ContractFunctionT
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IRnode]:
     ret = []
-
+    print("register_function_args: ", sig.name)
     # the type of the calldata
-    base_args = sig.args[: sig.min_arg_count]
+    base_args = list(sig.args.values())[: sig.min_arg_count]
     base_args_t = TupleT(tuple(arg.typ for arg in base_args))
 
     # tuple with the abi_encoded args
@@ -29,6 +29,7 @@ def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IR
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(base_args):
+        print("arg: ", arg)
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):
@@ -72,7 +73,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
     #    goto external_function_common_ir
 
     def handler_for(calldata_kwargs, default_kwargs):
-        calldata_args = sig.args[: sig.min_arg_count] + calldata_kwargs
+        calldata_args = list(sig.args.values())[: sig.min_arg_count] + calldata_kwargs
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
@@ -114,7 +115,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             lhs.source_pos = getpos(x.ast_source)
-            kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
+            kw_ast_val = sig.args[x.name].default_value  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
@@ -145,7 +146,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
 
     ret = ["seq"]
 
-    keyword_args = sig.args[sig.min_arg_count :]
+    keyword_args = list(sig.args.values())[sig.min_arg_count :]
 
     # allocate variable slots in memory
     for arg in keyword_args:

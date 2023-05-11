@@ -2,6 +2,7 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.types.function import ContractFunctionT
 
 
 def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
@@ -32,6 +33,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
         func_type = node._metadata["func_type"]
+        print("generate_public_variable_getters - functype: ", func_type)
         input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
@@ -77,14 +79,18 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         # join everything together as a new `FunctionDef` node, annotate it
         # with the type, and append it to the existing `Module` node
+        args = vy_ast.arguments(args=input_nodes, defaults=[])
         expanded = vy_ast.FunctionDef.from_node(
             node.annotation,
             name=func_type.name,
-            args=vy_ast.arguments(args=input_nodes, defaults=[]),
+            args=args,
             body=[vy_ast.Return(value=return_stmt)],
             decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
             returns=return_node,
         )
+        #func_type = ContractFunctionT.from_FunctionDef(expanded)
+        print("expanded func type: ", func_type)
+        func_type.set_argument_nodes(args)
         expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)

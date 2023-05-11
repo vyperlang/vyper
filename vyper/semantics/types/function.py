@@ -35,7 +35,8 @@ FunctionSignatures = Dict[str, "ContractFunctionT"]
 class FunctionArg:
     name: str
     typ: VyperType
-    ast_source: vy_ast.VyperNode
+    ast_source: Optional[vy_ast.VyperNode] = None
+    default_value: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
@@ -95,7 +96,8 @@ class ContractFunctionT(VyperType):
         super().__init__()
 
         self.name = name
-        self.arguments = arguments
+        self.args = arguments
+        #self.arguments = OrderedDict({argname: arg.typ for argname, arg in arguments.items()})
         self.min_arg_count = min_arg_count
         self.max_arg_count = max_arg_count
         self.return_type = return_type
@@ -122,15 +124,30 @@ class ContractFunctionT(VyperType):
         self.frame_info: Optional[FrameInfo] = None
 
         # populated at codegen
-        self.args: List[FunctionArg] = []
         self.default_values: Dict[str, vy_ast.VyperNode] = {}
+
+    @property
+    def arguments(self) -> OrderedDict:
+        print("args type: ", type(self.args.items()))
+
+        ret = OrderedDict({argname: arg.typ for argname, arg in self.args.items()})
+        print("arguments type: ", type(ret))
+        return ret
+
+    @property
+    def argument_typs(self) -> List[VyperType]:
+        return [arg.typ for arg in self.args.values()]
+
+    def set_argument_nodes(self, node: vy_ast.arguments):
+        for argnode, fn_arg in zip(node.args, self.args.values()):
+            fn_arg.ast_source = argnode
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments.values())
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
-        input_name = "def " + self.name + "(" + ",".join([str(arg.typ) for arg in self.args]) + ")"
+        input_name = "def " + self.name + "(" + ",".join([str(argtyp) for argtyp in self.argument_typs]) + ")"
         if self.return_type:
             return input_name + " -> " + str(self.return_type) + ":"
         return input_name + ":"
@@ -159,7 +176,7 @@ class ContractFunctionT(VyperType):
         """
         arguments = OrderedDict()
         for item in abi["inputs"]:
-            arguments[item["name"]] = type_from_abi(item)
+            arguments[item["name"]] = FunctionArg(item["name"], type_from_abi(item))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
@@ -193,6 +210,7 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
+        print("from_FunctionDef - name: ", node.name)
         kwargs: Dict[str, Any] = {}
         if is_interface:
             # FunctionDef with stateMutability in body (Interface defintions)
@@ -316,6 +334,7 @@ class ContractFunctionT(VyperType):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
+            print("from_FunctionDef - arg: ", arg)
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
                     f"Cannot use '{arg.arg}' as a variable name in a function input", arg
@@ -337,7 +356,7 @@ class ContractFunctionT(VyperType):
                     )
                 validate_expected_type(value, type_)
 
-            arguments[arg.arg] = type_
+            arguments[arg.arg] = FunctionArg(arg.arg, type_, arg, value)
 
         # return types
         if node.returns is None:
@@ -386,7 +405,7 @@ class ContractFunctionT(VyperType):
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
-            args_dict[f"arg{len(args_dict)}"] = item
+            args_dict[f"arg{len(args_dict)}"] = FunctionArg(f"arg{len(args_dict)}", item)
 
         return cls(
             node.target.id,
@@ -588,13 +607,13 @@ class ContractFunctionT(VyperType):
     def _ir_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.is_internal else "external"
-        argz = ",".join([str(arg.typ) for arg in self.args])
+        argz = ",".join([str(argtyp) for argtyp in self.argument_typs])
         ret = f"{visibility} {self.name} ({argz})"
         return mkalphanum(ret)
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = self.args[: self.min_arg_count] + kwargs
+        args = list(self.args.values())[: self.min_arg_count] + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @property
