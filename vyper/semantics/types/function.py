@@ -100,9 +100,6 @@ class ContractFunctionT(VyperType):
         self.min_arg_count = min_arg_count
         self.max_arg_count = max_arg_count
         self.return_type = return_type
-        self.kwarg_keys = []
-        if min_arg_count < max_arg_count:
-            self.kwarg_keys = list(self.arguments)[min_arg_count:]
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
@@ -121,6 +118,12 @@ class ContractFunctionT(VyperType):
         self.gas_estimate = None
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
+
+    @property
+    def kwarg_keys(self) -> List[str]:
+        if self.min_arg_count < self.max_arg_count:
+            return list(self.arguments.keys())[self.min_arg_count:]
+        return []
 
     @property
     def base_args(self) -> List[FunctionArg]:
