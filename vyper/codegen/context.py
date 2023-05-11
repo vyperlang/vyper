@@ -267,7 +267,7 @@ class Context:
         num_kwargs = sig.max_arg_count - sig.min_arg_count
         kwargs_needed = num_kwargs - num_provided_kwargs
 
-        kw_vals = list(sig.default_values.values())[:kwargs_needed]
+        kw_vals = list(i.default_value for i in sig.args.values())[sig.min_arg_count:]
 
         return sig, kw_vals
 

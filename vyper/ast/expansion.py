@@ -88,7 +88,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
         #func_type = ContractFunctionT.from_FunctionDef(expanded)
-        func_type.set_argument_nodes(args)
+        func_type.set_argument_nodes(expanded)
         expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)

@@ -122,16 +122,14 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
-        # populated at codegen
-        self.default_values: Dict[str, vy_ast.VyperNode] = {}
-
     @property
     def argument_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.args.values()]
 
-    def set_argument_nodes(self, node: vy_ast.arguments):
-        assert len(node.args) == len(self.args)
-        for argnode, fn_arg in zip(node.args, self.args.values()):
+    def set_argument_nodes(self, node: vy_ast.FunctionDef):
+        args = node.args.args
+        assert len(args) == len(self.args)
+        for argnode, fn_arg in zip(args, self.args.values()):
             fn_arg.ast_source = argnode
 
     def __repr__(self):
