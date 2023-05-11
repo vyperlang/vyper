@@ -63,14 +63,12 @@ class ContractFunctionT(VyperType):
     name : str
         The name of the function.
     arguments : OrderedDict
-        Function input arguments as {'name': VyperType}
+        Function input arguments as {'name': FunctionArg}
     min_arg_count : int
         The minimum number of required input arguments.
     max_arg_count : int
         The maximum number of required input arguments. When a function has no
         default arguments, this value is the same as `min_arg_count`.
-    kwarg_keys : List
-        List of optional input argument keys.
     function_visibility : FunctionVisibility
         enum indicating the external visibility of a function.
     state_mutability : StateMutability
@@ -85,7 +83,6 @@ class ContractFunctionT(VyperType):
         self,
         name: str,
         arguments: OrderedDict,
-        # TODO rename to something like positional_args, keyword_args
         min_arg_count: int,
         max_arg_count: int,
         return_type: Optional[VyperType],
