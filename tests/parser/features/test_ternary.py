@@ -205,7 +205,9 @@ def __init__(test: bool):
 
 
 @pytest.mark.parametrize("test", [True, False])
-def test_complex_ternary_expression(get_contract, test):
+@pytest.mark.parametrize("x", list(range(8)))
+@pytest.mark.parametrize("y", list(range(8)))
+def test_complex_ternary_expression(get_contract, test, x, y):
     code = """
 @external
 def foo(t: bool, x: uint256, y: uint256) -> uint256:
@@ -213,8 +215,21 @@ def foo(t: bool, x: uint256, y: uint256) -> uint256:
     """
     c = get_contract(code)
 
-    x, y = 7, 5
-    assert c.foo(test, x, y) == (x * y if test else x + y)
+    assert c.foo(test, x, y) == ((x * y) if (test and True) else (x + y + int(test)))
+
+
+@pytest.mark.parametrize("test", [True, False])
+@pytest.mark.parametrize("x", list(range(8)))
+@pytest.mark.parametrize("y", list(range(8)))
+def test_ternary_precedence(get_contract, test, x, y):
+    code = """
+@external
+def foo(t: bool, x: uint256, y: uint256) -> uint256:
+    return x * y if t else x + y + convert(t, uint256)
+    """
+    c = get_contract(code)
+
+    assert c.foo(test, x, y) == (x * y if test else x + y + int(test))
 
 
 @pytest.mark.parametrize("test1", [True, False])
