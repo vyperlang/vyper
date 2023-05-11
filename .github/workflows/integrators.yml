@@ -30,17 +30,13 @@ jobs:
     - name: Install Vyper
       run: pip install .
 
-    - name: Initialize repository and submodules
+    - name: Initialize repository and install dependencies
       run: |
         git clone --depth 1 https://github.com/matter-labs/era-compiler-tester.git
         cd era-compiler-tester
         sed -i 's/ssh:\/\/git@/https:\/\//g' .gitmodules
         git submodule init
         git submodule update
-
-    - name: Install dependencies
-      if: steps.cache.outputs.cache-hit != 'true'
-      run: |
         sudo apt install cmake ninja-build clang-13 lld-13 parallel pkg-config lld
         cargo install compiler-llvm-builder
         zkevm-llvm clone && zkevm-llvm build
@@ -48,10 +44,11 @@ jobs:
 
     - name: Copy Vyper binary
       run: |
-        mkdir vyper-bin
+        mkdir era-compiler-tester/vyper-bin
         echo $(which vyper)
-        cp $(which vyper) vyper-bin/vyper-0.3.8
+        cp $(which vyper) era-compiler-tester/vyper-bin/vyper-0.3.8
 
     - name: Run tester
       run: |
+        cd era-compiler-tester
         cargo run --release --bin compiler-tester -- -v --path='tests/vyper/' --mode='M*B* 0.3.8'
