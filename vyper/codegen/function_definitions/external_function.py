@@ -17,7 +17,6 @@ from vyper.semantics.types.function import ContractFunctionT
 # also allocate the ones that live in memory (i.e. kwargs)
 def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IRnode]:
     ret = []
-    print("register_function_args: ", sig.name)
     # the type of the calldata
     base_args = list(sig.args.values())[: sig.min_arg_count]
     base_args_t = TupleT(tuple(arg.typ for arg in base_args))
@@ -29,7 +28,6 @@ def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IR
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(base_args):
-        print("arg: ", arg)
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):

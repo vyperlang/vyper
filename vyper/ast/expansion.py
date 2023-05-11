@@ -33,7 +33,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
         func_type = node._metadata["func_type"]
-        print("generate_public_variable_getters - functype: ", func_type)
         input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
@@ -89,7 +88,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
         #func_type = ContractFunctionT.from_FunctionDef(expanded)
-        print("expanded func type: ", func_type)
         func_type.set_argument_nodes(args)
         expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)

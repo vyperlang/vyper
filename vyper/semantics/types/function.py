@@ -97,7 +97,6 @@ class ContractFunctionT(VyperType):
 
         self.name = name
         self.args = arguments
-        #self.arguments = OrderedDict({argname: arg.typ for argname, arg in arguments.items()})
         self.min_arg_count = min_arg_count
         self.max_arg_count = max_arg_count
         self.return_type = return_type
@@ -128,10 +127,7 @@ class ContractFunctionT(VyperType):
 
     @property
     def arguments(self) -> OrderedDict:
-        print("args type: ", type(self.args.items()))
-
         ret = OrderedDict({argname: arg.typ for argname, arg in self.args.items()})
-        print("arguments type: ", type(ret))
         return ret
 
     @property
@@ -139,11 +135,12 @@ class ContractFunctionT(VyperType):
         return [arg.typ for arg in self.args.values()]
 
     def set_argument_nodes(self, node: vy_ast.arguments):
+        assert len(node.args) == len(self.args)
         for argnode, fn_arg in zip(node.args, self.args.values()):
             fn_arg.ast_source = argnode
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.arguments.values())
+        arg_types = ",".join(repr(a) for a in self.argument_typs)
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
@@ -210,7 +207,6 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        print("from_FunctionDef - name: ", node.name)
         kwargs: Dict[str, Any] = {}
         if is_interface:
             # FunctionDef with stateMutability in body (Interface defintions)
@@ -334,18 +330,18 @@ class ContractFunctionT(VyperType):
 
         namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
-            print("from_FunctionDef - arg: ", arg)
-            if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
+            argname = arg.arg
+            if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
-                    f"Cannot use '{arg.arg}' as a variable name in a function input", arg
+                    f"Cannot use '{argname}' as a variable name in a function input", arg
                 )
-            if arg.arg in arguments:
-                raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
-            if arg.arg in namespace:
-                raise NamespaceCollision(arg.arg, arg)
+            if argname in arguments:
+                raise ArgumentException(f"Function contains multiple inputs named {argname}", arg)
+            if argname in namespace:
+                raise NamespaceCollision(argname, arg)
 
             if arg.annotation is None:
-                raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
+                raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
             type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
@@ -356,7 +352,7 @@ class ContractFunctionT(VyperType):
                     )
                 validate_expected_type(value, type_)
 
-            arguments[arg.arg] = FunctionArg(arg.arg, type_, arg, value)
+            arguments[argname] = FunctionArg(argname, type_, arg, value)
 
         # return types
         if node.returns is None:
@@ -421,7 +417,7 @@ class ContractFunctionT(VyperType):
     # convenience property for compare_signature, as it would
     # appear in a public interface
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
-        return tuple(self.arguments.values()), self.return_type
+        return tuple(self.argument_typs), self.return_type
 
     def compare_signature(self, other: "ContractFunctionT") -> bool:
         """
@@ -472,7 +468,7 @@ class ContractFunctionT(VyperType):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_abi_type for i in self.arguments.values()]
+        arg_types = [i.canonical_abi_type for i in self.argument_typs]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
@@ -494,7 +490,7 @@ class ContractFunctionT(VyperType):
         """
         Get the length of the argument buffer in the function frame
         """
-        return sum(arg_t.size_in_bytes() for arg_t in self.arguments.values())
+        return sum(arg_t.size_in_bytes() for arg_t in self.argument_typs)
 
     @property
     def is_constructor(self) -> bool:
@@ -523,7 +519,7 @@ class ContractFunctionT(VyperType):
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.arguments.values()):
+        for arg, expected in zip(node.args, self.argument_typs):
             validate_expected_type(arg, expected)
 
         # TODO this should be moved to validate_call_args
@@ -578,7 +574,7 @@ class ContractFunctionT(VyperType):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [v.to_abi_arg(name=k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [v.typ.to_abi_arg(name=k) for k, v in self.args.items()]
 
         typ = self.return_type
         if typ is None:
