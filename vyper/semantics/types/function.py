@@ -122,13 +122,15 @@ class ContractFunctionT(VyperType):
     @property
     def kwarg_keys(self) -> List[str]:
         if self.min_arg_count < self.max_arg_count:
-            return list(self.arguments.keys())[self.min_arg_count:]
+            return list(self.arguments.keys())[self.min_arg_count :]
         return []
 
+    # for backwards compatibility
     @property
     def base_args(self) -> List[FunctionArg]:
         return list(self.arguments.values())[: self.min_arg_count]
 
+    # for backwards compatibility
     @property
     def default_args(self) -> List[FunctionArg]:
         return list(self.arguments.values())[self.min_arg_count :]
