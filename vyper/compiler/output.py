@@ -136,7 +136,8 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             ret[attr] = ret[attr].name.lower()
 
         for attr in ("arguments",):
-            ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr].values()}
+            fn_args = ret[attr].values()
+            ret[attr] = {arg.name: str(arg.typ) for arg in fn_args}
 
             # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
             ret["default_values"] = {

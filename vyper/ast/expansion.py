@@ -2,7 +2,6 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import ContractFunctionT
 
 
 def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
