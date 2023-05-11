@@ -37,8 +37,6 @@ def generate_ir_for_internal_function(
     # situation like the following is easy to bork:
     #   x: T[2] = [self.generate_T(), self.generate_T()]
 
-    func_type = code._metadata["type"]
-
     # Get nonreentrant lock
 
     for argname, arg in sig.arguments.items():
@@ -46,13 +44,13 @@ def generate_ir_for_internal_function(
         # to False to comply with vyper semantics, function arguments are immutable
         context.new_variable(arg.name, arg.typ, is_mutable=False)
 
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig)
 
     function_entry_label = sig.internal_function_label
     cleanup_label = sig.exit_sequence_label
 
     stack_args = ["var_list"]
-    if func_type.return_type:
+    if sig.return_type:
         stack_args += ["return_buffer"]
     stack_args += ["return_pc"]
 
