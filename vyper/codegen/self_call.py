@@ -93,7 +93,7 @@ def ir_for_self_call(stmt_expr, context):
 
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
-    call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
+    call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "seq"]])
     if return_buffer is not None:
         # push return buffer location to stack
         call_sequence += [return_buffer]

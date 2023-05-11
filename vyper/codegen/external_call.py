@@ -79,7 +79,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
     return_t = fn_type.return_type
 
     if return_t is None:
-        return ["pass"], 0, 0
+        return ["seq"], 0, 0
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 

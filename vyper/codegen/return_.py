@@ -71,7 +71,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         if can_skip_encode:
             assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
             jump_to_exit += [ir_val, maxlen]  # type: ignore
-            return finalize(["pass"])
+            return finalize(["seq"])
 
         ir_val = wrap_value_for_external_return(ir_val)
 
@@ -86,4 +86,4 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         # append ofst and len to exit_to the cleanup subroutine
         jump_to_exit += [return_buffer_ofst, return_len]  # type: ignore
 
-        return finalize(["pass"])
+        return finalize(["seq"])

@@ -4,7 +4,7 @@ from vyper.semantics.types.function import StateMutability
 
 def get_nonreentrant_lock(func_type):
     if not func_type.nonreentrant:
-        return ["pass"], ["pass"]
+        return ["seq"], ["seq"]
 
     nkey = func_type.reentrancy_key_position.position
 

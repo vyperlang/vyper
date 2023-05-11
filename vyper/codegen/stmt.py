@@ -50,7 +50,7 @@ class Stmt:
         return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
-        return IRnode.from_list("pass")
+        return IRnode.from_list("seq")
 
     def parse_Name(self):
         if self.stmt.id == "vdb":
@@ -420,5 +420,5 @@ def parse_body(code, context, ensure_terminated=False):
         ir_node.append(parse_stmt(vy_ast.Return(value=None), context))
 
     # force zerovalent, even last statement
-    ir_node.append("pass")  # CMC 2022-01-16 is this necessary?
+    ir_node.append("seq")  # CMC 2022-01-16 is this necessary?
     return IRnode.from_list(ir_node)
