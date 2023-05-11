@@ -633,19 +633,6 @@ class ContractFunctionT(VyperType):
     def exit_sequence_label(self) -> str:
         return self._ir_identifier + "_cleanup"
 
-    def generate_signature(self, node: vy_ast.FunctionDef) -> None:
-        fn_args = []
-        for argnode in node.args.args:
-            argname = argnode.arg
-            fn_arg = FunctionArg(argname, self.arguments[argname], argnode)
-            fn_args.append(fn_arg)
-
-        self.args = fn_args
-
-        # Keep all the value to assign to default parameters.
-        defaults = getattr(node.args, "defaults", [])
-        self.default_values = dict(zip([k for k in self.kwarg_keys], defaults))
-
 
 class MemberFunctionT(VyperType):
     """

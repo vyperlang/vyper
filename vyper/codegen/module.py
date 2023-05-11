@@ -146,7 +146,6 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
     # TODO really this should live in GlobalContext
     for f in function_defs:
         sig = f._metadata["type"]
-        #sig.generate_signature(f)
         # add it to the global namespace.
         local_sigs[sig.name] = sig
 
