@@ -596,3 +596,8 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
         self.visit(node.operand)  # type: ignore[attr-defined]
+
+    def visit_IfExp(self, node: vy_ast.IfExp) -> None:
+        self.visit(node.test)
+        self.visit(node.body)
+        self.visit(node.orelse)

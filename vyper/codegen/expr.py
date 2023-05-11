@@ -701,6 +701,29 @@ class Expr:
         multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
         return multi_ir
 
+    def parse_IfExp(self):
+        test = Expr.parse_value_expr(self.expr.test, self.context)
+        assert test.typ == BoolT()  # sanity check
+
+        body = Expr(self.expr.body, self.context).ir_node
+        orelse = Expr(self.expr.orelse, self.context).ir_node
+
+        # if they are in the same location, we can skip copying
+        # into memory. also for the case where either body or orelse are
+        # literal `multi` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter, XXX fixme).
+        if body.location != orelse.location or body.value == "multi":
+            body = ensure_in_memory(body, self.context)
+            orelse = ensure_in_memory(orelse, self.context)
+
+        assert body.location == orelse.location
+        # check this once compare_type has no side effects:
+        # assert body.typ.compare_type(orelse.typ)
+
+        typ = self.expr._metadata["type"]
+        location = body.location
+        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
+
     @staticmethod
     def struct_literals(expr, name, context):
         member_subs = {}
