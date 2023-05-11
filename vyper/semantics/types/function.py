@@ -136,7 +136,7 @@ class ContractFunctionT(VyperType):
         return list(self.arguments.values())[self.min_arg_count :]
 
     @property
-    def argument_typs(self) -> List[VyperType]:
+    def arguments_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.arguments.values()]
 
     def set_argument_nodes(self, node: vy_ast.FunctionDef):
@@ -146,7 +146,7 @@ class ContractFunctionT(VyperType):
             fn_arg.ast_source = argnode
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.argument_typs)
+        arg_types = ",".join(repr(a) for a in self.arguments_typs)
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
@@ -154,7 +154,7 @@ class ContractFunctionT(VyperType):
             "def "
             + self.name
             + "("
-            + ",".join([str(argtyp) for argtyp in self.argument_typs])
+            + ",".join([str(argtyp) for argtyp in self.arguments_typs])
             + ")"
         )
         if self.return_type:
@@ -431,7 +431,7 @@ class ContractFunctionT(VyperType):
     # convenience property for compare_signature, as it would
     # appear in a public interface
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
-        return tuple(self.argument_typs), self.return_type
+        return tuple(self.arguments_typs), self.return_type
 
     def compare_signature(self, other: "ContractFunctionT") -> bool:
         """
@@ -482,7 +482,7 @@ class ContractFunctionT(VyperType):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_abi_type for i in self.argument_typs]
+        arg_types = [i.canonical_abi_type for i in self.arguments_typs]
 
         if not self.has_default_args:
             return _generate_method_id(self.name, arg_types)
@@ -504,7 +504,7 @@ class ContractFunctionT(VyperType):
         """
         Get the length of the argument buffer in the function frame
         """
-        return sum(arg_t.size_in_bytes() for arg_t in self.argument_typs)
+        return sum(arg_t.size_in_bytes() for arg_t in self.arguments_typs)
 
     @property
     def is_constructor(self) -> bool:
@@ -533,7 +533,7 @@ class ContractFunctionT(VyperType):
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.argument_typs):
+        for arg, expected in zip(node.args, self.arguments_typs):
             validate_expected_type(arg, expected)
 
         # TODO this should be moved to validate_call_args
@@ -617,7 +617,7 @@ class ContractFunctionT(VyperType):
     def _ir_identifier(self) -> str:
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.is_internal else "external"
-        argz = ",".join([str(argtyp) for argtyp in self.argument_typs])
+        argz = ",".join([str(argtyp) for argtyp in self.arguments_typs])
         ret = f"{visibility} {self.name} ({argz})"
         return mkalphanum(ret)
 
