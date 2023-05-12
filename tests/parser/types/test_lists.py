@@ -759,7 +759,7 @@ def foo(xs: uint256[257], i: uint8) -> uint256:
         assert c.foo(xs, ix) == xs[ix + 1]
 
     # safemath should fail for uint8: 255 + 1.
-    assert_tx_failed(lambda: c.foo(255))
+    assert_tx_failed(lambda: c.foo(xs, 255))
 
 
 @pytest.mark.parametrize(
