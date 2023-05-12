@@ -3,7 +3,7 @@ from vyper.codegen.context import Context
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, InternalFunctionIRInfo
 
 
 def generate_ir_for_internal_function(
@@ -46,6 +46,7 @@ def generate_ir_for_internal_function(
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig)
 
+    assert isinstance(sig.ir_info, InternalFunctionIRInfo)  # satisfy mypy
     function_entry_label = sig.ir_info.internal_function_label
     cleanup_label = sig.ir_info.exit_sequence_label
 

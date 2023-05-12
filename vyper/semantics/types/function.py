@@ -140,7 +140,7 @@ class ContractFunctionT(VyperType):
         visibility = "internal" if self.is_internal else "external"
         argz = ",".join([str(argtyp) for argtyp in self.arguments_typs])
         ir_identifier = mkalphanum(f"{visibility} {self.name} ({argz})")
-        self.ir_info = (
+        self.ir_info: FunctionIRInfo = (
             InternalFunctionIRInfo(ir_identifier)
             if self.is_internal
             else ExternalFunctionIRInfo(ir_identifier)
@@ -458,7 +458,7 @@ class ContractFunctionT(VyperType):
 
         return True
 
-    def get_default_value(self, kwarg_name: str) -> vy_ast.VyperNode:
+    def get_default_value(self, kwarg_name: str) -> Optional[vy_ast.VyperNode]:
         for arg in self.keyword_args:
             if arg.name == kwarg_name:
                 return arg.default_value
@@ -467,7 +467,7 @@ class ContractFunctionT(VyperType):
 
     # for backwards compatibility
     @property
-    def arguments(self) -> List[VyperType]:
+    def arguments(self) -> List[FunctionArg]:
         return self.positional_args + self.keyword_args
 
     @property
