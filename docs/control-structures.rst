@@ -38,6 +38,9 @@ External functions (marked with the ``@external`` decorator) are a part of the c
 
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
+.. note::
+    It is possible to define an `external` function that uses default parameters (e.g. ``add_seven(a=1)``) at function declaration. The Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
+
 .. _structure-functions-internal:
 
 Internal Functions
@@ -55,6 +58,8 @@ Internal functions (marked with the ``@internal`` decorator) are only accessible
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
+.. note::
+    It is possible to define an `internal` function that uses default parameters (e.g. ``_times_two(a=1)``) at function declaration. Since calling an `internal` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps.
 
 Mutability
 ----------
