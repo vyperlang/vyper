@@ -114,23 +114,6 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
-    # backwards compatibility
-    @property
-    def arguments(self) -> OrderedDict:
-        return {**self.positional_args, **self.keyword_args}
-
-    @property
-    def n_positional_args(self) -> int:
-        return len(self.positional_args)
-
-    @property
-    def n_keyword_args(self) -> int:
-        return len(self.keyword_args)
-
-    @property
-    def n_total_args(self) -> int:
-        return self.n_positional_args + self.n_keyword_args
-
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments_typs)
         return f"contract function {self.name}({arg_types})"
@@ -444,9 +427,26 @@ class ContractFunctionT(VyperType):
 
         return True
 
+    # backwards compatibility
+    @property
+    def arguments(self) -> OrderedDict:
+        return {**self.positional_args, **self.keyword_args}
+
     @property
     def arguments_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.arguments.values()]
+
+    @property
+    def n_positional_args(self) -> int:
+        return len(self.positional_args)
+
+    @property
+    def n_keyword_args(self) -> int:
+        return len(self.keyword_args)
+
+    @property
+    def n_total_args(self) -> int:
+        return self.n_positional_args + self.n_keyword_args
 
     @property
     def is_external(self) -> bool:
@@ -463,6 +463,14 @@ class ContractFunctionT(VyperType):
     @property
     def is_payable(self) -> bool:
         return self.mutability == StateMutability.PAYABLE
+
+    @property
+    def is_constructor(self) -> bool:
+        return self.name == "__init__"
+
+    @property
+    def is_fallback(self) -> bool:
+        return self.name == "__default__"
 
     @property
     def method_ids(self) -> Dict[str, int]:
@@ -482,14 +490,6 @@ class ContractFunctionT(VyperType):
         for i in range(self.n_positional_args, self.n_total_args + 1):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
-
-    @property
-    def is_constructor(self) -> bool:
-        return self.name == "__init__"
-
-    @property
-    def is_fallback(self) -> bool:
-        return self.name == "__default__"
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
