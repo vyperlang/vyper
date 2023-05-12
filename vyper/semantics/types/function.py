@@ -1,6 +1,5 @@
 import re
 import warnings
-from collections import OrderedDict
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
@@ -62,8 +61,8 @@ class ContractFunctionT(VyperType):
     ----------
     name : str
         The name of the function.
-    arguments : OrderedDict
-        Function input arguments as {'name': FunctionArg}
+    arguments : List[FunctionArg]
+        Function input arguments as FunctionArg
     min_arg_count : int
         The minimum number of required input arguments.
     max_arg_count : int
@@ -82,15 +81,15 @@ class ContractFunctionT(VyperType):
     def __init__(
         self,
         name: str,
-        positional_args: OrderedDict,
+        positional_args: List[FunctionArg],
+        keyword_args: List[FunctionArg],
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
-        keyword_args: Optional[OrderedDict] = OrderedDict(),
     ) -> None:
         super().__init__()
-
+        assert isinstance(positional_args, list)
         self.name = name
         self.positional_args = positional_args
         self.keyword_args = keyword_args
@@ -152,10 +151,9 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
-        arguments = OrderedDict()
+        arguments = []
         for item in abi["inputs"]:
-            argname = item["name"]
-            arguments[argname] = FunctionArg(argname, type_from_abi(item))
+            arguments.append(FunctionArg(item["name"], type_from_abi(item)))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
@@ -164,6 +162,7 @@ class ContractFunctionT(VyperType):
         return cls(
             abi["name"],
             arguments,
+            [],
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
@@ -303,8 +302,8 @@ class ContractFunctionT(VyperType):
                     "Constructor may not use default arguments", node.args.defaults[0]
                 )
 
-        positional_args = OrderedDict()
-        keyword_args = OrderedDict()
+        positional_args = []
+        keyword_args = []
         n_total_args = len(node.args.args)
         n_positional_args = n_total_args - len(node.args.defaults)
         defaults = [None] * n_positional_args + node.args.defaults
@@ -334,9 +333,9 @@ class ContractFunctionT(VyperType):
                 validate_expected_type(value, type_)
 
             if i < n_positional_args:
-                positional_args[argname] = FunctionArg(argname, type_, arg)
+                positional_args.append(FunctionArg(argname, type_, arg))
             else:
-                keyword_args[argname] = FunctionArg(argname, type_, arg, value)
+                keyword_args.append(FunctionArg(argname, type_, arg, value))
 
         # return types
         if node.returns is None:
@@ -351,8 +350,7 @@ class ContractFunctionT(VyperType):
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
-        kwargs["keyword_args"] = keyword_args
-        return cls(node.name, positional_args, return_type, **kwargs)
+        return cls(node.name, positional_args, keyword_args, return_type, **kwargs)
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
         if hasattr(self, "reentrancy_key_position"):
@@ -384,14 +382,14 @@ class ContractFunctionT(VyperType):
             raise CompilerPanic("getter generated for non-public function")
         type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
-        args_dict: OrderedDict = OrderedDict()
-        for item in arguments:
-            argname = f"arg{len(args_dict)}"
-            args_dict[argname] = FunctionArg(argname, item)
+        args = []
+        for i, item in enumerate(arguments):
+            args.append(FunctionArg(f"arg{i}", item))
 
         return cls(
             node.target.id,
-            args_dict,
+            args,
+            [],
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
@@ -427,14 +425,21 @@ class ContractFunctionT(VyperType):
 
         return True
 
-    # backwards compatibility
+    def get_default_value(self, kwarg_name: str) -> vy_ast.VyperNode:
+        for arg in self.keyword_args:
+            if arg.name == kwarg_name:
+                return arg.default_value
+
+        raise ArgumentException(f"`{kwarg_name}` is not a keyword argument in {self}")
+
+    # for backwards compatibility
     @property
-    def arguments(self) -> OrderedDict:
-        return {**self.positional_args, **self.keyword_args}
+    def arguments(self) -> List[VyperType]:
+        return self.positional_args + self.keyword_args
 
     @property
     def arguments_typs(self) -> List[VyperType]:
-        return [arg.typ for arg in self.arguments.values()]
+        return [arg.typ for arg in self.arguments]
 
     @property
     def n_positional_args(self) -> int:
@@ -496,7 +501,7 @@ class ContractFunctionT(VyperType):
             raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
-        kwarg_keys = list(self.keyword_args.keys())
+        kwarg_keys = [arg.name for arg in self.keyword_args]
         if node.get("func.value.id") != "self":
             kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
@@ -561,7 +566,7 @@ class ContractFunctionT(VyperType):
             abi_dict["type"] = "function"
             abi_dict["name"] = self.name
 
-        abi_dict["inputs"] = [v.typ.to_abi_arg(name=k) for k, v in self.arguments.items()]
+        abi_dict["inputs"] = [arg.typ.to_abi_arg(name=arg.name) for arg in self.arguments]
 
         typ = self.return_type
         if typ is None:
@@ -584,7 +589,7 @@ class ContractFunctionT(VyperType):
     def set_argument_nodes(self, node: vy_ast.FunctionDef) -> None:
         args = node.args.args
         assert len(args) == len(self.arguments)
-        for argnode, fn_arg in zip(args, self.arguments.values()):
+        for argnode, fn_arg in zip(args, self.arguments):
             fn_arg.ast_source = argnode
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
@@ -602,7 +607,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = list(self.positional_args.values()) + kwargs
+        args = self.positional_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @property

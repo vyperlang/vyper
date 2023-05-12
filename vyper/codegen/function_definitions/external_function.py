@@ -18,7 +18,7 @@ from vyper.semantics.types.function import ContractFunctionT
 def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IRnode]:
     ret = []
     # the type of the calldata
-    base_args_t = TupleT(tuple(arg.typ for arg in sig.positional_args.values()))
+    base_args_t = TupleT(tuple(arg.typ for arg in sig.positional_args))
 
     # tuple with the abi_encoded args
     if sig.is_constructor:
@@ -26,7 +26,7 @@ def _register_function_args(context: Context, sig: ContractFunctionT) -> List[IR
     else:
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
-    for i, arg in enumerate(sig.positional_args.values()):
+    for i, arg in enumerate(sig.positional_args):
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):
@@ -70,7 +70,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
     #    goto external_function_common_ir
 
     def handler_for(calldata_kwargs, default_kwargs):
-        calldata_args = list(sig.positional_args.values()) + calldata_kwargs
+        calldata_args = sig.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
@@ -110,7 +110,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             lhs.source_pos = getpos(x.ast_source)
-            kw_ast_val = sig.keyword_args[x.name].default_value  # e.g. `3` in x: int = 3
+            kw_ast_val = sig.get_default_value(x.name)  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
@@ -141,7 +141,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
 
     ret = ["seq"]
 
-    keyword_args = list(sig.keyword_args.values())
+    keyword_args = sig.keyword_args
 
     # allocate variable slots in memory
     for arg in keyword_args:

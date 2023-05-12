@@ -44,7 +44,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
-        args = ", ".join([f"{fn_arg.name}: {fn_arg.typ}" for fn_arg in func.arguments.values()])
+        args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
         return_value = f" -> {func.return_type}" if func.return_type is not None else ""
         mutability = func.mutability.value
         out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
@@ -69,7 +69,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
                 out = f"{out}@{func.mutability.value}\n"
-            args = ", ".join([f"{fn_arg.name}: {fn_arg.typ}" for fn_arg in func.arguments.values()])
+            args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
             out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
 
@@ -136,15 +136,12 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             ret[attr] = ret[attr].name.lower()
 
         for attr in ("positional_args", "keyword_args"):
-            fn_args = ret[attr].values()
-            ret[attr] = {arg.name: str(arg.typ) for arg in fn_args}
+            args = ret[attr]
+            ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
             if attr == "keyword_args":
                 # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-                ret["default_values"] = {
-                    arg.name: arg.ast_source.node_source_code
-                    for arg in fn_args
-                }
+                ret["default_values"] = {arg.name: arg.ast_source.node_source_code for arg in args}
 
         ret["frame_info"] = vars(ret["frame_info"])
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
