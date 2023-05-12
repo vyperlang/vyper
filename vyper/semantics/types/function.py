@@ -113,7 +113,7 @@ class ContractFunctionT(VyperType):
         nonreentrant: Optional[str] = None,
     ) -> None:
         super().__init__()
-        assert isinstance(positional_args, list)
+
         self.name = name
         self.positional_args = positional_args
         self.keyword_args = keyword_args
