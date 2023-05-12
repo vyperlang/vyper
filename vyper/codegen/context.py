@@ -264,9 +264,9 @@ class Context:
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.arguments))
 
         num_provided_kwargs = len(args_ir) - sig.n_positional_args
-        kwargs_needed = sig.n_keyword_args - num_provided_kwargs
 
-        kw_vals = [i.default_value for i in sig.keyword_args[:kwargs_needed]]
+        kw_vals = [i.default_value for i in sig.keyword_args[num_provided_kwargs:]]
+
         return sig, kw_vals
 
     # Pretty print constancy for error messages
