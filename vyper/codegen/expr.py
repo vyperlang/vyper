@@ -365,7 +365,7 @@ class Expr:
         if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
-            assert left.typ == right.typ, f"unreachable, {left.typ} != {right.typ}"
+            assert left.typ == right.typ, str(VyperException(f"unreachable, {left.typ} != {right.typ}", self.expr))
 
         assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
