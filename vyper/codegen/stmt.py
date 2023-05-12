@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
+    clamp,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -258,6 +259,8 @@ class Stmt:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
 
         r = rounds if isinstance(rounds, int) else rounds.value
         if r < 1:
