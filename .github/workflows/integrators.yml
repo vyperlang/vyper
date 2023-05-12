@@ -62,7 +62,7 @@ jobs:
 
     - name: Install Vyper
       run: |
-        ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+        pip install .
         mkdir era-compiler-tester/vyper-bin
         echo $(which vyper)
         cp $(which vyper) era-compiler-tester/vyper-bin/vyper-0.3.8
