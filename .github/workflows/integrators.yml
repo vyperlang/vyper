@@ -17,6 +17,7 @@ jobs:
     - name: Get latest commit hash
       run: |
         echo "ERA_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-tester/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
+        echo "ERA_VYPER_HASH=$( curl -u "u:${{ github.token }}" https://api.github.com/repos/matter-labs/era-compiler-vyper/git/ref/heads/main | jq .object.sha | tr -d '"' )" >> $GITHUB_ENV
 
     - name: Checkout
       uses: actions/checkout@v1
@@ -45,7 +46,7 @@ jobs:
           **/compiler_tester
           **/llvm
           **/era-compiler-tester
-        key: ${{ runner.os }}-${{ env.ERA_HASH }}
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
 
     - name: Initialize repository and install dependencies
       if: steps.cache.outputs.cache-hit != 'true'
@@ -74,7 +75,7 @@ jobs:
           **/compiler_tester
           **/llvm
           **/era-compiler-tester
-        key: ${{ runner.os }}-${{ env.ERA_HASH }}
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
 
     - name: Install Vyper
       run: |
