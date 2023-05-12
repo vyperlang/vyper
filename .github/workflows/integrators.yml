@@ -48,7 +48,7 @@ jobs:
         key: ${{ runner.os }}-${{ env.ERA_HASH }}
 
     - name: Initialize repository and install dependencies
-      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+      if: steps.cache.outputs.cache-hit != 'true'
       run: |
         git clone --depth 1 https://github.com/matter-labs/era-compiler-tester.git
         cd era-compiler-tester
@@ -59,6 +59,22 @@ jobs:
         cargo install compiler-llvm-builder
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
+
+    - name: Save cache
+      uses: actions/cache/save@v3
+      if: always()
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          **/target
+          **/target-llvm
+          **/compiler_tester
+          **/llvm
+          **/era-compiler-tester
+        key: ${{ runner.os }}-${{ env.ERA_HASH }}
 
     - name: Install Vyper
       run: |
