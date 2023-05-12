@@ -120,7 +120,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(sig):
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
-        ret["_ir_identifier"] = sig._ir_identifier
+        ret["_ir_identifier"] = sig.ir_info.identifier
 
         for attr in (
             "call_site_kwargs",

@@ -49,7 +49,7 @@ def ir_for_self_call(stmt_expr, context):
     if not sig.is_internal:
         raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
-    return_label = _generate_label(f"{sig.internal_function_label}_call")
+    return_label = _generate_label(f"{sig.ir_info.internal_function_label}_call")
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
@@ -84,7 +84,7 @@ def ir_for_self_call(stmt_expr, context):
     else:
         copy_args = make_setter(args_dst, args_as_tuple)
 
-    goto_op = ["goto", sig.internal_function_label]
+    goto_op = ["goto", sig.ir_info.internal_function_label]
     # pass return buffer to subroutine
     if return_buffer is not None:
         goto_op += [return_buffer]

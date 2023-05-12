@@ -46,8 +46,8 @@ def generate_ir_for_internal_function(
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig)
 
-    function_entry_label = sig.internal_function_label
-    cleanup_label = sig.exit_sequence_label
+    function_entry_label = sig.ir_info.internal_function_label
+    cleanup_label = sig.ir_info.exit_sequence_label
 
     stack_args = ["var_list"]
     if sig.return_type:

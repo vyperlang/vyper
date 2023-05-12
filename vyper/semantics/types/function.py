@@ -1,7 +1,6 @@
 import re
 import warnings
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -36,6 +35,30 @@ class FunctionArg:
     typ: VyperType
     ast_source: Optional[vy_ast.VyperNode] = None
     default_value: Optional[vy_ast.VyperNode] = None
+
+
+@dataclass
+class FunctionIRInfo:
+    identifier: str
+
+    @property
+    def exit_sequence_label(self) -> str:
+        return self.identifier + "_cleanup"
+
+
+@dataclass
+class ExternalFunctionIRInfo(FunctionIRInfo):
+    @property
+    # common entry point for external function with kwargs
+    def external_function_base_entry_label(self) -> str:
+        return self.identifier + "_common"
+
+
+@dataclass
+class InternalFunctionIRInfo(FunctionIRInfo):
+    @property
+    def internal_function_label(self) -> str:
+        return self.identifier
 
 
 @dataclass
@@ -112,6 +135,16 @@ class ContractFunctionT(VyperType):
         self.gas_estimate = None
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
+
+        # we could do a bit better than this but it just needs to be unique
+        visibility = "internal" if self.is_internal else "external"
+        argz = ",".join([str(argtyp) for argtyp in self.arguments_typs])
+        ir_identifier = mkalphanum(f"{visibility} {self.name} ({argz})")
+        self.ir_info = (
+            InternalFunctionIRInfo(ir_identifier)
+            if self.is_internal
+            else ExternalFunctionIRInfo(ir_identifier)
+        )
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.arguments_typs)
@@ -597,35 +630,10 @@ class ContractFunctionT(VyperType):
             raise CompilerPanic("sig.frame_info already set!")
         self.frame_info = frame_info
 
-    @cached_property
-    def _ir_identifier(self) -> str:
-        # we could do a bit better than this but it just needs to be unique
-        visibility = "internal" if self.is_internal else "external"
-        argz = ",".join([str(argtyp) for argtyp in self.arguments_typs])
-        ret = f"{visibility} {self.name} ({argz})"
-        return mkalphanum(ret)
-
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
         args = self.positional_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
-
-    @property
-    # common entry point for external function with kwargs
-    def external_function_base_entry_label(self) -> str:
-        assert not self.is_internal
-
-        return self._ir_identifier + "_common"
-
-    @property
-    def internal_function_label(self) -> str:
-        assert self.is_internal, "why are you doing this"
-
-        return self._ir_identifier
-
-    @property
-    def exit_sequence_label(self) -> str:
-        return self._ir_identifier + "_cleanup"
 
 
 class MemberFunctionT(VyperType):
