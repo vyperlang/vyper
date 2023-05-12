@@ -176,7 +176,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     fn_type = call_expr.func._metadata["type"]
 
     # sanity check
-    assert fn_type.min_arg_count <= len(args_ir) <= fn_type.max_arg_count
+    assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
     ret = ["seq"]
 

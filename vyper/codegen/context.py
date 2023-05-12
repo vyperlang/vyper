@@ -259,13 +259,12 @@ class Context:
         # these should have been caught during type checking; sanity check
         _check(sig is not None)
         _check(sig.is_internal)
-        _check(sig.min_arg_count <= len(args_ir) <= sig.max_arg_count)
+        _check(sig.n_positional_args <= len(args_ir) <= sig.n_total_args)
         # more sanity check, that the types match
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.arguments))
 
-        num_provided_kwargs = len(args_ir) - sig.min_arg_count
-        num_kwargs = sig.max_arg_count - sig.min_arg_count
-        kwargs_needed = num_kwargs - num_provided_kwargs
+        num_provided_kwargs = len(args_ir) - sig.n_positional_args
+        kwargs_needed = sig.n_keyword_args - num_provided_kwargs
 
         kw_vals = [i.default_value for i in sig.default_args[:kwargs_needed]]
         return sig, kw_vals

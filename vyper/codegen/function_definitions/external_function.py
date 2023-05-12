@@ -93,10 +93,8 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
         # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
 
-        n_base_args = sig.min_arg_count
-
         for i, arg_meta in enumerate(calldata_kwargs):
-            k = n_base_args + i
+            k = sig.n_positional_args + i
 
             dst = context.lookup_var(arg_meta.name).pos
 
