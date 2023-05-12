@@ -451,16 +451,6 @@ class ContractFunctionT(VyperType):
             return list(self.keyword_args.keys())
         return []
 
-    # for backwards compatibility
-    @property
-    def base_args(self) -> List[FunctionArg]:
-        return list(self.positional_args.values())
-
-    # for backwards compatibility
-    @property
-    def default_args(self) -> List[FunctionArg]:
-        return list(self.keyword_args.values())
-
     @property
     def arguments_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.arguments.values()]

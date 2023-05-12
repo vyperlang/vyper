@@ -266,7 +266,7 @@ class Context:
         num_provided_kwargs = len(args_ir) - sig.n_positional_args
         kwargs_needed = sig.n_keyword_args - num_provided_kwargs
 
-        kw_vals = [i.default_value for i in sig.default_args[:kwargs_needed]]
+        kw_vals = [i.default_value for i in list(sig.keyword_args.values())[:kwargs_needed]]
         return sig, kw_vals
 
     # Pretty print constancy for error messages
