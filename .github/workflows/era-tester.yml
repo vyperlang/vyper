@@ -1,4 +1,11 @@
-name: Integrators
+name: era compiler tester
+
+# run the matter labs compiler test to integrate their test cases
+# this is intended as a diagnostic / spot check to check that we
+# haven't seriously broken the compiler. but, it is not intended as
+# a requirement for merging since we may make changes to our IR
+# which break the downstream backend (at which point, downstream needs
+# to update, which we do not want to be blocked on).
 
 on: [push, pull_request]
 
