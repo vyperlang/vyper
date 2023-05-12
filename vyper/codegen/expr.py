@@ -75,11 +75,11 @@ class Expr:
 
         fn = getattr(self, f"parse_{type(node).__name__}", None)
         if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
+            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
 
         self.ir_node = fn()
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR. {self.expr}")
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.", node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
@@ -365,7 +365,8 @@ class Expr:
         if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
-            assert left.typ == right.typ, str(VyperException(f"unreachable, {left.typ} != {right.typ}", self.expr))
+            if left.typ != right.typ:
+                raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
 
         assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
