@@ -36,10 +36,14 @@ External functions (marked with the ``@external`` decorator) are a part of the c
     def add_seven(a: int128) -> int128:
         return a + 7
 
+    @external
+    def add_seven_with_overloading(a: uint256, b: uint256 = 3):
+        return a + b
+
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
 
 .. note::
-    It is possible to define an ``external`` function that uses default parameters (e.g. ``add_seven(a: int128=1)``) at function declaration. The Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
 
 .. _structure-functions-internal:
 
@@ -51,15 +55,15 @@ Internal functions (marked with the ``@internal`` decorator) are only accessible
 .. code-block:: python
 
     @internal
-    def _times_two(amount: uint256) -> uint256:
-        return amount * 2
+    def _times_two(amount: uint256, two: uint256 = 2) -> uint256:
+        return amount * two
 
     @external
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
 .. note::
-    It is possible to define an ``internal`` function that uses default parameters (e.g. ``_times_two(a: uint256=1)``) at function declaration. Since calling an ``internal`` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps. Please note that for the usage of default parameters via ``internal`` functions, Vyper versions ``>=0.3.8`` are strongly recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
+    Since calling an ``internal`` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps. Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are strongly recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
 
 Mutability
 ----------
