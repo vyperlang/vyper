@@ -166,7 +166,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["type"].frame_info.mem_used
+        init_mem_used = init_function._metadata["type"].ir_info.frame_info.mem_used
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else

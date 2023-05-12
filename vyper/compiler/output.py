@@ -120,7 +120,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(sig):
         ret = vars(sig)
         ret["return_type"] = str(ret["return_type"])
-        ret["_ir_identifier"] = sig.ir_info.identifier
+        ret["ir_identifier"] = sig.ir_info.identifier
 
         for attr in (
             "call_site_kwargs",
@@ -143,8 +143,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
                 # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
                 ret["default_values"] = {arg.name: arg.ast_source.node_source_code for arg in args}
 
-        ret["frame_info"] = vars(ret["frame_info"])
+        ret["frame_info"] = vars(sig.ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
+        del ret["ir_info"]
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}

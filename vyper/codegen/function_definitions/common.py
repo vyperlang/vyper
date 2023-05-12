@@ -36,7 +36,7 @@ def generate_ir_for_function(
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c in callees:
-        frame_info = sigs["self"][c.name].frame_info
+        frame_info = sigs["self"][c.name].ir_info.frame_info
         assert frame_info is not None  # make mypy happy
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
@@ -72,7 +72,7 @@ def generate_ir_for_function(
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
-        o.add_gas_estimate += calc_mem_gas(sig.frame_info.mem_used)
+        o.add_gas_estimate += calc_mem_gas(sig.ir_info.frame_info.mem_used)
 
     sig.gas_estimate = o.gas
 

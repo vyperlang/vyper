@@ -38,8 +38,20 @@ class FunctionArg:
 
 
 @dataclass
+class FrameInfo:
+    frame_start: int
+    frame_size: int
+    frame_vars: Dict[str, Tuple[int, VyperType]]
+
+    @property
+    def mem_used(self):
+        return self.frame_size + MemoryPositions.RESERVED_MEMORY
+
+
+@dataclass
 class FunctionIRInfo:
     identifier: str
+    frame_info: Optional[FrameInfo] = None
 
     @property
     def exit_sequence_label(self) -> str:
@@ -59,17 +71,6 @@ class InternalFunctionIRInfo(FunctionIRInfo):
     @property
     def internal_function_label(self) -> str:
         return self.identifier
-
-
-@dataclass
-class FrameInfo:
-    frame_start: int
-    frame_size: int
-    frame_vars: Dict[str, Tuple[int, VyperType]]
-
-    @property
-    def mem_used(self):
-        return self.frame_size + MemoryPositions.RESERVED_MEMORY
 
 
 class ContractFunctionT(VyperType):
@@ -133,8 +134,6 @@ class ContractFunctionT(VyperType):
         }
 
         self.gas_estimate = None
-        # frame info is metadata that will be generated during codegen.
-        self.frame_info: Optional[FrameInfo] = None
 
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.is_internal else "external"
@@ -626,9 +625,9 @@ class ContractFunctionT(VyperType):
             fn_arg.ast_source = argnode
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
-        if self.frame_info is not None:
-            raise CompilerPanic("sig.frame_info already set!")
-        self.frame_info = frame_info
+        if self.ir_info.frame_info is not None:
+            raise CompilerPanic("sig.ir_info.frame_info already set!")
+        self.ir_info.frame_info = frame_info
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
