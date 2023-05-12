@@ -65,4 +65,4 @@ def foo():
                 r = d.args[0].args[0].value
                 if isinstance(r, str) and r.startswith("internal"):
                     ir_funcs.append(r)
-        assert ir_funcs == [f.internal_function_label for f in sigs.values()]
+        assert ir_funcs == [f.ir_info.internal_function_label for f in sigs.values()]
