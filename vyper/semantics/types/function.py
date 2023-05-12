@@ -83,11 +83,11 @@ class ContractFunctionT(VyperType):
         self,
         name: str,
         positional_args: OrderedDict,
-        keyword_args: OrderedDict,
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
+        keyword_args: Optional[OrderedDict] = OrderedDict(),
     ) -> None:
         super().__init__()
 
@@ -181,7 +181,6 @@ class ContractFunctionT(VyperType):
         return cls(
             abi["name"],
             arguments,
-            OrderedDict(),
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
@@ -369,7 +368,8 @@ class ContractFunctionT(VyperType):
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
-        return cls(node.name, positional_args, keyword_args, return_type, **kwargs)
+        kwargs["keyword_args"] = keyword_args
+        return cls(node.name, positional_args, return_type, **kwargs)
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
         if hasattr(self, "reentrancy_key_position"):
@@ -409,7 +409,6 @@ class ContractFunctionT(VyperType):
         return cls(
             node.target.id,
             args_dict,
-            OrderedDict(),
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
@@ -497,7 +496,7 @@ class ContractFunctionT(VyperType):
             raise CallViolation("Cannot call external functions via 'self'", node)
 
         # for external calls, include gas and value as optional kwargs
-        kwarg_keys = self.kwarg_keys.copy()
+        kwarg_keys = list(self.keyword_args.keys())
         if node.get("func.value.id") != "self":
             kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)

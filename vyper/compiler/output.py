@@ -135,16 +135,16 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         for attr in ("mutability", "visibility"):
             ret[attr] = ret[attr].name.lower()
 
-        for attr in ("arguments",):
+        for attr in ("positional_args", "keyword_args"):
             fn_args = ret[attr].values()
             ret[attr] = {arg.name: str(arg.typ) for arg in fn_args}
 
-            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-            ret["default_values"] = {
-                arg.name: arg.ast_source.node_source_code
-                for arg in fn_args
-                if arg.default_value is not None
-            }
+            if attr == "keyword_args":
+                # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+                ret["default_values"] = {
+                    arg.name: arg.ast_source.node_source_code
+                    for arg in fn_args
+                }
 
         ret["frame_info"] = vars(ret["frame_info"])
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
