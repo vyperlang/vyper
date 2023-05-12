@@ -43,8 +43,8 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
-        assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
-        for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
+        assert self.func.n_keyword_args == len(fn_node.args.defaults)
+        for kw, val in zip(self.func.keyword_args.keys(), fn_node.args.defaults):
             self.expr_visitor.visit(val, self.func.arguments[kw].typ)
 
     def visit(self, node):

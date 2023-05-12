@@ -446,12 +446,6 @@ class ContractFunctionT(VyperType):
         return True
 
     @property
-    def kwarg_keys(self) -> List[str]:
-        if self.n_keyword_args > 0:
-            return list(self.keyword_args.keys())
-        return []
-
-    @property
     def arguments_typs(self) -> List[VyperType]:
         return [arg.typ for arg in self.arguments.values()]
 
