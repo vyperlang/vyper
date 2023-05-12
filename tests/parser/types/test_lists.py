@@ -745,6 +745,23 @@ def ix(i: uint256) -> address:
     assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
 
 
+def test_list_index_complex_expr(get_contract, assert_tx_failed):
+    # test subscripts where the index is not a literal
+    code = """
+@external
+def foo(xs: uint256[257], i: uint8) -> uint256:
+    return xs[i + 1]
+    """
+    c = get_contract(code)
+    xs = [i + 1 for i in range(257)]
+
+    for ix in range(255):
+        assert c.foo(xs, ix) == xs[ix + 1]
+
+    # safemath should fail for uint8: 255 + 1.
+    assert_tx_failed(lambda: c.foo(255))
+
+
 @pytest.mark.parametrize(
     "type,value",
     [
