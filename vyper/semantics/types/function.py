@@ -114,6 +114,7 @@ class ContractFunctionT(VyperType):
         # frame info is metadata that will be generated during codegen.
         self.frame_info: Optional[FrameInfo] = None
 
+    # backwards compatibility
     @property
     def arguments(self) -> OrderedDict:
         return {**self.positional_args, **self.keyword_args}
@@ -618,7 +619,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = list(self.keyword_args.values()) + kwargs
+        args = list(self.positional_args.values()) + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
     @property
