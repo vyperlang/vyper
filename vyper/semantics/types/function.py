@@ -334,11 +334,13 @@ class ContractFunctionT(VyperType):
                     "Constructor may not use default arguments", node.args.defaults[0]
                 )
 
-        positional_args = []
-        keyword_args = []
+        argnames = set()  # for checking uniqueness
         n_total_args = len(node.args.args)
         n_positional_args = n_total_args - len(node.args.defaults)
         defaults = [None] * n_positional_args + node.args.defaults
+
+        positional_args = []
+        keyword_args = []
 
         namespace = get_namespace()
         for i, (arg, value) in enumerate(zip(node.args.args, defaults)):
@@ -347,7 +349,7 @@ class ContractFunctionT(VyperType):
                 raise ArgumentException(
                     f"Cannot use '{argname}' as a variable name in a function input", arg
                 )
-            if argname in positional_args or argname in keyword_args:
+            if argname in argnames:
                 raise ArgumentException(f"Function contains multiple inputs named {argname}", arg)
             if argname in namespace:
                 raise NamespaceCollision(argname, arg)
@@ -368,6 +370,8 @@ class ContractFunctionT(VyperType):
                 positional_args.append(FunctionArg(argname, type_, arg))
             else:
                 keyword_args.append(FunctionArg(argname, type_, arg, value))
+
+            argnames.add(argname)
 
         # return types
         if node.returns is None:
