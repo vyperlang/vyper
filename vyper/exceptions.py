@@ -22,7 +22,7 @@ class ExceptionList(list):
             raise VyperException("\n\n".join(err_msg))
 
 
-class VyperException(Exception):
+class _BaseVyperException(Exception):
     """
     Base Vyper exception class.
 
@@ -123,6 +123,10 @@ class VyperException(Exception):
 
         annotation_msg = "\n".join(annotation_list)
         return f"{self.message}\n{annotation_msg}"
+
+
+class VyperException(_BaseVyperException):
+    pass
 
 
 class SyntaxException(VyperException):
@@ -285,7 +289,7 @@ class StaticAssertionException(VyperException):
     """An assertion is proven to fail at compile-time."""
 
 
-class VyperInternalException(Exception):
+class VyperInternalException(_BaseVyperException):
     """
     Base Vyper internal exception class.
 
@@ -295,9 +299,6 @@ class VyperInternalException(Exception):
     Internal exceptions are raised as a means of telling the user that the
     compiler has panicked, and that filing a bug report would be appropriate.
     """
-
-    def __init__(self, message=""):
-        self.message = message
 
     def __str__(self):
         return (

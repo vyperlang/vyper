@@ -238,7 +238,12 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        self.visit(node.slice, base_type.key_type)
+        # get the correct type for the index, it might
+        # not be base_type.key_type
+        index_types = get_possible_types_from_node(node.slice.value)
+        index_type = index_types.pop()
+
+        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
