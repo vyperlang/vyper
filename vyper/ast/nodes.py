@@ -5,6 +5,7 @@ import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
@@ -254,7 +255,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: set = set()
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -1426,6 +1427,10 @@ class ImplementsDecl(Stmt):
 
 
 class If(Stmt):
+    __slots__ = ("test", "body", "orelse")
+
+
+class IfExp(ExprNode):
     __slots__ = ("test", "body", "orelse")
 
 
