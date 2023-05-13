@@ -622,12 +622,6 @@ class ContractFunctionT(VyperType):
         else:
             return [abi_dict]
 
-    def set_argument_nodes(self, node: vy_ast.FunctionDef) -> None:
-        args = node.args.args
-        assert len(args) == len(self.arguments)
-        for argnode, fn_arg in zip(args, self.arguments):
-            fn_arg.ast_source = argnode
-
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.ir_info.frame_info is not None:
             raise CompilerPanic("sig.ir_info.frame_info already set!")

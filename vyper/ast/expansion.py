@@ -2,6 +2,8 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
+from vyper.semantics.types.function import ContractFunctionT
 
 
 def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
@@ -85,8 +87,15 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
             returns=return_node,
         )
-        # func_type = ContractFunctionT.from_FunctionDef(expanded)
-        func_type.set_argument_nodes(expanded)
+
+        # derive the function type with a temporary namespace populated with
+        # the module's custom types (e.g. interfaces, structs and enums)
+        current_namespace = get_namespace()
+        temp_namespace = Namespace()
+        temp_namespace.update(current_namespace._module_custom_types)
+        with override_global_namespace(temp_namespace):
+            func_type = ContractFunctionT.from_FunctionDef(expanded)
+
         expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)

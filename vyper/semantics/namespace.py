@@ -23,6 +23,10 @@ class Namespace(dict):
     def __init__(self):
         super().__init__()
         self._scopes = []
+        # preserve custom user-defined types of a module in a custom field so that it can be
+        # added to a new namespace for type derivation after semantics analysis, such as
+        # during AST expansion
+        self._module_custom_types = {}
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
@@ -59,6 +63,14 @@ class Namespace(dict):
             raise CompilerPanic("Bad use of namespace as a context manager")
         for key in self._scopes.pop():
             del self[key]
+
+    def add_to_module_custom_types(self, attr, obj):
+        # skip if key has already been added
+        # validation can be relaxed because `_module_custom_types` is not used
+        # to check for name space collision
+        if attr in self._module_custom_types:
+            return
+        self._module_custom_types[attr] = obj
 
     def enter_scope(self):
         """
