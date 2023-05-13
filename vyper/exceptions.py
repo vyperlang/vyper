@@ -22,7 +22,7 @@ class ExceptionList(list):
             raise VyperException("\n\n".join(err_msg))
 
 
-class _VyperException(Exception):
+class _BaseVyperException(Exception):
     """
     Base Vyper exception class.
 
@@ -125,7 +125,7 @@ class _VyperException(Exception):
         return f"{self.message}\n{annotation_msg}"
 
 
-class VyperException(_VyperException):
+class VyperException(_BaseVyperException):
     pass
 
 
@@ -289,7 +289,7 @@ class StaticAssertionException(VyperException):
     """An assertion is proven to fail at compile-time."""
 
 
-class VyperInternalException(_VyperException):
+class VyperInternalException(_BaseVyperException):
     """
     Base Vyper internal exception class.
 
