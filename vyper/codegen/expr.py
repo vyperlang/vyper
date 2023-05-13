@@ -3,7 +3,6 @@ import math
 
 import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
@@ -17,10 +16,14 @@ from vyper.codegen.core import (
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
+    sar,
+    shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -317,6 +320,9 @@ class Expr:
             sub = Expr(self.expr.value, self.context).ir_node
             # contract type
             if isinstance(sub.typ, InterfaceT):
+                # MyInterface.address
+                assert self.expr.attr == "address"
+                sub.typ = typ
                 return sub
             if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
                 return get_element_ptr(sub, self.expr.attr)
@@ -332,11 +338,10 @@ class Expr:
 
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
-            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, BytesT):
+            index = Expr(self.expr.slice.value, self.context).ir_node
+            if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
-                assert len(index.args) == 1
-                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
+                index = keccak256_helper(index, self.context)
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
@@ -357,9 +362,11 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        # Sanity check - ensure that we aren't dealing with different types
-        # This should be unreachable due to the type check pass
-        assert left.typ == right.typ, f"unreachable, {left.typ}!={right.typ}"
+        if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            assert left.typ == right.typ, f"unreachable, {left.typ} != {right.typ}"
+
         assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         out_typ = left.typ
@@ -370,6 +377,21 @@ class Expr:
             return IRnode.from_list(["or", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitXor):
             return IRnode.from_list(["xor", left, right], typ=out_typ)
+
+        if isinstance(self.expr.op, vy_ast.LShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                return
+            return IRnode.from_list(shl(right, left), typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.RShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. promote_signed_int(op(right, left), bits)
+                return
+            op = shr if not left.typ.is_signed else sar
+            # note: sar NotImplementedError for pre-constantinople
+            return IRnode.from_list(op(right, left), typ=new_typ)
 
         # enums can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
@@ -505,8 +527,8 @@ class Expr:
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
 
-            left_keccak = keccak256_helper(self.expr, left, self.context)
-            right_keccak = keccak256_helper(self.expr, right, self.context)
+            left_keccak = keccak256_helper(left, self.context)
+            right_keccak = keccak256_helper(right, self.context)
 
             if op not in ("eq", "ne"):
                 return  # raises
@@ -678,6 +700,29 @@ class Expr:
         typ = TupleT([x.typ for x in tuple_elements])
         multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
         return multi_ir
+
+    def parse_IfExp(self):
+        test = Expr.parse_value_expr(self.expr.test, self.context)
+        assert test.typ == BoolT()  # sanity check
+
+        body = Expr(self.expr.body, self.context).ir_node
+        orelse = Expr(self.expr.orelse, self.context).ir_node
+
+        # if they are in the same location, we can skip copying
+        # into memory. also for the case where either body or orelse are
+        # literal `multi` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter, XXX fixme).
+        if body.location != orelse.location or body.value == "multi":
+            body = ensure_in_memory(body, self.context)
+            orelse = ensure_in_memory(orelse, self.context)
+
+        assert body.location == orelse.location
+        # check this once compare_type has no side effects:
+        # assert body.typ.compare_type(orelse.typ)
+
+        typ = self.expr._metadata["type"]
+        location = body.location
+        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
     @staticmethod
     def struct_literals(expr, name, context):

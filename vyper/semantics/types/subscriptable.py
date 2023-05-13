@@ -1,8 +1,10 @@
+import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -43,6 +45,14 @@ class HashMapT(_SubscriptableT):
 
     _equality_attrs = ("key_type", "value_type")
 
+    # disallow everything but storage
+    _invalid_locations = (
+        DataLocation.UNSET,
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+    )
+
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
@@ -72,15 +82,13 @@ class HashMapT(_SubscriptableT):
                 ),
                 node,
             )
-        # if location != DataLocation.STORAGE or is_immutable:
-        #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
         k_ast, v_ast = node.slice.value.elements
-        key_type = type_from_annotation(k_ast)
+        key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
-        value_type = type_from_annotation(v_ast)
+        value_type = type_from_annotation(v_ast, DataLocation.STORAGE)
 
         return cls(key_type, value_type)
 
@@ -102,6 +110,9 @@ class _SequenceT(_SubscriptableT):
     def __init__(self, value_type: VyperType, length: int):
         if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
+
+        if length >= 2**64:
+            warnings.warn("Use of large arrays can be unsafe!")
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -287,11 +298,18 @@ class TupleT(VyperType):
     """
     Tuple type definition.
 
-    This class is used to represent multiple return values from
-    functions.
+    This class is used to represent multiple return values from functions.
     """
 
     _equality_attrs = ("members",)
+
+    # note: docs say that tuples are not instantiable but they
+    # are in fact instantiable and the codegen works. if we
+    # wanted to be stricter in the typechecker, we could
+    # add _invalid_locations = everything but UNSET and RETURN_VALUE.
+    # (we would need to add a DataLocation.RETURN_VALUE in order for
+    # tuples to be instantiable as return values but not in memory).
+    # _invalid_locations = ...
 
     def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
         super().__init__()

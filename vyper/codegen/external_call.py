@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 import vyper.utils as util
-from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     _freshname,
@@ -17,6 +16,7 @@ from vyper.codegen.core import (
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
 from vyper.semantics.types import InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability

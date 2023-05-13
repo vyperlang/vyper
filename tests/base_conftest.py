@@ -112,7 +112,8 @@ def w3(tester):
 def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     out = compiler.compile_code(
         source_code,
-        ["abi", "bytecode"],
+        # test that metadata gets generated
+        ["abi", "bytecode", "metadata"],
         interface_codes=kwargs.pop("interface_codes", None),
         no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),

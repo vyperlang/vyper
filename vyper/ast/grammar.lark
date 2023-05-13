@@ -174,10 +174,13 @@ loop_variable: NAME [":" NAME]
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
+// ternary operator
+ternary: _expr "if" _expr "else" _expr
 
 // Expressions
 _expr: operation
      | dict
+     | ternary
 
 get_item: variable_access "[" _expr "]"
 get_attr: variable_access "." NAME

@@ -1,6 +1,6 @@
-from vyper.address_space import MEMORY
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation, StructureException
 from vyper.semantics.types.subscriptable import TupleT
 

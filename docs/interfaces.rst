@@ -75,6 +75,10 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
     ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
     ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
+.. warning::
+
+   When ``skip_contract_check=True`` is used and the called function returns data (ex.: ``x: uint256 = SomeContract.foo(skip_contract_check=True)``, no guarantees are provided by the compiler as to the validity of the returned value. In other words, it is undefined behavior what happens if the called contract did not exist. In particular, the returned value might point to garbage memory. It is therefore recommended to only use ``skip_contract_check=True`` to call contracts which have been manually ensured to exist at the time of the call.
+
 Importing Interfaces
 ====================
 
