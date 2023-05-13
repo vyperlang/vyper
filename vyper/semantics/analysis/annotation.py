@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeMismatch
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -231,9 +231,12 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
-                    if possible_type.value_type == type_:
+                    if type_.compare_type(possible_type.value_type):
                         base_type = possible_type
                         break
+
+                else:
+                    raise TypeMismatch(f"Expected {type_} but it is not a possible type", node)
 
         else:
             base_type = get_exact_type_from_node(node.value)
