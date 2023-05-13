@@ -309,7 +309,11 @@ class _ExprAnalyser:
             # subtype can be anything
             types_list = types.PRIMITIVE_TYPES
             # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DArrayT(t, 1) for t in types_list.values()]
+            # for type classes like bytestrings, use a generic type acceptor
+            ret = [
+                DArrayT(t, 1) if isinstance(t, VyperType) else DArrayT(t.any(), 1)
+                for t in types_list.values()
+            ]
             return ret
         types_list = get_common_types(*node.elements)
 
