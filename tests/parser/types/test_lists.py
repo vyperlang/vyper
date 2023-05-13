@@ -676,6 +676,18 @@ def ix(i: uint256) -> {type}:
     assert_tx_failed(lambda: c.ix(len(value) + 1))
 
 
+def test_nested_constant_list_accessor(get_contract):
+    code = """
+@external
+def foo() -> bool:
+    f: uint256 = 1
+    a: bool = 1 == [1,2,4][f] + -1
+    return a
+    """
+    c = get_contract(code)
+    assert c.foo() is True
+
+
 # Would be nice to put this somewhere accessible, like in vyper.types or something
 integer_types = ["uint8", "int128", "int256", "uint256"]
 
