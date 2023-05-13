@@ -248,6 +248,20 @@ foo: public(immutable(uint256))
 def __init__(x: uint256):
     foo = x
     """,
+    # no namespace collision of interface after storage variable
+    """
+a: constant(uint256) = 1
+
+interface A:
+    def f(a: uint128): view
+    """,
+    # no namespace collision of storage variable after interface
+    """
+interface A:
+    def f(a: uint256): view
+
+a: constant(uint128) = 1
+    """,
 ]
 
 
