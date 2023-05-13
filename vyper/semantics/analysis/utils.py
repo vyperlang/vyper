@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -306,15 +307,20 @@ class _ExprAnalyser:
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
+            ret = []
             # subtype can be anything
-            types_list = types.PRIMITIVE_TYPES
-            # 1 is minimum possible length for dynarray, assignable to anything
-            # for type classes like bytestrings, use a generic type acceptor
-            ret = [
-                DArrayT(t, 1) if isinstance(t, VyperType) else DArrayT(t.any(), 1)
-                for t in types_list.values()
-            ]
+            for t in types.PRIMITIVE_TYPES.values():
+                # 1 is minimum possible length for dynarray,
+                # can be assigned to anything
+                if isinstance(t, VyperType):
+                    ret.append(DArrayT(t, 1))
+                elif isinstance(t, type) and issubclass(t, VyperType):
+                    # for typeclasses like bytestrings, use a generic type acceptor
+                    ret.append(DArrayT(t.any(), 1))
+                else:
+                    raise CompilerPanic("busted type {t}", node)
             return ret
+
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
