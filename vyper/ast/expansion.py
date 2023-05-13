@@ -88,10 +88,10 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
 
-        # using a temporary namespace populated with the module's custom types 
-        # that was stored during semantics analysis (e.g. interfaces, structs and enums), 
+        # using a temporary namespace populated with the module's custom types
+        # that was stored during semantics analysis (e.g. interfaces, structs and enums),
         # derive the updated function type with its function arguments populated
-        # with the newly created argument nodes, 
+        # with the newly created argument nodes,
         current_namespace = get_namespace()
         temp_namespace = Namespace()
         temp_namespace.update(current_namespace._module_custom_types)
