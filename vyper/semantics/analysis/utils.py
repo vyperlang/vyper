@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -611,6 +611,12 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if getattr(call_type, "_kwargable", False):
             return True
 
+        # TODO fixme circular import
+        from vyper.semantics.types.user import InterfaceT
+
+        if len(args) == 1 and is_type_t(call_type, InterfaceT):
+            return _check_literal(args[0])
+
     value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed
     return value_type.is_constant
@@ -653,5 +659,11 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
+
+        # TODO fixme circular import
+        from vyper.semantics.types.user import InterfaceT
+
+        if len(args) == 1 and is_type_t(call_type, InterfaceT):
+            return _check_literal(args[0])
 
     return False
