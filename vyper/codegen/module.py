@@ -165,12 +165,19 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
         init_func_ir = generate_ir_for_function(init_function, all_sigs, global_ctx, False)
-        deploy_code.append(init_func_ir)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
         init_mem_used = init_function._metadata["signature"].frame_info.mem_used
+
+        # force msize to be initialized past the end of init_mem_used
+        # so that builtins which use `msize` for "dynamic" memory allocation
+        # do not clobber uninitialized immutables. cf. issue #3101.
+        deploy_code.append(["mload", init_mem_used])
+
+        deploy_code.append(init_func_ir)
+
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else
