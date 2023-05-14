@@ -269,7 +269,7 @@ interface Foo:
     def bar(): nonpayable
 
 A: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
-    """
+    """,
 ]
 
 
