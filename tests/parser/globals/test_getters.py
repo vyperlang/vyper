@@ -19,6 +19,14 @@ def foo() -> int128:
 
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
+interface U:
+    def foo(): nonpayable
+
+enum V:
+    FOO
+    BAR
+    BAZ
+
 struct W:
     a: uint256
     b: int128[7]
@@ -26,6 +34,7 @@ struct W:
     e: int128[3][3]
     f: uint256
     g: uint256
+
 x: public(uint256)
 y: public(int128[5])
 z: public(Bytes[100])
@@ -35,6 +44,9 @@ b: public(HashMap[uint256, HashMap[address, uint256[4]]])
 c: public(constant(uint256)) = 1
 d: public(immutable(uint256))
 e: public(immutable(uint256[2]))
+f: public(constant(V)) = V.BAZ
+g: public(constant(U)) = U(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+h: public(immutable(U))
 
 @external
 def __init__():
@@ -51,6 +63,7 @@ def __init__():
     self.b[42][self] = [5,6,7,8]
     d = 1729
     e = [2, 3]
+    h = U(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
     """
 
     c = get_contract_with_gas_estimation_for_constants(getter_code)
@@ -68,6 +81,9 @@ def __init__():
     assert c.c() == 1
     assert c.d() == 1729
     assert c.e(0) == 2
+    assert c.f() == 4
+    assert c.g() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    assert c.h() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
 
 
 def test_getter_mutability(get_contract):
