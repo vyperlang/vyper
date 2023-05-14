@@ -65,11 +65,8 @@ class Namespace(dict):
             del self[key]
 
     def add_to_module_custom_types(self, attr, obj):
-        # skip if key has already been added
         # validation can be relaxed because `_module_custom_types` is not used
         # to check for name space collision
-        if attr in self._module_custom_types:
-            return
         self._module_custom_types[attr] = obj
 
     def enter_scope(self):
