@@ -239,3 +239,27 @@ def get_immutable() -> uint256:
 
     c = get_contract(code, n)
     assert c.get_immutable() == n + 2
+
+
+def test_immutables_initialized(get_contract):
+    dummy_code = """
+@external
+def foo() -> uint256:
+    return 1
+    """
+    dummy_contract = get_contract(dummy_code)
+
+    code = """
+a: public(immutable(uint256))
+b: public(uint256)
+
+@payable
+@external
+def __init__(to_copy: address):
+    c: address = create_copy_of(to_copy)
+    self.b = a
+    a = 12
+    """
+    c = get_contract(code, dummy_contract.address)
+
+    assert c.b() == 0
