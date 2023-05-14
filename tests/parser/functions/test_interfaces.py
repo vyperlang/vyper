@@ -321,6 +321,23 @@ def test():
     assert erc20.balanceOf(sender) == 1000
 
 
+def test_address_member(w3, get_contract):
+    code = """
+interface Foo:
+    def foo(): payable
+
+f: Foo
+
+@external
+def test(addr: address):
+    self.f = Foo(addr)
+    assert self.f.address == addr
+    """
+    c = get_contract(code)
+    for address in w3.eth.accounts:
+        c.test(address)
+
+
 # test data returned from external interface gets clamped
 @pytest.mark.parametrize("typ", ("int128", "uint8"))
 def test_external_interface_int_clampers(get_contract, assert_tx_failed, typ):
