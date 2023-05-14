@@ -116,7 +116,6 @@ def blockHashAskewLimitary(v: uint256) -> uint256:
 def __default__():
     log Sent(1)
     """
-
     c = get_contract_with_gas_estimation(code)
 
     assert c.blockHashAskewLimitary(0) == 7
@@ -131,3 +130,41 @@ def __default__():
         "Sent",
     )
     assert 2 == logs[0].args.sig
+
+
+def test_partial_selector_match_trailing_zeroes(w3, get_logs, get_contract):
+    code = """
+event Sent:
+    sig: uint256
+
+@external
+@payable
+# function selector: 0xd88e0b00
+def fow() -> uint256:
+    log Sent(2)
+    return 7
+
+@external
+def __default__():
+    log Sent(1)
+    """
+    c = get_contract(code)
+
+    # sanity check - we can call c.fow()
+    assert c.fow() == 7
+
+    # check we can call default function
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0}), c, "Sent")
+    assert 1 == logs[0].args.sig
+
+    # check fow() selector is 0xd88e0b00
+    logs = get_logs(
+        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0xd88e0b00"}), c, "Sent"
+    )
+    assert 2 == logs[0].args.sig
+
+    # check calling d88e0b with no trailing zero goes to fallback instead of reverting
+    logs = get_logs(
+        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0xd88e0b"}), c, "Sent"
+    )
+    assert 1 == logs[0].args.sig
