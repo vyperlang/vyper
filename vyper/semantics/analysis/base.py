@@ -145,7 +145,7 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,
@@ -164,6 +164,9 @@ class VarInfo:
     is_immutable: bool = False
     is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
+
+    def __hash__(self):
+        return hash(id(self))
 
     def __post_init__(self):
         self._modification_count = 0
