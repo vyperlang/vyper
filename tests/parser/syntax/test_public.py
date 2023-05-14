@@ -23,21 +23,21 @@ z: public(int128)
 def foo() -> int128:
     return self.x / self.y / self.z
     """,
-    # expansion of public user-defined struct 
+    # expansion of public user-defined struct
     """
 struct Foo:
     a: uint256
 
 x: public(HashMap[uint256, Foo])
     """,
-    # expansion of public user-defined enum 
+    # expansion of public user-defined enum
     """
 enum Foo:
     BAR
 
 x: public(HashMap[uint256, Foo])
     """,
-    # expansion of public user-defined interface 
+    # expansion of public user-defined interface
     """
 interface Foo:
     def bar(): nonpayable
