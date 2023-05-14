@@ -182,7 +182,7 @@ _expr: operation
      | dict
      | ternary
 
-get_item: variable_access "[" _expr "]"
+get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
 ?variable_access: NAME -> get_var

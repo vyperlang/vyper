@@ -11,14 +11,12 @@ from vyper.exceptions import (
     CompilerPanic,
     FunctionDeclarationException,
     InvalidType,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
 )
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -342,7 +340,6 @@ class ContractFunctionT(VyperType):
         positional_args = []
         keyword_args = []
 
-        namespace = get_namespace()
         for i, (arg, value) in enumerate(zip(node.args.args, defaults)):
             argname = arg.arg
             if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
@@ -351,8 +348,6 @@ class ContractFunctionT(VyperType):
                 )
             if argname in argnames:
                 raise ArgumentException(f"Function contains multiple inputs named {argname}", arg)
-            if argname in namespace:
-                raise NamespaceCollision(argname, arg)
 
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)

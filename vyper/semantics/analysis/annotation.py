@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -231,14 +231,23 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
+                    if type_.compare_type(possible_type.value_type):
                         base_type = possible_type
                         break
+                else:
+                    # this should have been caught in
+                    # `get_possible_types_from_node` but wasn't.
+                    raise TypeCheckFailure(f"Expected {type_} but it is not a possible type", node)
 
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        self.visit(node.slice, base_type.key_type)
+        # get the correct type for the index, it might
+        # not be base_type.key_type
+        index_types = get_possible_types_from_node(node.slice.value)
+        index_type = index_types.pop()
+
+        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
