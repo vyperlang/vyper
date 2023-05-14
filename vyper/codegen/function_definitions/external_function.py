@@ -88,7 +88,15 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         # ensure calldata is at least of minimum length
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
-        ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
+
+        if calldata_min_size == 4:
+            # if calldatasize is less than 4, we don't want to accidentally
+            # match trailing zeroes. if there are fewer than 4 bytes, then
+            # assume we didn't match the selector and go to fallback instead
+            # of reverting.
+            ret.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
+        else:
+            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
         # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
