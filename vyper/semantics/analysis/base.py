@@ -145,7 +145,7 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,

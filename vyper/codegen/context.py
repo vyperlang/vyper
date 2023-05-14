@@ -30,6 +30,9 @@ class VariableRecord:
     is_immutable: bool = False
     data_offset: Optional[int] = None
 
+    def __hash__(self):
+        return hash(id(self))
+
     def __post_init__(self):
         if self.blockscopes is None:
             self.blockscopes = []
