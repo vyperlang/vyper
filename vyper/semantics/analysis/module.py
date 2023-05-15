@@ -226,6 +226,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
+        def _validate_self_namespace():
+            # block globals if storage variable already exists
+            try:
+                if name in self.namespace["self"].typ.members:
+                    raise NamespaceCollision(
+                        f"Value '{name}' has already been declared", node
+                    ) from None
+                self.namespace[name] = var_info
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
@@ -233,10 +244,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
-            try:
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
+            _validate_self_namespace()
 
             return _finalize()
 
@@ -247,16 +255,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             )
 
         if node.is_immutable:
-            try:
-                # block immutable if storage variable already exists
-                if name in self.namespace["self"].typ.members:
-                    raise NamespaceCollision(
-                        f"Value '{name}' has already been declared", node
-                    ) from None
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
-
+            _validate_self_namespace()
             return _finalize()
 
         try:
