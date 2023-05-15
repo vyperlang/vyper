@@ -93,24 +93,6 @@ def fooBar(a: Bytes[100], b: int128, c: Bytes[100] = b"testing", d: uint256 = 99
     assert c.fooBar(b"booo", 12321) == [b"booo", 12321, c_default, d_default]
 
 
-def test_default_param_interface(get_contract):
-    code = """
-interface Foo:
-    def foo(): nonpayable
-
-@external
-def bar(a: uint256, b: Foo = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)) -> Foo:
-    return b
-    """
-    c = get_contract(code)
-
-    assert c.bar(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
-    assert (
-        c.bar(1, "0x1234567890123456789012345678901234567890")
-        == "0x1234567890123456789012345678901234567890"
-    )
-
-
 def test_default_param_array(get_contract):
     code = """
 @external

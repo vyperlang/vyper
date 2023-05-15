@@ -39,7 +39,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         annotation = copy.copy(node.annotation)
 
         return_stmt: vy_ast.VyperNode
-
         # constants just return a value
         if node.is_constant:
             return_stmt = node.value
@@ -50,6 +49,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             # for each input type we wrap it in a `Subscript` to access a specific member
             return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
         return_stmt._metadata["type"] = node._metadata["type"]
+
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):
                 # if we get here something has failed in type checking
