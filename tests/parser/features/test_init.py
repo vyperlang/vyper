@@ -55,7 +55,7 @@ def baz() -> uint8:
     assert_compile_failed(lambda: get_contract(code, n))
 
 
-# issue 3292
+# GH issue 3292
 def test_internal_functions_called_by_ctor_location(get_contract):
     code = """
 d: uint256
@@ -79,7 +79,7 @@ def a():
     assert c.test() == 2
 
 
-# issue 3206
+# GH issue 3206
 def test_nested_internal_call_from_ctor(get_contract):
     code = """
 x: uint256
