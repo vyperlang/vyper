@@ -28,10 +28,14 @@ FunctionSignatures = Dict[str, "ContractFunctionT"]
 
 
 @dataclass
-class FunctionArg:
+class PositionalArg:
     name: str
     typ: VyperType
     ast_source: Optional[vy_ast.VyperNode] = None
+
+
+@dataclass
+class KeywordArg(PositionalArg):
     default_value: Optional[vy_ast.VyperNode] = None
 
 
@@ -83,8 +87,8 @@ class ContractFunctionT(VyperType):
     ----------
     name : str
         The name of the function.
-    arguments : List[FunctionArg]
-        Function input arguments as FunctionArg
+    positional_args: list[PositionalArg]
+        Positional args for this function
     min_arg_count : int
         The minimum number of required input arguments.
     max_arg_count : int
@@ -103,8 +107,8 @@ class ContractFunctionT(VyperType):
     def __init__(
         self,
         name: str,
-        positional_args: List[FunctionArg],
-        keyword_args: List[FunctionArg],
+        positional_args: list[PositionalArg],
+        keyword_args: list[KeywordArg],
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
@@ -124,6 +128,7 @@ class ContractFunctionT(VyperType):
         self.called_functions = OrderedSet()
 
         # special kwargs that are allowed in call site
+        # TODO make this a property
         self.call_site_kwargs = {
             "gas": KwargSettings(UINT256_T, "gas"),
             "value": KwargSettings(UINT256_T, 0),
@@ -131,9 +136,11 @@ class ContractFunctionT(VyperType):
             "default_return_value": KwargSettings(return_type, None),
         }
 
+        # TODO this goes on ir_info
         self.gas_estimate = None
 
         # we could do a bit better than this but it just needs to be unique
+        # TODO make these properties
         visibility = "internal" if self.is_internal else "external"
         argz = ",".join([str(argtyp) for argtyp in self.argument_types])
         ir_identifier = mkalphanum(f"{visibility} {self.name} ({argz})")
@@ -181,9 +188,9 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
-        arguments = []
+        positional_args = []
         for item in abi["inputs"]:
-            arguments.append(FunctionArg(item["name"], type_from_abi(item)))
+            positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
@@ -191,7 +198,7 @@ class ContractFunctionT(VyperType):
             return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
         return cls(
             abi["name"],
-            arguments,
+            positional_args,
             [],
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
@@ -362,9 +369,9 @@ class ContractFunctionT(VyperType):
                 validate_expected_type(value, type_)
 
             if i < n_positional_args:
-                positional_args.append(FunctionArg(argname, type_, arg))
+                positional_args.append(PositionalArg(argname, type_, arg))
             else:
-                keyword_args.append(FunctionArg(argname, type_, arg, value))
+                keyword_args.append(KeywordArg(argname, type_, arg, value))
 
             argnames.add(argname)
 
@@ -415,7 +422,7 @@ class ContractFunctionT(VyperType):
         arguments, return_type = type_.getter_signature
         args = []
         for i, item in enumerate(arguments):
-            args.append(FunctionArg(f"arg{i}", item))
+            args.append(PositionalArg(f"arg{i}", item))
 
         return cls(
             node.target.id,
@@ -465,11 +472,11 @@ class ContractFunctionT(VyperType):
 
     # for backwards compatibility
     @property
-    def arguments(self) -> List[FunctionArg]:
-        return self.positional_args + self.keyword_args
+    def arguments(self) -> list[PositionalArg | KeywordArg]:
+        return self.positional_args + self.keyword_args  # type: ignore
 
     @property
-    def argument_types(self) -> List[VyperType]:
+    def argument_types(self) -> list[VyperType]:
         return [arg.typ for arg in self.arguments]
 
     @property
@@ -623,8 +630,8 @@ class ContractFunctionT(VyperType):
         self.ir_info.frame_info = frame_info
 
     # calculate the abi signature for a given set of kwargs
-    def abi_signature_for_kwargs(self, kwargs: List[FunctionArg]) -> str:
-        args = self.positional_args + kwargs
+    def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
+        args = self.positional_args + kwargs  # type: ignore
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
