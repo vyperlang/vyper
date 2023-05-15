@@ -239,3 +239,52 @@ def get_immutable() -> uint256:
 
     c = get_contract(code, n)
     assert c.get_immutable() == n + 2
+
+
+# GH issue 3292
+def test_internal_functions_called_by_ctor_location(get_contract):
+    code = """
+d: uint256
+x: immutable(uint256)
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@external
+def test() -> uint256:
+    return self.d
+
+@internal
+def a():
+    self.d = x
+    """
+    c = get_contract(code)
+    assert c.test() == 2
+
+
+# GH issue 3292, extended to nested internal functions
+def test_nested_internal_function_immutables(get_contract):
+    code = """
+d: public(uint256)
+x: public(immutable(uint256))
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@internal
+def a():
+    self.b()
+
+@internal
+def b():
+    self.d = x
+    """
+    c = get_contract(code)
+    assert c.x() == 2
+    assert c.d() == 2
