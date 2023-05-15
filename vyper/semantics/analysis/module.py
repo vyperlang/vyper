@@ -270,7 +270,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         obj = EnumT.from_EnumDef(node)
         try:
             self.namespace[node.name] = obj
-            self.namespace.add_to_module_custom_types(node.name, obj)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -309,7 +308,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         obj = InterfaceT.from_ast(node)
         try:
             self.namespace[node.name] = obj
-            self.namespace.add_to_module_custom_types(node.name, obj)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -317,7 +315,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         struct_t = StructT.from_ast_def(node)
         try:
             self.namespace[node.name] = struct_t
-            self.namespace.add_to_module_custom_types(node.name, struct_t)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -346,7 +343,6 @@ def _add_import(
 
     try:
         namespace[alias] = type_
-        namespace.add_to_module_custom_types(alias, type_)
     except VyperException as exc:
         raise exc.with_annotation(node) from None
 

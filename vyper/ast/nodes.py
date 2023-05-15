@@ -4,6 +4,7 @@ import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
+import contextlib
 
 from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
@@ -663,6 +664,18 @@ class Module(TopLevel):
         """
         self.body.remove(node)
         self._children.remove(node)
+
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
 
 
 class FunctionDef(TopLevel):
