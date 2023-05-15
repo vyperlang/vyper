@@ -18,6 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+from vyper.semantics.analysis.annotation import ExpressionAnnotationVisitor
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -233,6 +234,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
+
+            if node.is_public:
+                # annotate the value so that downstream code has access to the type
+                func_t = node._metadata["func_type"]
+                ExpressionAnnotationVisitor(func_t).visit(node.value, type_)
+
             try:
                 self.namespace[name] = var_info
             except VyperException as exc:
