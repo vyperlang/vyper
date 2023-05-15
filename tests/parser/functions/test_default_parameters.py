@@ -111,24 +111,6 @@ def bar(a: uint256, b: Foo = Foo.Fo) -> Foo:
     assert c.bar(1, 2**0) == 2**0
 
 
-def test_default_param_interface(get_contract):
-    code = """
-interface Foo:
-    def foo(): nonpayable
-
-@external
-def bar(a: uint256, b: Foo = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)) -> Foo:
-    return b
-    """
-    c = get_contract(code)
-
-    assert c.bar(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
-    assert (
-        c.bar(1, "0x1234567890123456789012345678901234567890")
-        == "0x1234567890123456789012345678901234567890"
-    )
-
-
 def test_default_param_array(get_contract):
     code = """
 @external

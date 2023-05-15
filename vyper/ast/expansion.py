@@ -2,7 +2,6 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import InterfaceT
 
 
 def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
@@ -40,25 +39,16 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         annotation = copy.copy(node.annotation)
 
         return_stmt: vy_ast.VyperNode
-        var_type = node._metadata["type"]
-
         # constants just return a value
         if node.is_constant:
             return_stmt = node.value
-            # annotate the nested address literal node for interfaces
-            if (
-                isinstance(return_stmt, vy_ast.Call)
-                and len(return_stmt.args) == 1
-                and isinstance(var_type, InterfaceT)
-            ):
-                return_stmt.args[0]._metadata["type"] = func_type.return_type
         elif node.is_immutable:
             return_stmt = vy_ast.Name(id=func_type.name)
         else:
             # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
             # for each input type we wrap it in a `Subscript` to access a specific member
             return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
-        return_stmt._metadata["type"] = var_type
+        return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):

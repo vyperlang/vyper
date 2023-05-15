@@ -264,12 +264,6 @@ D: constant(int128) = -1
 
 CONST_BAR: constant(Bar) = Bar({c: C, d: D})
     """,
-    """
-interface Foo:
-    def bar(): nonpayable
-
-A: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
-    """,
 ]
 
 
