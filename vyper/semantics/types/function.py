@@ -155,16 +155,9 @@ class ContractFunctionT(VyperType):
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
-        input_name = (
-            "def "
-            + self.name
-            + "("
-            + ",".join([str(argtyp) for argtyp in self.argument_types])
-            + ")"
-        )
-        if self.return_type:
-            return input_name + " -> " + str(self.return_type) + ":"
-        return input_name + ":"
+        ret_sig = "" if not self.return_type else f" -> {self.return_type}"
+        args_sig = ",".join([str(t) for t in self.argument_types])
+        return f"def {self.name} {args_sig}{ret_sig}:"
 
     # override parent implementation. function type equality does not
     # make too much sense.
