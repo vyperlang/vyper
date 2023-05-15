@@ -3,8 +3,8 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.address_space import MEMORY, AddrSpace
 from vyper.codegen.ir_node import Encoding
+from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType
 
@@ -267,10 +267,8 @@ class Context:
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
         num_provided_kwargs = len(args_ir) - len(sig.base_args)
-        num_kwargs = len(sig.default_args)
-        kwargs_needed = num_kwargs - num_provided_kwargs
 
-        kw_vals = list(sig.default_values.values())[:kwargs_needed]
+        kw_vals = list(sig.default_values.values())[num_provided_kwargs:]
 
         return sig, kw_vals
 

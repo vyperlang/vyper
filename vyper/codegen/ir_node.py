@@ -3,8 +3,8 @@ from enum import Enum, auto
 from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
 
-from vyper.address_space import AddrSpace
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.semantics.types import VyperType
