@@ -258,7 +258,7 @@ def foo():
 
 
 def test_assign_rhs_lhs_overlap(get_contract):
-    # issue #2418
+    # GH issue 2418
     code = """
 @external
 def bug(xs: uint256[2]) -> uint256[2]:
@@ -273,7 +273,7 @@ def bug(xs: uint256[2]) -> uint256[2]:
 
 
 def test_assign_rhs_lhs_partial_overlap(get_contract):
-    # issue #2418, generalize when lhs is not only dependency of rhs.
+    # GH issue 2418, generalize when lhs is not only dependency of rhs.
     code = """
 @external
 def bug(xs: uint256[2]) -> uint256[2]:
