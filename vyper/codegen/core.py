@@ -927,10 +927,9 @@ def is_return_from_function(node):
     if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
         return True
     if isinstance(node, vy_ast.If):
-        return_if_body = any(is_return_from_function(n) for n in node.body)
-        return_else_body = any(is_return_from_function(n) for n in node.orelse)
-        if return_if_body and return_else_body:
-            return True
+        body_returns = any(is_return_from_function(n) for n in node.body)
+        orelse_returns = any(is_return_from_function(n) for n in node.orelse)
+        return body_returns and orelse_returns
     return False
 
 
