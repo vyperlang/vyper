@@ -145,7 +145,6 @@ class ContractFunctionT(VyperType):
     @cached_property
     def call_site_kwargs(self):
         # special kwargs that are allowed in call site
-        # TODO make this a property
         return {
             "gas": KwargSettings(UINT256_T, "gas"),
             "value": KwargSettings(UINT256_T, 0),
