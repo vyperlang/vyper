@@ -110,7 +110,7 @@ def _generate_kwarg_handlers(context: Context, sig: ContractFunctionT) -> List[A
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             lhs.source_pos = getpos(x.ast_source)
-            kw_ast_val = sig.get_default_value(x.name)  # e.g. `3` in x: int = 3
+            kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)

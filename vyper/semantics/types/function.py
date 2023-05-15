@@ -458,12 +458,9 @@ class ContractFunctionT(VyperType):
 
         return True
 
-    def get_default_value(self, kwarg_name: str) -> Optional[vy_ast.VyperNode]:
-        for arg in self.keyword_args:
-            if arg.name == kwarg_name:
-                return arg.default_value
-
-        raise ArgumentException(f"`{kwarg_name}` is not a keyword argument in {self}")
+    @cached_property
+    def default_values(self) -> dict[str, vy_ast.VyperNode]:
+        return {arg.name: arg.default_value for arg in self.keyword_args}
 
     # for backwards compatibility
     @property
