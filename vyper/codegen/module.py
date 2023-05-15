@@ -171,10 +171,13 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
         # note: (deploy mem_ofst, code, extra_padding)
         init_mem_used = init_function._metadata["signature"].frame_info.mem_used
 
-        # force msize to be initialized past the end of init_mem_used
-        # so that builtins which use `msize` for "dynamic" memory allocation
-        # do not clobber uninitialized immutables. cf. issue #3101.
-        deploy_code.append(["mload", init_mem_used])
+        if init_mem_used > 0:
+            # force msize to be initialized past the end of init_mem_used
+            # so that builtins which use `msize` for "dynamic" memory
+            # allocation do not clobber uninitialized immutables.
+            # cf. GH issue 3101.
+            # note round-up behavior of msize, hence, `init_mem_used - 1`.
+            deploy_code.append(["mload", init_mem_used - 1])
 
         deploy_code.append(init_func_ir)
 
