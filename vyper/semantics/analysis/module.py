@@ -117,11 +117,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # anything that is not a function call will get semantically checked later
             calls_to_self = calls_to_self.intersection(function_names)
             self_members[node.name].internal_calls = calls_to_self
-            if node.name in self_members[node.name].internal_calls:
-                self_node = node.get_descendants(
-                    vy_ast.Attribute, {"value.id": "self", "attr": node.name}
-                )[0]
-                raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
         for fn_name in sorted(function_names):
             if fn_name not in self_members:
