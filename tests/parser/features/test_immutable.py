@@ -288,3 +288,41 @@ def b():
     c = get_contract(code)
     assert c.x() == 2
     assert c.d() == 2
+
+
+# GH issue 3292, test immutable read from both ctor and runtime
+def test_immutable_read_ctor_and_runtime(get_contract):
+    code = """
+d: public(uint256)
+x: public(immutable(uint256))
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@internal
+def a():
+    self.d = x
+
+@external
+def thrash():
+    self.d += 5
+
+@external
+def fix():
+    self.a()
+    """
+    c = get_contract(code)
+    assert c.x() == 2
+    assert c.d() == 2
+
+    c.thrash(transact={})
+
+    assert c.x() == 2
+    assert c.d() == 2 + 5
+
+    c.fix(transact={})
+    assert c.x() == 2
+    assert c.d() == 2
