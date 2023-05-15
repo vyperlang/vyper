@@ -1,6 +1,7 @@
 import re
 import warnings
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -127,15 +128,6 @@ class ContractFunctionT(VyperType):
         # a list of internal functions this function calls
         self.called_functions = OrderedSet()
 
-        # special kwargs that are allowed in call site
-        # TODO make this a property
-        self.call_site_kwargs = {
-            "gas": KwargSettings(UINT256_T, "gas"),
-            "value": KwargSettings(UINT256_T, 0),
-            "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
-            "default_return_value": KwargSettings(return_type, None),
-        }
-
         # TODO this goes on ir_info
         self.gas_estimate = None
 
@@ -149,6 +141,17 @@ class ContractFunctionT(VyperType):
             if self.is_internal
             else ExternalFunctionIRInfo(ir_identifier)
         )
+
+    @cached_property
+    def call_site_kwargs(self):
+        # special kwargs that are allowed in call site
+        # TODO make this a property
+        return {
+            "gas": KwargSettings(UINT256_T, "gas"),
+            "value": KwargSettings(UINT256_T, 0),
+            "skip_contract_check": KwargSettings(BoolT(), False, require_literal=True),
+            "default_return_value": KwargSettings(self.return_type, None),
+        }
 
     def __repr__(self):
         arg_types = ",".join(repr(a) for a in self.argument_types)
