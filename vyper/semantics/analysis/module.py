@@ -235,10 +235,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             validate_expected_type(node.value, type_)
 
-            if node.is_public:
-                # annotate the value so that downstream code has access to the type
-                func_t = node._metadata["func_type"]
-                ExpressionAnnotationVisitor(func_t).visit(node.value, type_)
+            # annotate the value so that downstream code has access to the type
+            # note: fn_node to be refactored out of ExpressionAnnotationVisitor
+            ExpressionAnnotationVisitor(fn_node=None).visit(node.value, type_)
 
             try:
                 self.namespace[name] = var_info

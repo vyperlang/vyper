@@ -101,6 +101,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     ignored_types = ()
 
     def __init__(self, fn_node: ContractFunctionT):
+        # TODO: analysis involving self.func should be moved to analysis/local.py
         self.func = fn_node
 
     def visit(self, node, type_=None):
