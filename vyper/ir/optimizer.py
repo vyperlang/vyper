@@ -255,12 +255,12 @@ def _optimize_binop(binop, args, ann, parent_op):
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
         return finalize("seq", [args[0]])
 
-    if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
-        # x - x == x ^ x == x != x == 0
+    if binop in {"sub", "xor", "ne", "lt", "gt"} and _conservative_eq(args[0], args[1]):
+        # (x - x) == (x ^ x) == (x != x) == (x < x) == (x > x) == 0
         return finalize(0, [])
 
-    if binop == "eq" and _conservative_eq(args[0], args[1]):
-        # (x == x) == 1
+    if binop in ("eq", "le", "ge") and _conservative_eq(args[0], args[1]):
+        # (x == x) == (x >= x) == (x <= x) == 1
         return finalize(1, [])
 
     # TODO associativity rules
