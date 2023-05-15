@@ -108,14 +108,14 @@ def main():
     for j in range(3):
         x: uint256 = j
         y: uint16 = j
-    """,  # issue 3212
+    """,  # GH issue 3212
     """
 @external
 def foo():
     for i in [1]:
         a:uint256 = i
         b:uint16 = i
-    """,  # issue 3374
+    """,  # GH issue 3374
     """
 @external
 def foo():
@@ -123,7 +123,7 @@ def foo():
         for j in [1]:
             a:uint256 = i
         b:uint16 = i
-    """,  # issue 3374
+    """,  # GH issue 3374
     """
 @external
 def foo():
@@ -131,7 +131,7 @@ def foo():
         for j in [1,2,3]:
             b:uint256 = j + i
         c:uint16 = i
-    """,  # issue 3374
+    """,  # GH issue 3374
 ]
 
 
