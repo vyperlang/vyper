@@ -135,7 +135,7 @@ class ContractFunctionT(VyperType):
 
         # we could do a bit better than this but it just needs to be unique
         visibility = "internal" if self.is_internal else "external"
-        argz = ",".join([str(argtyp) for argtyp in self.arguments_typs])
+        argz = ",".join([str(argtyp) for argtyp in self.argument_types])
         ir_identifier = mkalphanum(f"{visibility} {self.name} ({argz})")
         self.ir_info: FunctionIRInfo = (
             InternalFunctionIRInfo(ir_identifier)
@@ -144,7 +144,7 @@ class ContractFunctionT(VyperType):
         )
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.arguments_typs)
+        arg_types = ",".join(repr(a) for a in self.argument_types)
         return f"contract function {self.name}({arg_types})"
 
     def __str__(self):
@@ -152,7 +152,7 @@ class ContractFunctionT(VyperType):
             "def "
             + self.name
             + "("
-            + ",".join([str(argtyp) for argtyp in self.arguments_typs])
+            + ",".join([str(argtyp) for argtyp in self.argument_types])
             + ")"
         )
         if self.return_type:
@@ -430,7 +430,7 @@ class ContractFunctionT(VyperType):
     # convenience property for compare_signature, as it would
     # appear in a public interface
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
-        return tuple(self.arguments_typs), self.return_type
+        return tuple(self.argument_types), self.return_type
 
     def compare_signature(self, other: "ContractFunctionT") -> bool:
         """
@@ -469,7 +469,7 @@ class ContractFunctionT(VyperType):
         return self.positional_args + self.keyword_args
 
     @property
-    def arguments_typs(self) -> List[VyperType]:
+    def argument_types(self) -> List[VyperType]:
         return [arg.typ for arg in self.arguments]
 
     @property
@@ -517,7 +517,7 @@ class ContractFunctionT(VyperType):
         * For functions with default arguments, there is one key for each
           function signature.
         """
-        arg_types = [i.canonical_abi_type for i in self.arguments_typs]
+        arg_types = [i.canonical_abi_type for i in self.argument_types]
 
         if self.n_keyword_args == 0:
             return _generate_method_id(self.name, arg_types)
@@ -542,7 +542,7 @@ class ContractFunctionT(VyperType):
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.arguments_typs):
+        for arg, expected in zip(node.args, self.argument_types):
             validate_expected_type(arg, expected)
 
         # TODO this should be moved to validate_call_args

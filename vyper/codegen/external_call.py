@@ -37,7 +37,7 @@ def _pack_arguments(fn_type, args, context):
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleT(fn_type.arguments_typs[: len(args)])
+    dst_tuple_t = TupleT(fn_type.argument_types[: len(args)])
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
     if fn_type.return_type is not None:

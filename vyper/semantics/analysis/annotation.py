@@ -136,7 +136,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
-            for arg, typ in zip(node.args, call_type.arguments_typs):
+            for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs

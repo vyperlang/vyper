@@ -668,6 +668,7 @@ class Module(TopLevel):
     @contextlib.contextmanager
     def namespace(self):
         from vyper.semantics.namespace import get_namespace, override_global_namespace
+
         # kludge implementation for backwards compatibility.
         # TODO: replace with type_from_ast
         try:
