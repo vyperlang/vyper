@@ -165,6 +165,9 @@ class VarInfo:
     is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
 
+    def __hash__(self):
+        return hash(id(self))
+
     def __post_init__(self):
         self._modification_count = 0
 

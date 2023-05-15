@@ -166,7 +166,7 @@ class Expr:
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
@@ -174,6 +174,8 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
+            ret._referenced_variables = {var}
+            return ret
 
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
@@ -182,16 +184,18 @@ class Expr:
 
             ofst = varinfo.position.offset
 
-            if self.context.sig.is_constructor:
+            if self.context.is_ctor_context:
                 mutable = True
                 location = IMMUTABLES
             else:
                 mutable = False
                 location = DATA
 
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
+            ret._referenced_variables = {varinfo}
+            return ret
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -255,12 +259,16 @@ class Expr:
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             varinfo = self.context.globals[self.expr.attr]
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=STORAGE,
                 annotation="self." + self.expr.attr,
             )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
         # Reserved keywords
         elif (
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES

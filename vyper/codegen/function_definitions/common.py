@@ -18,6 +18,7 @@ def generate_ir_for_function(
     sigs: Dict[str, Dict[str, ContractFunctionT]],  # all signatures in all namespaces
     global_ctx: GlobalContext,
     skip_nonpayable_check: bool,
+    is_ctor_context: bool = False,
 ) -> IRnode:
     """
     Parse a function and produce IR code for the function, includes:
@@ -51,6 +52,7 @@ def generate_ir_for_function(
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if sig.is_mutable else Constancy.Constant,
         sig=sig,
+        is_ctor_context=is_ctor_context,
     )
 
     if sig.is_internal:
@@ -65,14 +67,20 @@ def generate_ir_for_function(
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 
-    sig.set_frame_info(FrameInfo(allocate_start, frame_size, context.vars))
+    frame_info = FrameInfo(allocate_start, frame_size, context.vars)
+
+    if sig.frame_info is None:
+        sig.set_frame_info(frame_info)
+    else:
+        assert frame_info == sig.frame_info
 
     if not sig.is_internal:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
-        o.add_gas_estimate += calc_mem_gas(sig.ir_info.frame_info.mem_used)
+        assert sig.ir_info.frame_info is not None  # mypy hint
+        o.add_gas_estimate += calc_mem_gas(sig.frame_info.mem_used)
 
     sig.gas_estimate = o.gas
 

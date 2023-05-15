@@ -398,6 +398,16 @@ class IRnode:
         return _WithBuilder(self, name, should_inline)
 
     @cached_property
+    def referenced_variables(self):
+        ret = set()
+        for arg in self.args:
+            ret |= arg.referenced_variables
+
+        ret |= getattr(self, "_referenced_variables", set())
+
+        return ret
+
+    @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
