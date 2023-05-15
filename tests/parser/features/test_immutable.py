@@ -241,7 +241,7 @@ def get_immutable() -> uint256:
     assert c.get_immutable() == n + 2
 
 
-# issue #3101
+# GH issue 3101
 def test_immutables_initialized(get_contract):
     dummy_code = """
 @external
