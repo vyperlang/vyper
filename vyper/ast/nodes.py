@@ -1,10 +1,10 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
-import contextlib
 
 from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS

@@ -2,7 +2,6 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types.function import ContractFunctionT
 
 
