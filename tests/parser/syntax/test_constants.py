@@ -88,6 +88,30 @@ VAL: constant(uint256) = 1
     """,
         NamespaceCollision,
     ),
+    # global with same type and name
+    (
+        """
+VAL: immutable(uint256)
+VAL: uint256
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: immutable(uint256)
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
     # signature variable with same name
     (
         """
