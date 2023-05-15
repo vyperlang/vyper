@@ -4,7 +4,7 @@ from typing import Optional, Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import get_namespace, override_global_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.user import StructT
 from vyper.semantics.types.utils import type_from_annotation
@@ -173,36 +173,37 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     changed_nodes = 0
 
     # manually populate namespace with structs
-    namespace = get_namespace()
     struct_defs = list(vyper_module.get_children(vy_ast.StructDef))  # explicit list cast for mypy
-    for struct_def in struct_defs:
-        try:
-            namespace[struct_def.name] = StructT.from_ast_def(struct_def)
-        except UnknownType:
-            continue
+    namespace = get_namespace()
+    with override_global_namespace(namespace):
+        for struct_def in struct_defs:
+            try:
+                namespace[struct_def.name] = StructT.from_ast_def(struct_def)
+            except UnknownType:
+                continue
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl):
-        if not isinstance(node.target, vy_ast.Name):
-            # left-hand-side of assignment is not a variable
-            continue
-        if not node.is_constant:
-            # annotation is not wrapped in `constant(...)`
-            continue
+        for node in vyper_module.get_children(vy_ast.VariableDecl):
+            if not isinstance(node.target, vy_ast.Name):
+                # left-hand-side of assignment is not a variable
+                continue
+            if not node.is_constant:
+                # annotation is not wrapped in `constant(...)`
+                continue
 
-        # Extract type definition from propagated annotation
-        type_ = None
-        try:
-            type_ = type_from_annotation(node.annotation)
-        except UnknownType:
-            # handle structs defined out of order
-            pass
+            # Extract type definition from propagated annotation
+            type_ = None
+            try:
+                type_ = type_from_annotation(node.annotation)
+            except UnknownType:
+                # handle structs defined out of order
+                pass
 
-        changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, type_=type_
-        )
+            changed_nodes += replace_constant(
+                vyper_module, node.target.id, node.value, False, type_=type_
+            )
 
-    # clear namespace to prevent collision in semantics pass
-    namespace.clear()
+        # clear namespace to prevent collision in semantics pass
+        namespace.clear()
 
     return changed_nodes
 
