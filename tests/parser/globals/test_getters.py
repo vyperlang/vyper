@@ -22,11 +22,6 @@ def test_getter_code(get_contract_with_gas_estimation_for_constants):
 interface U:
     def foo(): nonpayable
 
-enum V:
-    FOO
-    BAR
-    BAZ
-
 struct W:
     a: uint256
     b: int128[7]
@@ -44,7 +39,6 @@ b: public(HashMap[uint256, HashMap[address, uint256[4]]])
 c: public(constant(uint256)) = 1
 d: public(immutable(uint256))
 e: public(immutable(uint256[2]))
-f: public(constant(V)) = V.BAZ
 g: public(constant(U)) = U(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 h: public(immutable(U))
 
@@ -81,7 +75,6 @@ def __init__():
     assert c.c() == 1
     assert c.d() == 1729
     assert c.e(0) == 2
-    assert c.f() == 4
     assert c.g() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
     assert c.h() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
 
