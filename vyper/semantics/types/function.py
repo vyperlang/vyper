@@ -29,15 +29,20 @@ FunctionSignatures = Dict[str, "ContractFunctionT"]
 
 
 @dataclass
-class PositionalArg:
+class _FunctionArg:
     name: str
     typ: VyperType
+
+
+@dataclass
+class PositionalArg(_FunctionArg):
     ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
-class KeywordArg(PositionalArg):
-    default_value: Optional[vy_ast.VyperNode] = None
+class KeywordArg(_FunctionArg):
+    default_value: vy_ast.VyperNode
+    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
@@ -463,11 +468,11 @@ class ContractFunctionT(VyperType):
         return {arg.name: arg.default_value for arg in self.keyword_args}
 
     # for backwards compatibility
-    @property
-    def arguments(self) -> list[PositionalArg | KeywordArg]:
+    @cached_property
+    def arguments(self) -> list[_FunctionArg]:
         return self.positional_args + self.keyword_args  # type: ignore
 
-    @property
+    @cached_property
     def argument_types(self) -> list[VyperType]:
         return [arg.typ for arg in self.arguments]
 
@@ -479,7 +484,7 @@ class ContractFunctionT(VyperType):
     def n_keyword_args(self) -> int:
         return len(self.keyword_args)
 
-    @property
+    @cached_property
     def n_total_args(self) -> int:
         return self.n_positional_args + self.n_keyword_args
 

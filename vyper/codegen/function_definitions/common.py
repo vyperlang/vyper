@@ -80,7 +80,7 @@ def generate_ir_for_function(
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
         assert sig.ir_info.frame_info is not None  # mypy hint
-        o.add_gas_estimate += calc_mem_gas(sig.frame_info.mem_used)
+        o.add_gas_estimate += calc_mem_gas(sig.ir_info.frame_info.mem_used)
 
     sig.gas_estimate = o.gas
 
