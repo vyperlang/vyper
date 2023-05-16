@@ -89,13 +89,10 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
 
-        if calldata_min_size == 4:
-            # if calldatasize is less than 4, we don't want to accidentally
-            # match trailing zeroes. if there are fewer than 4 bytes, then
-            # assume we didn't match the selector and go to fallback instead
-            # of reverting.
-            ret.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
-        else:
+        # note we don't need the check if calldata_min_size == 4,
+        # because the selector checks later ensure that the at least
+        # the 4 selector bytes are well formed.
+        if calldata_min_size > 4:
             ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
@@ -132,20 +129,24 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         method_id_check = ["eq", "_calldata_method_id", method_id]
 
-        # if there is a function whose selector is 0, it won't be distinguished
-        # from the case where nil calldata is supplied, b/c calldataload loads
-        # 0s past the end of physical calldata (cf. yellow paper).
-        # since supplying 0 calldata is expected to trigger the fallback fn,
-        # we check that calldatasize > 0, which distinguishes the 0 selector
-        # from the fallback function "selector"
+        # if there is a function whose selector is 0 or has trailing 0s, it
+        # won't be distinguished from the case where insufficient calldata is
+        # supplied, b/c calldataload loads 0s past the end of physical
+        # calldata (cf. yellow paper).
+        # since supplying insufficient calldata is expected to trigger the
+        # fallback fn, we check that calldatasize > 4, which distinguishes any
+        # selector with trailing 0 bytes from the fallback function "selector"
         # (equiv. to "all selectors not in the selector table").
 
         # note: cases where not enough calldata is supplied (besides
         # calldatasize==0) are not addressed here b/c a calldatasize
         # well-formedness check is already present in the function body
         # as part of abi validation
-        if method_id.value == 0:
-            method_id_check = ["and", ["gt", "calldatasize", 0], method_id_check]
+        method_id_bytes = util.method_id(abi_sig)
+        assert len(method_id_bytes) == 4
+        has_trailing_zeroes = method_id_bytes.endswith(b"\x00")
+        if has_trailing_zeroes:
+            method_id_check = ["and", ["ge", "calldatasize", 4], method_id_check]
 
         ret = ["if", method_id_check, ret]
         return ret
