@@ -15,7 +15,7 @@ from vyper.semantics.types.function import ContractFunctionT
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, func_t: ContractFunctionT) -> List[IRnode]:
+def _register_function_args(func_t: ContractFunctionT, context: Context) -> List[IRnode]:
     ret = []
     # the type of the calldata
     base_args_t = TupleT(tuple(arg.typ for arg in func_t.positional_args))
@@ -58,7 +58,7 @@ def _annotated_method_id(abi_sig):
     return IRnode(method_id, annotation=annotation)
 
 
-def _generate_kwarg_handlers(context: Context, func_t: ContractFunctionT) -> List[Any]:
+def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -176,10 +176,10 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
     # generate handlers for base args and register the variable records
-    handle_base_args = _register_function_args(context, func_t)
+    handle_base_args = _register_function_args(func_t, context)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(context, func_t)
+    kwarg_handlers = _generate_kwarg_handlers(func_t, context)
 
     body = ["seq"]
     # once optional args have been handled,
