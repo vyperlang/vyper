@@ -23,7 +23,7 @@ from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import MemoryPositions, OrderedSet, keccak256
+from vyper.utils import OrderedSet, keccak256
 
 ContractFunctionTs = Dict[str, "ContractFunctionT"]
 
@@ -43,43 +43,6 @@ class PositionalArg(_FunctionArg):
 class KeywordArg(_FunctionArg):
     default_value: vy_ast.VyperNode
     ast_source: Optional[vy_ast.VyperNode] = None
-
-
-@dataclass
-class FrameInfo:
-    frame_start: int
-    frame_size: int
-    frame_vars: Dict[str, Tuple[int, VyperType]]
-
-    @property
-    def mem_used(self):
-        return self.frame_size + MemoryPositions.RESERVED_MEMORY
-
-
-@dataclass
-class FunctionIRInfo:
-    identifier: str
-    gas_estimate: Optional[int] = None
-    frame_info: Optional[FrameInfo] = None
-
-    @property
-    def exit_sequence_label(self) -> str:
-        return self.identifier + "_cleanup"
-
-
-@dataclass
-class ExternalFunctionIRInfo(FunctionIRInfo):
-    @property
-    # common entry point for external function with kwargs
-    def external_function_base_entry_label(self) -> str:
-        return self.identifier + "_common"
-
-
-@dataclass
-class InternalFunctionIRInfo(FunctionIRInfo):
-    @property
-    def internal_function_label(self) -> str:
-        return self.identifier
 
 
 class ContractFunctionT(VyperType):
@@ -135,7 +98,7 @@ class ContractFunctionT(VyperType):
         self.called_functions = OrderedSet()
 
         # to be populated during codegen
-        self.ir_info: Optional[FunctionIRInfo] = None
+        self._ir_info: Any = None
 
     @cached_property
     def call_site_kwargs(self):
@@ -611,12 +574,6 @@ class ContractFunctionT(VyperType):
             return result
         else:
             return [abi_dict]
-
-    def set_frame_info(self, frame_info: FrameInfo) -> None:
-        assert self.ir_info is not None
-        if self.ir_info.frame_info is not None:
-            raise CompilerPanic("sig.ir_info.frame_info already set!")
-        self.ir_info.frame_info = frame_info
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:

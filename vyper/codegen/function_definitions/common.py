@@ -1,5 +1,6 @@
-# can't use from [module] import [object] because it breaks mocks in testing
-from typing import Dict
+from dataclasses import dataclass
+from functools import cached_property
+from typing import Optional
 
 import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
@@ -9,13 +10,61 @@ from vyper.codegen.function_definitions.internal_function import generate_ir_for
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
-from vyper.semantics.types.function import ContractFunctionT, FrameInfo
-from vyper.utils import MemoryPositions, calc_mem_gas
+from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import VyperType
+from vyper.semantics.types.function import ContractFunctionT
+from vyper.utils import MemoryPositions, calc_mem_gas, mkalphanum
+
+
+@dataclass
+class FrameInfo:
+    frame_start: int
+    frame_size: int
+    frame_vars: dict[str, tuple[int, VyperType]]
+
+    @property
+    def mem_used(self):
+        return self.frame_size + MemoryPositions.RESERVED_MEMORY
+
+
+@dataclass
+class FunctionIRInfo:
+    func_t: ContractFunctionT
+    gas_estimate: Optional[int] = None
+    frame_info: Optional[FrameInfo] = None
+
+    @property
+    def visibility(self):
+        return "internal" if self.is_internal else "external"
+
+    @property
+    def exit_sequence_label(self) -> str:
+        return self.ir_identifier + "_cleanup"
+
+    @cached_property
+    def ir_identifier(self) -> str:
+        argz = ",".join([str(argtyp) for argtyp in self.func_t.argument_types])
+        return mkalphanum(f"{self.visibility} {self.func_t.name} ({argz})")
+
+    def set_frame_info(self, frame_info: FrameInfo) -> None:
+        if self.frame_info is not None:
+            raise CompilerPanic("sig._ir_info.frame_info already set!")
+        self.frame_info = frame_info
+
+    @property
+    # common entry point for external function with kwargs
+    def external_function_base_entry_label(self) -> str:
+        assert not self.func_t.is_internal, "uh oh"
+        return self.ir_identifier + "_common"
+
+    @property
+    def internal_function_label(self) -> str:
+        return self.ir_identifier
 
 
 def generate_ir_for_function(
     code: vy_ast.FunctionDef,
-    func_ts: Dict[str, Dict[str, ContractFunctionT]],  # all ContractFunctionT in all namespaces
+    func_ts: dict[str, dict[str, ContractFunctionT]],  # all ContractFunctionT in all namespaces
     global_ctx: GlobalContext,
     skip_nonpayable_check: bool,
     is_ctor_context: bool = False,
@@ -38,9 +87,7 @@ def generate_ir_for_function(
     max_callee_frame_size = 0
     for c in callees:
         c_func_t = func_ts["self"][c.name]
-        assert c_func_t.ir_info is not None  # make mypy happy
-        frame_info = c_func_t.ir_info.frame_info
-        assert frame_info is not None  # make mypy happy
+        frame_info = c_func_t._ir_info.frame_info
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
     allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
@@ -71,19 +118,18 @@ def generate_ir_for_function(
 
     frame_info = FrameInfo(allocate_start, frame_size, context.vars)
 
-    if func_t.ir_info.frame_info is None:
-        func_t.set_frame_info(frame_info)
+    if func_t._ir_info.frame_info is None:
+        func_t._ir_info.set_frame_info(frame_info)
     else:
-        assert frame_info == func_t.ir_info.frame_info
+        assert frame_info == func_t._ir_info.frame_info
 
     if not func_t.is_internal:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
-        assert func_t.ir_info.frame_info is not None  # mypy hint
-        o.add_gas_estimate += calc_mem_gas(func_t.ir_info.frame_info.mem_used)
+        o.add_gas_estimate += calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
 
-    func_t.ir_info.gas_estimate = o.gas
+    func_t._ir_info.gas_estimate = o.gas
 
     return o

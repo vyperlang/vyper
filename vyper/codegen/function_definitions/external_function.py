@@ -117,7 +117,7 @@ def _generate_kwarg_handlers(context: Context, func_t: ContractFunctionT) -> Lis
             copy_arg.source_pos = getpos(x.ast_source)
             ret.append(copy_arg)
 
-        ret.append(["goto", func_t.ir_info.external_function_base_entry_label])
+        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
         method_id_check = ["eq", "_calldata_method_id", method_id]
 
@@ -196,7 +196,7 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     body += [parse_body(code.body, context, ensure_terminated=True)]
 
     # wrap the body in labeled block
-    body = ["label", func_t.ir_info.external_function_base_entry_label, ["var_list"], body]
+    body = ["label", func_t._ir_info.external_function_base_entry_label, ["var_list"], body]
 
     exit_sequence = ["seq"] + nonreentrant_post
     if func_t.is_constructor:
@@ -210,7 +210,7 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     if context.return_type is not None:
         exit_sequence_args += ["ret_ofst", "ret_len"]
     # wrap the exit in a labeled block
-    exit = ["label", func_t.ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
+    exit = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
@@ -220,7 +220,7 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
         ret = ["seq"]
         # add a goto to make the function entry look like other functions
         # (for zksync interpreter)
-        ret.append(["goto", func_t.ir_info.external_function_base_entry_label])
+        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
         ret.append(func_common_ir)
     else:
         ret = kwarg_handlers

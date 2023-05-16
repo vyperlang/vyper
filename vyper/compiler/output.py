@@ -117,10 +117,10 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["location"] = ret["location"].name
         return ret
 
-    def _to_dict(sig):
-        ret = vars(sig)
+    def _to_dict(func_t):
+        ret = vars(func_t)
         ret["return_type"] = str(ret["return_type"])
-        ret["ir_identifier"] = sig.ir_info.identifier
+        ret["ir_identifier"] = func_t._ir_info.identifier
 
         for attr in (
             "call_site_kwargs",
@@ -139,13 +139,14 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-            if attr == "keyword_args":
-                # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-                ret["default_values"] = {arg.name: arg.ast_source.node_source_code for arg in args}
+        # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+        ret["default_values"] = {
+            arg.name: arg.ast_source.node_source_code for arg in ret["keyword_args"]
+        }
 
-        ret["frame_info"] = vars(sig.ir_info.frame_info)
+        ret["frame_info"] = vars(func_t._ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
-        del ret["ir_info"]
+        del ret["_ir_info"]
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}

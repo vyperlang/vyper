@@ -4,13 +4,11 @@ from vyper.semantics.types.function import ContractFunctionT
 
 
 def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
-    # note: `.gas_estimate` is added to ContractFunctionT.ir_info
+    # note: `.gas_estimate` is added to ContractFunctionT._ir_info
     # in vyper/semantics/types/function.py
     ret = {}
     for k, v in func_ts.items():
-        assert v.ir_info is not None  # make mypy happy
-        assert v.ir_info.gas_estimate is not None  # make mypy happy
-        ret[k] = v.ir_info.gas_estimate
+        ret[k] = v._ir_info.gas_estimate
     return ret
 
 

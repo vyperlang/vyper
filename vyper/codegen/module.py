@@ -4,16 +4,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function
+from vyper.codegen.function_definitions import FunctionIRInfo, generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import (
-    ContractFunctionTs,
-    ExternalFunctionIRInfo,
-    InternalFunctionIRInfo,
-)
-from vyper.utils import mkalphanum
+from vyper.semantics.types.function import ContractFunctionTs
 
 
 def _topsort_helper(functions, lookup):
@@ -156,16 +151,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, C
         # add it to the global namespace.
         local_func_ts[func_t.name] = func_t
 
-        # we could do a bit better than this but it just needs to be unique
-        # TODO make these properties
-        visibility = "internal" if func_t.is_internal else "external"
-        argz = ",".join([str(argtyp) for argtyp in func_t.argument_types])
-        ir_identifier = mkalphanum(f"{visibility} {func_t.name} ({argz})")
-        func_t.ir_info = (
-            InternalFunctionIRInfo(ir_identifier)
-            if func_t.is_internal
-            else ExternalFunctionIRInfo(ir_identifier)
-        )
+        func_t._ir_info = FunctionIRInfo(func_t)
 
     assert "self" not in all_func_ts
     all_func_ts["self"] = local_func_ts
@@ -191,7 +177,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, C
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["type"].ir_info.frame_info.mem_used
+        init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else
