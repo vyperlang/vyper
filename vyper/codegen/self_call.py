@@ -104,7 +104,7 @@ def ir_for_self_call(stmt_expr, context):
         typ=func_t.return_type,
         location=MEMORY,
         annotation=stmt_expr.get("node_source_code"),
-        add_gas_estimate=func_t.gas_estimate,
+        add_gas_estimate=func_t.ir_info.gas_estimate,
     )
     o.is_self_call = True
     return o

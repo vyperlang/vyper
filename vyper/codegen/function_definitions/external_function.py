@@ -164,9 +164,9 @@ def _generate_kwarg_handlers(context: Context, func_t: ContractFunctionT) -> Lis
 def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check):
     # TODO type hints:
     # def generate_ir_for_external_function(
-    #    code: vy_ast.FunctionDef, 
-    #    func_t: ContractFunctionT, 
-    #    context: Context, 
+    #    code: vy_ast.FunctionDef,
+    #    func_t: ContractFunctionT,
+    #    context: Context,
     #    check_nonpayable: bool,
     # ) -> IRnode:
     """Return the IR for an external function. Includes code to inspect the method_id,

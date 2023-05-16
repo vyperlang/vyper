@@ -3,10 +3,15 @@ from typing import Dict
 from vyper.semantics.types.function import ContractFunctionT
 
 
-def build_gas_estimates(function_sigs: Dict[str, ContractFunctionT]) -> dict:
-    # note: `.gas_estimate` is added to FunctionSignature
-    # in vyper/codegen/function_definitions/common.py
-    return {k: v.gas_estimate for (k, v) in function_sigs.items()}
+def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
+    # note: `.gas_estimate` is added to ContractFunctionT.ir_info
+    # in vyper/semantics/types/function.py
+    ret = {}
+    for k, v in func_ts.items():
+        assert v.ir_info is not None  # make mypy happy
+        assert v.ir_info.gas_estimate is not None  # make mypy happy
+        ret[k] = v.ir_info.gas_estimate
+    return ret
 
 
 def expand_source_map(compressed_map: str) -> list:

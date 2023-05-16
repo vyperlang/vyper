@@ -8,7 +8,12 @@ from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import ContractFunctionTs
+from vyper.semantics.types.function import (
+    ContractFunctionTs,
+    ExternalFunctionIRInfo,
+    InternalFunctionIRInfo,
+)
+from vyper.utils import mkalphanum
 
 
 def _topsort_helper(functions, lookup):
@@ -150,6 +155,17 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, C
         func_t = f._metadata["type"]
         # add it to the global namespace.
         local_func_ts[func_t.name] = func_t
+
+        # we could do a bit better than this but it just needs to be unique
+        # TODO make these properties
+        visibility = "internal" if func_t.is_internal else "external"
+        argz = ",".join([str(argtyp) for argtyp in func_t.argument_types])
+        ir_identifier = mkalphanum(f"{visibility} {func_t.name} ({argz})")
+        func_t.ir_info = (
+            InternalFunctionIRInfo(ir_identifier)
+            if func_t.is_internal
+            else ExternalFunctionIRInfo(ir_identifier)
+        )
 
     assert "self" not in all_func_ts
     all_func_ts["self"] = local_func_ts

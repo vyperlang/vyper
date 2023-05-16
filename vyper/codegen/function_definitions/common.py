@@ -37,7 +37,9 @@ def generate_ir_for_function(
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c in callees:
-        frame_info = func_ts["self"][c.name].ir_info.frame_info
+        c_func_t = func_ts["self"][c.name]
+        assert c_func_t.ir_info is not None  # make mypy happy
+        frame_info = c_func_t.ir_info.frame_info
         assert frame_info is not None  # make mypy happy
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
@@ -82,6 +84,6 @@ def generate_ir_for_function(
         assert func_t.ir_info.frame_info is not None  # mypy hint
         o.add_gas_estimate += calc_mem_gas(func_t.ir_info.frame_info.mem_used)
 
-    func_t.gas_estimate = o.gas
+    func_t.ir_info.gas_estimate = o.gas
 
     return o

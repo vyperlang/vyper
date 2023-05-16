@@ -23,7 +23,7 @@ from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import MemoryPositions, OrderedSet, keccak256, mkalphanum
+from vyper.utils import MemoryPositions, OrderedSet, keccak256
 
 ContractFunctionTs = Dict[str, "ContractFunctionT"]
 
@@ -59,6 +59,7 @@ class FrameInfo:
 @dataclass
 class FunctionIRInfo:
     identifier: str
+    gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
 
     @property
@@ -133,19 +134,8 @@ class ContractFunctionT(VyperType):
         # a list of internal functions this function calls
         self.called_functions = OrderedSet()
 
-        # TODO this goes on ir_info
-        self.gas_estimate = None
-
-        # we could do a bit better than this but it just needs to be unique
-        # TODO make these properties
-        visibility = "internal" if self.is_internal else "external"
-        argz = ",".join([str(argtyp) for argtyp in self.argument_types])
-        ir_identifier = mkalphanum(f"{visibility} {self.name} ({argz})")
-        self.ir_info: FunctionIRInfo = (
-            InternalFunctionIRInfo(ir_identifier)
-            if self.is_internal
-            else ExternalFunctionIRInfo(ir_identifier)
-        )
+        # to be populated during codegen
+        self.ir_info: Optional[FunctionIRInfo] = None
 
     @cached_property
     def call_site_kwargs(self):
@@ -623,6 +613,7 @@ class ContractFunctionT(VyperType):
             return [abi_dict]
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
+        assert self.ir_info is not None
         if self.ir_info.frame_info is not None:
             raise CompilerPanic("sig.ir_info.frame_info already set!")
         self.ir_info.frame_info = frame_info
