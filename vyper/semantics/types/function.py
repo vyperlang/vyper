@@ -344,8 +344,8 @@ class ContractFunctionT(VyperType):
         n_positional_args = n_total_args - len(node.args.defaults)
         defaults = [None] * n_positional_args + node.args.defaults
 
-        positional_args = []
-        keyword_args = []
+        positional_args: list[PositionalArg] = []
+        keyword_args: list[KeywordArg] = []
 
         for i, (arg, value) in enumerate(zip(node.args.args, defaults)):
             argname = arg.arg
@@ -371,6 +371,7 @@ class ContractFunctionT(VyperType):
             if i < n_positional_args:
                 positional_args.append(PositionalArg(argname, type_, arg))
             else:
+                assert isinstance(value, vy_ast.VyperNode)  # satisfy mypy
                 keyword_args.append(KeywordArg(argname, type_, value, arg))
 
             argnames.add(argname)
