@@ -739,10 +739,6 @@ class _IRnodeLowerer:
             raise CodegenPanic("exit_to not implemented yet!")
 
         # inject debug opcode.
-        if code.value == "debugger":
-            return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-
-        # inject debug opcode.
         if code.value == "pc_debugger":
             return mkdebug(pc_debugger=True, ast_source=code.ast_source)
 
