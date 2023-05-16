@@ -1,7 +1,7 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.evm.address_space import MEMORY
-from vyper.exceptions import StateAccessViolation, StructureException
+from vyper.exceptions import CompilerPanic, StateAccessViolation, StructureException
 from vyper.semantics.types.subscriptable import TupleT
 
 _label_counter = 0
@@ -12,6 +12,28 @@ def _generate_label(name: str) -> str:
     global _label_counter
     _label_counter += 1
     return f"label{_label_counter}"
+
+
+def _align_kwargs(self, func_t, args_ir, ast_source):
+    """
+    Using a list of args, find the kwargs which need to be filled in by
+    the compiler
+    """
+
+    def _check(cond, s="Unreachable"):
+        if not cond:
+            raise CompilerPanic(s)
+
+    # these should have been caught during type checking; sanity check
+    _check(func_t.is_internal)
+    _check(func_t.n_positional_args <= len(args_ir) <= func_t.n_total_args)
+    # more sanity check, that the types match
+    # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, func_t.arguments))
+
+    num_provided_kwargs = len(args_ir) - func_t.n_positional_args
+
+    unprovided_kwargs = func_t.keyword_args[num_provided_kwargs:]
+    return [i.default_value for i in unprovided_kwargs]
 
 
 def ir_for_self_call(stmt_expr, context):
@@ -26,14 +48,14 @@ def ir_for_self_call(stmt_expr, context):
     # - (private function will fill return buffer and jump back)
 
     method_name = stmt_expr.func.attr
+    func_t = stmt_expr.func._metadata["type"]
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
-    func_t, kw_vals = context.lookup_internal_function(method_name, pos_args_ir, stmt_expr)
+    default_vals = _align_kwargs(func_t, pos_args_ir)
+    default_vals_ir = [Expr(x, context).ir_node for x in default_vals]
 
-    kw_args_ir = [Expr(x, context).ir_node for x in kw_vals]
-
-    args_ir = pos_args_ir + kw_args_ir
+    args_ir = pos_args_ir + default_vals_ir
 
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)

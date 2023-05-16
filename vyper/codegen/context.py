@@ -246,32 +246,6 @@ class Context:
     def lookup_var(self, varname):
         return self.vars[varname]
 
-    def lookup_internal_function(self, method_name, args_ir, ast_source):
-        # TODO is this the right module for me?
-        """
-        Using a list of args, find the internal method to use, and
-        the kwargs which need to be filled in by the compiler
-        """
-
-        func_t = ast_source.func._metadata["type"]
-
-        def _check(cond, s="Unreachable"):
-            if not cond:
-                raise CompilerPanic(s)
-
-        # these should have been caught during type checking; sanity check
-        _check(func_t is not None)
-        _check(func_t.is_internal)
-        _check(func_t.n_positional_args <= len(args_ir) <= func_t.n_total_args)
-        # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, func_t.arguments))
-
-        num_provided_kwargs = len(args_ir) - func_t.n_positional_args
-
-        kw_vals = [i.default_value for i in func_t.keyword_args[num_provided_kwargs:]]
-
-        return func_t, kw_vals
-
     # Pretty print constancy for error messages
     def pp_constancy(self):
         if self.in_assertion:
