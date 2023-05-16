@@ -157,7 +157,11 @@ RESERVED_KEYWORDS = {
     "true",
     "false",
     # more control flow and special operations
-    "this",
+    "if",
+    "elif",
+    "else",
+    "or",
+    "and",
     "range",
     # None sentinal value
     "none",
