@@ -52,9 +52,9 @@ def _register_function_args(context: Context, func_t: ContractFunctionT) -> List
     return ret
 
 
-def _annotated_method_id(abi_func_t):
-    method_id = util.method_id_int(abi_func_t)
-    annotation = f"{hex(method_id)}: {abi_func_t}"
+def _annotated_method_id(abi_sig):
+    method_id = util.method_id_int(abi_sig)
+    annotation = f"{hex(method_id)}: {abi_sig}"
     return IRnode(method_id, annotation=annotation)
 
 
@@ -74,8 +74,8 @@ def _generate_kwarg_handlers(context: Context, func_t: ContractFunctionT) -> Lis
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
-        abi_func_t = func_t.abi_signature_for_kwargs(calldata_kwargs)
-        method_id = _annotated_method_id(abi_func_t)
+        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
+        method_id = _annotated_method_id(abi_sig)
 
         calldata_kwargs_ofst = IRnode(
             4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
