@@ -120,7 +120,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(func_t):
         ret = vars(func_t)
         ret["return_type"] = str(ret["return_type"])
-        ret["ir_identifier"] = func_t._ir_info.identifier
+        ret["ir_identifier"] = func_t._ir_info.ir_identifier
 
         for attr in (
             "call_site_kwargs",
@@ -129,20 +129,19 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "gas_estimate",
             "recursive_calls",
         ):
-            if attr in ret:
-                del ret[attr]
+            ret.pop(attr, None)
 
         for attr in ("mutability", "visibility"):
             ret[attr] = ret[attr].name.lower()
 
+        # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+        ret["default_values"] = {
+            arg.name: arg.ast_source.node_source_code for arg in func_t.keyword_args
+        }
+
         for attr in ("positional_args", "keyword_args"):
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
-
-        # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-        ret["default_values"] = {
-            arg.name: arg.ast_source.node_source_code for arg in ret["keyword_args"]
-        }
 
         ret["frame_info"] = vars(func_t._ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize

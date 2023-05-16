@@ -35,7 +35,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     # do NOT bypass this. jump_to_exit may do important function cleanup.
     def finalize(fill_return_buffer):
         fill_return_buffer = IRnode.from_list(
-            fill_return_buffer, annotation=f"fill return buffer {func_t._ir_info.identifier}"
+            fill_return_buffer, annotation=f"fill return buffer {func_t._ir_info.ir_identifier}"
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "seq"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must

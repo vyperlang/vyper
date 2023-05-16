@@ -35,7 +35,7 @@ class FunctionIRInfo:
 
     @property
     def visibility(self):
-        return "internal" if self.is_internal else "external"
+        return "internal" if self.func_t.is_internal else "external"
 
     @property
     def exit_sequence_label(self) -> str:
