@@ -69,10 +69,10 @@ def generate_ir_for_function(
 
     frame_info = FrameInfo(allocate_start, frame_size, context.vars)
 
-    if sig.frame_info is None:
+    if sig.ir_info.frame_info is None:
         sig.set_frame_info(frame_info)
     else:
-        assert frame_info == sig.frame_info
+        assert frame_info == sig.ir_info.frame_info
 
     if not sig.is_internal:
         # adjust gas estimate to include cost of mem expansion
