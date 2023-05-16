@@ -23,7 +23,6 @@ class Namespace(dict):
     def __init__(self):
         super().__init__()
         self._scopes = []
-
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions

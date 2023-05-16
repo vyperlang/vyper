@@ -319,7 +319,7 @@ def _add_import(
     name: str,
     alias: str,
     interface_codes: InterfaceDict,
-    namespace: Namespace,
+    namespace: dict,
 ) -> None:
     if module == "vyper.interfaces":
         interface_codes = _get_builtin_interfaces()
