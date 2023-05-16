@@ -14,7 +14,7 @@ def _generate_label(name: str) -> str:
     return f"label{_label_counter}"
 
 
-def _align_kwargs(self, func_t, args_ir, ast_source):
+def _align_kwargs(func_t, args_ir):
     """
     Using a list of args, find the kwargs which need to be filled in by
     the compiler
