@@ -498,7 +498,7 @@ class ContractFunctionT(VyperType):
 
     @property
     def is_mutable(self) -> bool:
-        return self.mutability not in (StateMutability.PURE, StateMutability.VIEW)
+        return self.mutability > StateMutability.VIEW
 
     @property
     def is_payable(self) -> bool:
