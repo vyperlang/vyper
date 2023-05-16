@@ -15,7 +15,7 @@ from vyper.utils import MemoryPositions, calc_mem_gas
 
 def generate_ir_for_function(
     code: vy_ast.FunctionDef,
-    sigs: Dict[str, Dict[str, ContractFunctionT]],  # all signatures in all namespaces
+    func_ts: Dict[str, Dict[str, ContractFunctionT]],  # all ContractFunctionT in all namespaces
     global_ctx: GlobalContext,
     skip_nonpayable_check: bool,
     is_ctor_context: bool = False,
@@ -27,17 +27,17 @@ def generate_ir_for_function(
         - Clamping and copying of arguments
         - Function body
     """
-    sig = code._metadata["type"]
+    func_t = code._metadata["type"]
 
     # Validate return statements.
     check_single_exit(code)
 
-    callees = sig.called_functions
+    callees = func_t.called_functions
 
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c in callees:
-        frame_info = sigs["self"][c.name].ir_info.frame_info
+        frame_info = func_ts["self"][c.name].ir_info.frame_info
         assert frame_info is not None  # make mypy happy
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
@@ -48,20 +48,20 @@ def generate_ir_for_function(
     context = Context(
         vars_=None,
         global_ctx=global_ctx,
-        sigs=sigs,
+        func_ts=func_ts,
         memory_allocator=memory_allocator,
-        constancy=Constancy.Mutable if sig.is_mutable else Constancy.Constant,
-        sig=sig,
+        constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
+        func_t=func_t,
         is_ctor_context=is_ctor_context,
     )
 
-    if sig.is_internal:
+    if func_t.is_internal:
         assert skip_nonpayable_check is False
-        o = generate_ir_for_internal_function(code, sig, context)
+        o = generate_ir_for_internal_function(code, func_t, context)
     else:
-        if sig.is_payable:
+        if func_t.is_payable:
             assert skip_nonpayable_check is False  # nonsense
-        o = generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
+        o = generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check)
 
     o.source_pos = getpos(code)
 
@@ -69,19 +69,19 @@ def generate_ir_for_function(
 
     frame_info = FrameInfo(allocate_start, frame_size, context.vars)
 
-    if sig.ir_info.frame_info is None:
-        sig.set_frame_info(frame_info)
+    if func_t.ir_info.frame_info is None:
+        func_t.set_frame_info(frame_info)
     else:
-        assert frame_info == sig.ir_info.frame_info
+        assert frame_info == func_t.ir_info.frame_info
 
-    if not sig.is_internal:
+    if not func_t.is_internal:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         # it is already accounted for by the caller.)
-        assert sig.ir_info.frame_info is not None  # mypy hint
-        o.add_gas_estimate += calc_mem_gas(sig.ir_info.frame_info.mem_used)
+        assert func_t.ir_info.frame_info is not None  # mypy hint
+        o.add_gas_estimate += calc_mem_gas(func_t.ir_info.frame_info.mem_used)
 
-    sig.gas_estimate = o.gas
+    func_t.gas_estimate = o.gas
 
     return o

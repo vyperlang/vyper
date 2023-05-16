@@ -19,9 +19,9 @@ Stmt = Any  # mypy kludge
 
 # Generate code for return stmt
 def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IRnode]:
-    sig = context.sig
+    func_t = context.func_t
 
-    jump_to_exit = ["exit_to", f"_sym_{sig.ir_info.exit_sequence_label}"]
+    jump_to_exit = ["exit_to", f"_sym_{func_t.ir_info.exit_sequence_label}"]
 
     if context.return_type is None:
         if stmt.value is not None:
@@ -35,7 +35,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     # do NOT bypass this. jump_to_exit may do important function cleanup.
     def finalize(fill_return_buffer):
         fill_return_buffer = IRnode.from_list(
-            fill_return_buffer, annotation=f"fill return buffer {sig.ir_info.identifier}"
+            fill_return_buffer, annotation=f"fill return buffer {func_t.ir_info.identifier}"
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "seq"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must

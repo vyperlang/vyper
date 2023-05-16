@@ -9,7 +9,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
-from vyper.semantics.types.function import FunctionSignatures
+from vyper.semantics.types.function import ContractFunctionTs
 from vyper.typing import InterfaceImports, StorageLayout
 
 
@@ -132,7 +132,7 @@ class CompilerData:
         return ir_runtime
 
     @property
-    def function_signatures(self) -> FunctionSignatures:
+    def function_signatures(self) -> ContractFunctionTs:
         ir, ir_runtime, sigs = self._ir_output
         return sigs
 
@@ -234,7 +234,7 @@ def generate_folded_ast(
 
 def generate_ir_nodes(
     global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[IRnode, IRnode, FunctionSignatures]:
+) -> Tuple[IRnode, IRnode, ContractFunctionTs]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 

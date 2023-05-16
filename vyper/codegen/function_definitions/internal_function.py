@@ -7,12 +7,12 @@ from vyper.semantics.types.function import ContractFunctionT, InternalFunctionIR
 
 
 def generate_ir_for_internal_function(
-    code: vy_ast.FunctionDef, sig: ContractFunctionT, context: Context
+    code: vy_ast.FunctionDef, func_t: ContractFunctionT, context: Context
 ) -> IRnode:
     """
     Parse a internal function (FuncDef), and produce full function body.
 
-    :param sig: the FuntionSignature
+    :param func_t: the ContractFunctionT
     :param code: ast of function
     :param context: current calling context
     :return: function body in IR
@@ -39,19 +39,19 @@ def generate_ir_for_internal_function(
 
     # Get nonreentrant lock
 
-    for arg in sig.arguments:
+    for arg in func_t.arguments:
         # allocate a variable for every arg, setting mutability
         # to False to comply with vyper semantics, function arguments are immutable
         context.new_variable(arg.name, arg.typ, is_mutable=False)
 
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(sig)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
-    assert isinstance(sig.ir_info, InternalFunctionIRInfo)  # satisfy mypy
-    function_entry_label = sig.ir_info.internal_function_label
-    cleanup_label = sig.ir_info.exit_sequence_label
+    assert isinstance(func_t.ir_info, InternalFunctionIRInfo)  # satisfy mypy
+    function_entry_label = func_t.ir_info.internal_function_label
+    cleanup_label = func_t.ir_info.exit_sequence_label
 
     stack_args = ["var_list"]
-    if sig.return_type:
+    if func_t.return_type:
         stack_args += ["return_buffer"]
     stack_args += ["return_pc"]
 

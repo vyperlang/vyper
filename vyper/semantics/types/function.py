@@ -25,7 +25,7 @@ from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import MemoryPositions, OrderedSet, keccak256, mkalphanum
 
-FunctionSignatures = Dict[str, "ContractFunctionT"]
+ContractFunctionTs = Dict[str, "ContractFunctionT"]
 
 
 @dataclass

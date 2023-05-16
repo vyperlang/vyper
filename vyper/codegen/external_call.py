@@ -171,8 +171,6 @@ def _extcodesize_check(address):
 
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
-    # expr.func._metadata["type"].return_type is more accurate
-    # than fn_sig.return_type in the case of JSON interfaces.
     fn_type = call_expr.func._metadata["type"]
 
     # sanity check

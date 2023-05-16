@@ -29,7 +29,7 @@ def ir_for_self_call(stmt_expr, context):
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
-    sig, kw_vals = context.lookup_internal_function(method_name, pos_args_ir, stmt_expr)
+    func_t, kw_vals = context.lookup_internal_function(method_name, pos_args_ir, stmt_expr)
 
     kw_args_ir = [Expr(x, context).ir_node for x in kw_vals]
 
@@ -38,7 +38,7 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
-    if context.is_constant() and sig.is_mutable:
+    if context.is_constant() and func_t.is_mutable:
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
@@ -46,23 +46,24 @@ def ir_for_self_call(stmt_expr, context):
         )
 
     # TODO move me to type checker phase
-    if not sig.is_internal:
+    if not func_t.is_internal:
         raise StructureException("Cannot call external functions via 'self'", stmt_expr)
 
-    return_label = _generate_label(f"{sig.ir_info.internal_function_label}_call")
+    return_label = _generate_label(f"{func_t.ir_info.internal_function_label}_call")
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
-    if sig.return_type is not None:
+    if func_t.return_type is not None:
         return_buffer = IRnode.from_list(
-            context.new_internal_variable(sig.return_type), annotation=f"{return_label}_return_buf"
+            context.new_internal_variable(func_t.return_type),
+            annotation=f"{return_label}_return_buf",
         )
     else:
         return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
-    dst_tuple_t = TupleT(tuple(sig.argument_types))
-    args_dst = IRnode(sig.ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
+    dst_tuple_t = TupleT(tuple(func_t.argument_types))
+    args_dst = IRnode(func_t.ir_info.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument
     # buffer could get borked. to prevent against that,
@@ -84,7 +85,7 @@ def ir_for_self_call(stmt_expr, context):
     else:
         copy_args = make_setter(args_dst, args_as_tuple)
 
-    goto_op = ["goto", sig.ir_info.internal_function_label]
+    goto_op = ["goto", func_t.ir_info.internal_function_label]
     # pass return buffer to subroutine
     if return_buffer is not None:
         goto_op += [return_buffer]
@@ -100,10 +101,10 @@ def ir_for_self_call(stmt_expr, context):
 
     o = IRnode.from_list(
         call_sequence,
-        typ=sig.return_type,
+        typ=func_t.return_type,
         location=MEMORY,
         annotation=stmt_expr.get("node_source_code"),
-        add_gas_estimate=sig.gas_estimate,
+        add_gas_estimate=func_t.gas_estimate,
     )
     o.is_self_call = True
     return o
