@@ -106,6 +106,19 @@ implements: Foo
     """,
         StructureException,
     ),
+    (
+        """
+from vyper.interfaces import ERC20
+
+interface A:
+    def f(): view
+
+@internal
+def foo():
+    a: ERC20 = A(empty(address))
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
