@@ -124,7 +124,9 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent")
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
         return logs[0].args.sig
 
     assert 1 == _call_with_bytes("0x")
@@ -159,7 +161,9 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent")
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
         return logs[0].args.sig
 
     assert 1 == _call_with_bytes("0x")
@@ -169,7 +173,6 @@ def __default__():
 
     # too many bytes ok
     assert 2 == _call_with_bytes("0x" + "00" * 5)
-
 
     # "right" method id but by accident - not enough bytes.
     for i in range(4):
@@ -199,7 +202,9 @@ def __default__():
 
     def _call_with_bytes(hexstr):
         # call our special contract and return the logged value
-        logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent")
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
         return logs[0].args.sig
 
     # check we can call default function
