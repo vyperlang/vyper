@@ -19,7 +19,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
+from vyper.exceptions import CodegenPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT, ErrorT, TupleT
 from vyper.semantics.types.shortcuts import UINT256_T
 
