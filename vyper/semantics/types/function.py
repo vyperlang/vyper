@@ -1,7 +1,7 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -11,24 +11,18 @@ from vyper.exceptions import (
     CompilerPanic,
     FunctionDeclarationException,
     InvalidType,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import (
-    DataLocation,
-    FunctionVisibility,
-    StateMutability,
-    StorageSlot,
-)
+from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import OrderedSet, keccak256
 
 
 class ContractFunctionT(VyperType):
@@ -89,7 +83,7 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions: Set["ContractFunctionT"] = set()
+        self.called_functions = OrderedSet()
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
@@ -188,10 +182,8 @@ class ContractFunctionT(VyperType):
                 )
 
         else:
-
             # FunctionDef with decorators (normal functions)
             for decorator in node.decorator_list:
-
                 if isinstance(decorator, vy_ast.Call):
                     if "nonreentrant" in kwargs:
                         raise StructureException(
@@ -285,7 +277,6 @@ class ContractFunctionT(VyperType):
         min_arg_count = max_arg_count - len(node.args.defaults)
         defaults = [None] * min_arg_count + node.args.defaults
 
-        namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
@@ -293,13 +284,11 @@ class ContractFunctionT(VyperType):
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
-            if arg.arg in namespace:
-                raise NamespaceCollision(arg.arg, arg)
 
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_ = type_from_annotation(arg.annotation)
+            type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if value is not None:
                 if not check_kwargable(value):
@@ -317,13 +306,9 @@ class ContractFunctionT(VyperType):
             raise FunctionDeclarationException(
                 "Constructor may not have a return type", node.returns
             )
-        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            return_type = type_from_annotation(node.returns)
-        elif isinstance(node.returns, vy_ast.Tuple):
-            tuple_types: Tuple = ()
-            for n in node.returns.elements:
-                tuple_types += (type_from_annotation(n),)
-            return_type = TupleT(tuple_types)
+        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
+            # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
+            return_type = type_from_annotation(node.returns, DataLocation.MEMORY)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -357,7 +342,7 @@ class ContractFunctionT(VyperType):
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:

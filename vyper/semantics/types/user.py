@@ -17,6 +17,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.function import ContractFunctionT
@@ -153,6 +154,8 @@ class EventT(_UserType):
         Name of the event.
     """
 
+    _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
+
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         super().__init__(members=arguments)
         self.name = name
@@ -261,7 +264,6 @@ class EventT(_UserType):
 
 
 class InterfaceT(_UserType):
-
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     _as_array = True
@@ -397,7 +399,7 @@ class InterfaceT(_UserType):
     @classmethod
     def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
         """
-        Generate an `InterfacePrimitive` object from a Vyper ast node.
+        Generate an `InterfaceT` object from a Vyper ast node.
 
         Arguments
         ---------
@@ -405,7 +407,7 @@ class InterfaceT(_UserType):
             Vyper ast node defining the interface
         Returns
         -------
-        InterfacePrimitive
+        InterfaceT
             primitive interface type
         """
         if isinstance(node, vy_ast.Module):
@@ -425,21 +427,6 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
             func = ContractFunctionT.from_FunctionDef(node)
-            if node.name in functions:
-                # compare the input arguments of the new function and the previous one
-                # if one function extends the inputs, this is a valid function name overload
-                existing_args = list(functions[node.name].arguments)
-                new_args = list(func.arguments)
-                for a, b in zip(existing_args, new_args):
-                    if not isinstance(a, type(b)):
-                        raise NamespaceCollision(
-                            f"Interface contains multiple functions named '{node.name}' "
-                            "with incompatible input types",
-                            base_node,
-                        )
-                if len(new_args) <= len(existing_args):
-                    # only keep the `ContractFunctionT` with the longest set of input args
-                    continue
             functions[node.name] = func
     for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
         name = node.target.id
@@ -486,10 +473,6 @@ class StructT(_UserType):
         self._id = _id
 
         self.ast_def = ast_def
-
-        for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
     @cached_property
     def name(self) -> str:

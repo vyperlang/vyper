@@ -109,7 +109,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
     if arg_hi > out_hi:
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
         # add an assertion, just in case this assumption ever changes.
-        assert out_hi < 2 ** 256 - 1, "bad assumption in numeric convert"
+        assert out_hi < 2**256 - 1, "bad assumption in numeric convert"
         CLAMP_OP = "sle" if arg_is_signed else "le"
         arg = clamp(CLAMP_OP, arg, out_hi)
 
@@ -156,7 +156,6 @@ def _int_to_int(arg, out_typ):
     # _clamp_numeric_convert(arg, arg.typ.int_bounds, out_typ.int_bounds, arg.typ.is_signed)
     # but with better code size and gas.
     if arg.typ.is_signed and not out_typ.is_signed:
-
         # e.g. (clample (clampge arg 0) (2**128 - 1))
 
         # note that when out_typ.bits == 256,
@@ -164,7 +163,6 @@ def _int_to_int(arg, out_typ):
         # see similar assertion in _clamp_numeric_convert.
 
         if out_typ.bits < arg.typ.bits:
-
             assert out_typ.bits < 256, "unreachable"
             # note: because of the usage of signed=False, and the fact
             # that out_bits < 256 in this branch, below implies
@@ -269,7 +267,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
-    if isinstance(arg.typ, BytesT):
+    if isinstance(arg.typ, _BytestringT):
         # no clamp. checks for any nonzero bytes.
         arg = _bytes_to_num(arg, out_typ, signed=False)
 
@@ -359,7 +357,7 @@ def to_decimal(expr, arg, out_typ):
 
     elif arg.typ == BoolT():
         # TODO: consider adding is_signed and bits to bool so we can use _int_to_fixed
-        arg = ["mul", arg, 10 ** out_typ.decimals]
+        arg = ["mul", arg, 10**out_typ.decimals]
         return IRnode.from_list(arg, typ=out_typ)
     else:
         raise CompilerPanic("unreachable")  # pragma: notest

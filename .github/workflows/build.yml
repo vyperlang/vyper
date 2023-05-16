@@ -31,9 +31,9 @@ jobs:
             fetch-depth: 0
 
       - name: Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: "3.11"
 
       - name: Generate Binary
         run: >-
@@ -42,7 +42,7 @@ jobs:
           make freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
 
@@ -58,9 +58,9 @@ jobs:
             fetch-depth: 0
 
       - name: Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: "3.11"
 
       - name: Generate Binary
         run: >-
@@ -69,6 +69,6 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*

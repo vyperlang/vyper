@@ -210,6 +210,58 @@ interface MyInterface:
 
 kickers: HashMap[address, MyInterface]
     """,
+    """
+interface Foo:
+    def append(a: uint256): payable
+
+@external
+def bar(x: address):
+    a: Foo = Foo(x)
+    a.append(1)
+    """,
+    """
+interface Foo:
+    def pop(): payable
+
+@external
+def foo(x: address):
+    a: Foo = Foo(x)
+    a.pop()
+    """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(constant(uint256)) = 1
+    """,
+    """
+interface ITestInterface:
+    def foo() -> uint256: view
+
+implements: ITestInterface
+
+foo: public(immutable(uint256))
+
+@external
+def __init__(x: uint256):
+    foo = x
+    """,
+    # no namespace collision of interface after storage variable
+    """
+a: constant(uint256) = 1
+
+interface A:
+    def f(a: uint128): view
+    """,
+    # no namespace collision of storage variable after interface
+    """
+interface A:
+    def f(a: uint256): view
+
+a: constant(uint128) = 1
+    """,
 ]
 
 

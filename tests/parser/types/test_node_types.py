@@ -15,7 +15,6 @@ from vyper.semantics.types import (
 
 
 def test_bytearray_node_type():
-
     node1 = BytesT(12)
     node2 = BytesT(12)
 

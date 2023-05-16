@@ -75,7 +75,6 @@ def process_inputs(wrapped_fn):
 
 
 class BuiltinFunction:
-
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
 

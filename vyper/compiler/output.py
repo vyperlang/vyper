@@ -130,8 +130,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
             ret["default_values"][k] = ret["default_values"][k].node_source_code
         ret["frame_info"] = vars(ret["frame_info"])
-        for k in ret["frame_info"]["frame_vars"].keys():
-            ret["frame_info"]["frame_vars"][k] = _var_rec_dict(ret["frame_info"]["frame_vars"][k])
+        del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
@@ -177,7 +176,6 @@ def _build_asm(asm_list):
     output_string = ""
     in_push = 0
     for node in asm_list:
-
         if isinstance(node, list):
             output_string += "{ " + _build_asm(node) + "} "
             continue
@@ -253,7 +251,7 @@ def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
 
 
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
-EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
+EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:

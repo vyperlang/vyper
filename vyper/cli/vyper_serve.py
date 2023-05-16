@@ -64,7 +64,6 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
         return
 
     def do_POST(self):
-
         if self.path == "/compile":
             content_len = int(self.headers.get("content-length"))
             post_body = self.rfile.read(content_len)
@@ -98,6 +97,7 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
                 evm_version=data.get("evm_version", DEFAULT_EVM_VERSION),
             )[""]
             out_dict["ir"] = str(out_dict["ir"])
+            out_dict["ir_runtime"] = str(out_dict["ir_runtime"])
         except VyperException as e:
             return (
                 {"status": "failed", "message": str(e), "column": e.col_offset, "line": e.lineno},

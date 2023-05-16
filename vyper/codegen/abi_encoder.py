@@ -1,4 +1,3 @@
-from vyper.address_space import MEMORY
 from vyper.codegen.core import (
     STORE,
     add_ofst,
@@ -9,6 +8,7 @@ from vyper.codegen.core import (
     zero_pad,
 )
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -190,7 +190,6 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     with ir_node.cache_when_complex("to_encode") as (b1, ir_node), dst.cache_when_complex(
         "dst"
     ) as (b2, dst):
-
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if ir_node.typ._is_prim_word:

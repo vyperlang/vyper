@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -18,7 +19,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -27,6 +28,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.data_locations import DataLocation
 
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
@@ -40,6 +42,7 @@ from vyper.semantics.types import (
     IntegerT,
     SArrayT,
     StringT,
+    StructT,
     TupleT,
     is_type_t,
 )
@@ -48,7 +51,6 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
-
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
     err_list = ExceptionList()
@@ -159,7 +161,6 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
-
     ignored_types = (vy_ast.Constant, vy_ast.Pass)
     scope_name = "function"
 
@@ -232,7 +233,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
 
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, type_)
 
         try:
@@ -267,6 +268,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.target)
 
     def visit_Raise(self, node):
         if node.exc:
@@ -381,6 +383,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
+                if not type_list:
+                    raise TypeMismatch("Iterator values are of different types", node.iter)
+
         else:
             # iteration over a variable or literal list
             if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
@@ -449,14 +454,22 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise exc.with_annotation(node) from None
 
                 try:
-                    for n in node.body:
-                        self.visit(n)
-                    # type information is applied directly because the scope is
-                    # closed prior to the call to `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = type_
-                    return
+                    with NodeMetadata.enter_typechecker_speculation():
+                        for n in node.body:
+                            self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
+                else:
+                    # type information is applied directly here because the
+                    # scope is closed prior to the call to
+                    # `StatementAnnotationVisitor`
+                    node.target._metadata["type"] = type_
+
+                    # success -- bail out instead of error handling.
+                    return
+
+        # if we have gotten here, there was an error for
+        # every type tried for the iterator
 
         if len(set(str(i) for i in for_loop_exceptions)) == 1:
             # if every attempt at type checking raised the same exception
@@ -483,6 +496,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         fn_type = get_exact_type_from_node(node.value.func)
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
+
+        if is_type_t(fn_type, StructT):
+            raise StructureException("Struct creation without assignment is disallowed", node)
 
         if isinstance(fn_type, ContractFunctionT):
             if (
@@ -580,3 +596,8 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
         self.visit(node.operand)  # type: ignore[attr-defined]
+
+    def visit_IfExp(self, node: vy_ast.IfExp) -> None:
+        self.visit(node.test)
+        self.visit(node.body)
+        self.visit(node.orelse)

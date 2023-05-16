@@ -15,11 +15,11 @@ BUILTIN_CONSTANTS = {
         "empty(bytes32)",
     ),  # NOQA: E501
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", "empty(address)"),
-    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1, "max_value(int128)"),
-    "MIN_INT128": (vy_ast.Int, -(2 ** 127), "min_value(int128)"),
+    "MAX_INT128": (vy_ast.Int, 2**127 - 1, "max_value(int128)"),
+    "MIN_INT128": (vy_ast.Int, -(2**127), "min_value(int128)"),
     "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, "max_value(decimal)"),
     "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, "min_value(decimal)"),
-    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1, "max_value(uint256)"),
+    "MAX_UINT256": (vy_ast.Int, 2**256 - 1, "max_value(uint256)"),
 }
 
 

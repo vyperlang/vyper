@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
-from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
@@ -114,17 +114,18 @@ def make_byte_array_copier(dst, src):
 
     with src.cache_when_complex("src") as (b1, src):
         with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-
             max_bytes = src.typ.maxlen
 
             ret = ["seq"]
+
+            dst_ = bytes_data_ptr(dst)
+            src_ = bytes_data_ptr(src)
+
+            ret.append(copy_bytes(dst_, src_, len_, max_bytes))
+
             # store length
             ret.append(STORE(dst, len_))
 
-            dst = bytes_data_ptr(dst)
-            src = bytes_data_ptr(src)
-
-            ret.append(copy_bytes(dst, src, len_, max_bytes))
             return b1.resolve(b2.resolve(ret))
 
 
@@ -149,29 +150,37 @@ def _dynarray_make_setter(dst, src):
     if src.value == "~empty":
         return IRnode.from_list(STORE(dst, 0))
 
+    # copy contents of src dynarray to dst.
+    # note that in case src and dst refer to the same dynarray,
+    # in order for get_element_ptr oob checks on the src dynarray
+    # to work, we need to wait until after the data is copied
+    # before we clobber the length word.
+
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
 
-        # write the length word
-        store_length = STORE(dst, len(src.args))
-        ann = None
-        if src.annotation is not None:
-            ann = f"len({src.annotation})"
-        store_length = IRnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
+        # copy each item
         n_items = len(src.args)
+
         for i in range(n_items):
             k = IRnode.from_list(i, typ=UINT256_T)
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
             ret.append(make_setter(dst_i, src_i))
 
+        # write the length word after data is copied
+        store_length = STORE(dst, n_items)
+        ann = None
+        if src.annotation is not None:
+            ann = f"len({src.annotation})"
+        store_length = IRnode.from_list(store_length, annotation=ann)
+
+        ret.append(store_length)
+
         return ret
 
     with src.cache_when_complex("darray_src") as (b1, src):
-
         # for ABI-encoded dynamic data, we must loop to unpack, since
         # the layout does not match our memory layout
         should_loop = src.encoding == Encoding.ABI and src.typ.value_type.abi_type.is_dynamic()
@@ -191,8 +200,6 @@ def _dynarray_make_setter(dst, src):
 
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
-
-            ret.append(STORE(dst, count))
 
             if should_loop:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ=UINT256_T)
@@ -214,6 +221,9 @@ def _dynarray_make_setter(dst, src):
                 src_ = dynarray_data_ptr(src)
                 dst_ = dynarray_data_ptr(dst)
                 ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+
+            # write the length word after data is copied
+            ret.append(STORE(dst, count))
 
             return b1.resolve(b2.resolve(ret))
 
@@ -237,7 +247,6 @@ def copy_bytes(dst, src, length, length_bound):
     with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
         "copy_bytes_count"
     ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
-
         assert isinstance(length_bound, int) and length_bound >= 0
 
         # correctness: do not clobber dst
@@ -339,12 +348,14 @@ def append_dyn_array(darray_node, elem_node):
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
             assertion = ["assert", ["lt", len_, darray_node.typ.count]]
             ret.append(IRnode.from_list(assertion, error_msg=f"{darray_node.typ} bounds check"))
-            ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
                 make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
             )
+
+            # store new length
+            ret.append(STORE(darray_node, ["add", len_, 1]))
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
@@ -357,6 +368,7 @@ def pop_dyn_array(darray_node, return_popped_item):
         new_len = IRnode.from_list(["sub", old_len, 1], typ=UINT256_T)
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
+            # store new length
             ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -367,6 +379,7 @@ def pop_dyn_array(darray_node, return_popped_item):
                 location = popped_item.location
             else:
                 typ, location = None, None
+
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
@@ -484,7 +497,6 @@ def has_length_word(typ):
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, array_bounds_check):
-
     assert is_array_like(parent.typ)
 
     if not is_integer_type(key.typ):
@@ -750,9 +762,9 @@ def _check_assign_tuple(left, right):
     else:
         if len(left.typ.member_types) != len(right.typ.member_types):
             FAIL()  # pragma: notest
-        for (l, r) in zip(left.typ.member_types, right.typ.member_types):
+        for left_, right_ in zip(left.typ.member_types, right.typ.member_types):
             # TODO recurse into left, right if literals?
-            check_assign(dummy_node_for_type(l), dummy_node_for_type(r))
+            check_assign(dummy_node_for_type(left_), dummy_node_for_type(right_))
 
 
 # sanity check an assignment
@@ -886,7 +898,6 @@ def _complex_make_setter(left, right):
     # general case
     # TODO use copy_bytes when the generated code is above a certain size
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
-
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
             r_i = get_element_ptr(right, k, array_bounds_check=False)
@@ -922,7 +933,10 @@ def eval_seq(ir_node):
 
 # TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
-    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") == "selfdestruct":
+    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
+        "raw_revert",
+        "selfdestruct",
+    ):
         return True
     if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
         return True

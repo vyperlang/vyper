@@ -3,8 +3,8 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.address_space import MEMORY, AddrSpace
 from vyper.codegen.ir_node import Encoding
+from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType
 
@@ -30,6 +30,9 @@ class VariableRecord:
     is_immutable: bool = False
     data_offset: Optional[int] = None
 
+    def __hash__(self):
+        return hash(id(self))
+
     def __post_init__(self):
         if self.blockscopes is None:
             self.blockscopes = []
@@ -51,6 +54,7 @@ class Context:
         forvars=None,
         constancy=Constancy.Mutable,
         sig=None,
+        is_ctor_context=False,
     ):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars_ or {}
@@ -88,6 +92,9 @@ class Context:
         # Incremented values, used for internal IDs
         self._internal_var_iter = 0
         self._scope_id_iter = 0
+
+        # either the constructor, or called from the constructor
+        self.is_ctor_context = is_ctor_context
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
@@ -267,10 +274,8 @@ class Context:
         # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
 
         num_provided_kwargs = len(args_ir) - len(sig.base_args)
-        num_kwargs = len(sig.default_args)
-        kwargs_needed = num_kwargs - num_provided_kwargs
 
-        kw_vals = list(sig.default_values.values())[:kwargs_needed]
+        kw_vals = list(sig.default_values.values())[num_provided_kwargs:]
 
         return sig, kw_vals
 

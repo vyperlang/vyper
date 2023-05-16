@@ -106,6 +106,11 @@ Bitwise Operations
         >>> ExampleContract.foo(2, 8)
         512
 
+.. note::
+
+  This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
+
 Chain Interaction
 =================
 
@@ -201,11 +206,11 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. The output of ``vyper -f blueprint_bytecode`` will produce bytecode which deploys an ERC-5202 compatible blueprint.
 
 .. warning::
 
-    It is recommended to deploy blueprints with the ERC5202 preamble ``0xfe7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+    It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
 
     .. code-block:: python
 
@@ -214,13 +219,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
-.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
     * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
@@ -293,6 +298,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     .. warning::
 
         This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+
+    .. note::
+
+        This function has been deprecated from version 0.3.8 onwards. The underlying opcode will eventually undergo breaking changes, and its use is not recommended.
 
     .. code-block:: python
 
@@ -397,7 +406,7 @@ Cryptography
 
     Return a ``keccak256`` hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -415,7 +424,7 @@ Cryptography
 
     Return a ``sha256`` (SHA2 256-bit output) hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -434,7 +443,7 @@ Data Manipulation
 
 .. py:function:: concat(a, b, *args) -> Union[Bytes, String]
 
-    Take 2 or more bytes arrays of type ``bytes32``, ``Bytes`` or ``String`` and combine them into a single value.
+    Take 2 or more bytes arrays of type ``bytesM``, ``Bytes`` or ``String`` and combine them into a single value.
 
     If the input arguments are ``String`` the return type is ``String``.  Otherwise the return type is ``Bytes``.
 

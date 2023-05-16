@@ -1,6 +1,5 @@
 from typing import Any, Optional
 
-from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
@@ -13,13 +12,13 @@ from vyper.codegen.core import (
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.address_space import MEMORY
 
 Stmt = Any  # mypy kludge
 
 
 # Generate code for return stmt
 def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IRnode]:
-
     sig = context.sig
 
     jump_to_exit = ["exit_to", f"_sym_{sig.exit_sequence_label}"]
@@ -55,7 +54,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return finalize(fill_return_buffer)
 
     else:  # return from external function
-
         external_return_type = calculate_type_for_external_return(context.return_type)
         maxlen = external_return_type.abi_type.size_bound()
 

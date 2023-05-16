@@ -39,14 +39,14 @@ def foo(x: {typ}) -> {typ}:
     xs = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
     ys = [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
-    mod_bound = 2 ** typ.bits
+    mod_bound = 2**typ.bits
 
     # poor man's fuzzing - hypothesis doesn't make it easy
     # with the parametrized strategy
     if typ.is_signed:
         xs += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
         ys += [lo, lo + 1, -1, 0, 1, hi - 1, hi]
-        for (x, y) in itertools.product(xs, ys):
+        for x, y in itertools.product(xs, ys):
             expected = unsigned_to_signed(fn(x, y) % mod_bound, typ.bits)
 
             assert c1.foo(x, y) == expected
@@ -60,7 +60,7 @@ def foo(x: {typ}) -> {typ}:
         fixed_pt = 2 ** (typ.bits - 1)
         xs += [0, 1, hi - 1, hi, fixed_pt]
         ys += [0, 1, hi - 1, hi, fixed_pt]
-        for (x, y) in itertools.product(xs, ys):
+        for x, y in itertools.product(xs, ys):
             expected = fn(x, y) % mod_bound
             assert c1.foo(x, y) == expected
 

@@ -24,7 +24,7 @@ def goo() -> uint256:
 
 
 @pytest.mark.parametrize("return_type", sorted(IntegerT.all()))
-def test_minmax_var_and_literal(get_contract_with_gas_estimation, return_type):
+def test_minmax_var_and_literal_and_bultin(get_contract_with_gas_estimation, return_type):
     """
     Tests to verify that min and max work as expected when a variable/literal
     and a literal are passed for all integer types.
@@ -51,12 +51,22 @@ def both_literals_max() -> {return_type}:
 @external
 def both_literals_min() -> {return_type}:
     return min({lo}, 2)
+
+@external
+def both_builtins_max() -> {return_type}:
+    return max(min_value({return_type}), max_value({return_type}))
+
+@external
+def both_builtins_min() -> {return_type}:
+    return min(min_value({return_type}), max_value({return_type}))
 """
     c = get_contract_with_gas_estimation(code)
     assert c.foo() == hi
     assert c.bar() == lo
     assert c.both_literals_max() == hi
     assert c.both_literals_min() == lo
+    assert c.both_builtins_max() == hi
+    assert c.both_builtins_min() == lo
 
 
 def test_max_var_uint256_literal_int128(get_contract_with_gas_estimation):
@@ -94,11 +104,11 @@ def both_literals() -> uint256:
     return max(2 ** 200, 2)
 """
     c = get_contract_with_gas_estimation(code)
-    assert c.foo() == 2 ** 200 + 5
-    assert c.goo() == 2 ** 200 + 5
+    assert c.foo() == 2**200 + 5
+    assert c.goo() == 2**200 + 5
     assert c.bar() == 5 + 5
     assert c.baz() == 5 + 5
-    assert c.both_literals() == 2 ** 200
+    assert c.both_literals() == 2**200
 
 
 def test_min_var_uint256_literal_int128(get_contract_with_gas_estimation):
@@ -231,8 +241,8 @@ def foo4() -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.foo1() == 0
     assert c.foo2() == 0
-    assert c.foo3() == 2 ** 255
-    assert c.foo4() == 2 ** 255
+    assert c.foo3() == 2**255
+    assert c.foo4() == 2**255
 
 
 def test_signed(get_contract_with_gas_estimation):
@@ -255,7 +265,7 @@ def foo4() -> int128:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert c.foo1() == -(2 ** 127)
-    assert c.foo2() == -(2 ** 127)
-    assert c.foo3() == 2 ** 127 - 1
-    assert c.foo4() == 2 ** 127 - 1
+    assert c.foo1() == -(2**127)
+    assert c.foo2() == -(2**127)
+    assert c.foo3() == 2**127 - 1
+    assert c.foo4() == 2**127 - 1

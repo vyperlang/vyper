@@ -165,12 +165,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2 ** 256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2 ** 256 - 1, ""]
-    assert c.foo(7, 5) == [2 ** 256 - 1, "world"]
-    assert c.foo(0, 5) == [2 ** 256 - 1, "hello"]
-    assert c.foo(0, 1) == [2 ** 256 - 1, "h"]
-    assert c.foo(11, 1) == [2 ** 256 - 1, "d"]
+    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
+    assert c.foo(12, 0) == [2**256 - 1, ""]
+    assert c.foo(7, 5) == [2**256 - 1, "world"]
+    assert c.foo(0, 5) == [2**256 - 1, "hello"]
+    assert c.foo(0, 1) == [2**256 - 1, "h"]
+    assert c.foo(11, 1) == [2**256 - 1, "d"]
 
 
 def test_slice_storage_bytes32(get_contract):
@@ -326,7 +326,6 @@ def bar() -> Bytes[32]:
 @pytest.mark.parametrize("code", code_bytes32)
 @pytest.mark.parametrize("start,length", _fun_bytes32_bounds)
 def test_slice_bytes32(get_contract, code, start, length):
-
     c = get_contract(code.format(start=start, length=length))
     assert c.bar() == _generate_bytes(32)[start : start + length]
 
@@ -350,7 +349,6 @@ def bar(foo: bytes32) -> Bytes[32]:
 @pytest.mark.parametrize("code", code_bytes32_calldata)
 @pytest.mark.parametrize("start,length", _fun_bytes32_bounds)
 def test_slice_bytes32_calldata(get_contract, code, start, length):
-
     c = get_contract(code.format(start=start, length=length))
     assert c.bar(_generate_bytes(32)) == _generate_bytes(32)[start : start + length]
 
@@ -393,7 +391,6 @@ def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
 
 @pytest.mark.parametrize("code,result", code_bytes32_calldata_extended)
 def test_slice_bytes32_calldata_extended(get_contract, code, result):
-
     c = get_contract(code)
     assert (
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()

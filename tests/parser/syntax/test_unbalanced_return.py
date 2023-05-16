@@ -64,6 +64,36 @@ def valid_address(sender: address) -> bool:
     """,
         StructureException,
     ),
+    (
+        """
+@internal
+def foo() -> bool:
+    raw_revert(b"vyper")
+    return True
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo() -> bool:
+    raw_revert(b"vyper")
+    x: uint256 = 3
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo(x: uint256) -> bool:
+    if x == 2:
+        raw_revert(b"vyper")
+        a: uint256 = 3
+    else:
+        return False
+    """,
+        StructureException,
+    ),
 ]
 
 
@@ -125,6 +155,14 @@ def test() -> int128:
         x = keccak256(x)
         return 1
     return 1
+    """,
+    """
+@external
+def foo() -> int128:
+    if True:
+        return 123
+    else:
+        raw_revert(b"vyper")
     """,
 ]
 

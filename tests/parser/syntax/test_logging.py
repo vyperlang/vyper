@@ -39,7 +39,6 @@ def test():
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_logging_fail(bad_code):
-
     if isinstance(bad_code, tuple):
         with pytest.raises(bad_code[1]):
             compiler.compile_code(bad_code[0])

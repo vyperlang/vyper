@@ -1,7 +1,6 @@
 from typing import Any, List
 
 import vyper.utils as util
-from vyper.address_space import CALLDATA, DATA, MEMORY
 from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
@@ -10,6 +9,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
+from vyper.evm.address_space import CALLDATA, DATA, MEMORY
 from vyper.semantics.types import TupleT
 
 
@@ -28,7 +28,6 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
-
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):

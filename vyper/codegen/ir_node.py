@@ -3,8 +3,8 @@ from enum import Enum, auto
 from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
 
-from vyper.address_space import AddrSpace
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.semantics.types import VyperType
@@ -152,7 +152,7 @@ class IRnode:
             _check(len(self.args) == 0, "int can't have arguments")
 
             # integers must be in the range (MIN_INT256, MAX_UINT256)
-            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+            _check(-(2**255) <= self.value < 2**256, "out of range")
 
             self.valency = 1
             self._gas = 5
@@ -398,6 +398,16 @@ class IRnode:
         return _WithBuilder(self, name, should_inline)
 
     @cached_property
+    def referenced_variables(self):
+        ret = set()
+        for arg in self.args:
+            ret |= arg.referenced_variables
+
+        ret |= getattr(self, "_referenced_variables", set())
+
+        return ret
+
+    @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
@@ -442,9 +452,7 @@ class IRnode:
         return val
 
     def repr(self) -> str:
-
         if not len(self.args):
-
             if self.annotation:
                 return f"{self.repr_value} " + OKLIGHTBLUE + f"<{self.annotation}>" + ENDC
             else:

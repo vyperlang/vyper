@@ -14,8 +14,8 @@ def foo(a: uint256) -> uint256:
     return a ** {power}
     """
     _min_base, max_base = calculate_largest_base(power, 256, False)
-    assert max_base ** power < 2 ** 256
-    assert (max_base + 1) ** power >= 2 ** 256
+    assert max_base**power < 2**256
+    assert (max_base + 1) ** power >= 2**256
 
     c = get_contract(code)
 
@@ -33,11 +33,11 @@ def foo(a: int128) -> int128:
     """
     min_base, max_base = calculate_largest_base(power, 128, True)
 
-    assert -(2 ** 127) <= max_base ** power < 2 ** 127
-    assert -(2 ** 127) <= min_base ** power < 2 ** 127
+    assert -(2**127) <= max_base**power < 2**127
+    assert -(2**127) <= min_base**power < 2**127
 
-    assert not -(2 ** 127) <= (max_base + 1) ** power < 2 ** 127
-    assert not -(2 ** 127) <= (min_base - 1) ** power < 2 ** 127
+    assert not -(2**127) <= (max_base + 1) ** power < 2**127
+    assert not -(2**127) <= (min_base - 1) ** power < 2**127
 
     c = get_contract(code)
 
@@ -58,11 +58,11 @@ def foo(a: int16) -> int16:
     """
     min_base, max_base = calculate_largest_base(power, 16, True)
 
-    assert -(2 ** 15) <= max_base ** power < 2 ** 15
-    assert -(2 ** 15) <= min_base ** power < 2 ** 15
+    assert -(2**15) <= max_base**power < 2**15
+    assert -(2**15) <= min_base**power < 2**15
 
-    assert not -(2 ** 15) <= (max_base + 1) ** power < 2 ** 15
-    assert not -(2 ** 15) <= (min_base - 1) ** power < 2 ** 15
+    assert not -(2**15) <= (max_base + 1) ** power < 2**15
+    assert not -(2**15) <= (min_base - 1) ** power < 2**15
 
     c = get_contract(code)
 
@@ -74,24 +74,24 @@ def foo(a: int16) -> int16:
 
 
 @pytest.mark.fuzzing
-@given(a=st.integers(min_value=2, max_value=2 ** 256 - 1))
+@given(a=st.integers(min_value=2, max_value=2**256 - 1))
 # 8 bits
-@example(a=2 ** 7)
-@example(a=2 ** 7 - 1)
+@example(a=2**7)
+@example(a=2**7 - 1)
 # 16 bits
-@example(a=2 ** 15)
-@example(a=2 ** 15 - 1)
+@example(a=2**15)
+@example(a=2**15 - 1)
 # 32 bits
-@example(a=2 ** 31)
-@example(a=2 ** 31 - 1)
+@example(a=2**31)
+@example(a=2**31 - 1)
 # 64 bits
-@example(a=2 ** 63)
-@example(a=2 ** 63 - 1)
+@example(a=2**63)
+@example(a=2**63 - 1)
 # 128 bits
-@example(a=2 ** 127)
-@example(a=2 ** 127 - 1)
+@example(a=2**127)
+@example(a=2**127 - 1)
 # 256 bits
-@example(a=2 ** 256 - 1)
+@example(a=2**256 - 1)
 @settings(max_examples=200, deadline=1000)
 def test_max_exp(get_contract, assert_tx_failed, a):
     code = f"""
@@ -104,29 +104,29 @@ def foo(b: uint256) -> uint256:
 
     max_power = calculate_largest_power(a, 256, False)
 
-    assert a ** max_power < 2 ** 256
-    assert a ** (max_power + 1) >= 2 ** 256
+    assert a**max_power < 2**256
+    assert a ** (max_power + 1) >= 2**256
 
     c.foo(max_power)
     assert_tx_failed(lambda: c.foo(max_power + 1))
 
 
 @pytest.mark.fuzzing
-@given(a=st.integers(min_value=2, max_value=2 ** 127 - 1))
+@given(a=st.integers(min_value=2, max_value=2**127 - 1))
 # 8 bits
-@example(a=2 ** 7)
-@example(a=2 ** 7 - 1)
+@example(a=2**7)
+@example(a=2**7 - 1)
 # 16 bits
-@example(a=2 ** 15)
-@example(a=2 ** 15 - 1)
+@example(a=2**15)
+@example(a=2**15 - 1)
 # 32 bits
-@example(a=2 ** 31)
-@example(a=2 ** 31 - 1)
+@example(a=2**31)
+@example(a=2**31 - 1)
 # 64 bits
-@example(a=2 ** 63)
-@example(a=2 ** 63 - 1)
+@example(a=2**63)
+@example(a=2**63 - 1)
 # 128 bits
-@example(a=2 ** 127 - 1)
+@example(a=2**127 - 1)
 @settings(max_examples=200, deadline=1000)
 def test_max_exp_int128(get_contract, assert_tx_failed, a):
     code = f"""
@@ -139,8 +139,8 @@ def foo(b: int128) -> int128:
 
     max_power = calculate_largest_power(a, 128, True)
 
-    assert -(2 ** 127) <= a ** max_power < 2 ** 127
-    assert not -(2 ** 127) <= a ** (max_power + 1) < 2 ** 127
+    assert -(2**127) <= a**max_power < 2**127
+    assert not -(2**127) <= a ** (max_power + 1) < 2**127
 
     c.foo(max_power)
     assert_tx_failed(lambda: c.foo(max_power + 1))

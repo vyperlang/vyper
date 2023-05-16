@@ -45,7 +45,7 @@ def validate_call_args(
             # -1 is sentinel which means we have varargs.
             # set arg_count[1] to some large number that we
             # would never see in practice
-            arg_count = (arg_count[0], 2 ** 64)
+            arg_count = (arg_count[0], 2**64)
 
         if arg_count[0] == arg_count[1]:
             arg_count == arg_count[0]

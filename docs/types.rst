@@ -102,8 +102,35 @@ Operator       Description
 
 ``x`` and ``y`` must both be of the same type.
 
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
+
+Shifts
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x << y``     Left shift
+``x >> y``     Right shift
+=============  ======================
+
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int256``, and ``y`` can be any unsigned integer. The right shift for ``int256`` compiles to a signed right shift (EVM ``SAR`` instruction).
+
+
 .. note::
-    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -176,7 +203,25 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    Bitwise operations are currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
+
+Shifts
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x << y``     Left shift
+``x >> y``     Right shift
+=============  ======================
+
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to a signed right shift (EVM ``SHR`` instruction).
+
+
+.. note::
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+
+
 
 Decimals
 --------
@@ -475,6 +520,9 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
     # Returning the value in row 0 column 4 (in this case 14)
     return exampleList2D[0][4]
 
+.. note::
+    Defining an array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
 .. index:: !dynarrays
 
 Dynamic Arrays
@@ -516,6 +564,10 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
 
+.. note::
+    Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
+
 .. _types-struct:
 
 Structs
@@ -551,7 +603,7 @@ The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, arrays or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::

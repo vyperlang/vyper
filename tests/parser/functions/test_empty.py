@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InstantiationException, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -525,11 +525,14 @@ def delete(key: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test") == b"\x00" * 32
-    c.set(b"test", b"value", transact={})
-    assert c.get(b"test")[:5] == b"value"
-    c.delete(b"test", transact={})
-    assert c.get(b"test") == b"\x00" * 32
+    key = b"test".ljust(32)
+    val = b"value".ljust(32)
+
+    assert c.get(key) == b"\x00" * 32
+    c.set(key, val, transact={})
+    assert c.get(key)[:5] == b"value"
+    c.delete(key, transact={})
+    assert c.get(key) == b"\x00" * 32
 
 
 def test_map_clear_nested(get_contract_with_gas_estimation):
@@ -551,11 +554,15 @@ def delete(key1: bytes32, key2: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test1", b"test2") == b"\x00" * 32
-    c.set(b"test1", b"test2", b"value", transact={})
-    assert c.get(b"test1", b"test2")[:5] == b"value"
-    c.delete(b"test1", b"test2", transact={})
-    assert c.get(b"test1", b"test2") == b"\x00" * 32
+    key1 = b"test1".ljust(32)
+    key2 = b"test2".ljust(32)
+    val = b"value".ljust(32)
+
+    assert c.get(key1, key2) == b"\x00" * 32
+    c.set(key1, key2, val, transact={})
+    assert c.get(key1, key2)[:5] == b"value"
+    c.delete(key1, key2, transact={})
+    assert c.get(key1, key2) == b"\x00" * 32
 
 
 def test_map_clear_struct(get_contract_with_gas_estimation):
@@ -704,4 +711,4 @@ def test():
     ],
 )
 def test_invalid_types(contract, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(contract), InstantiationException)

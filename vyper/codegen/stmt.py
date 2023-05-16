@@ -1,7 +1,6 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.address_space import MEMORY, STORAGE
 from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
@@ -11,6 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
+    clamp,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,8 +23,9 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
-from vyper.semantics.types import DArrayT
+from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
@@ -72,11 +73,22 @@ class Stmt:
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        sub = Expr(self.stmt.value, self.context).ir_node
-        target = self._get_target(self.stmt.target)
+        src = Expr(self.stmt.value, self.context).ir_node
+        dst = self._get_target(self.stmt.target)
 
-        ir_node = make_setter(target, sub)
-        return ir_node
+        ret = ["seq"]
+        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        if overlap and not dst.typ._is_prim_word:
+            # there is overlap between the lhs and rhs, and the type is
+            # complex - i.e., it spans multiple words. for safety, we
+            # copy to a temporary buffer before copying to the destination.
+            tmp = self.context.new_internal_variable(src.typ)
+            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
+            ret.append(make_setter(tmp, src))
+            src = tmp
+
+        ret.append(make_setter(dst, src))
+        return IRnode.from_list(ret)
 
     def parse_If(self):
         if self.stmt.orelse:
@@ -123,24 +135,25 @@ class Stmt:
             "append",
             "pop",
         ):
-            # TODO: consider moving this to builtins
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
-                assert isinstance(darray.typ, DArrayT)
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
+            func_type = self.stmt.func._metadata["type"]
+            if isinstance(func_type, MemberFunctionT):
+                darray = Expr(self.stmt.func.value, self.context).ir_node
+                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+                if self.stmt.func.attr == "append":
+                    # sanity checks
+                    assert len(args) == 1
+                    arg = args[0]
+                    assert isinstance(darray.typ, DArrayT)
+                    check_assign(
+                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                    )
 
-                return append_dyn_array(darray, arg)
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
+                    return append_dyn_array(darray, arg)
+                else:
+                    assert len(args) == 0
+                    return pop_dyn_array(darray, return_popped_item=False)
 
-        elif is_self_function:
+        if is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
         else:
             return external_call.ir_for_external_call(self.stmt, self.context)
@@ -263,6 +276,8 @@ class Stmt:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
 
         r = rounds if isinstance(rounds, int) else rounds.value
         if r < 1:
@@ -332,8 +347,12 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not target.typ._is_prim_word:
+            # because of this check, we do not need to check for
+            # make_setter references lhs<->rhs as in parse_Assign -
+            # single word load/stores are atomic.
             return
 
         with target.cache_when_complex("_loc") as (b, target):

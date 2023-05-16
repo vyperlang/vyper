@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
@@ -26,6 +26,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
@@ -57,7 +58,6 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
-
     scope_name = "module"
 
     def __init__(
@@ -88,7 +88,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
-        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        # generate an `InterfaceT` from the top-level node - used for building the ABI
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
@@ -117,14 +117,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # anything that is not a function call will get semantically checked later
             calls_to_self = calls_to_self.intersection(function_names)
             self_members[node.name].internal_calls = calls_to_self
-            if node.name in self_members[node.name].internal_calls:
-                self_node = node.get_descendants(
-                    vy_ast.Attribute, {"value.id": "self", "attr": node.name}
-                )[0]
-                raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
         for fn_name in sorted(function_names):
-
             if fn_name not in self_members:
                 # the referenced function does not exist - this is an issue, but we'll report
                 # it later when parsing the function so we can give more meaningful output
@@ -190,9 +184,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
-        data_loc = DataLocation.CODE if node.is_immutable else DataLocation.STORAGE
+        data_loc = (
+            DataLocation.CODE
+            if node.is_immutable
+            else DataLocation.UNSET
+            if node.is_constant
+            else DataLocation.STORAGE
+        )
 
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, data_loc)
         var_info = VarInfo(
             type_,
             decl_node=node,
@@ -204,6 +204,34 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
+        def _finalize():
+            # add the variable name to `self` namespace if the variable is either
+            # 1. a public constant or immutable; or
+            # 2. a storage variable, whether private or public
+            if (node.is_constant or node.is_immutable) and not node.is_public:
+                return
+
+            try:
+                self.namespace["self"].typ.add_member(name, var_info)
+                node.target._metadata["type"] = type_
+            except NamespaceCollision:
+                raise NamespaceCollision(
+                    f"Value '{name}' has already been declared", node
+                ) from None
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
+        def _validate_self_namespace():
+            # block globals if storage variable already exists
+            try:
+                if name in self.namespace["self"].typ.members:
+                    raise NamespaceCollision(
+                        f"Value '{name}' has already been declared", node
+                    ) from None
+                self.namespace[name] = var_info
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
@@ -211,11 +239,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
-            try:
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
-            return
+            _validate_self_namespace()
+
+            return _finalize()
 
         if node.value:
             var_type = "Immutable" if node.is_immutable else "Storage"
@@ -224,28 +250,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             )
 
         if node.is_immutable:
-            try:
-                # block immutable if storage variable already exists
-                if name in self.namespace["self"].typ.members:
-                    raise NamespaceCollision(
-                        f"Value '{name}' has already been declared", node
-                    ) from None
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
-            return
+            _validate_self_namespace()
+            return _finalize()
 
         try:
             self.namespace.validate_assignment(name)
         except NamespaceCollision as exc:
             raise exc.with_annotation(node) from None
-        try:
-            self.namespace["self"].typ.add_member(name, var_info)
-            node.target._metadata["type"] = type_
-        except NamespaceCollision:
-            raise NamespaceCollision(f"Value '{name}' has already been declared", node) from None
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+
+        return _finalize()
 
     def visit_EnumDef(self, node):
         obj = EnumT.from_EnumDef(node)
@@ -265,8 +278,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         func = ContractFunctionT.from_FunctionDef(node)
 
         try:
-            # TODO sketchy elision of namespace validation
-            self.namespace["self"].typ.add_member(func.name, func, skip_namespace_validation=True)
+            self.namespace["self"].typ.add_member(func.name, func)
             node._metadata["type"] = func
         except VyperException as exc:
             raise exc.with_annotation(node) from None

@@ -13,8 +13,8 @@ st_decimals = st.decimals(
     allow_infinity=False,
     places=10,
 )
-st_int128 = st.integers(min_value=-(2 ** 127), max_value=2 ** 127 - 1)
-st_uint256 = st.integers(min_value=0, max_value=2 ** 256 - 1)
+st_int128 = st.integers(min_value=-(2**127), max_value=2**127 - 1)
+st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
 
 @pytest.mark.fuzzing

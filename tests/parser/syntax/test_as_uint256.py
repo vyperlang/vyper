@@ -37,6 +37,5 @@ def test():
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_as_uint256_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
