@@ -131,11 +131,19 @@ def __default__():
 
     assert 1 == _call_with_bytes("0x")
 
-    # call blockHashAskewLimitary
+    # call blockHashAskewLimitary with proper calldata
     assert 2 == _call_with_bytes("0x" + "00" * 36)
 
-    # right method id, malformed (short) calldata
-    assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * 35))
+    # call blockHashAskewLimitary with extra trailing bytes in calldata
+    assert 2 == _call_with_bytes("0x" + "00" * 37)
+
+    for i in range(4):
+        # less than 4 bytes of calldata doesn't match the 0 selector and goes to default
+        assert 1 == _call_with_bytes("0x" + "00" * i)
+
+    for i in range(4, 36):
+        # match the full 4 selector bytes, but revert due to malformed (short) calldata
+        assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * 35))
 
 
 def test_another_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
