@@ -13,7 +13,7 @@ interface Foo:
     c1 = side_effects_contract("uint8", 7)
     c2 = get_contract(code)
 
-    assert c2.foo(c1.address) == w3.toWei(7, "ether")
+    assert c2.foo(c1.address) == w3.to_wei(7, "ether")
 
     a0 = w3.eth.accounts[0]
     assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
@@ -32,4 +32,4 @@ def bar() -> uint8:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo() == w3.toWei(7, "ether")
+    assert c.foo() == w3.to_wei(7, "ether")
