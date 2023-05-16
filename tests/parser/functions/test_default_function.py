@@ -143,7 +143,7 @@ def __default__():
 
     for i in range(4, 36):
         # match the full 4 selector bytes, but revert due to malformed (short) calldata
-        assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * 35))
+        assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * i))
 
 
 def test_another_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
