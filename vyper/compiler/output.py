@@ -120,16 +120,8 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     def _to_dict(func_t):
         ret = vars(func_t)
         ret["return_type"] = str(ret["return_type"])
-        ret["ir_identifier"] = func_t._ir_info.ir_identifier
-
-        for attr in (
-            "call_site_kwargs",
-            "called_functions",
-            "internal_calls",
-            "gas_estimate",
-            "recursive_calls",
-        ):
-            ret.pop(attr, None)
+        ret["_ir_identifier"] = func_t._ir_info.ir_identifier
+        ret["nonreentrant_key"] = ret["nonreentrant"]
 
         for attr in ("mutability", "visibility"):
             ret[attr] = ret[attr].name.lower()
@@ -145,7 +137,19 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
         ret["frame_info"] = vars(func_t._ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
-        del ret["_ir_info"]
+
+        keep_keys = {
+            "positional_args",
+            "keyword_args",
+            "frame_info",
+            "mutability",
+            "visibility",
+            "return_type",
+            "_ir_identifier",
+            "name",
+            "nonreentrant_key",
+        }
+        ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
