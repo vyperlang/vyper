@@ -67,19 +67,21 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
 
     # create a map of the IR functions since they might live in both
     # runtime and deploy code (if init function calls them)
-    internal_functions_map: Dict[str, IRnode] = {}
+    internal_functions_ir: list[IRnode] = []
 
     for func_ast in internal_functions:
         func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, False)
-        internal_functions_map[func_ast.name] = func_ir
+        internal_functions_ir.append(func_ir)
 
     # for some reason, somebody may want to deploy a contract with no
     # external functions, or more likely, a "pure data" contract which
     # contains immutables
     if len(external_functions) == 0:
-        # TODO: prune internal functions in this case?
-        runtime = ["seq"] + list(internal_functions_map.values())
-        return runtime, internal_functions_map
+        # TODO: prune internal functions in this case? dead code eliminator
+        # might not eliminate them, since internal function jumpdest is at the
+        # first instruction in the contract.
+        runtime = ["seq"] + internal_functions_ir
+        return runtime
 
     # note: if the user does not provide one, the default fallback function
     # reverts anyway. so it does not hurt to batch the payable check.
@@ -125,10 +127,10 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
 
-    # TODO: prune unreachable functions?
-    runtime.extend(internal_functions_map.values())
+    # note: dead code eliminator will clean dead functions
+    runtime.extend(internal_functions_ir)
 
-    return runtime, internal_functions_map
+    return runtime
 
 
 # take a GlobalContext, which is basically
@@ -159,12 +161,15 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
     runtime_functions = [f for f in function_defs if not _is_init_func(f)]
     init_function = next((f for f in function_defs if _is_init_func(f)), None)
 
-    runtime, internal_functions = _runtime_ir(runtime_functions, all_sigs, global_ctx)
+    runtime = _runtime_ir(runtime_functions, all_sigs, global_ctx)
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
-        init_func_ir = generate_ir_for_function(init_function, all_sigs, global_ctx, False)
+        # TODO might be cleaner to separate this into an _init_ir helper func
+        init_func_ir = generate_ir_for_function(
+            init_function, all_sigs, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
+        )
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
@@ -186,8 +191,13 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, F
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else
-        for f in init_function._metadata["type"].called_functions:
-            deploy_code.append(internal_functions[f.name])
+        internal_functions = [f for f in runtime_functions if _is_internal(f)]
+        for f in internal_functions:
+            func_ir = generate_ir_for_function(
+                f, all_sigs, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
+            )
+            # note: we depend on dead code eliminator to clean dead function defs
+            deploy_code.append(func_ir)
 
     else:
         if immutables_len != 0:
