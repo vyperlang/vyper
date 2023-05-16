@@ -371,7 +371,7 @@ class ContractFunctionT(VyperType):
             if i < n_positional_args:
                 positional_args.append(PositionalArg(argname, type_, arg))
             else:
-                keyword_args.append(KeywordArg(argname, type_, arg, value))
+                keyword_args.append(KeywordArg(argname, type_, value, arg))
 
             argnames.add(argname)
 
