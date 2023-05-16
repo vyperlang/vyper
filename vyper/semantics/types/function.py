@@ -295,12 +295,11 @@ class ContractFunctionT(VyperType):
         argnames = set()  # for checking uniqueness
         n_total_args = len(node.args.args)
         n_positional_args = n_total_args - len(node.args.defaults)
-        defaults = [None] * n_positional_args + node.args.defaults
 
         positional_args: list[PositionalArg] = []
         keyword_args: list[KeywordArg] = []
 
-        for i, (arg, value) in enumerate(zip(node.args.args, defaults)):
+        for i, arg in enumerate(node.args.args):
             argname = arg.arg
             if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
@@ -314,17 +313,15 @@ class ContractFunctionT(VyperType):
 
             type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
-            if value is not None:
+            if i < n_positional_args:
+                positional_args.append(PositionalArg(argname, type_, arg))
+            else:
+                value = node.args.defaults[i - n_positional_args]
                 if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_)
-
-            if i < n_positional_args:
-                positional_args.append(PositionalArg(argname, type_, arg))
-            else:
-                assert isinstance(value, vy_ast.VyperNode)  # satisfy mypy
                 keyword_args.append(KeywordArg(argname, type_, value, arg))
 
             argnames.add(argname)
