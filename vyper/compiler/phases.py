@@ -134,9 +134,10 @@ class CompilerData:
     @property
     def function_signatures(self) -> dict[str, ContractFunctionT]:
         # some metadata gets calculated during codegen, so
-        # ensure codegen is run.
+        # ensure codegen is run:
         _ = self._ir_output
-        fs = self.vyper_module_folded.get_descendants(vy_ast.FunctionDef)
+
+        fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["type"] for f in fs}
 
     @cached_property
