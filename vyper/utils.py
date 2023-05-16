@@ -281,6 +281,7 @@ VALID_IR_MACROS = {
     "dloadbytes",
     "ceil32",
     "continue",
+    "debugger",
     "ge",
     "if",
     "select",

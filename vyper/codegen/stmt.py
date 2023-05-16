@@ -53,6 +53,12 @@ class Stmt:
     def parse_Pass(self):
         return IRnode.from_list("pass")
 
+    def parse_Name(self):
+        if self.stmt.id == "vdb":
+            return IRnode("debugger")
+        else:
+            raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
+
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id

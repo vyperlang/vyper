@@ -30,6 +30,9 @@ def set_evm_verbose_logging():
 
 # Useful options to comment out whilst working:
 # set_evm_verbose_logging()
+#
+# from vdb import vdb
+# vdb.set_evm_opcode_debugger()
 
 
 def pytest_addoption(parser):
