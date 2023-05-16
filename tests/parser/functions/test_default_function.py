@@ -100,7 +100,7 @@ def __default__():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
-def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation):
+def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 event Sent:
     sig: uint256
@@ -130,6 +130,11 @@ def __default__():
         "Sent",
     )
     assert 2 == logs[0].args.sig
+
+    # right method id, malformed (short) calldata
+    assert_tx_failed(
+        lambda: w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x" + "00" * 35})
+    )
 
 
 def test_partial_selector_match_trailing_zeroes(w3, get_logs, get_contract):
