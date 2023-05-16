@@ -15,6 +15,11 @@ General
 - `Vyper Hub for development <https://github.com/zcor/vyper-dev>`__
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`__
 
+Getting started
+---------------
+
+- `Vyper and Ape starter kit for Chainlink <https://github.com/smartcontractkit/apeworx-starter-kit>`__ - easily get started with Chainlink smart contract integration
+
 Frameworks and tooling
 ----------------------
 
