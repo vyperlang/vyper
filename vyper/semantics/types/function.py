@@ -25,8 +25,6 @@ from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 
-ContractFunctionTs = Dict[str, "ContractFunctionT"]
-
 
 @dataclass
 class _FunctionArg:

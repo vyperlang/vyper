@@ -50,7 +50,6 @@ class Context:
         global_ctx,
         memory_allocator,
         vars_=None,
-        func_ts=None,
         forvars=None,
         constancy=Constancy.Mutable,
         func_t=None,
@@ -61,9 +60,6 @@ class Context:
 
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx.variables
-
-        # ABI objects, in the form {classname: ABI JSON}
-        self.func_ts = func_ts or {"self": {}}
 
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
@@ -257,7 +253,7 @@ class Context:
         the kwargs which need to be filled in by the compiler
         """
 
-        func_t = self.func_ts["self"].get(method_name, None)
+        func_t = ast_source.func._metadata["type"]
 
         def _check(cond, s="Unreachable"):
             if not cond:

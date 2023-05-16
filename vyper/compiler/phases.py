@@ -9,7 +9,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
-from vyper.semantics.types.function import ContractFunctionTs
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
 
 
@@ -123,18 +123,21 @@ class CompilerData:
 
     @property
     def ir_nodes(self) -> IRnode:
-        ir, ir_runtime, sigs = self._ir_output
+        ir, ir_runtime = self._ir_output
         return ir
 
     @property
     def ir_runtime(self) -> IRnode:
-        ir, ir_runtime, sigs = self._ir_output
+        ir, ir_runtime = self._ir_output
         return ir_runtime
 
     @property
-    def function_signatures(self) -> ContractFunctionTs:
-        ir, ir_runtime, sigs = self._ir_output
-        return sigs
+    def function_signatures(self) -> dict[str, ContractFunctionT]:
+        # some metadata gets calculated during codegen, so
+        # ensure codegen is run.
+        _ = self._ir_output
+        fs = self.vyper_module_folded.get_descendants(vy_ast.FunctionDef)
+        return {f.name: f._metadata["type"] for f in fs}
 
     @cached_property
     def assembly(self) -> list:
@@ -232,9 +235,7 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[IRnode, IRnode, ContractFunctionTs]:
+def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -254,11 +255,11 @@ def generate_ir_nodes(
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    ir_nodes, ir_runtime, function_sigs = module.generate_ir_for_module(global_ctx)
+    ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if not no_optimize:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
-    return ir_nodes, ir_runtime, function_sigs
+    return ir_nodes, ir_runtime
 
 
 def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:

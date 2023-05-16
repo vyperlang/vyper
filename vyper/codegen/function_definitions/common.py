@@ -64,7 +64,6 @@ class FunctionIRInfo:
 
 def generate_ir_for_function(
     code: vy_ast.FunctionDef,
-    func_ts: dict[str, dict[str, ContractFunctionT]],  # all ContractFunctionT in all namespaces
     global_ctx: GlobalContext,
     skip_nonpayable_check: bool,
     is_ctor_context: bool = False,
@@ -85,8 +84,7 @@ def generate_ir_for_function(
 
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
-    for c in callees:
-        c_func_t = func_ts["self"][c.name]
+    for c_func_t in callees:
         frame_info = c_func_t._ir_info.frame_info
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
@@ -97,7 +95,6 @@ def generate_ir_for_function(
     context = Context(
         vars_=None,
         global_ctx=global_ctx,
-        func_ts=func_ts,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,
