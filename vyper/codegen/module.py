@@ -163,17 +163,16 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # so that builtins which use `msize` for "dynamic" memory
         # allocation do not clobber uninitialized immutables.
         # cf. GH issue 3101.
-        # note mload/iload X touches bytes from X to X+31, and msize rounds up
+        # note mload/iload X touches bytes from X to X+32, and msize rounds up
         # to the nearest 32, so `iload`ing `immutables_len - 32` guarantees
         # that `msize` will refer to a memory location of at least
         # `<immutables_start> + immutables_len`.
         # note:
         #   mload 32 => msize == 64
         #   mload 33 => msize == 96
+        # assumption in general: (mload X) => msize == ceil32(X + 32)
+        # see py-evm: after_size = ceil32(start_position + size)
         if immutables_len > 0:
-            assert immutables_len % 32 == 0
-            # this should work even if immutables_len % 32 != 0, but
-            # need to think through.
             deploy_code.append(["iload", immutables_len - 32])
 
         deploy_code.append(init_func_ir)
