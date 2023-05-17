@@ -31,8 +31,8 @@ def __init__():
 
     # all the labels should be in all the unoptimized asms
     for s in (foo_label, qux_label):
-        assert s in initcode_asm
-        assert s in runtime_asm
+        assert s + "_deploy" in initcode_asm
+        assert s + "_runtime" in runtime_asm
 
     c = CompilerData(code, no_optimize=False)
     initcode_asm = [i for i in c.assembly if not isinstance(i, list)]
