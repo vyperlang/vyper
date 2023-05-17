@@ -545,7 +545,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
             raise StructureException(
-                "Cannot emit logs from {self.func.mutability.lower() functions", node
+                f"Cannot emit logs from {self.func.mutability.lower()} functions", node
             )
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
