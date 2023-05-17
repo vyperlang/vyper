@@ -32,6 +32,10 @@ class _UserType(VyperType):
     def __eq__(self, other):
         return self is other
 
+    # TODO: revisit this once user types can be imported via modules
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
+
     def __hash__(self):
         return hash(id(self))
 
@@ -539,10 +543,6 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):
