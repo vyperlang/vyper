@@ -122,6 +122,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = func_t._ir_info.ir_identifier
         ret["nonreentrant_key"] = ret["nonreentrant"]
+        ret["internal"] = func_t.is_internal
 
         for attr in ("mutability", "visibility"):
             ret[attr] = ret[attr].name.lower()
@@ -147,6 +148,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "default_values",
             "frame_info",
             "mutability",
+            "internal",
             "visibility",
             "return_type",
             "_ir_identifier",
