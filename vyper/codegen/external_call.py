@@ -37,7 +37,7 @@ def _pack_arguments(fn_type, args, context):
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleT(list(fn_type.arguments.values())[: len(args)])
+    dst_tuple_t = TupleT(fn_type.argument_types[: len(args)])
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
     if fn_type.return_type is not None:
@@ -171,12 +171,10 @@ def _extcodesize_check(address):
 
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
-    # expr.func._metadata["type"].return_type is more accurate
-    # than fn_sig.return_type in the case of JSON interfaces.
     fn_type = call_expr.func._metadata["type"]
 
     # sanity check
-    assert fn_type.min_arg_count <= len(args_ir) <= fn_type.max_arg_count
+    assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
     ret = ["seq"]
 
