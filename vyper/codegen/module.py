@@ -159,15 +159,13 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # note: (deploy mem_ofst, code, extra_padding)
         init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
 
-        # note init_mem_used always > 0 since it starts from RESERVED_MEMORY
-        assert init_mem_used > 0 and init_mem_used % 32 == 0
-
-        # force msize to be initialized past the end of init_mem_used
+        # force msize to be initialized past the end of immutables section
         # so that builtins which use `msize` for "dynamic" memory
         # allocation do not clobber uninitialized immutables.
         # cf. GH issue 3101.
-        # note round-up behavior of msize, hence, `init_mem_used - 1`.
-        deploy_code.append(["mload", init_mem_used - 1])
+        # note iload X touches bytes from X to X+31, and msize rounds up by 1,
+        # hence, `immutables_len - 32`.
+        deploy_code.append(["iload", immutables_len - 32])
 
         deploy_code.append(init_func_ir)
 
