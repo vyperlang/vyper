@@ -165,7 +165,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # cf. GH issue 3101.
         # note mload/iload X touches bytes from X to X+31, and msize rounds up
         # by 1, hence, `immutables_len - 32`.
-        deploy_code.append(["iload", immutables_len - 32])
+        if immutables_len > 0:
+            assert immutables_len % 32 == 0
+            deploy_code.append(["iload", immutables_len - 32])
 
         deploy_code.append(init_func_ir)
 
