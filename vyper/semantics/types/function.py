@@ -311,7 +311,7 @@ class ContractFunctionT(VyperType):
             type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if i < n_positional_args:
-                positional_args.append(PositionalArg(argname, type_, arg))
+                positional_args.append(PositionalArg(argname, type_, ast_source=arg))
             else:
                 value = node.args.defaults[i - n_positional_args]
                 if not check_kwargable(value):
@@ -319,7 +319,7 @@ class ContractFunctionT(VyperType):
                         "Value must be literal or environment variable", value
                     )
                 validate_expected_type(value, type_)
-                keyword_args.append(KeywordArg(argname, type_, value, arg))
+                keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))
 
             argnames.add(argname)
 
