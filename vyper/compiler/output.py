@@ -135,10 +135,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
+        ret["args"] = dict(**ret["positional_args"], **ret["keyword_args"])
+
         ret["frame_info"] = vars(func_t._ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         keep_keys = {
+            "args",
             "positional_args",
             "keyword_args",
             "frame_info",
