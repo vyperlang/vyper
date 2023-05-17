@@ -485,7 +485,7 @@ class ContractFunctionT(VyperType):
 
         # for external calls, include gas and value as optional kwargs
         kwarg_keys = [arg.name for arg in self.keyword_args]
-        if node.get("func.value.id") != "self":
+        if not self.is_internal:
             kwarg_keys += list(self.call_site_kwargs.keys())
         validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
 
