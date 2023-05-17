@@ -173,7 +173,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # assumption in general: (mload X) => msize == ceil32(X + 32)
         # see py-evm: after_size = ceil32(start_position + size)
         if immutables_len > 0:
-            deploy_code.append(["iload", immutables_len - 32])
+            deploy_code.append(["iload", max(0, immutables_len - 32)])
 
         deploy_code.append(init_func_ir)
 
