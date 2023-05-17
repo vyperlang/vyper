@@ -40,7 +40,7 @@ jobs:
         python-version: ${{ matrix.python-version[0] }}
 
     - name: Get cache
-      id: cache
+      id: get-cache
       uses: actions/cache@v3
       with:
         path: |
@@ -56,7 +56,7 @@ jobs:
         key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
 
     - name: Initialize repository and install dependencies
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: steps.get-cache.outputs.cache-hit != 'true'
       run: |
         git clone --depth 1 https://github.com/matter-labs/era-compiler-tester.git
         cd era-compiler-tester
@@ -70,7 +70,7 @@ jobs:
 
     - name: Save cache
       uses: actions/cache/save@v3
-      if: always()
+      if: steps.get-cache.outputs.cache-hit != 'true'
       with:
         path: |
           ~/.cargo/bin/
