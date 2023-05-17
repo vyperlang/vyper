@@ -28,7 +28,7 @@ class FrameInfo:
 
 
 @dataclass
-class FunctionIRInfo:
+class FuncIRInfo:
     func_t: ContractFunctionT
     gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
@@ -54,11 +54,12 @@ class FunctionIRInfo:
     @property
     # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
-        assert not self.func_t.is_internal, "uh oh"
+        assert not self.func_t.is_internal, "uh oh, should be external"
         return self.ir_identifier + "_common"
 
     @property
     def internal_function_label(self) -> str:
+        assert self.func_t.is_internal, "uh oh, should be internal"
         return self.ir_identifier
 
 

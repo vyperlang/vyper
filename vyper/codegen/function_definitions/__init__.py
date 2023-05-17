@@ -1,1 +1,1 @@
-from .common import FunctionIRInfo, generate_ir_for_function  # noqa
+from .common import FuncIRInfo, generate_ir_for_function  # noqa
