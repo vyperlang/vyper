@@ -4,7 +4,7 @@ from typing import Optional, Union
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import DataLocation, ExprInfo
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import SizeLimits
 
@@ -180,15 +180,13 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 
         # Extract type definition from propagated annotation
         type_ = None
-        var_info = None
+        expr_info = None
         try:
             type_ = type_from_annotation(node.annotation)
-            var_info = VarInfo(
+            expr_info = ExprInfo(
                 type_,
-                decl_node=node,
                 location=DataLocation.CODE,
                 is_constant=node.is_constant,
-                is_public=node.is_public,
                 is_immutable=node.is_immutable,
             )
 
@@ -199,7 +197,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             pass
 
         changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, var_info=var_info
+            vyper_module, node.target.id, node.value, False, expr_info=expr_info
         )
 
     return changed_nodes
@@ -208,27 +206,27 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, var_info=None):
+def _replace(old_node, new_node, expr_info=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if var_info is not None:
-            new_node._metadata["varinfo"] = var_info
+        if expr_info is not None:
+            new_node._metadata["exprinfo"] = expr_info
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        base_type_varinfo = None
-        if var_info is not None:
-            base_type_varinfo = VarInfo(
-                typ=var_info.typ.value_type,
+        base_type_exprinfo = None
+        if expr_info is not None:
+            base_type_exprinfo = ExprInfo(
+                typ=expr_info.typ.value_type,
                 location=DataLocation.CODE,
-                is_constant=var_info.is_constant,
-                is_public=var_info.is_public,
-                is_immutable=var_info.is_immutable,
-                decl_node=var_info.decl_node,
+                is_constant=expr_info.is_constant,
+                is_immutable=expr_info.is_immutable,
             )
-        list_values = [_replace(old_node, i, var_info=base_type_varinfo) for i in new_node.elements]
+        list_values = [
+            _replace(old_node, i, expr_info=base_type_exprinfo) for i in new_node.elements
+        ]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if var_info is not None:
-            new_node._metadata["varinfo"] = var_info
+        if expr_info is not None:
+            new_node._metadata["exprinfo"] = expr_info
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
@@ -250,7 +248,7 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     raise_on_error: bool,
-    var_info: Optional[VarInfo] = None,
+    expr_info: Optional[ExprInfo] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -266,7 +264,7 @@ def replace_constant(
         `Call` nodes are for struct constants.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
-    var_info : VarInfo, optional
+    expr_info : ExprInfo, optional
         Type definition plus associated metadata like constancy attributes to be
         propagated to type checker.
 
@@ -304,7 +302,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            new_node = _replace(node, replacement_node, var_info=var_info)
+            new_node = _replace(node, replacement_node, expr_info=expr_info)
         except UnfoldableNode:
             if raise_on_error:
                 raise
