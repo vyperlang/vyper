@@ -90,8 +90,8 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         calldata_min_size = args_abi_t.min_size() + 4
 
         # note we don't need the check if calldata_min_size == 4,
-        # because the selector checks later ensure that the at least
-        # the 4 selector bytes are well formed.
+        # because the selector checks later in this routine ensure
+        # that calldatasize >= 4.
         if calldata_min_size > 4:
             ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
