@@ -1,68 +1,20 @@
-import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.address_space import MEMORY
-from vyper.codegen.ir_node import Encoding
-from vyper.codegen.types import NodeType
-from vyper.exceptions import StructureException
-from vyper.utils import MemoryPositions, cached_property, mkalphanum
+from vyper.exceptions import CompilerPanic, StructureException
+from vyper.semantics.types import VyperType
+from vyper.utils import MemoryPositions, mkalphanum
 
 # dict from function names to signatures
 FunctionSignatures = Dict[str, "FunctionSignature"]
 
 
-# Function variable
-# TODO move to context.py
-# TODO use dataclass
-class VariableRecord:
-    def __init__(  # type: ignore
-        self,
-        name,
-        pos,
-        typ,
-        mutable,
-        encoding=Encoding.VYPER,
-        location=MEMORY,
-        blockscopes=None,
-        defined_at=None,  # note: dead variable
-        is_internal=False,
-        is_immutable=False,
-        data_offset: Optional[int] = None,
-    ):
-        self.name = name
-        self.pos = pos
-        self.typ = typ
-        self.mutable = mutable
-        self.location = location
-        self.encoding = encoding
-        self.blockscopes = [] if blockscopes is None else blockscopes
-        self.defined_at = defined_at  # source code location variable record was defined.
-        self.is_internal = is_internal
-        self.is_immutable = is_immutable
-        self.data_offset = data_offset  # location in data section
-
-    def __repr__(self):
-        ret = vars(self)
-        ret["allocated"] = self.size * 32
-        return f"VariableRecord(f{ret})"
-
-    @property
-    def size(self):
-        if hasattr(self.typ, "size_in_bytes"):
-            # temporary requirement to support both new and old type objects
-            # we divide by 32 here because the returned value is denominated
-            # in "slots" of 32 bytes each
-            # CMC 20211023 revisit this divide-by-32.
-            return math.ceil(self.typ.size_in_bytes / 32)
-        return math.ceil(self.typ.memory_bytes_required / 32)
-
-
 @dataclass
 class FunctionArg:
     name: str
-    typ: NodeType
+    typ: VyperType
     ast_source: vy_ast.VyperNode
 
 
@@ -70,7 +22,7 @@ class FunctionArg:
 class FrameInfo:
     frame_start: int
     frame_size: int
-    frame_vars: Dict[str, Tuple[int, NodeType]]
+    frame_vars: Dict[str, Tuple[int, VyperType]]
 
     @property
     def mem_used(self):
@@ -113,6 +65,8 @@ class FunctionSignature:
         return input_name + ":"
 
     def set_frame_info(self, frame_info):
+        if self.frame_info is not None:
+            raise CompilerPanic("sig.frame_info already set!")
         self.frame_info = frame_info
 
     @cached_property

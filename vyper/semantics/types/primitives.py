@@ -1,11 +1,13 @@
 # primitive types which occupy one word, like ints and addresses
 
+from decimal import Decimal
+from functools import cached_property
 from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
 from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
-from vyper.utils import SizeLimits, checksum_encode, int_bounds, is_checksum_encoded
+from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
 from .bytestrings import BytesT
@@ -14,11 +16,13 @@ from .bytestrings import BytesT
 class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
+    _as_hashmap_key = True
+    _as_array = True
 
 
+# should inherit from uint8?
 class BoolT(_PrimT):
     _id = "bool"
-    _as_array = True
     _valid_literal = (vy_ast.NameConstant,)
 
     def validate_boolean_op(self, node: vy_ast.BoolOp) -> None:
@@ -45,7 +49,6 @@ RANGE_1_32 = list(range(1, 33))
 
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(_PrimT):
-    _as_array = True
     _valid_literal = (vy_ast.Hex,)
 
     _equality_attrs = ("m",)
@@ -58,6 +61,10 @@ class BytesM_T(_PrimT):
     def _id(self):
         return f"bytes{self.m}"
 
+    @property
+    def m_bits(self):
+        return self.m * 8
+
     # convenience for backwards API compat
     @property
     def length(self):
@@ -68,8 +75,8 @@ class BytesM_T(_PrimT):
         return ABI_BytesM(self.m)
 
     @classmethod
-    def all(cls):
-        return [cls(m) for m in RANGE_1_32]
+    def all(cls) -> Tuple["BytesM_T", ...]:
+        return tuple(cls(m) for m in RANGE_1_32)
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
@@ -94,15 +101,35 @@ class BytesM_T(_PrimT):
 
 
 class NumericT(_PrimT):
-    _as_array = True
     _is_signed: bool
     _bits: int
     _invalid_ops: tuple
-    bounds: Tuple[int, int]
+
+    # the type this can assume in the AST
+    ast_type: type
+
+    @property
+    def ast_bounds(self):
+        raise NotImplementedError("should be overridden!")
+
+    # get the integer bounds on IR values of this type.
+    # note the distinction for decimals: ast_bounds will return a Decimal,
+    # int_bounds will return the fully expanded int range.
+    @cached_property
+    def int_bounds(self) -> Tuple[int, int]:
+        return int_bounds(signed=self.is_signed, bits=self.bits)
+
+    @cached_property
+    def bits(self) -> int:
+        return self._bits
+
+    @cached_property
+    def is_signed(self) -> bool:
+        return self._is_signed
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
-        lower, upper = self.bounds
+        lower, upper = self.ast_bounds
         if node.value < lower:
             raise OverflowException(f"Value is below lower bound for given type ({lower})", node)
         if node.value > upper:
@@ -114,24 +141,33 @@ class NumericT(_PrimT):
         if isinstance(node.op, self._invalid_ops):
             self._raise_invalid_op(node)
 
-        if isinstance(node.op, vy_ast.Pow):
+        def _get_lr():
             if isinstance(node, vy_ast.BinOp):
-                left, right = node.left, node.right
+                return node.left, node.right
             elif isinstance(node, vy_ast.AugAssign):
-                left, right = node.target, node.value
+                return node.target, node.value
             else:
                 raise CompilerPanic(f"Unexpected node type for numeric op: {type(node).__name__}")
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if self._bits != 256:
+                raise InvalidOperation(
+                    f"Cannot perform {node.op.description} on non-int256/uint256 type!", node
+                )
+
+        if isinstance(node.op, vy_ast.Pow):
+            left, right = _get_lr()
 
             value_bits = self._bits - (1 if self._is_signed else 0)
 
             # TODO double check: this code seems duplicated with constant eval
             # constant folding ensures one of `(left, right)` is never a literal
             if isinstance(left, vy_ast.Int):
-                if left.value >= 2 ** value_bits:
+                if left.value >= 2**value_bits:
                     raise OverflowException(
                         "Base is too large, calculation will always overflow", left
                     )
-                elif left.value < -(2 ** value_bits):
+                elif left.value < -(2**value_bits):
                     raise OverflowException(
                         "Base is too small, calculation will always underflow", left
                     )
@@ -174,25 +210,28 @@ class IntegerT(NumericT):
     _valid_literal = (vy_ast.Int,)
     _equality_attrs = ("is_signed", "bits")
 
+    ast_type = int
+
     def __init__(self, is_signed, bits):
         super().__init__()
-        self.is_signed: bool = is_signed
-        self.bits: int = bits
+        self._is_signed = is_signed
+        self._bits = bits
 
-    @property
+    @cached_property
     def _id(self):
         u = "u" if not self.is_signed else ""
         return f"{u}int{self.bits}"
 
-    @property
-    def bounds(self):
+    @cached_property
+    def ast_bounds(self) -> Tuple[int, int]:
         return int_bounds(self.is_signed, self.bits)
 
-    @property
+    @cached_property
     def _invalid_ops(self):
+        invalid_ops = (vy_ast.Not,)
         if not self.is_signed:
-            return (vy_ast.USub,)
-        return ()
+            return invalid_ops + (vy_ast.USub,)
+        return invalid_ops
 
     @classmethod
     # TODO maybe cache these three classmethods
@@ -207,17 +246,7 @@ class IntegerT(NumericT):
     def all(cls) -> Tuple["IntegerT", ...]:
         return cls.signeds() + cls.unsigneds()
 
-    # backwards compatible api, TODO: remove me
-    @property
-    def _bits(self):
-        return self.bits
-
-    # backwards compatible api, TODO: remove me
-    @property
-    def _is_signed(self):
-        return self.is_signed
-
-    @property
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
 
@@ -229,47 +258,72 @@ class IntegerT(NumericT):
         return self.is_signed == other.is_signed and self.bits == other.bits
 
 
-# shortcuts
-UINT256_T = IntegerT(False, 256)
-UINT8_T = IntegerT(False, 8)
-INT256_T = IntegerT(False, 256)
-INT128_T = IntegerT(False, 128)
+# helper function for readability.
+# returns a uint<N> type.
+def UINT(bits):
+    return IntegerT(False, bits)
 
-BYTES32_T = BytesM_T(32)
-BYTES4_T = BytesM_T(4)
+
+# helper function for readability.
+# returns an int<N> type.
+def SINT(bits):
+    return IntegerT(True, bits)
 
 
 class DecimalT(NumericT):
-    bounds = (SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL)
-
     _bits = 168  # TODO generalize
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
-    _invalid_ops = (vy_ast.Pow,)
+    _invalid_ops = (vy_ast.Pow, vy_ast.BitAnd, vy_ast.BitOr, vy_ast.BitXor, vy_ast.Not)
     _valid_literal = (vy_ast.Decimal,)
 
     _equality_attrs = ("_bits", "_decimal_places")
 
-    @property
+    ast_type = Decimal
+
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_FixedMxN(self._bits, self._decimal_places, self._is_signed)
 
+    @cached_property
+    def decimals(self) -> int:
+        # Alias for API compatibility with codegen
+        return self._decimal_places
+
+    @cached_property
+    def divisor(self) -> int:
+        return 10**self.decimals
+
+    @cached_property
+    def epsilon(self) -> Decimal:
+        return 1 / Decimal(self.divisor)
+
+    @cached_property
+    def ast_bounds(self) -> Tuple[Decimal, Decimal]:
+        return self.decimal_bounds
+
+    @cached_property
+    def decimal_bounds(self) -> Tuple[Decimal, Decimal]:
+        lo, hi = int_bounds(signed=self.is_signed, bits=self.bits)
+        DIVISOR = Decimal(self.divisor)
+        return lo / DIVISOR, hi / DIVISOR
+
 
 # maybe this even deserves its own module, address.py
+# should inherit from uint160?
 class AddressT(_PrimT):
-    _as_array = True
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
     _type_members = {
-        "balance": UINT256_T,
-        "codehash": BYTES32_T,
-        "codesize": UINT256_T,
+        "balance": UINT(256),
+        "codehash": BytesM_T(32),
+        "codesize": UINT(256),
         "is_contract": BoolT(),
         "code": BytesT(),
     }
 
-    @property
+    @cached_property
     def abi_type(self) -> ABIType:
         return ABI_Address()
 

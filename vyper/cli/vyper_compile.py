@@ -20,6 +20,7 @@ T = TypeVar("T")
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
+blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
 source_map         - Vyper source map
@@ -199,7 +200,6 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
 
         interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-
             base_paths = [parent_path]
             if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
                 base_paths.append(root_path)
@@ -257,7 +257,6 @@ def compile_files(
     storage_layout: Iterable[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
-
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")

@@ -57,12 +57,7 @@ def get_constant_vars() -> Dict:
     return result
 
 
-# Not sure this is necessary, but add an ad-hoc type for `self` for clarity
-class _SelfT(AddressT):
-    pass
-
-
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": _SelfT}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}
 
 
 def get_mutable_vars() -> Dict:

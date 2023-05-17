@@ -1,8 +1,8 @@
-from vyper.address_space import MEMORY
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
-from vyper.codegen.types import TupleType
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation, StructureException
+from vyper.semantics.types.subscriptable import TupleT
 
 _label_counter = 0
 
@@ -35,7 +35,7 @@ def ir_for_self_call(stmt_expr, context):
 
     args_ir = pos_args_ir + kw_args_ir
 
-    args_tuple_t = TupleType([x.typ for x in args_ir])
+    args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
     if context.is_constant() and sig.mutability not in ("view", "pure"):
@@ -61,7 +61,7 @@ def ir_for_self_call(stmt_expr, context):
         return_buffer = None
 
     # note: dst_tuple_t != args_tuple_t
-    dst_tuple_t = TupleType([arg.typ for arg in sig.args])
+    dst_tuple_t = TupleT([arg.typ for arg in sig.args])
     args_dst = IRnode(sig.frame_info.frame_start, typ=dst_tuple_t, location=MEMORY)
 
     # if one of the arguments is a self call, the argument

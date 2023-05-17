@@ -4,7 +4,7 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import NamespaceCollision, StructureException
 
-fail_list = [  # noqa: E122
+fail_list = [
     """
 @external
 def ő1qwerty(i: int128) -> int128:
@@ -13,13 +13,7 @@ def ő1qwerty(i: int128) -> int128:
     """,
     """
 @external
-def int128(i: int128) -> int128:
-    temp_var : int128 = i
-    return temp_var
-    """,
-    """
-@external
-def decimal(i: int128) -> int128:
+def false(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var
     """,
@@ -27,13 +21,7 @@ def decimal(i: int128) -> int128:
 @external
 def wei(i: int128) -> int128:
     temp_var : int128 = i
-    return temp_var
-    """,
-    """
-@external
-def false(i: int128) -> int128:
-    temp_var : int128 = i
-    return temp_var
+    return temp_var1
     """,
 ]
 
@@ -62,6 +50,32 @@ def func_to_do_math(i: int128) -> int128:
 def first1(i: int128) -> int128:
     _var123 : int128 = i
     return _var123
+    """,
+    """
+@external
+def int128(i: int128) -> int128:
+    temp_var : int128 = i
+    return temp_var
+    """,
+    """
+@external
+def decimal(i: int128) -> int128:
+    temp_var : int128 = i
+    return temp_var
+    """,
+    """
+@external
+def floor():
+    pass
+    """,
+    """
+@internal
+def append():
+    pass
+
+@external
+def foo():
+    self.append()
     """,
 ]
 

@@ -75,6 +75,10 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
     ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
     ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
+.. warning::
+
+   When ``skip_contract_check=True`` is used and the called function returns data (ex.: ``x: uint256 = SomeContract.foo(skip_contract_check=True)``, no guarantees are provided by the compiler as to the validity of the returned value. In other words, it is undefined behavior what happens if the called contract did not exist. In particular, the returned value might point to garbage memory. It is therefore recommended to only use ``skip_contract_check=True`` to call contracts which have been manually ensured to exist at the time of the call.
+
 Importing Interfaces
 ====================
 
@@ -166,7 +170,6 @@ Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.
 
 You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ repo.
 
-
 Implementing an Interface
 =========================
 
@@ -180,6 +183,10 @@ You can define an interface for your contract with the ``implements`` statement:
 
 
 This imports the defined interface from the vyper file at ``an_interface.vy`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
+
+.. note::
+
+  Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future.
 
 Extracting Interfaces
 =====================

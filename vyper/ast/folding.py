@@ -15,11 +15,11 @@ BUILTIN_CONSTANTS = {
         "empty(bytes32)",
     ),  # NOQA: E501
     "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", "empty(address)"),
-    "MAX_INT128": (vy_ast.Int, 2 ** 127 - 1, "max_value(int128)"),
-    "MIN_INT128": (vy_ast.Int, -(2 ** 127), "min_value(int128)"),
+    "MAX_INT128": (vy_ast.Int, 2**127 - 1, "max_value(int128)"),
+    "MIN_INT128": (vy_ast.Int, -(2**127), "min_value(int128)"),
     "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, "max_value(decimal)"),
     "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, "min_value(decimal)"),
-    "MAX_UINT256": (vy_ast.Int, 2 ** 256 - 1, "max_value(uint256)"),
+    "MAX_UINT256": (vy_ast.Int, 2**256 - 1, "max_value(uint256)"),
 }
 
 
@@ -255,21 +255,15 @@ def replace_constant(
     int
         Number of nodes that were replaced.
     """
-    is_struct = False
-
-    if isinstance(replacement_node, vy_ast.Call) and len(replacement_node.args) == 1:
-        if isinstance(replacement_node.args[0], vy_ast.Dict):
-            is_struct = True
-
     changed_nodes = 0
 
     for node in vyper_module.get_descendants(vy_ast.Name, {"id": id_}, reverse=True):
         parent = node.get_ancestor()
 
         if isinstance(parent, vy_ast.Call) and node == parent.func:
-            # do not replace calls that are not structs
-            if not is_struct:
-                continue
+            # do not replace calls because splicing a constant into a callable site is
+            # never valid and it worsens the error message
+            continue
 
         # do not replace dictionary keys
         if isinstance(parent, vy_ast.Dict) and node in parent.keys:
@@ -283,6 +277,10 @@ def replace_constant(
 
             if assign and node in assign.target.get_descendants(include_self=True):
                 continue
+
+        # do not replace enum members
+        if node.get_ancestor(vy_ast.EnumDef):
+            continue
 
         try:
             # note: _replace creates a copy of the replacement_node

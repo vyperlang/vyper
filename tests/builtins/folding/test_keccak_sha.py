@@ -13,7 +13,6 @@ alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&
 @settings(max_examples=50, deadline=1000)
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_string(get_contract, value, fn_name):
-
     source = f"""
 @external
 def foo(a: String[100]) -> bytes32:

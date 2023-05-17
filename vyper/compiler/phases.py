@@ -1,5 +1,6 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -10,7 +11,6 @@ from vyper.codegen.ir_node import IRnode
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.utils import cached_property
 
 
 class CompilerData:
@@ -114,7 +114,7 @@ class CompilerData:
 
     @property
     def global_ctx(self) -> GlobalContext:
-        return generate_global_context(self.vyper_module_folded, self.interface_codes)
+        return GlobalContext(self.vyper_module_folded)
 
     @cached_property
     def _ir_output(self):
@@ -192,7 +192,6 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
 def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
-
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
@@ -231,27 +230,6 @@ def generate_folded_ast(
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables
-
-
-def generate_global_context(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> GlobalContext:
-    """
-    Generate a contextualized AST from the Vyper AST.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
 
 
 def generate_ir_nodes(

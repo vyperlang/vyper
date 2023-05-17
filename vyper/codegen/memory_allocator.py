@@ -98,10 +98,9 @@ class MemoryAllocator:
                 return free_memory.partially_allocate(size)
 
         # if no deallocated slots are available, expand memory
-        return self.expand_memory(size)
+        return self._expand_memory(size)
 
-    # TODO this should be an internal function
-    def expand_memory(self, size: int) -> int:
+    def _expand_memory(self, size: int) -> int:
         """
         Allocate `size` bytes in memory, starting from the free memory pointer.
         """
