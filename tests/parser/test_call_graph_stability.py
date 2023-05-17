@@ -7,6 +7,11 @@ from hypothesis import given, settings
 
 import vyper.ast as vy_ast
 from vyper.compiler.phases import CompilerData
+from vyper.semantics.namespace import RESERVED_KEYWORDS
+
+
+def _valid_identifier(attr):
+    return attr not in RESERVED_KEYWORDS
 
 
 # random names for functions
@@ -15,7 +20,7 @@ from vyper.compiler.phases import CompilerData
     st.lists(
         st.tuples(
             st.sampled_from(["@pure", "@view", "@nonpayable", "@payable"]),
-            st.text(alphabet=string.ascii_lowercase, min_size=1),
+            st.text(alphabet=string.ascii_lowercase, min_size=1).filter(_valid_identifier),
         ),
         unique_by=lambda x: x[1],  # unique on function name
         min_size=1,
@@ -65,4 +70,4 @@ def foo():
                 r = d.args[0].args[0].value
                 if isinstance(r, str) and r.startswith("internal"):
                     ir_funcs.append(r)
-        assert ir_funcs == [f.internal_function_label for f in sigs.values()]
+        assert ir_funcs == [f._ir_info.internal_function_label for f in sigs.values()]

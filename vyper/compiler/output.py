@@ -44,7 +44,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
-        args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+        args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
         return_value = f" -> {func.return_type}" if func.return_type is not None else ""
         mutability = func.mutability.value
         out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
@@ -69,7 +69,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
                 out = f"{out}@{func.mutability.value}\n"
-            args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+            args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
             out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
 
@@ -117,20 +117,39 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["location"] = ret["location"].name
         return ret
 
-    def _to_dict(sig):
-        ret = vars(sig)
+    def _to_dict(func_t):
+        ret = vars(func_t)
         ret["return_type"] = str(ret["return_type"])
-        ret["_ir_identifier"] = sig._ir_identifier
-        for attr in ("gas_estimate", "func_ast_code"):
-            del ret[attr]
-        for attr in ("args", "base_args", "default_args"):
-            if attr in ret:
-                ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr]}
-        for k in ret["default_values"]:
-            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-            ret["default_values"][k] = ret["default_values"][k].node_source_code
-        ret["frame_info"] = vars(ret["frame_info"])
+        ret["_ir_identifier"] = func_t._ir_info.ir_identifier
+
+        for attr in ("mutability", "visibility"):
+            ret[attr] = ret[attr].name.lower()
+
+        # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+        ret["default_values"] = {
+            k: val.node_source_code for k, val in func_t.default_values.items()
+        }
+
+        for attr in ("positional_args", "keyword_args"):
+            args = ret[attr]
+            ret[attr] = {arg.name: str(arg.typ) for arg in args}
+
+        ret["frame_info"] = vars(func_t._ir_info.frame_info)
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
+
+        keep_keys = {
+            "name",
+            "return_type",
+            "positional_args",
+            "keyword_args",
+            "default_values",
+            "frame_info",
+            "mutability",
+            "visibility",
+            "_ir_identifier",
+            "nonreentrant_key",
+        }
+        ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}

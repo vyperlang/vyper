@@ -2,6 +2,7 @@ import copy
 
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.types.function import ContractFunctionT
 
 
 def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
@@ -85,6 +86,10 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
             returns=return_node,
         )
+
+        with vyper_module.namespace():
+            func_type = ContractFunctionT.from_FunctionDef(expanded)
+
         expanded._metadata["type"] = func_type
         return_node.set_parent(expanded)
         vyper_module.add_to_body(expanded)
