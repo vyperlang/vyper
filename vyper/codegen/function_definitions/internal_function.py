@@ -46,7 +46,7 @@ def generate_ir_for_internal_function(
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
-    function_entry_label = func_t._ir_info.internal_function_label
+    function_entry_label = func_t._ir_info.internal_function_label(context.is_ctor_context)
     cleanup_label = func_t._ir_info.exit_sequence_label
 
     stack_args = ["var_list"]
