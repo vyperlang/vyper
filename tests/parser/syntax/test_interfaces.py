@@ -134,20 +134,6 @@ def f(a: uint256): # visibility is nonpayable instead of view
     """,
         InterfaceViolation,
     ),
-    (
-        """
-interface A:
-    def f() -> String[10]: view
-
-implements: A
-
-@external
-# String[12] does not fit in String[10]
-def f() -> String[12]:
-    return "0123456789ab"
-    """,
-        InterfaceViolation,
-    ),
 ]
 
 
