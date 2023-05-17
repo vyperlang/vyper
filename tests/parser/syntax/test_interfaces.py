@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    InterfaceViolation,
     InvalidReference,
     InvalidType,
     StructureException,
@@ -118,6 +119,20 @@ def foo():
     a: ERC20 = A(empty(address))
     """,
         TypeMismatch,
+    ),
+    (
+        """
+interface A:
+    def f(a: uint256): view
+
+implements: A
+
+@external
+@nonpayable
+def f(a: uint256): # visibility is nonpayable instead of view
+    pass
+    """,
+        InterfaceViolation,
     ),
 ]
 
