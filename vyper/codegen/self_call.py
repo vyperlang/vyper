@@ -1,7 +1,7 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode, push_label_to_stack
 from vyper.evm.address_space import MEMORY
-from vyper.exceptions import CompilerPanic, StateAccessViolation, StructureException
+from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
 _label_counter = 0
@@ -20,15 +20,8 @@ def _align_kwargs(func_t, args_ir):
     the compiler
     """
 
-    def _check(cond, s="Unreachable"):
-        if not cond:
-            raise CompilerPanic(s)
-
-    # these should have been caught during type checking; sanity check
-    _check(func_t.is_internal)
-    _check(func_t.n_positional_args <= len(args_ir) <= func_t.n_total_args)
-    # more sanity check, that the types match
-    # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, func_t.arguments))
+    # sanity check
+    assert func_t.n_positional_args <= len(args_ir) <= func_t.n_total_args
 
     num_provided_kwargs = len(args_ir) - func_t.n_positional_args
 
@@ -46,7 +39,6 @@ def ir_for_self_call(stmt_expr, context):
     # - push jumpdest (callback ptr) and return buffer location
     # - jump to label
     # - (private function will fill return buffer and jump back)
-
     method_name = stmt_expr.func.attr
     func_t = stmt_expr.func._metadata["type"]
 
@@ -60,6 +52,7 @@ def ir_for_self_call(stmt_expr, context):
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
+    # CMC 2023-05-17 this seems like it is already caught in typechecker
     if context.is_constant() and func_t.is_mutable:
         raise StateAccessViolation(
             f"May not call state modifying function "
@@ -67,10 +60,7 @@ def ir_for_self_call(stmt_expr, context):
             stmt_expr,
         )
 
-    # TODO move me to type checker phase
-    if not func_t.is_internal:
-        raise StructureException("Cannot call external functions via 'self'", stmt_expr)
-
+    # note: internal_function_label asserts `func_t.is_internal`.
     return_label = _generate_label(f"{func_t._ir_info.internal_function_label}_call")
 
     # allocate space for the return buffer
