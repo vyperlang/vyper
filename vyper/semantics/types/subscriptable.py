@@ -1,10 +1,13 @@
+import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import UINT256_T, IntegerT
+from vyper.semantics.types.primitives import IntegerT
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
 
 
@@ -19,10 +22,6 @@ class _SubscriptableT(VyperType):
     value_type : VyperType
         Type representing the value(s) contained in this object.
     """
-
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
 
     def __init__(self, key_type: VyperType, value_type: VyperType) -> None:
         super().__init__()
@@ -45,6 +44,14 @@ class HashMapT(_SubscriptableT):
     _id = "HashMap"
 
     _equality_attrs = ("key_type", "value_type")
+
+    # disallow everything but storage
+    _invalid_locations = (
+        DataLocation.UNSET,
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+    )
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
@@ -75,11 +82,13 @@ class HashMapT(_SubscriptableT):
                 ),
                 node,
             )
-        # if location != DataLocation.STORAGE or is_immutable:
-        #    raise StructureException("HashMap can only be declared as a storage variable", node)
 
-        key_type = type_from_annotation(node.slice.value.elements[0])
-        value_type = type_from_annotation(node.slice.value.elements[1])
+        k_ast, v_ast = node.slice.value.elements
+        key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
+        if not key_type._as_hashmap_key:
+            raise InvalidType("can only use primitive types as HashMap key!", k_ast)
+
+        value_type = type_from_annotation(v_ast, DataLocation.STORAGE)
 
         return cls(key_type, value_type)
 
@@ -96,17 +105,24 @@ class _SequenceT(_SubscriptableT):
 
     _equality_attrs: tuple = ("value_type", "length")
 
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
+    _is_array_type: bool = True
 
     def __init__(self, value_type: VyperType, length: int):
-
-        if not 0 < length < 2 ** 256:
+        if not 0 < length < 2**256:
             raise InvalidType("Array length is invalid")
+
+        if length >= 2**64:
+            warnings.warn("Use of large arrays can be unsafe!")
 
         super().__init__(UINT256_T, value_type)
         self.length = length
+
+    @property
+    def count(self):
+        """
+        Alias for API compatibility
+        """
+        return self.length
 
     def validate_index_type(self, node):
         # TODO break this cycle
@@ -163,6 +179,13 @@ class SArrayT(_SequenceT):
     def size_in_bytes(self):
         return self.value_type.size_in_bytes * self.length
 
+    @property
+    def subtype(self):
+        """
+        Alias for API compatibility with codegen
+        """
+        return self.value_type
+
     def get_subscripted_type(self, node):
         return self.value_type
 
@@ -204,19 +227,25 @@ class DArrayT(_SequenceT):
 
         from vyper.semantics.types.function import MemberFunctionT
 
-        self.add_member(
-            "append",
-            MemberFunctionT(self, "append", [self.value_type], None, True),
-            skip_namespace_validation=True,
-        )
-        self.add_member(
-            "pop",
-            MemberFunctionT(self, "pop", [], self.value_type, True),
-            skip_namespace_validation=True,
-        )
+        self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
+        self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
+
+    @property
+    def subtype(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.value_type
+
+    @property
+    def count(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.length
 
     @property
     def abi_type(self) -> ABIType:
@@ -227,10 +256,6 @@ class DArrayT(_SequenceT):
         # modify the child name in place.
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
-
-    @property
-    def is_dynamic_size(self):
-        return True
 
     # TODO rename me to memory_bytes_required
     @property
@@ -269,30 +294,43 @@ class DArrayT(_SequenceT):
         return cls(value_type, max_length)
 
 
-# maybe this shouldn't inherit from SequenceT. it is more like a struct.
-class TupleT(_SequenceT):
+class TupleT(VyperType):
     """
     Tuple type definition.
 
-    This class is used to represent multiple return values from
-    functions.
+    This class is used to represent multiple return values from functions.
     """
 
-    _equality_attrs = ("value_type",)
+    _equality_attrs = ("members",)
 
-    # keep LGTM linter happy
-    def __eq__(self, other):
-        return super().__eq__(other)
+    # note: docs say that tuples are not instantiable but they
+    # are in fact instantiable and the codegen works. if we
+    # wanted to be stricter in the typechecker, we could
+    # add _invalid_locations = everything but UNSET and RETURN_VALUE.
+    # (we would need to add a DataLocation.RETURN_VALUE in order for
+    # tuples to be instantiable as return values but not in memory).
+    # _invalid_locations = ...
 
-    def __init__(self, value_type: Tuple[VyperType, ...]) -> None:
-        # TODO: fix the typing here.
-        super().__init__(value_type, len(value_type))  # type: ignore
-
-        # fixes mypy error, TODO revisit typing on value_type
-        self._member_types = value_type
+    def __init__(self, member_types: Tuple[VyperType, ...]) -> None:
+        super().__init__()
+        self.member_types = member_types
+        self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
-        return "(" + ", ".join(repr(t) for t in self.value_type) + ")"
+        return "(" + ", ".join(repr(t) for t in self.member_types) + ")"
+
+    @property
+    def length(self):
+        return len(self.member_types)
+
+    def tuple_members(self):
+        return [v for (_k, v) in self.tuple_items()]
+
+    def tuple_keys(self):
+        return [k for (k, _v) in self.tuple_items()]
+
+    def tuple_items(self):
+        return list(enumerate(self.member_types))
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
@@ -301,20 +339,16 @@ class TupleT(_SequenceT):
         return cls(types)
 
     @property
-    def is_dynamic_size(self):
-        return any(t.is_dynamic_size for t in self.value_type)
-
-    @property
     def abi_type(self) -> ABIType:
-        return ABI_Tuple([t.abi_type for t in self._member_types])
+        return ABI_Tuple([t.abi_type for t in self.member_types])
 
     def to_abi_arg(self, name: str = "") -> dict:
-        components = [t.to_abi_arg() for t in self._member_types]
+        components = [t.to_abi_arg() for t in self.member_types]
         return {"name": name, "type": "tuple", "components": components}
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.value_type)
+        return sum(i.size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
         if not isinstance(node, vy_ast.Int):
@@ -325,11 +359,11 @@ class TupleT(_SequenceT):
             raise ArrayIndexException("Index out of range", node)
 
     def get_subscripted_type(self, node):
-        return self.value_type[node.value]
+        return self.member_types[node.value]
 
     def compare_type(self, other):
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
             return False
-        return all(self.value_type[i].compare_type(other.value_type[i]) for i in range(self.length))
+        return all(a.compare_type(b) for (a, b) in zip(self.member_types, other.member_types))

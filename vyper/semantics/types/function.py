@@ -1,7 +1,7 @@
 import re
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -11,26 +11,21 @@ from vyper.exceptions import (
     CompilerPanic,
     FunctionDeclarationException,
     InvalidType,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import (
-    DataLocation,
-    FunctionVisibility,
-    StateMutability,
-    StorageSlot,
-)
+from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
-from vyper.semantics.types.primitives import UINT256_T, BoolT
+from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
-from vyper.utils import keccak256
+from vyper.utils import OrderedSet, keccak256
 
 
-class ContractFunction(VyperType):
+class ContractFunctionT(VyperType):
     """
     Contract function type.
 
@@ -88,7 +83,7 @@ class ContractFunction(VyperType):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions: Set["ContractFunction"] = set()
+        self.called_functions = OrderedSet()
 
         # special kwargs that are allowed in call site
         self.call_site_kwargs = {
@@ -111,9 +106,9 @@ class ContractFunction(VyperType):
         return hash(id(self))
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "ContractFunction":
+    def from_abi(cls, abi: Dict) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from an ABI interface.
+        Generate a `ContractFunctionT` object from an ABI interface.
 
         Arguments
         ---------
@@ -122,7 +117,7 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction object.
+        ContractFunctionT object.
         """
 
         arguments = OrderedDict()
@@ -146,9 +141,9 @@ class ContractFunction(VyperType):
     @classmethod
     def from_FunctionDef(
         cls, node: vy_ast.FunctionDef, is_interface: Optional[bool] = False
-    ) -> "ContractFunction":
+    ) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from a `FunctionDef` node.
+        Generate a `ContractFunctionT` object from a `FunctionDef` node.
 
         Arguments
         ---------
@@ -159,7 +154,7 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction
+        ContractFunctionT
         """
         kwargs: Dict[str, Any] = {}
         if is_interface:
@@ -187,10 +182,8 @@ class ContractFunction(VyperType):
                 )
 
         else:
-
             # FunctionDef with decorators (normal functions)
             for decorator in node.decorator_list:
-
                 if isinstance(decorator, vy_ast.Call):
                     if "nonreentrant" in kwargs:
                         raise StructureException(
@@ -284,7 +277,6 @@ class ContractFunction(VyperType):
         min_arg_count = max_arg_count - len(node.args.defaults)
         defaults = [None] * min_arg_count + node.args.defaults
 
-        namespace = get_namespace()
         for arg, value in zip(node.args.args, defaults):
             if arg.arg in ("gas", "value", "skip_contract_check", "default_return_value"):
                 raise ArgumentException(
@@ -292,13 +284,11 @@ class ContractFunction(VyperType):
                 )
             if arg.arg in arguments:
                 raise ArgumentException(f"Function contains multiple inputs named {arg.arg}", arg)
-            if arg.arg in namespace:
-                raise NamespaceCollision(arg.arg, arg)
 
             if arg.annotation is None:
                 raise ArgumentException(f"Function argument '{arg.arg}' is missing a type", arg)
 
-            type_ = type_from_annotation(arg.annotation)
+            type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if value is not None:
                 if not check_kwargable(value):
@@ -316,13 +306,9 @@ class ContractFunction(VyperType):
             raise FunctionDeclarationException(
                 "Constructor may not have a return type", node.returns
             )
-        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Call, vy_ast.Subscript)):
-            return_type = type_from_annotation(node.returns)
-        elif isinstance(node.returns, vy_ast.Tuple):
-            tuple_types: Tuple = ()
-            for n in node.returns.elements:
-                tuple_types += (type_from_annotation(n),)
-            return_type = TupleT(tuple_types)
+        elif isinstance(node.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
+            # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
+            return_type = type_from_annotation(node.returns, DataLocation.MEMORY)
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
@@ -339,9 +325,9 @@ class ContractFunction(VyperType):
         self.reentrancy_key_position = position
 
     @classmethod
-    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunction":
+    def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
         """
-        Generate a `ContractFunction` object from an `VariableDecl` node.
+        Generate a `ContractFunctionT` object from an `VariableDecl` node.
 
         Used to create getter functions for public variables.
 
@@ -352,11 +338,11 @@ class ContractFunction(VyperType):
 
         Returns
         -------
-        ContractFunction
+        ContractFunctionT
         """
         if not node.is_public:
             raise CompilerPanic("getter generated for non-public function")
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
         args_dict: OrderedDict = OrderedDict()
         for item in arguments:
@@ -378,7 +364,7 @@ class ContractFunction(VyperType):
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
         return tuple(self.arguments.values()), self.return_type
 
-    def compare_signature(self, other: "ContractFunction") -> bool:
+    def compare_signature(self, other: "ContractFunctionT") -> bool:
         """
         Compare the signature of this function with another function.
 
@@ -530,8 +516,8 @@ class ContractFunction(VyperType):
         typ = self.return_type
         if typ is None:
             abi_dict["outputs"] = []
-        elif isinstance(typ, TupleT) and len(typ.value_type) > 1:  # type: ignore
-            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.value_type]  # type: ignore
+        elif isinstance(typ, TupleT) and len(typ.member_types) > 1:
+            abi_dict["outputs"] = [t.to_abi_arg() for t in typ.member_types]
         else:
             abi_dict["outputs"] = [typ.to_abi_arg()]
 

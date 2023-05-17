@@ -51,7 +51,6 @@ def foo(x: uint256) -> Bytes[36]:
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_abi_encode_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 

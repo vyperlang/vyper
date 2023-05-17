@@ -1,13 +1,14 @@
 import re
 from enum import Enum, auto
+from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
 
-from vyper.address_space import AddrSpace
-from vyper.codegen.types import BaseType, NodeType, ceil32
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
-from vyper.utils import VALID_IR_MACROS, cached_property
+from vyper.semantics.types import VyperType
+from vyper.utils import VALID_IR_MACROS, ceil32
 
 # Set default string representation for ints in IR output.
 AS_HEX_DEFAULT = False
@@ -111,7 +112,7 @@ class IRnode:
         self,
         value: Union[str, int],
         args: List["IRnode"] = None,
-        typ: NodeType = None,
+        typ: VyperType = None,
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
@@ -126,7 +127,7 @@ class IRnode:
         self.value = value
         self.args = args
         # TODO remove this sanity check once mypy is more thorough
-        assert isinstance(typ, NodeType) or typ is None, repr(typ)
+        assert isinstance(typ, VyperType) or typ is None, repr(typ)
         self.typ = typ
         self.location = location
         self.source_pos = source_pos
@@ -151,7 +152,7 @@ class IRnode:
             _check(len(self.args) == 0, "int can't have arguments")
 
             # integers must be in the range (MIN_INT256, MAX_UINT256)
-            _check(-(2 ** 255) <= self.value < 2 ** 256, "out of range")
+            _check(-(2**255) <= self.value < 2**256, "out of range")
 
             self.valency = 1
             self._gas = 5
@@ -397,6 +398,16 @@ class IRnode:
         return _WithBuilder(self, name, should_inline)
 
     @cached_property
+    def referenced_variables(self):
+        ret = set()
+        for arg in self.args:
+            ret |= arg.referenced_variables
+
+        ret |= getattr(self, "_referenced_variables", set())
+
+        return ret
+
+    @cached_property
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
@@ -441,9 +452,7 @@ class IRnode:
         return val
 
     def repr(self) -> str:
-
         if not len(self.args):
-
             if self.annotation:
                 return f"{self.repr_value} " + OKLIGHTBLUE + f"<{self.annotation}>" + ENDC
             else:
@@ -492,7 +501,7 @@ class IRnode:
     def from_list(
         cls,
         obj: Any,
-        typ: NodeType = None,
+        typ: VyperType = None,
         location: Optional[AddrSpace] = None,
         source_pos: Optional[Tuple[int, int]] = None,
         annotation: Optional[str] = None,
@@ -502,7 +511,7 @@ class IRnode:
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
-            typ = BaseType(typ)
+            raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
             # note: this modify-and-returnclause is a little weird since

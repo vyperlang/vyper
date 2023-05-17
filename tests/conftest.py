@@ -50,14 +50,6 @@ def keccak():
 
 
 @pytest.fixture
-def abi_encode(w3):
-    def f(abi_t, py_val):
-        return w3.codec.encode_single(abi_t, py_val)
-
-    return f
-
-
-@pytest.fixture
 def bytes_helper():
     def bytes_helper(str, length):
         return bytes(str, "utf-8") + bytearray(length - len(str))
@@ -148,11 +140,10 @@ def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
 @pytest.fixture
 def get_contract_with_gas_estimation(tester, w3, no_optimize):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-
         contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
-        for abi in contract._classic_contract.functions.abi:
-            if abi["type"] == "function":
-                set_decorator_to_contract_function(w3, tester, contract, source_code, abi["name"])
+        for abi_ in contract._classic_contract.functions.abi:
+            if abi_["type"] == "function":
+                set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
         return contract
 
     return get_contract_with_gas_estimation

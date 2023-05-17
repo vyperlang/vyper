@@ -20,6 +20,11 @@ event ApprovalForAll:
 
 @view
 @external
+def supportsInterface(interface_id: bytes4) -> bool:
+    pass
+
+@view
+@external
 def balanceOf(_owner: address) -> uint256:
     pass
 

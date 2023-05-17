@@ -1,6 +1,6 @@
 import pytest
 import rlp
-from eth_abi import encode_single
+from eth.codecs import abi
 from hexbytes import HexBytes
 
 from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
@@ -330,7 +330,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.foo() == FOO
     assert test.bar() == BAR
 
-    encoded_args = encode_single("(string,(string))", (FOO, BAR))
+    encoded_args = abi.encode("(string,(string))", (FOO, BAR))
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode + encoded_args)
 
     d.test3(f.address, encoded_args, transact={})
@@ -358,9 +358,11 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert FooContract(d.created_address()).bar() == BAR
 
     # Foo constructor should fail
-    FOO = b"\x01" * 129
+    FOO = "01" * 129
     BAR = ("",)
-    assert_tx_failed(lambda: d.should_fail(f.address, FOO, BAR))
+    sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
+    encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"}))
 
 
 def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):

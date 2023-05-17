@@ -85,7 +85,6 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
-
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])

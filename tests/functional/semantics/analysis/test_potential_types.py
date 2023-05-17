@@ -13,7 +13,7 @@ from vyper.semantics.analysis.utils import get_possible_types_from_node
 from vyper.semantics.types import AddressT, BoolT, DArrayT, SArrayT
 from vyper.semantics.types.shortcuts import INT128_T
 
-INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2 ** 128)]
+INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2**128)]
 DECIMAL_LITERALS = [("4.2", "-1.337")]
 BOOL_LITERALS = [(True, False), (True, True), (False, False)]
 STRING_LITERALS = [("'hi'", "'there'"), ("'foo'", "'bar'"), ("'longer'", "'short'")]
@@ -67,7 +67,7 @@ def test_binop(build_node, namespace, op, left, right):
 
 
 @pytest.mark.parametrize("op", "+-*/%")
-@pytest.mark.parametrize("left,right", [(42, "2.3"), (-1, 2 ** 255)])
+@pytest.mark.parametrize("left,right", [(42, "2.3"), (-1, 2**255)])
 def test_binop_type_mismatch(build_node, namespace, op, left, right):
     node = build_node(f"{left}{op}{right}")
     with namespace.enter_scope():
@@ -200,7 +200,7 @@ def test_tuple(build_node, namespace):
     namespace["bar"] = VarInfo(AddressT())
     types_list = get_possible_types_from_node(node)
 
-    assert types_list[0].value_type == [namespace["foo"].typ, namespace["bar"].typ]
+    assert types_list[0].member_types == [namespace["foo"].typ, namespace["bar"].typ]
 
 
 def test_tuple_subscript(build_node, namespace):

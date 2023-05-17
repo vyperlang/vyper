@@ -1,12 +1,12 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
 )
-from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT, is_type_t
-from vyper.semantics.types.function import ContractFunction, MemberFunctionT
+from vyper.semantics.types import TYPE_T, BoolT, EnumT, EventT, SArrayT, StructT, is_type_t
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
 class _AnnotationVisitorBase:
@@ -36,7 +36,6 @@ class _AnnotationVisitorBase:
 
 
 class StatementAnnotationVisitor(_AnnotationVisitorBase):
-
     ignored_types = (vy_ast.Break, vy_ast.Continue, vy_ast.Pass, vy_ast.Raise)
 
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
@@ -99,10 +98,9 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
-
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunction):
+    def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -128,16 +126,13 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         for value in node.values:
             self.visit(value)
 
-    def visit_Bytes(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Call(self, node, type_):
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunction):
+        if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
@@ -201,14 +196,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_Dict(self, node, type_):
         node._metadata["type"] = type_
 
-    def visit_Hex(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Index(self, node, type_):
         self.visit(node.value, type_)
-
-    def visit_Int(self, node, type_):
-        node._metadata["type"] = type_
 
     def visit_List(self, node, type_):
         if type_ is None:
@@ -242,14 +231,23 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
+                    if type_.compare_type(possible_type.value_type):
                         base_type = possible_type
                         break
+                else:
+                    # this should have been caught in
+                    # `get_possible_types_from_node` but wasn't.
+                    raise TypeCheckFailure(f"Expected {type_} but it is not a possible type", node)
 
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        self.visit(node.slice, base_type.key_type)
+        # get the correct type for the index, it might
+        # not be base_type.key_type
+        index_types = get_possible_types_from_node(node.slice.value)
+        index_type = index_types.pop()
+
+        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
@@ -259,7 +257,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        for element, subtype in zip(node.elements, type_.value_type):
+        for element, subtype in zip(node.elements, type_.member_types):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node, type_):
@@ -269,3 +267,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 type_ = type_.pop()
         node._metadata["type"] = type_
         self.visit(node.operand, type_)
+
+    def visit_IfExp(self, node, type_):
+        if type_ is None:
+            ts = get_common_types(node.body, node.orelse)
+            if len(type_) == 1:
+                type_ = ts.pop()
+
+        node._metadata["type"] = type_
+        self.visit(node.test, BoolT())
+        self.visit(node.body, type_)
+        self.visit(node.orelse, type_)

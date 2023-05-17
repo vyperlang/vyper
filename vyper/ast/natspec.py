@@ -73,7 +73,6 @@ def _parse_docstring(
     params: Optional[Tuple] = None,
     return_length: int = 0,
 ) -> dict:
-
     natspec: dict = {}
     if params is None:
         params = tuple()
@@ -89,7 +88,7 @@ def _parse_docstring(
         tag, value = match.groups()
         err_args = (source, *line_no.offset_to_line(start + match.start(1)))
 
-        if tag not in SINGLE_FIELDS + PARAM_FIELDS:
+        if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
         if tag in invalid_fields:
             raise NatSpecSyntaxException(

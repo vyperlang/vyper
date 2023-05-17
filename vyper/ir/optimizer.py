@@ -31,7 +31,7 @@ def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
 
     if unsigned and ret < 0:
         return signed_to_unsigned(ret, 256, strict=True)
-    elif not unsigned and ret > 2 ** 255 - 1:
+    elif not unsigned and ret > 2**255 - 1:
         return unsigned_to_signed(ret, 256, strict=True)
 
     return ret
@@ -78,6 +78,11 @@ IRArgs = List[IRnode]
 
 COMMUTATIVE_OPS = {"add", "mul", "eq", "ne", "and", "or", "xor"}
 COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
+STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
+UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
+
+assert not (STRICT_COMPARISON_OPS & UNSTRICT_COMPARISON_OPS)
+assert STRICT_COMPARISON_OPS | UNSTRICT_COMPARISON_OPS == COMPARISON_OPS
 
 
 def _flip_comparison_op(opname):
@@ -97,7 +102,7 @@ def _shorten_annotation(annotation):
 
 
 def _wrap256(x, unsigned=UNSIGNED):
-    x %= 2 ** 256
+    x %= 2**256
     # wrap in a signed way.
     if not unsigned:
         x = unsigned_to_signed(x, 256, strict=True)
@@ -256,11 +261,15 @@ def _optimize_binop(binop, args, ann, parent_op):
         return finalize("seq", [args[0]])
 
     if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
-        # x - x == x ^ x == x != x == 0
+        # (x - x) == (x ^ x) == (x != x) == 0
         return finalize(0, [])
 
-    if binop == "eq" and _conservative_eq(args[0], args[1]):
-        # (x == x) == 1
+    if binop in STRICT_COMPARISON_OPS and _conservative_eq(args[0], args[1]):
+        # (x < x) == (x > x) == 0
+        return finalize(0, [])
+
+    if binop in {"eq"} | UNSTRICT_COMPARISON_OPS and _conservative_eq(args[0], args[1]):
+        # (x == x) == (x >= x) == (x <= x) == 1
         return finalize(1, [])
 
     # TODO associativity rules

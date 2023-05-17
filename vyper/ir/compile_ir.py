@@ -256,11 +256,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # Numbers
     elif isinstance(code.value, int):
-        if code.value < -(2 ** 255):
+        if code.value < -(2**255):
             raise Exception(f"Value too low: {code.value}")
-        elif code.value >= 2 ** 256:
+        elif code.value >= 2**256:
             raise Exception(f"Value too high: {code.value}")
-        return PUSH(code.value % 2 ** 256)
+        return PUSH(code.value % 2**256)
 
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
@@ -537,7 +537,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 o.append("POP")
         return o
     # Seq without popping.
-    # Assure (if false, invalid opcode)
+    # unreachable keyword produces INVALID opcode
     elif code.value == "assert_unreachable":
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         end_symbol = mksymbol("reachable")
