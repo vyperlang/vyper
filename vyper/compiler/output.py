@@ -128,7 +128,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
         # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
         ret["default_values"] = {
-            arg.name: arg.ast_source.node_source_code for arg in func_t.keyword_args
+            k: val.node_source_code for k, val in func_t.default_values.items()
         }
 
         for attr in ("positional_args", "keyword_args"):
@@ -144,6 +144,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             "args",
             "positional_args",
             "keyword_args",
+            "default_values",
             "frame_info",
             "mutability",
             "visibility",
