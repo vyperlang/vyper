@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import web3.exceptions
 from eth_tester import EthereumTester, PyEVMBackend
@@ -120,6 +122,7 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
+    json.dumps(out["metadata"])  # test metadata is json serializable
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
