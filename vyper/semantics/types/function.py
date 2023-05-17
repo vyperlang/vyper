@@ -49,7 +49,7 @@ class ContractFunctionT(VyperType):
 
     Functions compare false against all types and so cannot be assigned without
     being called. Calls are validated by `fetch_call_return`, check the call
-    arguments against `arguments`, and return `return_type`.
+    arguments against `positional_args` and `keyword_arg`, and return `return_type`.
 
     Attributes
     ----------
@@ -57,16 +57,15 @@ class ContractFunctionT(VyperType):
         The name of the function.
     positional_args: list[PositionalArg]
         Positional args for this function
-    min_arg_count : int
-        The minimum number of required input arguments.
-    max_arg_count : int
-        The maximum number of required input arguments. When a function has no
-        default arguments, this value is the same as `min_arg_count`.
+    keyword_args: list[KeywordArg]
+        Keyword args for this function
+    return_type: Optional[VyperType]
+        Type of return value
     function_visibility : FunctionVisibility
         enum indicating the external visibility of a function.
     state_mutability : StateMutability
         enum indicating the authority a function has to mutate it's own state.
-    nonreentrant : str
+    nonreentrant : Optional[str]
         Re-entrancy lock name.
     """
 
