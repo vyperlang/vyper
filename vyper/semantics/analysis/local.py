@@ -543,6 +543,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
+        if self.func.mutability <= StateMutability.VIEW:
+            raise StructureException(
+                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+            )
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
 
