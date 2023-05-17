@@ -48,6 +48,7 @@ def ir_for_self_call(stmt_expr, context):
     default_vals_ir = [Expr(x, context).ir_node for x in default_vals]
 
     args_ir = pos_args_ir + default_vals_ir
+    assert len(args_ir) == len(func_t.arguments)
 
     args_tuple_t = TupleT([x.typ for x in args_ir])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
