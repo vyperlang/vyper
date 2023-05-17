@@ -266,6 +266,31 @@ def __init__(to_copy: address):
     assert c.b() == 0
 
 
+# GH issue 3101, take 2
+def test_immutables_initialized2(get_contract, get_contract_from_ir):
+    dummy_contract = get_contract_from_ir(
+        ["deploy", 0, ["seq"] + ["invalid"] * 600, 0], no_optimize=True
+    )
+
+    # rekt because immutables section extends past allocated memory
+    code = """
+a0: immutable(uint256[10])
+a: public(immutable(uint256))
+b: public(uint256)
+
+@payable
+@external
+def __init__(to_copy: address):
+    c: address = create_copy_of(to_copy)
+    self.b = a
+    a = 12
+    a0 = empty(uint256[10])
+    """
+    c = get_contract(code, dummy_contract.address)
+
+    assert c.b() == 0
+
+
 # GH issue 3292
 def test_internal_functions_called_by_ctor_location(get_contract):
     code = """
