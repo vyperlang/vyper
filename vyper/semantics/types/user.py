@@ -320,7 +320,7 @@ class InterfaceT(_UserType):
             else:
                 return False
 
-            return to_compare.compare_signature(fn_type)
+            return to_compare.implements(fn_type)
 
         # check for missing functions
         for name, type_ in self.members.items():
@@ -341,6 +341,9 @@ class InterfaceT(_UserType):
                 unimplemented.append(name)
 
         if len(unimplemented) > 0:
+            # TODO: improve the error message for cases where the
+            # mismatch is small (like mutability, or just one argument
+            # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
                 f"Contract does not implement all interface functions or events: {missing_str}",

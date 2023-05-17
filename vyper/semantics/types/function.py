@@ -364,9 +364,10 @@ class ContractFunctionT(VyperType):
     def _iface_sig(self) -> Tuple[Tuple, Optional[VyperType]]:
         return tuple(self.arguments.values()), self.return_type
 
-    def compare_signature(self, other: "ContractFunctionT") -> bool:
+    def implements(self, other: "ContractFunctionT") -> bool:
         """
-        Compare the signature of this function with another function.
+        Checks if this function implements the signature of another
+        function.
 
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
@@ -383,7 +384,12 @@ class ContractFunctionT(VyperType):
         for atyp, btyp in zip(arguments, other_arguments):
             if not atyp.compare_type(btyp):
                 return False
-        if return_type and not return_type.compare_type(other_return_type):  # type: ignore
+
+        # note ordering of compare_type!
+        if return_type and not other_return_type.compare_type(return_type):  # type: ignore
+            return False
+
+        if self.mutability > other.mutability:
             return False
 
         return True
