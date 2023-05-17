@@ -223,11 +223,7 @@ class Convert(BuiltinFunction):
         return [value_type, TYPE_T(target_type)]
 
     def build_IR(self, expr, context):
-        # derive the return type set during annotation
-        # `fetch_call_return` will throw at `type_from_annotation` for user-defined types
-        # outside of the analysis module because they have not been added to the namespace
-        ret_typ = expr._metadata["type"]
-        return convert(expr, context, ret_typ)
+        return convert(expr, context)
 
 
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]

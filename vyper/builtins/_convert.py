@@ -452,10 +452,14 @@ def to_enum(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-def convert(expr, context, out_typ):
+def convert(expr, context):
+    assert len(expr.args) == 2, "bad typecheck: convert"
+
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
+
+    out_typ = expr.args[1]._metadata["type"].typedef
 
     if arg.typ._is_prim_word:
         arg = unwrap_location(arg)
