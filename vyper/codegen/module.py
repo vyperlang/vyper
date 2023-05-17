@@ -129,8 +129,7 @@ def _runtime_ir(runtime_functions, global_ctx):
     return runtime
 
 
-# take a GlobalContext, and generate the runtime and deploy IR, also returns the dict of
-# all ContractFunctionT
+# take a GlobalContext, and generate the runtime and deploy IR
 def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(global_ctx.functions)
