@@ -48,7 +48,7 @@ class FunctionIRInfo:
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:
-            raise CompilerPanic("sig._ir_info.frame_info already set!")
+            raise CompilerPanic("frame_info already set!")
         self.frame_info = frame_info
 
     @property
