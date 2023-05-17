@@ -149,8 +149,6 @@ class _ExprAnalyser:
             A list of type objects
         """
         # Early termination if typedef is propagated in metadata
-        if "varinfo" in node._metadata:
-            return [node._metadata["varinfo"].typ]
         if "exprinfo" in node._metadata:
             return [node._metadata["exprinfo"].typ]
         if "type" in node._metadata:
