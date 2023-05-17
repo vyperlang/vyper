@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    InterfaceViolation,
     InvalidReference,
     InvalidType,
     StructureException,
@@ -105,6 +106,34 @@ struct Foo:
 implements: Foo
     """,
         StructureException,
+    ),
+    (
+        """
+interface A:
+    def f(a: uint256): view
+
+implements: A
+
+@external
+@nonpayable
+def f(a: uint256): # visibility is nonpayable instead of view
+    pass
+    """,
+        InterfaceViolation,
+    ),
+    (
+        """
+interface A:
+    def f() -> String[10]: view
+
+implements: A
+
+@external
+# String[12] does not fit in String[10]
+def f() -> String[12]:
+    return '0123456789ab'
+    """,
+        InterfaceViolation,
     ),
 ]
 
