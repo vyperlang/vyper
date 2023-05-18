@@ -322,6 +322,17 @@ A: public(int112)
 def foo(a: int112 = min_value(int112)):
     self.A = a
     """,
+    """
+enum Foo:
+    Fe
+    Fi
+    Fo
+    Fum
+
+@external
+def bar(a: uint256, b: DynArray[Foo, 3] = [Foo.Fo, Foo.Fi, Foo.Fum]) -> Foo:
+    return b[0]
+    """,
 ]
 
 
