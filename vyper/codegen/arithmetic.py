@@ -2,9 +2,14 @@ import decimal
 import math
 from typing import Tuple
 
-from vyper.codegen.core import clamp, clamp_basetype
+from vyper.codegen.core import (
+    clamp,
+    clamp_basetype,
+    is_decimal_type,
+    is_integer_type,
+    is_numeric_type,
+)
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types import BaseType, is_decimal_type, is_integer_type
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
@@ -36,9 +41,9 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
-    if a >= 2 ** value_bits:  # pragma: no cover
+    if a >= 2**value_bits:  # pragma: no cover
         raise TypeCheckFailure("Value is too large and will always throw")
-    if a < -(2 ** value_bits):  # pragma: no cover
+    if a < -(2**value_bits):  # pragma: no cover
         raise TypeCheckFailure("Value is too small and will always throw")
 
     a_is_negative = a < 0
@@ -60,11 +65,11 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     # x = ln(2**value_bits) / ln(a)
 
     num_iterations = 0
-    while a ** (b + 1) < 2 ** value_bits:
+    while a ** (b + 1) < 2**value_bits:
         b += 1
         num_iterations += 1
         assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
+    while a**b >= 2**value_bits:
         b -= 1
         num_iterations += 1
         assert num_iterations < 10000
@@ -73,7 +78,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     #   (-a) ** (b + 1) == -(2 ** value_bits)
     # we can squeak one more out of it because lower bound of signed ints
     # is slightly wider than upper bound
-    if a_is_negative and (-a) ** (b + 1) == -(2 ** value_bits):  # NOTE: a = abs(a)
+    if a_is_negative and (-a) ** (b + 1) == -(2**value_bits):  # NOTE: a = abs(a)
         return b + 1
     else:
         return b  # Exact
@@ -127,11 +132,11 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))
     # Do a bit of iteration to ensure we have the exact number
     num_iterations = 0
-    while (a + 1) ** b < 2 ** value_bits:
+    while (a + 1) ** b < 2**value_bits:
         a += 1
         num_iterations += 1
         assert num_iterations < 10000
-    while a ** b >= 2 ** value_bits:
+    while a**b >= 2**value_bits:
         a -= 1
         num_iterations += 1
         assert num_iterations < 10000
@@ -139,7 +144,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     if not is_signed:
         return 0, a
 
-    if (a + 1) ** b == (2 ** value_bits):
+    if (a + 1) ** b == (2**value_bits):
         # edge case: lower bound is slightly wider than upper bound
         return -(a + 1), a
     else:
@@ -148,17 +153,17 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:
 def safe_add(x, y):
-    assert x.typ is not None and x.typ == y.typ and isinstance(x.typ, BaseType)
-    num_info = x.typ._num_info
+    assert x.typ is not None and x.typ == y.typ and is_numeric_type(x.typ)
+    typ = x.typ
 
-    res = IRnode.from_list(["add", x, y], typ=x.typ.typ)
+    res = IRnode.from_list(["add", x, y], typ=typ)
 
-    if num_info.bits < 256:
+    if typ.bits < 256:
         return clamp_basetype(res)
 
     # bits == 256
     with res.cache_when_complex("ans") as (b1, res):
-        if num_info.is_signed:
+        if typ.is_signed:
             # if r < 0:
             #   ans < l
             # else:
@@ -179,16 +184,17 @@ def safe_add(x, y):
 
 # def safe_sub(x: IRnode, y: IRnode) -> IRnode:
 def safe_sub(x, y):
-    num_info = x.typ._num_info
+    assert x.typ == y.typ
+    typ = x.typ
 
-    res = IRnode.from_list(["sub", x, y], typ=x.typ.typ)
+    res = IRnode.from_list(["sub", x, y], typ=typ)
 
-    if num_info.bits < 256:
+    if typ.bits < 256:
         return clamp_basetype(res)
 
     # bits == 256
     with res.cache_when_complex("ans") as (b1, res):
-        if num_info.is_signed:
+        if typ.is_signed:
             # if r < 0:
             #   ans > l
             # else:
@@ -209,8 +215,9 @@ def safe_sub(x, y):
 
 # def safe_mul(x: IRnode, y: IRnode) -> IRnode:
 def safe_mul(x, y):
-    # precondition: x.typ.typ == y.typ.typ
-    num_info = x.typ._num_info
+    # precondition: x.typ == y.typ
+    assert x.typ == y.typ
+    typ = x.typ
 
     # optimizer rules work better for the safemul checks below
     # if second operand is literal
@@ -219,20 +226,19 @@ def safe_mul(x, y):
         x = y
         y = tmp
 
-    res = IRnode.from_list(["mul", x, y], typ=x.typ.typ)
+    res = IRnode.from_list(["mul", x, y], typ=x.typ)
 
-    DIV = "sdiv" if num_info.is_signed else "div"
+    DIV = "sdiv" if typ.is_signed else "div"
 
     with res.cache_when_complex("ans") as (b1, res):
-
         ok = [1]  # True
 
-        if num_info.bits > 128:  # check overflow mod 256
+        if typ.bits > 128:  # check overflow mod 256
             # assert (res/y == x | y == 0)
             ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
 
         # int256
-        if num_info.is_signed and num_info.bits == 256:
+        if typ.is_signed and typ.bits == 256:
             # special case:
             # in the above sdiv check, if (r==-1 and l==-2**255),
             # -2**255<res> / -1<r> will return -2**255<l>.
@@ -240,7 +246,7 @@ def safe_mul(x, y):
             if version_check(begin="constantinople"):
                 upper_bound = ["shl", 255, 1]
             else:
-                upper_bound = -(2 ** 255)
+                upper_bound = -(2**255)
 
             check_x = ["ne", x, upper_bound]
             check_y = ["ne", ["not", y], 0]
@@ -250,7 +256,7 @@ def safe_mul(x, y):
                 ok = ["and", ok, ["or", check_x, check_y]]
 
             # TODO push some of this constant folding into optimizer
-            elif x.is_literal and x.value == -(2 ** 255):
+            elif x.is_literal and x.value == -(2**255):
                 ok = ["and", ok, check_y]
             elif y.is_literal and y.value == -1:
                 ok = ["and", ok, check_x]
@@ -260,7 +266,7 @@ def safe_mul(x, y):
                 pass
 
         if is_decimal_type(res.typ):
-            res = IRnode.from_list([DIV, res, num_info.divisor], typ=res.typ)
+            res = IRnode.from_list([DIV, res, typ.divisor], typ=res.typ)
 
         # check overflow mod <bits>
         # NOTE: if 128 < bits < 256, `x * y` could be between
@@ -269,7 +275,7 @@ def safe_mul(x, y):
         # (if bits == 256, clamp_basetype is a no-op)
         res = clamp_basetype(res)
 
-        check = IRnode.from_list(["assert", ok], error_msg="safediv")
+        check = IRnode.from_list(["assert", ok], error_msg="safemul")
         res = IRnode.from_list(["seq", check, res], typ=res.typ)
 
         return b1.resolve(res)
@@ -277,34 +283,33 @@ def safe_mul(x, y):
 
 # def safe_div(x: IRnode, y: IRnode) -> IRnode:
 def safe_div(x, y):
-    num_info = x.typ._num_info
+    assert x.typ == y.typ
     typ = x.typ
 
     ok = [1]  # true
 
     if is_decimal_type(x.typ):
-        lo, hi = num_info.bounds
-        if max(abs(lo), abs(hi)) * num_info.divisor > 2 ** 256 - 1:
+        lo, hi = typ.int_bounds
+        if max(abs(lo), abs(hi)) * typ.divisor > 2**256 - 1:
             # stub to prevent us from adding fixed point numbers we don't know
             # how to deal with
-            raise UnimplementedException("safe_mul for decimal{num_info.bits}x{num_info.decimals}")
-        x = ["mul", x, num_info.divisor]
+            raise UnimplementedException("safe_mul for decimal{typ.bits}x{typ.decimals}")
+        x = ["mul", x, typ.divisor]
 
-    DIV = "sdiv" if num_info.is_signed else "div"
+    DIV = "sdiv" if typ.is_signed else "div"
     res = IRnode.from_list([DIV, x, clamp("gt", y, 0)], typ=typ)
     with res.cache_when_complex("res") as (b1, res):
-
         # TODO: refactor this condition / push some things into the optimizer
-        if num_info.is_signed and num_info.bits == 256:
+        if typ.is_signed and typ.bits == 256:
             if version_check(begin="constantinople"):
                 upper_bound = ["shl", 255, 1]
             else:
-                upper_bound = -(2 ** 255)
+                upper_bound = -(2**255)
 
-            if not x.is_literal and not y.typ.is_literal:
+            if not x.is_literal and not y.is_literal:
                 ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
             # TODO push these rules into the optimizer
-            elif x.is_literal and x.value == -(2 ** 255):
+            elif x.is_literal and x.value == -(2**255):
                 ok = ["ne", y, ["not", 0]]
             elif y.is_literal and y.value == -1:
                 ok = ["ne", x, upper_bound]
@@ -312,8 +317,8 @@ def safe_div(x, y):
                 # x or y is a literal, and not an evil value.
                 pass
 
-        elif num_info.is_signed and is_integer_type(typ):
-            lo, hi = num_info.bounds
+        elif typ.is_signed and is_integer_type(typ):
+            lo, hi = typ.int_bounds
             # we need to throw on min_value(typ) / -1,
             # but we can skip if one of the operands is a literal and not
             # the evil value
@@ -328,25 +333,25 @@ def safe_div(x, y):
             # TODO maybe use safe_mul
             res = clamp_basetype(res)
 
-        check = IRnode.from_list(["assert", ok], error_msg="safemul")
+        check = IRnode.from_list(["assert", ok], error_msg="safediv")
         return IRnode.from_list(b1.resolve(["seq", check, res]))
 
 
 # def safe_mod(x: IRnode, y: IRnode) -> IRnode:
 def safe_mod(x, y):
-    num_info = x.typ._num_info
-    MOD = "smod" if num_info.is_signed else "mod"
-    return IRnode.from_list([MOD, x, clamp("gt", y, 0)])
+    typ = x.typ
+    MOD = "smod" if typ.is_signed else "mod"
+    return IRnode.from_list([MOD, x, clamp("gt", y, 0)], error_msg="safemod")
 
 
 # def safe_pow(x: IRnode, y: IRnode) -> IRnode:
 def safe_pow(x, y):
-    num_info = x.typ._num_info
+    typ = x.typ
     if not is_integer_type(x.typ):
         # type checker should have caught this
         raise TypeCheckFailure("non-integer pow")
 
-    GE = "sge" if num_info.is_signed else "ge"
+    GE = "sge" if typ.is_signed else "ge"
 
     if x.is_literal:
         # cannot pass -1, 0 or 1 to `calculate_largest_power`
@@ -355,7 +360,7 @@ def safe_pow(x, y):
             # (note: unsigned (ge y 0) will get optimized out)
             ok = [GE, y, 0]
         else:
-            upper_bound = calculate_largest_power(x.value, num_info.bits, num_info.is_signed)
+            upper_bound = calculate_largest_power(x.value, typ.bits, typ.is_signed)
             # for signed integers, this also prevents negative values
             ok = ["le", y, upper_bound]
 
@@ -364,10 +369,8 @@ def safe_pow(x, y):
         if y.value in (0, 1):
             ok = [1]
         else:
-            lower_bound, upper_bound = calculate_largest_base(
-                y.value, num_info.bits, num_info.is_signed
-            )
-            if num_info.is_signed:
+            lower_bound, upper_bound = calculate_largest_base(y.value, typ.bits, typ.is_signed)
+            if typ.is_signed:
                 ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
             else:
                 ok = ["le", x, upper_bound]

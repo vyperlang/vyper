@@ -64,7 +64,6 @@ def try32(inp: bytes32) -> bool:
     assert c.tryy_str("") is True
     assert c.trymem(b"") is True
     assert c.tryy(b"cow") is False
-    assert c.tryy_str(b"cow") is False
     c.set_test(b"cow", transact={})
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True

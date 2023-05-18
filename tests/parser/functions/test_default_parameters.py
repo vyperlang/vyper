@@ -167,8 +167,8 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 
     monkeypatch.setattr("eth_abi.encoding.NumberEncoder.validate_value", validate_value)
 
-    assert c.bar(200, 2 ** 127 - 1) == [200, 2 ** 127 - 1]
-    assert_tx_failed(lambda: c.bar(200, 2 ** 127))
+    assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
+    assert_tx_failed(lambda: c.bar(200, 2**127))
 
 
 def test_default_param_private(get_contract):

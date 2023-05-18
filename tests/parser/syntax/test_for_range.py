@@ -1,6 +1,26 @@
 import pytest
 
 from vyper import compiler
+from vyper.exceptions import StructureException
+
+fail_list = [
+    (
+        """
+@external
+def foo():
+    for a[1] in range(10):
+        pass
+    """,
+        StructureException,
+    )
+]
+
+
+@pytest.mark.parametrize("bad_code", fail_list)
+def test_range_fail(bad_code):
+    with pytest.raises(bad_code[1]):
+        compiler.compile_code(bad_code[0])
+
 
 valid_list = [
     """

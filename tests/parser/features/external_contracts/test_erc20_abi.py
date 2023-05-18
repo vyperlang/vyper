@@ -4,8 +4,8 @@ from web3.exceptions import ValidationError
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
-TOKEN_INITIAL_SUPPLY = 21 * 10 ** 6
-TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10 ** TOKEN_DECIMALS)
+TOKEN_INITIAL_SUPPLY = 21 * 10**6
+TOKEN_TOTAL_SUPPLY = TOKEN_INITIAL_SUPPLY * (10**TOKEN_DECIMALS)
 
 
 @pytest.fixture
@@ -82,7 +82,6 @@ def test_initial_state(w3, erc20_caller):
 
 
 def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
-
     # Basic transfer.
     erc20.transfer(erc20_caller.address, 10, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 10

@@ -9,7 +9,7 @@ from vyper.exceptions import OverflowException
 
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
-@given(a=st.integers(min_value=-(2 ** 255) + 1, max_value=2 ** 255 - 1))
+@given(a=st.integers(min_value=-(2**255) + 1, max_value=2**255 - 1))
 @example(a=0)
 def test_abs(get_contract, a):
     source = """
@@ -28,7 +28,7 @@ def foo(a: int256) -> int256:
 
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
-@given(a=st.integers(min_value=2 ** 255, max_value=2 ** 256 - 1))
+@given(a=st.integers(min_value=2**255, max_value=2**256 - 1))
 def test_abs_upper_bound_folding(get_contract, a):
     source = f"""
 @external
@@ -47,7 +47,7 @@ def foo(a: int256) -> int256:
     """
     contract = get_contract(source)
 
-    assert_tx_failed(lambda: contract.foo(-(2 ** 255)))
+    assert_tx_failed(lambda: contract.foo(-(2**255)))
 
 
 def test_abs_lower_bound_folded(get_contract, assert_tx_failed):

@@ -5,7 +5,6 @@ from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types.convert import new_type_to_old_type
 from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
@@ -16,7 +15,7 @@ from vyper.semantics.types.utils import type_from_annotation
 def process_arg(arg, expected_arg_type, context):
     # If the input value is a typestring, return the equivalent codegen type for IR generation
     if isinstance(expected_arg_type, TYPE_T):
-        return new_type_to_old_type(expected_arg_type.typedef)
+        return expected_arg_type.typedef
 
     # if it is a word type, return a stack item.
     # TODO: remove this case, builtins should not require value expressions
@@ -77,7 +76,6 @@ def process_inputs(wrapped_fn):
 
 
 class BuiltinFunction:
-
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
     mutability = StateMutability.PURE

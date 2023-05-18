@@ -76,6 +76,50 @@ a: int128
     }
 
 
+def test_implements_ast():
+    code = """
+interface Foo:
+    def foo() -> uint256: view
+
+implements: Foo
+
+@external
+@view
+def foo() -> uint256:
+    return 1
+    """
+    dict_out = compiler.compile_code(code, ["ast_dict"])
+    assert dict_out["ast_dict"]["ast"]["body"][1] == {
+        "col_offset": 0,
+        "annotation": {
+            "col_offset": 12,
+            "end_col_offset": 15,
+            "node_id": 12,
+            "src": "60:3:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "Foo",
+        },
+        "end_col_offset": 15,
+        "node_id": 9,
+        "src": "48:15:0",
+        "ast_type": "ImplementsDecl",
+        "target": {
+            "col_offset": 0,
+            "end_col_offset": 10,
+            "node_id": 10,
+            "src": "48:10:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "implements",
+        },
+        "end_lineno": 5,
+        "lineno": 5,
+    }
+
+
 def test_dict_to_ast():
     code = """
 @external

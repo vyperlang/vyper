@@ -90,7 +90,7 @@ Bitwise Operations
 
   This function has been deprecated from version 0.3.4 onwards. Please use the ``^`` operator instead.
 
-.. py:function:: shift(x: uint256, _shift: int128) -> uint256
+.. py:function:: shift(x: int256 | uint256, _shift: integer) -> uint256
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
 
@@ -105,6 +105,11 @@ Bitwise Operations
 
         >>> ExampleContract.foo(2, 8)
         512
+
+.. note::
+
+  This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
 
 Chain Interaction
 =================
@@ -201,11 +206,11 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. The output of ``vyper -f blueprint_bytecode`` will produce bytecode which deploys an ERC-5202 compatible blueprint.
 
 .. warning::
 
-    It is recommended to deploy blueprints with the ERC5202 preamble ``0xfe7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+    It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
 
     .. code-block:: python
 
@@ -214,13 +219,13 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
-.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
     * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
@@ -250,10 +255,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             response: Bytes[32] = b""
             x: uint256 = 123
             success, response = raw_call(
-                _target, 
-                _abi_encode(x, method_id=method_id("someMethodName(uint256)")), 
+                _target,
+                _abi_encode(x, method_id=method_id("someMethodName(uint256)")),
                 max_outsize=32,
-                value=msg.value, 
+                value=msg.value,
                 revert_on_failure=False
                 )
             assert success
@@ -294,18 +299,23 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
         This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
 
+    .. note::
+
+        This function has been deprecated from version 0.3.8 onwards. The underlying opcode will eventually undergo breaking changes, and its use is not recommended.
+
     .. code-block:: python
 
         @external
         def do_the_needful():
             selfdestruct(msg.sender)
 
-.. py:function:: send(to: address, value: uint256) -> None
+.. py:function:: send(to: address, value: uint256, gas: uint256 = 0) -> None
 
     Send ether from the contract to the specified Ethereum address.
 
     * ``to``: The destination address to send ether to
     * ``value``: The wei value to send to the address
+    * ``gas``: The amount of gas (the "stipend") to attach to the call. If not set, the stipend defaults to 0.
 
     .. note::
 
@@ -314,8 +324,8 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     .. code-block:: python
 
         @external
-        def foo(_receiver: address, _amount: uint256):
-            send(_receiver, _amount)
+        def foo(_receiver: address, _amount: uint256, gas: uint256):
+            send(_receiver, _amount, gas=gas)
 
 Cryptography
 ============
@@ -396,7 +406,7 @@ Cryptography
 
     Return a ``keccak256`` hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -414,7 +424,7 @@ Cryptography
 
     Return a ``sha256`` (SHA2 256-bit output) hash of the given value.
 
-    * ``_value``: Value to hash. Can be a literal string, ``Bytes``, or ``bytes32``.
+    * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
     .. code-block:: python
 
@@ -433,7 +443,7 @@ Data Manipulation
 
 .. py:function:: concat(a, b, *args) -> Union[Bytes, String]
 
-    Take 2 or more bytes arrays of type ``bytes32``, ``Bytes`` or ``String`` and combine them into a single value.
+    Take 2 or more bytes arrays of type ``bytesM``, ``Bytes`` or ``String`` and combine them into a single value.
 
     If the input arguments are ``String`` the return type is ``String``.  Otherwise the return type is ``Bytes``.
 
@@ -459,7 +469,7 @@ Data Manipulation
     Returns a value of the type specified by ``type_``.
 
     For more details on available type conversions, see :ref:`type_conversions`.
-    
+
 .. py:function:: uint2str(value: unsigned integer) -> String
 
     Returns an unsigned integer's string representation.
@@ -683,7 +693,7 @@ Math
 
 .. py:function:: isqrt(x: uint256) -> uint256
 
-    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.    
+    Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
     .. code-block:: python
 
@@ -698,8 +708,8 @@ Math
         10
 
 .. py:function:: uint256_addmod(a: uint256, b: uint256, c: uint256) -> uint256
-
-    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``.
+    
+    Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 
@@ -717,7 +727,7 @@ Math
 
 .. py:function:: uint256_mulmod(a: uint256, b: uint256, c: uint256) -> uint256
 
-    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``.
+    Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``MULMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
     .. code-block:: python
 
@@ -891,7 +901,7 @@ Utilities
 
     .. note::
 
-        The EVM only provides access to the most recent 256 blocks. This function returns ``EMPTY_BYTES32`` if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
+        The EVM only provides access to the most recent 256 blocks. This function reverts if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
 
     .. code-block:: python
 
@@ -909,7 +919,7 @@ Utilities
 
     Return a value which is the default (zero-ed) value of its type. Useful for initializing new memory variables.
 
-    * ``typename``: Name of the type
+    * ``typename``: Name of the type, except ``HashMap[_KeyType, _ValueType]``
 
     .. code-block:: python
 
@@ -918,9 +928,9 @@ Utilities
         def foo():
             x: uint256[2][5] = empty(uint256[2][5])
 
-.. py:function:: len(b: Union[Bytes, String]) -> uint256
+.. py:function:: len(b: Union[Bytes, String, DynArray[_Type, _Integer]]) -> uint256
 
-    Return the length of a given ``Bytes`` or ``String``.
+    Return the length of a given ``Bytes``, ``String`` or ``DynArray[_Type, _Integer]``.
 
     .. code-block:: python
 

@@ -11,7 +11,7 @@ def __init__():
     assert c.x() == 123
     assert w3.eth.get_balance(c.address) == 0
     assert_tx_failed(
-        lambda: w3.eth.send_transaction({"to": c.address, "value": w3.toWei(0.1, "ether")})
+        lambda: w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(0.1, "ether")})
     )
     assert w3.eth.get_balance(c.address) == 0
 
@@ -28,9 +28,9 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10**17}), c, "Sent")
     assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.get_balance(c.address) == w3.toWei(0.1, "ether")
+    assert w3.eth.get_balance(c.address) == w3.to_wei(0.1, "ether")
 
 
 def test_basic_default_default_param_function(w3, get_logs, get_contract_with_gas_estimation):
@@ -51,9 +51,9 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}), c, "Sent")
+    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 10**17}), c, "Sent")
     assert w3.eth.accounts[0] == logs[0].args.sender
-    assert w3.eth.get_balance(c.address) == w3.toWei(0.1, "ether")
+    assert w3.eth.get_balance(c.address) == w3.to_wei(0.1, "ether")
 
 
 def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
@@ -67,7 +67,7 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10 ** 17}))
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10**17}))
 
 
 def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
@@ -100,7 +100,9 @@ def __default__():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
-def test_zero_method_id(w3, get_logs, get_contract_with_gas_estimation):
+def test_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+    # test a method with 0x00000000 selector,
+    # expects at least 36 bytes of calldata.
     code = """
 event Sent:
     sig: uint256
@@ -116,18 +118,108 @@ def blockHashAskewLimitary(v: uint256) -> uint256:
 def __default__():
     log Sent(1)
     """
-
-    c = get_contract_with_gas_estimation(code)
+    c = get_contract(code)
 
     assert c.blockHashAskewLimitary(0) == 7
 
-    logs = get_logs(w3.eth.send_transaction({"to": c.address, "value": 0}), c, "Sent")
-    assert 1 == logs[0].args.sig
+    def _call_with_bytes(hexstr):
+        # call our special contract and return the logged value
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
+        return logs[0].args.sig
 
-    logs = get_logs(
-        # call blockHashAskewLimitary
-        w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x" + "00" * 36}),
-        c,
-        "Sent",
-    )
-    assert 2 == logs[0].args.sig
+    assert 1 == _call_with_bytes("0x")
+
+    # call blockHashAskewLimitary with proper calldata
+    assert 2 == _call_with_bytes("0x" + "00" * 36)
+
+    # call blockHashAskewLimitary with extra trailing bytes in calldata
+    assert 2 == _call_with_bytes("0x" + "00" * 37)
+
+    for i in range(4):
+        # less than 4 bytes of calldata doesn't match the 0 selector and goes to default
+        assert 1 == _call_with_bytes("0x" + "00" * i)
+
+    for i in range(4, 36):
+        # match the full 4 selector bytes, but revert due to malformed (short) calldata
+        assert_tx_failed(lambda: _call_with_bytes("0x" + "00" * i))
+
+
+def test_another_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+    # test another zero method id but which only expects 4 bytes of calldata
+    code = """
+event Sent:
+    sig: uint256
+
+@external
+@payable
+# function selector: 0x00000000
+def wycpnbqcyf() -> uint256:
+    log Sent(2)
+    return 7
+
+@external
+def __default__():
+    log Sent(1)
+    """
+    c = get_contract(code)
+
+    assert c.wycpnbqcyf() == 7
+
+    def _call_with_bytes(hexstr):
+        # call our special contract and return the logged value
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
+        return logs[0].args.sig
+
+    assert 1 == _call_with_bytes("0x")
+
+    # call wycpnbqcyf
+    assert 2 == _call_with_bytes("0x" + "00" * 4)
+
+    # too many bytes ok
+    assert 2 == _call_with_bytes("0x" + "00" * 5)
+
+    # "right" method id but by accident - not enough bytes.
+    for i in range(4):
+        assert 1 == _call_with_bytes("0x" + "00" * i)
+
+
+def test_partial_selector_match_trailing_zeroes(w3, get_logs, get_contract):
+    code = """
+event Sent:
+    sig: uint256
+
+@external
+@payable
+# function selector: 0xd88e0b00
+def fow() -> uint256:
+    log Sent(2)
+    return 7
+
+@external
+def __default__():
+    log Sent(1)
+    """
+    c = get_contract(code)
+
+    # sanity check - we can call c.fow()
+    assert c.fow() == 7
+
+    def _call_with_bytes(hexstr):
+        # call our special contract and return the logged value
+        logs = get_logs(
+            w3.eth.send_transaction({"to": c.address, "value": 0, "data": hexstr}), c, "Sent"
+        )
+        return logs[0].args.sig
+
+    # check we can call default function
+    assert 1 == _call_with_bytes("0x")
+
+    # check fow() selector is 0xd88e0b00
+    assert 2 == _call_with_bytes("0xd88e0b00")
+
+    # check calling d88e0b with no trailing zero goes to fallback instead of reverting
+    assert 1 == _call_with_bytes("0xd88e0b")

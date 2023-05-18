@@ -3,7 +3,6 @@ import math
 
 import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
@@ -11,31 +10,23 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
+    is_array_like,
+    is_bytes_m_type,
+    is_enum_type,
+    is_numeric_type,
+    is_tuple_like,
     pop_dyn_array,
+    sar,
+    shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.codegen.types import (
-    ArrayLike,
-    BaseType,
-    ByteArrayLike,
-    ByteArrayType,
-    DArrayType,
-    EnumType,
-    InterfaceType,
-    MappingType,
-    SArrayType,
-    StringType,
-    StructType,
-    TupleType,
-    is_base_type,
-    is_bytes_m_type,
-    is_numeric_type,
-)
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    CompilerPanic,
     EvmVersionException,
     StructureException,
     TypeCheckFailure,
@@ -43,9 +34,24 @@ from vyper.exceptions import (
     UnimplementedException,
     VyperException,
 )
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesT,
+    DArrayT,
+    DecimalT,
+    EnumT,
+    HashMapT,
+    InterfaceT,
+    SArrayT,
+    StringT,
+    StructT,
+    TupleT,
+)
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    SizeLimits,
     bytes_to_int,
     is_checksum_encoded,
     string_to_bytes,
@@ -69,75 +75,64 @@ class Expr:
 
         fn = getattr(self, f"parse_{type(node).__name__}", None)
         if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
+            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
 
         self.ir_node = fn()
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR. {self.expr}")
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.", node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]
-        new_typ = new_type_to_old_type(typ)
-        new_typ.is_literal = True
-        return IRnode.from_list(self.expr.n, typ=new_typ)
+        return IRnode.from_list(self.expr.n, typ=typ)
 
     def parse_Decimal(self):
         val = self.expr.value * DECIMAL_DIVISOR
 
         # sanity check that type checker did its job
         assert isinstance(val, decimal.Decimal)
-        assert SizeLimits.in_bounds("decimal", val)
         assert math.ceil(val) == math.floor(val)
 
         val = int(val)
+        lo, hi = DecimalT().int_bounds
+        # sanity check
+        assert lo <= val <= hi
 
-        return IRnode.from_list(val, typ=BaseType("decimal", is_literal=True))
+        return IRnode.from_list(val, typ=DecimalT())
 
     def parse_Hex(self):
         hexstr = self.expr.value
 
-        t = self.expr._metadata.get("type")
+        t = self.expr._metadata["type"]
 
         n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
 
-        if t is not None:
-            inferred_type = new_type_to_old_type(self.expr._metadata["type"])
-        # This branch is a band-aid to deal with bytes20 vs address literals
-        # TODO handle this properly in the type checker
-        elif len(hexstr) == 42:
-            inferred_type = BaseType("address", is_literal=True)
-        else:
-            inferred_type = BaseType(f"bytes{n_bytes}", is_literal=True)
-
-        if is_base_type(inferred_type, "address"):
+        if t == AddressT():
             # sanity check typechecker did its job
             assert len(hexstr) == 42 and is_checksum_encoded(hexstr)
-            typ = BaseType("address")
-            return IRnode.from_list(int(self.expr.value, 16), typ=typ)
+            return IRnode.from_list(int(self.expr.value, 16), typ=t)
 
-        elif is_bytes_m_type(inferred_type):
-            assert n_bytes == inferred_type._bytes_info.m
+        elif is_bytes_m_type(t):
+            assert n_bytes == t.m
 
             # bytes_m types are left padded with zeros
             val = int(hexstr, 16) << 8 * (32 - n_bytes)
 
-            typ = BaseType(f"bytes{n_bytes}", is_literal=True)
-            return IRnode.from_list(val, typ=typ)
+            return IRnode.from_list(val, typ=t)
 
     # String literals
     def parse_Str(self):
         bytez, bytez_length = string_to_bytes(self.expr.value)
-        typ = StringType(bytez_length, is_literal=True)
+        typ = StringT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
     # Byte literals
     def parse_Bytes(self):
         bytez = self.expr.s
         bytez_length = len(self.expr.s)
-        typ = ByteArrayType(bytez_length, is_literal=True)
+        typ = BytesT(bytez_length)
         return self._make_bytelike(typ, bytez, bytez_length)
 
     def _make_bytelike(self, btype, bytez, bytez_length):
@@ -161,19 +156,17 @@ class Expr:
 
     # True, False, None constants
     def parse_NameConstant(self):
-        if self.expr.value is True:
-            return IRnode.from_list(1, typ=BaseType("bool", is_literal=True))
-        elif self.expr.value is False:
-            return IRnode.from_list(0, typ=BaseType("bool", is_literal=True))
+        assert isinstance(self.expr.value, bool)
+        val = int(self.expr.value)
+        return IRnode.from_list(val, typ=BoolT())
 
     # Variable names
     def parse_Name(self):
-
         if self.expr.id == "self":
-            return IRnode.from_list(["address"], typ="address")
+            return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
@@ -181,44 +174,48 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
+            ret._referenced_variables = {var}
+            return ret
 
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
-            var = self.context.globals[self.expr.id]
-            varinfo = var._varinfo
-            if not varinfo.is_immutable:
-                return  # fail
+            varinfo = self.context.globals[self.expr.id]
+            assert varinfo.is_immutable, "not an immutable!"
 
             ofst = varinfo.position.offset
 
-            if self.context.sig.is_init_func:
+            if self.context.is_ctor_context:
                 mutable = True
                 location = IMMUTABLES
             else:
                 mutable = False
                 location = DATA
 
-            return IRnode.from_list(
-                ofst, typ=var.typ, location=location, annotation=self.expr.id, mutable=mutable
+            ret = IRnode.from_list(
+                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
+            ret._referenced_variables = {varinfo}
+            return ret
 
     # x.y or x[5]
     def parse_Attribute(self):
-        typ = self.expr._metadata.get("type")
-        if typ is not None:
-            typ = new_type_to_old_type(typ)
+        typ = self.expr._metadata["type"]
 
         # MyEnum.foo
-        if isinstance(typ, EnumType) and typ.name == self.expr.value.id:
+        if (
+            isinstance(typ, EnumT)
+            and isinstance(self.expr.value, vy_ast.Name)
+            and typ.name == self.expr.value.id
+        ):
             # 0, 1, 2, .. 255
-            enum_id = typ.members[self.expr.attr]
-            value = 2 ** enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            enum_id = typ._enum_members[self.expr.attr]
+            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if is_base_type(addr.typ, "address"):
+            if addr.typ == AddressT():
                 if (
                     isinstance(self.expr.value, vy_ast.Name)
                     and self.expr.value.id == "self"
@@ -227,21 +224,21 @@ class Expr:
                     seq = ["selfbalance"]
                 else:
                     seq = ["balance", addr]
-                return IRnode.from_list(seq, typ=BaseType("uint256"))
+                return IRnode.from_list(seq, typ=UINT256_T)
         # x.codesize: codesize of address x
         elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if is_base_type(addr.typ, "address"):
+            if addr.typ == AddressT():
                 if self.expr.attr == "codesize":
                     if self.expr.get("value.id") == "self":
                         eval_code = ["codesize"]
                     else:
                         eval_code = ["extcodesize", addr]
-                    output_type = "uint256"
+                    output_type = UINT256_T
                 else:
                     eval_code = ["gt", ["extcodesize", addr], 0]
-                    output_type = "bool"
-                return IRnode.from_list(eval_code, typ=BaseType(output_type))
+                    output_type = BoolT()
+                return IRnode.from_list(eval_code, typ=output_type)
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
@@ -249,40 +246,43 @@ class Expr:
                 raise EvmVersionException(
                     "address.codehash is unavailable prior to constantinople ruleset", self.expr
                 )
-            if is_base_type(addr.typ, "address"):
-                return IRnode.from_list(["extcodehash", addr], typ=BaseType("bytes32"))
+            if addr.typ == AddressT():
+                return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
         # x.code: codecopy/extcodecopy of address x
         elif self.expr.attr == "code":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if is_base_type(addr.typ, "address"):
+            if addr.typ == AddressT():
                 # These adhoc nodes will be replaced with a valid node in `Slice.build_IR`
                 if addr.value == "address":  # for `self.code`
-                    return IRnode.from_list(["~selfcode"], typ=ByteArrayType(0))
-                return IRnode.from_list(["~extcode", addr], typ=ByteArrayType(0))
+                    return IRnode.from_list(["~selfcode"], typ=BytesT(0))
+                return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            var = self.context.globals[self.expr.attr]
-            varinfo = var._varinfo
-            return IRnode.from_list(
+            varinfo = self.context.globals[self.expr.attr]
+            ret = IRnode.from_list(
                 varinfo.position.position,
-                typ=var.typ,
+                typ=varinfo.typ,
                 location=STORAGE,
                 annotation="self." + self.expr.attr,
             )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
         # Reserved keywords
         elif (
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
             if key == "msg.sender":
-                return IRnode.from_list(["caller"], typ="address")
+                return IRnode.from_list(["caller"], typ=AddressT())
             elif key == "msg.data":
                 # This adhoc node will be replaced with a valid node in `Slice/Len.build_IR`
-                return IRnode.from_list(["~calldata"], typ=ByteArrayType(0))
+                return IRnode.from_list(["~calldata"], typ=BytesT(0))
             elif key == "msg.value" and self.context.is_payable:
-                return IRnode.from_list(["callvalue"], typ=BaseType("uint256"))
+                return IRnode.from_list(["callvalue"], typ=UINT256_T)
             elif key == "msg.gas":
-                return IRnode.from_list(["gas"], typ="uint256")
+                return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
                     warning = VyperException(
@@ -291,7 +291,7 @@ class Expr:
                         self.expr,
                     )
                     vyper_warn(str(warning))
-                return IRnode.from_list(["prevrandao"], typ="uint256")
+                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = VyperException(
@@ -300,36 +300,39 @@ class Expr:
                         self.expr,
                     )
                     vyper_warn(str(warning))
-                return IRnode.from_list(["difficulty"], typ="uint256")
+                return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
-                return IRnode.from_list(["timestamp"], typ=BaseType("uint256"))
+                return IRnode.from_list(["timestamp"], typ=UINT256_T)
             elif key == "block.coinbase":
-                return IRnode.from_list(["coinbase"], typ="address")
+                return IRnode.from_list(["coinbase"], typ=AddressT())
             elif key == "block.number":
-                return IRnode.from_list(["number"], typ="uint256")
+                return IRnode.from_list(["number"], typ=UINT256_T)
             elif key == "block.gaslimit":
-                return IRnode.from_list(["gaslimit"], typ="uint256")
+                return IRnode.from_list(["gaslimit"], typ=UINT256_T)
             elif key == "block.basefee":
-                return IRnode.from_list(["basefee"], typ="uint256")
+                return IRnode.from_list(["basefee"], typ=UINT256_T)
             elif key == "block.prevhash":
-                return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ="bytes32")
+                return IRnode.from_list(["blockhash", ["sub", "number", 1]], typ=BYTES32_T)
             elif key == "tx.origin":
-                return IRnode.from_list(["origin"], typ="address")
+                return IRnode.from_list(["origin"], typ=AddressT())
             elif key == "tx.gasprice":
-                return IRnode.from_list(["gasprice"], typ="uint256")
+                return IRnode.from_list(["gasprice"], typ=UINT256_T)
             elif key == "chain.id":
                 if not version_check(begin="istanbul"):
                     raise EvmVersionException(
                         "chain.id is unavailable prior to istanbul ruleset", self.expr
                     )
-                return IRnode.from_list(["chainid"], typ="uint256")
+                return IRnode.from_list(["chainid"], typ=UINT256_T)
         # Other variables
         else:
             sub = Expr(self.expr.value, self.context).ir_node
             # contract type
-            if isinstance(sub.typ, InterfaceType):
+            if isinstance(sub.typ, InterfaceT):
+                # MyInterface.address
+                assert self.expr.attr == "address"
+                sub.typ = typ
                 return sub
-            if isinstance(sub.typ, StructType) and self.expr.attr in sub.typ.members:
+            if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
                 return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
@@ -341,21 +344,20 @@ class Expr:
             # return MY_LIST[ix]
             sub = ensure_in_memory(sub, self.context)
 
-        if isinstance(sub.typ, MappingType):
+        if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
-            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, ByteArrayLike):
+            index = Expr(self.expr.slice.value, self.context).ir_node
+            if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
-                assert len(index.args) == 1
-                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
+                index = keccak256_helper(index, self.context)
 
-        elif isinstance(sub.typ, ArrayLike):
+        elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
 
-        elif isinstance(sub.typ, TupleType):
+        elif is_tuple_like(sub.typ):
             index = self.expr.slice.value.n
             # note: this check should also happen in get_element_ptr
-            if not 0 <= index < len(sub.typ.members):
+            if not 0 <= index < len(sub.typ.member_types):
                 return
         else:
             return
@@ -368,26 +370,40 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if not is_numeric_type(left.typ) or not is_numeric_type(right.typ):
-            return
+        if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            if left.typ != right.typ:
+                raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
 
-        ltyp, rtyp = left.typ.typ, right.typ.typ
+        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
-        # Sanity check - ensure that we aren't dealing with different types
-        # This should be unreachable due to the type check pass
-        assert ltyp == rtyp, f"unreachable, {ltyp}!={rtyp}, {self.expr}"
+        out_typ = left.typ
 
         if isinstance(self.expr.op, vy_ast.BitAnd):
-            new_typ = left.typ
-            return IRnode.from_list(["and", left, right], typ=new_typ)
+            return IRnode.from_list(["and", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitOr):
-            new_typ = left.typ
-            return IRnode.from_list(["or", left, right], typ=new_typ)
+            return IRnode.from_list(["or", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitXor):
-            new_typ = left.typ
-            return IRnode.from_list(["xor", left, right], typ=new_typ)
+            return IRnode.from_list(["xor", left, right], typ=out_typ)
 
-        out_typ = BaseType(ltyp)
+        if isinstance(self.expr.op, vy_ast.LShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                return
+            return IRnode.from_list(shl(right, left), typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.RShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. promote_signed_int(op(right, left), bits)
+                return
+            op = shr if not left.typ.is_signed else sar
+            # note: sar NotImplementedError for pre-constantinople
+            return IRnode.from_list(op(right, left), typ=new_typ)
+
+        # enums can only do bit ops, not arithmetic.
+        assert is_numeric_type(left.typ)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
             if isinstance(self.expr.op, vy_ast.Add):
@@ -403,7 +419,7 @@ class Expr:
             elif isinstance(self.expr.op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
             else:
-                return  # raises
+                raise CompilerPanic("Unreachable")
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
 
@@ -413,7 +429,7 @@ class Expr:
 
         # temporary kludge to block #2637 bug
         # TODO actually fix the bug
-        if not isinstance(left.typ, BaseType):
+        if not left.typ._is_prim_word:
             raise TypeMismatch(
                 "`in` not allowed for arrays of non-base types, tracked in issue #2637", self.expr
             )
@@ -427,9 +443,9 @@ class Expr:
         else:  # pragma: no cover
             return
 
-        i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ="uint256")
+        i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ=UINT256_T)
 
-        found_ptr = self.context.new_internal_variable(BaseType("bool"))
+        found_ptr = self.context.new_internal_variable(BoolT())
 
         ret = ["seq"]
 
@@ -456,7 +472,7 @@ class Expr:
             ith_element_ptr = get_element_ptr(right, i, array_bounds_check=False)
             ith_element = unwrap_location(ith_element_ptr)
 
-            if isinstance(right.typ, SArrayType):
+            if isinstance(right.typ, SArrayT):
                 len_ = right.typ.count
             else:
                 len_ = get_dyn_array_count(right)
@@ -472,7 +488,7 @@ class Expr:
 
             ret.append(["seq", ["mstore", found_ptr, not_found], loop, ["mload", found_ptr]])
 
-            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ="bool")
+            return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
@@ -490,15 +506,15 @@ class Expr:
             return
 
         if isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)):
-            if isinstance(right.typ, ArrayLike):
+            if is_array_like(right.typ):
                 return self.build_in_comparator()
             else:
-                assert isinstance(right.typ, EnumType), right.typ
+                assert isinstance(right.typ, EnumT), right.typ
                 intersection = ["and", left, right]
                 if isinstance(self.expr.op, vy_ast.In):
-                    return IRnode.from_list(["iszero", ["iszero", intersection]], typ="bool")
+                    return IRnode.from_list(["iszero", ["iszero", intersection]], typ=BoolT())
                 elif isinstance(self.expr.op, vy_ast.NotIn):
-                    return IRnode.from_list(["iszero", intersection], typ="bool")
+                    return IRnode.from_list(["iszero", intersection], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
@@ -516,28 +532,28 @@ class Expr:
             return  # pragma: notest
 
         # Compare (limited to 32) byte arrays.
-        if isinstance(left.typ, ByteArrayLike) and isinstance(right.typ, ByteArrayLike):
+        if isinstance(left.typ, _BytestringT) and isinstance(right.typ, _BytestringT):
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
 
-            left_keccak = keccak256_helper(self.expr, left, self.context)
-            right_keccak = keccak256_helper(self.expr, right, self.context)
+            left_keccak = keccak256_helper(left, self.context)
+            right_keccak = keccak256_helper(right, self.context)
 
             if op not in ("eq", "ne"):
                 return  # raises
             else:
                 # use hash even for Bytes[N<=32], because there could be dirty
                 # bytes past the bytes data.
-                return IRnode.from_list([op, left_keccak, right_keccak], typ="bool")
+                return IRnode.from_list([op, left_keccak, right_keccak], typ=BoolT())
 
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
-            if left.typ.typ == right.typ.typ == "uint256":
+            if left.typ == right.typ and right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
                 op = self._signed_to_unsigned_comparision_op(op)
 
-        elif isinstance(left.typ, BaseType) and isinstance(right.typ, BaseType):
+        elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):
                 return
         else:
@@ -548,14 +564,14 @@ class Expr:
                 self.expr.op,
             )
 
-        return IRnode.from_list([op, left, right], typ="bool")
+        return IRnode.from_list([op, left, right], typ=BoolT())
 
     def parse_BoolOp(self):
         values = []
         for value in self.expr.values:
             # Check for boolean operations with non-boolean inputs
             ir_val = Expr.parse_value_expr(value, self.context)
-            assert is_base_type(ir_val.typ, "bool")
+            assert ir_val.typ == BoolT()
             values.append(ir_val)
 
         assert len(values) >= 2, "bad BoolOp"
@@ -583,7 +599,7 @@ class Expr:
             # `x and y` => `if x { then y } { else 0 }`
             ir_node = ["if", val, ir_node, 0]
 
-        return IRnode.from_list(ir_node, typ="bool")
+        return IRnode.from_list(ir_node, typ=BoolT())
 
     @staticmethod
     def _logical_or(values):
@@ -600,26 +616,26 @@ class Expr:
             # `x or y` => `if x { then 1 } { else y }`
             ir_node = ["if", val, 1, ir_node]
 
-        return IRnode.from_list(ir_node, typ="bool")
+        return IRnode.from_list(ir_node, typ=BoolT())
 
     # Unary operations (only "not" supported)
     def parse_UnaryOp(self):
         operand = Expr.parse_value_expr(self.expr.operand, self.context)
         if isinstance(self.expr.op, vy_ast.Not):
-            if isinstance(operand.typ, BaseType) and operand.typ.typ == "bool":
-                return IRnode.from_list(["iszero", operand], typ="bool")
+            if operand.typ._is_prim_word and operand.typ == BoolT():
+                return IRnode.from_list(["iszero", operand], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Invert):
-            if isinstance(operand.typ, EnumType):
-                n_members = len(operand.typ.members)
+            if isinstance(operand.typ, EnumT):
+                n_members = len(operand.typ._enum_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
                 # hurt codesize, but most user enums will likely have few
                 # enough members that the mask will not be large.
-                mask = (2 ** n_members) - 1
+                mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
 
-            if is_base_type(operand.typ, "uint256"):
+            if operand.typ == UINT256_T:
                 return IRnode.from_list(["not", operand], typ=operand.typ)
 
             # block `~` for all other integer types, since reasoning
@@ -628,18 +644,11 @@ class Expr:
             raise UnimplementedException(f"~ is not supported for {operand.typ}", self.expr)
 
         if isinstance(self.expr.op, vy_ast.USub) and is_numeric_type(operand.typ):
-            assert operand.typ._num_info.is_signed
+            assert operand.typ.is_signed
             # Clamp on minimum signed integer value as we cannot negate that
             # value (all other integer values are fine)
-            min_int_val, _ = operand.typ._num_info.bounds
+            min_int_val, _ = operand.typ.int_bounds
             return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
-
-    def _is_valid_interface_assign(self):
-        if self.expr.args and len(self.expr.args) == 1:
-            arg_ir = Expr(self.expr.args[0], self.context).ir_node
-            if arg_ir.typ == BaseType("address"):
-                return True, arg_ir
-        return False, None
 
     # Function calls
     def parse_Call(self):
@@ -653,23 +662,28 @@ class Expr:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
             # Struct constructors do not need `self` prefix.
-            elif function_name in self.context.structs:
+            elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], function_name, self.context)
+                    return Expr.struct_literals(
+                        args[0], function_name, self.context, self.expr._metadata["type"]
+                    )
 
             # Interface assignment. Bar(<address>).
-            elif function_name in self.context.sigs:
-                ret, arg_ir = self._is_valid_interface_assign()
-                if ret is True:
-                    arg_ir.typ = InterfaceType(function_name)  # Cast to Correct interface type.
-                    return arg_ir
+            elif isinstance(self.expr._metadata["type"], InterfaceT):
+                (arg0,) = self.expr.args
+                arg_ir = Expr(arg0, self.context).ir_node
+
+                assert arg_ir.typ == AddressT()
+                arg_ir.typ = self.expr._metadata["type"]
+
+                return arg_ir
 
         elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
             # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
-            assert isinstance(darray.typ, DArrayType)
+            assert isinstance(darray.typ, DArrayT)
             return pop_dyn_array(darray, return_popped_item=True)
 
         elif (
@@ -684,7 +698,7 @@ class Expr:
             return external_call.ir_for_external_call(self.expr, self.context)
 
     def parse_List(self):
-        typ = new_type_to_old_type(self.expr._metadata["type"])
+        typ = self.expr._metadata["type"]
         if len(self.expr.elements) == 0:
             return IRnode.from_list("~empty", typ=typ)
 
@@ -694,27 +708,47 @@ class Expr:
 
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).ir_node for x in self.expr.elements]
-        typ = TupleType([x.typ for x in tuple_elements], is_literal=True)
+        typ = TupleT([x.typ for x in tuple_elements])
         multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
         return multi_ir
 
+    def parse_IfExp(self):
+        test = Expr.parse_value_expr(self.expr.test, self.context)
+        assert test.typ == BoolT()  # sanity check
+
+        body = Expr(self.expr.body, self.context).ir_node
+        orelse = Expr(self.expr.orelse, self.context).ir_node
+
+        # if they are in the same location, we can skip copying
+        # into memory. also for the case where either body or orelse are
+        # literal `multi` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter, XXX fixme).
+        if body.location != orelse.location or body.value == "multi":
+            body = ensure_in_memory(body, self.context)
+            orelse = ensure_in_memory(orelse, self.context)
+
+        assert body.location == orelse.location
+        # check this once compare_type has no side effects:
+        # assert body.typ.compare_type(orelse.typ)
+
+        typ = self.expr._metadata["type"]
+        location = body.location
+        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
+
     @staticmethod
-    def struct_literals(expr, name, context):
+    def struct_literals(expr, name, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
-            if not isinstance(key, vy_ast.Name):
-                return
-            if key.id in member_subs:
-                return
+            assert isinstance(key, vy_ast.Name)
+            assert key.id not in member_subs
+
             sub = Expr(value, context).ir_node
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructType(member_typs, name, is_literal=True),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
         )
 
     # Parse an expression that results in a value

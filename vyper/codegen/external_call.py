@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 import vyper.utils as util
-from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import (
     _freshname,
@@ -10,15 +9,16 @@ from vyper.codegen.core import (
     check_external_call,
     dummy_node_for_type,
     eval_once_check,
+    get_type_for_exact_size,
     make_setter,
     needs_clamp,
     unwrap_location,
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.codegen.types import InterfaceType, TupleType, get_type_for_exact_size
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import TypeCheckFailure
+from vyper.semantics.types import InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability
 
 
@@ -32,14 +32,12 @@ class _CallKwargs:
 
 def _pack_arguments(fn_type, args, context):
     # abi encoding just treats all args as a big tuple
-    args_tuple_t = TupleType([x.typ for x in args])
+    args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleType(
-        [new_type_to_old_type(typ) for typ in fn_type.arguments.values()][: len(args)]
-    )
+    dst_tuple_t = TupleT(fn_type.argument_types[: len(args)])
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
     if fn_type.return_type is not None:
@@ -78,12 +76,10 @@ def _pack_arguments(fn_type, args, context):
 
 
 def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, expr):
-    ast_return_t = fn_type.return_type
+    return_t = fn_type.return_type
 
-    if ast_return_t is None:
+    if return_t is None:
         return ["pass"], 0, 0
-
-    return_t = new_type_to_old_type(ast_return_t)
 
     wrapped_return_t = calculate_type_for_external_return(return_t)
 
@@ -117,7 +113,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         )
         unpacker.append(assertion)
 
-    assert isinstance(wrapped_return_t, TupleType)
+    assert isinstance(wrapped_return_t, TupleT)
 
     # unpack strictly
     if needs_clamp(wrapped_return_t, encoding):
@@ -175,12 +171,10 @@ def _extcodesize_check(address):
 
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
-    # expr.func._metadata["type"].return_type is more accurate
-    # than fn_sig.return_type in the case of JSON interfaces.
     fn_type = call_expr.func._metadata["type"]
 
     # sanity check
-    assert fn_type.min_arg_count <= len(args_ir) <= fn_type.max_arg_count
+    assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
     ret = ["seq"]
 
@@ -220,9 +214,8 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret.append(check_external_call(call_op))
 
-    return_t = None
-    if fn_type.return_type is not None:
-        return_t = new_type_to_old_type(fn_type.return_type)
+    return_t = fn_type.return_type
+    if return_t is not None:
         ret.append(ret_unpacker)
 
     return IRnode.from_list(ret, typ=return_t, location=MEMORY)
@@ -232,7 +225,7 @@ def ir_for_external_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     contract_address = Expr.parse_value_expr(call_expr.func.value, context)
-    assert isinstance(contract_address.typ, InterfaceType)
+    assert isinstance(contract_address.typ, InterfaceT)
     args_ir = [Expr(x, context).ir_node for x in call_expr.args]
     call_kwargs = _parse_kwargs(call_expr, context)
 

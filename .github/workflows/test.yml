@@ -2,6 +2,13 @@ name: Test
 
 on: [push, pull_request]
 
+concurrency:
+  # cancel older, in-progress jobs from the same PR, same workflow.
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
 
   lint:
@@ -10,10 +17,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
 
     - name: Install Dependencies
       run: pip install .[lint]
@@ -35,10 +42,10 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v1
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.8
+          python-version: "3.11"
 
       - name: Install Tox
         run: pip install tox
@@ -52,10 +59,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
 
     - name: Install Tox
       run: pip install tox
@@ -68,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.8", "38"], ["3.9", "39"], ["3.10", "310"]]
+        python-version: [["3.10", "310"], ["3.11", "311"]]
         # run in default (optimized) and --no-optimize mode
         flag: ["core", "no-opt"]
 
@@ -78,7 +85,7 @@ jobs:
     - uses: actions/checkout@v1
 
     - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version[0] }}
 
@@ -119,10 +126,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
 
     - name: Install Tox
       run: pip install tox
@@ -131,7 +138,7 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/ac71e77863d7f4e7e7cd19a93cf50a8c39de4845/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run Tox
       run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration --reruns 10 --reruns-delay 1 -r aR tests/
@@ -160,10 +167,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
 
     - name: Install Tox
       run: pip install tox

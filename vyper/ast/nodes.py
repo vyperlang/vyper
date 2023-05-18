@@ -1,10 +1,12 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
@@ -12,6 +14,7 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
+    StructureException,
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
@@ -64,14 +67,16 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
-    # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-    # Parent node is required for context to determine whether replacement should happen.
-    if (
-        ast_struct["ast_type"] == "AnnAssign"
-        and isinstance(parent, Module)
-        and not getattr(ast_struct["target"], "id", None) in ("implements",)
-    ):
-        ast_struct["ast_type"] = "VariableDecl"
+    if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
+        # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
+        if getattr(ast_struct["target"], "id", None) == "implements":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "ImplementsDecl"
+        # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
+        # Parent node is required for context to determine whether replacement should happen.
+        else:
+            ast_struct["ast_type"] = "VariableDecl"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -251,7 +256,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: set = set()
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -660,6 +665,19 @@ class Module(TopLevel):
         self.body.remove(node)
         self._children.remove(node)
 
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
+
 
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list", "pos")
@@ -681,7 +699,7 @@ class DocStr(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ("args", "defaults", "default")
-    _only_empty_fields = ("vararg", "kwonlyargs", "kwarg", "kw_defaults")
+    _only_empty_fields = ("posonlyargs", "vararg", "kwonlyargs", "kwarg", "kw_defaults")
 
 
 class arg(VyperNode):
@@ -934,7 +952,9 @@ class Invert(Operator):
     __slots__ = ()
     _description = "bitwise not"
     _pretty = "~"
-    _op = operator.inv
+
+    def _op(self, value):
+        return (2**256 - 1) ^ value
 
 
 class BinOp(ExprNode):
@@ -954,6 +974,12 @@ class BinOp(ExprNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
 
         value = self.op._op(left.value, right.value)
         _validate_numeric_bounds(self, value)
@@ -1043,7 +1069,7 @@ class Pow(Operator):
             raise TypeMismatch("Cannot perform exponentiation on decimal values.", self._parent)
         if right < 0:
             raise InvalidOperation("Cannot calculate a negative power", self._parent)
-        return int(left ** right)
+        return int(left**right)
 
 
 class BitAnd(Operator):
@@ -1065,6 +1091,20 @@ class BitXor(Operator):
     _description = "bitwise xor"
     _pretty = "^"
     _op = operator.xor
+
+
+class LShift(Operator):
+    __slots__ = ()
+    _description = "bitwise left shift"
+    _pretty = "<<"
+    _op = operator.lshift
+
+
+class RShift(Operator):
+    __slots__ = ()
+    _description = "bitwise right shift"
+    _pretty = ">>"
+    _op = operator.rshift
 
 
 class BoolOp(ExprNode):
@@ -1377,7 +1417,34 @@ class ImportFrom(_Import):
     __slots__ = ("level", "module")
 
 
+class ImplementsDecl(Stmt):
+    """
+    An `implements` declaration.
+
+    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : Name
+        Name node for the `implements` keyword
+    annotation : Name
+        Name node for the interface to be implemented
+    """
+
+    __slots__ = ("target", "annotation")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not isinstance(self.annotation, Name):
+            raise StructureException("not an identifier", self.annotation)
+
+
 class If(Stmt):
+    __slots__ = ("test", "body", "orelse")
+
+
+class IfExp(ExprNode):
     __slots__ = ("test", "body", "orelse")
 
 

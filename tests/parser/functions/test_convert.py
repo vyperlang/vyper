@@ -2,25 +2,17 @@ import enum
 import itertools
 
 # import random
-from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
 
-import eth_abi.exceptions
+import eth.codecs.abi as abi
+import eth.codecs.abi.exceptions
 import pytest
-from eth_abi import decode_single, encode_single
 
-from vyper.codegen.types import (
-    BASE_TYPES,
-    INTEGER_TYPES,
-    parse_bytes_m_info,
-    parse_decimal_info,
-    parse_integer_typeinfo,
-)
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
+from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
-    SizeLimits,
     checksum_encode,
     int_bounds,
     is_checksum_encoded,
@@ -28,7 +20,9 @@ from vyper.utils import (
     unsigned_to_signed,
 )
 
-TEST_TYPES = BASE_TYPES | {"Bytes[32]"}
+BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT(), BoolT()}
+
+TEST_TYPES = BASE_TYPES | {BytesT(32)} | {StringT(32)}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -36,24 +30,25 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 DECIMAL_EPSILON = Decimal(1) / DECIMAL_DIVISOR
 
 
-@dataclass
-class TestType:
-    """
-    Simple class to model Vyper types.
-    """
+def _bits_of_type(typ):
+    if isinstance(typ, (IntegerT, DecimalT)):
+        return typ.bits
+    if isinstance(typ, BoolT):
+        return 8
+    if isinstance(typ, AddressT):
+        return 160
+    if isinstance(typ, BytesM_T):
+        return typ.m_bits
+    if isinstance(typ, BytesT):
+        return typ.length * 8
 
-    type_name: str
-    type_bytes: int  # number of nonzero bytes this type can take
-    type_class: str  # e.g. int, bytes, String, decimal
-    info: Any  # e.g. DecimalInfo
+    raise Exception(f"Unknown type {typ}")
 
-    @property
-    def abi_type(self):
-        if self.type_name == "decimal":
-            return "fixed168x10"
-        if self.type_class in ("Bytes", "String"):
-            return self.type_class.lower()
-        return self.type_name
+
+def bytes_of_type(typ):
+    ret = _bits_of_type(typ)
+    assert ret % 8 == 0
+    return ret // 8
 
 
 class _OutOfBounds(Exception):
@@ -64,32 +59,6 @@ class _OutOfBounds(Exception):
     pass
 
 
-def _parse_type(typename):
-    if typename.startswith(("uint", "int")):
-        info = parse_integer_typeinfo(typename)
-        assert info.bits % 8 == 0
-        return TestType(typename, info.bits // 8, "int", info)
-    elif typename == "decimal":
-        info = parse_decimal_info(typename)
-        assert info.bits % 8 == 0
-        return TestType(typename, info.bits // 8, "decimal", info)
-    elif typename.startswith("bytes"):
-        info = parse_bytes_m_info(typename)
-        return TestType(typename, info.m, "bytes", info)
-    elif typename.startswith("Bytes"):
-        assert typename == "Bytes[32]"  # TODO test others
-        return TestType(typename, 32, "Bytes", None)
-    elif typename.startswith("String"):
-        assert typename == "String[32]"  # TODO test others
-        return TestType(typename, 32, "String", None)
-    elif typename == "address":
-        return TestType(typename, 20, "address", None)
-    elif typename == "bool":
-        return TestType(typename, 1, "bool", None)
-
-    raise AssertionError(f"no info {typename}")
-
-
 def can_convert(i_typ, o_typ):
     """
     Checks whether conversion from one type to another is valid.
@@ -97,44 +66,41 @@ def can_convert(i_typ, o_typ):
     if i_typ == o_typ:
         return False
 
-    i_detail = _parse_type(i_typ)
-    o_detail = _parse_type(o_typ)
-
-    if o_typ == "bool":
+    if isinstance(o_typ, BoolT):
         return True
-    if i_typ == "bool":
-        return o_typ not in {"address"}
+    if isinstance(i_typ, BoolT):
+        return not isinstance(o_typ, AddressT)
 
-    if i_detail.type_class == "int":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
+    if isinstance(i_typ, IntegerT):
+        if isinstance(o_typ, BytesM_T):
+            return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
-        ret = o_detail.type_class in ("int", "decimal", "bytes", "Bytes")
-        if not i_detail.info.is_signed:
-            ret |= o_typ == "address"
+        ret = isinstance(o_typ, (IntegerT, DecimalT, BytesM_T, BytesT))
+        if not i_typ.is_signed:
+            ret |= isinstance(o_typ, AddressT)
         return ret
 
-    elif i_detail.type_class == "bytes":
-        if o_detail.type_class == "Bytes":
+    if isinstance(i_typ, BytesM_T):
+        if isinstance(o_typ, BytesT):
             # bytesN must be of equal or smaller size to the input
-            return i_detail.type_bytes <= o_detail.type_bytes
+            return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
-        return o_detail.type_class in ("decimal", "bytes", "int", "address")
+        return isinstance(o_typ, (DecimalT, BytesM_T, IntegerT, AddressT))
 
-    elif i_detail.type_class == "Bytes":
-        return o_detail.type_class in ("int", "decimal", "address")
+    if isinstance(i_typ, BytesT):
+        return isinstance(o_typ, (IntegerT, DecimalT, AddressT))
 
-    elif i_typ == "decimal":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
+    if isinstance(i_typ, DecimalT):
+        if isinstance(o_typ, BytesM_T):
+            return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
 
-        return o_detail.type_class in ("int", "bool")
+        return isinstance(o_typ, (IntegerT, BoolT))
 
-    elif i_typ == "address":
-        if o_detail.type_class == "bytes":
-            return i_detail.type_bytes <= o_detail.type_bytes
-        elif o_detail.type_class == "int":
-            return not o_detail.info.is_signed
+    if isinstance(i_typ, AddressT):
+        if isinstance(o_typ, BytesM_T):
+            return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
+        if isinstance(o_typ, IntegerT):
+            return not o_typ.is_signed
         return False
 
     raise AssertionError(f"unreachable {i_typ} {o_typ}")
@@ -145,9 +111,7 @@ def uniq(xs):
 
 
 def _cases_for_int(typ):
-    info = parse_integer_typeinfo(typ)
-
-    lo, hi = info.bounds
+    lo, hi = typ.ast_bounds
 
     ret = [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
 
@@ -159,9 +123,7 @@ def _cases_for_int(typ):
 
 
 def _cases_for_decimal(typ):
-    info = parse_decimal_info(typ)
-
-    lo, hi = info.decimal_bounds
+    lo, hi = typ.ast_bounds
 
     ret = [Decimal(i) for i in [-1, 0, 1]]
     ret.extend([lo - 1, lo, lo + 1, hi - 1, hi, hi + 1])
@@ -181,8 +143,8 @@ def _cases_for_decimal(typ):
 
 
 def _cases_for_address(_typ):
-    cases = _filter_cases(_cases_for_int("uint160"), "uint160")
-    return [_py_convert(c, "uint160", "address") for c in cases]
+    cases = _filter_cases(_cases_for_int(UINT160_T), UINT160_T)
+    return [_py_convert(c, UINT160_T, AddressT()) for c in cases]
 
 
 def _cases_for_bool(_typ):
@@ -190,10 +152,8 @@ def _cases_for_bool(_typ):
 
 
 def _cases_for_bytes(typ):
-    detail = _parse_type(typ)
-    m_bits = detail.info.m_bits
     # reuse the cases for the equivalent int type
-    equiv_int_type = f"uint{m_bits}"
+    equiv_int_type = UINT(typ.m_bits)
     cases = _filter_cases(_cases_for_int(equiv_int_type), equiv_int_type)
     return [_py_convert(c, equiv_int_type, typ) for c in cases]
 
@@ -202,24 +162,36 @@ def _cases_for_Bytes(typ):
     ret = []
     # would not need this if we tested all Bytes[1]...Bytes[32] types.
     for i in range(32):
-        ret.extend(_cases_for_bytes(f"bytes{i+1}"))
+        ret.extend(_cases_for_bytes(BytesM_T(i + 1)))
+
+    ret.append(b"")
+    return uniq(ret)
+
+
+def _cases_for_String(typ):
+    ret = []
+    # would not need this if we tested all Bytes[1]...Bytes[32] types.
+    for i in range(32):
+        ret.extend([str(c, "utf-8") for c in _cases_for_bytes(BytesM_T(i + 1))])
+    ret.append("")
     return uniq(ret)
 
 
 # generate all cases of interest for a type, potentially including invalid cases
 def interesting_cases_for_type(typ):
-    detail = _parse_type(typ)
-    if detail.type_class == "int":
+    if isinstance(typ, IntegerT):
         return _cases_for_int(typ)
-    if detail.type_class == "decimal":
+    if isinstance(typ, DecimalT):
         return _cases_for_decimal(typ)
-    if detail.type_class == "bytes":
+    if isinstance(typ, BytesM_T):
         return _cases_for_bytes(typ)
-    if detail.type_class == "Bytes":
+    if isinstance(typ, BytesT):
         return _cases_for_Bytes(typ)
-    if detail.type_class == "bool":
+    if isinstance(typ, StringT):
+        return _cases_for_String(typ)
+    if isinstance(typ, BoolT):
         return _cases_for_bool(typ)
-    if detail.type_class == "address":
+    if isinstance(typ, AddressT):
         return _cases_for_address(typ)
 
 
@@ -229,7 +201,7 @@ def _filter_cases(cases, i_typ):
     def _in_bounds(c):
         try:
             return _py_convert(c, i_typ, i_typ) is not None
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth.codecs.abi.exceptions.EncodeError:
             return False
 
     return [c for c in cases if _in_bounds(c)]
@@ -241,8 +213,7 @@ class _PadDirection(enum.Enum):
 
 
 def _padding_direction(typ):
-    detail = _parse_type(typ)
-    if detail.type_class in ("bytes", "String", "Bytes"):
+    if isinstance(typ, (BytesM_T, StringT, BytesT)):
         return _PadDirection.Right
     return _PadDirection.Left
 
@@ -275,17 +246,15 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
 
 def _from_bits(val_bits, o_typ):
     # o_typ: the type to convert to
-    detail = _parse_type(o_typ)
     try:
-        return decode_single(detail.abi_type, val_bits)
-    except eth_abi.exceptions.NonEmptyPaddingBytes:
+        return abi.decode(o_typ.abi_type.selector_name(), val_bits)
+    except eth.codecs.abi.exceptions.DecodeError:
         raise _OutOfBounds() from None
 
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
-    detail = _parse_type(i_typ)
-    return encode_single(detail.abi_type, val)
+    return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
 def _signextend(val_bytes, bits):
@@ -293,22 +262,29 @@ def _signextend(val_bytes, bits):
 
     as_sint = unsigned_to_signed(as_uint, bits)
 
-    return (as_sint % 2 ** 256).to_bytes(32, byteorder="big")
+    return (as_sint % 2**256).to_bytes(32, byteorder="big")
+
+
+def _convert_int_to_int(val, o_typ):
+    lo, hi = o_typ.int_bounds
+    if not lo <= val <= hi:
+        return None
+    return val
 
 
 def _convert_decimal_to_int(val, o_typ):
     # note special behavior for decimal: catch OOB before truncation.
-    if not SizeLimits.in_bounds(o_typ, val):
+    lo, hi = o_typ.int_bounds
+    if not lo <= val <= hi:
         return None
 
     return round_towards_zero(val)
 
 
 def _convert_int_to_decimal(val, o_typ):
-    detail = _parse_type(o_typ)
     ret = Decimal(val)
-    # note: SizeLimits.in_bounds is for the EVM int value, not the python value
-    lo, hi = detail.info.decimal_bounds
+    lo, hi = o_typ.ast_bounds
+
     if not lo <= ret <= hi:
         return None
 
@@ -320,49 +296,45 @@ def _py_convert(val, i_typ, o_typ):
     Perform conversion on the Python representation of a Vyper value.
     Returns None if the conversion is invalid (i.e., would revert in Vyper)
     """
-    i_detail = _parse_type(i_typ)
-    o_detail = _parse_type(o_typ)
 
-    if i_detail.type_class == "int" and o_detail.type_class == "int":
-        if not SizeLimits.in_bounds(o_typ, val):
-            return None
-        return val
+    if isinstance(i_typ, IntegerT) and isinstance(o_typ, IntegerT):
+        return _convert_int_to_int(val, o_typ)
 
-    if i_typ == "decimal" and o_typ in INTEGER_TYPES:
+    if isinstance(i_typ, DecimalT) and isinstance(o_typ, IntegerT):
         return _convert_decimal_to_int(val, o_typ)
 
-    if i_detail.type_class in ("bool", "int") and o_typ == "decimal":
+    if isinstance(i_typ, (BoolT, IntegerT)) and isinstance(o_typ, DecimalT):
         # Note: Decimal(True) == Decimal("1")
         return _convert_int_to_decimal(val, o_typ)
 
     val_bits = _to_bits(val, i_typ)
 
-    if i_detail.type_class in ("Bytes", "String"):
+    if isinstance(i_typ, (BytesT, StringT)):
         val_bits = val_bits[32:]
 
     if _padding_direction(i_typ) != _padding_direction(o_typ):
         # subtle! the padding conversion follows the bytes argument
-        if i_detail.type_class in ("bytes", "Bytes"):
-            n = i_detail.type_bytes
+        if isinstance(i_typ, (BytesM_T, BytesT)):
+            n = bytes_of_type(i_typ)
             padding_byte = None
         else:
             # output type is bytes
-            n = o_detail.type_bytes
+            n = bytes_of_type(o_typ)
             padding_byte = b"\x00"
 
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
 
-    if getattr(o_detail.info, "is_signed", False) and i_detail.type_class == "bytes":
-        n_bits = i_detail.type_bytes * 8
+    if getattr(o_typ, "is_signed", False) and isinstance(i_typ, BytesM_T):
+        n_bits = _bits_of_type(i_typ)
         val_bits = _signextend(val_bits, n_bits)
 
     try:
-        if o_typ == "bool":
-            return _from_bits(val_bits, "uint256") != 0
+        if isinstance(o_typ, BoolT):
+            return _from_bits(val_bits, UINT256_T) != 0
 
         ret = _from_bits(val_bits, o_typ)
 
-        if o_typ == "address":
+        if isinstance(o_typ, AddressT):
             return checksum_encode(ret)
         return ret
 
@@ -407,7 +379,7 @@ def cases_for_pair(i_typ, o_typ):
             c = _py_convert(c, o_typ, i_typ)
             if c is not None:
                 cases.append(c)
-        except eth_abi.exceptions.ValueOutOfBounds:
+        except eth.codecs.abi.exceptions.EncodeError:
             pass
 
     # _CASES_CACHE[(i_typ, o_typ)] = cases
@@ -437,10 +409,9 @@ def generate_reverting_cases():
 
 
 def _vyper_literal(val, typ):
-    detail = _parse_type(typ)
-    if detail.type_class == "bytes":
+    if isinstance(typ, BytesM_T):
         return "0x" + val.hex()
-    if detail.type_class == "decimal":
+    if isinstance(typ, DecimalT):
         tmp = val
         val = val.quantize(DECIMAL_EPSILON)
         assert tmp == val
@@ -452,9 +423,8 @@ def _vyper_literal(val, typ):
 def test_convert_passing(
     get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val
 ):
-
     expected_val = _py_convert(val, i_typ, o_typ)
-    if o_typ == "address" and expected_val == "0x" + "00" * 20:
+    if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
         expected_val = None
 
@@ -469,11 +439,11 @@ def test_convert() -> {o_typ}:
 
     # Skip bytes20 literals when there is ambiguity with `address` since address takes precedence.
     # generally happens when there are only digits in the literal.
-    if i_typ == "bytes20" and is_checksum_encoded(_vyper_literal(val, "bytes20")):
+    if i_typ == BYTES20_T and is_checksum_encoded(_vyper_literal(val, BYTES20_T)):
         skip_c1 = True
 
     # typechecker inference borked, ambiguity with bytes20
-    if i_typ == "address" and o_typ == "bytes20" and val == val.lower():
+    if isinstance(i_typ, AddressT) and o_typ == BYTES20_T and val == val.lower():
         skip_c1 = True
 
     if c1_exception is not None:
@@ -515,7 +485,7 @@ def test_memory_variable_convert(x: {i_typ}) -> {o_typ}:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
-@pytest.mark.parametrize("val", [1, 2, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+@pytest.mark.parametrize("val", [1, 2, 2**128, 2**256 - 1, 2**256 - 2])
 def test_enum_conversion(get_contract_with_gas_estimation, assert_compile_failed, val, typ):
     roles = "\n    ".join([f"ROLE_{i}" for i in range(256)])
     contract = f"""
@@ -539,7 +509,7 @@ def bar(a: uint256) -> Roles:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
-@pytest.mark.parametrize("val", [1, 2, 3, 4, 2 ** 128, 2 ** 256 - 1, 2 ** 256 - 2])
+@pytest.mark.parametrize("val", [1, 2, 3, 4, 2**128, 2**256 - 1, 2**256 - 2])
 def test_enum_conversion_2(
     get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, val, typ
 ):
@@ -572,7 +542,6 @@ def foo(a: {typ}) -> Status:
 def test_convert_builtin_constant(
     get_contract_with_gas_estimation, builtin_constant, out_type, out_value
 ):
-
     contract = f"""
 @external
 def convert_builtin_constant() -> {out_type}:
@@ -585,7 +554,7 @@ def convert_builtin_constant() -> {out_type}:
 
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
-same_type_conversion_blocked = sorted(TEST_TYPES - {"uint256"})
+same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})
 
 
 @pytest.mark.parametrize("typ", same_type_conversion_blocked)
@@ -671,21 +640,21 @@ def foo() -> {o_typ}:
 
     c1_exception = InvalidLiteral
 
-    if i_typ.startswith(("int", "uint")) and o_typ.startswith("bytes"):
+    if isinstance(i_typ, IntegerT) and isinstance(o_typ, BytesM_T):
         # integer literals get upcasted to uint256 / int256 types, so the convert
         # will not compile unless it is bytes32
-        if o_typ != "bytes32":
+        if o_typ != BYTES32_T:
             c1_exception = TypeMismatch
 
     # compile-time folding not implemented for these:
     skip_c1 = False
-    # if o_typ.startswith("int") and i_typ == "address":
+    # if isinstance(o_typ, IntegerT.signeds()) and isinstance(i_typ, Address()):
     #    skip_c1 = True
 
-    if o_typ.startswith("bytes"):
+    if isinstance(o_typ, BytesM_T):
         skip_c1 = True
 
-    # if o_typ in ("address", "bytes20"):
+    # if o_typ in (AddressT(), BYTES20_T):
     #    skip_c1 = True
 
     if not skip_c1:

@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -83,8 +84,6 @@ class _ExprAnalyser:
                 return ExprInfo.from_varinfo(t)
 
             # it's something else, like my_struct.foo
-            # sanity check
-            assert t is info.typ.get_member(name, node)
             return info.copy_with_type(t)
 
         if isinstance(node, vy_ast.Tuple):
@@ -93,8 +92,16 @@ class _ExprAnalyser:
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
             is_constant = any((getattr(i, "is_constant", False) for i in types))
+            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
-            return ExprInfo(t, location=location, is_constant=is_constant)
+            return ExprInfo(
+                t, location=location, is_constant=is_constant, is_immutable=is_immutable
+            )
+
+        # If it's a Subscript, propagate the subscriptable varinfo
+        if isinstance(node, vy_ast.Subscript):
+            info = self.get_expr_info(node.value)
+            return info.copy_with_type(t)
 
         return ExprInfo(t)
 
@@ -117,6 +124,7 @@ class _ExprAnalyser:
 
         if len(types_list) > 1:
             raise StructureException("Ambiguous type", node)
+
         return types_list[0]
 
     def get_possible_types_from_node(self, node, include_type_exprs=False):
@@ -139,20 +147,26 @@ class _ExprAnalyser:
         if "type" in node._metadata:
             return [node._metadata["type"]]
 
-        fn = self._find_fn(node)
-        ret = fn(node)
+        # this method is a perf hotspot, so we cache the result and
+        # try to return it if found.
+        k = f"possible_types_from_node_{include_type_exprs}"
+        if k not in node._metadata:
+            fn = self._find_fn(node)
+            ret = fn(node)
 
-        if not include_type_exprs:
-            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-            if invalid is not None:
-                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+            if not include_type_exprs:
+                invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+                if invalid is not None:
+                    raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
 
-        if all(isinstance(i, IntegerT) for i in ret):
-            # for numeric types, sort according by number of bits descending
-            # this ensures literals are cast with the largest possible type
-            ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
+            if all(isinstance(i, IntegerT) for i in ret):
+                # for numeric types, sort according by number of bits descending
+                # this ensures literals are cast with the largest possible type
+                ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
 
-        return ret
+            node._metadata[k] = ret
+
+        return node._metadata[k].copy()
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -172,7 +186,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
-                # ex. foo.bar(). bar() is a ContractFunction
+                # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -192,15 +206,20 @@ class _ExprAnalyser:
 
     def types_from_BinOp(self, node):
         # binary operation: `x + y`
-        types_list = get_common_types(node.left, node.right)
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            # ad-hoc handling for LShift and RShift, since operands
+            # can be different types
+            types_list = get_possible_types_from_node(node.left)
+            # check rhs is unsigned integer
+            validate_expected_type(node.right, IntegerT.unsigneds())
+        else:
+            types_list = get_common_types(node.left, node.right)
 
         if (
             isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
-            # CMC 2022-07-20 this seems like unreachable code -
-            # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
@@ -255,7 +274,7 @@ class _ExprAnalyser:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for t in types.get_primitive_types().values():
+        for t in types.PRIMITIVE_TYPES.values():
             try:
                 # clarity and perf note: will be better to construct a
                 # map from node types to valid vyper types
@@ -285,15 +304,23 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
-
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
+            ret = []
             # subtype can be anything
-            types_list = types.get_types()
-            # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DArrayT(t, 1) for t in types_list.values()]
+            for t in types.PRIMITIVE_TYPES.values():
+                # 1 is minimum possible length for dynarray,
+                # can be assigned to anything
+                if isinstance(t, VyperType):
+                    ret.append(DArrayT(t, 1))
+                elif isinstance(t, type) and issubclass(t, VyperType):
+                    # for typeclasses like bytestrings, use a generic type acceptor
+                    ret.append(DArrayT(t.any(), 1))
+                else:
+                    raise CompilerPanic("busted type {t}", node)
             return ret
+
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
@@ -307,7 +334,11 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
-        if name not in self.namespace and name in self.namespace["self"].typ.members:
+        if (
+            name not in self.namespace
+            and "self" in self.namespace
+            and name in self.namespace["self"].typ.members
+        ):
             raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
@@ -345,6 +376,17 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
+
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        return types_list
 
 
 def _is_empty_list(node):
@@ -409,7 +451,6 @@ def get_exact_type_from_node(node):
     BaseType
         Type object.
     """
-
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
@@ -439,6 +480,7 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
         common = [i for i in common_types if _is_type_in_list(i, new_types)]
+
         rejected = [i for i in common_types if i not in common]
         common += [i for i in new_types if _is_type_in_list(i, rejected)]
 
@@ -452,7 +494,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
 # TODO push this into `ArrayT.validate_literal()`
 def _validate_literal_array(node, expected):
-
     # validate that every item within an array has the same type
     if isinstance(expected, SArrayT):
         if len(node.elements) != expected.length:
@@ -492,8 +533,8 @@ def validate_expected_type(node, expected_type):
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 
-    if isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        # special case - for literal arrays or tuples we individually validate each item
+    if isinstance(node, vy_ast.List):
+        # special case - for literal arrays we individually validate each item
         for expected in expected_type:
             if not isinstance(expected, (DArrayT, SArrayT)):
                 continue
@@ -545,8 +586,8 @@ def validate_unique_method_ids(functions: List) -> None:
 
     Arguments
     ---------
-    functions : List[ContractFunction]
-        A list of ContractFunction objects.
+    functions : List[ContractFunctionT]
+        A list of ContractFunctionT objects.
     """
     method_ids = [x for i in functions for x in i.method_ids.values()]
     seen = set()

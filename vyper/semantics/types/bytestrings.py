@@ -26,11 +26,12 @@ class _BytestringT(VyperType):
         is applied to a literal definition.
     """
 
+    # this is a carveout because currently we allow dynamic arrays of
+    # bytestrings, but not static arrays of bytestrings
+    _as_darray = True
+    _as_hashmap_key = True
     _equality_attrs = ("_length", "_min_length")
-
-    # keep LGTM linter happy:
-    def __eq__(self, other):
-        return super().__eq__(other)
+    _is_bytestring: bool = True
 
     def __init__(self, length: int = 0) -> None:
         super().__init__()
@@ -49,6 +50,13 @@ class _BytestringT(VyperType):
         if self._length:
             return self._length
         return self._min_length
+
+    @property
+    def maxlen(self):
+        """
+        Alias for backwards compatibility.
+        """
+        return self.length
 
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
@@ -115,13 +123,11 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
-        if not isinstance(node, vy_ast.Subscript):
+        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
-                f"Cannot declare {cls._id} type without a maximum length", node
+                f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
             )
 
-        if len(node.get_descendants(vy_ast.Subscript, include_self=True)) > 1:
-            raise StructureException(f"Multidimensional {cls._id} arrays are not supported", node)
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
