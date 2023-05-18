@@ -210,7 +210,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for c in fn_node.get_descendants(vy_ast.Call)
                 if not (len(c.args) == 1 and isinstance(c.args[0], vy_ast.Dict))
             ]
-            node_list.extend(filtered_call_nodes)
+            node_list.extend(filtered_call_nodes)  # type: ignore
 
             for node in node_list:
                 t = node._metadata.get("type")
