@@ -57,10 +57,10 @@ class FuncIRInfo:
         assert not self.func_t.is_internal, "uh oh, should be external"
         return self.ir_identifier + "_common"
 
-    @property
-    def internal_function_label(self) -> str:
+    def internal_function_label(self, is_ctor_context: bool = False) -> str:
         assert self.func_t.is_internal, "uh oh, should be internal"
-        return self.ir_identifier
+        suffix = "_deploy" if is_ctor_context else "_runtime"
+        return self.ir_identifier + suffix
 
 
 def generate_ir_for_function(

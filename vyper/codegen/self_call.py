@@ -62,7 +62,8 @@ def ir_for_self_call(stmt_expr, context):
         )
 
     # note: internal_function_label asserts `func_t.is_internal`.
-    return_label = _generate_label(f"{func_t._ir_info.internal_function_label}_call")
+    _label = func_t._ir_info.internal_function_label(context.is_ctor_context)
+    return_label = _generate_label(f"{_label}_call")
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
@@ -98,7 +99,7 @@ def ir_for_self_call(stmt_expr, context):
     else:
         copy_args = make_setter(args_dst, args_as_tuple)
 
-    goto_op = ["goto", func_t._ir_info.internal_function_label]
+    goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
     # pass return buffer to subroutine
     if return_buffer is not None:
         goto_op += [return_buffer]
