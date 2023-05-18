@@ -22,6 +22,9 @@ def validate_call_args(
     arg_count : int | tuple
         The required number of positional arguments. When given as a tuple the
         value is interpreted as the minimum and maximum number of arguments.
+        If arg_count[1] is -1, it is interpreted to mean that there is no
+        limit to the number of arguments (ex. when the function has a
+        variable number of arguments).
     kwargs : list, optional
         A list of valid keyword arguments. When arg_count is a tuple and the
         number of positional arguments exceeds the minimum, the excess values are
@@ -37,13 +40,22 @@ def validate_call_args(
     if not isinstance(arg_count, (int, tuple)):
         raise CompilerPanic(f"Invalid type for arg_count: {type(arg_count).__name__}")
 
-    if isinstance(arg_count, tuple) and arg_count[0] == arg_count[1]:
-        arg_count == arg_count[0]
+    if isinstance(arg_count, tuple):
+        if arg_count[1] == -1:
+            # -1 is sentinel which means we have varargs.
+            # set arg_count[1] to some large number that we
+            # would never see in practice
+            arg_count = (arg_count[0], 2**64)
+
+        if arg_count[0] == arg_count[1]:
+            arg_count == arg_count[0]
 
     if isinstance(node.func, vy_ast.Attribute):
         msg = f" for call to '{node.func.attr}'"
     elif isinstance(node.func, vy_ast.Name):
         msg = f" for call to '{node.func.id}'"
+    else:
+        raise CompilerPanic("Unreachable")
 
     if isinstance(arg_count, int) and len(node.args) != arg_count:
         if not node.args:

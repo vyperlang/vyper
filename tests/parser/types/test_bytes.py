@@ -1,4 +1,6 @@
-from vyper.exceptions import TypeMismatch
+import pytest
+
+from vyper.exceptions import InvalidType, TypeMismatch
 
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
@@ -196,7 +198,7 @@ def testsome_storage(y: Bytes[1]) -> bool:
     assert c.getsome() == b"\x0e"
     assert c.testsome(b"a")
     assert c.testsome(b"\x61")
-    assert c.testsome(0b1100001 .to_bytes(1, "big"))
+    assert c.testsome(0b1100001.to_bytes(1, "big"))
     assert not c.testsome(b"b")
     assert c.testsome_storage(b"a")
     assert not c.testsome_storage(b"x")
@@ -225,15 +227,35 @@ def test_bytes32_literals(get_contract):
     code = """
 @external
 def test() -> bool:
-    l: bytes32 = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x80\\xac\\x58\\xcd'  # noqa: E501
-    j: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
-    return l == j
+    l: bytes32 = 0x0000000000000000000000000000000000000000000000000000000080ac58cd
+    return l == 0x0000000000000000000000000000000000000000000000000000000080ac58cd
 
     """
 
     c = get_contract(code)
 
     assert c.test() is True
+
+
+@pytest.mark.parametrize("m,val", [(2, b"ab"), (3, b"ab"), (3, b"abc")])
+def test_bytes_literals(get_contract, m, val):
+    vyper_literal = "0x" + val.ljust(m, b"\x00").hex()
+    code = f"""
+@external
+def test() -> bool:
+    l: bytes{m} = {vyper_literal}
+    return l == {vyper_literal}
+
+@external
+def test2(l: bytes{m} = {vyper_literal}) -> bool:
+    return l == {vyper_literal}
+    """
+
+    c = get_contract(code)
+
+    assert c.test() is True
+    assert c.test2() is True
+    assert c.test2(vyper_literal) is True
 
 
 def test_zero_padding_with_private(get_contract):
@@ -246,9 +268,8 @@ def to_little_endian_64(_value: uint256) -> Bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
     for _ in range(8):
-        y = shift(y, 8)
-        y = y + bitwise_and(x, 255)
-        x = shift(x, -8)
+        y = (y << 8) | (x & 255)
+        x >>= 8
     return slice(convert(y, bytes32), 24, 8)
 
 @external
@@ -272,11 +293,43 @@ def get_count() -> Bytes[24]:
     assert c.get_count() == b"\x01\x01\x01\x01\x01\x01\x01\x01"
 
 
-def test_bytes_to_bytes32_assigment(get_contract, assert_compile_failed):
-    code = """
+cases_invalid_assignments = [
+    (
+        """
 @external
 def assign():
-    xs: Bytes[32] = b'abcdef'
+    xs: Bytes[32] = b"abcdef"
     y: bytes32 = xs
-    """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def assign():
+    xs: bytes6 = b"abcdef"
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def assign():
+    xs: bytes4 = 0xabcdef  # bytes3 literal
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def assign():
+    xs: bytes4 = 0x1234abcdef # bytes5 literal
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,exc", cases_invalid_assignments)
+def test_invalid_assignments(get_contract, assert_compile_failed, code, exc):
+    assert_compile_failed(lambda: get_contract(code), exc)

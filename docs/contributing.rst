@@ -17,7 +17,7 @@ In particular, we need help in the following areas:
 * Improving the documentation
 * Responding to questions from other users on `StackExchange
   <https://ethereum.stackexchange.com>`_ and `Discussions <https://github.com/vyperlang/vyper/discussions>`_
-* Add to the discussions on the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_
+* Add to the discussions on the `Vyper (Smart Contract Programming Language) Discord <https://discord.gg/6tw7PTM7C2>`_
 * Suggesting Improvements
 * Fixing and responding to `Vyper's GitHub issues <https://github.com/vyperlang/vyper/issues>`_
 
@@ -53,7 +53,7 @@ Find or report bugs at our `issues page <https://github.com/vyperlang/vyper/issu
 Style Guide
 ===========
 
-Our :ref:`style guide<style-guide>` outlines best practices for the Vyper repository. Please ask us on the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#vyper`` channel if you have questions about anything that is not outlined in the style guide.
+Our :ref:`style guide<style-guide>` outlines best practices for the Vyper repository. Please ask us on the `Vyper (Smart Contract Programming Language) Discord <https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` channel if you have questions about anything that is not outlined in the style guide.
 
 Workflow for Pull Requests
 ==========================
@@ -71,7 +71,7 @@ Implementing New Features
 
 If you are writing a new feature, please ensure you write appropriate Pytest test cases and place them under ``tests/``.
 
-If you are making a larger change, please consult first with the `Ethereum Python Dev Discord <https://discord.gg/abJEARdx3Q>`_ ``#vyper`` channel.
+If you are making a larger change, please consult first with the `Vyper (Smart Contract Programming Language) Discord <https://discord.gg/6tw7PTM7C2>`_ ``#compiler-dev`` channel.
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 

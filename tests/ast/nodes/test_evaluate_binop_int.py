@@ -5,7 +5,7 @@ from hypothesis import strategies as st
 from vyper import ast as vy_ast
 from vyper.exceptions import ZeroDivisionException
 
-st_int32 = st.integers(min_value=-(2 ** 32), max_value=2 ** 32)
+st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
 
 
 @pytest.mark.fuzzing
@@ -38,7 +38,7 @@ def foo(a: int128, b: int128) -> int128:
         assert_tx_failed(lambda: contract.foo(left, right))
 
 
-st_uint64 = st.integers(min_value=0, max_value=2 ** 64)
+st_uint64 = st.integers(min_value=0, max_value=2**64)
 
 
 @pytest.mark.fuzzing
@@ -70,10 +70,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 @pytest.mark.xfail(reason="need to implement safe exponentiation logic")
 @pytest.mark.fuzzing
 @settings(max_examples=50, deadline=1000)
-@given(
-    left=st.integers(min_value=2, max_value=245),
-    right=st.integers(min_value=0, max_value=16),
-)
+@given(left=st.integers(min_value=2, max_value=245), right=st.integers(min_value=0, max_value=16))
 @example(left=0, right=0)
 @example(left=0, right=1)
 def test_binop_int_pow(get_contract, left, right):
@@ -98,7 +95,6 @@ def foo(a: uint256, b: uint256) -> uint256:
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
 )
 def test_binop_nested(get_contract, assert_tx_failed, values, ops):
-
     variables = "abcdefghij"
     input_value = ",".join(f"{i}: int128" for i in variables[: len(values)])
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))

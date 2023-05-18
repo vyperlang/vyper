@@ -3,7 +3,7 @@ from typing import Dict, Optional
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
-active_evm_version: int = 0
+active_evm_version: int = 4
 
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
@@ -24,11 +24,12 @@ EVM_VERSIONS: Dict[str, int] = {
     "petersburg": 1,
     "istanbul": 2,
     "berlin": 3,
+    "paris": 4,
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
 }
-DEFAULT_EVM_VERSION: str = "berlin"
+DEFAULT_EVM_VERSION: str = "paris"
 
 
 # opcode as hex value
@@ -84,6 +85,7 @@ OPCODES: OpcodeMap = {
     "TIMESTAMP": (0x42, 0, 1, 2),
     "NUMBER": (0x43, 0, 1, 2),
     "DIFFICULTY": (0x44, 0, 1, 2),
+    "PREVRANDAO": (0x44, 0, 1, 2),
     "GASLIMIT": (0x45, 0, 1, 2),
     "CHAINID": (0x46, 0, 1, (None, None, 2)),
     "SELFBALANCE": (0x47, 0, 1, (None, None, 5)),
@@ -180,6 +182,7 @@ OPCODES: OpcodeMap = {
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
+    "BREAKPOINT": (0xA6, 0, 0, 0),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
@@ -187,11 +190,10 @@ PSEUDO_OPCODES: OpcodeMap = {
     "UCLAMPLT": (None, 2, 1, 25),
     "UCLAMPLE": (None, 2, 1, 30),
     "CLAMP_NONZERO": (None, 1, 1, 19),
-    "CODELOAD": (None, 1, 1, 9),
     "ASSERT": (None, 1, 0, 85),
     "ASSERT_UNREACHABLE": (None, 1, 0, 17),
     "PASS": (None, 0, 0, 0),
-    "DUMMY": (None, 0, 1, 0),  # tell LLL that no, there really is a stack item here
+    "DUMMY": (None, 0, 1, 0),  # tell IR that no, there really is a stack item here
     "BREAK": (None, 0, 0, 20),
     # cleanup_repeat cleans the stack similar to BREAK but without jumping to exit
     "CLEANUP_REPEAT": (None, 0, 0, 20),
@@ -206,9 +208,13 @@ PSEUDO_OPCODES: OpcodeMap = {
     "SET": (None, 2, 0, 20),
     "NE": (None, 2, 1, 6),
     "DEBUGGER": (None, 0, 0, 0),
+    "ILOAD": (None, 1, 1, 6),
+    "ISTORE": (None, 2, 0, 6),
+    "DLOAD": (None, 1, 1, 9),
+    "DLOADBYTES": (None, 3, 0, 3),
 }
 
-LLL_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
 def evm_wrapper(fn, *args, **kwargs):
@@ -244,8 +250,8 @@ def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
 _evm_opcodes: Dict[int, OpcodeRulesetMap] = {
     v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
 }
-_lll_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(LLL_OPCODES, v) for v in EVM_VERSIONS.values()
+_ir_opcodes: Dict[int, OpcodeRulesetMap] = {
+    v: _mk_version_opcodes(IR_OPCODES, v) for v in EVM_VERSIONS.values()
 }
 
 
@@ -253,8 +259,8 @@ def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[active_evm_version]
 
 
-def get_lll_opcodes() -> OpcodeRulesetMap:
-    return _lll_opcodes[active_evm_version]
+def get_ir_opcodes() -> OpcodeRulesetMap:
+    return _ir_opcodes[active_evm_version]
 
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:

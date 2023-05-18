@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Iterator, Set, TypeVar
 
 import vyper
-import vyper.codegen.lll_node as lll_node
+import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
@@ -20,6 +20,7 @@ T = TypeVar("T")
 format_options_help = """Format to print, one or more of:
 bytecode (default) - Deployable bytecode
 bytecode_runtime   - Bytecode at runtime
+blueprint_bytecode - Deployment bytecode for an ERC-5202 compatible blueprint
 abi                - ABI in JSON format
 abi_python         - ABI in python format
 source_map         - Vyper source map
@@ -33,15 +34,17 @@ interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Intermediate representation in LLL
-ir_json            - Intermediate LLL representation in JSON format
-ir-hex             - Output IR and assembly constants in hex instead of decimal
+ir                 - Intermediate representation in list format
+ir_json            - Intermediate representation in JSON format
+hex-ir             - Output IR and assembly constants in hex instead of decimal
 no-optimize        - Do not optimize (don't use this for production code)
+no-bytecode-metadata - Do not add metadata to bytecode
 """
 
 combined_json_outputs = [
     "bytecode",
     "bytecode_runtime",
+    "blueprint_bytecode",
     "abi",
     "layout",
     "source_map",
@@ -80,27 +83,16 @@ def _parse_args(argv):
         description="Pythonic Smart Contract Language for the EVM",
         formatter_class=argparse.RawTextHelpFormatter,
     )
+    parser.add_argument("input_files", help="Vyper sourcecode to compile", nargs="+")
     parser.add_argument(
-        "input_files",
-        help="Vyper sourcecode to compile",
-        nargs="+",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=vyper.__version__,
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "--show-gas-estimates",
         help="Show gas estimates in abi and ir output mode.",
         action="store_true",
     )
-    parser.add_argument(
-        "-f",
-        help=format_options_help,
-        default="bytecode",
-        dest="format",
-    )
+    parser.add_argument("-f", help=format_options_help, default="bytecode", dest="format")
     parser.add_argument(
         "--storage-layout-file",
         help="Override storage slots provided by compiler",
@@ -114,10 +106,9 @@ def _parse_args(argv):
         default=DEFAULT_EVM_VERSION,
         dest="evm_version",
     )
+    parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
-        "--no-optimize",
-        help="Do not optimize",
-        action="store_true",
+        "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
     parser.add_argument(
         "--traceback-limit",
@@ -125,8 +116,8 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
-        "--debug",
-        help="Turn on compiler debug information. "
+        "--verbose",
+        help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
         "may add more information in the future",
         action="store_true",
@@ -136,10 +127,7 @@ def _parse_args(argv):
         help="Switch to standard JSON mode. Use `--standard-json -h` for available options.",
         action="store_true",
     )
-    parser.add_argument(
-        "--ir-hex",
-        action="store_true",
-    )
+    parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
@@ -151,7 +139,7 @@ def _parse_args(argv):
         sys.tracebacklimit = args.traceback_limit
     elif VYPER_TRACEBACK_LIMIT is not None:
         sys.tracebacklimit = VYPER_TRACEBACK_LIMIT
-    elif args.debug:
+    elif args.verbose:
         sys.tracebacklimit = 1000
     else:
         # Python usually defaults sys.tracebacklimit to 1000.  We use a default
@@ -159,8 +147,8 @@ def _parse_args(argv):
         # an error occurred in a Vyper source file.
         sys.tracebacklimit = 0
 
-    if args.ir_hex:
-        lll_node.AS_HEX_DEFAULT = True
+    if args.hex_ir:
+        ir_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
 
@@ -172,6 +160,7 @@ def _parse_args(argv):
         args.evm_version,
         args.no_optimize,
         args.storage_layout,
+        args.no_bytecode_metadata,
     )
 
     if args.output_path:
@@ -211,7 +200,6 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
 
         interface_codes = extract_file_interface_imports(code)
         for interface_name, interface_path in interface_codes.items():
-
             base_paths = [parent_path]
             if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
                 base_paths.append(root_path)
@@ -248,10 +236,7 @@ def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dic
                     elif isinstance(contents, list) or (
                         "abi" in contents and isinstance(contents["abi"], list)
                     ):
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents,
-                        }
+                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
 
                     else:
                         raise ValueError(f"Corrupted file: '{valid_path}'")
@@ -270,8 +255,8 @@ def compile_files(
     evm_version: str = DEFAULT_EVM_VERSION,
     no_optimize: bool = False,
     storage_layout: Iterable[str] = None,
+    no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
-
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
@@ -314,6 +299,7 @@ def compile_files(
         no_optimize=no_optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
+        no_bytecode_metadata=no_bytecode_metadata,
     )
     if show_version:
         compiler_data["version"] = vyper.__version__

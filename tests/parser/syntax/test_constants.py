@@ -4,10 +4,12 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    ImmutableViolation,
     InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     VariableDeclarationException,
 )
 
@@ -70,6 +72,46 @@ VAL: uint256
     """,
         NamespaceCollision,
     ),
+    # global with same type and name
+    (
+        """
+VAL: constant(uint256) = 1
+VAL: uint256
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: constant(uint256) = 1
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name
+    (
+        """
+VAL: immutable(uint256)
+VAL: uint256
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: immutable(uint256)
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
     # signature variable with same name
     (
         """
@@ -87,16 +129,47 @@ C1: constant(uint256) = block.number
     """,
         StateAccessViolation,
     ),
+    (
+        """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: block.number})
+    """,
+        StateAccessViolation,
+    ),
     # cannot assign function result to a constant
     (
         """
-@external
+@internal
 def foo() -> uint256:
     return 42
 
-c1: constant(uint256) = self.foo
+c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
+    ),
+    (
+        # constant(public()) banned
+        """
+S: constant(public(uint256)) = 3
+    """,
+        SyntaxException,
+    ),
+    # cannot re-assign constant value
+    (
+        """
+struct Foo:
+    a : uint256
+
+x: constant(Foo) = Foo({a: 1})
+
+@external
+def hello() :
+    x.a =  2
+    """,
+        ImmutableViolation,
     ),
 ]
 
@@ -134,10 +207,13 @@ test_a : constant(uint256) = 218882428718392752222464057452572750886963111572978
 test_a : constant(int128) = 2188824287183927522224640574525
     """,
     """
-test_a: constant(uint256) = MAX_UINT256
+test_a: constant(uint256) = max_value(uint256)
     """,
     """
-TEST_C: constant(int128) = 1
+test_a: constant(address) = empty(address)
+    """,
+    """
+TEST_C: constant(uint256) = 1
 TEST_WEI: constant(uint256) = 1
 
 @internal
@@ -194,6 +270,39 @@ MY_DECIMAL: constant(decimal) = -1e38
     """,
     """
 CONST_BYTES: constant(Bytes[4]) = b'1234'
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+
+CONST_BAR: constant(Foo) = Foo({a: A, b: B})
+    """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+struct Bar:
+    c: Foo
+    d: int128
+
+A: constant(uint256) = 1
+B: constant(uint256) = 2
+C: constant(Foo) = Foo({a: A, b: B})
+D: constant(int128) = -1
+
+CONST_BAR: constant(Bar) = Bar({c: C, d: D})
     """,
 ]
 

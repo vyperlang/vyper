@@ -9,8 +9,8 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
-from vyper.codegen.lll_node import LLLnode
-from vyper.lll import compile_lll, optimizer
+from vyper.codegen.ir_node import IRnode
+from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
 
@@ -36,11 +36,7 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--no-optimize",
-        action="store_true",
-        help="disable asm and LLL optimizations",
-    )
+    parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
 
 
 @pytest.fixture(scope="module")
@@ -54,14 +50,6 @@ def keccak():
 
 
 @pytest.fixture
-def abi_encode(w3):
-    def f(abi_t, py_val):
-        return w3.codec.encode_single(abi_t, py_val)
-
-    return f
-
-
-@pytest.fixture
 def bytes_helper():
     def bytes_helper(str, length):
         return bytes(str, "utf-8") + bytearray(length - len(str))
@@ -70,13 +58,13 @@ def bytes_helper():
 
 
 @pytest.fixture
-def get_contract_from_lll(w3, no_optimize):
-    def lll_compiler(lll, *args, **kwargs):
-        lll = LLLnode.from_list(lll)
+def get_contract_from_ir(w3, no_optimize):
+    def ir_compiler(ir, *args, **kwargs):
+        ir = IRnode.from_list(ir)
         if not no_optimize:
-            lll = optimizer.optimize(lll)
-        bytecode, _ = compile_lll.assembly_to_evm(
-            compile_lll.compile_to_assembly(lll, no_optimize=no_optimize)
+            ir = optimizer.optimize(ir)
+        bytecode, _ = compile_ir.assembly_to_evm(
+            compile_ir.compile_to_assembly(ir, no_optimize=no_optimize)
         )
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -84,14 +72,11 @@ def get_contract_from_lll(w3, no_optimize):
         tx_hash = deploy_transaction.transact()
         address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
         contract = w3.eth.contract(
-            address,
-            abi=abi,
-            bytecode=bytecode,
-            ContractFactoryClass=VyperContract,
+            address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract
         )
         return contract
 
-    return lll_compiler
+    return ir_compiler
 
 
 @pytest.fixture(scope="module")
@@ -114,11 +99,11 @@ def get_contract_module(no_optimize):
 
 
 def get_compiler_gas_estimate(code, func):
-    lll_runtime = compiler.phases.CompilerData(code).lll_runtime
+    sigs = compiler.phases.CompilerData(code).function_signatures
     if func:
-        return compiler.utils.build_gas_estimates(lll_runtime)[func] + 22000
+        return compiler.utils.build_gas_estimates(sigs)[func] + 22000
     else:
-        return sum(compiler.utils.build_gas_estimates(lll_runtime).values()) + 22000
+        return sum(compiler.utils.build_gas_estimates(sigs).values()) + 22000
 
 
 def check_gas_on_chain(w3, tester, code, func=None, res=None):
@@ -155,11 +140,10 @@ def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
 @pytest.fixture
 def get_contract_with_gas_estimation(tester, w3, no_optimize):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-
         contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
-        for abi in contract._classic_contract.functions.abi:
-            if abi["type"] == "function":
-                set_decorator_to_contract_function(w3, tester, contract, source_code, abi["name"])
+        for abi_ in contract._classic_contract.functions.abi:
+            if abi_["type"] == "function":
+                set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
         return contract
 
     return get_contract_with_gas_estimation
@@ -184,8 +168,8 @@ def assert_compile_failed():
 
 @pytest.fixture
 def search_for_sublist():
-    def search_for_sublist(lll, sublist):
-        _list = lll.to_list() if hasattr(lll, "to_list") else lll
+    def search_for_sublist(ir, sublist):
+        _list = ir.to_list() if hasattr(ir, "to_list") else ir
         if _list == sublist:
             return True
         if isinstance(_list, list):

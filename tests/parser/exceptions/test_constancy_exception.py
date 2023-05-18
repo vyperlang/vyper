@@ -46,7 +46,7 @@ def foo() -> int128:
 @external
 @view
 def foo() -> int128:
-    x: address = create_forwarder_to(0x1234567890123456789012345678901234567890, value=9)
+    x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=9)
     return 5""",
         # test constancy in range expressions
         """
@@ -99,7 +99,27 @@ def test_statefulness_violations(bad_code):
         """
 @external
 def foo(x: int128):
-    x = 5""",
+    x = 5
+        """,
+        """
+@external
+def test(a: uint256[4]):
+    a[0] = 1
+        """,
+        """
+@external
+def test(a: uint256[4][4]):
+    a[0][1] = 1
+        """,
+        """
+struct Foo:
+    a: DynArray[DynArray[uint256, 2], 2]
+
+@external
+def foo(f: Foo) -> Foo:
+    f.a[1] = [0, 1]
+    return f
+        """,
     ],
 )
 def test_immutability_violations(bad_code):

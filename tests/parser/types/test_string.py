@@ -56,9 +56,9 @@ def get(k: String[34]) -> int128:
 
     c = get_contract(code)
 
-    c.set(b"a" * 34, 6789, transact={"gas": 10 ** 6})
+    c.set("a" * 34, 6789, transact={"gas": 10**6})
 
-    assert c.get(b"a" * 34) == 6789
+    assert c.get("a" * 34) == 6789
 
 
 def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
@@ -152,7 +152,6 @@ def test(addr: address) -> (int128, address, String[10]):
 
 
 def test_default_arg_string(get_contract_with_gas_estimation):
-
     code = """
 @external
 def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
@@ -168,120 +167,165 @@ def test(a: uint256, b: String[50] = "foo") -> Bytes[100]:
     assert c.test(12345, "bar")[-3:] == b"bar"
 
 
-def test_string_equality(get_contract_with_gas_estimation):
-    code = """
-_compA: String[100]
-_compB: String[100]
+string_equality_tests = [
+    (
+        100,
+        "The quick brown fox jumps over the lazy dog",
+        "The quick brown fox jumps over the lazy hog",
+    ),
+    # check <= 32 codepath
+    (32, "abc", "abc\0"),
+    (32, "abc", "abc\1"),  # use a_init dirty bytes
+    (32, "abc\2", "abc"),  # use b_init dirty bytes
+    (32, "", "\0"),
+    (32, "", "\1"),
+    (33, "", "\1"),
+    (33, "", "\0"),
+]
+
+
+@pytest.mark.parametrize("len_,a,b", string_equality_tests)
+def test_string_equality(get_contract_with_gas_estimation, len_, a, b):
+    # fixtures to initialize strings with dirty bytes
+    a_init = "\\1" * len_
+    b_init = "\\2" * len_
+    string1 = a.encode("unicode_escape").decode("utf-8")
+    string2 = b.encode("unicode_escape").decode("utf-8")
+    code = f"""
+a: String[{len_}]
+b: String[{len_}]
 
 @external
 def equal_true() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
-    return compA == compB
+    a: String[{len_}] = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    a = "{string1}"
+    b = "{string1}"
+    return a == b
 
 @external
 def equal_false() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
-    return compA == compB
+    a: String[{len_}] = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    a = "{string1}"
+    b = "{string2}"
+    return a == b
 
 @external
 def not_equal_true() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
-    return compA != compB
+    a: String[{len_}] = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    a = "{string1}"
+    b = "{string2}"
+    return a != b
 
 @external
 def not_equal_false() -> bool:
-    compA: String[100] = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
-    return compA != compB
+    a: String[{len_}] = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    a = "{string1}"
+    b = "{string1}"
+    return a != b
 
 @external
 def literal_equal_true() -> bool:
-    return "The quick brown fox jumps over the lazy dog" == \
-    "The quick brown fox jumps over the lazy dog"
+    return "{string1}" == "{string1}"
 
 @external
 def literal_equal_false() -> bool:
-    return "The quick brown fox jumps over the lazy dog" == \
-    "The quick brown fox jumps over the lazy hog"
+    return "{string1}" == "{string2}"
 
 @external
 def literal_not_equal_true() -> bool:
-    return "The quick brown fox jumps over the lazy dog" != \
-    "The quick brown fox jumps over the lazy hog"
+    return "{string1}" != "{string2}"
 
 @external
 def literal_not_equal_false() -> bool:
-    return "The quick brown fox jumps over the lazy dog" != \
-    "The quick brown fox jumps over the lazy dog"
+    return "{string1}" != "{string1}"
 
 @external
 def storage_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy dog"
-    return self._compA == self._compB
+    self.a = "{a_init}"
+    self.b = "{b_init}"
+    self.a = "{string1}"
+    self.b = "{string1}"
+    return self.a == self.b
 
 @external
 def storage_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy hog"
-    return self._compA == self._compB
+    self.a = "{a_init}"
+    self.b = "{b_init}"
+    self.a = "{string1}"
+    self.b = "{string2}"
+    return self.a == self.b
 
 @external
 def storage_not_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy hog"
-    return self._compA != self._compB
+    self.a = "{a_init}"
+    self.b = "{b_init}"
+    self.a = "{string1}"
+    self.b = "{string2}"
+    return self.a != self.b
 
 @external
 def storage_not_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    self._compB = "The quick brown fox jumps over the lazy dog"
-    return self._compA != self._compB
+    self.a = "{a_init}"
+    self.b = "{b_init}"
+    self.a = "{string1}"
+    self.b = "{string1}"
+    return self.a != self.b
 
 @external
-def string_compare_equal(str1: String[100], str2: String[100]) -> bool:
+def string_compare_equal(str1: String[{len_}], str2: String[{len_}]) -> bool:
     return str1 == str2
 
 @external
-def string_compare_not_equal(str1: String[100], str2: String[100]) -> bool:
+def string_compare_not_equal(str1: String[{len_}], str2: String[{len_}]) -> bool:
     return str1 != str2
 
 @external
-def compare_passed_storage_equal(str: String[100]) -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    return self._compA == str
+def compare_passed_storage_equal(str_: String[{len_}]) -> bool:
+    self.a = "{a_init}"
+    self.a = "{string1}"
+    return self.a == str_
 
 @external
-def compare_passed_storage_not_equal(str: String[100]) -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    return self._compA != str
+def compare_passed_storage_not_equal(str_: String[{len_}]) -> bool:
+    self.a = "{a_init}"
+    self.a = "{string1}"
+    return self.a != str_
 
 @external
 def compare_var_storage_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
-    return self._compA == compB
+    self.a = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    self.a = "{string1}"
+    b = "{string1}"
+    return self.a == b
 
 @external
 def compare_var_storage_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
-    return self._compA == compB
+    self.a = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    self.a = "{string1}"
+    b = "{string2}"
+    return self.a == b
 
 @external
 def compare_var_storage_not_equal_true() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy hog"
-    return self._compA != compB
+    self.a = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    self.a = "{string1}"
+    b = "{string2}"
+    return self.a != b
 
 @external
 def compare_var_storage_not_equal_false() -> bool:
-    self._compA = "The quick brown fox jumps over the lazy dog"
-    compB: String[100] = "The quick brown fox jumps over the lazy dog"
-    return self._compA != compB
+    self.a = "{a_init}"
+    b: String[{len_}] = "{b_init}"
+    self.a = "{string1}"
+    b = "{string1}"
+    return self.a != b
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -298,8 +342,6 @@ def compare_var_storage_not_equal_false() -> bool:
     assert c.storage_not_equal_true() is True
     assert c.storage_not_equal_false() is False
 
-    a = "The quick brown fox jumps over the lazy dog"
-    b = "The quick brown fox jumps over the lazy hog"
     assert c.string_compare_equal(a, a) is True
     assert c.string_compare_equal(a, b) is False
     assert c.string_compare_not_equal(b, a) is True

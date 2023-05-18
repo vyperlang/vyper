@@ -1,5 +1,9 @@
 from decimal import Decimal
 
+import pytest
+
+from vyper.exceptions import StructureException
+
 
 def test_break_test(get_contract_with_gas_estimation):
     break_test = """
@@ -79,3 +83,41 @@ def foo(n: int128) -> int128:
     assert c.foo(200) == 23
     assert c.foo(4000000) == 66
     print("Passed aug-assignment break composite test")
+
+
+fail_list = [
+    (
+        """
+@external
+def foo():
+    a: uint256 = 3
+    break
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo():
+    if True:
+        break
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo():
+    for i in [1, 2, 3]:
+        b: uint256 = i
+    if True:
+        break
+    """,
+        StructureException,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

@@ -42,7 +42,7 @@ def foo():
     """
 @external
 def foo():
-    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, outsize=4)
+    x: Bytes[4] = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, outsize=4)
     """,
     """
 x: public()
@@ -60,7 +60,7 @@ def foo():
     """
 @external
 def foo():
-    x: Bytes[4] = create_forwarder_to(0x1234567890123456789012345678901234567890, b"cow")
+    x: Bytes[4] = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, b"cow")
     """,
     """
 @external

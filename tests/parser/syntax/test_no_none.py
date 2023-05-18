@@ -190,15 +190,6 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({b: None, a: 0})
-    """,
-        """
-struct Mom:
-    a: uint256
-    b: int128
-
-@external
-def foo():
     mom: Mom = Mom({a: None, b: None})
     """,
     ]

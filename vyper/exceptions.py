@@ -17,16 +17,12 @@ class ExceptionList(list):
         if len(self) == 1:
             raise self[0]
         elif len(self) > 1:
-            if len(set(type(i) for i in self)) > 1:
-                err_type = StructureException
-            else:
-                err_type = type(self[0])
             err_msg = ["Compilation failed with the following errors:"]
-            err_msg += [f"{type(i).__name__}: {i}" for i in self]
-            raise err_type("\n\n".join(err_msg))
+            err_msg += [f"{type(i).__name__}: {i}" for i in reversed(self)]
+            raise VyperException("\n\n".join(err_msg))
 
 
-class VyperException(Exception):
+class _BaseVyperException(Exception):
     """
     Base Vyper exception class.
 
@@ -108,7 +104,7 @@ class VyperException(Exception):
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
                 if module_node.get("name") not in (None, "<unknown>"):
-                    node_msg = f'{node_msg}contract "{module_node.name}", '
+                    node_msg = f'{node_msg}contract "{module_node.name}:{node.lineno}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
@@ -127,6 +123,10 @@ class VyperException(Exception):
 
         annotation_msg = "\n".join(annotation_list)
         return f"{self.message}\n{annotation_msg}"
+
+
+class VyperException(_BaseVyperException):
+    pass
 
 
 class SyntaxException(VyperException):
@@ -155,6 +155,10 @@ class StructureException(VyperException):
     """Invalid structure for parsable syntax."""
 
 
+class InstantiationException(StructureException):
+    """Variable or expression cannot be instantiated"""
+
+
 class VersionException(VyperException):
     """Version string is malformed or incompatible with this compiler version."""
 
@@ -165,6 +169,10 @@ class VariableDeclarationException(VyperException):
 
 class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
+
+
+class EnumDeclarationException(VyperException):
+    """Invalid enum declaration."""
 
 
 class EventDeclarationException(VyperException):
@@ -273,19 +281,24 @@ class ParserException(Exception):
     """Contract source cannot be parsed."""
 
 
-class VyperInternalException(Exception):
+class UnimplementedException(VyperException):
+    """Some feature is known to be not implemented"""
+
+
+class StaticAssertionException(VyperException):
+    """An assertion is proven to fail at compile-time."""
+
+
+class VyperInternalException(_BaseVyperException):
     """
     Base Vyper internal exception class.
 
     This exception is not raised directly, it is subclassed by other internal
     exceptions.
 
-    Internal exceptions are raised as a means of passing information between
-    compiler processes. They should never be exposed to the user.
+    Internal exceptions are raised as a means of telling the user that the
+    compiler has panicked, and that filing a bug report would be appropriate.
     """
-
-    def __init__(self, message=""):
-        self.message = message
 
     def __str__(self):
         return (

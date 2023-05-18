@@ -167,8 +167,8 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
 
     monkeypatch.setattr("eth_abi.encoding.NumberEncoder.validate_value", validate_value)
 
-    assert c.bar(200, 2 ** 127 - 1) == [200, 2 ** 127 - 1]
-    assert_tx_failed(lambda: c.bar(200, 2 ** 127))
+    assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
+    assert_tx_failed(lambda: c.bar(200, 2**127))
 
 
 def test_default_param_private(get_contract):
@@ -195,18 +195,6 @@ def callMeMaybe() -> (Bytes[100], uint256, Bytes[20]):
 
     # assert c.callMe() == [b'hello there', 123456, b'crazy']
     assert c.callMeMaybe() == [b"here is my number", 555123456, b"baby"]
-
-
-def test_builtin_constants_as_default(get_contract):
-    code = """
-@external
-def foo(a: int128 = MIN_INT128, b: int128 = MAX_INT128) -> (int128, int128):
-    return a, b
-    """
-    c = get_contract(code)
-    assert c.foo() == [-(2 ** 127), 2 ** 127 - 1]
-    assert c.foo(31337) == [31337, 2 ** 127 - 1]
-    assert c.foo(13, 42) == [13, 42]
 
 
 def test_environment_vars_as_default(get_contract):
@@ -281,7 +269,41 @@ def foo(a: uint256 = msg.value): pass
     """
 @external
 def foo(a: uint256 = 2**8): pass
-     """,
+    """,
+    """
+struct Bar:
+    a: address
+    b: uint256
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: 1})): pass
+    """,
+    """
+struct Baz:
+    c: address
+    d: int128
+
+struct Bar:
+    a: address
+    b: Baz
+
+@external
+def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
+    """,
+    """
+A: public(address)
+
+@external
+def foo(a: address = empty(address)):
+    self.A = a
+    """,
+    """
+A: public(int112)
+
+@external
+def foo(a: int112 = min_value(int112)):
+    self.A = a
+    """,
 ]
 
 

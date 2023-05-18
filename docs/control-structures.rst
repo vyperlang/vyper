@@ -36,7 +36,14 @@ External functions (marked with the ``@external`` decorator) are a part of the c
     def add_seven(a: int128) -> int128:
         return a + 7
 
+    @external
+    def add_seven_with_overloading(a: uint256, b: uint256 = 3):
+        return a + b
+
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
+
+.. note::
+    For external functions with default arguments like ``def my_function(x: uint256, b: uint256 = 1)`` the Vyper compiler will generate ``N+1`` overloaded function selectors based on ``N`` default arguments.
 
 .. _structure-functions-internal:
 
@@ -48,14 +55,15 @@ Internal functions (marked with the ``@internal`` decorator) are only accessible
 .. code-block:: python
 
     @internal
-    def _times_two(amount: uint256) -> uint256:
-        return amount * 2
+    def _times_two(amount: uint256, two: uint256 = 2) -> uint256:
+        return amount * two
 
     @external
     def calculate(amount: uint256) -> uint256:
         return self._times_two(amount)
 
-Internal functions do not have access to ``msg.sender`` or ``msg.value``. If you require these values within an internal function you must pass them as parameters.
+.. note::
+    Since calling an ``internal`` function is realized by jumping to its entry label, the internal function dispatcher ensures the correctness of the jumps. Please note that for ``internal`` functions which use more than one default parameter, Vyper versions ``>=0.3.8`` are strongly recommended due to the security advisory `GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_.
 
 Mutability
 ----------
@@ -83,7 +91,11 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
         # this function can receive ether
         ...
 
-Functions default to nonpayable when no mutability decorator is used.
+Functions default to ``nonpayable`` when no mutability decorator is used.
+
+Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable``) functions. Any external calls are made using the special ``STATICCALL`` opcode, which prevents state changes at the EVM level.
+
+Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
 Re-entrancy Locks
 -----------------
@@ -100,7 +112,19 @@ The ``@nonreentrant(<key>)`` decorator places a lock on a function, and all func
 
 You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
 
-The `__default__` Function
+Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
+
+You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
+
+.. note::
+    A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected by the use of the ``STATICCALL`` opcode.
+
+.. note::
+
+    A nonreentrant lock has an ``<unlocked>`` value of 3, and a ``<locked>`` value of 2. Nonzero values are used to take advantage of net gas metering - as of the Berlin hard fork, the net cost for utilizing a nonreentrant lock is 2300 gas. Prior to v0.3.4, the ``<unlocked>`` and ``<locked>`` values were 0 and 1, respectively.
+
+
+The ``__default__`` Function
 --------------------------
 
 A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
@@ -112,7 +136,7 @@ If the function is annotated as ``@payable``, this function is executed whenever
 .. code-block:: python
 
     event Payment:
-        amount: int128
+        amount: uint256
         sender: indexed(address)
 
     @external
@@ -140,7 +164,7 @@ Lastly, although the default function receives no arguments, it can still access
     * the amount of ETH sent (``msg.value``)
     * the gas provided (``msg.gas``).
 
-The `__init__` Function
+The ``__init__`` Function
 -----------------------
 
 ``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
@@ -149,6 +173,7 @@ The `__init__` Function
 
     owner: address
 
+    @external
     def __init__():
         self.owner = msg.sender
 
@@ -207,7 +232,7 @@ The ``for`` statement is a control flow construct used to iterate over a value:
     for i in <ITERABLE>:
         ...
 
-The iterated value can be a static array, or generated from the builtin ``range`` function.
+The iterated value can be a static array, a dynamic array, or generated from the built-in ``range`` function.
 
 Array Iteration
 ---------------
@@ -248,7 +273,7 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: python
 
-    for i in range(start, stop):
+    for i in range(START, STOP):
         ...
 
 ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.

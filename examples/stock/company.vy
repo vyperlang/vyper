@@ -39,12 +39,6 @@ def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     # The company holds all the shares at first, but can sell them all.
     self.holdings[self.company] = _total_shares
 
-# Find out how much stock the company holds
-@view
-@internal
-def _stockAvailable() -> uint256:
-    return self.holdings[self.company]
-
 # Public function to allow external access to _stockAvailable
 @view
 @external
@@ -68,12 +62,6 @@ def buyStock():
 
     # Log the buy event.
     log Buy(msg.sender, buy_order)
-
-# Find out how much stock any address (that's owned by someone) has.
-@view
-@internal
-def _getHolding(_stockholder: address) -> uint256:
-    return self.holdings[_stockholder]
 
 # Public function to allow external access to _getHolding
 @view
@@ -135,12 +123,6 @@ def payBill(vendor: address, amount: uint256):
     # Log the payment event.
     log Pay(vendor, amount)
 
-# Return the amount in wei that a company has raised in stock offerings.
-@view
-@internal
-def _debt() -> uint256:
-    return (self.totalShares - self._stockAvailable()) * self.price
-
 # Public function to allow external access to _debt
 @view
 @external
@@ -154,3 +136,21 @@ def debt() -> uint256:
 @external
 def worth() -> uint256:
     return self.balance - self._debt()
+
+# Return the amount in wei that a company has raised in stock offerings.
+@view
+@internal
+def _debt() -> uint256:
+    return (self.totalShares - self._stockAvailable()) * self.price
+
+# Find out how much stock the company holds
+@view
+@internal
+def _stockAvailable() -> uint256:
+    return self.holdings[self.company]
+
+# Find out how much stock any address (that's owned by someone) has.
+@view
+@internal
+def _getHolding(_stockholder: address) -> uint256:
+    return self.holdings[_stockholder]

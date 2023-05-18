@@ -1,16 +1,15 @@
 import pytest
 
-from vyper.builtin_functions import BUILTIN_FUNCTIONS
-from vyper.codegen.expr import BUILTIN_CONSTANTS, ENVIRONMENT_VARIABLES
+from vyper.ast.folding import BUILTIN_CONSTANTS
+from vyper.builtins.functions import BUILTIN_FUNCTIONS
+from vyper.codegen.expr import ENVIRONMENT_VARIABLES
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
 from vyper.semantics.namespace import RESERVED_KEYWORDS
-from vyper.utils import FUNCTION_WHITELIST
+from vyper.semantics.types.primitives import AddressT
 
+BUILTIN_CONSTANTS = set(BUILTIN_CONSTANTS.keys())
 ALL_RESERVED_KEYWORDS = (
-    set(BUILTIN_CONSTANTS.keys())
-    .union(BUILTIN_FUNCTIONS)
-    .union(RESERVED_KEYWORDS)
-    .union(ENVIRONMENT_VARIABLES)
+    BUILTIN_CONSTANTS | BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
 )
 
 
@@ -22,8 +21,7 @@ def test():
     {constant}: int128 = 31337
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, StructureException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
     )
 
 
@@ -31,8 +29,7 @@ def test():
 def test_reserved_keywords_storage(constant, get_contract, assert_compile_failed):
     code = f"{constant}: int128"
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, StructureException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
     )
 
 
@@ -44,22 +41,32 @@ def test({constant}: int128):
     pass
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, StructureException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
     )
 
 
-RESERVED_KEYWORDS_NOT_WHITELISTED = sorted(ALL_RESERVED_KEYWORDS.difference(FUNCTION_WHITELIST))
+SELF_NAMESPACE_MEMBERS = set(AddressT._type_members.keys())
+DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | RESERVED_KEYWORDS | BUILTIN_CONSTANTS
+ALLOWED_FN_NAMES = ALL_RESERVED_KEYWORDS - DISALLOWED_FN_NAMES
 
 
-@pytest.mark.parametrize("constant", sorted(RESERVED_KEYWORDS_NOT_WHITELISTED))
-def test_reserved_keywords_fns(constant, get_contract, assert_compile_failed):
+@pytest.mark.parametrize("constant", sorted(ALLOWED_FN_NAMES))
+def test_reserved_keywords_fns_pass(constant, get_contract, assert_compile_failed):
+    code = f"""
+@external
+def {constant}(var: int128):
+    pass
+    """
+    assert get_contract(code) is not None
+
+
+@pytest.mark.parametrize("constant", sorted(DISALLOWED_FN_NAMES))
+def test_reserved_keywords_fns_fail(constant, get_contract, assert_compile_failed):
     code = f"""
 @external
 def {constant}(var: int128):
     pass
     """
     assert_compile_failed(
-        lambda: get_contract(code),
-        (SyntaxException, StructureException, NamespaceCollision),
+        lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
     )

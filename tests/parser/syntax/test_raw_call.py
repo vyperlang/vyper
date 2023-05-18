@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, InvalidType, StructureException, SyntaxException
+from vyper.exceptions import ArgumentException, InvalidType, SyntaxException, TypeMismatch
 
 fail_list = [
     (
@@ -17,18 +17,12 @@ def foo():
     (
         """
 @external
-def foo():
-    raw_log([b"cow"], b"dog")
+@view
+def foo(_addr: bytes4):
+    # bytes4 instead of address
+    raw_call(_addr, method_id("foo()"))
     """,
-        (InvalidType, StructureException),
-    ),
-    (
-        """
-@external
-def foo():
-    raw_log([], 0x1234567890123456789012345678901234567890)
-    """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -44,7 +38,6 @@ def foo():
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_raw_call_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 

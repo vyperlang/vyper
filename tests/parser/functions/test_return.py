@@ -12,16 +12,12 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     # Make sure underlying structe is correctly right padded
     classic_contract = c._classic_contract
     func = classic_contract.functions.hardtest(b"hello" * 5, b"hello" * 10)
-    tx = func.buildTransaction(
-        {
-            "gasPrice": 0,
-        }
-    )
+    tx = func.build_transaction({"gasPrice": 0})
     del tx["chainId"]
     del tx["gasPrice"]
 
     tx["from"] = w3.eth.accounts[0]
-    res = w3.toBytes(hexstr=tester.call(tx))
+    res = w3.to_bytes(hexstr=tester.call(tx))
 
     static_offset = int.from_bytes(res[:32], "big")
     assert static_offset == 32

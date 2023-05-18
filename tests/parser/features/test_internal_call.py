@@ -1,6 +1,9 @@
+import string
 from decimal import Decimal
 
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, CallViolation
@@ -49,6 +52,24 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     assert c.return_hash_of_rzpadded_cow() == keccak(b"cow" + b"\x00" * 29)
 
     print("Passed single fixed-size argument self-call test")
+
+
+# test that side-effecting self calls do not get optimized out
+def test_selfcall_optimizer(get_contract):
+    code = """
+counter: uint256
+
+@internal
+def increment_counter() -> uint256:
+    self.counter += 1
+    return self.counter
+@external
+def foo() -> (uint256, uint256):
+    x: uint256 = unsafe_mul(self.increment_counter(), 0)
+    return x, self.counter
+    """
+    c = get_contract(code)
+    assert c.foo() == [0, 1]
 
 
 def test_selfcall_code_3(get_contract_with_gas_estimation, keccak):
@@ -449,6 +470,15 @@ def bar(a: int128) -> int128:
 def foo() -> int128:
     return self.bar(1, 2)
     """,
+    """
+@internal
+def _foo(x: uint256, y: uint256 = 1):
+    pass
+
+@external
+def foo(x: uint256, y: uint256):
+    self._foo(x, y=y)
+    """,
 ]
 
 
@@ -615,3 +645,62 @@ def bar() -> String[6]:
     c = get_contract_with_gas_estimation(contract)
 
     assert c.bar() == "hello"
+
+
+# TODO probably want to refactor these into general test utils
+st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
+st_string65 = st.text(max_size=65, alphabet=string.printable)
+st_bytes65 = st.binary(max_size=65)
+st_sarray3 = st.lists(st_uint256, min_size=3, max_size=3)
+st_darray3 = st.lists(st_uint256, max_size=3)
+
+internal_call_kwargs_cases = [
+    ("uint256", st_uint256),
+    ("String[65]", st_string65),
+    ("Bytes[65]", st_bytes65),
+    ("uint256[3]", st_sarray3),
+    ("DynArray[uint256, 3]", st_darray3),
+]
+
+
+@pytest.mark.parametrize("typ1,strategy1", internal_call_kwargs_cases)
+@pytest.mark.parametrize("typ2,strategy2", internal_call_kwargs_cases)
+def test_internal_call_kwargs(get_contract, typ1, strategy1, typ2, strategy2):
+    # GHSA-ph9x-4vc9-m39g
+
+    @given(kwarg1=strategy1, default1=strategy1, kwarg2=strategy2, default2=strategy2)
+    @settings(deadline=None, max_examples=5)  # len(cases) * len(cases) * 5 * 5
+    def fuzz(kwarg1, kwarg2, default1, default2):
+        code = f"""
+@internal
+def foo(a: {typ1} = {repr(default1)}, b: {typ2} = {repr(default2)}) -> ({typ1}, {typ2}):
+    return a, b
+
+@external
+def test0() -> ({typ1}, {typ2}):
+    return self.foo()
+
+@external
+def test1() -> ({typ1}, {typ2}):
+    return self.foo({repr(kwarg1)})
+
+@external
+def test2() -> ({typ1}, {typ2}):
+    return self.foo({repr(kwarg1)}, {repr(kwarg2)})
+
+@external
+def test3(x1: {typ1}) -> ({typ1}, {typ2}):
+    return self.foo(x1)
+
+@external
+def test4(x1: {typ1}, x2: {typ2}) -> ({typ1}, {typ2}):
+    return self.foo(x1, x2)
+        """
+        c = get_contract(code)
+        assert c.test0() == [default1, default2]
+        assert c.test1() == [kwarg1, default2]
+        assert c.test2() == [kwarg1, kwarg2]
+        assert c.test3(kwarg1) == [kwarg1, default2]
+        assert c.test4(kwarg1, kwarg2) == [kwarg1, kwarg2]
+
+    fuzz()

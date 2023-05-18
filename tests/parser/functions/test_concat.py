@@ -1,6 +1,3 @@
-from vyper.exceptions import TypeMismatch
-
-
 def test_concat(get_contract_with_gas_estimation):
     test_concat = """
 @external
@@ -121,12 +118,60 @@ def small_output(a: String[5], b: String[4]) -> String[9]:
     assert c.small_output("", "") == ""
 
 
-def test_large_output(get_contract_with_gas_estimation, assert_compile_failed):
+def test_small_bytes(get_contract_with_gas_estimation):
+    # TODO maybe use parametrization or hypothesis for the examples
     code = """
 @external
-def large_output(a: String[33], b: String[33]) -> String[64]:
-    c: String[64] = concat(a, b)
-    return c
-    """
+def small_bytes1(a: bytes1, b: Bytes[2]) -> Bytes[3]:
+    return concat(a, b)
 
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+@external
+def small_bytes2(a: Bytes[1], b: bytes2) -> Bytes[3]:
+    return concat(a, b)
+
+@external
+def small_bytes3(a: bytes4, b: bytes32) -> Bytes[36]:
+    return concat(a, b)
+
+@external
+def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
+    return concat(a, b, c)
+    """
+    contract = get_contract_with_gas_estimation(code)
+
+    i = 0
+
+    def bytes_for_len(n):
+        nonlocal i
+        # bytes constructor with state
+        # (so we don't keep generating the same string)
+        xs = []
+        for _ in range(n):
+            i += 1
+            i %= 256
+            xs.append(i)
+        return bytes(xs)
+
+    a, b = bytes_for_len(1), bytes_for_len(2)
+    assert contract.small_bytes1(a, b) == a + b
+
+    a, b = bytes_for_len(1), bytes_for_len(1)
+    assert contract.small_bytes1(a, b) == a + b
+
+    a, b = bytes_for_len(1), bytes_for_len(2)
+    assert contract.small_bytes2(a, b) == a + b
+
+    a, b = b"", bytes_for_len(2)
+    assert contract.small_bytes2(a, b) == a + b
+
+    a, b = bytes_for_len(4), bytes_for_len(32)
+    assert contract.small_bytes3(a, b) == a + b
+
+    a, b, c = bytes_for_len(8), bytes_for_len(32), bytes_for_len(8)
+    assert contract.small_bytes4(a, b, c) == a + b + c
+
+    a, b, c = bytes_for_len(8), bytes_for_len(1), bytes_for_len(8)
+    assert contract.small_bytes4(a, b, c) == a + b + c
+
+    a, b, c = bytes_for_len(8), bytes_for_len(0), bytes_for_len(8)
+    assert contract.small_bytes4(a, b, c) == a + b + c

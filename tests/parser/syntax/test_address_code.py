@@ -5,7 +5,7 @@ from eth_tester.exceptions import TransactionFailed
 from web3 import Web3
 
 from vyper import compiler
-from vyper.exceptions import StructureException, SyntaxException, VyperException
+from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501
@@ -19,18 +19,11 @@ def _deploy_precompiled_contract(w3: Web3):
     tx_hash = Precompiled.constructor().transact()
     tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     address = tx_receipt["contractAddress"]
-    return w3.eth.contract(
-        address=address,
-        abi=PRECOMPILED_ABI,
-    )
+    return w3.eth.contract(address=address, abi=PRECOMPILED_ABI)
 
 
 @pytest.mark.parametrize(
-    ("start", "length", "expected"),
-    [
-        (0, 5, PRECOMPILED[:5]),
-        (5, 10, PRECOMPILED[5:][:10]),
-    ],
+    ("start", "length", "expected"), [(0, 5, PRECOMPILED[:5]), (5, 10, PRECOMPILED[5:][:10])]
 )
 def test_address_code_slice(start: int, length: int, expected: bytes, w3: Web3, get_contract):
     code = f"""
@@ -80,7 +73,18 @@ def code_slice(x: address) -> uint256:
     y: uint256 = convert(x.code, uint256)
     return y
 """,
-            SyntaxException,
+            StructureException,
+            "(address).code is only allowed inside of a slice function with a constant length",
+        ),
+        (
+            """
+a: HashMap[Bytes[4], uint256]
+
+@external
+def foo(x: address):
+    self.a[x.code] += 1
+""",
+            StructureException,
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
@@ -91,7 +95,7 @@ def code_slice(x: address) -> uint256:
     y: uint256 = len(x.code)
     return y
 """,
-            SyntaxException,
+            StructureException,
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
@@ -102,7 +106,7 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
     z: Bytes[4] = slice(x.code, 0, y)
     return z
 """,
-            SyntaxException,
+            StructureException,
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
@@ -110,17 +114,8 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
             """
 code: public(Bytes[4])
 """,
-            StructureException,
-            "'code' is a reserved keyword",
-        ),
-        (
-            # User defined struct with `code` attribute
-            """
-struct S:
-    code: Bytes[4]
-""",
-            StructureException,
-            "'code' is a reserved keyword",
+            NamespaceCollision,
+            "Value 'code' has already been declared",
         ),
     ],
 )
@@ -180,9 +175,7 @@ def code_runtime() -> Bytes[32]:
 """
     contract = get_contract(code)
     code_compiled = compiler.compile_code(
-        code,
-        output_formats=["bytecode", "bytecode_runtime"],
-        no_optimize=no_optimize,
+        code, output_formats=["bytecode", "bytecode_runtime"], no_optimize=no_optimize
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]

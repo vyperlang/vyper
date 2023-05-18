@@ -1,36 +1,49 @@
 from typing import Dict
 
-# TODO consolidate some of these imports
-from vyper.semantics.types.user.struct import StructDefinition
-from vyper.semantics.types.value.address import AddressDefinition
-from vyper.semantics.types.value.array_value import BytesArrayDefinition
-from vyper.semantics.types.value.bytes_fixed import Bytes32Definition
-from vyper.semantics.types.value.numeric import Uint256Definition
-
-CONSTANT_ENVIRONMENT_VARS: Dict[str, Dict[str, type]] = {
-    "block": {
-        "coinbase": AddressDefinition,
-        "difficulty": Uint256Definition,
-        "number": Uint256Definition,
-        "gaslimit": Uint256Definition,
-        "basefee": Uint256Definition,
-        "prevhash": Bytes32Definition,
-        "timestamp": Uint256Definition,
-    },
-    "chain": {"id": Uint256Definition},
-    "msg": {
-        "data": BytesArrayDefinition,
-        "gas": Uint256Definition,
-        "sender": AddressDefinition,
-        "value": Uint256Definition,
-    },
-    "tx": {"origin": AddressDefinition, "gasprice": Uint256Definition},
-}
+from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.types import AddressT, BytesT, VyperType
+from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {
-    "self": AddressDefinition,
-}
+# common properties for environment variables
+class _EnvType(VyperType):
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return hash(id(self))
+
+
+class _Block(_EnvType):
+    _id = "block"
+    _type_members = {
+        "coinbase": AddressT(),
+        "difficulty": UINT256_T,
+        "prevrandao": UINT256_T,
+        "number": UINT256_T,
+        "gaslimit": UINT256_T,
+        "basefee": UINT256_T,
+        "prevhash": BYTES32_T,
+        "timestamp": UINT256_T,
+    }
+
+
+class _Chain(_EnvType):
+    _id = "chain"
+    _type_members = {"id": UINT256_T}
+
+
+class _Msg(_EnvType):
+    _id = "msg"
+    _type_members = {"data": BytesT(), "gas": UINT256_T, "sender": AddressT(), "value": UINT256_T}
+
+
+class _Tx(_EnvType):
+    _id = "tx"
+    _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
+
+
+CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block(), _Chain(), _Tx(), _Msg())}
 
 
 def get_constant_vars() -> Dict:
@@ -38,11 +51,13 @@ def get_constant_vars() -> Dict:
     Get a dictionary of constant environment variables.
     """
     result = {}
-    for name, members in CONSTANT_ENVIRONMENT_VARS.items():
-        members = {k: v(is_constant=True) for k, v in members.items()}
-        result[name] = StructDefinition(name, members, is_constant=True)
+    for k, v in CONSTANT_ENVIRONMENT_VARS.items():
+        result[k] = VarInfo(v, is_constant=True)
 
     return result
+
+
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}
 
 
 def get_mutable_vars() -> Dict:
@@ -50,4 +65,4 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    return {name: type_(is_constant=True) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}
+    return {name: VarInfo(type_()) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}

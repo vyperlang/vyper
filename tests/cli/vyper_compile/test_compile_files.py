@@ -11,6 +11,7 @@ def test_combined_json_keys(tmp_path):
     combined_keys = {
         "bytecode",
         "bytecode_runtime",
+        "blueprint_bytecode",
         "abi",
         "source_map",
         "layout",

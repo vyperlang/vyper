@@ -157,15 +157,9 @@ def be_known() -> FooStruct:
     assert compile_files([meta_path], ["combined_json"], root_folder=tmp_path)
 
 
-DERIVED_IMPORT_STMT_BAZ = [
-    "import Foo as Foo",
-    "from . import Foo",
-]
+DERIVED_IMPORT_STMT_BAZ = ["import Foo as Foo", "from . import Foo"]
 
-DERIVED_IMPORT_STMT_FOO = [
-    "import Bar as Bar",
-    "from . import Bar",
-]
+DERIVED_IMPORT_STMT_FOO = ["import Bar as Bar", "from . import Bar"]
 
 
 @pytest.mark.parametrize("import_stmt_baz", DERIVED_IMPORT_STMT_BAZ)

@@ -69,6 +69,43 @@ def data() -> int128:
     return -1""",
         7,
     ),
+    (
+        # test variable string dynarray
+        """
+@external
+def data() -> String[33]:
+    xs: DynArray[String[33], 3] = ["hello", ",", "world"]
+    for x in xs:
+        if x == ",":
+            return x
+    return ""
+    """,
+        ",",
+    ),
+    (
+        # test literal string dynarray
+        """
+@external
+def data() -> String[33]:
+    for x in ["hello", ",", "world"]:
+        if x == ",":
+            return x
+    return ""
+    """,
+        ",",
+    ),
+    (
+        # test nested string dynarray
+        """
+@external
+def data() -> DynArray[String[33], 2]:
+    for x in [["hello", "world"], ["goodbye", "world!"]]:
+        if x[1] == "world":
+            return x
+    return []
+    """,
+        ["hello", "world"],
+    ),
     # test nested array
     (
         """
@@ -439,6 +476,80 @@ def data() -> int128:
     """,
         ImmutableViolation,
     ),
+    # alter nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter doubly nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+struct Bar:
+    bar: Foo
+    baz: uint256
+
+my_array2: Bar
+
+@internal
+def doStuff(i: uint256) -> uint256:
+    self.my_array2.bar.foo[i] = i
+    return i
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.bar.foo:
+        self.doStuff(i)
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
+    # alter entire struct with nested storage list in internal function call within for loop
+    (
+        """
+struct Foo:
+    foo: uint256[4]
+
+my_array2: Foo
+
+@internal
+def doStuff():
+    self.my_array2.foo = [
+        block.timestamp + 1,
+        block.timestamp + 2,
+        block.timestamp + 3,
+        block.timestamp + 4
+    ]
+
+@internal
+def _helper():
+    i: uint256 = 0
+    for item in self.my_array2.foo:
+        self.doStuff()
+        i += 1
+    """,
+        ImmutableViolation,
+    ),
     # invalid nested loop
     (
         """
@@ -470,6 +581,58 @@ def foo(x: int128):
     """,
         ImmutableViolation,
     ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[uint256, 5] = [1,2,3]
+    for x in xs:
+        xs.append(x)
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+@external
+def foo():
+    xs: DynArray[DynArray[uint256, 5], 5] = [[1,2,3]]
+    for x in xs:
+        x.pop()
+    """,
+        ImmutableViolation,
+    ),
+    # invalid modification of dynarray
+    (
+        """
+array: DynArray[uint256, 5]
+@internal
+def a():
+    self.b()
+
+@internal
+def b():
+    self.array.pop()
+
+@external
+def foo():
+    for x in self.array:
+        self.a()
+    """,
+        ImmutableViolation,
+    ),
     (
         """
 @external
@@ -493,6 +656,20 @@ def foo():
 @external
 def foo():
     for i in range(0):
+        pass
+    """,
+    """
+@external
+def foo():
+    for i in []:
+        pass
+    """,
+    """
+FOO: constant(DynArray[uint256, 3]) = []
+
+@external
+def foo():
+    for i in FOO:
         pass
     """,
     (
@@ -591,7 +768,7 @@ def foo():
 @external
 def test_for() -> int128:
     a: int128 = 0
-    for i in range(MAX_INT128, MAX_INT128+2):
+    for i in range(max_value(int128), max_value(int128)+2):
         a = i
     return a
     """,

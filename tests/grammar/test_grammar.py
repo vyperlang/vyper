@@ -7,11 +7,12 @@ import pytest
 from hypothesis import HealthCheck, assume, given
 from hypothesis.extra.lark import LarkStrategy
 
-from tests.grammar.conftest import get_lark_grammar
 from vyper.ast import Module, parse_to_ast
+from vyper.ast.grammar import parse_vyper_source, vyper_grammar
+from vyper.ast.pre_parser import pre_parse
 
 
-def test_basic_grammar(lark_grammar):
+def test_basic_grammar():
     code = """
     a: uint256
     b: uint128
@@ -22,17 +23,17 @@ def test_basic_grammar(lark_grammar):
         return 123123123
     """
 
-    assert lark_grammar.parse(textwrap.dedent(code) + "\n")
+    assert parse_vyper_source(code, dedent=True)
     assert parse_to_ast(textwrap.dedent(code))
 
-    assert lark_grammar.parse(textwrap.dedent(code_func) + "\n")
+    assert parse_vyper_source(code_func, dedent=True)
     assert parse_to_ast(textwrap.dedent(code_func))
 
 
-def test_basic_grammar_empty(lark_grammar):
+def test_basic_grammar_empty():
     code = """
     """
-    tree = lark_grammar.parse(textwrap.dedent(code) + "\n")
+    tree = parse_vyper_source(code, dedent=True)
     assert len(tree.children) == 0
 
 
@@ -81,7 +82,7 @@ def from_grammar() -> st.SearchStrategy[str]:
     """
     Generate syntactically-valid Python source code based on the grammar.
     """
-    grammar = get_lark_grammar()
+    grammar = vyper_grammar()
     explicit_strategies = dict(
         _INDENT=st.just(" " * 4),
         _DEDENT=st.just(""),
@@ -101,9 +102,9 @@ def has_no_docstrings(c):
 
 
 @pytest.mark.fuzzing
-@given(code=from_grammar().filter(lambda c: has_no_docstrings(c)))
+@given(code=from_grammar().filter(lambda c: utf8_encodable(c)))
 @hypothesis.settings(deadline=400, max_examples=500, suppress_health_check=(HealthCheck.too_slow,))
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
-        tree = parse_to_ast(code + "\n")
+        tree = parse_to_ast(pre_parse(code + "\n")[1])
         assert isinstance(tree, Module)

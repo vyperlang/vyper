@@ -28,12 +28,12 @@ abstract syntax tree.
 1. In [`vyper.ast.folding`](../ast/folding.py), literal Vyper AST nodes are
 evaluated and replaced with the resulting values.
 1. The [`GlobalContext`](../codegen/global_context.py) object is generated from the
-Vyper AST, analyzing and organizing the nodes prior to LLL generation.
+Vyper AST, analyzing and organizing the nodes prior to IR generation.
 1. In [`vyper.codegen.module`](../codegen/module.py), the contextualized nodes are
-converted into LLL nodes.
-1. In [`vyper.compile_lll`](../compile_lll.py), the LLL nodes are converted to
+converted into IR nodes.
+1. In [`vyper.compile_ir`](../ir/compile_ir.py), the IR nodes are converted to
 assembly instructions.
-1. In [`vyper.compile_lll`](../compile_lll.py), the assembly is converted to EVM
+1. In [`vyper.compile_ir`](../ir/compile_ir.py), the assembly is converted to EVM
 bytecode.
 
 Additionally, phases 3-5 may produce two output types:
@@ -52,8 +52,8 @@ for specific implementation details.
 generating compiler output from Vyper source. The process is as follows:
 
 1. The `@evm_wrapper` decorator sets the target EVM version in
-[`opcodes.py`](..opcodes.py).
-2. A [`CompilerData`](data.py) object is created for each contract to be compiled.
+[`opcodes.py`](../evm/opcodes.py).
+2. A [`CompilerData`](phases.py) object is created for each contract to be compiled.
 This object uses `@property` methods to trigger phases of the compiler as required.
 3. Functions in [`output.py`](output.py) generate the requested outputs from the
 compiler data.
@@ -68,8 +68,8 @@ We use the following naming conventions throughout this module, to aid readabili
 * `vyper_module` refers to the top-level `Module` Vyper AST node, created from the
 source code
 * `global_ctx` refers to the `GlobalContext` object
-* `lll_nodes` refers to the top-level `LLLnode`, created from the AST
-* `assembly` refers to a `list` of assembly instructions generated from the LLL
+* `ir_nodes` refers to the top-level `IRnode`, created from the AST
+* `assembly` refers to a `list` of assembly instructions generated from the IR
 * `bytecode` refers to the final, generated `bytecode` as a `bytes` string.
 * `compiler_data` refers to the `CompilerData` object
 

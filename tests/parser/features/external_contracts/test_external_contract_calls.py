@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from eth.codecs import abi
 
 from vyper.exceptions import (
     ArgumentException,
@@ -815,7 +816,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    assert c.foo() == [(2**160) - 1, b"dog", (2**160) - 2]
     result = c2.bar(c.address)
     assert len(result) == 3
     assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
@@ -848,7 +849,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert c.foo() == [(2**160) - 1, b"dog", 2**160]
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
@@ -1300,7 +1301,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -1405,7 +1406,7 @@ def get_lucky(gas_amount: uint256) -> int128:
     c2.set_contract(c1.address, transact={})
 
     assert c2.get_lucky(1000) == 656598
-    assert_tx_failed(lambda: c2.get_lucky(100))  # too little gas.
+    assert_tx_failed(lambda: c2.get_lucky(50))  # too little gas.
 
 
 def test_skip_contract_check(get_contract_with_gas_estimation):
@@ -1438,7 +1439,6 @@ def call_baz():
 
 
 def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1455,7 +1455,6 @@ def get_lucky(amount_to_send: int128) -> int128:
 
 
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1495,12 +1494,19 @@ interface Bar:
 def foo(a: address):
     Bar(a).bar(1)
     """,
+    """
+interface Bar:
+    def bar(x: uint256, y: uint256) -> uint256: view
+
+@external
+def foo(a: address, x: uint256, y: uint256):
+    Bar(a).bar(x, y=y)
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
-
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
@@ -1634,6 +1640,463 @@ def test(addr: address) -> int128:
 
     assert c1.out_literals() == (1,)
     assert [c2.test(c1.address)] == list(c1.out_literals())
+
+
+def test_constant_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+
+@external
+def out_literals() -> X:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: address
+interface Test:
+    def out_literals() -> X : view
+
+@external
+def test(addr: address) -> (int128, address):
+    ret: X = Test(addr).out_literals()
+    return ret.x, ret.y
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_struct_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+
+@external
+def get_struct_x() -> X:
+    return BAR
+    """
+
+    contract_2 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+interface Test:
+    def get_struct_x() -> X : view
+
+@external
+def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
+    ret: X = Test(addr).get_struct_x()
+    return ret.x, ret.y, ret.z
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
+    assert c2.test(c1.address) == list(c1.get_struct_x())
+
+
+def test_constant_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+
+BAR: constant(X) = X({x: 1})
+
+@external
+def out_literals() -> X:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+interface Test:
+    def out_literals() -> X : view
+
+@external
+def test(addr: address) -> int128:
+    ret: X = Test(addr).out_literals()
+    return ret.x
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (1,)
+    assert [c2.test(c1.address)] == list(c1.out_literals())
+
+
+def test_constant_struct_member_return_external_contract_call_1(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+
+@external
+def get_y() -> address:
+    return BAR.y
+    """
+
+    contract_2 = """
+interface Test:
+    def get_y() -> address : view
+
+@external
+def test(addr: address) -> address:
+    ret: address = Test(addr).get_y()
+    return ret
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == "0x0000000000000000000000000000000000012345"
+    assert c2.test(c1.address) == "0x0000000000000000000000000000000000012345"
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_struct_member_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+
+@external
+def get_y() -> String[{ln}]:
+    return BAR.y
+    """
+
+    contract_2 = f"""
+interface Test:
+    def get_y() -> String[{ln}] : view
+
+@external
+def test(addr: address) -> String[{ln}]:
+    ret: String[{ln}] = Test(addr).get_y()
+    return ret
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == s
+    assert c2.test(c1.address) == s
+
+
+def test_constant_struct_member_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+
+BAR: constant(X) = X({x: 1})
+
+@external
+def get_x() -> int128:
+    return BAR.x
+    """
+
+    contract_2 = """
+interface Test:
+    def get_x() -> int128 : view
+
+@external
+def test(addr: address) -> int128:
+    ret: int128 = Test(addr).get_x()
+    return ret
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_x() == 1
+    assert c2.test(c1.address) == 1
+
+
+def test_constant_nested_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+
+@external
+def out_literals() -> A:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+interface Test:
+    def out_literals() -> A : view
+
+@external
+def test(addr: address) -> (X, uint256):
+    ret: A = Test(addr).out_literals()
+    return ret.a, ret.b
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == ((1, "0x0000000000000000000000000000000000012345"), 777)
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_nested_struct_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777}})
+
+@external
+def get_struct_a() -> A:
+    return BAR
+    """
+
+    contract_2 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+
+interface Test:
+    def get_struct_a() -> A : view
+
+@external
+def test(addr: address) -> (X, uint256):
+    ret: A = Test(addr).get_struct_a()
+    return ret.a, ret.b
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_struct_a() == ((i, s, bytes(s, "utf-8")), 777)
+    assert c2.test(c1.address) == list(c1.get_struct_a())
+
+
+def test_constant_nested_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
+    contract_1 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+
+@external
+def out_literals() -> C:
+    return BAR
+    """
+
+    contract_2 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+interface Test:
+    def out_literals() -> C : view
+
+@external
+def test(addr: address) -> (A, bool):
+    ret: C = Test(addr).out_literals()
+    return ret.c, ret.d
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.out_literals() == (((1, -1), 777), True)
+    assert c2.test(c1.address) == list(c1.out_literals())
+
+
+def test_constant_nested_struct_member_return_external_contract_call_1(
+    get_contract_with_gas_estimation,
+):
+    contract_1 = """
+struct X:
+    x: int128
+    y: address
+
+struct A:
+    a: X
+    b: uint256
+
+BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+
+@external
+def get_y() -> address:
+    return BAR.a.y
+    """
+
+    contract_2 = """
+interface Test:
+    def get_y() -> address : view
+
+@external
+def test(addr: address) -> address:
+    ret: address = Test(addr).get_y()
+    return ret
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == "0x0000000000000000000000000000000000012345"
+    assert c2.test(c1.address) == "0x0000000000000000000000000000000000012345"
+
+
+@pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
+def test_constant_nested_struct_member_return_external_contract_call_2(
+    get_contract_with_gas_estimation, i, ln, s
+):
+    contract_1 = f"""
+struct X:
+    x: int128
+    y: String[{ln}]
+    z: Bytes[{ln}]
+
+struct A:
+    a: X
+    b: uint256
+    c: bool
+
+BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777, c: True}})
+
+@external
+def get_y() -> String[{ln}]:
+    return BAR.a.y
+    """
+
+    contract_2 = f"""
+interface Test:
+    def get_y() -> String[{ln}] : view
+
+@external
+def test(addr: address) -> String[{ln}]:
+    ret: String[{ln}] = Test(addr).get_y()
+    return ret
+
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == s
+    assert c2.test(c1.address) == s
+
+
+def test_constant_nested_struct_member_return_external_contract_call_3(
+    get_contract_with_gas_estimation,
+):
+    contract_1 = """
+struct X:
+    x: int128
+    y: int128
+
+struct A:
+    a: X
+    b: uint256
+
+struct C:
+    c: A
+    d: bool
+
+BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+
+@external
+def get_y() -> int128:
+    return BAR.c.a.y
+
+@external
+def get_b() -> uint256:
+    return BAR.c.b
+    """
+
+    contract_2 = """
+interface Test:
+    def get_y() -> int128 : view
+    def get_b() -> uint256 : view
+
+@external
+def test(addr: address) -> int128:
+    ret: int128 = Test(addr).get_y()
+    return ret
+
+@external
+def test2(addr: address) -> uint256:
+    ret: uint256 = Test(addr).get_b()
+    return ret
+    """
+    c1 = get_contract_with_gas_estimation(contract_1)
+    c2 = get_contract_with_gas_estimation(contract_2)
+
+    assert c1.get_y() == -1
+    assert c2.test(c1.address) == -1
+
+    assert c1.get_b() == 777
+    assert c2.test2(c1.address) == 777
 
 
 def test_dynamically_sized_struct_external_contract_call(get_contract_with_gas_estimation):
@@ -1859,3 +2322,179 @@ def foo(_addr: address, _addr2: address) -> int128:
 
     assert c2.foo(c1.address, c1.address) == 123
     assert_tx_failed(lambda: c2.foo(c1.address, "0x1234567890123456789012345678901234567890"))
+
+
+def test_default_override(get_contract, assert_tx_failed):
+    bad_erc20_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    pass
+    """
+
+    negative_transfer_code = """
+@external
+def transfer(receiver: address, amount: uint256) -> bool:
+    return False
+    """
+
+    self_destructing_code = """
+@external
+def transfer(receiver: address, amount: uint256):
+    selfdestruct(msg.sender)
+    """
+
+    code = """
+from vyper.interfaces import ERC20
+@external
+def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
+    assert erc20.transfer(receiver, amount, default_return_value=True)
+    return 7
+
+@external
+def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
+    assert erc20.transfer(receiver, amount)
+    """
+    bad_erc20 = get_contract(bad_erc20_code)
+    c = get_contract(code)
+
+    # demonstrate transfer failing
+    assert_tx_failed(lambda: c.transferBorked(bad_erc20.address, c.address, 0))
+    # would fail without default_return_value
+    assert c.safeTransfer(bad_erc20.address, c.address, 0) == 7
+
+    # check that `default_return_value` does not stomp valid returndata.
+    negative_contract = get_contract(negative_transfer_code)
+    assert_tx_failed(lambda: c.safeTransfer(negative_contract.address, c.address, 0))
+
+    # default_return_value should fail on EOAs (addresses with no code)
+    random_address = "0x0000000000000000000000000000000000001234"
+    assert_tx_failed(lambda: c.safeTransfer(random_address, c.address, 1))
+
+    # in this case, the extcodesize check runs after the token contract
+    # selfdestructs. however, extcodesize still returns nonzero until
+    # later (i.e., after this transaction), so we still pass
+    # the extcodesize check.
+    self_destructing_contract = get_contract(self_destructing_code)
+    assert c.safeTransfer(self_destructing_contract.address, c.address, 0) == 7
+
+
+def test_default_override2(get_contract, assert_tx_failed):
+    bad_code_1 = """
+@external
+def return_64_bytes() -> bool:
+    return True
+    """
+
+    bad_code_2 = """
+@external
+def return_64_bytes():
+    pass
+    """
+
+    code = """
+struct BoolPair:
+    x: bool
+    y: bool
+interface Foo:
+    def return_64_bytes() -> BoolPair: nonpayable
+@external
+def bar(foo: Foo):
+    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    assert t.x and t.y
+    """
+    bad_1 = get_contract(bad_code_1)
+    bad_2 = get_contract(bad_code_2)
+    c = get_contract(code)
+
+    # fails due to returndatasize being nonzero but also lt 64
+    assert_tx_failed(lambda: c.bar(bad_1.address))
+    c.bar(bad_2.address)
+
+
+def test_contract_address_evaluation(get_contract):
+    callee_code = """
+# implements: Foo
+
+interface Counter:
+    def increment_counter(): nonpayable
+
+@external
+def foo():
+    pass
+
+@external
+def bar() -> address:
+    Counter(msg.sender).increment_counter()
+    return self
+    """
+    code = """
+# implements: Counter
+
+interface Foo:
+    def foo(): nonpayable
+    def bar() -> address: nonpayable
+
+counter: uint256
+
+@external
+def increment_counter():
+    self.counter += 1
+
+@external
+def do_stuff(f: Foo) -> uint256:
+    Foo(f.bar()).foo()
+    return self.counter
+    """
+
+    c1 = get_contract(code)
+    c2 = get_contract(callee_code)
+
+    assert c1.do_stuff(c2.address) == 1
+
+
+TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
+
+
+@pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
+def test_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
+    code = f"""
+@external
+def foo(a: {typ}):
+    pass
+    """
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ})".encode()).hex()[:10]
+    encoded = abi.encode(f"({typ})", (val,)).hex()
+    data = f"{sig}{encoded}"
+
+    # Static size is short by 1 byte
+    malformed = data[:-2]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Static size is exact
+    w3.eth.send_transaction({"to": c1.address, "data": data})
+
+    # Static size exceeds by 1 byte, ok
+    w3.eth.send_transaction({"to": c1.address, "data": data + "ff"})
+
+
+@pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
+def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
+    code = f"""
+@external
+def foo(a: DynArray[{typ}, 3], b: String[5]):
+    pass
+    """
+
+    c1 = get_contract(code)
+    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
+    encoded = abi.encode(f"({typ}[],string)", val).hex()
+    data = f"{sig}{encoded}"
+
+    # Dynamic size is short by 1 byte
+    malformed = data[:264]
+    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c1.address, "data": malformed}))
+
+    # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
+    valid = data[:266]
+    w3.eth.send_transaction({"to": c1.address, "data": valid})

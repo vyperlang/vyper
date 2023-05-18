@@ -34,7 +34,7 @@ The compiler automatically creates getter functions for all public storage varia
 For public arrays, you can only retrieve a single element via the generated getter. This mechanism exists to avoid high gas costs when returning an entire array. The getter will accept an argument to specify which element to return, for example ``data(0)``.
 
 Declaring Immutable Variables
---------------------------
+-----------------------------
 
 Variables can be marked as ``immutable`` during declaration:
 
@@ -58,7 +58,7 @@ You cannot directly declare tuple types. However, in certain cases you can use l
 .. code-block:: python
 
     @internal
-    def foo() -> (int128: int128):
+    def foo() -> (int128, int128):
         return 2, 3
 
     @external
@@ -72,6 +72,44 @@ You cannot directly declare tuple types. However, in certain cases you can use l
         # Can also skip the parenthesis
         a, b = self.foo()
 
+
+Storage Layout
+==============
+
+Storage variables are located within a smart contract at specific storage slots. By default, the compiler allocates the first variable to be stored at ``slot 0``; subsequent variables are stored in order after that.
+
+There are cases where it is necessary to override this pattern and to allocate storage variables in custom slots. This behaviour is often required for upgradeable contracts, to ensure that both contracts (the old contract, and the new contract) store the same variable within the same slot.
+
+This can be performed when compiling  via ``vyper`` by including the ``--storage-layout-file`` flag.
+
+For example, consider upgrading the following contract:
+
+.. code-block:: python
+
+    # old_contract.vy
+    owner: public(address)
+    balanceOf: public(HashMap[address, uint256])
+
+.. code-block:: python
+
+    # new_contract.vy
+    owner: public(address)
+    minter: public(address)
+    balanceOf: public(HashMap[address, uint256])
+
+This would cause an issue when upgrading, as the ``balanceOf`` mapping would be located at ``slot1`` in the old contract, and ``slot2`` in the new contract.
+
+This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the storage layout overrides. The contract can be compiled with ``vyper new_contract.vy --storage-layout-file new_contract_storage.json`` where ``new_contract_storage.json`` contains the following:
+
+.. code-block:: javascript
+
+    {
+        "owner": {"type": "address", "slot": 0},
+        "minter": {"type": "address", "slot": 2},
+        "balanceOf": {"type": "HashMap[address, uint256]", "slot": 1}
+    }
+
+For further information on generating the storage layout, see :ref:`Storage Layout <compiler-storage-layout>`.
 
 Scoping Rules
 =============
@@ -108,25 +146,27 @@ Values that are declared in the module scope of a contract, such as storage vari
 Name Shadowing
 **************
 
-It is not permitted for a memory or calldata variable to shadow the name of a storage variable. The following examples will not compile:
+It is not permitted for a memory or calldata variable to shadow the name of an immutable or constant value. The following examples will not compile:
 
 .. code-block:: python
 
-    a: int128
+    a: constant(bool) = True
 
     @external
-    def foo() -> int128:
-        # memory variable cannot have the same name as a storage variable
-        a: int128 = self.a
+    def foo() -> bool:
+        # memory variable cannot have the same name as a constant or immutable variable
+        a: bool = False
         return a
-
 .. code-block:: python
 
-    a: int128
+    a: immutable(bool)
 
     @external
-    def foo(a: int128) -> int128:
-        # input argument cannot have the same name as a storage variable
+    def __init__():
+        a = True
+    @external
+    def foo(a:bool) -> bool:
+        # input argument cannot have the same name as a constant or immutable variable
         return a
 
 Function Scope

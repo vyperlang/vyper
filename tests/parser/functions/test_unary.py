@@ -20,10 +20,10 @@ def negate(a: int128) -> int128:
     """
     c = get_contract(code)
     # This test should revert on overflow condition
-    assert_tx_failed(lambda: c.negate(-(2 ** 127)))
+    assert_tx_failed(lambda: c.negate(-(2**127)))
 
 
-@pytest.mark.parametrize("val", [-(2 ** 127) + 1, 0, 2 ** 127 - 1])
+@pytest.mark.parametrize("val", [-(2**127) + 1, 0, 2**127 - 1])
 def test_unary_sub_int128_pass(get_contract, val):
     code = """@external
 def negate(a: int128) -> int128:
@@ -33,8 +33,8 @@ def negate(a: int128) -> int128:
     assert c.negate(val) == -val
 
 
-min_decimal = -(2 ** 127) + 1
-max_decimal = 2 ** 127 - 1
+min_decimal = -(2**127) + 1
+max_decimal = 2**127 - 1
 
 
 @pytest.mark.parametrize("val", [min_decimal, 0, max_decimal])
@@ -49,8 +49,8 @@ def negate(a: decimal) -> decimal:
 
 def test_negation_decimal(get_contract):
     code = """
-a: constant(decimal) = 170141183460469231731687303715884105726.9999999999
-b: constant(decimal) = -170141183460469231731687303715884105726.9999999999
+a: constant(decimal) = 18707220957835557353007165858768422651595.9365500927
+b: constant(decimal) = -18707220957835557353007165858768422651595.9365500927
 
 @external
 def foo() -> decimal:
@@ -62,8 +62,8 @@ def bar() -> decimal:
     """
 
     c = get_contract(code)
-    assert c.foo() == Decimal("-170141183460469231731687303715884105726.9999999999")
-    assert c.bar() == Decimal("170141183460469231731687303715884105726.9999999999")
+    assert c.foo() == Decimal("-18707220957835557353007165858768422651595.9365500927")
+    assert c.bar() == Decimal("18707220957835557353007165858768422651595.9365500927")
 
 
 def test_negation_int128(get_contract):
@@ -79,5 +79,5 @@ def bar() -> int128:
     return -(a+1)
     """
     c = get_contract(code)
-    assert c.foo() == -(2 ** 127)
-    assert c.bar() == 2 ** 127 - 1
+    assert c.foo() == -(2**127)
+    assert c.bar() == 2**127 - 1

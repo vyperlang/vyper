@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
     (
@@ -25,7 +25,7 @@ def foo(x: Bytes[1]) -> Bytes[32]:
 @external
 def foo(x: uint256) -> Bytes[36]:
     _ensure_tuple: bool = False
-    _method_id: Bytes[4] = method_id("foo()")
+    _method_id: Bytes[4] = method_id("foo()", output_type=Bytes[4])
     return _abi_encode(x, ensure_tuple=_ensure_tuple, method_id=_method_id)
     """,
         TypeMismatch,  # ensure_tuple and method_id both must be literals
@@ -36,7 +36,7 @@ def foo(x: uint256) -> Bytes[36]:
 def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=b"abcde")
     """,
-        TypeMismatch,  # len(method_id) must be less than 4
+        InvalidType,  # len(method_id) must be less than 4
     ),
     (
         """
@@ -44,14 +44,13 @@ def foo(x: uint256) -> Bytes[36]:
 def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=0x1234567890)
     """,
-        TypeMismatch,  # len(method_id) must be less than 4
+        InvalidType,  # len(method_id) must be less than 4
     ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_abi_encode_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 

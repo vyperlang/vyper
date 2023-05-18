@@ -2,8 +2,8 @@ import pytest
 
 from vyper import compiler
 from vyper.exceptions import (
+    InstantiationException,
     InvalidType,
-    NamespaceCollision,
     StructureException,
     TypeMismatch,
     UnknownAttribute,
@@ -298,7 +298,7 @@ struct Nom:
     a: HashMap[int128, C]
     b: int128
     """,
-        StructureException,
+        InstantiationException,
     ),
     """
 struct C1:
@@ -421,19 +421,24 @@ def foo():
     ),
     (
         """
-struct X:
-    bar: int128
-    decimal: int128
+struct Foo:
+    a: uint256
+
+@external
+def foo():
+    Foo({a: 1})
     """,
-        NamespaceCollision,
+        StructureException,
     ),
     (
         """
-struct B:
-    num: int128
-    address: address
+event Foo:
+    a: uint256
+
+struct Bar:
+    a: Foo
     """,
-        NamespaceCollision,
+        InstantiationException,
     ),
 ]
 
@@ -531,6 +536,44 @@ struct X:
     bar: int128
     baz: int128
 x: X
+    """,
+    """
+struct X:
+    x: int128
+    y: int128
+struct A:
+    a: X
+    b: uint256
+struct C:
+    c: A
+    d: bool
+@external
+def get_y() -> int128:
+    return C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True}).c.a.y - 10
+    """,
+    """
+struct X:
+    x: int128
+    y: int128
+struct A:
+    a: X
+    b: uint256
+struct C:
+    c: A
+    d: bool
+FOO: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+@external
+def get_y() -> int128:
+    return FOO.c.a.y - 10
+    """,
+    """
+struct C:
+    a: uint256
+    b: uint256
+
+@external
+def foo():
+    bar: C = C({a: 1, b: block.timestamp})
     """,
 ]
 

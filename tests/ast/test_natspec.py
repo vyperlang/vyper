@@ -24,6 +24,7 @@ def doesEat(food: String[30], qty: uint256) -> bool:
     @param food The name of a food to evaluate (in English)
     @param qty The number of food items to evaluate
     @return True if Bugs will eat it, False otherwise
+    @custom:my-custom-tag hello, world!
     '''
     return True
 """
@@ -51,6 +52,7 @@ expected_devdoc = {
                 "qty": "The number of food items to evaluate",
             },
             "returns": {"_0": "True if Bugs will eat it, False otherwise"},
+            "custom:my-custom-tag": "hello, world!",
         }
     },
     "title": "A simulator for Bug Bunny, the most famous Rabbit",
@@ -276,9 +278,7 @@ def foo():
 
     _, devdoc = parse_natspec(code)
 
-    assert devdoc == {
-        "license": license,
-    }
+    assert devdoc == {"license": license}
 
 
 fields = ["title", "author", "license", "notice", "dev"]
@@ -396,8 +396,7 @@ def foo() -> int128:
     """
 
     with pytest.raises(
-        NatSpecSyntaxException,
-        match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException, match="Number of documented return values exceeds actual number"
     ):
         parse_natspec(code)
 
@@ -415,7 +414,6 @@ def foo() -> (int128,uint256):
     """
 
     with pytest.raises(
-        NatSpecSyntaxException,
-        match="Number of documented return values exceeds actual number",
+        NatSpecSyntaxException, match="Number of documented return values exceeds actual number"
     ):
         parse_natspec(code)

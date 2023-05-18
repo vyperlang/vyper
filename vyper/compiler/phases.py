@@ -1,14 +1,15 @@
 import copy
 import warnings
+from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignatures
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.lll_node import LLLnode
-from vyper.lll import compile_lll, optimizer
+from vyper.codegen.ir_node import IRnode
+from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
 
 
@@ -28,10 +29,10 @@ class CompilerData:
         Folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
-    lll_nodes : LLLnode
-        LLL used to generate deployment bytecode
-    lll_runtime : LLLnode
-        LLL used to generate runtime bytecode
+    ir_nodes : IRnode
+        IR used to generate deployment bytecode
+    ir_runtime : IRnode
+        IR used to generate runtime bytecode
     assembly : list
         Assembly instructions for deployment bytecode
     assembly_runtime : list
@@ -51,6 +52,7 @@ class CompilerData:
         no_optimize: bool = False,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
+        no_bytecode_metadata: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -71,6 +73,8 @@ class CompilerData:
             Turn off optimizations. Defaults to False
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
+        no_bytecode_metadata: bool, optional
+            Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -79,88 +83,93 @@ class CompilerData:
         self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
+        self.no_bytecode_metadata = no_bytecode_metadata
 
-    @property
+    @cached_property
     def vyper_module(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module"):
-            self._vyper_module = generate_ast(self.source_code, self.source_id, self.contract_name)
+        return generate_ast(self.source_code, self.source_id, self.contract_name)
 
-        return self._vyper_module
+    @cached_property
+    def vyper_module_unfolded(self) -> vy_ast.Module:
+        # This phase is intended to generate an AST for tooling use, and is not
+        # used in the compilation process.
 
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        if not hasattr(self, "_vyper_module_folded"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
+        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
-        return self._vyper_module_folded
-
-    @property
-    def storage_layout(self) -> StorageLayout:
-        if not hasattr(self, "_storage_layout"):
-            self._vyper_module_folded, self._storage_layout = generate_folded_ast(
-                self.vyper_module, self.interface_codes, self.storage_layout_override
-            )
-
-        return self._storage_layout
-
-    @property
-    def global_ctx(self) -> GlobalContext:
-        if not hasattr(self, "_global_ctx"):
-            self._global_ctx = generate_global_context(
-                self.vyper_module_folded, self.interface_codes
-            )
-
-        return self._global_ctx
-
-    def _gen_lll(self) -> None:
-        # fetch both deployment and runtime LLL
-        self._lll_nodes, self._lll_runtime, self._function_signatures = generate_lll_nodes(
-            self.global_ctx, self.no_optimize
+    @cached_property
+    def _folded_module(self):
+        return generate_folded_ast(
+            self.vyper_module, self.interface_codes, self.storage_layout_override
         )
 
     @property
-    def lll_nodes(self) -> LLLnode:
-        if not hasattr(self, "_lll_nodes"):
-            self._gen_lll()
-        return self._lll_nodes
+    def vyper_module_folded(self) -> vy_ast.Module:
+        module, storage_layout = self._folded_module
+        return module
 
     @property
-    def lll_runtime(self) -> LLLnode:
-        if not hasattr(self, "_lll_runtime"):
-            self._gen_lll()
-        return self._lll_runtime
+    def storage_layout(self) -> StorageLayout:
+        module, storage_layout = self._folded_module
+        return storage_layout
 
     @property
-    def function_signatures(self) -> FunctionSignatures:
-        if not hasattr(self, "_function_signatures"):
-            self._gen_lll()
-        return self._function_signatures
+    def global_ctx(self) -> GlobalContext:
+        return GlobalContext(self.vyper_module_folded)
+
+    @cached_property
+    def _ir_output(self):
+        # fetch both deployment and runtime IR
+        return generate_ir_nodes(self.global_ctx, self.no_optimize)
 
     @property
+    def ir_nodes(self) -> IRnode:
+        ir, ir_runtime = self._ir_output
+        return ir
+
+    @property
+    def ir_runtime(self) -> IRnode:
+        ir, ir_runtime = self._ir_output
+        return ir_runtime
+
+    @property
+    def function_signatures(self) -> dict[str, ContractFunctionT]:
+        # some metadata gets calculated during codegen, so
+        # ensure codegen is run:
+        _ = self._ir_output
+
+        fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
+        return {f.name: f._metadata["type"] for f in fs}
+
+    @cached_property
     def assembly(self) -> list:
-        if not hasattr(self, "_assembly"):
-            self._assembly = generate_assembly(self.lll_nodes, self.no_optimize)
-        return self._assembly
+        return generate_assembly(self.ir_nodes, self.no_optimize)
 
-    @property
+    @cached_property
     def assembly_runtime(self) -> list:
-        if not hasattr(self, "_assembly_runtime"):
-            self._assembly_runtime = generate_assembly(self.lll_runtime, self.no_optimize)
-        return self._assembly_runtime
+        return generate_assembly(self.ir_runtime, self.no_optimize)
 
-    @property
+    @cached_property
     def bytecode(self) -> bytes:
-        if not hasattr(self, "_bytecode"):
-            self._bytecode = generate_bytecode(self.assembly)
-        return self._bytecode
+        return generate_bytecode(
+            self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
+        )
 
-    @property
+    @cached_property
     def bytecode_runtime(self) -> bytes:
-        if not hasattr(self, "_bytecode_runtime"):
-            self._bytecode_runtime = generate_bytecode(self.assembly_runtime)
-        return self._bytecode_runtime
+        return generate_bytecode(
+            self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+        )
+
+    @cached_property
+    def blueprint_bytecode(self) -> bytes:
+        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
+        blueprint_bytecode = blueprint_preamble + self.bytecode
+
+        # the length of the deployed code in bytes
+        len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
+        deploy_bytecode = b"\x61" + len_bytes + b"\x3d\x81\x60\x0a\x3d\x39\xf3"
+
+        return deploy_bytecode + blueprint_bytecode
 
 
 def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
@@ -182,6 +191,18 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
         Top-level Vyper AST node
     """
     return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+
+
+def generate_unfolded_ast(
+    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+) -> vy_ast.Module:
+    vy_ast.validation.validate_literal_nodes(vyper_module)
+    vy_ast.folding.replace_builtin_constants(vyper_module)
+    vy_ast.folding.replace_builtin_functions(vyper_module)
+    # note: validate_semantics does type inference on the AST
+    validate_semantics(vyper_module, interface_codes)
+
+    return vyper_module
 
 
 def generate_folded_ast(
@@ -215,35 +236,11 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_global_context(
-    vyper_module: vy_ast.Module,
-    interface_codes: Optional[InterfaceImports],
-) -> GlobalContext:
+def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRnode, IRnode]:
     """
-    Generate a contextualized AST from the Vyper AST.
+    Generate the intermediate representation (IR) from the contextualized AST.
 
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top-level Vyper AST node
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts.
-
-    Returns
-    -------
-    GlobalContext
-        Sorted, contextualized representation of the Vyper AST
-    """
-    return GlobalContext.get_global_context(vyper_module, interface_codes=interface_codes)
-
-
-def generate_lll_nodes(
-    global_ctx: GlobalContext, no_optimize: bool
-) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
-    """
-    Generate the intermediate representation (LLL) from the contextualized AST.
-
-    This phase also includes LLL-level optimizations.
+    This phase also includes IR-level optimizations.
 
     This function returns three values: deployment bytecode, runtime bytecode
     and the function signatures of the contract
@@ -255,32 +252,32 @@ def generate_lll_nodes(
 
     Returns
     -------
-    (LLLnode, LLLnode)
-        LLL to generate deployment bytecode
-        LLL to generate runtime bytecode
+    (IRnode, IRnode)
+        IR to generate deployment bytecode
+        IR to generate runtime bytecode
     """
-    lll_nodes, lll_runtime, function_sigs = module.parse_tree_to_lll(global_ctx)
+    ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if not no_optimize:
-        lll_nodes = optimizer.optimize(lll_nodes)
-        lll_runtime = optimizer.optimize(lll_runtime)
-    return lll_nodes, lll_runtime, function_sigs
+        ir_nodes = optimizer.optimize(ir_nodes)
+        ir_runtime = optimizer.optimize(ir_runtime)
+    return ir_nodes, ir_runtime
 
 
-def generate_assembly(lll_nodes: LLLnode, no_optimize: bool = False) -> list:
+def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
     """
-    Generate assembly instructions from LLL.
+    Generate assembly instructions from IR.
 
     Arguments
     ---------
-    lll_nodes : str
-        Top-level LLL nodes. Can be deployment or runtime LLL.
+    ir_nodes : str
+        Top-level IR nodes. Can be deployment or runtime IR.
 
     Returns
     -------
     list
         List of assembly instructions.
     """
-    assembly = compile_lll.compile_to_assembly(lll_nodes, no_optimize=no_optimize)
+    assembly = compile_ir.compile_to_assembly(ir_nodes, no_optimize=no_optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
@@ -298,7 +295,9 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list) -> bytes:
+def generate_bytecode(
+    assembly: list, is_runtime: bool = False, no_bytecode_metadata: bool = False
+) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -312,4 +311,6 @@ def generate_bytecode(assembly: list) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_lll.assembly_to_evm(assembly)[0]
+    return compile_ir.assembly_to_evm(
+        assembly, insert_vyper_signature=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
+    )[0]

@@ -38,6 +38,39 @@ def test_func() -> int128:
 def __init__(a: int128 = 12):
     pass
     """,
+    """
+@external
+def __init__() -> uint256:
+    return 1
+    """,
+    """
+@external
+def __init__() -> bool:
+    pass
+    """,
+    """
+a: immutable(uint256)
+
+@internal
+def __init__():
+    a = 1
+    """,
+    """
+a: immutable(uint256)
+
+@external
+@pure
+def __init__():
+    a = 1
+    """,
+    """
+a: immutable(uint256)
+
+@external
+@view
+def __init__():
+    a = 1
+    """,
 ]
 
 

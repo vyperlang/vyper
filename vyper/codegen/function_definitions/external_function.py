@@ -1,74 +1,51 @@
 from typing import Any, List
 
 import vyper.utils as util
-from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
-from vyper.codegen.context import Context
-from vyper.codegen.core import get_element_ptr, getpos, make_setter
+from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
+from vyper.codegen.context import Context, VariableRecord
+from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
-from vyper.codegen.lll_node import Encoding, LLLnode
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.codegen.types.types import (
-    BaseType,
-    ByteArrayLike,
-    DArrayType,
-    SArrayType,
-    TupleLike,
-    TupleType,
-)
-from vyper.exceptions import CompilerPanic
-
-
-def _should_decode(typ):
-    # either a basetype which needs to be clamped
-    # or a complex type which contains something that
-    # needs to be clamped.
-    if isinstance(typ, BaseType):
-        return typ.typ not in ("int256", "uint256", "bytes32")
-    if isinstance(typ, (ByteArrayLike, DArrayType)):
-        return True
-    if isinstance(typ, SArrayType):
-        return _should_decode(typ.subtype)
-    if isinstance(typ, TupleLike):
-        return any(_should_decode(t) for t in typ.tuple_members())
-    raise CompilerPanic(f"_should_decode({typ})")
+from vyper.evm.address_space import CALLDATA, DATA, MEMORY
+from vyper.semantics.types import TupleT
+from vyper.semantics.types.function import ContractFunctionT
 
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(context: Context, sig: FunctionSignature) -> List[LLLnode]:
-    pos = None
-
+def _register_function_args(func_t: ContractFunctionT, context: Context) -> List[IRnode]:
     ret = []
-
     # the type of the calldata
-    base_args_t = TupleType([arg.typ for arg in sig.base_args])
+    base_args_t = TupleT(tuple(arg.typ for arg in func_t.positional_args))
 
     # tuple with the abi_encoded args
-    if sig.is_init_func:
-        base_args_ofst = LLLnode(
-            "~codelen", location="code", typ=base_args_t, encoding=Encoding.ABI
-        )
+    if func_t.is_constructor:
+        base_args_ofst = IRnode(0, location=DATA, typ=base_args_t, encoding=Encoding.ABI)
     else:
-        base_args_ofst = LLLnode(4, location="calldata", typ=base_args_t, encoding=Encoding.ABI)
+        base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
-    for i, arg in enumerate(sig.base_args):
+    for i, arg in enumerate(func_t.positional_args):
+        arg_ir = get_element_ptr(base_args_ofst, i)
 
-        arg_lll = get_element_ptr(base_args_ofst, i, pos=pos)
-
-        if _should_decode(arg.typ):
+        if needs_clamp(arg.typ, Encoding.ABI):
             # allocate a memory slot for it and copy
             p = context.new_variable(arg.name, arg.typ, is_mutable=False)
-            dst = LLLnode(p, typ=arg.typ, location="memory")
-            ret.append(make_setter(dst, arg_lll, pos=pos))
+            dst = IRnode(p, typ=arg.typ, location=MEMORY)
+
+            copy_arg = make_setter(dst, arg_ir)
+            copy_arg.source_pos = getpos(arg.ast_source)
+            ret.append(copy_arg)
         else:
+            assert abi_encoding_matches_vyper(arg.typ)
             # leave it in place
             context.vars[arg.name] = VariableRecord(
                 name=arg.name,
-                pos=arg_lll,
+                pos=arg_ir,
                 typ=arg.typ,
                 mutable=False,
-                location=arg_lll.location,
+                location=arg_ir.location,
                 encoding=Encoding.ABI,
             )
 
@@ -76,67 +53,106 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[LL
 
 
 def _annotated_method_id(abi_sig):
-    method_id = util.abi_method_id(abi_sig)
+    method_id = util.method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
-    return LLLnode(method_id, annotation=annotation)
+    return IRnode(method_id, annotation=annotation)
 
 
-def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any) -> List[Any]:
+def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> List[Any]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
-    # depending on the signature
+    # depending on the ContractFunctionT
     # a kwarg handler looks like
     # (if (eq _method_id <method_id>)
     #    copy calldata args to memory
     #    write default args to memory
-    #    goto external_function_common_lll
+    #    goto external_function_common_ir
 
     def handler_for(calldata_kwargs, default_kwargs):
-        calldata_args = sig.base_args + calldata_kwargs
+        calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
+        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
-        abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
+        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
         method_id = _annotated_method_id(abi_sig)
 
-        calldata_kwargs_ofst = LLLnode(
-            4, location="calldata", typ=calldata_args_t, encoding=Encoding.ABI
+        calldata_kwargs_ofst = IRnode(
+            4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
         )
 
         # a sequence of statements to strictify kwargs into memory
         ret = ["seq"]
 
+        # ensure calldata is at least of minimum length
+        args_abi_t = calldata_args_t.abi_type
+        calldata_min_size = args_abi_t.min_size() + 4
+
+        # note we don't need the check if calldata_min_size == 4,
+        # because the selector checks later in this routine ensure
+        # that calldatasize >= 4.
+        if calldata_min_size > 4:
+            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
+
         # TODO optimize make_setter by using
-        # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
+        # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
 
-        n_base_args = len(sig.base_args)
-
         for i, arg_meta in enumerate(calldata_kwargs):
-            k = n_base_args + i
+            k = func_t.n_positional_args + i
 
             dst = context.lookup_var(arg_meta.name).pos
 
-            lhs = LLLnode(dst, location="memory", typ=arg_meta.typ)
-            rhs = get_element_ptr(calldata_kwargs_ofst, k, pos=None, array_bounds_check=False)
-            ret.append(make_setter(lhs, rhs, pos))
+            lhs = IRnode(dst, location=MEMORY, typ=arg_meta.typ)
+
+            rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
+
+            copy_arg = make_setter(lhs, rhs)
+            copy_arg.source_pos = getpos(arg_meta.ast_source)
+            ret.append(copy_arg)
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
-            lhs = LLLnode(dst, location="memory", typ=x.typ)
-            kw_ast_val = sig.default_values[x.name]  # e.g. `3` in x: int = 3
-            rhs = Expr(kw_ast_val, context).lll_node
-            ret.append(make_setter(lhs, rhs, pos))
+            lhs = IRnode(dst, location=MEMORY, typ=x.typ)
+            lhs.source_pos = getpos(x.ast_source)
+            kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
+            rhs = Expr(kw_ast_val, context).ir_node
 
-        ret.append(["goto", sig.external_function_base_entry_label])
+            copy_arg = make_setter(lhs, rhs)
+            copy_arg.source_pos = getpos(x.ast_source)
+            ret.append(copy_arg)
 
-        ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
+        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
+
+        method_id_check = ["eq", "_calldata_method_id", method_id]
+
+        # if there is a function whose selector is 0 or has trailing 0s, it
+        # might not be distinguished from the case where insufficient calldata
+        # is supplied, b/c calldataload loads 0s past the end of physical
+        # calldata (cf. yellow paper).
+        # since the expected behavior of supplying insufficient calldata
+        # is to trigger the fallback fn, we add to the selector check that
+        # calldatasize >= 4, which distinguishes any selector with trailing
+        # 0 bytes from the fallback function "selector" (equiv. to "all
+        # selectors not in the selector table").
+        #
+        # note that the inclusion of this check means that, we are always
+        # guaranteed that the calldata is at least 4 bytes - either we have
+        # the explicit `calldatasize >= 4` condition in the selector check,
+        # or there are no trailing zeroes in the selector, (so the selector
+        # is impossible to match without calldatasize being at least 4).
+        method_id_bytes = util.method_id(abi_sig)
+        assert len(method_id_bytes) == 4
+        has_trailing_zeroes = method_id_bytes.endswith(b"\x00")
+        if has_trailing_zeroes:
+            method_id_check = ["and", ["ge", "calldatasize", 4], method_id_check]
+
+        ret = ["if", method_id_check, ret]
         return ret
 
     ret = ["seq"]
 
-    keyword_args = sig.default_args
+    keyword_args = func_t.keyword_args
 
     # allocate variable slots in memory
     for arg in keyword_args:
@@ -156,32 +172,32 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature, pos: Any)
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_lll_for_external_function(code, sig, context, check_nonpayable):
+def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check):
     # TODO type hints:
-    # def generate_lll_for_external_function(
-    #    code: vy_ast.FunctionDef, sig: FunctionSignature, context: Context, check_nonpayable: bool,
-    # ) -> LLLnode:
-    """Return the LLL for an external function. Includes code to inspect the method_id,
+    # def generate_ir_for_external_function(
+    #    code: vy_ast.FunctionDef,
+    #    func_t: ContractFunctionT,
+    #    context: Context,
+    #    check_nonpayable: bool,
+    # ) -> IRnode:
+    """Return the IR for an external function. Includes code to inspect the method_id,
     enter the function (nonpayable and reentrancy checks), handle kwargs and exit
     the function (clean up reentrancy storage variables)
     """
-    func_type = code._metadata["type"]
-    pos = getpos(code)
-
-    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_type)
+    nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
     # generate handlers for base args and register the variable records
-    handle_base_args = _register_function_args(context, sig)
+    handle_base_args = _register_function_args(func_t, context)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(context, sig, pos)
+    kwarg_handlers = _generate_kwarg_handlers(func_t, context)
 
     body = ["seq"]
     # once optional args have been handled,
     # generate the main body of the function
     body += handle_base_args
 
-    if check_nonpayable and sig.mutability != "payable":
+    if not func_t.is_payable and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
         body += [["assert", ["iszero", "callvalue"]]]
@@ -191,10 +207,10 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     body += [parse_body(code.body, context, ensure_terminated=True)]
 
     # wrap the body in labeled block
-    body = ["label", sig.external_function_base_entry_label, ["var_list"], body]
+    body = ["label", func_t._ir_info.external_function_base_entry_label, ["var_list"], body]
 
     exit_sequence = ["seq"] + nonreentrant_post
-    if sig.is_init_func:
+    if func_t.is_constructor:
         pass  # init func has special exit sequence generated by module.py
     elif context.return_type is None:
         exit_sequence += [["stop"]]
@@ -205,22 +221,22 @@ def generate_lll_for_external_function(code, sig, context, check_nonpayable):
     if context.return_type is not None:
         exit_sequence_args += ["ret_ofst", "ret_len"]
     # wrap the exit in a labeled block
-    exit = ["label", sig.exit_sequence_label, exit_sequence_args, exit_sequence]
+    exit = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
 
-    # the lll which comprises the main body of the function,
+    # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_lll = ["seq", body, exit]
+    func_common_ir = ["seq", body, exit]
 
-    if sig.is_default_func or sig.is_init_func:
+    if func_t.is_fallback or func_t.is_constructor:
         ret = ["seq"]
         # add a goto to make the function entry look like other functions
         # (for zksync interpreter)
-        ret.append(["goto", sig.external_function_base_entry_label])
-        ret.append(func_common_lll)
+        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
+        ret.append(func_common_ir)
     else:
         ret = kwarg_handlers
         # sneak the base code into the kwarg handler
         # TODO rethink this / make it clearer
-        ret[-1][-1].append(func_common_lll)
+        ret[-1][-1].append(func_common_ir)
 
-    return LLLnode.from_list(ret, pos=getpos(code))
+    return IRnode.from_list(ret, source_pos=getpos(code))

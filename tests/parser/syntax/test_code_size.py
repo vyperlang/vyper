@@ -9,13 +9,12 @@ fail_list = [
 def foo() -> int128:
     x: int128 = 45
     return x.codesize
-    """,
+    """
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
-
     with pytest.raises(StructureException):
         compiler.compile_code(bad_code)
 
@@ -31,6 +30,15 @@ def foo() -> uint256:
 @external
 def foo() -> uint256:
     return self.codesize
+    """,
+    """
+struct Foo:
+    t: address
+foo: Foo
+
+@external
+def bar() -> uint256:
+    return self.foo.t.codesize
     """,
 ]
 

@@ -5,7 +5,7 @@ import pytest
 from web3.exceptions import ValidationError
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-MAX_UINT256 = (2 ** 256) - 1  # Max uint256 value
+MAX_UINT256 = (2**256) - 1  # Max uint256 value
 TOKEN_NAME = "Vypercoin"
 TOKEN_SYMBOL = "FANG"
 TOKEN_DECIMALS = 18
@@ -25,10 +25,9 @@ def c_bad(get_contract, w3):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
-    bad_code = code.replace(
-        "self.totalSupply += _value",
-        "",
-    ).replace("self.totalSupply -= _value", "")
+    bad_code = code.replace("self.totalSupply += _value", "").replace(
+        "self.totalSupply -= _value", ""
+    )
     c = get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
     return c
 

@@ -91,9 +91,9 @@ To test events, we examine the :py:class:`TransactionReceipt <brownie.network.tr
         yield AdvancedStorage.deploy(INITIAL_VALUE, {'from': accounts[0]})
 
     def test_events(adv_storage_contract, accounts):
-        tx1 = adv_storage_contract.set(10, {'from': accounts[0])
-        tx2 = adv_storage_contract.set(20, {'from': accounts[1])
-        tx3 = adv_storage_contract.reset({'from': accounts[0])
+        tx1 = adv_storage_contract.set(10, {'from': accounts[0]})
+        tx2 = adv_storage_contract.set(20, {'from': accounts[1]})
+        tx3 = adv_storage_contract.reset({'from': accounts[0]})
 
         # Check log contents
         assert len(tx1.events) == 1

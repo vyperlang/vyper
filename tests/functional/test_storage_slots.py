@@ -1,3 +1,7 @@
+import pytest
+
+from vyper.exceptions import StorageLayoutException
+
 code = """
 
 struct StructOne:
@@ -14,6 +18,7 @@ b: public(uint256[2])
 c: public(Bytes[32])
 d: public(int128[4])
 foo: public(HashMap[uint256, uint256[3]])
+dyn_array: DynArray[uint256, 3]
 e: public(String[47])
 f: public(int256[1])
 g: public(StructTwo[2])
@@ -36,6 +41,7 @@ def __init__():
             c: "whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
         })
     ]
+    self.dyn_array = [1, 2, 3]
     self.h =  [123456789]
     self.foo[0] = [987, 654, 321]
     self.foo[1] = [123, 456, 789]
@@ -95,3 +101,15 @@ def test_reentrancy_lock(get_contract):
     assert [c.foo(0, i) for i in range(3)] == [987, 654, 321]
     assert [c.foo(1, i) for i in range(3)] == [123, 456, 789]
     assert c.h(0) == 123456789
+
+
+def test_allocator_overflow(get_contract):
+    code = """
+x: uint256
+y: uint256[max_value(uint256)]
+    """
+    with pytest.raises(
+        StorageLayoutException,
+        match=f"Invalid storage slot for var y, tried to allocate slots 1 through {2**256}\n",
+    ):
+        get_contract(code)

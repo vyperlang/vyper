@@ -1,13 +1,14 @@
 from decimal import Decimal
 
-import eth_abi
 import pytest
+from eth.codecs import abi
 
 from vyper.exceptions import (
     ArgumentException,
     EventDeclarationException,
     InvalidType,
     NamespaceCollision,
+    StructureException,
     TypeMismatch,
     UndeclaredDefinition,
 )
@@ -551,7 +552,7 @@ def foo():
     logs = get_logs(tx_hash, c, "YourLog")
     args = logs[0].args
     assert args.arg1 == c.address
-    assert args.arg2 == (1, b"abc", ("house", Decimal("13.5")))
+    assert args.arg2 == {"x": 1, "y": b"abc", "z": {"t": "house", "w": Decimal("13.5")}}
 
 
 def test_fails_when_input_is_the_wrong_type(assert_tx_failed, get_contract_with_gas_estimation):
@@ -763,11 +764,11 @@ def ioo(inp: Bytes[100]):
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
 
-    assert w3.toText(logs[0]["data"]) == "moo"
+    assert w3.to_text(logs[0]["data"]) == "moo"
     tx_hash = c.goo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo2"
+    assert w3.to_text(logs[0]["data"]) == "moo2"
     assert (
         logs[0]["topics"][0] == "0x1234567812345678123456781234567812345678123456781234567812345678"
     )  # noqa: E501
@@ -775,12 +776,12 @@ def ioo(inp: Bytes[100]):
     tx_hash = c.hoo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo3"
+    assert w3.to_text(logs[0]["data"]) == "moo3"
 
     tx_hash = c.ioo(b"moo4", transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert w3.toText(logs[0]["data"]) == "moo4"
+    assert w3.to_text(logs[0]["data"]) == "moo4"
 
     print("Passed raw log tests")
 
@@ -802,14 +803,13 @@ def foo():
     tx_hash = c.foo(transact={})
     receipt = tester.get_transaction_receipt(tx_hash.hex())
     logs = receipt["logs"]
-    assert logs[0]["data"] == w3.toHex((1234).to_bytes(32, "big"))
-    assert logs[1]["data"] == w3.toHex((4321).to_bytes(32, "big"))
-    assert logs[2]["data"] == w3.toHex(b"testmessage").ljust(32 * 2 + 2, "0")
-    assert logs[3]["data"] == w3.toHex(keccak256(b""))
+    assert logs[0]["data"] == w3.to_hex((1234).to_bytes(32, "big"))
+    assert logs[1]["data"] == w3.to_hex((4321).to_bytes(32, "big"))
+    assert logs[2]["data"] == w3.to_hex(b"testmessage").ljust(32 * 2 + 2, "0")
+    assert logs[3]["data"] == w3.to_hex(keccak256(b""))
 
 
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -827,7 +827,6 @@ def foo():
 
 
 def test_literal_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -844,7 +843,6 @@ def foo():
 
 
 def test_storage_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -871,7 +869,6 @@ def set_list():
 
 
 def test_passed_list_packing(get_logs, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: int128[4]
@@ -909,7 +906,6 @@ def foo():
 
 
 def test_storage_byte_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event MyLog:
     arg1: Bytes[29]
@@ -936,7 +932,6 @@ def setbytez():
 
 
 def test_storage_decimal_list_packing(get_logs, bytes_helper, get_contract_with_gas_estimation):
-
     code = """
 event Bar:
     _value: decimal[4]
@@ -1086,7 +1081,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     topic1 = f"0x{keccak256(b'bar').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{eth_abi.encode_single('int128', 1).hex()}"
+    topic2 = f"0x{abi.encode('int128', 1).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'weird').hex()}"
@@ -1131,7 +1126,7 @@ def foo():
     topic1 = f"0x{keccak256(b'potato').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{eth_abi.encode_single('int128', -777).hex()}"
+    topic2 = f"0x{abi.encode('int128', -777).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
@@ -1185,7 +1180,7 @@ def foo():
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{eth_abi.encode_single('int128', -2109).hex()}"
+    topic2 = f"0x{abi.encode('int128', -2109).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'yessir').hex()}"
@@ -1227,8 +1222,59 @@ def foo():
     topic1 = f"0x{keccak256(b'wow').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
 
-    topic2 = f"0x{eth_abi.encode_single('int128', 666).hex()}"
+    topic2 = f"0x{abi.encode('int128', 666).hex()}"
     assert receipt["logs"][0]["topics"][2] == topic2
 
     topic3 = f"0x{keccak256(b'madness!').hex()}"
     assert receipt["logs"][0]["topics"][3] == topic3
+
+
+fail_list = [
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([1, 2], b"moo")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    a: DynArray[bytes32, 1] = [0x1234567812345678123456781234567812345678123456781234567812345678]
+    raw_log(a, b"moo2")
+    """,
+        InvalidType,
+    ),
+    (
+        """
+@external
+def foo():
+    raw_log([b"cow"], b"dog")
+    """,
+        (StructureException, InvalidType),
+    ),
+    (
+        """
+@external
+def foo():
+    # bytes20 instead of bytes32
+    raw_log([], 0x1234567890123456789012345678901234567890)
+    """,
+        InvalidType,
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_raw_log_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

@@ -1,16 +1,15 @@
-from vyper.codegen.lll_node import LLLnode
+from typing import Dict
+
+from vyper.semantics.types.function import ContractFunctionT
 
 
-def build_gas_estimates(lll_runtime: LLLnode) -> dict:
-    gas_estimates: dict = {}
-
-    external_sub = next((i for i in lll_runtime.args if i.value == "with"), None)
-    if external_sub:
-        for func_lll in external_sub.args[-1].args:
-            if func_lll.func_name is not None:
-                gas_estimates[func_lll.func_name] = func_lll.total_gas
-
-    return gas_estimates
+def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
+    # note: `.gas_estimate` is added to ContractFunctionT._ir_info
+    # in vyper/semantics/types/function.py
+    ret = {}
+    for k, v in func_ts.items():
+        ret[k] = v._ir_info.gas_estimate
+    return ret
 
 
 def expand_source_map(compressed_map: str) -> list:

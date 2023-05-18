@@ -73,7 +73,6 @@ def _parse_docstring(
     params: Optional[Tuple] = None,
     return_length: int = 0,
 ) -> dict:
-
     natspec: dict = {}
     if params is None:
         params = tuple()
@@ -81,11 +80,7 @@ def _parse_docstring(
     line_no = LineNumbers(source)
     start = source.index(docstring)
 
-    translate_map = {
-        "return": "returns",
-        "dev": "details",
-        "param": "params",
-    }
+    translate_map = {"return": "returns", "dev": "details", "param": "params"}
 
     pattern = r"(?:^|\n)\s*@(\S+)\s*([\s\S]*?)(?=\n\s*@\S|\s*$)"
 
@@ -93,7 +88,7 @@ def _parse_docstring(
         tag, value = match.groups()
         err_args = (source, *line_no.offset_to_line(start + match.start(1)))
 
-        if tag not in SINGLE_FIELDS + PARAM_FIELDS:
+        if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
         if tag in invalid_fields:
             raise NatSpecSyntaxException(
@@ -127,8 +122,7 @@ def _parse_docstring(
                 raise NatSpecSyntaxException("Method does not return any values", *err_args)
             if len(natspec["returns"]) >= return_length:
                 raise NatSpecSyntaxException(
-                    "Number of documented return values exceeds actual number",
-                    *err_args,
+                    "Number of documented return values exceeds actual number", *err_args
                 )
             key = f"_{len(natspec['returns'])}"
 
@@ -140,9 +134,7 @@ def _parse_docstring(
         natspec["notice"] = " ".join(docstring.split())
     elif not docstring.strip().startswith("@"):
         raise NatSpecSyntaxException(
-            "NatSpec docstring opens with untagged comment",
-            source,
-            *line_no.offset_to_line(start),
+            "NatSpec docstring opens with untagged comment", source, *line_no.offset_to_line(start)
         )
 
     return natspec

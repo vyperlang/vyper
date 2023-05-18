@@ -1,283 +1,178 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
-from vyper.codegen.core import make_setter
-from vyper.codegen.function_definitions import (
-    generate_lll_for_function,
-    is_default_func,
-    is_initializer,
-)
+from vyper.codegen.core import shr
+from vyper.codegen.function_definitions import FuncIRInfo, generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.lll_node import LLLnode
-from vyper.exceptions import (
-    EventDeclarationException,
-    FunctionDeclarationException,
-    StructureException,
-)
-from vyper.semantics.types.function import FunctionVisibility, StateMutability
-from vyper.utils import LOADED_LIMITS
-
-# TODO remove this check
-if not hasattr(vy_ast, "AnnAssign"):
-    raise Exception("Requires python 3.6 or higher for annotation support")
-
-# Header code
-STORE_CALLDATA: List[Any] = [
-    "seq",
-    # check that calldatasize is at least 4, otherwise
-    # calldataload will load zeros (cf. yellow paper).
-    ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]],
-    ["calldatacopy", 28, 0, 4],
-]
-# Store limit constants at fixed addresses in memory.
-LIMIT_MEMORY_SET: List[Any] = [
-    ["mstore", pos, limit_size] for pos, limit_size in LOADED_LIMITS.items()
-]
+from vyper.codegen.ir_node import IRnode
+from vyper.exceptions import CompilerPanic
 
 
-def func_init_lll():
-    return LLLnode.from_list(STORE_CALLDATA + LIMIT_MEMORY_SET, typ=None)
+def _topsort_helper(functions, lookup):
+    #  single pass to get a global topological sort of functions (so that each
+    # function comes after each of its callees). may have duplicates, which get
+    # filtered out in _topsort()
+
+    ret = []
+    for f in functions:
+        # called_functions is a list of ContractFunctions, need to map
+        # back to FunctionDefs.
+        callees = [lookup[t.name] for t in f._metadata["type"].called_functions]
+        ret.extend(_topsort_helper(callees, lookup))
+        ret.append(f)
+
+    return ret
 
 
-def init_func_init_lll():
-    return LLLnode.from_list(["seq"] + LIMIT_MEMORY_SET, typ=None)
+def _topsort(functions):
+    lookup = {f.name: f for f in functions}
+    # strip duplicates
+    return list(dict.fromkeys(_topsort_helper(functions, lookup)))
 
 
-def parse_external_interfaces(external_interfaces, global_ctx):
-    for _interfacename in global_ctx._contracts:
-        # TODO factor me into helper function
-        _interface_defs = global_ctx._contracts[_interfacename]
-        _defnames = [_def.name for _def in _interface_defs]
-        interface = {}
-        if len(set(_defnames)) < len(_interface_defs):
-            raise FunctionDeclarationException(
-                "Duplicate function name: "
-                f"{[name for name in _defnames if _defnames.count(name) > 1][0]}"
-            )
-
-        for _def in _interface_defs:
-            constant = False
-            # test for valid call type keyword.
-            if (
-                len(_def.body) == 1
-                and isinstance(_def.body[0], vy_ast.Expr)
-                and isinstance(_def.body[0].value, vy_ast.Name)
-                # NOTE: Can't import enums here because of circular import
-                and _def.body[0].value.id in ("pure", "view", "nonpayable", "payable")
-            ):
-                constant = True if _def.body[0].value.id in ("view", "pure") else False
-            else:
-                raise StructureException("state mutability of call type must be specified", _def)
-            # Recognizes already-defined structs
-            sig = FunctionSignature.from_definition(
-                _def,
-                interface_def=True,
-                constant_override=constant,
-                custom_structs=global_ctx._structs,
-            )
-            interface[sig.name] = sig
-        external_interfaces[_interfacename] = interface
-
-    for interface_name, interface in global_ctx._interfaces.items():
-        external_interfaces[interface_name] = {
-            sig.name: sig for sig in interface if isinstance(sig, FunctionSignature)
-        }
-
-    return external_interfaces
+def _is_constructor(func_ast):
+    return func_ast._metadata["type"].is_constructor
 
 
-def parse_regular_functions(
-    o, regular_functions, sigs, external_interfaces, global_ctx, default_function
-):
-    # check for payable/nonpayable external functions to optimize nonpayable assertions
-    func_types = [i._metadata["type"] for i in global_ctx._defs]
-    mutabilities = [i.mutability for i in func_types if i.visibility == FunctionVisibility.EXTERNAL]
-    has_payable = any(i == StateMutability.PAYABLE for i in mutabilities)
-    has_nonpayable = any(i != StateMutability.PAYABLE for i in mutabilities)
+def _is_fallback(func_ast):
+    return func_ast._metadata["type"].is_fallback
 
-    is_default_payable = (
-        default_function is not None
-        and default_function._metadata["type"].mutability == StateMutability.PAYABLE
-    )
 
-    # TODO streamline the nonpayable check logic
+def _is_internal(func_ast):
+    return func_ast._metadata["type"].is_internal
 
-    # when a contract has a payable default function and at least one nonpayable
-    # external function, we must perform the nonpayable check on every function
-    check_per_function = is_default_payable and has_nonpayable
 
-    # generate LLL for regular functions
-    payable_funcs = []
-    nonpayable_funcs = []
-    internal_funcs = []
-    add_gas = func_init_lll().gas
+def _is_payable(func_ast):
+    return func_ast._metadata["type"].is_payable
 
-    for func_node in regular_functions:
-        func_type = func_node._metadata["type"]
-        func_lll, frame_start, frame_size = generate_lll_for_function(
-            func_node, {**{"self": sigs}, **external_interfaces}, global_ctx, check_per_function
-        )
 
-        if func_type.visibility == FunctionVisibility.INTERNAL:
-            internal_funcs.append(func_lll)
+# codegen for all runtime functions + callvalue/calldata checks + method selector routines
+def _runtime_ir(runtime_functions, global_ctx):
+    # categorize the runtime functions because we will organize the runtime
+    # code into the following sections:
+    # payable functions, nonpayable functions, fallback function, internal_functions
+    internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
-        elif func_type.mutability == StateMutability.PAYABLE:
-            add_gas += 30  # CMC 20210910 why?
-            payable_funcs.append(func_lll)
+    external_functions = [f for f in runtime_functions if not _is_internal(f)]
+    default_function = next((f for f in external_functions if _is_fallback(f)), None)
 
-        else:
-            add_gas += 30  # CMC 20210910 why?
-            nonpayable_funcs.append(func_lll)
+    # functions that need to go exposed in the selector section
+    regular_functions = [f for f in external_functions if not _is_fallback(f)]
+    payables = [f for f in regular_functions if _is_payable(f)]
+    nonpayables = [f for f in regular_functions if not _is_payable(f)]
 
-        func_lll.total_gas += add_gas
+    # create a map of the IR functions since they might live in both
+    # runtime and deploy code (if init function calls them)
+    internal_functions_ir: list[IRnode] = []
 
-        # update sigs with metadata gathered from compiling the function so that
-        # we can handle calls to self
-        # TODO we only need to do this for internal functions; external functions
-        # cannot be called via `self`
-        sig = FunctionSignature.from_definition(func_node, external_interfaces, global_ctx._structs)
-        sig.gas = func_lll.total_gas
-        sig.frame_start = frame_start
-        sig.frame_size = frame_size
-        sigs[sig.name] = sig
+    for func_ast in internal_functions:
+        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
+        internal_functions_ir.append(func_ir)
 
-    # generate LLL for fallback function
+    # for some reason, somebody may want to deploy a contract with no
+    # external functions, or more likely, a "pure data" contract which
+    # contains immutables
+    if len(external_functions) == 0:
+        # TODO: prune internal functions in this case? dead code eliminator
+        # might not eliminate them, since internal function jumpdest is at the
+        # first instruction in the contract.
+        runtime = ["seq"] + internal_functions_ir
+        return runtime
+
+    # note: if the user does not provide one, the default fallback function
+    # reverts anyway. so it does not hurt to batch the payable check.
+    default_is_nonpayable = default_function is None or not _is_payable(default_function)
+
+    # when a contract has a nonpayable default function,
+    # we can do a single check for all nonpayable functions
+    batch_payable_check = len(nonpayables) > 0 and default_is_nonpayable
+    skip_nonpayable_check = batch_payable_check
+
+    selector_section = ["seq"]
+
+    for func_ast in payables:
+        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
+        selector_section.append(func_ir)
+
+    if batch_payable_check:
+        selector_section.append(["assert", ["iszero", "callvalue"]])
+
+    for func_ast in nonpayables:
+        func_ir = generate_ir_for_function(func_ast, global_ctx, skip_nonpayable_check)
+        selector_section.append(func_ir)
+
     if default_function:
-        fallback_lll, _frame_start, _frame_size = generate_lll_for_function(
-            default_function,
-            {**{"self": sigs}, **external_interfaces},
-            global_ctx,
-            # include a nonpayble check here if the contract only has a default function
-            check_per_function or not regular_functions,
+        fallback_ir = generate_ir_for_function(default_function, global_ctx, skip_nonpayable_check)
+    else:
+        fallback_ir = IRnode.from_list(
+            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
         )
-    else:
-        fallback_lll = LLLnode.from_list(["revert", 0, 0], typ=None, annotation="Default function")
 
-    if check_per_function:
-        external_seq = ["seq"] + payable_funcs + nonpayable_funcs
+    # ensure the external jumptable section gets closed out
+    # (for basic block hygiene and also for zksync interpreter)
+    # NOTE: this jump gets optimized out in assembly since the
+    # fallback label is the immediate next instruction,
+    close_selector_section = ["goto", "fallback"]
 
-    else:
-        # payable functions are placed prior to nonpayable functions
-        # and seperated by a nonpayable assertion
-        external_seq = ["seq"]
-        if has_payable:
-            external_seq += payable_funcs
-        if has_nonpayable:
-            external_seq.append(["assert", ["iszero", "callvalue"]])
-            external_seq += nonpayable_funcs
-
-    # bytecode is organized by: external functions, fallback fn, internal functions
-    # this way we save gas and reduce bytecode by not jumping over internal functions
     runtime = [
         "seq",
-        func_init_lll(),
-        ["with", "_calldata_method_id", ["mload", 0], external_seq],
-        ["label", "fallback", ["var_list"], fallback_lll],
-    ]
-    runtime.extend(internal_funcs)
-
-    immutables = [_global for _global in global_ctx._globals.values() if _global.is_immutable]
-
-    # TODO: enable usage of the data section beyond just user defined immutables
-    # https://github.com/vyperlang/vyper/pull/2466#discussion_r722816358
-    if len(immutables) > 0:
-        # find position of the last immutable so we do not overwrite it in memory
-        # when we codecopy the runtime code to memory
-        immutables = sorted(immutables, key=lambda imm: imm.pos)
-        start_pos = immutables[-1].pos + immutables[-1].size * 32
-
-        # create sequence of actions to copy immutables to the end of the runtime code in memory
-        # TODO: if possible, just use identity precompile
-        data_section = []
-        for immutable in immutables:
-            # store each immutable at the end of the runtime code
-            memory_loc, offset = (
-                immutable.pos,
-                immutable.data_offset,
-            )
-            lhs = LLLnode.from_list(
-                ["add", start_pos + offset, "_lllsz"], typ=immutable.typ, location="memory"
-            )
-            rhs = LLLnode.from_list(memory_loc, typ=immutable.typ, location="memory")
-            data_section.append(make_setter(lhs, rhs, pos=None))
-
-        # TODO: use GlobalContext.immutable_section_size
-        data_section_size = sum([immutable.size * 32 for immutable in immutables])
-        o.append(
-            [
-                "with",
-                "_lllsz",  # keep size of runtime bytecode in sz var
-                ["lll", start_pos, runtime],  # store runtime code at `start_pos`
-                # sequence of copying immutables, with final action of returning the runtime code
-                ["seq", *data_section, ["return", start_pos, ["add", data_section_size, "_lllsz"]]],
-            ]
-        )
-
-    else:
-        # NOTE: lll macro first argument is the location in memory to store
-        # the compiled bytecode
-        # https://lll-docs.readthedocs.io/en/latest/lll_reference.html#code-lll
-        o.append(["return", 0, ["lll", 0, runtime]])
-
-    return o, runtime
-
-
-# Main python parse tree => LLL method
-def parse_tree_to_lll(global_ctx: GlobalContext) -> Tuple[LLLnode, LLLnode, FunctionSignatures]:
-    _names_def = [_def.name for _def in global_ctx._defs]
-    # Checks for duplicate function names
-    if len(set(_names_def)) < len(_names_def):
-        raise FunctionDeclarationException(
-            "Duplicate function name: "
-            f"{[name for name in _names_def if _names_def.count(name) > 1][0]}"
-        )
-    _names_events = [_event.name for _event in global_ctx._events]
-    # Checks for duplicate event names
-    if len(set(_names_events)) < len(_names_events):
-        raise EventDeclarationException(
-            f"""Duplicate event name:
-            {[name for name in _names_events if _names_events.count(name) > 1][0]}"""
-        )
-    # Initialization function
-    init_function = next((_def for _def in global_ctx._defs if is_initializer(_def)), None)
-    # Default function
-    default_function = next((i for i in global_ctx._defs if is_default_func(i)), None)
-
-    regular_functions = [
-        _def for _def in global_ctx._defs if not is_initializer(_def) and not is_default_func(_def)
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+        close_selector_section,
+        ["label", "fallback", ["var_list"], fallback_ir],
     ]
 
-    sigs: dict = {}
-    external_interfaces: dict = {}
-    # Create the main statement
-    o: List[Union[str, LLLnode]] = ["seq"]
-    if global_ctx._contracts or global_ctx._interfaces:
-        external_interfaces = parse_external_interfaces(external_interfaces, global_ctx)
+    # note: dead code eliminator will clean dead functions
+    runtime.extend(internal_functions_ir)
 
-    # TODO: fix for #2251 is to move this after parse_regular_functions
+    return runtime
+
+
+# take a GlobalContext, and generate the runtime and deploy IR
+def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
+    # order functions so that each function comes after all of its callees
+    function_defs = _topsort(global_ctx.functions)
+
+    init_function: Optional[vy_ast.FunctionDef] = None
+
+    # generate all FuncIRInfos
+    for f in function_defs:
+        func_t = f._metadata["type"]
+        func_t._ir_info = FuncIRInfo(func_t)
+
+    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
+    init_function = next((f for f in function_defs if _is_constructor(f)), None)
+
+    runtime = _runtime_ir(runtime_functions, global_ctx)
+
+    deploy_code: List[Any] = ["seq"]
+    immutables_len = global_ctx.immutable_section_bytes
     if init_function:
-        o.append(init_func_init_lll())
-        init_func_lll, _frame_start, _frame_size = generate_lll_for_function(
-            init_function,
-            {**{"self": sigs}, **external_interfaces},
-            global_ctx,
-            False,
+        # TODO might be cleaner to separate this into an _init_ir helper func
+        init_func_ir = generate_ir_for_function(
+            init_function, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
         )
-        o.append(init_func_lll)
+        deploy_code.append(init_func_ir)
 
-    if regular_functions or default_function:
-        o, runtime = parse_regular_functions(
-            o,
-            regular_functions,
-            sigs,
-            external_interfaces,
-            global_ctx,
-            default_function,
-        )
+        # pass the amount of memory allocated for the init function
+        # so that deployment does not clobber while preparing immutables
+        # note: (deploy mem_ofst, code, extra_padding)
+        init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
+        deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
+
+        # internal functions come after everything else
+        internal_functions = [f for f in runtime_functions if _is_internal(f)]
+        for f in internal_functions:
+            func_ir = generate_ir_for_function(
+                f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
+            )
+            # note: we depend on dead code eliminator to clean dead function defs
+            deploy_code.append(func_ir)
+
     else:
-        runtime = o.copy()
+        if immutables_len != 0:
+            raise CompilerPanic("unreachable")
+        deploy_code.append(["deploy", 0, runtime, 0])
 
-    return LLLnode.from_list(o), LLLnode.from_list(runtime), sigs
+    return IRnode.from_list(deploy_code), IRnode.from_list(runtime)

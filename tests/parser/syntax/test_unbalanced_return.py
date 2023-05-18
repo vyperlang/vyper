@@ -30,7 +30,7 @@ def test() -> int128:
         if True:
             return 0
     else:
-        assert False
+        assert msg.sender != msg.sender
     """,
         FunctionDeclarationException,
     ),
@@ -59,6 +59,36 @@ def valid_address(sender: address) -> bool:
     if sender == ZERO_ADDRESS:
         selfdestruct(sender)
         _sender: address = sender
+    else:
+        return False
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo() -> bool:
+    raw_revert(b"vyper")
+    return True
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo() -> bool:
+    raw_revert(b"vyper")
+    x: uint256 = 3
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def foo(x: uint256) -> bool:
+    if x == 2:
+        raw_revert(b"vyper")
+        a: uint256 = 3
     else:
         return False
     """,
@@ -108,7 +138,7 @@ def test() -> int128:
     if 1 == 1 :
         return 1
     else:
-        assert False
+        assert msg.sender != msg.sender
         return 0
     """,
     """
@@ -125,6 +155,14 @@ def test() -> int128:
         x = keccak256(x)
         return 1
     return 1
+    """,
+    """
+@external
+def foo() -> int128:
+    if True:
+        return 123
+    else:
+        raw_revert(b"vyper")
     """,
 ]
 

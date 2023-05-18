@@ -226,80 +226,11 @@ def foo(x: int128[2][2]):
     """,
         TypeMismatch,
     ),
-    (
-        """
-@external
-def foo():
-    for str in ["hello", "world"]:
-        pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo():
-    a: String[6] = "hello"
-    b: String[6] = "world"
-    for str in [a, b]:
-        pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-a: String[6]
-b: String[6]
-
-@external
-def foo():
-    self.a = "hello"
-    self.b = "world"
-    for str in [self.a, self.b]:
-        pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo():
-    for str in [b"hello", b"world"]:
-        pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo():
-    a: Bytes[6] = b"hello"
-    b: Bytes[6] = b"world"
-    for str in [a, b]:
-        pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-a: Bytes[6]
-b: Bytes[6]
-
-@external
-def foo():
-    self.a = b"hello"
-    self.b = b"world"
-    for str in [self.a, self.b]:
-        pass
-    """,
-        StructureException,
-    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_block_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
@@ -370,6 +301,12 @@ b: decimal[5]
 @external
 def foo():
     self.b[0] = 7.0
+    """,
+    """
+@external
+def foo():
+    for i in [[], []]:
+        pass
     """,
 ]
 

@@ -1,12 +1,17 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.builtin_functions import STMT_DISPATCH_TABLE
+from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
-    LLLnode,
+    LOAD,
+    STORE,
+    IRnode,
     append_dyn_array,
+    check_assign,
+    clamp,
+    dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
     getpos,
@@ -14,14 +19,14 @@ from vyper.codegen.core import (
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
-    unwrap_location,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType, parse_type
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.semantics.types import DArrayT, MemberFunctionT
+from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
 class Stmt:
@@ -33,73 +38,57 @@ class Stmt:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
 
         with context.internal_memory_scope():
-            self.lll_node = fn()
+            self.ir_node = fn()
 
-        if self.lll_node is None:
-            raise TypeCheckFailure("Statement node did not produce LLL")
+        if self.ir_node is None:
+            raise TypeCheckFailure("Statement node did not produce IR")
 
-        self.lll_node.annotation = self.stmt.get("node_source_code")
+        self.ir_node.annotation = self.stmt.get("node_source_code")
+        self.ir_node.source_pos = getpos(self.stmt)
 
     def parse_Expr(self):
-        return Stmt(self.stmt.value, self.context).lll_node
+        # TODO: follow analysis modules and dispatch down to expr.py
+        return Stmt(self.stmt.value, self.context).ir_node
 
     def parse_Pass(self):
-        return LLLnode.from_list("pass", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("pass")
 
     def parse_Name(self):
         if self.stmt.id == "vdb":
-            return LLLnode("debugger", typ=None, pos=getpos(self.stmt))
+            return IRnode("debugger")
         else:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        typ = parse_type(
-            self.stmt.annotation,
-            sigs=self.context.sigs,
-            custom_structs=self.context.structs,
-        )
+        ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ, pos=self.stmt)
-        if self.stmt.value is None:
-            return
+        alloced = self.context.new_variable(varname, ltyp)
 
-        sub = Expr(self.stmt.value, self.context).lll_node
+        assert self.stmt.value is not None
+        rhs = Expr(self.stmt.value, self.context).ir_node
 
-        is_literal_bytes32_assign = (
-            isinstance(sub.typ, ByteArrayType)
-            and sub.typ.maxlen == 32
-            and isinstance(typ, BaseType)
-            and typ.typ == "bytes32"
-            and sub.typ.is_literal
-        )
+        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
-        # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-        if is_literal_bytes32_assign:
-            sub = LLLnode(
-                util.bytes_to_int(self.stmt.value.s),
-                typ=BaseType("bytes32"),
-                pos=getpos(self.stmt),
-            )
-
-        variable_loc = LLLnode.from_list(
-            pos,
-            typ=typ,
-            location="memory",
-            pos=getpos(self.stmt),
-        )
-
-        lll_node = make_setter(variable_loc, sub, pos=getpos(self.stmt))
-
-        return lll_node
+        return make_setter(lhs, rhs)
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        sub = Expr(self.stmt.value, self.context).lll_node
-        target = self._get_target(self.stmt.target)
+        src = Expr(self.stmt.value, self.context).ir_node
+        dst = self._get_target(self.stmt.target)
 
-        lll_node = make_setter(target, sub, pos=getpos(self.stmt))
-        lll_node.pos = getpos(self.stmt)
-        return lll_node
+        ret = ["seq"]
+        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        if overlap and not dst.typ._is_prim_word:
+            # there is overlap between the lhs and rhs, and the type is
+            # complex - i.e., it spans multiple words. for safety, we
+            # copy to a temporary buffer before copying to the destination.
+            tmp = self.context.new_internal_variable(src.typ)
+            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
+            ret.append(make_setter(tmp, src))
+            src = tmp
+
+        ret.append(make_setter(dst, src))
+        return IRnode.from_list(ret)
 
     def parse_If(self):
         if self.stmt.orelse:
@@ -111,25 +100,27 @@ class Stmt:
         with self.context.block_scope():
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
             body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
-            lll_node = LLLnode.from_list(body, typ=None, pos=getpos(self.stmt))
-        return lll_node
+            ir_node = IRnode.from_list(body)
+        return ir_node
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]
 
-        args = [Expr(arg, self.context).lll_node for arg in self.stmt.value.args]
+        args = [Expr(arg, self.context).ir_node for arg in self.stmt.value.args]
 
-        topic_lll = []
-        data_lll = []
+        topic_ir = []
+        data_ir = []
         for arg, is_indexed in zip(args, event.indexed):
             if is_indexed:
-                topic_lll.append(arg)
+                topic_ir.append(arg)
             else:
-                data_lll.append(arg)
+                data_ir.append(arg)
 
-        return events.lll_node_for_log(self.stmt, event, topic_lll, data_lll, self.context)
+        return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
+        # TODO use expr.func.type.is_internal once type annotations
+        # are consistently available.
         is_self_function = (
             (isinstance(self.stmt.func, vy_ast.Attribute))
             and isinstance(self.stmt.func.value, vy_ast.Name)
@@ -138,60 +129,74 @@ class Stmt:
 
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
-            return STMT_DISPATCH_TABLE[funcname].build_LLL(self.stmt, self.context)
+            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
 
         elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
             "append",
             "pop",
         ):
-            darray = Expr(self.stmt.func.value, self.context).lll_node
-            args = [Expr(x, self.context).lll_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                assert len(args) == 1
-                arg = args[0]
-                assert isinstance(darray.typ, DArrayType)
-                assert arg.typ == darray.typ.subtype
-                return append_dyn_array(darray, arg, pos=getpos(self.stmt))
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False, pos=getpos(self.stmt))
+            func_type = self.stmt.func._metadata["type"]
+            if isinstance(func_type, MemberFunctionT):
+                darray = Expr(self.stmt.func.value, self.context).ir_node
+                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+                if self.stmt.func.attr == "append":
+                    # sanity checks
+                    assert len(args) == 1
+                    arg = args[0]
+                    assert isinstance(darray.typ, DArrayT)
+                    check_assign(
+                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                    )
 
-        elif is_self_function:
-            return self_call.lll_for_self_call(self.stmt, self.context)
+                    return append_dyn_array(darray, arg)
+                else:
+                    assert len(args) == 0
+                    return pop_dyn_array(darray, return_popped_item=False)
+
+        if is_self_function:
+            return self_call.ir_for_self_call(self.stmt, self.context)
         else:
-            return external_call.lll_for_external_call(self.stmt, self.context)
+            return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
+        # from parse_Raise: None passed as the assert condition
+        is_raise = test_expr is None
+
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return LLLnode.from_list(["assert_unreachable", test_expr], typ=None, pos=getpos(msg))
+            if is_raise:
+                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+            else:
+                return IRnode.from_list(
+                    ["assert_unreachable", test_expr], error_msg="assert unreachable"
+                )
 
         # set constant so that revert reason str is well behaved
         try:
             tmp = self.context.constancy
             self.context.constancy = Constancy.Constant
-            msg_lll = Expr(msg, self.context).lll_node
+            msg_ir = Expr(msg, self.context).ir_node
         finally:
             self.context.constancy = tmp
 
         # TODO this is probably useful in codegen.core
         # compare with eval_seq.
-        def _get_last(lll):
-            if len(lll.args) == 0:
-                return lll.value
-            return _get_last(lll.args[-1])
+        def _get_last(ir):
+            if len(ir.args) == 0:
+                return ir.value
+            return _get_last(ir.args[-1])
 
         # TODO maybe use ensure_in_memory
-        if msg_lll.location != "memory":
-            buf = self.context.new_internal_variable(msg_lll.typ)
-            instantiate_msg = make_byte_array_copier(buf, msg_lll)
+        if msg_ir.location != MEMORY:
+            buf = self.context.new_internal_variable(msg_ir.typ)
+            instantiate_msg = make_byte_array_copier(buf, msg_ir)
         else:
-            buf = _get_last(msg_lll)
+            buf = _get_last(msg_ir)
             if not isinstance(buf, int):
                 raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
-            instantiate_msg = msg_lll
+            instantiate_msg = msg_ir
 
         # offset of bytes in (bytes,)
-        method_id = util.abi_method_id("Error(string)")
+        method_id = util.method_id_int("Error(string)")
 
         # abi encode method_id + bytestring
         assert buf >= 36, "invalid buffer"
@@ -206,53 +211,33 @@ class Stmt:
             ["mstore", buf - 32, 0x20],
             ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-
-        if test_expr is not None:
-            lll_node = ["if", ["iszero", test_expr], revert_seq]
+        if is_raise:
+            ir_node = revert_seq
         else:
-            lll_node = revert_seq
-
-        return LLLnode.from_list(lll_node, typ=None, pos=getpos(self.stmt))
+            ir_node = ["if", ["iszero", test_expr], revert_seq]
+        return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-        if test_expr.typ.is_literal:
-            if test_expr.value == 1:
-                # skip literal assertions that always pass
-                return LLLnode.from_list(["pass"], typ=None, pos=getpos(self.stmt))
-            else:
-                test_expr = test_expr.value
 
         if self.stmt.msg:
             return self._assert_reason(test_expr, self.stmt.msg)
         else:
-            return LLLnode.from_list(["assert", test_expr], typ=None, pos=getpos(self.stmt))
+            return IRnode.from_list(["assert", test_expr], error_msg="user assert")
 
     def parse_Raise(self):
         if self.stmt.exc:
             return self._assert_reason(None, self.stmt.exc)
         else:
-            return LLLnode.from_list(["revert", 0, 0], typ=None, pos=getpos(self.stmt))
+            return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
-    def _check_valid_range_constant(self, arg_ast_node, raise_exception=True):
+    def _check_valid_range_constant(self, arg_ast_node):
         with self.context.range_scope():
-            # TODO should catch if raise_exception == False?
             arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-
-        is_integer_literal = (
-            isinstance(arg_expr.typ, BaseType)
-            and arg_expr.typ.is_literal
-            and arg_expr.typ.typ in {"uint256", "int256"}
-        )
-        if not is_integer_literal and raise_exception:
-            raise StructureException(
-                "Range only accepts literal (constant) values of type uint256 or int256",
-                arg_ast_node,
-            )
-        return is_integer_literal, arg_expr
+        return arg_expr
 
     def _get_range_const_value(self, arg_ast_node):
-        _, arg_expr = self._check_valid_range_constant(arg_ast_node)
+        arg_expr = self._check_valid_range_constant(arg_ast_node)
         return arg_expr.value
 
     def parse_For(self):
@@ -263,12 +248,11 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # attempt to use the type specified by type checking, fall back to `int256`
-        # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor type system
-        iter_typ = "int256"
+        # TODO make sure type always gets annotated
         if "type" in self.stmt.target._metadata:
-            iter_typ = self.stmt.target._metadata["type"]._id
+            iter_typ = self.stmt.target._metadata["type"]
+        else:
+            iter_typ = INT256_T
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
@@ -277,29 +261,31 @@ class Stmt:
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
             arg0_val = self._get_range_const_value(arg0)
-            start = LLLnode.from_list(0, typ=iter_typ, pos=getpos(self.stmt))
+            start = IRnode.from_list(0, typ=iter_typ)
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1], raise_exception=False)[0]:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-            start = LLLnode.from_list(arg0_val, typ=iter_typ, pos=getpos(self.stmt))
-            rounds = LLLnode.from_list(arg1_val - arg0_val, typ=iter_typ, pos=getpos(self.stmt))
+            start = IRnode.from_list(arg0_val, typ=iter_typ)
+            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
 
         r = rounds if isinstance(rounds, int) else rounds.value
         if r < 1:
             return
 
         varname = self.stmt.target.id
-        i = LLLnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
-        iptr = self.context.new_variable(varname, BaseType(iter_typ), pos=getpos(self.stmt))
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
+        iptr = self.context.new_variable(varname, iter_typ)
 
         self.context.forvars[varname] = True
 
@@ -308,32 +294,27 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        lll_node = LLLnode.from_list(
-            ["repeat", i, start, rounds, rounds, loop_body],
-            pos=getpos(self.stmt),
-        )
+        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
         del self.context.forvars[varname]
 
-        return lll_node
+        return ir_node
 
     def _parse_For_list(self):
         with self.context.range_scope():
-            iter_list = Expr(self.stmt.iter, self.context).lll_node
+            iter_list = Expr(self.stmt.iter, self.context).ir_node
 
         # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
-        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
-        iter_list.typ.subtype = target_type
+        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
+        target_type = self.stmt.target._metadata["type"]
+        iter_list.typ.value_type = target_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
-        loop_var = LLLnode.from_list(
-            self.context.new_variable(varname, target_type),
-            typ=target_type,
-            location="memory",
+        loop_var = IRnode.from_list(
+            self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
 
-        i = LLLnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
+        i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
         self.context.forvars[varname] = True
 
@@ -341,25 +322,20 @@ class Stmt:
 
         # list literal, force it to memory first
         if isinstance(self.stmt.iter, vy_ast.List):
-            tmp_list = LLLnode.from_list(
+            tmp_list = IRnode.from_list(
                 self.context.new_internal_variable(iter_list.typ),
                 typ=iter_list.typ,
-                location="memory",
+                location=MEMORY,
             )
-            ret.append(make_setter(tmp_list, iter_list, pos=getpos(self.stmt)))
+            ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
         # set up the loop variable
-        loop_var_ast = getpos(self.stmt.target)
-        e = get_element_ptr(iter_list, i, array_bounds_check=False, pos=loop_var_ast)
-        body = [
-            "seq",
-            make_setter(loop_var, e, pos=loop_var_ast),
-            parse_body(self.stmt.body, self.context),
-        ]
+        e = get_element_ptr(iter_list, i, array_bounds_check=False)
+        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
         repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayType):
+        if isinstance(iter_list.typ, DArrayT):
             array_len = get_dyn_array_count(iter_list)
         else:
             array_len = repeat_bound
@@ -367,17 +343,22 @@ class Stmt:
         ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
         del self.context.forvars[varname]
-        return LLLnode.from_list(ret, pos=getpos(self.stmt))
+        return IRnode.from_list(ret)
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if not isinstance(target.typ, BaseType):
+        if not target.typ._is_prim_word:
+            # because of this check, we do not need to check for
+            # make_setter references lhs<->rhs as in parse_Assign -
+            # single word load/stores are atomic.
             return
-        if target.location == "storage":
-            lll_node = Expr.parse_value_expr(
+
+        with target.cache_when_complex("_loc") as (b, target):
+            rhs = Expr.parse_value_expr(
                 vy_ast.BinOp(
-                    left=LLLnode.from_list(["sload", "_stloc"], typ=target.typ, pos=target.pos),
+                    left=IRnode.from_list(LOAD(target), typ=target.typ),
                     right=sub,
                     op=self.stmt.op,
                     lineno=self.stmt.lineno,
@@ -388,42 +369,19 @@ class Stmt:
                 ),
                 self.context,
             )
-            return LLLnode.from_list(
-                ["with", "_stloc", target, ["sstore", "_stloc", unwrap_location(lll_node)]],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
-        elif target.location == "memory":
-            lll_node = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    left=LLLnode.from_list(["mload", "_mloc"], typ=target.typ, pos=target.pos),
-                    right=sub,
-                    op=self.stmt.op,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
-                    node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
-            return LLLnode.from_list(
-                ["with", "_mloc", target, ["mstore", "_mloc", unwrap_location(lll_node)]],
-                typ=None,
-                pos=getpos(self.stmt),
-            )
+            return b.resolve(STORE(target, rhs))
 
     def parse_Continue(self):
-        return LLLnode.from_list("continue", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("continue")
 
     def parse_Break(self):
-        return LLLnode.from_list("break", typ=None, pos=getpos(self.stmt))
+        return IRnode.from_list("break")
 
     def parse_Return(self):
-        lll_val = None
+        ir_val = None
         if self.stmt.value is not None:
-            lll_val = Expr(self.stmt.value, self.context).lll_node
-        return make_return_stmt(lll_val, self.stmt, self.context)
+            ir_val = Expr(self.stmt.value, self.context).ir_node
+        return make_return_stmt(ir_val, self.stmt, self.context)
 
     def _get_target(self, target):
         _dbg_expr = target
@@ -432,21 +390,21 @@ class Stmt:
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
 
         if isinstance(target, vy_ast.Tuple):
-            target = Expr(target, self.context).lll_node
+            target = Expr(target, self.context).ir_node
             for node in target.args:
-                if (node.location == "storage" and self.context.is_constant()) or not node.mutable:
+                if (node.location == STORAGE and self.context.is_constant()) or not node.mutable:
                     raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
             return target
 
-        target = Expr.parse_variable_location(target, self.context)
-        if (target.location == "storage" and self.context.is_constant()) or not target.mutable:
+        target = Expr.parse_pointer_expr(target, self.context)
+        if (target.location == STORAGE and self.context.is_constant()) or not target.mutable:
             raise TypeCheckFailure(f"Failed constancy check\n{_dbg_expr}")
         return target
 
 
 # Parse a statement (usually one line of code but not always)
 def parse_stmt(stmt, context):
-    return Stmt(stmt, context).lll_node
+    return Stmt(stmt, context).ir_node
 
 
 # check if a function body is "terminated"
@@ -470,15 +428,15 @@ def parse_body(code, context, ensure_terminated=False):
     if not isinstance(code, list):
         return parse_stmt(code, context)
 
-    lll_node = ["seq"]
+    ir_node = ["seq"]
     for stmt in code:
-        lll = parse_stmt(stmt, context)
-        lll_node.append(lll)
+        ir = parse_stmt(stmt, context)
+        ir_node.append(ir)
 
     # force using the return routine / exit_to cleanup for end of function
     if ensure_terminated and context.return_type is None and not _is_terminated(code):
-        lll_node.append(parse_stmt(vy_ast.Return(value=None), context))
+        ir_node.append(parse_stmt(vy_ast.Return(value=None), context))
 
     # force zerovalent, even last statement
-    lll_node.append("pass")  # CMC 2022-01-16 is this necessary?
-    return LLLnode.from_list(lll_node, pos=getpos(code[0]) if code else None)
+    ir_node.append("pass")  # CMC 2022-01-16 is this necessary?
+    return IRnode.from_list(ir_node)

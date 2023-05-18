@@ -1,7 +1,9 @@
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
-from vyper.compiler import output
+import vyper.ast as vy_ast  # break an import cycle
+import vyper.codegen.core as codegen
+import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
@@ -21,7 +23,7 @@ OUTPUT_FORMATS = {
     # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
-    # requires lll_node
+    # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
     "ir": output.build_ir_output,
@@ -34,9 +36,11 @@ OUTPUT_FORMATS = {
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,
     "source_map": output.build_source_map_output,
+    "source_map_full": output.build_source_map_output,
     # requires bytecode
     "bytecode": output.build_bytecode_output,
     "bytecode_runtime": output.build_bytecode_runtime_output,
+    "blueprint_bytecode": output.build_blueprint_bytecode_output,
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
@@ -52,6 +56,7 @@ def compile_codes(
     no_optimize: bool = False,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
+    no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
     """
     Generate compiler output(s) from one or more contract source codes.
@@ -85,6 +90,8 @@ def compile_codes(
 
         * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
         * JSON interfaces are given as lists, vyper interfaces as strings
+    no_bytecode_metadata: bool, optional
+        Do not add metadata to bytecode. Defaults to False
 
     Returns
     -------
@@ -112,6 +119,8 @@ def compile_codes(
         ):
             interfaces = interfaces[contract_name]
 
+        # make IR output the same between runs
+        codegen.reset_names()
         compiler_data = CompilerData(
             source_code,
             contract_name,
@@ -120,6 +129,7 @@ def compile_codes(
             no_optimize,
             storage_layout_override,
             show_gas_estimates,
+            no_bytecode_metadata,
         )
         for output_format in output_formats[contract_name]:
             if output_format not in OUTPUT_FORMATS:

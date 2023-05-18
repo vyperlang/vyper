@@ -8,7 +8,10 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
 def parse_to_ast(
-    source_code: str, source_id: int = 0, contract_name: Optional[str] = None
+    source_code: str,
+    source_id: int = 0,
+    contract_name: Optional[str] = None,
+    add_fn_node: Optional[str] = None,
 ) -> vy_ast.Module:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
@@ -19,6 +22,10 @@ def parse_to_ast(
         The Vyper source code to parse.
     source_id : int, optional
         Source id to use in the `src` member of each node.
+    contract_name: str, optional
+        Name of contract.
+    add_fn_node: str, optional
+        If not None, adds a dummy Python AST FunctionDef wrapper node.
 
     Returns
     -------
@@ -33,6 +40,14 @@ def parse_to_ast(
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
+
+    # Add dummy function node to ensure local variables are treated as `AnnAssign`
+    # instead of state variables (`VariableDecl`)
+    if add_fn_node:
+        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
+        fn_node.body = py_ast.body
+        fn_node.args = python_ast.arguments(defaults=[])
+        py_ast.body = [fn_node]
     annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
 
     # Convert to Vyper AST.

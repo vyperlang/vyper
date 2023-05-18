@@ -1,7 +1,5 @@
 import pytest
-from pytest import raises
 
-from vyper import compiler
 from vyper.exceptions import SyntaxException
 
 fail_list = [
@@ -18,11 +16,6 @@ def foo():
     self.x[2:4] = 3
     """,
     """
-@external
-def foo():
-    x: address = ~self
-    """,
-    """
 x: int128[5]
 @external
 def foo():
@@ -35,7 +28,7 @@ def foo():
     z = x[2:4]
     """,
     """
-Transfer: event({_&rom: indexed(address)})
+Transfer: event({_rom&: indexed(address)})
     """,
     """
 @external
@@ -54,7 +47,7 @@ def foo():
     """
 @external
 def foo():
-    x: address = create_forwarder_to(0x123456789012345678901234567890123456789)
+    x: address = create_minimal_proxy_to(0x123456789012345678901234567890123456789)
     """,
     """
 @external
@@ -76,10 +69,26 @@ def foo():
 def foo():
     x: address = 0x123456789012345678901234567890123456789
     """,
+    """
+a: internal(uint256)
+    """,
+    """
+@external
+def foo():
+    x: uint256 = +1  # test UAdd ast blocked
+    """,
+    """
+@internal
+def f(a:uint256,/):  # test posonlyargs blocked
+    return
+
+@external
+def g():
+    self.f()
+    """,
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_syntax_exception(bad_code):
-    with raises(SyntaxException):
-        compiler.compile_code(bad_code)
+def test_syntax_exception(assert_compile_failed, get_contract, bad_code):
+    assert_compile_failed(lambda: get_contract(bad_code), SyntaxException)

@@ -4,10 +4,10 @@ __pycache__/
 *$py.class
 
 # egg-related
-vyper.egg-info/
 build/
-dist/
 .eggs/
+dist/
+vyper.egg-info/
 
 .pytest_cache/
 
@@ -44,4 +44,9 @@ docs/vyper.*.rst
 
 # vyper
 vyper/version.py
+vyper/vyper_git_version.txt
+vyper/vyper_git_commithash.txt
 *.spec
+
+# mac
+.DS_Store

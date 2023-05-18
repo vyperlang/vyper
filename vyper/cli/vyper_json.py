@@ -5,7 +5,7 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
@@ -24,6 +24,7 @@ TRANSLATE_MAP = {
     "evm.deployedBytecode.object": "bytecode_runtime",
     "evm.deployedBytecode.opcodes": "opcodes_runtime",
     "evm.deployedBytecode.sourceMap": "source_map",
+    "evm.deployedBytecode.sourceMapFull": "source_map_full",
     "interface": "interface",
     "ir": "ir_dict",
     "ir_runtime": "ir_runtime_dict",
@@ -48,9 +49,7 @@ def _parse_args(argv):
         nargs="?",
     )
     parser.add_argument(
-        "--version",
-        action="version",
-        version=vyper.__version__,
+        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
     )
     parser.add_argument(
         "-o",
@@ -113,10 +112,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
     }
     if hasattr(exception, "message"):
         err_dict.update(
-            {
-                "message": exception.message,  # type: ignore
-                "formattedMessage": str(exception),
-            }
+            {"message": exception.message, "formattedMessage": str(exception)}  # type: ignore
         )
     if file_path is not None:
         err_dict["sourceLocation"] = {"file": file_path}
@@ -128,20 +124,23 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
                 }
             )
 
-    output_json = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "errors": [err_dict],
-    }
+    output_json = {"compiler": f"vyper-{vyper.__version__}", "errors": [err_dict]}
     return output_json
 
 
 def _standardize_path(path_str: str) -> str:
-    root_path = Path("/__vyper").resolve()
-    path = root_path.joinpath(path_str.lstrip("/")).resolve()
     try:
-        path = path.relative_to(root_path)
+        path = Path(path_str)
+
+        if path.is_absolute():
+            path = path.resolve()
+        else:
+            pwd = Path(".").resolve()
+            path = path.resolve().relative_to(pwd)
+
     except ValueError:
         raise JSONError(f"{path_str} - path exists outside base folder")
+
     return path.as_posix()
 
 
@@ -356,6 +355,7 @@ def compile_from_input_dict(
 
     evm_version = get_evm_version(input_dict)
     no_optimize = not input_dict["settings"].get("optimize", True)
+    no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
     interface_sources = get_input_dict_interfaces(input_dict)
@@ -379,6 +379,7 @@ def compile_from_input_dict(
                     initial_id=id_,
                     no_optimize=no_optimize,
                     evm_version=evm_version,
+                    no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
@@ -390,13 +391,8 @@ def compile_from_input_dict(
 
 
 def format_to_output_dict(compiler_data: Dict) -> Dict:
-    output_dict: Dict = {
-        "compiler": f"vyper-{vyper.__version__}",
-        "contracts": {},
-        "sources": {},
-    }
+    output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
-
         output_dict["sources"][path] = {"id": id_}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
@@ -423,7 +419,8 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             if "opcodes" in data:
                 evm["opcodes"] = data["opcodes"]
 
-        if any(i + "_runtime" in data for i in evm_keys) or "source_map" in data:
+        pc_maps_keys = ("source_map", "source_map_full")
+        if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
@@ -431,8 +428,25 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
                 evm["opcodes"] = data["opcodes_runtime"]
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
+            if "source_map_full" in data:
+                evm["sourceMapFull"] = data["source_map"]
 
     return output_dict
+
+
+# https://stackoverflow.com/a/49518779
+def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
+    """
+    Raise JSONError if a duplicate key exists in provided ordered list
+    of pairs, otherwise return a dict.
+    """
+    dict_out = {}
+    for key, val in ordered_pairs:
+        if key in dict_out:
+            raise JSONError(f"Duplicate key: {key}")
+        else:
+            dict_out[key] = val
+    return dict_out
 
 
 def compile_json(
@@ -444,7 +458,9 @@ def compile_json(
     try:
         if isinstance(input_json, str):
             try:
-                input_dict: Dict = json.loads(input_json)
+                input_dict: Dict = json.loads(
+                    input_json, object_pairs_hook=_raise_on_duplicate_keys
+                )
             except json.decoder.JSONDecodeError as exc:
                 new_exc = JSONError(str(exc), exc.lineno, exc.colno)
                 return exc_handler(json_path, new_exc, "json")

@@ -12,11 +12,11 @@ def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
     code = """
 @external
 def foo():
-    assert 1 == 2
+    raise
     """
     c = get_contract_with_gas_estimation(code)
     a0 = w3.eth.accounts[0]
-    gas_sent = 10 ** 6
+    gas_sent = 10**6
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     # More info on receipt status:
     # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-658.md#specification.
@@ -82,7 +82,7 @@ def test(a: int128) -> int128:
     """
 @external
 def test():
-    assert create_forwarder_to(self)
+    assert create_minimal_proxy_to(self)
     """,
 ]
 
@@ -122,7 +122,7 @@ def test():
     """
 @external
 def test():
-    assert create_forwarder_to(self) == self
+    assert create_minimal_proxy_to(self) == self
     """,
 ]
 

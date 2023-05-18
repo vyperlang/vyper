@@ -13,20 +13,19 @@ def returnten() -> int128:
     assert c.returnten() == 10
 
 
-def test_method_id_bytes32(get_contract):
+def test_method_id_bytes4(get_contract):
     code = """
 @external
-def sig() -> bytes32:
-    return method_id('transfer(address,uint256)', output_type=bytes32)
+def sig() -> bytes4:
+    return method_id('transfer(address,uint256)', output_type=bytes4)
     """
     c = get_contract(code)
     sig = c.sig()
 
-    assert len(sig) == 32
-    assert sig[-4:] == b"\xa9\x05\x9c\xbb"
+    assert sig == b"\xa9\x05\x9c\xbb"
 
 
-def test_method_id_bytes4(get_contract):
+def test_method_id_Bytes4(get_contract):
     code = """
 @external
 def sig() -> Bytes[4]:
@@ -55,8 +54,8 @@ def sig() -> Bytes[4]:
 def test_method_id_invalid_space(get_contract, assert_compile_failed):
     code = """
 @external
-def sig() -> bytes32:
-    return method_id('transfer(address, uint256)', output_type=bytes32)
+def sig() -> bytes4:
+    return method_id('transfer(address, uint256)', output_type=bytes4)
     """
     assert_compile_failed(lambda: get_contract(code))
 
@@ -64,7 +63,7 @@ def sig() -> bytes32:
 def test_method_id_invalid_type(get_contract, assert_compile_failed):
     code = """
 @external
-def sig() -> int128:
-    return method_id('transfer(address,uint256)', output_type=int128)
+def sig() -> bytes32:
+    return method_id('transfer(address,uint256)', output_type=bytes32)
     """
     assert_compile_failed(lambda: get_contract(code))
