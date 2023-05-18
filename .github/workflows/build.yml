@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate Binary
         run: >-
-          pip install --no-binary pycryptodome . &&
+          pip install . &&
           pip install pyinstaller &&
           make freeze
 
