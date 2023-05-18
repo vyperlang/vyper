@@ -153,12 +153,31 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         init_func_ir = generate_ir_for_function(
             init_function, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
         )
-        deploy_code.append(init_func_ir)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
         init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
+
+        # force msize to be initialized past the end of immutables section
+        # so that builtins which use `msize` for "dynamic" memory
+        # allocation do not clobber uninitialized immutables.
+        # cf. GH issue 3101.
+        # note mload/iload X touches bytes from X to X+32, and msize rounds up
+        # to the nearest 32, so `iload`ing `immutables_len - 32` guarantees
+        # that `msize` will refer to a memory location of at least
+        # `<immutables_start> + immutables_len` (where <immutables_start> ==
+        # `_mem_deploy_end` as defined in the assembler).
+        # note:
+        #   mload 32 => msize == 64
+        #   mload 33 => msize == 96
+        # assumption in general: (mload X) => msize == ceil32(X + 32)
+        # see py-evm extend_memory: after_size = ceil32(start_position + size)
+        if immutables_len > 0:
+            deploy_code.append(["iload", max(0, immutables_len - 32)])
+
+        deploy_code.append(init_func_ir)
+
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else
