@@ -3,7 +3,6 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
-from vyper.builtins._signatures import BuiltinFunction
 from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
@@ -41,6 +40,7 @@ from vyper.semantics.types import (
     EventT,
     HashMapT,
     IntegerT,
+    InterfaceT,
     SArrayT,
     StringT,
     StructT,
@@ -204,32 +204,42 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             ]
             node_list.extend(standalone_self)  # type: ignore
 
-            # Add references to builtin functions reading from the chain's state
-            non_pure_builtin_fns = [
-                k
-                for k, v in self.namespace.items()
-                if (
-                    isinstance(v, VarInfo)
-                    and isinstance(v.typ, BuiltinFunction)
-                    and v.typ.mutability > StateMutability.PURE
-                )
+            # Add all calls except structs
+            filtered_call_nodes = [
+                c.func
+                for c in fn_node.get_descendants(vy_ast.Call)
+                if not (len(c.args) == 1 and isinstance(c.args[0], vy_ast.Dict))
             ]
-            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": non_pure_builtin_fns})
 
-            node_list.extend(builtin_fns)  # type: ignore
+            node_list.extend(filtered_call_nodes)
 
             for node in node_list:
                 t = node._metadata.get("type")
-                if (
-                    isinstance(t, (BuiltinFunction, ContractFunctionT))
-                    and t.mutability == StateMutability.PURE
-                ):
+                # skip structs and interface instantiation
+                if isinstance(t, StructT) or is_type_t(t, InterfaceT):
+                    continue
+
+                # skip ContractFunctionT and BuiltinFunction with mutability set to pure
+                if hasattr(t, "mutability") and t.mutability == StateMutability.PURE:
                     # allowed
                     continue
+
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
                 )
+
+            # collect all Call's name nodes except structs
+            node_list = [
+                c.func
+                for c in fn_node.get_descendants(vy_ast.Call)
+                if not (len(c.args) == 1 and isinstance(c.args[0], vy_ast.Dict))
+            ]
+            self_references = fn_node.get_descendants(vy_ast.Name, {"id": "self"})
+            standalone_self = [
+                n for n in self_references if not isinstance(n.get_ancestor(), vy_ast.Attribute)
+            ]
+            node_list.extend(standalone_self)  # type: ignore
         if self.func.mutability is not StateMutability.PAYABLE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
