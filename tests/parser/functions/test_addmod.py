@@ -19,21 +19,18 @@ def test_uint256_addmod_ext_call(
 ):
     code = """
 @external
-def foo(addr: address) -> uint256:
-    f: Foo = Foo(addr)
-    return uint256_addmod(32, 2, f.foo())
+def foo(f: Foo) -> uint256:
+    return uint256_addmod(32, 2, f.foo(32))
 
 interface Foo:
-    def foo() -> uint256: payable
+    def foo(x: uint256) -> uint256: payable
     """
 
-    c1 = side_effects_contract("uint256", 32)
+    c1 = side_effects_contract("uint256")
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == 2
-
-    a0 = w3.eth.accounts[0]
-    assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
 
 
 def test_uint256_addmod_internal_call(get_contract_with_gas_estimation):

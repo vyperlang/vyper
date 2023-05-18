@@ -62,20 +62,18 @@ def foo() -> uint256[2]:
 def test_ecadd_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
-    def foo() -> uint256[2]: payable
+    def foo(x: uint256[2]) -> uint256[2]: payable
 
 @external
-def foo(addr: address) -> uint256[2]:
-    a: Foo = Foo(addr)
-    return ecadd([1, 2], a.foo())
+def foo(a: Foo) -> uint256[2]:
+    return ecadd([1, 2], a.foo([1, 2]))
     """
-    c1 = side_effects_contract("uint256[2]", "[1, 2]")
+    c1 = side_effects_contract("uint256[2]")
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == G1_times_two
 
-    a0 = w3.eth.accounts[0]
-    assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
 
 
 def test_ecmul(get_contract_with_gas_estimation):
@@ -126,17 +124,15 @@ def foo() -> uint256[2]:
 def test_ecmul_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
-    def foo() -> uint256: payable
+    def foo(x: uint256) -> uint256: payable
 
 @external
-def foo(addr: address) -> uint256[2]:
-    a: Foo = Foo(addr)
-    return ecmul([1, 2], a.foo())
+def foo(a: Foo) -> uint256[2]:
+    return ecmul([1, 2], a.foo(3))
     """
-    c1 = side_effects_contract("uint256", "3")
+    c1 = side_effects_contract("uint256")
     c2 = get_contract(code)
 
     assert c2.foo(c1.address) == G1_times_three
 
-    a0 = w3.eth.accounts[0]
-    assert_side_effects_invoked(lambda: c2.foo(c1.address, transact={"from": a0}), c1)
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
