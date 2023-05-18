@@ -8,9 +8,11 @@ from vyper.exceptions import CompilerPanic
 @pytest.fixture(params=list(opcodes.EVM_VERSIONS))
 def evm_version(request):
     default = opcodes.active_evm_version
-    opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
-    yield request.param
-    opcodes.active_evm_version = default
+    try:
+        opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
+        yield request.param
+    finally:
+        opcodes.active_evm_version = default
 
 
 def test_opcodes():
@@ -42,17 +44,20 @@ def test_version_check(evm_version):
 
 
 def test_get_opcodes(evm_version):
-    op = opcodes.get_opcodes()
-    if evm_version in ("paris", "berlin"):
-        assert "CHAINID" in op
-        assert op["SLOAD"][-1] == 2100
+    ops = opcodes.get_opcodes()
+    if evm_version in ("paris", "berlin", "shanghai"):
+        assert "CHAINID" in ops
+        assert ops["SLOAD"][-1] == 2100
+        if evm_version in ("shanghai",):
+            assert "PUSH0" in ops
     elif evm_version == "istanbul":
-        assert "CHAINID" in op
-        assert op["SLOAD"][-1] == 800
+        assert "CHAINID" in ops
+        assert ops["SLOAD"][-1] == 800
     else:
-        assert "CHAINID" not in op
-        assert op["SLOAD"][-1] == 200
+        assert "CHAINID" not in ops
+        assert ops["SLOAD"][-1] == 200
+
     if evm_version in ("byzantium", "atlantis"):
-        assert "CREATE2" not in op
+        assert "CREATE2" not in ops
     else:
-        assert op["CREATE2"][-1] == 32000
+        assert ops["CREATE2"][-1] == 32000
