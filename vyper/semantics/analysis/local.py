@@ -222,7 +222,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if hasattr(t, "mutability") and t.mutability == StateMutability.PURE:
                     # allowed
                     continue
-
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
