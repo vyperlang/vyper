@@ -143,3 +143,21 @@ def foo(x: uint256)-> bytes32:
         ),
         StateAccessViolation,
     )
+
+
+def test_invalid_interface(get_contract, assert_compile_failed):
+    assert_compile_failed(
+        lambda: get_contract(
+            """
+interface Foo:
+    def foo() -> uint256: payable
+
+
+@external
+@pure
+def bar(a: address) -> uint256:
+    return Foo(a).foo()
+    """
+        ),
+        StateAccessViolation,
+    )
