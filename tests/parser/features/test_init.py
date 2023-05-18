@@ -53,3 +53,29 @@ def baz() -> uint8:
 
     n = 256
     assert_compile_failed(lambda: get_contract(code, n))
+
+
+# GH issue 3206
+def test_nested_internal_call_from_ctor(get_contract):
+    code = """
+x: uint256
+
+@external
+def __init__():
+    self.a()
+
+@internal
+def a():
+    self.x += 1
+    self.b()
+
+@internal
+def b():
+    self.x += 2
+
+@external
+def test() -> uint256:
+    return self.x
+    """
+    c = get_contract(code)
+    assert c.test() == 3

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import web3.exceptions
 from eth_tester import EthereumTester, PyEVMBackend
@@ -31,7 +33,7 @@ class VyperMethod:
                 if x.get("name") == self._function.function_identifier
             ].pop()
             # To make tests faster just supply some high gas value.
-            modifier_dict.update({"gas": fn_abi.get("gas", 0) + 50000})
+            modifier_dict.update({"gas": fn_abi.get("gas", 0) + 500000})
         elif len(kwargs) == 1:
             modifier, modifier_dict = kwargs.popitem()
             if modifier not in self.ALLOWED_MODIFIERS:
@@ -112,13 +114,15 @@ def w3(tester):
 def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     out = compiler.compile_code(
         source_code,
-        ["abi", "bytecode"],
+        # test that metadata gets generated
+        ["abi", "bytecode", "metadata"],
         interface_codes=kwargs.pop("interface_codes", None),
         no_optimize=no_optimize,
         evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
+    json.dumps(out["metadata"])  # test metadata is json serializable
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.

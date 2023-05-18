@@ -1,10 +1,12 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
@@ -254,7 +256,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: set = set()
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -663,6 +665,19 @@ class Module(TopLevel):
         self.body.remove(node)
         self._children.remove(node)
 
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
+
 
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list", "pos")
@@ -684,7 +699,7 @@ class DocStr(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ("args", "defaults", "default")
-    _only_empty_fields = ("vararg", "kwonlyargs", "kwarg", "kw_defaults")
+    _only_empty_fields = ("posonlyargs", "vararg", "kwonlyargs", "kwarg", "kw_defaults")
 
 
 class arg(VyperNode):
@@ -960,6 +975,12 @@ class BinOp(ExprNode):
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
+
         value = self.op._op(left.value, right.value)
         _validate_numeric_bounds(self, value)
         return type(left).from_node(self, value=value)
@@ -1070,6 +1091,20 @@ class BitXor(Operator):
     _description = "bitwise xor"
     _pretty = "^"
     _op = operator.xor
+
+
+class LShift(Operator):
+    __slots__ = ()
+    _description = "bitwise left shift"
+    _pretty = "<<"
+    _op = operator.lshift
+
+
+class RShift(Operator):
+    __slots__ = ()
+    _description = "bitwise right shift"
+    _pretty = ">>"
+    _op = operator.rshift
 
 
 class BoolOp(ExprNode):
@@ -1406,6 +1441,10 @@ class ImplementsDecl(Stmt):
 
 
 class If(Stmt):
+    __slots__ = ("test", "body", "orelse")
+
+
+class IfExp(ExprNode):
     __slots__ = ("test", "body", "orelse")
 
 

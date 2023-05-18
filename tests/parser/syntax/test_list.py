@@ -302,6 +302,12 @@ b: decimal[5]
 def foo():
     self.b[0] = 7.0
     """,
+    """
+@external
+def foo():
+    for i in [[], []]:
+        pass
+    """,
 ]
 
 

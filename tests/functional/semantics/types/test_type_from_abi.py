@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.exceptions import UnknownType
-from vyper.semantics.types import SArrayT, get_primitive_types
+from vyper.semantics.types import PRIMITIVE_TYPES, SArrayT
 from vyper.semantics.types.utils import type_from_abi
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
@@ -9,7 +9,7 @@ BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 def test_base_types(type_str):
-    base_t = get_primitive_types()[type_str]
+    base_t = PRIMITIVE_TYPES[type_str]
     type_t = type_from_abi({"type": type_str})
 
     assert base_t == type_t
@@ -17,7 +17,7 @@ def test_base_types(type_str):
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 def test_base_types_as_arrays(type_str):
-    base_t = get_primitive_types()[type_str]
+    base_t = PRIMITIVE_TYPES[type_str]
     type_t = type_from_abi({"type": f"{type_str}[3]"})
 
     assert type_t == SArrayT(base_t, 3)
@@ -25,7 +25,7 @@ def test_base_types_as_arrays(type_str):
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
 def test_base_types_as_multidimensional_arrays(type_str):
-    base_t = get_primitive_types()[type_str]
+    base_t = PRIMITIVE_TYPES[type_str]
 
     type_t = type_from_abi({"type": f"{type_str}[3][5]"})
 
