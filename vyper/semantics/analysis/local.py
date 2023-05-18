@@ -3,6 +3,7 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
+from vyper.builtins._signatures import BuiltinFunction
 from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
@@ -213,9 +214,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             for node in node_list:
                 t = node._metadata.get("type")
-                # TODO Fix circular import
-                from vyper.builtins._signatures import BuiltinFunction
-
                 if (
                     isinstance(t, (BuiltinFunction, ContractFunctionT))
                     and t.mutability == StateMutability.PURE
