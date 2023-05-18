@@ -15,7 +15,7 @@ def foo(inp: uint{bits}) -> String[{n_digits}]:
     """
 
     c = get_contract_with_gas_estimation(code)
-    for i in [1, 2, 2 ** bits - 1, 0]:
+    for i in [1, 2, 2**bits - 1, 0]:
         assert c.foo(i) == str(i), (i, c.foo(i))
 
 
@@ -36,4 +36,4 @@ def foo(x: uint{bits}) -> uint256:
     return y
     """
     c = get_contract(code)
-    assert c.foo(2 ** bits - 1) == 0, bits
+    assert c.foo(2**bits - 1) == 0, bits

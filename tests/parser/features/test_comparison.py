@@ -4,7 +4,7 @@ import pytest
 
 
 def test_3034_verbatim(get_contract):
-    # test issue #3034 exactly
+    # test GH issue 3034 exactly
     code = """
 @view
 @external

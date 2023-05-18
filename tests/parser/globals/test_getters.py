@@ -32,6 +32,9 @@ z: public(Bytes[100])
 w: public(HashMap[int128, W])
 a: public(uint256[10][10])
 b: public(HashMap[uint256, HashMap[address, uint256[4]]])
+c: public(constant(uint256)) = 1
+d: public(immutable(uint256))
+e: public(immutable(uint256[2]))
 
 @external
 def __init__():
@@ -46,6 +49,8 @@ def __init__():
     self.w[3].g = 751
     self.a[1][4] = 666
     self.b[42][self] = [5,6,7,8]
+    d = 1729
+    e = [2, 3]
     """
 
     c = get_contract_with_gas_estimation_for_constants(getter_code)
@@ -60,6 +65,9 @@ def __init__():
     assert c.w(3)[5] == 751  # W.g
     assert c.a(1, 4) == 666
     assert c.b(42, c.address, 2) == 7
+    assert c.c() == 1
+    assert c.d() == 1729
+    assert c.e(0) == 2
 
 
 def test_getter_mutability(get_contract):
@@ -69,9 +77,17 @@ goo: public(String[69])
 bar: public(uint256[4][5])
 baz: public(HashMap[address, Bytes[100]])
 potatoes: public(HashMap[uint256, HashMap[bytes32, uint256[4]]])
+nyoro: public(constant(uint256)) = 2
+kune: public(immutable(uint256))
+
+@external
+def __init__():
+    kune = 2
 """
 
     contract = get_contract(code)
 
     for item in contract._classic_contract.abi:
+        if item["type"] == "constructor":
+            continue
         assert item["stateMutability"] == "view"

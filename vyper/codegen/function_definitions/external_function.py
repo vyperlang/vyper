@@ -1,16 +1,16 @@
 from typing import Any, List
 
 import vyper.utils as util
-from vyper.address_space import CALLDATA, DATA, MEMORY
-from vyper.ast.signatures.function_signature import FunctionSignature, VariableRecord
+from vyper.ast.signatures.function_signature import FunctionSignature
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
-from vyper.codegen.context import Context
+from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
 from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.codegen.types.types import TupleType
+from vyper.evm.address_space import CALLDATA, DATA, MEMORY
+from vyper.semantics.types import TupleT
 
 
 # register function args with the local calling context.
@@ -19,7 +19,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
     ret = []
 
     # the type of the calldata
-    base_args_t = TupleType([arg.typ for arg in sig.base_args])
+    base_args_t = TupleT(tuple(arg.typ for arg in sig.base_args))
 
     # tuple with the abi_encoded args
     if sig.is_init_func:
@@ -28,7 +28,6 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
         base_args_ofst = IRnode(4, location=CALLDATA, typ=base_args_t, encoding=Encoding.ABI)
 
     for i, arg in enumerate(sig.base_args):
-
         arg_ir = get_element_ptr(base_args_ofst, i)
 
         if needs_clamp(arg.typ, Encoding.ABI):
@@ -55,7 +54,7 @@ def _register_function_args(context: Context, sig: FunctionSignature) -> List[IR
 
 
 def _annotated_method_id(abi_sig):
-    method_id = util.abi_method_id(abi_sig)
+    method_id = util.method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
     return IRnode(method_id, annotation=annotation)
 
@@ -74,7 +73,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = sig.base_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleType(list(arg.typ for arg in calldata_args))
+        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
         abi_sig = sig.abi_signature_for_kwargs(calldata_kwargs)
         method_id = _annotated_method_id(abi_sig)
@@ -92,7 +91,7 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
         ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
-        # TupleType(list(arg.typ for arg in calldata_kwargs + default_kwargs))
+        # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
 
         n_base_args = len(sig.base_args)
@@ -123,7 +122,24 @@ def _generate_kwarg_handlers(context: Context, sig: FunctionSignature) -> List[A
 
         ret.append(["goto", sig.external_function_base_entry_label])
 
-        ret = ["if", ["eq", "_calldata_method_id", method_id], ret]
+        method_id_check = ["eq", "_calldata_method_id", method_id]
+
+        # if there is a function whose selector is 0, it won't be distinguished
+        # from the case where nil calldata is supplied, b/c calldataload loads
+        # 0s past the end of physical calldata (cf. yellow paper).
+        # since supplying 0 calldata is expected to trigger the fallback fn,
+        # we check that calldatasize > 0, which distinguishes the 0 selector
+        # from the fallback function "selector"
+        # (equiv. to "all selectors not in the selector table").
+
+        # note: cases where not enough calldata is supplied (besides
+        # calldatasize==0) are not addressed here b/c a calldatasize
+        # well-formedness check is already present in the function body
+        # as part of abi validation
+        if method_id.value == 0:
+            method_id_check = ["and", ["gt", "calldatasize", 0], method_id_check]
+
+        ret = ["if", method_id_check, ret]
         return ret
 
     ret = ["seq"]
@@ -214,4 +230,4 @@ def generate_ir_for_external_function(code, sig, context, skip_nonpayable_check)
         # TODO rethink this / make it clearer
         ret[-1][-1].append(func_common_ir)
 
-    return IRnode.from_list(ret)
+    return IRnode.from_list(ret, source_pos=getpos(sig.func_ast_code))

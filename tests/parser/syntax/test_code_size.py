@@ -15,7 +15,6 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_block_fail(bad_code):
-
     with pytest.raises(StructureException):
         compiler.compile_code(bad_code)
 

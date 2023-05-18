@@ -5,8 +5,8 @@ from vyper.ir import compile_ir
 from vyper.ir.s_expressions import parse_s_exp
 
 fail_list = [
-    [-(2 ** 255) - 3],
-    [2 ** 256 + 3],
+    [-(2**255) - 3],
+    [2**256 + 3],
     ["set", "_poz"],
     [["set", "var_1", 0, 0]],
     ["with", "var_1", 0, ["set", 1, 1]],

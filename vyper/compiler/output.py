@@ -35,10 +35,13 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    name = Path(compiler_data.contract_name).stem.capitalize()
+    stem = Path(compiler_data.contract_name).stem
+    # capitalize words separated by '_'
+    # ex: test_interface.vy -> TestInterface
+    name = "".join([x.capitalize() for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
-    for func in interface.members.values():
+    for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
         args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
@@ -59,9 +62,9 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
 
-    if interface.members:
+    if interface.functions:
         out = f"{out}\n# Functions\n\n"
-        for func in interface.members.values():
+        for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
@@ -127,8 +130,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
             ret["default_values"][k] = ret["default_values"][k].node_source_code
         ret["frame_info"] = vars(ret["frame_info"])
-        for k in ret["frame_info"]["frame_vars"].keys():
-            ret["frame_info"]["frame_vars"][k] = _var_rec_dict(ret["frame_info"]["frame_vars"][k])
+        del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
@@ -136,13 +138,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.members.values()
+    functions = interface.functions.values()
 
     return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
+    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)
@@ -174,7 +176,6 @@ def _build_asm(asm_list):
     output_string = ""
     in_push = 0
     for node in asm_list:
-
         if isinstance(node, list):
             output_string += "{ " + _build_asm(node) + "} "
             continue
@@ -250,7 +251,7 @@ def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
 
 
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
-EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
+EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:

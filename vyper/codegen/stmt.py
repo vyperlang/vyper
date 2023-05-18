@@ -1,8 +1,7 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.address_space import MEMORY, STORAGE
-from vyper.builtin_functions import STMT_DISPATCH_TABLE
+from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
@@ -11,6 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
+    clamp,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,9 +23,10 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.codegen.types import BaseType, ByteArrayType, DArrayType
-from vyper.codegen.types.convert import new_type_to_old_type
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.semantics.types import DArrayT, MemberFunctionT
+from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
 class Stmt:
@@ -59,39 +60,35 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        typ = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.context.parse_type(self.stmt.annotation)
         varname = self.stmt.target.id
-        pos = self.context.new_variable(varname, typ)
-        if self.stmt.value is None:
-            return
+        alloced = self.context.new_variable(varname, ltyp)
 
-        sub = Expr(self.stmt.value, self.context).ir_node
+        assert self.stmt.value is not None
+        rhs = Expr(self.stmt.value, self.context).ir_node
 
-        is_literal_bytes32_assign = (
-            isinstance(sub.typ, ByteArrayType)
-            and sub.typ.maxlen == 32
-            and isinstance(typ, BaseType)
-            and typ.typ == "bytes32"
-            and sub.typ.is_literal
-        )
+        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
 
-        # If bytes[32] to bytes32 assignment rewrite sub as bytes32.
-        if is_literal_bytes32_assign:
-            sub = IRnode(util.bytes_to_int(self.stmt.value.s), typ=BaseType("bytes32"))
-
-        variable_loc = IRnode.from_list(pos, typ=typ, location=MEMORY)
-
-        ir_node = make_setter(variable_loc, sub)
-
-        return ir_node
+        return make_setter(lhs, rhs)
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        sub = Expr(self.stmt.value, self.context).ir_node
-        target = self._get_target(self.stmt.target)
+        src = Expr(self.stmt.value, self.context).ir_node
+        dst = self._get_target(self.stmt.target)
 
-        ir_node = make_setter(target, sub)
-        return ir_node
+        ret = ["seq"]
+        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        if overlap and not dst.typ._is_prim_word:
+            # there is overlap between the lhs and rhs, and the type is
+            # complex - i.e., it spans multiple words. for safety, we
+            # copy to a temporary buffer before copying to the destination.
+            tmp = self.context.new_internal_variable(src.typ)
+            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
+            ret.append(make_setter(tmp, src))
+            src = tmp
+
+        ret.append(make_setter(dst, src))
+        return IRnode.from_list(ret)
 
     def parse_If(self):
         if self.stmt.orelse:
@@ -138,31 +135,40 @@ class Stmt:
             "append",
             "pop",
         ):
-            # TODO: consider moving this to builtins
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
-                assert isinstance(darray.typ, DArrayType)
-                check_assign(dummy_node_for_type(darray.typ.subtype), dummy_node_for_type(arg.typ))
+            func_type = self.stmt.func._metadata["type"]
+            if isinstance(func_type, MemberFunctionT):
+                darray = Expr(self.stmt.func.value, self.context).ir_node
+                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+                if self.stmt.func.attr == "append":
+                    # sanity checks
+                    assert len(args) == 1
+                    arg = args[0]
+                    assert isinstance(darray.typ, DArrayT)
+                    check_assign(
+                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                    )
 
-                return append_dyn_array(darray, arg)
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
+                    return append_dyn_array(darray, arg)
+                else:
+                    assert len(args) == 0
+                    return pop_dyn_array(darray, return_popped_item=False)
 
-        elif is_self_function:
+        if is_self_function:
             return self_call.ir_for_self_call(self.stmt, self.context)
         else:
             return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
+        # from parse_Raise: None passed as the assert condition
+        is_raise = test_expr is None
+
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            return IRnode.from_list(
-                ["assert_unreachable", test_expr], error_msg="assert unreachable"
-            )
+            if is_raise:
+                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+            else:
+                return IRnode.from_list(
+                    ["assert_unreachable", test_expr], error_msg="assert unreachable"
+                )
 
         # set constant so that revert reason str is well behaved
         try:
@@ -190,7 +196,7 @@ class Stmt:
             instantiate_msg = msg_ir
 
         # offset of bytes in (bytes,)
-        method_id = util.abi_method_id("Error(string)")
+        method_id = util.method_id_int("Error(string)")
 
         # abi encode method_id + bytestring
         assert buf >= 36, "invalid buffer"
@@ -205,12 +211,10 @@ class Stmt:
             ["mstore", buf - 32, 0x20],
             ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-
-        if test_expr is not None:
-            ir_node = ["if", ["iszero", test_expr], revert_seq]
-        else:
+        if is_raise:
             ir_node = revert_seq
-
+        else:
+            ir_node = ["if", ["iszero", test_expr], revert_seq]
         return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
@@ -244,12 +248,11 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # attempt to use the type specified by type checking, fall back to `int256`
-        # this is a stopgap solution to allow uint256 - it will be properly solved
-        # once we refactor type system
-        iter_typ = "int256"
+        # TODO make sure type always gets annotated
         if "type" in self.stmt.target._metadata:
-            iter_typ = self.stmt.target._metadata["type"]._id
+            iter_typ = self.stmt.target._metadata["type"]
+        else:
+            iter_typ = INT256_T
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
@@ -262,7 +265,7 @@ class Stmt:
             rounds = arg0_val
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1]).typ.is_literal:
+        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
@@ -273,14 +276,16 @@ class Stmt:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
 
         r = rounds if isinstance(rounds, int) else rounds.value
         if r < 1:
             return
 
         varname = self.stmt.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ="uint256")
-        iptr = self.context.new_variable(varname, BaseType(iter_typ))
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
+        iptr = self.context.new_variable(varname, iter_typ)
 
         self.context.forvars[varname] = True
 
@@ -299,9 +304,9 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
         # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.subtype
-        target_type = new_type_to_old_type(self.stmt.target._metadata["type"])
-        iter_list.typ.subtype = target_type
+        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
+        target_type = self.stmt.target._metadata["type"]
+        iter_list.typ.value_type = target_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
@@ -309,7 +314,7 @@ class Stmt:
             self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
 
-        i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ="uint256")
+        i = IRnode.from_list(self.context.fresh_varname("for_list_ix"), typ=UINT256_T)
 
         self.context.forvars[varname] = True
 
@@ -330,7 +335,7 @@ class Stmt:
         body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
         repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayType):
+        if isinstance(iter_list.typ, DArrayT):
             array_len = get_dyn_array_count(iter_list)
         else:
             array_len = repeat_bound
@@ -342,8 +347,12 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
-        if not isinstance(target.typ, BaseType):
+        if not target.typ._is_prim_word:
+            # because of this check, we do not need to check for
+            # make_setter references lhs<->rhs as in parse_Assign -
+            # single word load/stores are atomic.
             return
 
         with target.cache_when_complex("_loc") as (b, target):

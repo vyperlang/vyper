@@ -32,7 +32,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
         func_type = node._metadata["func_type"]
-        input_types, return_type = func_type.get_signature()
+        input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
         # use the annotation node to build the input args and return type
@@ -108,5 +108,5 @@ def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
         vyper_module.remove_from_body(node)
 
     # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.AnnAssign, {"target.id": "implements"}):
+    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
         vyper_module.remove_from_body(node)
