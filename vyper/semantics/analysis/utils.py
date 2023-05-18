@@ -594,18 +594,26 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode) -> bool:
+def check_kwargable(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     """
     Check if the given node can be used as a default arg
     """
-    if _check_literal(node):
+    if _check_literal(node, typ):
         return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_kwargable(item) for item in node.elements)
+    if isinstance(node, vy_ast.Tuple):
+        return all(
+            check_kwargable(item, member_typ)
+            for item, member_typ in zip(node.elements, typ.tuple_members())
+        )
+    if isinstance(node, vy_ast.List):
+        return all(check_kwargable(item, typ.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_kwargable(v) for v in args[0].values)
+            return all(
+                check_kwargable(v, member_typ)
+                for v, member_typ in zip(args[0].values, typ.tuple_members())
+            )
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
@@ -616,39 +624,47 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     return value_type.is_constant
 
 
-def _check_literal(node: vy_ast.VyperNode) -> bool:
+def _check_literal(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     """
     Check if the given node is a literal value.
     """
     if isinstance(node, vy_ast.Constant):
         return True
-    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(_check_literal(item) for item in node.elements)
+    elif isinstance(node, vy_ast.Tuple):
+        return all(
+            _check_literal(item, member_typ)
+            for item, member_typ in zip(node.elements, typ.tuple_members())
+        )
+    elif isinstance(node, vy_ast.List):
+        return all(_check_literal(item, typ.value_type) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
-        type_ = get_exact_type_from_node(node)
-
-        # TODO fixme circular import
-        from vyper.semantics.types.user import EnumT
-
         member_name = node.attr
-        if isinstance(type_, EnumT) and member_name in type_._enum_members:
-            return True
+        if isinstance(node.value, vy_ast.Name) and hasattr(typ, "_enum_members"):
+            return member_name in typ._enum_members
 
     return False
 
 
-def check_constant(node: vy_ast.VyperNode) -> bool:
+def check_constant(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if _check_literal(node):
+    if _check_literal(node, typ):
         return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_constant(item) for item in node.elements)
+    if isinstance(node, vy_ast.Tuple):
+        return all(
+            check_constant(item, member_typ)
+            for item, member_typ in zip(node.elements, typ.tuple_members())
+        )
+    if isinstance(node, vy_ast.List):
+        return all(check_constant(item, typ.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_constant(v) for v in args[0].values)
+            return all(
+                check_constant(v, member_typ)
+                for v, member_typ in zip(args[0].values, typ.tuple_members())
+            )
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):

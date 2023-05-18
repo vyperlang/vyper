@@ -229,7 +229,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
-            if not check_constant(node.value):
+            if not check_constant(node.value, type_):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

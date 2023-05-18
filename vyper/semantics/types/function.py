@@ -291,7 +291,7 @@ class ContractFunctionT(VyperType):
             type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
             if value is not None:
-                if not check_kwargable(value):
+                if not check_kwargable(value, type_):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )
