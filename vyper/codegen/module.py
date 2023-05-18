@@ -166,7 +166,8 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # note mload/iload X touches bytes from X to X+32, and msize rounds up
         # to the nearest 32, so `iload`ing `immutables_len - 32` guarantees
         # that `msize` will refer to a memory location of at least
-        # `<immutables_start> + immutables_len`.
+        # `<immutables_start> + immutables_len` (where <immutables_start> ==
+        # `_mem_deploy_end` as defined in the assembler).
         # note:
         #   mload 32 => msize == 64
         #   mload 33 => msize == 96
