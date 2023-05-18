@@ -1,9 +1,10 @@
 # -*- mode: gitignore; -*-
-.git/
 .github/
 docs/
 examples/
 logos/
+
+Dockerfile
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
