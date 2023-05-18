@@ -148,15 +148,18 @@ class Floor(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            [
-                "if",
-                ["slt", args[0], 0],
-                ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-                ["sdiv", args[0], DECIMAL_DIVISOR],
-            ],
-            typ=INT256_T,
-        )
+        arg = args[0]
+        with arg.cache_when_complex("arg") as (b1, arg):
+            ret = IRnode.from_list(
+                [
+                    "if",
+                    ["slt", arg, 0],
+                    ["sdiv", ["sub", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                ],
+                typ=INT256_T,
+            )
+            return b1.resolve(ret)
 
 
 class Ceil(BuiltinFunction):
@@ -175,15 +178,18 @@ class Ceil(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            [
-                "if",
-                ["slt", args[0], 0],
-                ["sdiv", args[0], DECIMAL_DIVISOR],
-                ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-            ],
-            typ=INT256_T,
-        )
+        arg = args[0]
+        with arg.cache_when_complex("arg") as (b1, arg):
+            ret = IRnode.from_list(
+                [
+                    "if",
+                    ["slt", arg, 0],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                    ["sdiv", ["add", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                ],
+                typ=INT256_T,
+            )
+            return b1.resolve(ret)
 
 
 class Convert(BuiltinFunction):
@@ -800,20 +806,25 @@ class ECAdd(BuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0)],
-                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1)],
-                ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+
+        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
+            o = IRnode.from_list(
+                [
+                    "seq",
+                    ["mstore", placeholder_node, _getelem(a, 0)],
+                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
+                    ["mstore", ["add", placeholder_node, 64], _getelem(b, 0)],
+                    ["mstore", ["add", placeholder_node, 96], _getelem(b, 1)],
+                    [
+                        "assert",
+                        ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64],
+                    ],
+                    placeholder_node,
+                ],
+                typ=SArrayT(UINT256_T, 2),
+                location=MEMORY,
+            )
+            return b2.resolve(b1.resolve(o))
 
 
 class ECMul(BuiltinFunction):
@@ -826,19 +837,24 @@ class ECMul(BuiltinFunction):
         placeholder_node = IRnode.from_list(
             context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
         )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], args[1]],
-                ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+
+        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
+            o = IRnode.from_list(
+                [
+                    "seq",
+                    ["mstore", placeholder_node, _getelem(a, 0)],
+                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
+                    ["mstore", ["add", placeholder_node, 64], b],
+                    [
+                        "assert",
+                        ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64],
+                    ],
+                    placeholder_node,
+                ],
+                typ=SArrayT(UINT256_T, 2),
+                location=MEMORY,
+            )
+            return b2.resolve(b1.resolve(o))
 
 
 def _generic_element_getter(op):
@@ -1030,34 +1046,35 @@ class AsWeiValue(BuiltinFunction):
         value = args[0]
 
         denom_divisor = self.get_denomination(expr)
-        if value.typ in (UINT256_T, UINT8_T):
-            sub = [
-                "with",
-                "ans",
-                ["mul", value, denom_divisor],
-                [
-                    "seq",
-                    [
-                        "assert",
-                        ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                    ],
+        with value.cache_when_complex("value") as (b1, value):
+            if value.typ in (UINT256_T, UINT8_T):
+                sub = [
+                    "with",
                     "ans",
-                ],
-            ]
-        elif value.typ == INT128_T:
-            # signed types do not require bounds checks because the
-            # largest possible converted value will not overflow 2**256
-            sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
-        elif value.typ == DecimalT():
-            sub = [
-                "seq",
-                ["assert", ["sgt", value, -1]],
-                ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
-            ]
-        else:
-            raise CompilerPanic(f"Unexpected type: {value.typ}")
+                    ["mul", value, denom_divisor],
+                    [
+                        "seq",
+                        [
+                            "assert",
+                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
+                        ],
+                        "ans",
+                    ],
+                ]
+            elif value.typ == INT128_T:
+                # signed types do not require bounds checks because the
+                # largest possible converted value will not overflow 2**256
+                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            elif value.typ == DecimalT():
+                sub = [
+                    "seq",
+                    ["assert", ["sgt", value, -1]],
+                    ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
+                ]
+            else:
+                raise CompilerPanic(f"Unexpected type: {value.typ}")
 
-        return IRnode.from_list(sub, typ=UINT256_T)
+            return IRnode.from_list(b1.resolve(sub), typ=UINT256_T)
 
 
 zero_value = IRnode.from_list(0, typ=UINT256_T)
@@ -1516,9 +1533,13 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]], typ=UINT256_T
-        )
+        c = args[2]
+
+        with c.cache_when_complex("c") as (b1, c):
+            ret = IRnode.from_list(
+                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]], typ=UINT256_T
+            )
+            return b1.resolve(ret)
 
 
 class AddMod(_AddMulMod):
