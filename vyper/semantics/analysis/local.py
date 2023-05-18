@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -18,16 +19,16 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
-    _ExprAnalyser,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.data_locations import DataLocation
 
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
@@ -172,8 +173,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-        for argname, argtype in self.func.arguments.items():
-            namespace[argname] = VarInfo(argtype, location=DataLocation.CALLDATA, is_immutable=True)
+        for arg in self.func.arguments:
+            namespace[arg.name] = VarInfo(
+                arg.typ, location=DataLocation.CALLDATA, is_immutable=True
+            )
 
         for node in fn_node.body:
             self.visit(node)
@@ -232,7 +235,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
 
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, type_)
 
         try:
@@ -453,20 +456,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise exc.with_annotation(node) from None
 
                 try:
-                    for n in node.body:
-                        self.visit(n)
+                    with NodeMetadata.enter_typechecker_speculation():
+                        for n in node.body:
+                            self.visit(n)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
-                    # rollback any changes to the tree
-                    _ExprAnalyser._rollback_taint()
                 else:
                     # type information is applied directly here because the
                     # scope is closed prior to the call to
                     # `StatementAnnotationVisitor`
                     node.target._metadata["type"] = type_
 
-                    # perf - persist all calculated types
-                    _ExprAnalyser._commit_taint()
                     # success -- bail out instead of error handling.
                     return
 
@@ -543,6 +543,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
+        if self.func.mutability <= StateMutability.VIEW:
+            raise StructureException(
+                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+            )
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
 
@@ -598,3 +602,8 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
         self.visit(node.operand)  # type: ignore[attr-defined]
+
+    def visit_IfExp(self, node: vy_ast.IfExp) -> None:
+        self.visit(node.test)
+        self.visit(node.body)
+        self.visit(node.orelse)

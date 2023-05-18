@@ -255,3 +255,63 @@ def foo():
     ret : bool = self.bar()
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+
+
+def test_assign_rhs_lhs_overlap(get_contract):
+    # GH issue 2418
+    code = """
+@external
+def bug(xs: uint256[2]) -> uint256[2]:
+    # Initial value
+    ys: uint256[2] = xs
+    ys = [ys[1], ys[0]]
+    return ys
+    """
+    c = get_contract(code)
+
+    assert c.bug([1, 2]) == [2, 1]
+
+
+def test_assign_rhs_lhs_partial_overlap(get_contract):
+    # GH issue 2418, generalize when lhs is not only dependency of rhs.
+    code = """
+@external
+def bug(xs: uint256[2]) -> uint256[2]:
+    # Initial value
+    ys: uint256[2] = xs
+    ys = [xs[1], ys[0]]
+    return ys
+    """
+    c = get_contract(code)
+
+    assert c.bug([1, 2]) == [2, 1]
+
+
+def test_assign_rhs_lhs_overlap_dynarray(get_contract):
+    # GH issue 2418, generalize to dynarrays
+    code = """
+@external
+def bug(xs: DynArray[uint256, 2]) -> DynArray[uint256, 2]:
+    ys: DynArray[uint256, 2] = xs
+    ys = [ys[1], ys[0]]
+    return ys
+    """
+    c = get_contract(code)
+    assert c.bug([1, 2]) == [2, 1]
+
+
+def test_assign_rhs_lhs_overlap_struct(get_contract):
+    # GH issue 2418, generalize to structs
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+
+@external
+def bug(p: Point) -> Point:
+    t: Point = p
+    t = Point({x: t.y, y: t.x})
+    return t
+    """
+    c = get_contract(code)
+    assert c.bug((1, 2)) == (2, 1)

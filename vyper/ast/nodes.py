@@ -1,10 +1,12 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
@@ -254,7 +256,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: set = set()
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -662,6 +664,19 @@ class Module(TopLevel):
         """
         self.body.remove(node)
         self._children.remove(node)
+
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
 
 
 class FunctionDef(TopLevel):
@@ -1435,6 +1450,10 @@ class ImplementsDecl(Stmt):
 
 
 class If(Stmt):
+    __slots__ = ("test", "body", "orelse")
+
+
+class IfExp(ExprNode):
     __slots__ = ("test", "body", "orelse")
 
 

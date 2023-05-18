@@ -17,6 +17,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.function import ContractFunctionT
@@ -30,6 +31,10 @@ from vyper.utils import keccak256
 class _UserType(VyperType):
     def __eq__(self, other):
         return self is other
+
+    # TODO: revisit this once user types can be imported via modules
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
 
     def __hash__(self):
         return hash(id(self))
@@ -152,6 +157,8 @@ class EventT(_UserType):
     name : str
         Name of the event.
     """
+
+    _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
     def __init__(self, name: str, arguments: dict, indexed: list) -> None:
         super().__init__(members=arguments)
@@ -317,7 +324,7 @@ class InterfaceT(_UserType):
             else:
                 return False
 
-            return to_compare.compare_signature(fn_type)
+            return to_compare.implements(fn_type)
 
         # check for missing functions
         for name, type_ in self.members.items():
@@ -338,6 +345,9 @@ class InterfaceT(_UserType):
                 unimplemented.append(name)
 
         if len(unimplemented) > 0:
+            # TODO: improve the error message for cases where the
+            # mismatch is small (like mutability, or just one argument
+            # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
                 f"Contract does not implement all interface functions or events: {missing_str}",
@@ -396,7 +406,7 @@ class InterfaceT(_UserType):
     @classmethod
     def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
         """
-        Generate an `InterfacePrimitive` object from a Vyper ast node.
+        Generate an `InterfaceT` object from a Vyper ast node.
 
         Arguments
         ---------
@@ -404,7 +414,7 @@ class InterfaceT(_UserType):
             Vyper ast node defining the interface
         Returns
         -------
-        InterfacePrimitive
+        InterfaceT
             primitive interface type
         """
         if isinstance(node, vy_ast.Module):
@@ -471,10 +481,6 @@ class StructT(_UserType):
 
         self.ast_def = ast_def
 
-        for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
-
     @cached_property
     def name(self) -> str:
         # Alias for API compatibility with codegen
@@ -537,10 +543,6 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):

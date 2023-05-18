@@ -1,15 +1,13 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.signatures.function_signature import FunctionSignature, FunctionSignatures
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function
+from vyper.codegen.function_definitions import FuncIRInfo, generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types.function import StateMutability
 
 
 def _topsort_helper(functions, lookup):
@@ -34,12 +32,12 @@ def _topsort(functions):
     return list(dict.fromkeys(_topsort_helper(functions, lookup)))
 
 
-def _is_init_func(func_ast):
-    return func_ast._metadata["signature"].is_init_func
+def _is_constructor(func_ast):
+    return func_ast._metadata["type"].is_constructor
 
 
-def _is_default_func(func_ast):
-    return func_ast._metadata["signature"].is_default_func
+def _is_fallback(func_ast):
+    return func_ast._metadata["type"].is_fallback
 
 
 def _is_internal(func_ast):
@@ -47,39 +45,41 @@ def _is_internal(func_ast):
 
 
 def _is_payable(func_ast):
-    return func_ast._metadata["type"].mutability == StateMutability.PAYABLE
+    return func_ast._metadata["type"].is_payable
 
 
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines
-def _runtime_ir(runtime_functions, all_sigs, global_ctx):
+def _runtime_ir(runtime_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
     # payable functions, nonpayable functions, fallback function, internal_functions
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
-    default_function = next((f for f in external_functions if _is_default_func(f)), None)
+    default_function = next((f for f in external_functions if _is_fallback(f)), None)
 
     # functions that need to go exposed in the selector section
-    regular_functions = [f for f in external_functions if not _is_default_func(f)]
+    regular_functions = [f for f in external_functions if not _is_fallback(f)]
     payables = [f for f in regular_functions if _is_payable(f)]
     nonpayables = [f for f in regular_functions if not _is_payable(f)]
 
     # create a map of the IR functions since they might live in both
     # runtime and deploy code (if init function calls them)
-    internal_functions_map: Dict[str, IRnode] = {}
+    internal_functions_ir: list[IRnode] = []
 
     for func_ast in internal_functions:
-        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, False)
-        internal_functions_map[func_ast.name] = func_ir
+        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
+        internal_functions_ir.append(func_ir)
 
     # for some reason, somebody may want to deploy a contract with no
     # external functions, or more likely, a "pure data" contract which
     # contains immutables
     if len(external_functions) == 0:
-        # TODO: prune internal functions in this case?
-        runtime = ["seq"] + list(internal_functions_map.values())
-        return runtime, internal_functions_map
+        # TODO: prune internal functions in this case? dead code eliminator
+        # might not eliminate them, since internal function jumpdest is at the
+        # first instruction in the contract.
+        runtime = ["seq"] + internal_functions_ir
+        return runtime
 
     # note: if the user does not provide one, the default fallback function
     # reverts anyway. so it does not hurt to batch the payable check.
@@ -93,20 +93,18 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
     selector_section = ["seq"]
 
     for func_ast in payables:
-        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, False)
+        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
         selector_section.append(func_ir)
 
     if batch_payable_check:
         selector_section.append(["assert", ["iszero", "callvalue"]])
 
     for func_ast in nonpayables:
-        func_ir = generate_ir_for_function(func_ast, all_sigs, global_ctx, skip_nonpayable_check)
+        func_ir = generate_ir_for_function(func_ast, global_ctx, skip_nonpayable_check)
         selector_section.append(func_ir)
 
     if default_function:
-        fallback_ir = generate_ir_for_function(
-            default_function, all_sigs, global_ctx, skip_nonpayable_check
-        )
+        fallback_ir = generate_ir_for_function(default_function, global_ctx, skip_nonpayable_check)
     else:
         fallback_ir = IRnode.from_list(
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
@@ -125,61 +123,75 @@ def _runtime_ir(runtime_functions, all_sigs, global_ctx):
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
 
-    # TODO: prune unreachable functions?
-    runtime.extend(internal_functions_map.values())
+    # note: dead code eliminator will clean dead functions
+    runtime.extend(internal_functions_ir)
 
-    return runtime, internal_functions_map
+    return runtime
 
 
-# take a GlobalContext, which is basically
-# and generate the runtime and deploy IR, also return the dict of all signatures
-def generate_ir_for_module(global_ctx: GlobalContext) -> Tuple[IRnode, IRnode, FunctionSignatures]:
+# take a GlobalContext, and generate the runtime and deploy IR
+def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(global_ctx.functions)
 
-    # FunctionSignatures for all interfaces defined in this module
-    all_sigs: Dict[str, FunctionSignatures] = {}
-
     init_function: Optional[vy_ast.FunctionDef] = None
-    local_sigs: FunctionSignatures = {}  # internal/local functions
 
-    # generate all signatures
-    # TODO really this should live in GlobalContext
+    # generate all FuncIRInfos
     for f in function_defs:
-        sig = FunctionSignature.from_definition(f, global_ctx)
-        # add it to the global namespace.
-        local_sigs[sig.name] = sig
-        # a little hacky, eventually FunctionSignature should be
-        # merged with ContractFunction and we can remove this.
-        f._metadata["signature"] = sig
+        func_t = f._metadata["type"]
+        func_t._ir_info = FuncIRInfo(func_t)
 
-    assert "self" not in all_sigs
-    all_sigs["self"] = local_sigs
+    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
+    init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
-    runtime_functions = [f for f in function_defs if not _is_init_func(f)]
-    init_function = next((f for f in function_defs if _is_init_func(f)), None)
-
-    runtime, internal_functions = _runtime_ir(runtime_functions, all_sigs, global_ctx)
+    runtime = _runtime_ir(runtime_functions, global_ctx)
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
-        init_func_ir = generate_ir_for_function(init_function, all_sigs, global_ctx, False)
-        deploy_code.append(init_func_ir)
+        # TODO might be cleaner to separate this into an _init_ir helper func
+        init_func_ir = generate_ir_for_function(
+            init_function, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
+        )
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["signature"].frame_info.mem_used
+        init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
+
+        # force msize to be initialized past the end of immutables section
+        # so that builtins which use `msize` for "dynamic" memory
+        # allocation do not clobber uninitialized immutables.
+        # cf. GH issue 3101.
+        # note mload/iload X touches bytes from X to X+32, and msize rounds up
+        # to the nearest 32, so `iload`ing `immutables_len - 32` guarantees
+        # that `msize` will refer to a memory location of at least
+        # `<immutables_start> + immutables_len` (where <immutables_start> ==
+        # `_mem_deploy_end` as defined in the assembler).
+        # note:
+        #   mload 32 => msize == 64
+        #   mload 33 => msize == 96
+        # assumption in general: (mload X) => msize == ceil32(X + 32)
+        # see py-evm extend_memory: after_size = ceil32(start_position + size)
+        if immutables_len > 0:
+            deploy_code.append(["iload", max(0, immutables_len - 32)])
+
+        deploy_code.append(init_func_ir)
+
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
 
         # internal functions come after everything else
-        for f in init_function._metadata["type"].called_functions:
-            deploy_code.append(internal_functions[f.name])
+        internal_functions = [f for f in runtime_functions if _is_internal(f)]
+        for f in internal_functions:
+            func_ir = generate_ir_for_function(
+                f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
+            )
+            # note: we depend on dead code eliminator to clean dead function defs
+            deploy_code.append(func_ir)
 
     else:
         if immutables_len != 0:
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 
-    return IRnode.from_list(deploy_code), IRnode.from_list(runtime), local_sigs
+    return IRnode.from_list(deploy_code), IRnode.from_list(runtime)

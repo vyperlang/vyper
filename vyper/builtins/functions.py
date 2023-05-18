@@ -5,7 +5,6 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
-from vyper.address_space import MEMORY, STORAGE
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
@@ -39,6 +38,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -611,7 +611,7 @@ class Keccak256(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         assert len(args) == 1
-        return keccak256_helper(expr, args[0], context)
+        return keccak256_helper(args[0], context)
 
 
 def _make_sha256_call(inp_start, inp_len, out_start, out_len):
@@ -1238,9 +1238,14 @@ class SelfDestruct(BuiltinFunction):
     _inputs = [("to", AddressT())]
     _return_type = None
     _is_terminus = True
+    _warned = False
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
+        if not self._warned:
+            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            self._warned = True
+
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(
             ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]

@@ -299,6 +299,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
         This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
 
+    .. note::
+
+        This function has been deprecated from version 0.3.8 onwards. The underlying opcode will eventually undergo breaking changes, and its use is not recommended.
+
     .. code-block:: python
 
         @external

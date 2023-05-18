@@ -520,6 +520,9 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
     # Returning the value in row 0 column 4 (in this case 14)
     return exampleList2D[0][4]
 
+.. note::
+    Defining an array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
 .. index:: !dynarrays
 
 Dynamic Arrays
@@ -560,6 +563,10 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
             self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
+
+.. note::
+    Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
 
 .. _types-struct:
 

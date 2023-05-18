@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -56,13 +57,6 @@ class _ExprAnalyser:
     `get_possible_types_from_node` are forwarded to this class, where the node
     class's method resolution order is examined to decide which method to call.
     """
-
-    # this allows for a very simple commit/rollback scheme for metadata
-    # caching. in the case that an exception is thrown and caught during
-    # type checking (currently, only during for loop iterator variable
-    # type inference), we can roll back any state updates due to type
-    # checking.
-    _tainted_nodes: set[tuple[vy_ast.VyperNode, str]] = set()
 
     def __init__(self):
         self.namespace = get_namespace()
@@ -171,26 +165,8 @@ class _ExprAnalyser:
                 ret.sort(key=lambda k: (k.bits, not k.is_signed), reverse=True)
 
             node._metadata[k] = ret
-            # register with list of tainted nodes, in case the cache
-            # needs to be invalidated in case of a state rollback
-            self._tainted_nodes.add((node, k))
 
         return node._metadata[k].copy()
-
-    @classmethod
-    def _rollback_taint(cls):
-        for node, k in cls._tainted_nodes:
-            node._metadata.pop(k, None)
-        # taint has been rolled back, no need to track it anymore
-        cls._reset_taint()
-
-    @classmethod
-    def _commit_taint(cls):
-        cls._reset_taint()
-
-    @classmethod
-    def _reset_taint(cls):
-        cls._tainted_nodes.clear()
 
     def _find_fn(self, node):
         # look for a type-check method for each class in the given class mro
@@ -244,8 +220,6 @@ class _ExprAnalyser:
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
-            # CMC 2022-07-20 this seems like unreachable code -
-            # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
@@ -333,11 +307,20 @@ class _ExprAnalyser:
         # literal array
         if _is_empty_list(node):
             # empty list literal `[]`
+            ret = []
             # subtype can be anything
-            types_list = types.PRIMITIVE_TYPES
-            # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DArrayT(t, 1) for t in types_list.values()]
+            for t in types.PRIMITIVE_TYPES.values():
+                # 1 is minimum possible length for dynarray,
+                # can be assigned to anything
+                if isinstance(t, VyperType):
+                    ret.append(DArrayT(t, 1))
+                elif isinstance(t, type) and issubclass(t, VyperType):
+                    # for typeclasses like bytestrings, use a generic type acceptor
+                    ret.append(DArrayT(t.any(), 1))
+                else:
+                    raise CompilerPanic("busted type {t}", node)
             return ret
+
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
@@ -351,7 +334,11 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
-        if name not in self.namespace and name in self.namespace["self"].typ.members:
+        if (
+            name not in self.namespace
+            and "self" in self.namespace
+            and name in self.namespace["self"].typ.members
+        ):
             raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
@@ -389,6 +376,17 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
+
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        return types_list
 
 
 def _is_empty_list(node):
