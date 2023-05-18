@@ -210,7 +210,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for c in fn_node.get_descendants(vy_ast.Call)
                 if not (len(c.args) == 1 and isinstance(c.args[0], vy_ast.Dict))
             ]
-
             node_list.extend(filtered_call_nodes)
 
             for node in node_list:
@@ -228,18 +227,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
                 )
-
-            # collect all Call's name nodes except structs
-            node_list = [
-                c.func
-                for c in fn_node.get_descendants(vy_ast.Call)
-                if not (len(c.args) == 1 and isinstance(c.args[0], vy_ast.Dict))
-            ]
-            self_references = fn_node.get_descendants(vy_ast.Name, {"id": "self"})
-            standalone_self = [
-                n for n in self_references if not isinstance(n.get_ancestor(), vy_ast.Attribute)
-            ]
-            node_list.extend(standalone_self)  # type: ignore
         if self.func.mutability is not StateMutability.PAYABLE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
