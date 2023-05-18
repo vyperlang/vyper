@@ -208,7 +208,7 @@ def _build_asm(asm_list):
         else:
             output_string += str(node) + " "
 
-            if isinstance(node, str) and node.startswith("PUSH"):
+            if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
                 assert in_push == 0
                 in_push = int(node[4:])
                 output_string += "0x"
@@ -303,7 +303,7 @@ def _build_opcodes(bytecode: bytes) -> str:
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
         opcode_output.append(opcode_map[op])
-        if "PUSH" in opcode_output[-1]:
+        if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(opcode_map[op][4:])
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")

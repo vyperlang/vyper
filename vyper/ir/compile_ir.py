@@ -3,7 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes
+from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
@@ -23,7 +23,8 @@ def num_to_bytearray(x):
 
 def PUSH(x):
     bs = num_to_bytearray(x)
-    if len(bs) == 0:
+    # starting in shanghai, can do push0 directly with no immediates
+    if len(bs) == 0 and not version_check(begin="shanghai"):
         bs = [0]
     return [f"PUSH{len(bs)}"] + bs
 
@@ -149,7 +150,7 @@ def _add_postambles(asm_ops):
 
     global _revert_label
 
-    _revert_string = [_revert_label, "JUMPDEST", "PUSH1", 0, "DUP1", "REVERT"]
+    _revert_string = [_revert_label, "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
     if _revert_label in asm_ops:
         # shared failure block
@@ -555,13 +556,10 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = _compile_to_assembly(code.args[0], withargs, existing_labels, break_dest, height)
         o.extend(
             [
-                "PUSH1",
-                MemoryPositions.FREE_VAR_SPACE,
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
                 "MSTORE",
-                "PUSH1",
-                32,
-                "PUSH1",
-                MemoryPositions.FREE_VAR_SPACE,
+                *PUSH(32),
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
                 "SHA3",
             ]
         )
@@ -572,16 +570,12 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(_compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height))
         o.extend(
             [
-                "PUSH1",
-                MemoryPositions.FREE_VAR_SPACE2,
+                *PUSH(MemoryPositions.FREE_VAR_SPACE2),
                 "MSTORE",
-                "PUSH1",
-                MemoryPositions.FREE_VAR_SPACE,
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
                 "MSTORE",
-                "PUSH1",
-                64,
-                "PUSH1",
-                MemoryPositions.FREE_VAR_SPACE,
+                *PUSH(64),
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
                 "SHA3",
             ]
         )
