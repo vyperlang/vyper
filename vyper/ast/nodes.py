@@ -1378,9 +1378,10 @@ class VariableDecl(VyperNode):
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
-        if self.annotation.get("func.id") in ("immutable", "constant", "transient"):
-            _check_args(self.annotation, self.annotation.func.id)
-            setattr(self, f"is_{self.annotation.func.id}", True)
+        func_id = self.annotation.get("func.id")
+        if func_id in ("immutable", "constant", "transient"):
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 

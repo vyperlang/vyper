@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
@@ -196,6 +197,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, data_loc)
+
+        if node.is_transient and not version_check(begin="cancun"):
+            raise StructureException("`transient` is not available pre-cancun", node.annotation)
+
         var_info = VarInfo(
             type_,
             decl_node=node,
