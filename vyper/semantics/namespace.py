@@ -176,6 +176,7 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "nonpayable",
     "constant",
     "immutable",
+    "transient",
     "internal",
     "payable",
     "nonreentrant",

@@ -162,6 +162,7 @@ class VarInfo:
     is_constant: bool = False
     is_public: bool = False
     is_immutable: bool = False
+    is_transient: bool = False
     is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
 

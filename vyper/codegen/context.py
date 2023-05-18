@@ -28,6 +28,7 @@ class VariableRecord:
     defined_at: Any = None
     is_internal: bool = False
     is_immutable: bool = False
+    is_transient: bool = False
     data_offset: Optional[int] = None
 
     def __hash__(self):

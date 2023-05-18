@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
+from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
@@ -562,10 +562,10 @@ def _get_element_ptr_mapping(parent, key):
     key = unwrap_location(key)
 
     # TODO when is key None?
-    if key is None or parent.location != STORAGE:
-        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
+    if key is None or parent.location not in (STORAGE, TRANSIENT):
+        raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
 
-    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=STORAGE)
+    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
 
 
 # Take a value representing a memory or storage location, and descend down to

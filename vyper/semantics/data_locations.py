@@ -7,3 +7,5 @@ class DataLocation(enum.Enum):
     STORAGE = 2
     CALLDATA = 3
     CODE = 4
+    # XXX: needed for separate transient storage allocator
+    # TRANSIENT = 5

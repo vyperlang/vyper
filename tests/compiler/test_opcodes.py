@@ -45,11 +45,14 @@ def test_version_check(evm_version):
 
 def test_get_opcodes(evm_version):
     ops = opcodes.get_opcodes()
-    if evm_version in ("paris", "berlin", "shanghai"):
+    if evm_version in ("paris", "berlin", "shanghai", "cancun"):
         assert "CHAINID" in ops
         assert ops["SLOAD"][-1] == 2100
-        if evm_version in ("shanghai",):
+        if evm_version in ("shanghai", "cancun"):
             assert "PUSH0" in ops
+        if evm_version in ("cancun",):
+            assert "TLOAD" in ops
+            assert "TSTORE" in ops
     elif evm_version == "istanbul":
         assert "CHAINID" in ops
         assert ops["SLOAD"][-1] == 800

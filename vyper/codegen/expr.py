@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -259,10 +259,12 @@ class Expr:
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             varinfo = self.context.globals[self.expr.attr]
+            location = TRANSIENT if varinfo.is_transient else STORAGE
+
             ret = IRnode.from_list(
                 varinfo.position.position,
                 typ=varinfo.typ,
-                location=STORAGE,
+                location=location,
                 annotation="self." + self.expr.attr,
             )
             ret._referenced_variables = {varinfo}

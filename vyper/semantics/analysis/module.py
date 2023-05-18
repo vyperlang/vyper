@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
@@ -189,10 +190,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if node.is_immutable
             else DataLocation.UNSET
             if node.is_constant
+            # XXX: needed if we want separate transient allocator
+            # else DataLocation.TRANSIENT
+            # if node.is_transient
             else DataLocation.STORAGE
         )
 
         type_ = type_from_annotation(node.annotation, data_loc)
+
+        if node.is_transient and not version_check(begin="cancun"):
+            raise StructureException("`transient` is not available pre-cancun", node.annotation)
+
         var_info = VarInfo(
             type_,
             decl_node=node,
@@ -200,6 +208,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             is_constant=node.is_constant,
             is_public=node.is_public,
             is_immutable=node.is_immutable,
+            is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
