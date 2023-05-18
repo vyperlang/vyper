@@ -205,10 +205,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             node_list.extend(standalone_self)  # type: ignore
 
             # Add references to builtin functions reading from the chain's state
-            # TODO Fix circular import
-            from vyper.builtins.functions import BUILTIN_FUNCTIONS
-
-            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": set(BUILTIN_FUNCTIONS)})
+            non_pure_builtin_fns = [
+                k
+                for k, v in self.namespace.items()
+                if (
+                    isinstance(v, VarInfo)
+                    and isinstance(v.typ, BuiltinFunction)
+                    and v.typ.mutability > StateMutability.PURE
+                )
+            ]
+            builtin_fns = fn_node.get_descendants(vy_ast.Name, {"id": non_pure_builtin_fns})
 
             node_list.extend(builtin_fns)  # type: ignore
 
