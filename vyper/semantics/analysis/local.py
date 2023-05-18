@@ -220,7 +220,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 ):
                     # allowed
                     continue
-
                 raise StateAccessViolation(
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
