@@ -1,4 +1,4 @@
-name: Artifacts
+name: Deploy docker image to ghcr.io
 
 on:
   workflow_dispatch:
