@@ -1,4 +1,4 @@
-name: Deploy docker image to ghcr.io
+name: Deploy docker image
 
 on:
   workflow_dispatch:
@@ -13,6 +13,12 @@ on:
 
 jobs:
   deploy-ghcr:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
