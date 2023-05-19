@@ -28,7 +28,7 @@ class FrameInfo:
 
 
 @dataclass
-class FuncIRInfo:
+class _FuncIRInfo:
     func_t: ContractFunctionT
     gas_estimate: Optional[int] = None
     frame_info: Optional[FrameInfo] = None
@@ -77,6 +77,9 @@ def generate_ir_for_function(
         - Function body
     """
     func_t = code._metadata["type"]
+
+    # generate _FuncIRInfo
+    func_t._ir_info = _FuncIRInfo(func_t)
 
     # Validate return statements.
     check_single_exit(code)
