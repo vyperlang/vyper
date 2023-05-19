@@ -314,8 +314,9 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
-# A type type. Used internally to wrap callable types such as builtins,
-# events, interfaces and structs.
+# A type type. Used internally for types which can live in expression
+# position, ex. constructors (events, interfaces and structs), and also
+# certain builtins which take types as parameters
 class TYPE_T:
     def __init__(self, typedef):
         self.typedef = typedef
