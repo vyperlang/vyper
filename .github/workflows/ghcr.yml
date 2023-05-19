@@ -1,4 +1,10 @@
-name: Deploy docker image on pushes to master and release
+name: Deploy docker image to ghcr
+
+# Deploy docker image to ghcr on pushes to master and all releases/tags.
+# Note releases to docker hub are managed separately in another process
+# (github sends webhooks to docker hub which triggers the build there).
+# This workflow is an alternative form of retention for docker images
+# which also allows us to tag and retain every single commit to master.
 
 on:
   push:
