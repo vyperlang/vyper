@@ -47,8 +47,6 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=edge
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ env.VYPER_VERSION }}
 
