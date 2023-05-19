@@ -30,13 +30,24 @@ jobs:
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
 
+      - uses: actions/setup-python@v4
+        name: Install python
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Generate vyper/version.py
+        run: |
+          pip install .
+          echo "VYPER_VERSION=$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" >> "$GITHUB_ENV"
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=commit-,format=short
+            type=custom,value=${{ env.VYPER_VERSION }}
 
       - name: Login to ghcr.io
         uses: docker/login-action@v2
