@@ -47,7 +47,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=custom,value=${{ env.VYPER_VERSION }}
+            type=raw,value=${{ env.VYPER_VERSION }}
 
       - name: Login to ghcr.io
         uses: docker/login-action@v2
