@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import FuncIRInfo, generate_ir_for_function
+from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
@@ -135,11 +135,6 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     function_defs = _topsort(global_ctx.functions)
 
     init_function: Optional[vy_ast.FunctionDef] = None
-
-    # generate all FuncIRInfos
-    for f in function_defs:
-        func_t = f._metadata["type"]
-        func_t._ir_info = FuncIRInfo(func_t)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
