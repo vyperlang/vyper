@@ -31,6 +31,8 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: charles-cooper/vyper
+          tags: |
+            type=sha,prefix=sha-,format=short
 
       - name: Login to ghcr.io
         uses: docker/login-action@v2
