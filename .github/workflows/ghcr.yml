@@ -47,6 +47,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=ref
             type=edge
             type=raw,value=${{ env.VYPER_VERSION }}
 
