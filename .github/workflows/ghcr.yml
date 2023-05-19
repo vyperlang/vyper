@@ -1,15 +1,13 @@
-name: Deploy docker image
+name: Deploy docker image on pushes to master and release
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        default: ''
   push:
     tags:
       - '*'
     branches:
       - master
+  release:
+    types: [released]
 
 env:
   REGISTRY: ghcr.io
@@ -46,8 +44,11 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=true
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=tag
             type=raw,value=${{ env.VYPER_VERSION }}
 
       - name: Login to ghcr.io
