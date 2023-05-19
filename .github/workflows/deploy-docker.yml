@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: name/app
+          images: charles-cooper/vyper
 
       - name: Login to ghcr.io
         uses: docker/login-action@v2
