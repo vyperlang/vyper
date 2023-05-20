@@ -55,10 +55,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=tag
-            type=raw,value=${{ env.VYPER_VERSION }}${{ env.VERSION_SUFFIX }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/master' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=ref,event=tag,priority=400
+            type=raw,value=${{ env.VYPER_VERSION }}${{ env.VERSION_SUFFIX }},priority=200
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/master' }},priority=600
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }},priority=1000
 
 
       - name: Login to ghcr.io
