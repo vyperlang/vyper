@@ -95,7 +95,7 @@ Other docs updates, chores and fixes:
 - fix docs of ``blockhash`` to reflect revert behaviour by @ToonVanHove (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
 - improvements to compiler error messages by @tserg, @benber86 and @trocher (`#3121 <https://github.com/vyperlang/vyper/pull/3121>`_, `#3134 <https://github.com/vyperlang/vyper/pull/3134>`_, `#3312 <https://github.com/vyperlang/vyper/pull/3312>`_, `#3304 <https://github.com/vyperlang/vyper/pull/3304>`_, `#3240 <https://github.com/vyperlang/vyper/pull/3240>`_, `#3264 <https://github.com/vyperlang/vyper/pull/3264>`_, `#3343 <https://github.com/vyperlang/vyper/pull/3343>`_, `#3307 <https://github.com/vyperlang/vyper/pull/3307>`_, `#3313 <https://github.com/vyperlang/vyper/pull/3313>`_ and `#3215 <https://github.com/vyperlang/vyper/pull/3215>`_)
 
-These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
+These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
 ## New Contributors
 
