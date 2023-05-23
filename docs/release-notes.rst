@@ -8,19 +8,19 @@ v0.3.7
 
 Date released: 2022-09-26
 
-## Breaking changes:
+Breaking changes:
 
 - chore: drop python 3.7 support (`#3071 <https://github.com/vyperlang/vyper/pull/3071>`_)
 - fix: relax check for statically sized calldata (`#3090 <https://github.com/vyperlang/vyper/pull/3090>`_)
 
-## Non-breaking changes and improvements:
+Non-breaking changes and improvements:
 
-- fix: assert description in Crowdfund.finalize() (`#3058 <https://github.com/vyperlang/vyper/pull/3058>`_)
+- fix: assert description in ``Crowdfund.finalize()`` (`#3058 <https://github.com/vyperlang/vyper/pull/3058>`_)
 - fix: change mutability of example ERC721 interface (`#3076 <https://github.com/vyperlang/vyper/pull/3076>`_)
 - chore: improve error message for non-checksummed address literal (`#3065 <https://github.com/vyperlang/vyper/pull/3065>`_)
-- feat: isqrt built-in (`#3074 <https://github.com/vyperlang/vyper/pull/3074>`_) (`#3069 <https://github.com/vyperlang/vyper/pull/3069>`_)
-- feat: add `block.prevrandao` as alias for `block.difficulty` (`#3085 <https://github.com/vyperlang/vyper/pull/3085>`_)
-- feat: epsilon builtin (`#3057 <https://github.com/vyperlang/vyper/pull/3057>`_)
+- feat: ``isqrt()`` builtin (`#3074 <https://github.com/vyperlang/vyper/pull/3074>`_) (`#3069 <https://github.com/vyperlang/vyper/pull/3069>`_)
+- feat: add ``block.prevrandao`` as alias for ``block.difficulty`` (`#3085 <https://github.com/vyperlang/vyper/pull/3085>`_)
+- feat: ``epsilon()`` builtin (`#3057 <https://github.com/vyperlang/vyper/pull/3057>`_)
 - feat: extend ecrecover signature to accept additional parameter types (`#3084 <https://github.com/vyperlang/vyper/pull/3084>`_)
 - feat: allow constant and immutable variables to be declared public (`#3024 <https://github.com/vyperlang/vyper/pull/3024>`_)
 - feat: optionally disable metadata in bytecode (`#3107 <https://github.com/vyperlang/vyper/pull/3107>`_)
@@ -30,7 +30,7 @@ Date released: 2022-09-26
 - fix: empty nested dynamic arrays (`#3061 <https://github.com/vyperlang/vyper/pull/3061>`_)
 - fix: foldable builtin default args in imports (`#3079 <https://github.com/vyperlang/vyper/pull/3079>`_) (`#3077 <https://github.com/vyperlang/vyper/pull/3077>`_)
 
-## Additional changes and improvements:
+Additional changes and improvements:
 
 - doc: update broken links in SECURITY.md (`#3095 <https://github.com/vyperlang/vyper/pull/3095>`_)
 - chore: update discord link in docs (`#3031 <https://github.com/vyperlang/vyper/pull/3031>`_)
@@ -40,7 +40,7 @@ Date released: 2022-09-26
 - chore: migrate lark grammar (`#3082 <https://github.com/vyperlang/vyper/pull/3082>`_)
 - chore: loosen and upgrade semantic version (`#3106 <https://github.com/vyperlang/vyper/pull/3106>`_)
 
-# New Contributors
+New Contributors
 
 - @emilianobonassi made their first contribution in `#3107 <https://github.com/vyperlang/vyper/pull/3107>`_
 - @unparalleled-js made their first contribution in `#3106 <https://github.com/vyperlang/vyper/pull/3106>`_
