@@ -3,9 +3,9 @@ import rlp
 from eth.codecs import abi
 from hexbytes import HexBytes
 
-from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
-from vyper.codegen.ir_node import IRnode
 import vyper.ir.compile_ir as compile_ir
+from vyper.codegen.ir_node import IRnode
+from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
 
 
 # initcode used by create_minimal_proxy_to
@@ -232,9 +232,7 @@ def test(code_ofst: uint256) -> address:
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
     ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _ = compile_ir.assembly_to_evm(
-        compile_ir.compile_to_assembly(ir, no_optimize=True),
-    )
+    bytecode, _ = compile_ir.assembly_to_evm(compile_ir.compile_to_assembly(ir, no_optimize=True))
     # manually deploy the bytecode
     c = w3.eth.contract(abi=[], bytecode=bytecode)
     deploy_transaction = c.constructor()
