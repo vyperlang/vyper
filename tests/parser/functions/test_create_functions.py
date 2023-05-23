@@ -3,6 +3,8 @@ import rlp
 from eth.codecs import abi
 from hexbytes import HexBytes
 
+import vyper.ir.compile_ir as compile_ir
+from vyper.codegen.ir_node import IRnode
 from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
 
 
@@ -224,15 +226,23 @@ def test(code_ofst: uint256) -> address:
     return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
     """
 
-    # use a bunch of JUMPDEST + STOP instructions as blueprint code
-    # (as any STOP instruction returns valid code, split up with
-    # jumpdests as optimization fence)
     initcode_len = 100
-    f = get_contract_from_ir(["deploy", 0, ["seq"] + ["jumpdest", "stop"] * (initcode_len // 2), 0])
-    blueprint_code = w3.eth.get_code(f.address)
-    print(blueprint_code)
 
-    d = get_contract(deployer_code, f.address)
+    # deploy a blueprint contract whose contained initcode contains only
+    # zeroes (so no matter which offset, create_from_blueprint will
+    # return empty code)
+    ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
+    bytecode, _ = compile_ir.assembly_to_evm(compile_ir.compile_to_assembly(ir, no_optimize=True))
+    # manually deploy the bytecode
+    c = w3.eth.contract(abi=[], bytecode=bytecode)
+    deploy_transaction = c.constructor()
+    tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
+    tx_hash = deploy_transaction.transact(tx_info)
+    blueprint_address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
+    blueprint_code = w3.eth.get_code(blueprint_address)
+    print("BLUEPRINT CODE:", blueprint_code)
+
+    d = get_contract(deployer_code, blueprint_address)
 
     # deploy with code_ofst=0 fine
     d.test(0)

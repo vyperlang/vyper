@@ -758,6 +758,9 @@ def note_breakpoint(line_number_map, item, pos):
             line_number_map["breakpoints"].add(item.lineno + 1)
 
 
+_TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
+
+
 def _prune_unreachable_code(assembly):
     # In converting IR to assembly we sometimes end up with unreachable
     # instructions - POPing to clear the stack or STOPing execution at the
@@ -766,9 +769,13 @@ def _prune_unreachable_code(assembly):
     # to avoid unnecessary bytecode bloat.
     changed = False
     i = 0
-    while i < len(assembly) - 1:
-        if assembly[i] in ("JUMP", "RETURN", "REVERT", "STOP") and not (
-            is_symbol(assembly[i + 1]) or assembly[i + 1] == "JUMPDEST"
+    while i < len(assembly) - 2:
+        instr = assembly[i]
+        if isinstance(instr, list):
+            instr = assembly[i][-1]
+
+        if assembly[i] in _TERMINAL_OPS and not (
+            is_symbol(assembly[i + 1]) and assembly[i + 2] in ("JUMPDEST", "BLANK")
         ):
             changed = True
             del assembly[i + 1]
