@@ -17,7 +17,7 @@ Release Notes
 v0.3.8
 ******
 
-Date released: 2023-05-22
+Date released: 2023-05-23
 
 ## What's Changed
 
