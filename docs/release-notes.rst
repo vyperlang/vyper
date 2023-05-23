@@ -21,7 +21,7 @@ Date released: 2023-05-23
 
 This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release.
 
-Bugfixes:
+Fixes:
 
 - initcode codesize blowup (`#3450 <https://github.com/vyperlang/vyper/pull/3450>`_)
 
