@@ -770,6 +770,10 @@ def _prune_unreachable_code(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
+        instr = assembly[i]
+        if isinstance(instr, list):
+            instr = assembly[i][-1]
+
         if assembly[i] in _TERMINAL_OPS and not (
             is_symbol(assembly[i + 1]) and assembly[i + 2] in ("JUMPDEST", "BLANK")
         ):
