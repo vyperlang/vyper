@@ -25,7 +25,7 @@ Non-breaking changes and improvements:
 - feat: allow constant and immutable variables to be declared public (`#3024 <https://github.com/vyperlang/vyper/pull/3024>`_)
 - feat: optionally disable metadata in bytecode (`#3107 <https://github.com/vyperlang/vyper/pull/3107>`_)
     
-## Bugfixes:
+Bugfixes:
 
 - fix: empty nested dynamic arrays (`#3061 <https://github.com/vyperlang/vyper/pull/3061>`_)
 - fix: foldable builtin default args in imports (`#3079 <https://github.com/vyperlang/vyper/pull/3079>`_) (`#3077 <https://github.com/vyperlang/vyper/pull/3077>`_)
