@@ -29,9 +29,12 @@ def __init__():
     foo_label = "_sym_internal_foo___"
     qux_label = "_sym_internal_qux___"
 
-    # all the labels should be in all the unoptimized asms
+    # qux reachable from unoptimized initcode, foo not reachable.
+    assert qux_label + "_deploy" in initcode_asm
+    assert foo_label + "_deploy" not in initcode_asm
+
+    # all labels should be in unoptimized runtime asm
     for s in (foo_label, qux_label):
-        assert s + "_deploy" in initcode_asm
         assert s + "_runtime" in runtime_asm
 
     c = CompilerData(code, no_optimize=False)

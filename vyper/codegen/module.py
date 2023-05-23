@@ -123,7 +123,6 @@ def _runtime_ir(runtime_functions, global_ctx):
         ["label", "fallback", ["var_list"], fallback_ir],
     ]
 
-    # note: dead code eliminator will clean dead functions
     runtime.extend(internal_functions_ir)
 
     return runtime
@@ -186,7 +185,6 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
             func_ir = generate_ir_for_function(
                 f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
             )
-            # note: we depend on dead code eliminator to clean dead function defs
             deploy_code.append(func_ir)
 
     else:
