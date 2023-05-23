@@ -178,6 +178,11 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         # internal functions come after everything else
         internal_functions = [f for f in runtime_functions if _is_internal(f)]
         for f in internal_functions:
+            init_func_t = init_function._metadata["type"]
+            if f.name not in init_func_t.recursive_calls:
+                # unreachable
+                continue
+
             func_ir = generate_ir_for_function(
                 f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
             )
