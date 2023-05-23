@@ -17,6 +17,7 @@ v0.3.8
 Date released: 2023-05-22
 
 ## Non-breaking changes and improvements:
+
 - transient storage keyword by @charles-cooper in (`#3373 <https://github.com/vyperlang/vyper/pull/3373>`_)
 - add ternary operator by @charles-cooper in (`#3398 <https://github.com/vyperlang/vyper/pull/3398>`_)
 - `raw_revert()` builtin by @z80dev in (`#3136 <https://github.com/vyperlang/vyper/pull/3136>`_)
@@ -28,12 +29,14 @@ Date released: 2023-05-22
 - build for aarch64 by @kelvinfan001 in (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
 
 Major refactoring PRs:
+
 - refactor: front-end type system by @charles-cooper in (`#2974 <https://github.com/vyperlang/vyper/pull/2974>`_)
 - refactor: merge front-end and codegen type systems by @charles-cooper in (`#3182 <https://github.com/vyperlang/vyper/pull/3182>`_)
 - refactor: simplify GlobalContext by @charles-cooper in (`#3209 <https://github.com/vyperlang/vyper/pull/3209>`_)
 - refactor: remove `FunctionSignature` by @tserg in (`#3390 <https://github.com/vyperlang/vyper/pull/3390>`_)
 
 Notable fixes:
+
 - assignment when rhs is complex type and references lhs by @charles-cooper in (`#3410 <https://github.com/vyperlang/vyper/pull/3410>`_)
 - uninitialized immutable values by @charles-cooper in (`#3409 <https://github.com/vyperlang/vyper/pull/3409>`_)
 - success value when mixing max_outsize=0 and revert_on_failure=False in (`GHSA-w9g2-3w7p-72g9 <https://github.com/vyperlang/vyper/security/advisories/GHSA-w9g2-3w7p-72g9>`_)
@@ -44,6 +47,7 @@ Notable fixes:
 - batch nonpayable check for default functions calldatasize < 4 in (`#3104 <https://github.com/vyperlang/vyper/pull/3104>`_, `#3408 <https://github.com/vyperlang/vyper/pull/3408>`_) (cf. `GHSA-vxmm-cwh2-q762 <https://github.com/vyperlang/vyper/security/advisories/GHSA-vxmm-cwh2-q762>`_)
 
 Other chores and fixes:
+
 - call graph stability by @charles-cooper in (`#3370 <https://github.com/vyperlang/vyper/pull/3370>`_)
 - fix vyper-serve output by @tserg in (`#3338 <https://github.com/vyperlang/vyper/pull/3338>`_)
 - add `custom:` natspec tags by @charles-cooper in (`#3403 <https://github.com/vyperlang/vyper/pull/3403>`_)
@@ -89,6 +93,7 @@ Other chores and fixes:
 These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
 ## New Contributors
+
 - @omahs made their first contribution in (`#3128 <https://github.com/vyperlang/vyper/pull/3128>`_)
 - @ObiajuluM made their first contribution in (`#3124 <https://github.com/vyperlang/vyper/pull/3124>`_)
 - @trocher made their first contribution in (`#3134 <https://github.com/vyperlang/vyper/pull/3134>`_)
