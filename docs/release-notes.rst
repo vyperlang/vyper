@@ -47,7 +47,7 @@ Notable fixes:
 - store-before-load when a dynarray appears on both sides of an assignment (`GHSA-3p37-3636-q8wv <https://github.com/vyperlang/vyper/security/advisories/GHSA-3p37-3636-q8wv>`_)
 - bounds check for loops of the form ``for i in range(x, x+N)`` (`GHSA-6r8q-pfpv-7cgj <https://github.com/vyperlang/vyper/security/advisories/GHSA-6r8q-pfpv-7cgj>`_)
 - alignment of call-site posargs and kwargs for internal functions (`GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_)
-- batch nonpayable check for default functions calldatasize < 4 (`#3104 <https://github.com/vyperlang/vyper/pull/3104>`_, `#3408 <https://github.com/vyperlang/vyper/pull/3408>`_) (cf. `GHSA-vxmm-cwh2-q762 <https://github.com/vyperlang/vyper/security/advisories/GHSA-vxmm-cwh2-q762>`_)
+- batch nonpayable check for default functions calldatasize < 4 (`#3104 <https://github.com/vyperlang/vyper/pull/3104>`_, `#3408 <https://github.com/vyperlang/vyper/pull/3408>`_, cf. `GHSA-vxmm-cwh2-q762 <https://github.com/vyperlang/vyper/security/advisories/GHSA-vxmm-cwh2-q762>`_)
 
 Other docs updates, chores and fixes:
 
@@ -95,7 +95,7 @@ Other docs updates, chores and fixes:
 
 These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
-## New Contributors
+New Contributors:
 
 - @omahs made their first contribution in (`#3128 <https://github.com/vyperlang/vyper/pull/3128>`_)
 - @ObiajuluM made their first contribution in (`#3124 <https://github.com/vyperlang/vyper/pull/3124>`_)
