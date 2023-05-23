@@ -19,8 +19,6 @@ v0.3.8
 
 Date released: 2023-05-23
 
-## What's Changed
-
 Non-breaking changes and improvements:
 
 - ``transient`` storage keyword by @charles-cooper (`#3373 <https://github.com/vyperlang/vyper/pull/3373>`_)
