@@ -209,7 +209,7 @@ def test2(target: address, salt: bytes32):
 
     # can't collide addresses
     assert_tx_failed(lambda: d.test2(f.address, salt))
-    
+
 
 # test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
 # code offset by default should be 3 here.
@@ -229,7 +229,7 @@ def foo() -> uint256:
     return 123
     """
 
-    deployer_code = f"""
+    deployer_code = """
 created_address: public(address)
 
 @external
