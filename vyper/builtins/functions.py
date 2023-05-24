@@ -1855,7 +1855,7 @@ class CreateFromBlueprint(_CreateBase):
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
-        "code_offset": KwargSettings(UINT256_T, zero_value),
+        "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
     }
     _has_varargs = True
 
