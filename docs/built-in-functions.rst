@@ -184,14 +184,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, code_offset=0, [, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, code_offset=3, [, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
     * ``target``: Address of the blueprint to invoke
     * ``*args``: Constructor arguments to forward to the initcode.
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
-    * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 0)
+    * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 3)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.
@@ -210,7 +210,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
 .. warning::
 
-    It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+    It is recommended to deploy blueprints with an `ERC-5202 <https://eips.ethereum.org/EIPS/eip-5202>`_ preamble like ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided (and defaults to the ERC-5202 default of 3) to enable this pattern:
 
     .. code-block:: python
 
