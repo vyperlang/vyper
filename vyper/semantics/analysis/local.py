@@ -171,7 +171,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
+        #self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
         for arg in self.func.arguments:
             namespace[arg.name] = VarInfo(
@@ -223,7 +223,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit(self, node):
         super().visit(node)
-        self.annotation_visitor.visit(node)
+        #self.annotation_visitor.visit(node)
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
@@ -243,6 +243,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
         self.expr_visitor.visit(node.value)
+
+    def visit_Assert(self, node):
+        if node.msg:
+            _validate_revert_reason(node.msg)
+            self.expr_visitor.visit(node.msg)
+
+        try:
+            validate_expected_type(node.test, BoolT())
+        except InvalidType:
+            raise InvalidType("Assertion test value must be a boolean", node.test)
+        self.expr_visitor.visit(node.test)
 
     def visit_Assign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -272,66 +283,61 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value)
         self.expr_visitor.visit(node.target)
 
-    def visit_Raise(self, node):
-        if node.exc:
-            _validate_revert_reason(node.exc)
-            self.expr_visitor.visit(node.exc)
-
-    def visit_Assert(self, node):
-        if node.msg:
-            _validate_revert_reason(node.msg)
-            self.expr_visitor.visit(node.msg)
-
-        try:
-            validate_expected_type(node.test, BoolT())
-        except InvalidType:
-            raise InvalidType("Assertion test value must be a boolean", node.test)
-        self.expr_visitor.visit(node.test)
+    def visit_Break(self, node):
+        for_node = node.get_ancestor(vy_ast.For)
+        if for_node is None:
+            raise StructureException("`break` must be enclosed in a `for` loop", node)
 
     def visit_Continue(self, node):
         for_node = node.get_ancestor(vy_ast.For)
         if for_node is None:
             raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
-    def visit_Break(self, node):
-        for_node = node.get_ancestor(vy_ast.For)
-        if for_node is None:
-            raise StructureException("`break` must be enclosed in a `for` loop", node)
+    def visit_Expr(self, node):
+        if not isinstance(node.value, vy_ast.Call):
+            raise StructureException("Expressions without assignment are disallowed", node)
 
-    def visit_Return(self, node):
-        values = node.value
-        if values is None:
-            if self.func.return_type:
-                raise FunctionDeclarationException("Return statement is missing a value", node)
-            return
-        elif self.func.return_type is None:
-            raise FunctionDeclarationException("Function does not return any values", node)
+        fn_type = get_exact_type_from_node(node.value.func)
+        if is_type_t(fn_type, EventT):
+            raise StructureException("To call an event you must use the `log` statement", node)
 
-        if isinstance(values, vy_ast.Tuple):
-            values = values.elements
-            if not isinstance(self.func.return_type, TupleT):
-                raise FunctionDeclarationException("Function only returns a single value", node)
-            if self.func.return_type.length != len(values):
-                raise FunctionDeclarationException(
-                    f"Incorrect number of return values: "
-                    f"expected {self.func.return_type.length}, got {len(values)}",
+        if is_type_t(fn_type, StructT):
+            raise StructureException("Struct creation without assignment is disallowed", node)
+
+        if isinstance(fn_type, ContractFunctionT):
+            if (
+                fn_type.mutability > StateMutability.VIEW
+                and self.func.mutability <= StateMutability.VIEW
+            ):
+                raise StateAccessViolation(
+                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.member_types):
-                validate_expected_type(given, expected)
-        else:
-            validate_expected_type(values, self.func.return_type)
-        self.expr_visitor.visit(node.value)
 
-    def visit_If(self, node):
-        validate_expected_type(node.test, BoolT())
-        self.expr_visitor.visit(node.test)
-        with self.namespace.enter_scope():
-            for n in node.body:
-                self.visit(n)
-        with self.namespace.enter_scope():
-            for n in node.orelse:
-                self.visit(n)
+            if (
+                self.func.mutability == StateMutability.PURE
+                and fn_type.mutability != StateMutability.PURE
+            ):
+                raise StateAccessViolation(
+                    "Cannot call non-pure function from a pure function", node
+                )
+
+        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
+            # it's a dotted function call like dynarray.pop()
+            expr_info = get_expr_info(node.value.func.value)
+            expr_info.validate_modification(node, self.func.mutability)
+
+        # NOTE: fetch_call_return validates call args.
+        return_value = fn_type.fetch_call_return(node.value)
+        if (
+            return_value
+            and not isinstance(fn_type, MemberFunctionT)
+            and not isinstance(fn_type, ContractFunctionT)
+        ):
+            raise StructureException(
+                f"Function '{fn_type._id}' cannot be called without assigning the result", node
+            )
+        self.expr_visitor.visit(node.value)
 
     def visit_For(self, node):
         if isinstance(node.iter, vy_ast.Subscript):
@@ -491,51 +497,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             ),
         )
 
-    def visit_Expr(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Expressions without assignment are disallowed", node)
-
-        fn_type = get_exact_type_from_node(node.value.func)
-        if is_type_t(fn_type, EventT):
-            raise StructureException("To call an event you must use the `log` statement", node)
-
-        if is_type_t(fn_type, StructT):
-            raise StructureException("Struct creation without assignment is disallowed", node)
-
-        if isinstance(fn_type, ContractFunctionT):
-            if (
-                fn_type.mutability > StateMutability.VIEW
-                and self.func.mutability <= StateMutability.VIEW
-            ):
-                raise StateAccessViolation(
-                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
-                    node,
-                )
-
-            if (
-                self.func.mutability == StateMutability.PURE
-                and fn_type.mutability != StateMutability.PURE
-            ):
-                raise StateAccessViolation(
-                    "Cannot call non-pure function from a pure function", node
-                )
-
-        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            # it's a dotted function call like dynarray.pop()
-            expr_info = get_expr_info(node.value.func.value)
-            expr_info.validate_modification(node, self.func.mutability)
-
-        # NOTE: fetch_call_return validates call args.
-        return_value = fn_type.fetch_call_return(node.value)
-        if (
-            return_value
-            and not isinstance(fn_type, MemberFunctionT)
-            and not isinstance(fn_type, ContractFunctionT)
-        ):
-            raise StructureException(
-                f"Function '{fn_type._id}' cannot be called without assigning the result", node
-            )
-        self.expr_visitor.visit(node.value)
+    def visit_If(self, node):
+        validate_expected_type(node.test, BoolT())
+        self.expr_visitor.visit(node.test)
+        with self.namespace.enter_scope():
+            for n in node.body:
+                self.visit(n)
+        with self.namespace.enter_scope():
+            for n in node.orelse:
+                self.visit(n)
 
     def visit_Log(self, node):
         if not isinstance(node.value, vy_ast.Call):
@@ -548,6 +518,36 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
         f.fetch_call_return(node.value)
+        self.expr_visitor.visit(node.value)
+
+    def visit_Raise(self, node):
+        if node.exc:
+            _validate_revert_reason(node.exc)
+            self.expr_visitor.visit(node.exc)
+
+    def visit_Return(self, node):
+        values = node.value
+        if values is None:
+            if self.func.return_type:
+                raise FunctionDeclarationException("Return statement is missing a value", node)
+            return
+        elif self.func.return_type is None:
+            raise FunctionDeclarationException("Function does not return any values", node)
+
+        if isinstance(values, vy_ast.Tuple):
+            values = values.elements
+            if not isinstance(self.func.return_type, TupleT):
+                raise FunctionDeclarationException("Function only returns a single value", node)
+            if self.func.return_type.length != len(values):
+                raise FunctionDeclarationException(
+                    f"Incorrect number of return values: "
+                    f"expected {self.func.return_type.length}, got {len(values)}",
+                    node,
+                )
+            for given, expected in zip(values, self.func.return_type.member_types):
+                validate_expected_type(given, expected)
+        else:
+            validate_expected_type(values, self.func.return_type)
         self.expr_visitor.visit(node.value)
 
 
