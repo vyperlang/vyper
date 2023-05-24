@@ -34,6 +34,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
+    TYPE_T,
     AddressT,
     BoolT,
     DArrayT,
@@ -44,6 +45,7 @@ from vyper.semantics.types import (
     StringT,
     StructT,
     TupleT,
+    VyperType,
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
@@ -161,7 +163,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
-    ignored_types = (vy_ast.Constant, vy_ast.Pass)
+    ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
     def __init__(
@@ -171,8 +173,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        #self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
-        self.expr_visitor = _LocalExpressionVisitor()
+        self.expr_visitor = _LocalExpressionVisitor(self.func)
         for arg in self.func.arguments:
             namespace[arg.name] = VarInfo(
                 arg.typ, location=DataLocation.CALLDATA, is_immutable=True
@@ -223,7 +224,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit(self, node):
         super().visit(node)
-        #self.annotation_visitor.visit(node)
 
     def visit_AnnAssign(self, node):
         name = node.get("target.id")
@@ -242,7 +242,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.namespace[name] = VarInfo(type_, location=DataLocation.MEMORY)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
-        self.expr_visitor.visit(node.value)
+        
+        self.expr_visitor.visit(node.target, type_)
+        self.expr_visitor.visit(node.value, type_)
 
     def visit_Assert(self, node):
         if node.msg:
@@ -268,8 +270,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
-        self.expr_visitor.visit(node.value)
-        self.expr_visitor.visit(node.target)
+        self.expr_visitor.visit(node.value, target.typ)
+        self.expr_visitor.visit(node.target, target.typ)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -280,8 +282,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         validate_expected_type(node.value, lhs_info.typ)
         lhs_info.validate_modification(node, self.func.mutability)
 
-        self.expr_visitor.visit(node.value)
-        self.expr_visitor.visit(node.target)
+        self.expr_visitor.visit(node.value, lhs_info.typ)
+        self.expr_visitor.visit(node.target, lhs_info.typ)
 
     def visit_Break(self, node):
         for_node = node.get_ancestor(vy_ast.For)
@@ -474,28 +476,43 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node.target._metadata["type"] = type_
 
                     # success -- bail out instead of error handling.
-                    return
+                    break
+
+        
 
         # if we have gotten here, there was an error for
         # every type tried for the iterator
+        if len(for_loop_exceptions > 0):
+            if len(set(str(i) for i in for_loop_exceptions)) == 1:
+                # if every attempt at type checking raised the same exception
+                raise for_loop_exceptions[0]
 
-        if len(set(str(i) for i in for_loop_exceptions)) == 1:
-            # if every attempt at type checking raised the same exception
-            raise for_loop_exceptions[0]
+            # return an aggregate TypeMismatch that shows all possible exceptions
+            # depending on which type is used
+            types_str = [str(i) for i in type_list]
+            given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
+            raise TypeMismatch(
+                f"Iterator value '{iter_name}' may be cast as {given_str}, "
+                "but type checking fails with all possible types:",
+                node,
+                *(
+                    (f"Casting '{iter_name}' as {type_}: {exc.message}", exc.annotations[0])
+                    for type_, exc in zip(type_list, for_loop_exceptions)
+                ),
+            )
 
-        # return an aggregate TypeMismatch that shows all possible exceptions
-        # depending on which type is used
-        types_str = [str(i) for i in type_list]
-        given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
-        raise TypeMismatch(
-            f"Iterator value '{iter_name}' may be cast as {given_str}, "
-            "but type checking fails with all possible types:",
-            node,
-            *(
-                (f"Casting '{iter_name}' as {type_}: {exc.message}", exc.annotations[0])
-                for type_, exc in zip(type_list, for_loop_exceptions)
-            ),
-        )
+        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+            self.expr_visitor.visit(node.iter)
+        # typecheck list literal as static array
+        if isinstance(node.iter, vy_ast.List):
+            value_type = get_common_types(*node.iter.elements).pop()
+            len_ = len(node.iter.elements)
+            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
+
+        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+            iter_type = node.target._metadata["type"]
+            for a in node.iter.args:
+                self.expr_visitor.visit(a, iter_type)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
@@ -511,6 +528,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Log must call an event", node)
         f = get_exact_type_from_node(node.value.func)
+        print("visit_Log - f: ", f)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
@@ -518,6 +536,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
         f.fetch_call_return(node.value)
+        node._metadata["type"] = f.typedef
         self.expr_visitor.visit(node.value)
 
     def visit_Raise(self, node):
@@ -548,62 +567,197 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(given, expected)
         else:
             validate_expected_type(values, self.func.return_type)
-        self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.value, self.func.return_type)
 
 
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
-    ignored_types = (vy_ast.Constant, vy_ast.Name)
+    ignored_types = (
+        vy_ast.Constant, 
+        #vy_ast.Name
+    )
     scope_name = "function"
 
-    def visit_Attribute(self, node: vy_ast.Attribute) -> None:
-        self.visit(node.value)
+    def __init__(self, fn_node: ContractFunctionT):
+        self.func = fn_node
+
+    def visit(self, node, type_: Optional[VyperType]=None):
+        # the statement visitor sometimes passes type information about expressions
+        super().visit(node, type_)
+
+    def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType]=None) -> None:
+        type_ = get_exact_type_from_node(node)
+        node._metadata["type"] = type_
+        self.visit(node.value, None)
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
 
-    def visit_BinOp(self, node: vy_ast.BinOp) -> None:
-        self.visit(node.left)
-        self.visit(node.right)
+    def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType]=None) -> None:
+        if type_ is None:
+            type_ = get_common_types(node.left, node.right)
+            if len(type_) == 1:
+                type_ = type_.pop()
+        node._metadata["type"] = type_
 
-    def visit_BoolOp(self, node: vy_ast.BoolOp) -> None:
+        self.visit(node.left, type_)
+        self.visit(node.right, type_)
+
+    def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[VyperType]=None) -> None:
         for value in node.values:  # type: ignore[attr-defined]
             self.visit(value)
 
-    def visit_Call(self, node: vy_ast.Call) -> None:
+    def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType]=None) -> None:
+        call_type = get_exact_type_from_node(node.func)
+        node_type = type_ or call_type.fetch_call_return(node)
+        node._metadata["type"] = node_type
         self.visit(node.func)
-        for arg in node.args:
-            self.visit(arg)
-        for kwarg in node.keywords:
-            self.visit(kwarg.value)
 
-    def visit_Compare(self, node: vy_ast.Compare) -> None:
-        self.visit(node.left)  # type: ignore[attr-defined]
-        self.visit(node.right)  # type: ignore[attr-defined]
+        if isinstance(call_type, ContractFunctionT):
+            # function calls
+            if call_type.is_internal:
+                self.func.called_functions.add(call_type)
+            for arg, typ in zip(node.args, call_type.argument_types):
+                self.visit(arg, typ)
+            for kwarg in node.keywords:
+                # We should only see special kwargs
+                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
 
-    def visit_Dict(self, node: vy_ast.Dict) -> None:
+        elif is_type_t(call_type, EventT):
+            # events have no kwargs
+            for arg, typ in zip(node.args, list(call_type.typedef.arguments.values())):
+                self.visit(arg, typ)
+        elif is_type_t(call_type, StructT):
+            # struct ctors
+            # ctors have no kwargs
+            for value, arg_type in zip(
+                node.args[0].values, list(call_type.typedef.members.values())
+            ):
+                self.visit(value, arg_type)
+        elif isinstance(call_type, MemberFunctionT):
+            assert len(node.args) == len(call_type.arg_types)
+            for arg, arg_type in zip(node.args, call_type.arg_types):
+                self.visit(arg, arg_type)
+        else:
+            # builtin functions
+            arg_types = call_type.infer_arg_types(node)
+            for arg, arg_type in zip(node.args, arg_types):
+                self.visit(arg, arg_type)
+            kwarg_types = call_type.infer_kwarg_types(node)
+            for kwarg in node.keywords:
+                self.visit(kwarg.value, kwarg_types[kwarg.arg])
+
+    def visit_Compare(self, node: vy_ast.Compare, type_: Optional[VyperType]=None) -> None:
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
+            if isinstance(node.right, vy_ast.List):
+                type_ = get_common_types(node.left, *node.right.elements).pop()
+                self.visit(node.left, type_)
+                rlen = len(node.right.elements)
+                self.visit(node.right, SArrayT(type_, rlen))
+            else:
+                type_ = get_exact_type_from_node(node.right)
+                self.visit(node.right, type_)
+                if isinstance(type_, EnumT):
+                    self.visit(node.left, type_)
+                else:
+                    # array membership
+                    self.visit(node.left, type_.value_type)
+        else:
+            type_ = get_common_types(node.left, node.right).pop()
+            self.visit(node.left, type_)
+            self.visit(node.right, type_)
+
+    def visit_Constant(self, node, type_):
+        if type_ is None:
+            possible_types = get_possible_types_from_node(node)
+            if len(possible_types) == 1:
+                type_ = possible_types.pop()
+        node._metadata["type"] = type_
+
+    def visit_Dict(self, node: vy_ast.Dict, type_: Optional[VyperType]=None) -> None:
+        node._metadata["type"] = type_
         for key in node.keys:
             self.visit(key)
         for value in node.values:
             self.visit(value)
 
-    def visit_Index(self, node: vy_ast.Index) -> None:
-        self.visit(node.value)
+    def visit_Index(self, node: vy_ast.Index, type_: Optional[VyperType]=None) -> None:
+        self.visit(node.value, type_)
 
-    def visit_List(self, node: vy_ast.List) -> None:
+    def visit_List(self, node: vy_ast.List, type_: Optional[VyperType]=None) -> None:
+        if type_ is None:
+            type_ = get_possible_types_from_node(node)
+            # CMC 2022-04-14 this seems sus. try to only annotate
+            # if get_possible_types only returns 1 type
+            if len(type_) >= 1:
+                type_ = type_.pop()
+        node._metadata["type"] = type_
         for element in node.elements:
-            self.visit(element)
+            self.visit(element, type_.value_type)
 
-    def visit_Subscript(self, node: vy_ast.Subscript) -> None:
-        self.visit(node.value)
-        self.visit(node.slice)
+    def visit_Name(self, node, type_):
+        if isinstance(type_, TYPE_T):
+            node._metadata["type"] = type_
+        else:
+            node._metadata["type"] = get_exact_type_from_node(node)
 
-    def visit_Tuple(self, node: vy_ast.Tuple) -> None:
-        for element in node.elements:
-            self.visit(element)
+    def visit_Subscript(self, node: vy_ast.Subscript, type_: Optional[VyperType]=None) -> None:
+        node._metadata["type"] = type_
 
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp) -> None:
-        self.visit(node.operand)  # type: ignore[attr-defined]
+        if isinstance(type_, TYPE_T):
+            # don't recurse; can't annotate AST children of type definition
+            return
 
-    def visit_IfExp(self, node: vy_ast.IfExp) -> None:
-        self.visit(node.test)
-        self.visit(node.body)
-        self.visit(node.orelse)
+        if isinstance(node.value, vy_ast.List):
+            possible_base_types = get_possible_types_from_node(node.value)
+
+            if len(possible_base_types) == 1:
+                base_type = possible_base_types.pop()
+
+            elif type_ is not None and len(possible_base_types) > 1:
+                for possible_type in possible_base_types:
+                    if type_.compare_type(possible_type.value_type):
+                        base_type = possible_type
+                        break
+                else:
+                    # this should have been caught in
+                    # `get_possible_types_from_node` but wasn't.
+                    raise TypeCheckFailure(f"Expected {type_} but it is not a possible type", node)
+
+        else:
+            base_type = get_exact_type_from_node(node.value)
+
+        # get the correct type for the index, it might
+        # not be base_type.key_type
+        index_types = get_possible_types_from_node(node.slice.value)
+        index_type = index_types.pop()
+
+        self.visit(node.slice, index_type)
+        self.visit(node.value, base_type)
+
+    def visit_Tuple(self, node: vy_ast.Tuple, type_: Optional[VyperType]=None) -> None:
+        node._metadata["type"] = type_
+
+        if isinstance(type_, TYPE_T):
+            # don't recurse; can't annotate AST children of type definition
+            return
+
+        for element, subtype in zip(node.elements, type_.member_types):
+            self.visit(element, subtype)
+
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType]=None) -> None:
+        if type_ is None:
+            type_ = get_possible_types_from_node(node.operand)
+            if len(type_) == 1:
+                type_ = type_.pop()
+        node._metadata["type"] = type_
+        self.visit(node.operand, type_)
+
+    def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType]=None) -> None:
+        if type_ is None:
+            ts = get_common_types(node.body, node.orelse)
+            if len(type_) == 1:
+                type_ = ts.pop()
+
+        node._metadata["type"] = type_
+        self.visit(node.test, BoolT())
+        self.visit(node.body, type_)
+        self.visit(node.orelse, type_)
