@@ -211,9 +211,11 @@ def test2(target: address, salt: bytes32):
     assert_tx_failed(lambda: d.test2(f.address, salt))
 
 
+ERC5202_PREFIX = b"\xFE\x71\x00"
+
+
 # test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
 # code offset by default should be 3 here.
-@pytest.mark.parametrize("blueprint_prefix", [b"\xfe\71\x00"])
 def test_create_from_blueprint_default_offset(
     get_contract,
     deploy_blueprint_for,
@@ -221,7 +223,6 @@ def test_create_from_blueprint_default_offset(
     keccak,
     create2_address_of,
     assert_tx_failed,
-    blueprint_prefix,
 ):
     code = """
 @external
@@ -245,7 +246,7 @@ def test2(target: address, salt: bytes32):
     foo_contract = get_contract(code)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
+    f, FooContract = deploy_blueprint_for(code, initcode_prefix=ERC5202_PREFIX)
 
     d = get_contract(deployer_code)
 
@@ -384,7 +385,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     d = get_contract(deployer_code)
 
-    initcode = w3.eth.get_code(f.address)
+    initcode = w3.eth.get_code(f.address)[3:]
 
     d.test(f.address, FOO, BAR, transact={})
 

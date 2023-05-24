@@ -135,7 +135,10 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
-def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
+ERC5202_PREFIX = b"\xFE\x71\x00"
+
+
+def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=ERC5202_PREFIX, **kwargs):
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
