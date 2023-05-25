@@ -18,7 +18,6 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
@@ -457,7 +456,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for_loop_exceptions = []
         iter_name = node.target.id
-        typechecked = False
+        iter_type = None
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
@@ -480,14 +479,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node.target._metadata["type"] = type_
 
                     # success -- bail out instead of error handling.
-                    typechecked = True
+                    iter_type = type_
                     break
 
-        
-
-        # if we have gotten here, there was an error for
-        # every type tried for the iterator
-        if not typechecked:
+        if iter_type is None:
             if len(set(str(i) for i in for_loop_exceptions)) == 1:
                 # if every attempt at type checking raised the same exception
                 raise for_loop_exceptions[0]
@@ -508,14 +503,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
-        # typecheck list literal as static array
         if isinstance(node.iter, vy_ast.List):
-            value_type = get_common_types(*node.iter.elements).pop()
             len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
-
+            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
 
