@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Sequence, Union
+import warnings
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
@@ -77,6 +78,11 @@ def _compile_single(args):
     ):
         interfaces = interfaces[contract_name]
 
+    warned = []
+    def _show_warning(*args, **kwargs):
+        warned.append((args, kwargs))
+    warnings.showwarning = _show_warning
+
     # make IR output the same between runs
     codegen.reset_names()
     compiler_data = CompilerData(
@@ -97,7 +103,8 @@ def _compile_single(args):
             ret[output_format] = OUTPUT_FORMATS[output_format](compiler_data)
         except Exception as exc:
             raise _SingleExc(contract_name, exc)
-    return contract_name, ret
+
+    return contract_name, ret, warned
 
 
 @evm_wrapper
@@ -187,7 +194,11 @@ def compile_codes(
         else:
             raise e.exc from None
 
-    return {contract_name: c for (contract_name, c) in res}
+    for _, _, warned in res:
+        for args, kwargs in warned:
+            warnings.showwarning(*args, **kwargs)
+
+    return {contract_name: c for (contract_name, c, _) in res}
 
 
 UNKNOWN_CONTRACT_NAME = "<unknown>"
