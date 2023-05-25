@@ -663,10 +663,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             self.visit(node.right, type_)  # type: ignore[attr-defined]
 
     def visit_Constant(self, node, type_):
-        if type_ is None:
-            possible_types = get_possible_types_from_node(node)
-            if len(possible_types) == 1:
-                type_ = possible_types.pop()
         node._metadata["type"] = type_
 
     def visit_Dict(self, node: vy_ast.Dict, type_: Optional[VyperType] = None) -> None:
