@@ -104,7 +104,9 @@ def _runtime_ir(runtime_functions, global_ctx):
         selector_section.append(func_ir)
 
     if default_function:
-        fallback_ir = generate_ir_for_function(default_function, global_ctx, skip_nonpayable_check=False)
+        fallback_ir = generate_ir_for_function(
+            default_function, global_ctx, skip_nonpayable_check=False
+        )
     else:
         fallback_ir = IRnode.from_list(
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
