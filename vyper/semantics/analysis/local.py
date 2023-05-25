@@ -741,10 +741,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
-        if type_ is None:
-            types_ = get_possible_types_from_node(node.operand)  # type: ignore[attr-defined]
-            if len(types_) == 1:
-                type_ = types_.pop()
         node._metadata["type"] = type_
         self.visit(node.operand, type_)  # type: ignore[attr-defined]
 
