@@ -254,7 +254,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Assert(self, node):
         if node.msg:
             _validate_revert_reason(node.msg)
-            self.expr_visitor.visit(node.msg)
 
         try:
             validate_expected_type(node.test, BoolT())
@@ -539,7 +538,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def visit_Raise(self, node):
         if node.exc:
             _validate_revert_reason(node.exc)
-            self.expr_visitor.visit(node.exc)
 
     def visit_Return(self, node):
         values = node.value
