@@ -222,6 +222,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     "msg.value is not allowed in non-payable functions", node_list[0]
                 )
 
+        assert self.func.n_keyword_args == len(fn_node.args.defaults)
+        for kwarg in self.func.keyword_args:
+            self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
+
     def visit(self, node):
         super().visit(node)
 
@@ -341,7 +345,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
         self.expr_visitor.visit(node.value)
 
-    def visit_For(self, node):
+    def visit_For(self, node):    
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
@@ -447,13 +451,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             f"which potentially modifies iterated storage variable '{iter_name}'",
                             call_node,
                         )
-        self.expr_visitor.visit(node.iter)
 
         if not isinstance(node.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
         for_loop_exceptions = []
         iter_name = node.target.id
+        typechecked = False
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
@@ -476,13 +480,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node.target._metadata["type"] = type_
 
                     # success -- bail out instead of error handling.
+                    typechecked = True
                     break
 
         
 
         # if we have gotten here, there was an error for
         # every type tried for the iterator
-        if len(for_loop_exceptions > 0):
+        if not typechecked:
             if len(set(str(i) for i in for_loop_exceptions)) == 1:
                 # if every attempt at type checking raised the same exception
                 raise for_loop_exceptions[0]
@@ -528,7 +533,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Log must call an event", node)
         f = get_exact_type_from_node(node.value.func)
-        print("visit_Log - f: ", f)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
@@ -572,7 +576,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
     ignored_types = (
-        vy_ast.Constant, 
+        #vy_ast.Constant, 
         #vy_ast.Name
     )
     scope_name = "function"
