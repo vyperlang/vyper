@@ -577,7 +577,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
-    def visit(self, node, type_: Optional[VyperType] = None):
+    def visit(self, node: vy_ast.VyperNode, type_: Optional[VyperType] = None):
         # the statement visitor sometimes passes type information about expressions
         super().visit(node, type_)
 
@@ -590,9 +590,9 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
-            type_ = get_common_types(node.left, node.right)
-            if len(type_) == 1:
-                type_ = type_.pop()
+            types_ = get_common_types(node.left, node.right)
+            if len(types_) == 1:
+                type_ = types_.pop()
         node._metadata["type"] = type_
 
         self.visit(node.left, type_)
@@ -643,24 +643,26 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node: vy_ast.Compare, type_: Optional[VyperType] = None) -> None:
-        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
-            if isinstance(node.right, vy_ast.List):
-                type_ = get_common_types(node.left, *node.right.elements).pop()
-                self.visit(node.left, type_)
-                rlen = len(node.right.elements)
-                self.visit(node.right, SArrayT(type_, rlen))
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):  # type: ignore[attr-defined]
+            if isinstance(node.right, vy_ast.List):  # type: ignore[attr-defined]
+                type_ = get_common_types(
+                    node.left, *node.right.elements  # type: ignore[attr-defined]
+                ).pop()
+                self.visit(node.left, type_)  # type: ignore[attr-defined]
+                rlen = len(node.right.elements)  # type: ignore[attr-defined]
+                self.visit(node.right, SArrayT(type_, rlen))  # type: ignore[attr-defined]
             else:
-                type_ = get_exact_type_from_node(node.right)
-                self.visit(node.right, type_)
+                type_ = get_exact_type_from_node(node.right)  # type: ignore[attr-defined]
+                self.visit(node.right, type_)  # type: ignore[attr-defined]
                 if isinstance(type_, EnumT):
-                    self.visit(node.left, type_)
+                    self.visit(node.left, type_)  # type: ignore[attr-defined]
                 else:
                     # array membership
-                    self.visit(node.left, type_.value_type)
+                    self.visit(node.left, type_.value_type)  # type: ignore[attr-defined]
         else:
-            type_ = get_common_types(node.left, node.right).pop()
-            self.visit(node.left, type_)
-            self.visit(node.right, type_)
+            type_ = get_common_types(node.left, node.right).pop()  # type: ignore[attr-defined]
+            self.visit(node.left, type_)  # type: ignore[attr-defined]
+            self.visit(node.right, type_)  # type: ignore[attr-defined]
 
     def visit_Constant(self, node, type_):
         if type_ is None:
@@ -681,11 +683,11 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_List(self, node: vy_ast.List, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
-            type_ = get_possible_types_from_node(node)
+            types_ = get_possible_types_from_node(node)
             # CMC 2022-04-14 this seems sus. try to only annotate
             # if get_possible_types only returns 1 type
-            if len(type_) >= 1:
-                type_ = type_.pop()
+            if len(types_) >= 1:
+                type_ = types_.pop()
         node._metadata["type"] = type_
         for element in node.elements:
             self.visit(element, type_.value_type)
@@ -742,16 +744,16 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
-            type_ = get_possible_types_from_node(node.operand)
-            if len(type_) == 1:
-                type_ = type_.pop()
+            types_ = get_possible_types_from_node(node.operand)  # type: ignore[attr-defined]
+            if len(types_) == 1:
+                type_ = types_.pop()
         node._metadata["type"] = type_
-        self.visit(node.operand, type_)
+        self.visit(node.operand, type_)  # type: ignore[attr-defined]
 
     def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
             ts = get_common_types(node.body, node.orelse)
-            if len(type_) == 1:
+            if len(ts) == 1:
                 type_ = ts.pop()
 
         node._metadata["type"] = type_
