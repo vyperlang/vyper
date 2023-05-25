@@ -38,7 +38,7 @@ class Namespace(dict):
         return self is other
 
     def __setitem__(self, attr, obj):
-        if self._scopes:
+        if getattr(self, "_scopes", None):
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
         assert isinstance(attr, str), f"not a string: {attr}"

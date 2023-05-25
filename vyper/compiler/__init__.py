@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 import vyper.ast as vy_ast  # break an import cycle
@@ -44,6 +45,59 @@ OUTPUT_FORMATS = {
     "opcodes": output.build_opcodes_output,
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
+
+@dataclass
+class _SingleExc(Exception):
+    contract_name: str
+    exc: Exception
+
+def _compile_single(args):
+    (
+        contract_sources,
+        source_id,
+        contract_name,
+        interface_codes,
+        storage_layouts,
+        no_optimize,
+        show_gas_estimates,
+        no_bytecode_metadata,
+        output_formats,
+    ) = args
+
+    source_code = contract_sources[contract_name]
+    interfaces: Any = interface_codes
+    storage_layout_override = None
+    if storage_layouts and contract_name in storage_layouts:
+        storage_layout_override = storage_layouts[contract_name]
+
+    if (
+        isinstance(interfaces, dict)
+        and contract_name in interfaces
+        and isinstance(interfaces[contract_name], dict)
+    ):
+        interfaces = interfaces[contract_name]
+
+    # make IR output the same between runs
+    codegen.reset_names()
+    compiler_data = CompilerData(
+        source_code,
+        contract_name,
+        interfaces,
+        source_id,
+        no_optimize,
+        storage_layout_override,
+        show_gas_estimates,
+        no_bytecode_metadata,
+    )
+    ret = {}
+    for output_format in output_formats[contract_name]:
+        if output_format not in OUTPUT_FORMATS:
+            raise ValueError(f"Unsupported format type {repr(output_format)}")
+        try:
+            ret[output_format] = OUTPUT_FORMATS[output_format](compiler_data)
+        except Exception as exc:
+            raise _SingleExc(contract_name, exc)
+    return contract_name, ret
 
 
 @evm_wrapper
@@ -105,45 +159,35 @@ def compile_codes(
         output_formats = dict((k, output_formats) for k in contract_sources.keys())
 
     out: OrderedDict = OrderedDict()
+
+    from multiprocessing import Pool
+
+    to_compile = []
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        source_code = contract_sources[contract_name]
-        interfaces: Any = interface_codes
-        storage_layout_override = None
-        if storage_layouts and contract_name in storage_layouts:
-            storage_layout_override = storage_layouts[contract_name]
-
-        if (
-            isinstance(interfaces, dict)
-            and contract_name in interfaces
-            and isinstance(interfaces[contract_name], dict)
-        ):
-            interfaces = interfaces[contract_name]
-
-        # make IR output the same between runs
-        codegen.reset_names()
-        compiler_data = CompilerData(
-            source_code,
-            contract_name,
-            interfaces,
-            source_id,
-            no_optimize,
-            storage_layout_override,
-            show_gas_estimates,
-            no_bytecode_metadata,
+        to_compile.append(
+            (
+                contract_sources,
+                source_id,
+                contract_name,
+                interface_codes,
+                storage_layouts,
+                no_optimize,
+                show_gas_estimates,
+                no_bytecode_metadata,
+                output_formats,
+            )
         )
-        for output_format in output_formats[contract_name]:
-            if output_format not in OUTPUT_FORMATS:
-                raise ValueError(f"Unsupported format type {repr(output_format)}")
-            try:
-                out.setdefault(contract_name, {})
-                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](compiler_data)
-            except Exception as exc:
-                if exc_handler is not None:
-                    exc_handler(contract_name, exc)
-                else:
-                    raise exc
 
-    return out
+    try:
+        with Pool(10) as p:
+            res = p.map(_compile_single, to_compile)
+    except _SingleExc as e:
+        if exc_handler is not None:
+            exc_handler(e.contract_name, e.exc)
+        else:
+            raise exc from None
+
+    return {contract_name: c for (contract_name, c) in res}
 
 
 UNKNOWN_CONTRACT_NAME = "<unknown>"

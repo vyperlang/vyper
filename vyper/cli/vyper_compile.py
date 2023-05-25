@@ -188,7 +188,7 @@ def uniq(seq: Iterable[T]) -> Iterator[T]:
 
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     print(f"Error compiling: {contract_path}")
-    raise exception
+    raise exception from None
 
 
 def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
