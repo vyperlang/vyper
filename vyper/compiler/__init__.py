@@ -2,6 +2,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 import warnings
+import psutil
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
@@ -186,7 +187,9 @@ def compile_codes(
         )
 
     try:
-        with mp.Pool(mp.cpu_count()) as p:
+        import psutil
+        n = psutil.cpu_count(logical = False)
+        with mp.Pool(n) as p:
             res = p.map(_compile_single, to_compile)
     except _SingleExc as e:
         if exc_handler is not None:
