@@ -160,7 +160,7 @@ def compile_codes(
 
     out: OrderedDict = OrderedDict()
 
-    from multiprocessing import Pool
+    import multiprocessing as mp
 
     to_compile = []
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
@@ -179,7 +179,7 @@ def compile_codes(
         )
 
     try:
-        with Pool(10) as p:
+        with mp.Pool(mp.cpu_count()) as p:
             res = p.map(_compile_single, to_compile)
     except _SingleExc as e:
         if exc_handler is not None:
