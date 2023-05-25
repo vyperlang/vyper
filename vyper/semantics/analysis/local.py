@@ -680,12 +680,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.value, type_)
 
     def visit_List(self, node: vy_ast.List, type_: Optional[VyperType] = None) -> None:
-        if type_ is None:
-            types_ = get_possible_types_from_node(node)
-            # CMC 2022-04-14 this seems sus. try to only annotate
-            # if get_possible_types only returns 1 type
-            if len(types_) >= 1:
-                type_ = types_.pop()
         node._metadata["type"] = type_
         for element in node.elements:
             self.visit(element, type_.value_type)
