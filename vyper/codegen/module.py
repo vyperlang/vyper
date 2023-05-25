@@ -104,7 +104,7 @@ def _runtime_ir(runtime_functions, global_ctx):
         selector_section.append(func_ir)
 
     if default_function:
-        fallback_ir = generate_ir_for_function(default_function, global_ctx, skip_nonpayable_check)
+        fallback_ir = generate_ir_for_function(default_function, global_ctx, skip_nonpayable_check=False)
     else:
         fallback_ir = IRnode.from_list(
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
@@ -116,8 +116,16 @@ def _runtime_ir(runtime_functions, global_ctx):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
+    # optimization: if we have a default function, fast path check
+    # that calldatasize is 0 so we don't have to traverse the selector
+    # table.
+    global_calldatasize_check = ["seq"]
+    if default_function is not None:
+        global_calldatasize_check = ["if", ["iszero", "calldatasize"], ["goto", "fallback"]]
+
     runtime = [
         "seq",
+        global_calldatasize_check,
         ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
