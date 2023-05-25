@@ -14,6 +14,7 @@ from vyper.exceptions import (
     NonPayableViolation,
     StateAccessViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
     VariableDeclarationException,
     VyperException,
@@ -37,6 +38,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
+    EnumT,
     EventT,
     HashMapT,
     IntegerT,
@@ -245,7 +247,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.namespace[name] = VarInfo(type_, location=DataLocation.MEMORY)
         except VyperException as exc:
             raise exc.with_annotation(node) from None
-        
+
         self.expr_visitor.visit(node.target, type_)
         self.expr_visitor.visit(node.value, type_)
 
@@ -344,7 +346,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
         self.expr_visitor.visit(node.value)
 
-    def visit_For(self, node):    
+    def visit_For(self, node):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
@@ -567,26 +569,26 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
     ignored_types = (
-        #vy_ast.Constant, 
-        #vy_ast.Name
+        # vy_ast.Constant,
+        # vy_ast.Name
     )
     scope_name = "function"
 
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
-    def visit(self, node, type_: Optional[VyperType]=None):
+    def visit(self, node, type_: Optional[VyperType] = None):
         # the statement visitor sometimes passes type information about expressions
         super().visit(node, type_)
 
-    def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType]=None) -> None:
+    def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType] = None) -> None:
         type_ = get_exact_type_from_node(node)
         node._metadata["type"] = type_
         self.visit(node.value, None)
         _validate_msg_data_attribute(node)
         _validate_address_code_attribute(node)
 
-    def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType]=None) -> None:
+    def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
             type_ = get_common_types(node.left, node.right)
             if len(type_) == 1:
@@ -596,11 +598,11 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.left, type_)
         self.visit(node.right, type_)
 
-    def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[VyperType]=None) -> None:
+    def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[VyperType] = None) -> None:
         for value in node.values:  # type: ignore[attr-defined]
             self.visit(value)
 
-    def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType]=None) -> None:
+    def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType] = None) -> None:
         call_type = get_exact_type_from_node(node.func)
         node_type = type_ or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
@@ -640,7 +642,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
-    def visit_Compare(self, node: vy_ast.Compare, type_: Optional[VyperType]=None) -> None:
+    def visit_Compare(self, node: vy_ast.Compare, type_: Optional[VyperType] = None) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
@@ -667,17 +669,17 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                 type_ = possible_types.pop()
         node._metadata["type"] = type_
 
-    def visit_Dict(self, node: vy_ast.Dict, type_: Optional[VyperType]=None) -> None:
+    def visit_Dict(self, node: vy_ast.Dict, type_: Optional[VyperType] = None) -> None:
         node._metadata["type"] = type_
         for key in node.keys:
             self.visit(key)
         for value in node.values:
             self.visit(value)
 
-    def visit_Index(self, node: vy_ast.Index, type_: Optional[VyperType]=None) -> None:
+    def visit_Index(self, node: vy_ast.Index, type_: Optional[VyperType] = None) -> None:
         self.visit(node.value, type_)
 
-    def visit_List(self, node: vy_ast.List, type_: Optional[VyperType]=None) -> None:
+    def visit_List(self, node: vy_ast.List, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
             type_ = get_possible_types_from_node(node)
             # CMC 2022-04-14 this seems sus. try to only annotate
@@ -694,7 +696,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
 
-    def visit_Subscript(self, node: vy_ast.Subscript, type_: Optional[VyperType]=None) -> None:
+    def visit_Subscript(self, node: vy_ast.Subscript, type_: Optional[VyperType] = None) -> None:
         node._metadata["type"] = type_
 
         if isinstance(type_, TYPE_T):
@@ -728,7 +730,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
-    def visit_Tuple(self, node: vy_ast.Tuple, type_: Optional[VyperType]=None) -> None:
+    def visit_Tuple(self, node: vy_ast.Tuple, type_: Optional[VyperType] = None) -> None:
         node._metadata["type"] = type_
 
         if isinstance(type_, TYPE_T):
@@ -738,7 +740,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         for element, subtype in zip(node.elements, type_.member_types):
             self.visit(element, subtype)
 
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType]=None) -> None:
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
             type_ = get_possible_types_from_node(node.operand)
             if len(type_) == 1:
@@ -746,7 +748,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         node._metadata["type"] = type_
         self.visit(node.operand, type_)
 
-    def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType]=None) -> None:
+    def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
             ts = get_common_types(node.body, node.orelse)
             if len(type_) == 1:

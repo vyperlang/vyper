@@ -29,4 +29,3 @@ class VyperNodeVisitorBase:
         raise StructureException(
             f"Unsupported syntax for {self.scope_name} namespace: {node_type}", node
         )
-        
