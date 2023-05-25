@@ -185,7 +185,7 @@ def compile_codes(
         if exc_handler is not None:
             exc_handler(e.contract_name, e.exc)
         else:
-            raise exc from None
+            raise e.exc from None
 
     return {contract_name: c for (contract_name, c) in res}
 
