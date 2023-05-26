@@ -1,8 +1,8 @@
+import multiprocessing as mp
+import warnings
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Sequence, Union
-import warnings
-import psutil
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
@@ -48,10 +48,12 @@ OUTPUT_FORMATS = {
     "opcodes_runtime": output.build_opcodes_runtime_output,
 }
 
+
 @dataclass
 class _SingleExc(Exception):
     contract_name: str
     exc: Exception
+
 
 def _compile_single(args):
     (
@@ -80,8 +82,10 @@ def _compile_single(args):
         interfaces = interfaces[contract_name]
 
     warned = []
+
     def _show_warning(*args, **kwargs):
         warned.append((args, kwargs))
+
     warnings.showwarning = _show_warning
 
     # make IR output the same between runs
@@ -119,7 +123,7 @@ def compile_codes(
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
-) -> OrderedDict:
+) -> dict:
     """
     Generate compiler output(s) from one or more contract source codes.
 
@@ -165,10 +169,6 @@ def compile_codes(
         output_formats = ("bytecode",)
     if isinstance(output_formats, Sequence):
         output_formats = dict((k, output_formats) for k in contract_sources.keys())
-
-    out: OrderedDict = OrderedDict()
-
-    import multiprocessing as mp
 
     to_compile = []
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
