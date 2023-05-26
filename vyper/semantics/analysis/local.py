@@ -642,7 +642,10 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                     self.visit(node.left, type_)  # type: ignore[attr-defined]
                 else:
                     # array membership
-                    self.visit(node.left, type_.value_type)  # type: ignore[attr-defined, union-attr]
+                    self.visit(
+                        node.left,  #  type: ignore[attr-defined]
+                        type_.value_type  # type: ignore[union-attr]
+                    )  
         else:
             type_ = get_common_types(node.left, node.right).pop()  # type: ignore[attr-defined]
             self.visit(node.left, type_)  # type: ignore[attr-defined]
