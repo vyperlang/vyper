@@ -187,9 +187,12 @@ def compile_codes(
         )
 
     try:
-        n = mp.cpu_count() - 1
-        with mp.Pool(n) as p:
-            res = p.map(_compile_single, to_compile)
+        if len(to_compile) == 1:
+            res = map(_compile_single, to_compile)
+        else:
+            n = mp.cpu_count() - 1
+            with mp.Pool(n) as p:
+                res = p.map(_compile_single, to_compile)
     except _SingleExc as e:
         if exc_handler is not None:
             exc_handler(e.contract_name, e.exc)
