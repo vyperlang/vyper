@@ -118,12 +118,7 @@ def _runtime_ir(runtime_functions, global_ctx):
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    # optimization: if we have a default function, fast path check
-    # that calldatasize is 0 so we don't have to traverse the selector
-    # table.
-    global_calldatasize_check = ["seq"]
-    if default_function is not None:
-        global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
+    global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
 
     runtime = [
         "seq",
