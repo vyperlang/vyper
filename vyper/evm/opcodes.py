@@ -33,10 +33,10 @@ EVM_VERSIONS: dict[str, int] = {
     "atlantis": 0,
     "agharta": 1,
 }
-
-DEFAULT_EVM_VERSION: str = "eof"
+DEFAULT_EVM_VERSION: str = "shanghai"
 active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 _eof_enabled = False
+
 
 # opcode as hex value
 # number of values removed from stack
