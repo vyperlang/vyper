@@ -17,7 +17,7 @@ Release Notes
 v0.3.9
 ******
 
-Date released: 2023-05-25
+Date released: 2023-05-2N
 
 This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release. @bout3fiddy also discovered a runtime performance (gas) regression for default functions in v0.3.8 which is fixed in this release.
 
