@@ -187,8 +187,7 @@ def compile_codes(
         )
 
     try:
-        import psutil
-        n = psutil.cpu_count(logical = False)
+        n = mp.cpu_count() - 1
         with mp.Pool(n) as p:
             res = p.map(_compile_single, to_compile)
     except _SingleExc as e:
