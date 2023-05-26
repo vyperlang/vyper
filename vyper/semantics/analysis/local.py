@@ -589,10 +589,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
-        if type_ is None:
-            types_ = get_common_types(node.left, node.right)
-            if len(types_) == 1:
-                type_ = types_.pop()
         node._metadata["type"] = type_
 
         self.visit(node.left, type_)
