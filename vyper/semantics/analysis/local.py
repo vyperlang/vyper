@@ -185,6 +185,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node
                 )
 
+        # TODO: move into attribute validation
         if self.func.mutability == StateMutability.PURE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute,
@@ -211,6 +212,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     "not allowed to query contract or environment variables in pure functions",
                     node_list[0],
                 )
+
+        # TODO: move into attribute validation
         if self.func.mutability is not StateMutability.PAYABLE:
             node_list = fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
