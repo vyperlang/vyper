@@ -10,11 +10,6 @@ class VyperNodeVisitorBase:
     def visit(self, node, *args):
         if isinstance(node, self.ignored_types):
             return
-        node_type = type(node).__name__
-        visitor_fn = getattr(self, f"visit_{node_type}", None)
-        if visitor_fn:
-            visitor_fn(node, *args)
-            return
 
         # iterate over the MRO until we find a matching visitor function
         # this lets us use a single function to broadly target several
@@ -26,6 +21,7 @@ class VyperNodeVisitorBase:
                 visitor_fn(node, *args)
                 return
 
+        node_type = type(node).__name__
         raise StructureException(
             f"Unsupported syntax for {self.scope_name} namespace: {node_type}", node
         )
