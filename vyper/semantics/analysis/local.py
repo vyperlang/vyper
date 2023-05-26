@@ -569,10 +569,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
 
 class _LocalExpressionVisitor(VyperNodeVisitorBase):
-    ignored_types = (
-        # vy_ast.Constant,
-        # vy_ast.Name
-    )
     scope_name = "function"
 
     def __init__(self, fn_node: ContractFunctionT):
