@@ -146,12 +146,12 @@ def _validate_address_code_attribute(node: vy_ast.Attribute, value_type: VyperTy
         )
 
 
-def _validate_msg_value_access(node: vy_ast.Attribute):
+def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg":
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
 
 
-def _validate_pure_access(node: vy_ast.Attribute, type_: VyperType):
+def _validate_pure_access(node: vy_ast.Attribute, type_: VyperType) -> None:
     if isinstance(node.value, vy_ast.Name) and node.value.id in set(
         CONSTANT_ENVIRONMENT_VARS.keys()
     ).union(set(MUTABLE_ENVIRONMENT_VARS.keys())):
@@ -179,7 +179,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 )
 
 
-def _validate_self_reference(node: vy_ast.Name):
+def _validate_self_reference(node: vy_ast.Name) -> None:
     if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
