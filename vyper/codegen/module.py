@@ -123,7 +123,7 @@ def _runtime_ir(runtime_functions, global_ctx):
     # table.
     global_calldatasize_check = ["seq"]
     if default_function is not None:
-        global_calldatasize_check = ["if", ["iszero", "calldatasize"], ["goto", "fallback"]]
+        global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
 
     runtime = [
         "seq",
