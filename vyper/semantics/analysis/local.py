@@ -179,6 +179,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 arg.typ, location=DataLocation.CALLDATA, is_immutable=True
             )
 
+        for node in fn_node.body:
+            self.visit(node)
         if self.func.return_type:
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(
@@ -226,9 +228,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         assert self.func.n_keyword_args == len(fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
-
-        for node in fn_node.body:
-            self.visit(node)
 
     def visit(self, node):
         super().visit(node)
