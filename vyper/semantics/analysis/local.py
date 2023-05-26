@@ -132,8 +132,7 @@ def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
                 raise InvalidType("revert reason must fit within String[1024]") from e
 
 
-def _validate_address_code_attribute(node: vy_ast.Attribute) -> None:
-    value_type = get_exact_type_from_node(node.value)
+def _validate_address_code_attribute(node: vy_ast.Attribute, value_type: VyperType) -> None:
     if isinstance(value_type, AddressT) and node.attr == "code":
         # Validate `slice(<address>.code, start, length)` where `length` is constant
         parent = node.get_ancestor()
@@ -580,11 +579,14 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         super().visit(node, type_)
 
     def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType] = None) -> None:
-        type_ = get_exact_type_from_node(node)
-        node._metadata["type"] = type_
-        self.visit(node.value, None)
         _validate_msg_data_attribute(node)
-        _validate_address_code_attribute(node)
+
+        value_type = get_exact_type_from_node(node.value)
+        _validate_address_code_attribute(node, value_type)
+
+        node._metadata["type"] = get_exact_type_from_node(node)
+
+        self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
         if type_ is None:
