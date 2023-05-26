@@ -557,7 +557,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
-    def visit(self, node: vy_ast.VyperNode, type_: Optional[VyperType] = None):
+    def visit(self, node, type_=None):
         # the statement visitor sometimes passes type information about expressions
         super().visit(node, type_)
 
@@ -568,7 +568,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
         type_ = get_exact_type_from_node(node)
         if self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node, type_)
+            _validate_pure_access(node, type_)  # type: ignore[arg-type]
 
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code_attribute(node, value_type)
@@ -634,7 +634,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                 ).pop()
                 self.visit(node.left, type_)  # type: ignore[attr-defined]
                 rlen = len(node.right.elements)  # type: ignore[attr-defined]
-                self.visit(node.right, SArrayT(type_, rlen))  # type: ignore[attr-defined]
+                self.visit(node.right, SArrayT(type_, rlen))  # type: ignore[attr-defined, arg-type]
             else:
                 type_ = get_exact_type_from_node(node.right)  # type: ignore[attr-defined]
                 self.visit(node.right, type_)  # type: ignore[attr-defined]
@@ -642,7 +642,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                     self.visit(node.left, type_)  # type: ignore[attr-defined]
                 else:
                     # array membership
-                    self.visit(node.left, type_.value_type)  # type: ignore[attr-defined]
+                    self.visit(node.left, type_.value_type)  # type: ignore[attr-defined, union-attr]
         else:
             type_ = get_common_types(node.left, node.right).pop()  # type: ignore[attr-defined]
             self.visit(node.left, type_)  # type: ignore[attr-defined]
@@ -664,7 +664,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
     def visit_List(self, node: vy_ast.List, type_: Optional[VyperType] = None) -> None:
         node._metadata["type"] = type_
         for element in node.elements:
-            self.visit(element, type_.value_type)
+            self.visit(element, type_.value_type)  # type: ignore[union-attr]
 
     def visit_Name(self, node, type_):
         if self.func.mutability == StateMutability.PURE:
@@ -716,7 +716,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        for element, subtype in zip(node.elements, type_.member_types):
+        for element, subtype in zip(node.elements, type_.member_types):  # type: ignore[union-attr]
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
