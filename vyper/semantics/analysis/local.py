@@ -146,6 +146,23 @@ def _validate_address_code_attribute(node: vy_ast.Attribute, value_type: VyperTy
         )
 
 
+def _validate_msg_value_access(node: vy_ast.Attribute):
+    if isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg":
+        raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
+
+
+def _validate_pure_access(node: vy_ast.Attribute, type_: VyperType):
+    if isinstance(node.value, vy_ast.Name) and node.value.id in set(
+        CONSTANT_ENVIRONMENT_VARS.keys()
+    ).union(set(MUTABLE_ENVIRONMENT_VARS.keys())):
+        if isinstance(type_, ContractFunctionT) and type_.mutability == StateMutability.PURE:
+            return
+
+        raise StateAccessViolation(
+            "not allowed to query contract or environment variables in pure functions", node
+        )
+
+
 def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
     if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
         parent = node.get_ancestor()
@@ -160,6 +177,11 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
                 raise StructureException(
                     "slice(msg.data) must use a compile-time constant for length argument", parent
                 )
+
+
+def _validate_self_reference(node: vy_ast.Name):
+    if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
+        raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
 class FunctionNodeVisitor(VyperNodeVisitorBase):
@@ -185,44 +207,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(
                     f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node
-                )
-
-        # TODO: move into attribute validation
-        if self.func.mutability == StateMutability.PURE:
-            node_list = fn_node.get_descendants(
-                vy_ast.Attribute,
-                {
-                    "value.id": set(CONSTANT_ENVIRONMENT_VARS.keys()).union(
-                        set(MUTABLE_ENVIRONMENT_VARS.keys())
-                    )
-                },
-            )
-
-            # Add references to `self` as standalone address
-            self_references = fn_node.get_descendants(vy_ast.Name, {"id": "self"})
-            standalone_self = [
-                n for n in self_references if not isinstance(n.get_ancestor(), vy_ast.Attribute)
-            ]
-            node_list.extend(standalone_self)  # type: ignore
-
-            for node in node_list:
-                t = node._metadata.get("type")
-                if isinstance(t, ContractFunctionT) and t.mutability == StateMutability.PURE:
-                    # allowed
-                    continue
-                raise StateAccessViolation(
-                    "not allowed to query contract or environment variables in pure functions",
-                    node_list[0],
-                )
-
-        # TODO: move into attribute validation
-        if self.func.mutability is not StateMutability.PAYABLE:
-            node_list = fn_node.get_descendants(
-                vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
-            )
-            if node_list:
-                raise NonPayableViolation(
-                    "msg.value is not allowed in non-payable functions", node_list[0]
                 )
 
         assert self.func.n_keyword_args == len(fn_node.args.defaults)
@@ -579,12 +563,17 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType] = None) -> None:
         _validate_msg_data_attribute(node)
+        if self.func.mutability is not StateMutability.PAYABLE:
+            _validate_msg_value_access(node)
+
+        type_ = get_exact_type_from_node(node)
+        if self.func.mutability == StateMutability.PURE:
+            _validate_pure_access(node, type_)
 
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code_attribute(node, value_type)
 
-        node._metadata["type"] = get_exact_type_from_node(node)
-
+        node._metadata["type"] = type_
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
@@ -678,6 +667,9 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
+        if self.func.mutability == StateMutability.PURE:
+            _validate_self_reference(node)
+
         if isinstance(type_, TYPE_T):
             node._metadata["type"] = type_
         else:
