@@ -200,7 +200,10 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     if not func_t.is_payable and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
-        body += [["assert", ["iszero", "callvalue"]]]
+        nonpayable_check = IRnode.from_list(
+            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
+        )
+        body.append(nonpayable_check)
 
     body += nonreentrant_pre
 

@@ -97,7 +97,10 @@ def _runtime_ir(runtime_functions, global_ctx):
         selector_section.append(func_ir)
 
     if batch_payable_check:
-        selector_section.append(["assert", ["iszero", "callvalue"]])
+        nonpayable_check = IRnode.from_list(
+            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
+        )
+        selector_section.append(nonpayable_check)
 
     for func_ast in nonpayables:
         func_ir = generate_ir_for_function(func_ast, global_ctx, skip_nonpayable_check)
