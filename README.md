@@ -1,15 +1,15 @@
 
 <img src="https://raw.githubusercontent.com/vyperlang/vyper/master/logo/vyper-logo-transparent.svg?sanitize=true" alt="" width="110">
 
-[![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions)
+[![Build Status](https://github.com/vyperlang/vyper/workflows/Test/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://vyper.readthedocs.io/en/latest/?badge=latest "ReadTheDocs")
 [![Discord](https://img.shields.io/discord/969926564286459934.svg?label=%23vyper)](https://discord.gg/6tw7PTM7C2)
 
 [![PyPI](https://badge.fury.io/py/vyper.svg)](https://pypi.org/project/vyper "PyPI")
-[![Docker](https://images.microbadger.com/badges/version/vyperlang/vyper.svg)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
+[![Docker](https://img.shields.io/docker/cloud/build/vyperlang/vyper)](https://hub.docker.com/r/vyperlang/vyper "DockerHub")
 
 [![Coverage Status](https://codecov.io/gh/vyperlang/vyper/branch/master/graph/badge.svg)](https://codecov.io/gh/vyperlang/vyper "Codecov")
-[![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/vyperlang/vyper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/vyperlang/vyper/context:python)
+[![Language grade: Python](https://github.com/vyperlang/vyper/workflows/CodeQL/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/codeql.yml)
 
 # Getting Started
 See [Installing Vyper](http://vyper.readthedocs.io/en/latest/installing-vyper.html) to install vyper.

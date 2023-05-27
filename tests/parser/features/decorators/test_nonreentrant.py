@@ -3,6 +3,8 @@ import pytest
 from vyper.exceptions import FunctionDeclarationException
 
 
+# TODO test functions in this module across all evm versions
+# once we have cancun support.
 def test_nonreentrant_decorator(get_contract, assert_tx_failed):
     calling_contract_code = """
 interface SpecialContract:

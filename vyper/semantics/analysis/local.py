@@ -173,8 +173,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-        for argname, argtype in self.func.arguments.items():
-            namespace[argname] = VarInfo(argtype, location=DataLocation.CALLDATA, is_immutable=True)
+        for arg in self.func.arguments:
+            namespace[arg.name] = VarInfo(
+                arg.typ, location=DataLocation.CALLDATA, is_immutable=True
+            )
 
         for node in fn_node.body:
             self.visit(node)
@@ -541,6 +543,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
+        if self.func.mutability <= StateMutability.VIEW:
+            raise StructureException(
+                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+            )
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
 

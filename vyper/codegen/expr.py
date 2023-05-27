@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -166,7 +166,7 @@ class Expr:
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
@@ -174,6 +174,8 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
+            ret._referenced_variables = {var}
+            return ret
 
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
@@ -182,16 +184,18 @@ class Expr:
 
             ofst = varinfo.position.offset
 
-            if self.context.sig.is_init_func:
+            if self.context.is_ctor_context:
                 mutable = True
                 location = IMMUTABLES
             else:
                 mutable = False
                 location = DATA
 
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
+            ret._referenced_variables = {varinfo}
+            return ret
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -255,12 +259,18 @@ class Expr:
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             varinfo = self.context.globals[self.expr.attr]
-            return IRnode.from_list(
+            location = TRANSIENT if varinfo.is_transient else STORAGE
+
+            ret = IRnode.from_list(
                 varinfo.position.position,
                 typ=varinfo.typ,
-                location=STORAGE,
+                location=location,
                 annotation="self." + self.expr.attr,
             )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
         # Reserved keywords
         elif (
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
@@ -657,7 +667,9 @@ class Expr:
             elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], function_name, self.context)
+                    return Expr.struct_literals(
+                        args[0], function_name, self.context, self.expr._metadata["type"]
+                    )
 
             # Interface assignment. Bar(<address>).
             elif isinstance(self.expr._metadata["type"], InterfaceT):
@@ -726,7 +738,7 @@ class Expr:
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
     @staticmethod
-    def struct_literals(expr, name, context):
+    def struct_literals(expr, name, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
@@ -737,10 +749,8 @@ class Expr:
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructT(name, member_typs),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
         )
 
     # Parse an expression that results in a value

@@ -32,6 +32,10 @@ class _UserType(VyperType):
     def __eq__(self, other):
         return self is other
 
+    # TODO: revisit this once user types can be imported via modules
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
+
     def __hash__(self):
         return hash(id(self))
 
@@ -320,7 +324,7 @@ class InterfaceT(_UserType):
             else:
                 return False
 
-            return to_compare.compare_signature(fn_type)
+            return to_compare.implements(fn_type)
 
         # check for missing functions
         for name, type_ in self.members.items():
@@ -341,6 +345,9 @@ class InterfaceT(_UserType):
                 unimplemented.append(name)
 
         if len(unimplemented) > 0:
+            # TODO: improve the error message for cases where the
+            # mismatch is small (like mutability, or just one argument
+            # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
                 f"Contract does not implement all interface functions or events: {missing_str}",
@@ -536,10 +543,6 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):

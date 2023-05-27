@@ -3,8 +3,6 @@ from typing import Dict, Optional
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
 
-active_evm_version: int = 4
-
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
 # 2. Fork versions aren't actually tied to anything. They are not a part of our
@@ -17,7 +15,7 @@ active_evm_version: int = 4
 # 6. Yes, this will probably have to be rethought if there's ever conflicting support
 #    between multiple chains for a specific feature. Let's hope not.
 # 7. We support at a maximum 3 hard forks (for any given chain).
-EVM_VERSIONS: Dict[str, int] = {
+EVM_VERSIONS: dict[str, int] = {
     # ETH Forks
     "byzantium": 0,
     "constantinople": 1,
@@ -25,11 +23,14 @@ EVM_VERSIONS: Dict[str, int] = {
     "istanbul": 2,
     "berlin": 3,
     "paris": 4,
+    "shanghai": 5,
+    "cancun": 6,
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
 }
-DEFAULT_EVM_VERSION: str = "paris"
+DEFAULT_EVM_VERSION: str = "shanghai"
+active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 
 
 # opcode as hex value
@@ -102,6 +103,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
+    "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
@@ -183,6 +185,8 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
+    "TLOAD": (0xB3, 1, 1, 100),
+    "TSTORE": (0xB4, 2, 0, 100),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {

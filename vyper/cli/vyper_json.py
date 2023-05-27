@@ -429,7 +429,7 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
             if "source_map" in data:
                 evm["sourceMap"] = data["source_map"]["pc_pos_map_compressed"]
             if "source_map_full" in data:
-                evm["sourceMapFull"] = data["source_map"]
+                evm["sourceMapFull"] = data["source_map_full"]
 
     return output_dict
 

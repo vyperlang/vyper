@@ -453,13 +453,13 @@ def to_enum(expr, arg, out_typ):
 
 
 def convert(expr, context):
-    if len(expr.args) != 2:
-        raise StructureException("The convert function expects two parameters.", expr)
+    assert len(expr.args) == 2, "bad typecheck: convert"
 
     arg_ast = expr.args[0]
     arg = Expr(arg_ast, context).ir_node
     original_arg = arg
-    out_typ = context.parse_type(expr.args[1])
+
+    out_typ = expr.args[1]._metadata["type"].typedef
 
     if arg.typ._is_prim_word:
         arg = unwrap_location(arg)

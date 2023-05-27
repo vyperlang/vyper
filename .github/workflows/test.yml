@@ -21,6 +21,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+        cache: "pip"
 
     - name: Install Dependencies
       run: pip install .[lint]
@@ -46,6 +47,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install Tox
         run: pip install tox
@@ -63,6 +65,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
@@ -88,6 +91,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version[0] }}
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
@@ -130,6 +134,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
@@ -138,7 +143,7 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/ac71e77863d7f4e7e7cd19a93cf50a8c39de4845/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run Tox
       run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration --reruns 10 --reruns-delay 1 -r aR tests/
@@ -171,6 +176,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox

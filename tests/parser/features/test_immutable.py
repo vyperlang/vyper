@@ -239,3 +239,140 @@ def get_immutable() -> uint256:
 
     c = get_contract(code, n)
     assert c.get_immutable() == n + 2
+
+
+# GH issue 3101
+def test_immutables_initialized(get_contract):
+    dummy_code = """
+@external
+def foo() -> uint256:
+    return 1
+    """
+    dummy_contract = get_contract(dummy_code)
+
+    code = """
+a: public(immutable(uint256))
+b: public(uint256)
+
+@payable
+@external
+def __init__(to_copy: address):
+    c: address = create_copy_of(to_copy)
+    self.b = a
+    a = 12
+    """
+    c = get_contract(code, dummy_contract.address)
+
+    assert c.b() == 0
+
+
+# GH issue 3101, take 2
+def test_immutables_initialized2(get_contract, get_contract_from_ir):
+    dummy_contract = get_contract_from_ir(
+        ["deploy", 0, ["seq"] + ["invalid"] * 600, 0], no_optimize=True
+    )
+
+    # rekt because immutables section extends past allocated memory
+    code = """
+a0: immutable(uint256[10])
+a: public(immutable(uint256))
+b: public(uint256)
+
+@payable
+@external
+def __init__(to_copy: address):
+    c: address = create_copy_of(to_copy)
+    self.b = a
+    a = 12
+    a0 = empty(uint256[10])
+    """
+    c = get_contract(code, dummy_contract.address)
+
+    assert c.b() == 0
+
+
+# GH issue 3292
+def test_internal_functions_called_by_ctor_location(get_contract):
+    code = """
+d: uint256
+x: immutable(uint256)
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@external
+def test() -> uint256:
+    return self.d
+
+@internal
+def a():
+    self.d = x
+    """
+    c = get_contract(code)
+    assert c.test() == 2
+
+
+# GH issue 3292, extended to nested internal functions
+def test_nested_internal_function_immutables(get_contract):
+    code = """
+d: public(uint256)
+x: public(immutable(uint256))
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@internal
+def a():
+    self.b()
+
+@internal
+def b():
+    self.d = x
+    """
+    c = get_contract(code)
+    assert c.x() == 2
+    assert c.d() == 2
+
+
+# GH issue 3292, test immutable read from both ctor and runtime
+def test_immutable_read_ctor_and_runtime(get_contract):
+    code = """
+d: public(uint256)
+x: public(immutable(uint256))
+
+@external
+def __init__():
+    self.d = 1
+    x = 2
+    self.a()
+
+@internal
+def a():
+    self.d = x
+
+@external
+def thrash():
+    self.d += 5
+
+@external
+def fix():
+    self.a()
+    """
+    c = get_contract(code)
+    assert c.x() == 2
+    assert c.d() == 2
+
+    c.thrash(transact={})
+
+    assert c.x() == 2
+    assert c.d() == 2 + 5
+
+    c.fix(transact={})
+    assert c.x() == 2
+    assert c.d() == 2
