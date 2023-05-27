@@ -625,7 +625,7 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
                     for v, member_typ in zip(args[0].values, type_.tuple_members())
                 )
             else:
-                # Folded structs do not have type annotations
+                # type may be a struct member type
                 return all(check_kwargable(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
@@ -687,7 +687,7 @@ def check_constant(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) ->
                     for v, member_typ in zip(args[0].values, type_.tuple_members())
                 )
             else:
-                # Folded structs do not have type annotations
+                # type may be a struct member type
                 return all(check_constant(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
