@@ -421,6 +421,38 @@ enum Foo:
 def bar(a: uint256, b: DynArray[Foo, 3] = [Foo.Fo, Foo.Fi, Foo.Fum]) -> Foo:
     return b[0]
     """,
+    """
+enum Baz:
+    FE
+    FI
+    FO
+
+struct Bar:
+    a: uint256
+    b: Baz
+
+@external
+def foo(bar: Bar = Bar({a: 123, b: Baz.FE})): pass
+    """,
+    """
+enum Baz:
+    FE
+    FI
+    FO
+
+struct Bar:
+    a: uint256
+    b: Baz
+
+struct Foo:
+    c: bool
+    d: Bar
+
+FOO: constant(Foo) = Foo({c: True, d: Bar({a: 123, b: Baz.FE})})
+
+@external
+def foo(f: Foo = FOO): pass
+    """,
 ]
 
 
