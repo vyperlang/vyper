@@ -598,46 +598,40 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType]=None) -> bool:
+def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
     """
     Check if the given node can be used as a default arg
     """
     if _check_literal(node, type_):
         return True
-    if isinstance(node, vy_ast.Tuple):
-        return all(
-            check_kwargable(item, member_typ)
-            for item, member_typ in zip(node.elements, type_.tuple_members())
-        )
     if isinstance(node, vy_ast.List):
-        return all(check_kwargable(item, type_.value_type) for item in node.elements)
+        if isinstance(type_, (DArrayT, SArrayT)):
+            return all(check_kwargable(item, type_.value_type) for item in node.elements)
+        else:
+            return all(check_kwargable(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
 
-        from vyper.semantics.types.user import InterfaceT
+        # TODO fixme circular import
+        from vyper.semantics.types.user import InterfaceT, StructT
 
         if len(args) == 1 and isinstance(type_, InterfaceT):
-            return _check_literal(node.args[0])
+            return check_kwargable(node.args[0])
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            if hasattr(type_, "tuple_members"):
+            if isinstance(type_, StructT):
                 return all(
                     check_kwargable(v, member_typ)
                     for v, member_typ in zip(args[0].values, type_.tuple_members())
                 )
             else:
+                # Folded structs do not have type annotations
                 return all(check_kwargable(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
     if isinstance(node, vy_ast.Attribute):
-        #if isinstance(node.value, vy_ast.Call) and len(node.value.args) == 1 and isinstance(node.value.args[0], vy_ast.Dict):
-        #    print("struct t: ", )
-            #return True
-        #elif isinstance(node.value, vy_ast.Attribute):
-            # Check recursively that the most nested vy_ast.Name node is a
-            # folded vy_ast.Call node
         return check_kwargable(node.value, type_)
 
     value_type = get_expr_info(node)
@@ -645,58 +639,61 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType]=None) -> 
     return value_type.is_constant
 
 
-def _check_literal(node: vy_ast.VyperNode, type_: VyperType) -> bool:
+def _check_literal(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
     """
     Check if the given node is a literal value.
     """
     if isinstance(node, vy_ast.Constant):
         return True
-    elif isinstance(node, vy_ast.Tuple):
-        return all(
-            _check_literal(item, member_typ)
-            for item, member_typ in zip(node.elements, type_.tuple_members())
-        )
     elif isinstance(node, vy_ast.List):
-        return all(_check_literal(item, type_.value_type) for item in node.elements)
+        if isinstance(type_, (DArrayT, SArrayT)):
+            return all(_check_literal(item, type_.value_type) for item in node.elements)
+        else:
+            return all(_check_literal(item) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
         # TODO fixme circular import
         from vyper.semantics.types.user import EnumT
 
-        if isinstance(type_, EnumT):
-            return type_.get_type_member(node.attr, node)
+        if isinstance(type_, EnumT) and type_.get_type_member(node.attr, node):
+            return True
 
     return False
 
 
-def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
+def check_constant(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
     if _check_literal(node, type_):
         return True
-    if isinstance(node, vy_ast.Tuple):
-        return all(
-            check_constant(item, member_typ)
-            for item, member_typ in zip(node.elements, type_.tuple_members())
-        )
     if isinstance(node, vy_ast.List):
-        return all(check_constant(item, type_.value_type) for item in node.elements)
+        if isinstance(type_, (DArrayT, SArrayT)):
+            return all(check_constant(item, type_.value_type) for item in node.elements)
+        else:
+            return all(check_constant(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
 
-        from vyper.semantics.types.user import InterfaceT
+        # TODO fixme circular import
+        from vyper.semantics.types.user import InterfaceT, StructT
 
         if len(args) == 1 and isinstance(type_, InterfaceT):
-            return check_constant(node.args[0], AddressT)
+            return check_constant(node.args[0])
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(
-                check_constant(v, member_typ)
-                for v, member_typ in zip(args[0].values, type_.tuple_members())
-            )
+            if isinstance(type_, StructT):
+                return all(
+                    check_constant(v, member_typ)
+                    for v, member_typ in zip(args[0].values, type_.tuple_members())
+                )
+            else:
+                # Folded structs do not have type annotations
+                return all(check_constant(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
+    if isinstance(node, vy_ast.Attribute):
+        return check_constant(node.value, type_)
 
     return False
