@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -598,7 +598,7 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
+def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType]=None) -> bool:
     """
     Check if the given node can be used as a default arg
     """
@@ -620,14 +620,25 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
             return _check_literal(node.args[0])
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(
-                check_kwargable(v, member_typ)
-                for v, member_typ in zip(args[0].values, type_.tuple_members())
-            )
+            if hasattr(type_, "tuple_members"):
+                return all(
+                    check_kwargable(v, member_typ)
+                    for v, member_typ in zip(args[0].values, type_.tuple_members())
+                )
+            else:
+                return all(check_kwargable(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
+    if isinstance(node, vy_ast.Attribute):
+        #if isinstance(node.value, vy_ast.Call) and len(node.value.args) == 1 and isinstance(node.value.args[0], vy_ast.Dict):
+        #    print("struct t: ", )
+            #return True
+        #elif isinstance(node.value, vy_ast.Attribute):
+            # Check recursively that the most nested vy_ast.Name node is a
+            # folded vy_ast.Call node
+        return check_kwargable(node.value, type_)
 
     value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed
