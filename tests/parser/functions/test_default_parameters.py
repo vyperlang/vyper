@@ -111,6 +111,44 @@ def bar(a: uint256, b: Foo = Foo.Fo) -> Foo:
     assert c.bar(1, 2**0) == 2**0
 
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
+def test_default_param_interface(get_contract):
+    code = """
+interface Foo:
+    def bar(): payable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+
+@external
+def bar(a: uint256, b: Foo = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)) -> Foo:
+    return b
+
+@external
+def baz(a: uint256, b: Foo = Foo(empty(address))) -> Foo:
+    return b
+
+@external
+def faz(a: uint256, b: Foo = FOO) -> Foo:
+    return b
+    """
+    c = get_contract(code)
+
+    assert c.bar(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    assert (
+        c.bar(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
+        == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    )
+    assert c.baz(1) == None
+    assert c.baz(1, ZERO_ADDRESS) == None
+    assert c.faz(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    assert (
+        c.faz(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
+        == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    )
+
+
 def test_default_param_array(get_contract):
     code = """
 @external
@@ -127,6 +165,56 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
     assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
     # no default values
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
+
+
+def test_default_param_enum_array(get_contract):
+    code = """
+enum Foo:
+    Fe
+    Fi
+    Fo
+    Fum
+
+@external
+def bar(a: uint256, b: DynArray[Foo, 3] = [Foo.Fe, Foo.Fi, Foo.Fo]) -> (uint256, DynArray[Foo, 3]):  # noqa: E501
+    return a, b
+    """
+    c = get_contract(code)
+    b_default = [1, 2, 4]
+
+    # c set, d default value
+    assert c.bar(1) == [1, b_default]
+    assert c.bar(1, [2, 4, 1]) == [1, [2, 4, 1]]
+
+
+def test_default_param_constant_struct_member(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+FOO: constant(Foo) = Foo({a: 123})
+@external
+def foo(x: uint256 = FOO.a) -> uint256:
+    return x + 1
+    """
+    c = get_contract(code)
+    assert c.foo() == 124
+
+
+def test_default_param_nested_constant_struct_member(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+struct Bar:
+    b: Foo
+struct Baz:
+    c: Bar
+BAZ: constant(Baz) = Baz({c: Bar({b: Foo({a: 123})})})
+@external
+def foo(x: uint256 = BAZ.c.b.a) -> uint256:
+    return x + 1
+    """
+    c = get_contract(code)
+    assert c.foo() == 124
 
 
 def test_default_param_internal_function(get_contract):
