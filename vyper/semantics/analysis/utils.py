@@ -598,25 +598,31 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node can be used as a default arg
     """
-    if _check_literal(node, typ):
+    if _check_literal(node, type_):
         return True
     if isinstance(node, vy_ast.Tuple):
         return all(
             check_kwargable(item, member_typ)
-            for item, member_typ in zip(node.elements, typ.tuple_members())
+            for item, member_typ in zip(node.elements, type_.tuple_members())
         )
     if isinstance(node, vy_ast.List):
-        return all(check_kwargable(item, typ.value_type) for item in node.elements)
+        return all(check_kwargable(item, type_.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
+
+        from vyper.semantics.types.user import InterfaceT
+
+        if len(args) == 1 and isinstance(type_, InterfaceT):
+            return _check_literal(node.args[0])
+
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(
                 check_kwargable(v, member_typ)
-                for v, member_typ in zip(args[0].values, typ.tuple_members())
+                for v, member_typ in zip(args[0].values, type_.tuple_members())
             )
 
         call_type = get_exact_type_from_node(node.func)
@@ -628,7 +634,7 @@ def check_kwargable(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     return value_type.is_constant
 
 
-def _check_literal(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def _check_literal(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal value.
     """
@@ -637,36 +643,45 @@ def _check_literal(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     elif isinstance(node, vy_ast.Tuple):
         return all(
             _check_literal(item, member_typ)
-            for item, member_typ in zip(node.elements, typ.tuple_members())
+            for item, member_typ in zip(node.elements, type_.tuple_members())
         )
     elif isinstance(node, vy_ast.List):
-        return all(_check_literal(item, typ.value_type) for item in node.elements)
+        return all(_check_literal(item, type_.value_type) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
-        if hasattr(type_, "get_type_member"):
+        # TODO fixme circular import
+        from vyper.semantics.types.user import EnumT
+
+        if isinstance(type_, EnumT):
             return type_.get_type_member(node.attr, node)
 
     return False
 
 
-def check_constant(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if _check_literal(node, typ):
+    if _check_literal(node, type_):
         return True
     if isinstance(node, vy_ast.Tuple):
         return all(
             check_constant(item, member_typ)
-            for item, member_typ in zip(node.elements, typ.tuple_members())
+            for item, member_typ in zip(node.elements, type_.tuple_members())
         )
     if isinstance(node, vy_ast.List):
-        return all(check_constant(item, typ.value_type) for item in node.elements)
+        return all(check_constant(item, type_.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
+
+        from vyper.semantics.types.user import InterfaceT
+
+        if len(args) == 1 and isinstance(type_, InterfaceT):
+            return check_constant(node.args[0], AddressT)
+
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(
                 check_constant(v, member_typ)
-                for v, member_typ in zip(args[0].values, typ.tuple_members())
+                for v, member_typ in zip(args[0].values, type_.tuple_members())
             )
 
         call_type = get_exact_type_from_node(node.func)
