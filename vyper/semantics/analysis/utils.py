@@ -638,8 +638,8 @@ def _check_literal(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     elif isinstance(node, vy_ast.List):
         return all(_check_literal(item, typ.value_type) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
-        if isinstance(node.value, vy_ast.Name) and hasattr(typ, "_enum_members"):
-            return node.attr in typ._enum_members
+        if hasattr(type_, "get_type_member"):
+            return type_.get_type_member(node.attr, node)
 
     return False
 
