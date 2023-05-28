@@ -45,10 +45,9 @@ def find_magic_for(xs):
     gen = gen_primes()
 
     for i in range(0xFFFF):
-        p = next(gen)
-        test = _image_of(xs, p)
+        test = _image_of(xs, i)
         if len(test) == len(set(test)):
-            return p
+            return i
 
     raise Exception(f"Could not find hash for {xs}")
 
@@ -56,11 +55,11 @@ def find_magic_for(xs):
 # first get "reasonably good" distribution by using
 # method_id % len(method_ids)
 # second, get the magic for the bucket.
-def _jumptable(method_ids):
+def _jumptable(method_ids, i):
 
     buckets = {}
     for x in method_ids:
-        t = x % len(method_ids)
+        t = x % i  # len(method_ids)
         buckets.setdefault(t, [])
         buckets[t].append(x)
 
