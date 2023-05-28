@@ -21,7 +21,7 @@ class Bucket:
 
 
 # https://stackoverflow.com/a/568618/ with comments removed
-def gen_primes():
+def _gen_primes():
     """ Generate an infinite sequence of prime numbers."""
     D = {}
 
@@ -38,12 +38,16 @@ def gen_primes():
 
         q += 1
 
+#_PRIMES = []
+#for i, p in enumerate(_gen_primes()):
+#    if i >= 0xFFFF:
+#        break
+#    _PRIMES.append(p)
+
 def _image_of(xs, p):
     return [((x * p) >> 32) % len(xs) for x in xs]
 
 def find_magic_for(xs):
-    gen = gen_primes()
-
     for i in range(0xFFFF):
         test = _image_of(xs, i)
         if len(test) == len(set(test)):
@@ -59,7 +63,7 @@ def _jumptable(method_ids, i):
 
     buckets = {}
     for x in method_ids:
-        t = x % i  # len(method_ids)
+        t = x % i
         buckets.setdefault(t, [])
         buckets[t].append(x)
 
