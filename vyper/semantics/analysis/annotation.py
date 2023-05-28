@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper import ast as vy_ast
 from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.semantics.analysis.utils import (
@@ -100,7 +102,7 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     ignored_types = ()
 
-    def __init__(self, fn_node: ContractFunctionT):
+    def __init__(self, fn_node: Optional[ContractFunctionT]=None):
         self.func = fn_node
 
     def visit(self, node, type_=None):
@@ -135,6 +137,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
+                assert self.func is not None
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
