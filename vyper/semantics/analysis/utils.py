@@ -601,6 +601,10 @@ def validate_unique_method_ids(functions: List) -> None:
 def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
     """
     Check if the given node can be used as a default arg
+
+    Unlike `check_constant`, we cannot expect that the `type_` will match the node type
+    for any given node. If the kwarg is a member of a struct, the `type_` will be that of
+    the struct member, but the node may be the struct itself.
     """
     if _check_literal(node, type_):
         return True
@@ -625,7 +629,9 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
                     for v, member_typ in zip(args[0].values, type_.tuple_members())
                 )
             else:
-                # `type_` may be the type for a struct member
+                # the kwarg may be a struct member of a folded constant struct, where
+                # `type_` is the type for the struct member, and we have the entire
+                # struct instantiation in a `vy_ast.Call` node
                 return all(check_kwargable(v) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
@@ -660,17 +666,18 @@ def _check_literal(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) ->
     return False
 
 
-def check_constant(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
+def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal or constant value.
+
+    Unlike `check_kwargable`, we expect that the `type_` will match the node type
+    for any given node because the constant is being instantiated.
     """
     if _check_literal(node, type_):
         return True
     if isinstance(node, vy_ast.List):
-        if isinstance(type_, (DArrayT, SArrayT)):
-            return all(check_constant(item, type_.value_type) for item in node.elements)
-        else:
-            return all(check_constant(item) for item in node.elements)
+        assert isinstance(type_, (DArrayT, SArrayT))
+        return all(check_constant(item, type_.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
 
@@ -681,14 +688,11 @@ def check_constant(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) ->
             return check_constant(node.args[0])
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            if isinstance(type_, StructT):
-                return all(
-                    check_constant(v, member_typ)
-                    for v, member_typ in zip(args[0].values, type_.tuple_members())
-                )
-            else:
-                # `type_` may be the type for a struct member
-                return all(check_constant(v) for v in args[0].values)
+            assert isinstance(type_, StructT)
+            return all(
+                check_constant(v, member_typ)
+                for v, member_typ in zip(args[0].values, type_.tuple_members())
+            )
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
