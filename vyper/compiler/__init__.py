@@ -188,7 +188,7 @@ def compile_codes(
 
     try:
         if len(to_compile) == 1:
-            res = map(_compile_single, to_compile)
+            res = list(map(_compile_single, to_compile))
         else:
             n = mp.cpu_count() - 1
             with mp.Pool(n) as p:
