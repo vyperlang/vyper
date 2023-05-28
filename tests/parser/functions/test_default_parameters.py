@@ -453,6 +453,23 @@ FOO: constant(Foo) = Foo({c: True, d: Bar({a: 123, b: Baz.FE})})
 @external
 def foo(f: Foo = FOO): pass
     """,
+    """
+enum Baz:
+    FE
+    FI
+    FO
+
+struct Bar:
+    a: uint256
+    b: Baz
+
+struct Foo:
+    c: bool
+    d: Bar
+
+@external
+def foo(f: Foo = Foo({c: True, d: Bar({a: 123, b: Baz.FE})})): pass
+    """,
 ]
 
 
