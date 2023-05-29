@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -601,11 +601,6 @@ def validate_unique_method_ids(functions: List) -> None:
 def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node can be used as a default arg
-
-    Unlike `check_constant`, the initial `type_` may not match the node type.
-    e.g. if the kwarg is a member of a struct, the `type_` will be that of
-    the struct member, but the node being checked may be a struct or a nested
-    struct member.
     """
     if _check_literal(node, type_):
         return True
@@ -623,23 +618,24 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
         if len(args) == 1 and isinstance(type_, InterfaceT):
             return check_kwargable(node.args[0], AddressT())
 
+        call_type = get_exact_type_from_node(node.func)
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            if isinstance(type_, StructT):
+            # unlike `check_constant`, the initial `type_` may not match the node type.
+            # e.g. if the kwarg is a member of a struct, the `type_` will be that of
+            # the struct member, but the node being checked may be a struct or a nested
+            # struct member.
+            if is_type_t(call_type, StructT):
                 return all(
                     check_kwargable(v, member_typ)
-                    for v, member_typ in zip(args[0].values, type_.tuple_members())
+                    for v, member_typ in zip(args[0].values, call_type.typedef.tuple_members())
                 )
-            else:
-                # the kwarg may be a struct member of a folded constant struct, where
-                # `type_` is the type for the struct member, and we have the entire
-                # struct instantiation in a `vy_ast.Call` node. In this case, we
-                # propagate the struct member type recursively.
-                return all(check_kwargable(v, type_) for v in args[0].values)
 
-        call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
     if isinstance(node, vy_ast.Attribute):
+        return check_kwargable(node.value, type_)
+    if isinstance(node, vy_ast.Subscript):
+        # member of an array
         return check_kwargable(node.value, type_)
 
     value_type = get_expr_info(node)
