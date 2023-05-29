@@ -602,8 +602,8 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
     """
     Check if the given node can be used as a default arg
 
-    Unlike `check_constant`, we cannot expect that the `type_` will match the node type
-    for any given node. If the kwarg is a member of a struct, the `type_` will be that of
+    Unlike `check_constant`, the initial `type_` may not match the node type.
+    If the kwarg is a member of a struct, the `type_` will be that of
     the struct member, but the node may be the struct itself.
     """
     if _check_literal(node, type_):
@@ -620,7 +620,7 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
         from vyper.semantics.types.user import InterfaceT, StructT
 
         if len(args) == 1 and isinstance(type_, InterfaceT):
-            return check_kwargable(node.args[0])
+            return check_kwargable(node.args[0], AddressT())
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             if isinstance(type_, StructT):
@@ -670,7 +670,7 @@ def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal or constant value.
 
-    Unlike `check_kwargable`, we expect that the `type_` will match the node type
+    Unlike `check_kwargable`, the initial `type_` will match the node type
     for any given node because the constant is being instantiated.
     """
     if _check_literal(node, type_):
@@ -685,7 +685,7 @@ def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
         from vyper.semantics.types.user import InterfaceT, StructT
 
         if len(args) == 1 and isinstance(type_, InterfaceT):
-            return check_constant(node.args[0])
+            return check_constant(node.args[0], AddressT())
 
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             assert isinstance(type_, StructT)
