@@ -6,8 +6,6 @@ on:
       tag:
         default: ''
   push:
-    tags:
-      - '*'
     branches:
       - master
   release:
