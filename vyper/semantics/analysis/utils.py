@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, List, Optional
+from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -598,21 +598,22 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
+def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node can be used as a default arg
 
     Unlike `check_constant`, the initial `type_` may not match the node type.
-    If the kwarg is a member of a struct, the `type_` will be that of
-    the struct member, but the node may be the struct itself.
+    e.g. if the kwarg is a member of a struct, the `type_` will be that of
+    the struct member, but the node being checked may be a struct or a nested
+    struct member.
     """
     if _check_literal(node, type_):
         return True
+    # unlike `check_constant` where we expect a list elements to comprise literals only,
+    # a list here may contain environment or contract variables that are not literals
     if isinstance(node, vy_ast.List):
-        if isinstance(type_, (DArrayT, SArrayT)):
-            return all(check_kwargable(item, type_.value_type) for item in node.elements)
-        else:
-            return all(check_kwargable(item) for item in node.elements)
+        assert isinstance(type_, (DArrayT, SArrayT))
+        return all(check_kwargable(item, type_.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
 
@@ -631,7 +632,7 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
             else:
                 # the kwarg may be a struct member of a folded constant struct, where
                 # `type_` is the type for the struct member, and we have the entire
-                # struct instantiation in a `vy_ast.Call` node. In this case, we 
+                # struct instantiation in a `vy_ast.Call` node. In this case, we
                 # propagate the struct member type recursively.
                 return all(check_kwargable(v, type_) for v in args[0].values)
 
@@ -646,17 +647,15 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
     return value_type.is_constant
 
 
-def _check_literal(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -> bool:
+def _check_literal(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal value.
     """
     if isinstance(node, vy_ast.Constant):
         return True
     elif isinstance(node, vy_ast.List):
-        if isinstance(type_, (DArrayT, SArrayT)):
-            return all(_check_literal(item, type_.value_type) for item in node.elements)
-        else:
-            return all(_check_literal(item) for item in node.elements)
+        assert isinstance(type_, (DArrayT, SArrayT))
+        return all(_check_literal(item, type_.value_type) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
         # TODO fixme circular import
         from vyper.semantics.types.user import EnumT
@@ -671,8 +670,8 @@ def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     Check if the given node is a literal or constant value.
 
-    Unlike `check_kwargable`, the initial `type_` will match the node type
-    for any given node because the constant is being instantiated.
+    The initial `type_` should match the initial node type because
+    the constant value is being instantiated.
     """
     if _check_literal(node, type_):
         return True
