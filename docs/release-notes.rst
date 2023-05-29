@@ -14,7 +14,7 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-v0.3.9
+v0.3.9 - Common Adder
 ******
 
 Date released: 2023-05-28
