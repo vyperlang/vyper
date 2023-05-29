@@ -452,6 +452,9 @@ FOO: constant(Foo) = Foo({c: True, d: Bar({a: 123, b: Baz.FE})})
 
 @external
 def foo(f: Foo = FOO): pass
+
+@external
+def bar(f: Baz = FOO.d.b): pass
     """,
     """
 enum Baz:
@@ -469,6 +472,35 @@ struct Foo:
 
 @external
 def foo(f: Foo = Foo({c: True, d: Bar({a: 123, b: Baz.FE})})): pass
+    """,
+    """
+struct Bar:
+    a: uint256
+    b: uint256[3]
+
+struct Foo:
+    c: bool
+    d: Bar
+
+FOO: constant(Foo) = Foo({c: True, d: Bar({a: 123, b: [123, 456, 789]})})
+
+@external
+def foo(f: Foo = FOO): pass
+
+@external
+def bar(f: uint256[3] = FOO.d.b): pass
+    """,
+    """
+struct Bar:
+    a: uint256
+    b: DynArray[uint256, 3]
+
+struct Foo:
+    c: bool
+    d: Bar
+
+@external
+def foo(f: Foo = Foo({c: True, d: Bar({a: 123, b: [123, 456, 789]})})): pass
     """,
 ]
 

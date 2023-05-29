@@ -631,8 +631,9 @@ def check_kwargable(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) -
             else:
                 # the kwarg may be a struct member of a folded constant struct, where
                 # `type_` is the type for the struct member, and we have the entire
-                # struct instantiation in a `vy_ast.Call` node
-                return all(check_kwargable(v) for v in args[0].values)
+                # struct instantiation in a `vy_ast.Call` node. In this case, we 
+                # propagate the struct member type recursively.
+                return all(check_kwargable(v, type_) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
@@ -660,7 +661,7 @@ def _check_literal(node: vy_ast.VyperNode, type_: Optional[VyperType] = None) ->
         # TODO fixme circular import
         from vyper.semantics.types.user import EnumT
 
-        if isinstance(type_, EnumT) and type_.get_type_member(node.attr, node):
+        if isinstance(type_, EnumT) and node.attr in type_._enum_members:
             return True
 
     return False
