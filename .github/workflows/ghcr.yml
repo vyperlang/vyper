@@ -8,8 +8,6 @@ name: Deploy docker image to ghcr
 
 on:
   push:
-    tags:
-      - '*'
     branches:
       - master
   release:
