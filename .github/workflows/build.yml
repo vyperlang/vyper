@@ -50,13 +50,13 @@ jobs:
       - name: Publish release assets
         if: ${{ github.event_name == 'release' }}
         run: |
-          export BIN_NAME=$(ls dist/vyper.* | xargs basename)
+          export BIN_NAME=$(ls dist/vyper.* | xargs basename) && \
           curl -L \
             -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
             -H "Content-Type: application/octet-stream" \
-            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=$(BIN_NAME) \
-            --data-binary "@$(BIN_NAME)"
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release_id }}/assets?name=${BIN_NAME}" \
+            --data-binary "@${BIN_NAME}"
 
   windows-build:
     runs-on: windows-latest
