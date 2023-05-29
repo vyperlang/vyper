@@ -622,8 +622,9 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             # unlike `check_constant`, the initial `type_` may not match the node type.
             # e.g. if the kwarg is a member of a struct, the `type_` will be that of
-            # the struct member, but the node being checked may be a struct or a nested
-            # struct member.
+            # the struct member, but the node being checked may be a struct - in which
+            # case, we overwrite the given type with the derived struct type and check
+            # its members
             if is_type_t(call_type, StructT):
                 return all(
                     check_kwargable(v, member_typ)

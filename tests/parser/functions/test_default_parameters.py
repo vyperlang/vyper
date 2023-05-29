@@ -500,6 +500,10 @@ def baz(f: uint256 = FOO.d.a): pass
 
 @external
 def baf(f: Baz = FOO.d.b[1]): pass
+
+@external
+def faz(f: Baz = Foo({c: True, d: Bar({a: 123, b: [Baz.FE, Baz.FO, Baz.FI]})}).d.b[1]):
+    pass
     """,
     """
 struct Bar:
