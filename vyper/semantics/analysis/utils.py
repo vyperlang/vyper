@@ -675,9 +675,6 @@ def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     if _check_literal(node, type_):
         return True
-    if isinstance(node, vy_ast.List):
-        assert isinstance(type_, (DArrayT, SArrayT))
-        return all(check_constant(item, type_.value_type) for item in node.elements)
     if isinstance(node, vy_ast.Call):
         args = node.args
 
