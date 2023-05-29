@@ -1,4 +1,4 @@
-name: Artifacts
+name: Build artifacts
 
 on:
   workflow_dispatch:
@@ -10,6 +10,8 @@ on:
       - '*'
     branches:
       - master
+  release:
+    types: [released]
 
 defaults:
   run:
@@ -47,6 +49,17 @@ jobs:
         with:
           path: dist/vyper.*
 
+      - name: Publish release assets
+        if: ${{ github.event_name == 'release' }}
+        run: |
+          export BIN_NAME=$(ls dist/vyper.* | xargs basename)
+          curl -L \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+            -H "Content-Type: application/octet-stream" \
+            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=$(BIN_NAME) \
+            --data-binary "@$(BIN_NAME)"
+
   windows-build:
     runs-on: windows-latest
 
@@ -74,3 +87,15 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
+
+#      - name: Publish release assets
+#        if: ${{ github.event_name == 'release' }}
+#        --> something similar for windows here! <--
+#        run: |
+#          export BIN_NAME=$(ls dist/vyper.* | xargs basename)
+#          curl -L \
+#            -X POST \
+#            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+#            -H "Content-Type: application/octet-stream" \
+#            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=$(BIN_NAME) \
+#            --data-binary "@$(BIN_NAME)"
