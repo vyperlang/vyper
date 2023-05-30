@@ -23,7 +23,7 @@ jobs:
         os: [ubuntu-20.04, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -47,22 +47,11 @@ jobs:
         with:
           path: dist/vyper.*
 
-      - name: Publish release assets
-        if: ${{ github.event_name == 'release' }}
-        run: |
-          export BIN_NAME=$(ls dist/vyper.* | xargs basename) && \
-          curl -L \
-            -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-            -H "Content-Type: application/octet-stream" \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
-            --data-binary "@dist/${BIN_NAME}"
-
   windows-build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -86,14 +75,26 @@ jobs:
         with:
           path: dist/vyper.*
 
-#      - name: Publish release assets
-#        if: ${{ github.event_name == 'release' }}
-#        --> something similar for windows here! <--
-#        run: |
-#          export BIN_NAME=$(ls dist/vyper.* | xargs basename)
-#          curl -L \
-#            -X POST \
-#            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
-#            -H "Content-Type: application/octet-stream" \
-#            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=$(BIN_NAME) \
-#            --data-binary "@$(BIN_NAME)"
+  publish-release-assets:
+    needs: [windows-build, unix-build]
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Upload assets
+        working-directory: artifacts/
+        run: |
+          for bin_name in $(ls)
+          do
+            curl -L \
+              -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+              -H "Content-Type: application/octet-stream" \
+              https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=$(bin_name) \
+              --data-binary "@$(bin_name)"
+          done
