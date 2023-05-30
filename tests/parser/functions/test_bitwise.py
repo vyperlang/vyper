@@ -55,7 +55,6 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
             assert c._shl(t, s) == (t << s) % (2**256)
 
 
-
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS.keys()))
 def test_signed_shift(get_contract_with_gas_estimation, evm_version):
     code = """

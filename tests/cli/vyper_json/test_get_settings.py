@@ -12,7 +12,17 @@ def test_unknown_evm():
         get_evm_version({"settings": {"evmVersion": "foo"}})
 
 
-@pytest.mark.parametrize("evm_version", ["homestead", "tangerineWhistle", "spuriousDragon", "byzantium", "constantinople", "petersburg"])
+@pytest.mark.parametrize(
+    "evm_version",
+    [
+        "homestead",
+        "tangerineWhistle",
+        "spuriousDragon",
+        "byzantium",
+        "constantinople",
+        "petersburg",
+    ],
+)
 def test_early_evm(evm_version):
     with pytest.raises(JSONError):
         get_evm_version({"settings": {"evmVersion": evm_version}})

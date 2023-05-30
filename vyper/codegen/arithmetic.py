@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
 

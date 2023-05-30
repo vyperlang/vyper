@@ -14,7 +14,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 #    between multiple chains for a specific feature. Let's hope not.
 # 6. We support at a maximum 3 hard forks (for any given chain).
 _evm_versions = ("istanbul", "berlin", "london", "paris", "shanghai", "cancun")
-EVM_VERSIONS: dict[str, int] = dict(enumerate(_evm_version))
+EVM_VERSIONS: dict[str, int] = dict(enumerate(_evm_versions))  # type: ignore
 
 
 DEFAULT_EVM_VERSION: str = "shanghai"

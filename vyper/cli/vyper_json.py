@@ -149,7 +149,13 @@ def get_evm_version(input_dict: Dict) -> str:
         return DEFAULT_EVM_VERSION
 
     evm_version = input_dict["settings"].get("evmVersion", DEFAULT_EVM_VERSION)
-    if evm_version in ("homestead", "tangerineWhistle", "spuriousDragon", "byzantium", "constantinople"):
+    if evm_version in (
+        "homestead",
+        "tangerineWhistle",
+        "spuriousDragon",
+        "byzantium",
+        "constantinople",
+    ):
         raise JSONError("Vyper does not support pre-istanbul EVM versions")
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
