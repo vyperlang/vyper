@@ -296,6 +296,7 @@ def build_opcodes_output(compiler_data: CompilerData) -> str:
 def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
     return _build_opcodes(compiler_data.bytecode_runtime)
 
+
 def _build_legacy_opcodes(bytecode: bytes) -> str:
     bytecode_sequence = deque(bytecode)
 
@@ -308,26 +309,30 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
 
         if mnemonic == None:
             raise CompilerPanic(f"Unsupported opcode {hex(op)} after {opcode_output}")
-   
+
         opcode_output.append(mnemonic)
         if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(mnemonic[4:])
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
-        elif mnemonic in ['RJUMP', 'RJUMPI', 'CALLF']:
-            offset = int.from_bytes([bytecode_sequence.popleft() for _i in range(2)], 'big', signed=True)
+        elif mnemonic in ["RJUMP", "RJUMPI", "CALLF"]:
+            offset = int.from_bytes(
+                [bytecode_sequence.popleft() for _i in range(2)], "big", signed=True
+            )
             opcode_output.append(hex(offset))
 
     return " ".join(opcode_output)
 
+
 def _build_eof_opcodes(bytecode: bytes) -> str:
     eofReader = eof.EOFReader(bytecode)
     output = eofReader.disassemble()
-    if (eofReader.bytecode_size != len(bytecode)):
-        runtimeEofReader = eof.EOFReader(bytecode[eofReader.bytecode_size:])
-        output =  "--- DEPLOY CODE ---\n" + output 
+    if eofReader.bytecode_size != len(bytecode):
+        runtimeEofReader = eof.EOFReader(bytecode[eofReader.bytecode_size :])
+        output = "--- DEPLOY CODE ---\n" + output
         output += "--- RUNTIME CODE ---\n" + runtimeEofReader.disassemble()
     return output
+
 
 def _build_opcodes(bytecode: bytes) -> str:
     if is_eof_enabled():

@@ -13,6 +13,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
 from vyper.evm.opcodes import version_check
 
+
 class CompilerData:
     """
     Object for fetching and storing compiler data for a Vyper contract.
@@ -153,9 +154,7 @@ class CompilerData:
     @cached_property
     def bytecode(self) -> bytes:
         if self.experimental_eof:
-            return generate_EOFv1(
-                self.assembly, no_bytecode_metadata=self.no_bytecode_metadata
-            )
+            return generate_EOFv1(self.assembly, no_bytecode_metadata=self.no_bytecode_metadata)
         else:
             return generate_bytecode(
                 self.assembly, is_runtime=False, no_bytecode_metadata=self.no_bytecode_metadata
@@ -169,7 +168,9 @@ class CompilerData:
             )
         else:
             return generate_bytecode(
-                self.assembly_runtime, is_runtime=True, no_bytecode_metadata=self.no_bytecode_metadata
+                self.assembly_runtime,
+                is_runtime=True,
+                no_bytecode_metadata=self.no_bytecode_metadata,
             )
 
     @cached_property
@@ -327,9 +328,13 @@ def generate_bytecode(
         assembly, emit_headers=is_runtime, disable_bytecode_metadata=no_bytecode_metadata
     )[0]
 
+
 def generate_EOFv1(assembly: list, no_bytecode_metadata: bool = False) -> bytes:
     bytecode, _ = compile_ir.assembly_to_evm(
-        assembly, emit_headers=True, disable_bytecode_metadata=no_bytecode_metadata, eof_enabled=True
+        assembly,
+        emit_headers=True,
+        disable_bytecode_metadata=no_bytecode_metadata,
+        eof_enabled=True,
     )
 
     return bytecode

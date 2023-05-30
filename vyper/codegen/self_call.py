@@ -7,6 +7,7 @@ from vyper.evm.opcodes import is_eof_enabled
 
 _label_counter = 0
 
+
 # TODO a more general way of doing this
 def _generate_label(name: str) -> str:
     global _label_counter

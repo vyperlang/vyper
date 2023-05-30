@@ -156,7 +156,15 @@ def _assert_false():
     # at _sym_revert0 to: INVALID
     if is_eof_enabled():
         _no_revert_symbol = mksymbol("no_revert")
-        return ["ISZERO", _no_revert_symbol, "RJUMPI", _revert_label, "CALLF", _no_revert_symbol, "JUMPDEST"]
+        return [
+            "ISZERO",
+            _no_revert_symbol,
+            "RJUMPI",
+            _revert_label,
+            "CALLF",
+            _no_revert_symbol,
+            "JUMPDEST",
+        ]
     else:
         return [_revert_label, JUMPI()]
 
@@ -678,7 +686,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
-        args = code.args[1:] # if is_eof_enabled() and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
+        args = code.args[
+            1:
+        ]  # if is_eof_enabled() and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -700,7 +710,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             if c.value == "return_pc":
                 continue
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        
+
         if str(code.args[0]) == "return_pc":
             o.extend(["POP", "RETF"])
         else:
@@ -765,7 +775,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if code.args[0].value == "return_pc":
             return ["RETF"]
         else:
-            return [str(code.args[0]), JUMP()] # Jump to cleanup function
+            return [str(code.args[0]), JUMP()]  # Jump to cleanup function
 
     # inject debug opcode.
     elif code.value == "debugger":
@@ -850,6 +860,7 @@ def _prune_inefficient_jumps(assembly):
             i += 1
 
     return changed
+
 
 def _merge_jumpdests(assembly):
     # When we have multiple JUMPDESTs in a row, or when a JUMPDEST
@@ -1098,9 +1109,7 @@ def assembly_to_evm(
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
             runtime_code, runtime_map = assembly_to_evm(
-                item,
-                emit_headers=True,
-                disable_bytecode_metadata=disable_bytecode_metadata,
+                item, emit_headers=True, disable_bytecode_metadata=disable_bytecode_metadata
             )
 
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
@@ -1155,7 +1164,7 @@ def assembly_to_evm(
 
                 symbol_map[item] = pc
             elif assembly[i + 1] in ("RJUMP", "RJUMPI", "CALLF"):
-                pc += CODE_OFST_SIZE # highbyte lowbyte only
+                pc += CODE_OFST_SIZE  # highbyte lowbyte only
             else:
                 pc += CODE_OFST_SIZE + 1  # PUSH2 highbits lowbits
         elif is_mem_sym(item):
@@ -1195,8 +1204,8 @@ def assembly_to_evm(
         symbol_map["_sym_subcode_size"] = len(runtime_code)
 
     breaks = sorted([symbol_map[offset_symbol] for offset_symbol in call_offsets.keys()])
-    function_breaks = {br:i+1 for i,br in enumerate(breaks)}
-    
+    function_breaks = {br: i + 1 for i, br in enumerate(breaks)}
+
     # (NOTE CMC 2022-06-17 this way of generating bytecode did not
     # seem to be a perf hotspot. if it is, may want to use bytearray()
     # instead).
@@ -1233,18 +1242,20 @@ def assembly_to_evm(
         elif is_symbol(item):
             if is_eof_enabled() and assembly[i + 1] in ["RJUMP", "RJUMPI", "CALLF"]:
                 sym = item
-                assert is_symbol(sym), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
+                assert is_symbol(
+                    sym
+                ), f"Internal compiler error: {assembly[i + 1]} not preceded by symbol"
                 o += bytes([get_opcode(assembly[i + 1])])
 
                 if assembly[i + 1] == "CALLF":
                     function_id = function_breaks[symbol_map[sym]]
-                    o += bytes(function_id.to_bytes(2, 'big', signed=True))
+                    o += bytes(function_id.to_bytes(2, "big", signed=True))
                 else:
                     pc_post_instruction = instr_offsets[i] + 3
                     offset = symbol_map[sym] - pc_post_instruction
-                    assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"    
-                    o += bytes(offset.to_bytes(2, 'big', signed=True))
-                to_skip = 1                
+                    assert offset > -32767 and offset <= 32767, "Offset too big for relative jump"
+                    o += bytes(offset.to_bytes(2, "big", signed=True))
+                to_skip = 1
             elif assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
@@ -1290,14 +1301,16 @@ def assembly_to_evm(
         offset = len(header)
         for i, size in enumerate(function_sizes):
             max_stack_heights.append(
-                eof.calculate_max_stack_height(o[offset : offset + size], stack_height=0 if i == 0 else 1)
+                eof.calculate_max_stack_height(
+                    o[offset : offset + size], stack_height=0 if i == 0 else 1
+                )
             )
             offset += size
-        
+
         # Generate the final header and replace the placeholder
         header = generateEOFHeader(function_sizes, max_stack_heights)
-        o = header + o[len(header):]
-    
+        o = header + o[len(header) :]
+
     o += bytecode_suffix
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])

@@ -1,6 +1,12 @@
 from collections import deque
 from vyper.exceptions import VyperInternalException
-from vyper.evm.opcodes import TERMINATING_OPCODES, VALID_OPCODES, immediate_size, get_mnemonic, get_opcode_metadata
+from vyper.evm.opcodes import (
+    TERMINATING_OPCODES,
+    VALID_OPCODES,
+    immediate_size,
+    get_mnemonic,
+    get_opcode_metadata,
+)
 
 MAGIC = b"\xEF\x00"
 VERSION = 0x01
@@ -83,7 +89,9 @@ class EOFReader:
                 raise ValidationException("data section preceding code section")
 
             # Code section or data section preceding type section
-            if section_id == S_TYPE and (len(section_sizes[S_CODE]) != 0 or len(section_sizes[S_DATA]) != 0):
+            if section_id == S_TYPE and (
+                len(section_sizes[S_CODE]) != 0 or len(section_sizes[S_DATA]) != 0
+            ):
                 raise ValidationException("code or data section preceding type section")
 
             # Multiple type or data sections
@@ -121,7 +129,10 @@ class EOFReader:
             raise ValidationException("no obligatory type section")
 
         # Type section, if present, has size corresponding to number of code sections
-        if section_sizes[S_TYPE][0] != 0 and section_sizes[S_TYPE][0] != len(section_sizes[S_CODE]) * 4:
+        if (
+            section_sizes[S_TYPE][0] != 0
+            and section_sizes[S_TYPE][0] != len(section_sizes[S_CODE]) * 4
+        ):
             raise ValidationException("invalid type section size")
 
         # Truncated section size
@@ -142,7 +153,7 @@ class EOFReader:
             # Truncated section size
             if (pos + section_size) > len(code):
                 raise ValidationException("truncated CODE section size")
-            self.code_sections[i].code = code[pos:pos + section_size]
+            self.code_sections[i].code = code[pos : pos + section_size]
             self.code_sections[i].offset = pos
             pos += section_size
 
@@ -153,11 +164,13 @@ class EOFReader:
             # Truncated section size
             if (pos + section_size) > len(code):
                 raise ValidationException("truncated DATA section size")
-            self.data_sections.append(code[pos:pos + section_size])
+            self.data_sections.append(code[pos : pos + section_size])
             pos += section_size
 
         # Check if we have a second EOF header attached (the runtime container)
-        if (pos) != len(code) and (self.bytecode[pos:pos+2] != MAGIC or self.bytecode[pos+2] != VERSION):
+        if (pos) != len(code) and (
+            self.bytecode[pos : pos + 2] != MAGIC or self.bytecode[pos + 2] != VERSION
+        ):
             raise ValidationException("Bad file size")
 
         # First code section should have zero inputs and outputs
@@ -184,20 +197,20 @@ class EOFReader:
             if not opcode in VALID_OPCODES:
                 raise ValidationException("undefined instruction")
 
-            if opcode == 0x5c or opcode == 0x5d:
+            if opcode == 0x5C or opcode == 0x5D:
                 if pos + 2 > len(code):
                     raise ValidationException("truncated relative jump offset")
-                offset = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = True)
+                offset = int.from_bytes(code[pos : pos + 2], byteorder="big", signed=True)
 
                 rjumpdest = pos + 2 + offset
                 if rjumpdest < 0 or rjumpdest >= len(code):
                     raise ValidationException("relative jump destination out of bounds")
 
                 rjumpdests.add(rjumpdest)
-            elif opcode == 0xb0:
+            elif opcode == 0xB0:
                 if pos + 2 > len(code):
                     raise ValidationException("truncated CALLF immediate")
-                section_id = int.from_bytes(code[pos:pos+2], byteorder = "big", signed = False)
+                section_id = int.from_bytes(code[pos : pos + 2], byteorder="big", signed=False)
 
                 if section_id >= len(self.code_sections):
                     raise ValidationException("invalid section id")
@@ -226,9 +239,12 @@ class EOFReader:
 
         return output
 
+
 # Calculates the max stack height for the given code block. Meanwhile calculates the stack height at every instruction
 # to be later used to validate jump destination stack validity. Currently disabled.
-def calculate_max_stack_height(bytecode: bytes, start_pc: int = 0, stack_height: int = 0, stack_heights = []) -> int:
+def calculate_max_stack_height(
+    bytecode: bytes, start_pc: int = 0, stack_height: int = 0, stack_heights=[]
+) -> int:
     max_stack_height = 0
 
     if len(stack_heights) == 0:
@@ -244,7 +260,7 @@ def calculate_max_stack_height(bytecode: bytes, start_pc: int = 0, stack_height:
 
         if mnemonic == "CALLF":
             pop_size = 0
-            push_size = 1  
+            push_size = 1
 
         stack_height -= pop_size
         if stack_height < 0:
@@ -253,26 +269,28 @@ def calculate_max_stack_height(bytecode: bytes, start_pc: int = 0, stack_height:
         max_stack_height = max(max_stack_height, stack_height)
 
         # fill the stack height buffer
-        stack_heights[pc:pc+immediate_size(op)+1] = [stack_height] * (immediate_size(op) + 1)
-        #print(pc, mnemonic, stack_heights, max_stack_height)
+        stack_heights[pc : pc + immediate_size(op) + 1] = [stack_height] * (immediate_size(op) + 1)
+        # print(pc, mnemonic, stack_heights, max_stack_height)
 
         if mnemonic == "RJUMP":
             jump_offset = int.from_bytes(bytecode[pc + 1 : pc + 3], byteorder="big", signed=True)
             # if stack_heights[pc+jump_offset] != -1 and stack_heights[pc+jump_offset] != stack_height:
             #     raise ValidationException("Stack height missmatch at jump target")
-            if stack_heights[pc+jump_offset] != -1:
+            if stack_heights[pc + jump_offset] != -1:
                 return max_stack_height
             pc += jump_offset
         elif mnemonic == "RJUMPI":
             jump_offset = int.from_bytes(bytecode[pc + 1 : pc + 3], byteorder="big", signed=True)
             return max(
-                max_stack_height, 
+                max_stack_height,
                 calculate_max_stack_height(bytecode, pc + 3, stack_height, stack_heights),
-                calculate_max_stack_height(bytecode, pc + 3 + jump_offset, stack_height, stack_heights),
+                calculate_max_stack_height(
+                    bytecode, pc + 3 + jump_offset, stack_height, stack_heights
+                ),
             )
         elif mnemonic in TERMINATING_OPCODES:
             return max_stack_height
-        
+
         pc += 1 + immediate_size(op)
 
     return max_stack_height

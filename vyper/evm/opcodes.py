@@ -26,7 +26,6 @@ EVM_VERSIONS: dict[str, int] = {
     "shanghai": 5,
     "cancun": 6,
     "eof": 7,
-
     # ETC Forks
     "atlantis": 0,
     "agharta": 1,
@@ -232,6 +231,7 @@ IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 # Terminating opcodes for EOFv1 support
 TERMINATING_OPCODES = ["STOP", "RETF", "RETURN", "REVERT", "INVALID"]
 
+
 def evm_wrapper(fn, *args, **kwargs):
     def _wrapper(*args, **kwargs):
         global active_evm_version
@@ -273,17 +273,24 @@ _ir_opcodes: Dict[int, OpcodeRulesetMap] = {
 def get_opcodes() -> OpcodeRulesetMap:
     return _evm_opcodes[active_evm_version]
 
+
 def get_opcode(mnemonic: str) -> int:
     return get_opcodes()[mnemonic.upper()][0]
+
 
 def get_ir_opcodes() -> OpcodeRulesetMap:
     return _ir_opcodes[active_evm_version]
 
+
 OPCODE_TO_MNEMONIC_MAP = {ruleset[0]: mnemonic for mnemonic, ruleset in get_opcodes().items()}
+
+
 def get_mnemonic(opcode: int) -> str:
     return OPCODE_TO_MNEMONIC_MAP[opcode]
 
+
 VALID_OPCODES = OPCODE_TO_MNEMONIC_MAP.keys()
+
 
 def immediate_size(op):
     if isinstance(op, int):
@@ -296,11 +303,13 @@ def immediate_size(op):
     else:
         return 0
 
+
 def get_opcode_metadata(mnem_or_op):
     if isinstance(mnem_or_op, int):
         mnem_or_op = get_mnemonic(mnem_or_op)
-    
+
     return get_opcodes()[mnem_or_op]
+
 
 def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> bool:
     if begin is None and end is None:
@@ -312,9 +321,11 @@ def version_check(begin: Optional[str] = None, end: Optional[str] = None) -> boo
     end_idx = max(EVM_VERSIONS.values()) if end is None else EVM_VERSIONS[end]
     return begin_idx <= active_evm_version <= end_idx
 
+
 def set_eof_enabled(e: bool):
     global _eof_enabled
     _eof_enabled = e
+
 
 def is_eof_enabled() -> bool:
     return _eof_enabled

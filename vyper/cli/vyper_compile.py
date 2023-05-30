@@ -133,7 +133,11 @@ def _parse_args(argv):
         "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
-    parser.add_argument("--experimental-eof", help="The compiler will emit EOFv1 formated bytecode", action="store_true")
+    parser.add_argument(
+        "--experimental-eof",
+        help="The compiler will emit EOFv1 formated bytecode",
+        action="store_true",
+    )
 
     args = parser.parse_args(argv)
 
