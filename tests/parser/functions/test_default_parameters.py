@@ -140,8 +140,8 @@ def faz(a: uint256, b: Foo = FOO) -> Foo:
         c.bar(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
         == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
     )
-    assert c.baz(1) == None
-    assert c.baz(1, ZERO_ADDRESS) == None
+    assert c.baz(1) is None
+    assert c.baz(1, ZERO_ADDRESS) is None
     assert c.faz(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
     assert (
         c.faz(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
@@ -522,7 +522,7 @@ FOO: constant(uint256[3]) = [123, 456, 789]
 
 @external
 def bar(f: uint256 = FOO[1]): pass
-    """
+    """,
 ]
 
 
