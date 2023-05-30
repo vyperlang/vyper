@@ -686,9 +686,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
-        args = code.args[
-            1:
-        ]
+        args = code.args[1:]
         # if is_eof_enabled() and len(code.args) >= 2 and
         # s_symbol(code.args[1].value) else code.args[1:]
 

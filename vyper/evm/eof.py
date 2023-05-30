@@ -31,9 +31,11 @@ class FunctionType:
         self.max_stack_height = max_stack_height
 
     def disassemble(self):
-        output = f"Func {self.function_id}:\nCode segment offset:{self.offset}" \
-                 f" inputs:{self.inputs} outputs:{self.outputs}" \
-                 f" max stack height:{self.max_stack_height}\n"
+        output = (
+            f"Func {self.function_id}:\nCode segment offset:{self.offset}"
+            f" inputs:{self.inputs} outputs:{self.outputs}"
+            f" max stack height:{self.max_stack_height}\n"
+        )
         code = deque(self.code)
         while code:
             pc = len(self.code) - len(code)
