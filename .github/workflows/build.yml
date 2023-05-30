@@ -89,8 +89,11 @@ jobs:
       - name: Upload assets
         working-directory: artifacts/
         run: |
+          set -Eeuxo pipefail
+          ls -R
           for BIN_NAME in $(ls)
           do
+            echo ${BIN_NAME}
             curl -L \
               --no-progress-meter \
               -X POST \
