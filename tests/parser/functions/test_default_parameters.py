@@ -523,6 +523,7 @@ FOO: constant(uint256[3]) = [123, 456, 789]
 @external
 def bar(f: uint256 = FOO[1]): pass
     """,
+
 ]
 
 
@@ -617,6 +618,17 @@ def foo(a: uint256[2] = [2, self.x]): pass
 def foo(a: uint256 = msg.value): pass
 """,
         NonPayableViolation,
+    ),
+    (
+        """
+FOO: constant(uint256[3]) = [123, 456, 789]
+
+x: uint256
+
+@external
+def bar(f: uint256 = FOO[self.x]): pass
+    """,
+        StateAccessViolation,     
     ),
 ]
 
