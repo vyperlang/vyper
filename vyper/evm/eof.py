@@ -31,7 +31,9 @@ class FunctionType:
         self.max_stack_height = max_stack_height
 
     def disassemble(self):
-        output = f"Func {self.function_id}:\nCode segment offset:{self.offset} inputs:{self.inputs} outputs:{self.outputs} max stack height:{self.max_stack_height}\n"
+        output = f"Func {self.function_id}:\nCode segment offset:{self.offset}" \
+                 f" inputs:{self.inputs} outputs:{self.outputs}" \
+                 f" max stack height:{self.max_stack_height}\n"
         code = deque(self.code)
         while code:
             pc = len(self.code) - len(code)
@@ -82,7 +84,7 @@ class EOFReader:
                 break
 
             # Disallow unknown sections
-            if not section_id in section_sizes:
+            if section_id not in section_sizes:
                 raise ValidationException("invalid section id")
 
             # Data section preceding code section (i.e. code section following data section)
@@ -110,7 +112,7 @@ class EOFReader:
             if section_id == S_TYPE:
                 section_sizes[S_TYPE].append(section_count)
             elif section_id == S_CODE:
-                for i in range(section_count):
+                for _i in range(section_count):
                     code_size = (code[pos] << 8) | code[pos + 1]
                     pos += 2
                     section_sizes[S_CODE].append(code_size)
@@ -195,7 +197,7 @@ class EOFReader:
             # Ensure the opcode is valid
             opcode = code[pos]
             pos += 1
-            if not opcode in VALID_OPCODES:
+            if opcode not in VALID_OPCODES:
                 raise ValidationException("undefined instruction")
 
             if opcode == 0x5C or opcode == 0x5D:
@@ -241,11 +243,15 @@ class EOFReader:
         return output
 
 
-# Calculates the max stack height for the given code block. Meanwhile calculates the stack height at every instruction
-# to be later used to validate jump destination stack validity. Currently disabled.
+# Calculates the max stack height for the given code block. Meanwhile calculates
+# the stack height at every instruction to be later used to validate jump
+# destination stack validity. Currently disabled.
 def calculate_max_stack_height(
-    bytecode: bytes, start_pc: int = 0, stack_height: int = 0, stack_heights=[]
+    bytecode: bytes, start_pc: int = 0, stack_height: int = 0, stack_heights=None
 ) -> int:
+    if stack_heights is None:
+        stack_heights = []
+
     max_stack_height = 0
 
     if len(stack_heights) == 0:
@@ -275,7 +281,8 @@ def calculate_max_stack_height(
 
         if mnemonic == "RJUMP":
             jump_offset = int.from_bytes(bytecode[pc + 1 : pc + 3], byteorder="big", signed=True)
-            # if stack_heights[pc+jump_offset] != -1 and stack_heights[pc+jump_offset] != stack_height:
+            # if     stack_heights[pc+jump_offset] != -1
+            #    and stack_heights[pc+jump_offset] != stack_height:
             #     raise ValidationException("Stack height missmatch at jump target")
             if stack_heights[pc + jump_offset] != -1:
                 return max_stack_height

@@ -688,7 +688,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         args = code.args[
             1:
-        ]  # if is_eof_enabled() and len(code.args) >= 2 and is_symbol(code.args[1].value) else code.args[1:]
+        ]
+        # if is_eof_enabled() and len(code.args) >= 2 and
+        # s_symbol(code.args[1].value) else code.args[1:]
 
         for i, c in enumerate(reversed(args)):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
@@ -1071,7 +1073,8 @@ def assembly_to_evm(
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    emit_headers: whether to generate EOFv1 headers. In legacy mode it will generate vyper version suffix
+    emit_headers: whether to generate EOFv1 headers. In legacy mode it
+                  will generate vyper version suffix
     """
     line_number_map = {
         "breakpoints": set(),

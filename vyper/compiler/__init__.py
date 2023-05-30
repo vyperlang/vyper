@@ -103,7 +103,7 @@ def compile_codes(
     """
 
     if experimental_eof and not version_check("cancun"):
-        raise ValueError(f"Enabling EOFv1 requires evm version of cancun or greater")
+        raise ValueError("Enabling EOFv1 requires evm version of cancun or greater")
 
     set_eof_enabled(experimental_eof)
 

@@ -306,7 +306,7 @@ def _build_legacy_opcodes(bytecode: bytes) -> str:
         op = bytecode_sequence.popleft()
         mnemonic = opcode_map.get(op)
 
-        if mnemonic == None:
+        if mnemonic is None:
             raise CompilerPanic(f"Unsupported opcode {hex(op)} after {opcode_output}")
 
         opcode_output.append(mnemonic)
