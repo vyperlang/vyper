@@ -1,4 +1,4 @@
-name: Build artifacts
+name: Build and release artifacts
 
 on:
   workflow_dispatch:
