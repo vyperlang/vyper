@@ -93,7 +93,6 @@ jobs:
           set -Eeuxo pipefail
           for BIN_NAME in $(ls)
           do
-            echo ${BIN_NAME}
             curl -L \
               --no-progress-meter \
               -X POST \
