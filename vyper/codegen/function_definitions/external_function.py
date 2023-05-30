@@ -89,8 +89,7 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
         calldata_min_size = args_abi_t.min_size() + 4
 
         # note we don't need the check if calldata_min_size == 4,
-        # because the selector checks later in this routine ensure
-        # that calldatasize >= 4.
+        # because the global calldatasize check ensures that already.
         if calldata_min_size > 4:
             ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
@@ -125,28 +124,6 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
         method_id_check = ["eq", "_calldata_method_id", method_id]
-
-        # if there is a function whose selector is 0 or has trailing 0s, it
-        # might not be distinguished from the case where insufficient calldata
-        # is supplied, b/c calldataload loads 0s past the end of physical
-        # calldata (cf. yellow paper).
-        # since the expected behavior of supplying insufficient calldata
-        # is to trigger the fallback fn, we add to the selector check that
-        # calldatasize >= 4, which distinguishes any selector with trailing
-        # 0 bytes from the fallback function "selector" (equiv. to "all
-        # selectors not in the selector table").
-        #
-        # note that the inclusion of this check means that, we are always
-        # guaranteed that the calldata is at least 4 bytes - either we have
-        # the explicit `calldatasize >= 4` condition in the selector check,
-        # or there are no trailing zeroes in the selector, (so the selector
-        # is impossible to match without calldatasize being at least 4).
-        method_id_bytes = util.method_id(abi_sig)
-        assert len(method_id_bytes) == 4
-        has_trailing_zeroes = method_id_bytes.endswith(b"\x00")
-        if has_trailing_zeroes:
-            method_id_check = ["and", ["ge", "calldatasize", 4], method_id_check]
-
         ret = ["if", method_id_check, ret]
         return ret
 
@@ -200,7 +177,10 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     if not func_t.is_payable and not skip_nonpayable_check:
         # if the contract contains payable functions, but this is not one of them
         # add an assertion that the value of the call is zero
-        body += [["assert", ["iszero", "callvalue"]]]
+        nonpayable_check = IRnode.from_list(
+            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
+        )
+        body.append(nonpayable_check)
 
     body += nonreentrant_pre
 
