@@ -256,8 +256,9 @@ def foo():
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
-
     # GH issue 2418
+
+
 overlap_codes = [
     """
 @external
@@ -277,8 +278,7 @@ def bug(xs: uint256[2]) -> uint256[2]:
     return self.foo
     """,
     # TODO add transient tests when it's available
-    ]
-
+]
 
 
 @pytest.mark.parametrize("code", overlap_codes)
