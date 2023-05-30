@@ -32,12 +32,6 @@ def foo3() -> bytes32:
 def foo4() -> bytes32:
     return self.a.codehash
     """
-
-    if evm_version in ("byzantium", "atlantis"):
-        with pytest.raises(EvmVersionException):
-            compile_code(code, evm_version=evm_version)
-        return
-
     compiled = compile_code(
         code, ["bytecode_runtime"], evm_version=evm_version, no_optimize=no_optimize
     )

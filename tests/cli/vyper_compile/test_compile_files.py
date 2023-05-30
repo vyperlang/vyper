@@ -28,29 +28,3 @@ def test_combined_json_keys(tmp_path):
 def test_invalid_root_path():
     with pytest.raises(FileNotFoundError):
         compile_files([], [], root_folder="path/that/does/not/exist")
-
-
-def test_evm_versions(tmp_path):
-    # should compile differently because of SELFBALANCE
-    code = """
-@external
-def foo() -> uint256:
-    return self.balance
-"""
-
-    bar_path = tmp_path.joinpath("bar.vy")
-    with bar_path.open("w") as fp:
-        fp.write(code)
-
-    byzantium_bytecode = compile_files(
-        [bar_path], output_formats=["bytecode"], evm_version="byzantium"
-    )[str(bar_path)]["bytecode"]
-    istanbul_bytecode = compile_files(
-        [bar_path], output_formats=["bytecode"], evm_version="istanbul"
-    )[str(bar_path)]["bytecode"]
-
-    assert byzantium_bytecode != istanbul_bytecode
-
-    # SELFBALANCE opcode is 0x47
-    assert "47" not in byzantium_bytecode
-    assert "47" in istanbul_bytecode

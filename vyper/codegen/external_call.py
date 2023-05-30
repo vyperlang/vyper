@@ -63,8 +63,7 @@ def _pack_arguments(fn_type, args, context):
     # 32 bytes                 | args
     # 0x..00<method_id_4bytes> | args
     # the reason for the left padding is just so the alignment is easier.
-    # if we were only targeting constantinople, we could align
-    # to buf (and also keep code size small) by using
+    # XXX: we could align to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
     pack_args = ["seq"]
     pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])

@@ -340,19 +340,17 @@ def _optimize_binop(binop, args, ann, parent_op):
         if binop == "mod":
             return finalize("and", [args[0], _int(args[1]) - 1])
 
-        if binop == "div" and version_check(begin="constantinople"):
+        if binop == "div":
             # x / 2**n == x >> n
             # recall shr/shl have unintuitive arg order
             return finalize("shr", [int_log2(_int(args[1])), args[0]])
 
         # note: no rule for sdiv since it rounds differently from sar
-        if binop == "mul" and version_check(begin="constantinople"):
+        if binop == "mul":
             # x * 2**n == x << n
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-        # reachable but only before constantinople
-        if version_check(begin="constantinople"):  # pragma: no cover
-            raise CompilerPanic("unreachable")
+        raise CompilerPanic("unreachable")  # pragma: no cover
 
     ##
     # COMPARISONS
