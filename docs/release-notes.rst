@@ -27,7 +27,6 @@ Fixes:
 - add back global calldatasize check for contracts with default fn (`#3463 <https://github.com/vyperlang/vyper/pull/3463>`_)
 
 
-
 v0.3.8
 ******
 

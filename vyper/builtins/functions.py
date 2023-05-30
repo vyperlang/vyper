@@ -1247,7 +1247,9 @@ class Send(BuiltinFunction):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(["assert", ["call", gas, to, value, 0, 0, 0, 0]])
+        return IRnode.from_list(
+            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
+        )
 
 
 class SelfDestruct(BuiltinFunction):
