@@ -1266,9 +1266,7 @@ def assembly_to_evm(
         elif isinstance(item, str) and item.upper() in get_opcodes():
             o += bytes([get_opcodes()[item.upper()][0]])
         elif item[:4] == "PUSH":
-            push_size = int(item[4:])
-            assert push_size > 0, f"Bad PUSH size for {item}"
-            o += bytes([PUSH_OFFSET + push_size])
+            o += bytes([PUSH_OFFSET + int(item[4:])])
         elif item[:3] == "DUP":
             o += bytes([DUP_OFFSET + int(item[3:])])
         elif item[:4] == "SWAP":
