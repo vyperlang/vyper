@@ -87,10 +87,10 @@ jobs:
           path: artifacts/
 
       - name: Upload assets
-        working-directory: artifacts/
+        # fun - artifacts are downloaded into "artifact"
+        working-directory: artifacts/artifact
         run: |
           set -Eeuxo pipefail
-          ls -R
           for BIN_NAME in $(ls)
           do
             echo ${BIN_NAME}
