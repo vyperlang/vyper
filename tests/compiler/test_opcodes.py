@@ -49,7 +49,7 @@ def test_get_opcodes(evm_version):
     assert "CHAINID" in ops
     assert ops["CREATE2"][-1] == 32000
 
-    if evm_version in ("paris", "berlin", "shanghai", "cancun"):
+    if evm_version in ("london", "berlin", "paris", "shanghai", "cancun"):
         assert ops["SLOAD"][-1] == 2100
     else:
         assert evm_version == "istanbul"
