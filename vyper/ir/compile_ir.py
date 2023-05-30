@@ -3,8 +3,8 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import get_opcodes, version_check, get_opcode, is_eof_enabled
 from vyper.evm import eof
+from vyper.evm.opcodes import get_opcode, get_opcodes, is_eof_enabled, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple

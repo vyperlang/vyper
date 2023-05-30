@@ -5,7 +5,7 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper, version_check, set_eof_enabled
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper, set_eof_enabled, version_check
 from vyper.typing import (
     ContractCodes,
     ContractPath,
