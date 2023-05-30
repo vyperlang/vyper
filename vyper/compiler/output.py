@@ -8,7 +8,9 @@ from vyper.ast import ast_to_dict, parse_natspec
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
-from vyper.evm import opcodes
+from vyper.evm import eof, opcodes
+from vyper.evm.opcodes import is_eof_enabled
+from vyper.exceptions import CompilerPanic
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
@@ -294,7 +296,7 @@ def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
     return _build_opcodes(compiler_data.bytecode_runtime)
 
 
-def _build_opcodes(bytecode: bytes) -> str:
+def _build_legacy_opcodes(bytecode: bytes) -> str:
     bytecode_sequence = deque(bytecode)
 
     opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
@@ -302,10 +304,37 @@ def _build_opcodes(bytecode: bytes) -> str:
 
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
-        opcode_output.append(opcode_map[op])
+        mnemonic = opcode_map.get(op)
+
+        if mnemonic is None:
+            raise CompilerPanic(f"Unsupported opcode {hex(op)} after {opcode_output}")
+
+        opcode_output.append(mnemonic)
         if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
-            push_len = int(opcode_map[op][4:])
+            push_len = int(mnemonic[4:])
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
+        elif mnemonic in ["RJUMP", "RJUMPI", "CALLF"]:
+            offset = int.from_bytes(
+                [bytecode_sequence.popleft() for _i in range(2)], "big", signed=True
+            )
+            opcode_output.append(hex(offset))
 
     return " ".join(opcode_output)
+
+
+def _build_eof_opcodes(bytecode: bytes) -> str:
+    eofReader = eof.EOFReader(bytecode)
+    output = eofReader.disassemble()
+    if eofReader.bytecode_size != len(bytecode):
+        runtimeEofReader = eof.EOFReader(bytecode[eofReader.bytecode_size :])
+        output = "--- DEPLOY CODE ---\n" + output
+        output += "--- RUNTIME CODE ---\n" + runtimeEofReader.disassemble()
+    return output
+
+
+def _build_opcodes(bytecode: bytes) -> str:
+    if is_eof_enabled():
+        return _build_eof_opcodes(bytecode)
+    else:
+        return _build_legacy_opcodes(bytecode)
