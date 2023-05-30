@@ -607,9 +607,9 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     # unlike `check_constant` where we expect a list elements to comprise literals only,
     # a list here may contain environment or contract variables that are not literals
     if isinstance(node, vy_ast.List):
-        assert isinstance(type_, (DArrayT, SArrayT))
-        return all(check_kwargable(item, type_.value_type) for item in node.elements)
-    if isinstance(node, vy_ast.Call):
+        if isinstance(type_, (DArrayT, SArrayT)):
+            return all(check_kwargable(item, type_.value_type) for item in node.elements)
+    elif isinstance(node, vy_ast.Call):
         args = node.args
 
         # TODO fixme circular import
@@ -633,10 +633,11 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
 
         if getattr(call_type, "_kwargable", False):
             return True
-    if isinstance(node, vy_ast.Attribute):
+    elif isinstance(node, vy_ast.Attribute):
         return check_kwargable(node.value, type_)
-    if isinstance(node, vy_ast.Subscript):
-        # member of an array
+    elif isinstance(node, vy_ast.Subscript):
+        # member of an array struct member
+        # access to constant arrays should have been folded
         return check_kwargable(node.value, type_)
 
     value_type = get_expr_info(node)
@@ -651,8 +652,8 @@ def _check_literal(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     if isinstance(node, vy_ast.Constant):
         return True
     elif isinstance(node, vy_ast.List):
-        assert isinstance(type_, (DArrayT, SArrayT))
-        return all(_check_literal(item, type_.value_type) for item in node.elements)
+        if isinstance(type_, (DArrayT, SArrayT)):
+            return all(_check_literal(item, type_.value_type) for item in node.elements)
     elif isinstance(node, vy_ast.Attribute):
         # TODO fixme circular import
         from vyper.semantics.types.user import EnumT
@@ -691,7 +692,7 @@ def check_constant(node: vy_ast.VyperNode, type_: VyperType) -> bool:
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
-    if isinstance(node, vy_ast.Attribute):
+    elif isinstance(node, vy_ast.Attribute):
         return check_constant(node.value, type_)
 
     return False
