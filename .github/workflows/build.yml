@@ -89,12 +89,13 @@ jobs:
       - name: Upload assets
         working-directory: artifacts/
         run: |
-          for bin_name in $(ls)
+          for BIN_NAME in $(ls)
           do
             curl -L \
+              --no-progress-meter \
               -X POST \
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
               -H "Content-Type: application/octet-stream" \
-              https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.payload.release.release_id }}/assets?name=${bin_name} \
-              --data-binary "@${bin_name}"
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}"
+              --data-binary "@${BIN_NAME}"
           done
