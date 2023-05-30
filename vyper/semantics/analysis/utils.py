@@ -625,11 +625,11 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
             # the struct member, but the node being checked may be a struct - in which
             # case, we overwrite the given type with the derived struct type and check
             # its members
-            if is_type_t(call_type, StructT):
-                return all(
-                    check_kwargable(v, member_typ)
-                    for v, member_typ in zip(args[0].values, call_type.typedef.tuple_members())
-                )
+            assert is_type_t(call_type, StructT)
+            return all(
+                check_kwargable(v, member_typ)
+                for v, member_typ in zip(args[0].values, call_type.typedef.tuple_members())
+            )
 
         if getattr(call_type, "_kwargable", False):
             return True
