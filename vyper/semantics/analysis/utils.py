@@ -604,8 +604,9 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
     """
     if _check_literal(node, type_):
         return True
-    # unlike `check_constant` where we expect a list elements to comprise literals only,
-    # a list here may contain environment or contract variables that are not literals
+    # unlike `check_constant` where we expect a `vy_ast.List` node to comprise literals only,
+    # and can defer the check for lists to `_check_literals`, a `vy_ast.List` node as a kwarg
+    # may contain environment or contract variables that are not literals
     if isinstance(node, vy_ast.List):
         if isinstance(type_, (DArrayT, SArrayT)):
             return all(check_kwargable(item, type_.value_type) for item in node.elements)
@@ -633,11 +634,11 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
 
         if getattr(call_type, "_kwargable", False):
             return True
-    elif isinstance(node, vy_ast.Attribute):
-        return check_kwargable(node.value, type_)
-    elif isinstance(node, vy_ast.Subscript):
-        # member of an array struct member
-        # access to constant arrays should have been folded
+    
+    # for struct members and indexing into an array struct member
+    # note that access to constant arrays should have been folded and should not be caught
+    # here
+    elif isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
         return check_kwargable(node.value, type_)
 
     value_type = get_expr_info(node)
