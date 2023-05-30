@@ -87,7 +87,7 @@ jobs:
           path: artifacts/
 
       - name: Upload assets
-        # fun - artifacts are downloaded into "artifact"
+        # fun - artifacts are downloaded into "artifact/".
         working-directory: artifacts/artifact
         run: |
           set -Eeuxo pipefail
