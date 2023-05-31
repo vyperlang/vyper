@@ -10,6 +10,11 @@ good_list = [
 def foo(a: uint256, b: uint256) -> uint256:
     return a if a > b else b
     """,
+    """
+@external
+def foo():
+    a: bool = (True if True else True) or True
+    """,
     # different locations:
     """
 b: uint256

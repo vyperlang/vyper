@@ -584,7 +584,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[VyperType] = None) -> None:
         for value in node.values:  # type: ignore[attr-defined]
-            self.visit(value)
+            self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType] = None) -> None:
         call_type = get_exact_type_from_node(node.func)
