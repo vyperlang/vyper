@@ -271,7 +271,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_IfExp(self, node, type_):
         if type_ is None:
             ts = get_common_types(node.body, node.orelse)
-            if len(type_) == 1:
+            if len(ts) == 1:
                 type_ = ts.pop()
 
         node._metadata["type"] = type_
