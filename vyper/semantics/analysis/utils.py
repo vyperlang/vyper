@@ -634,7 +634,7 @@ def check_kwargable(node: vy_ast.VyperNode, type_: VyperType) -> bool:
 
         if getattr(call_type, "_kwargable", False):
             return True
-    
+
     # for struct members and indexing into an array struct member
     # note that access to constant arrays should have been folded and should not be caught
     # here
