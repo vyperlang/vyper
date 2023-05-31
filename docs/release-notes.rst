@@ -44,6 +44,8 @@ Non-breaking changes and improvements:
 - drop support for python 3.8 and 3.9 (`#3325 <https://github.com/vyperlang/vyper/pull/3325>`_)
 - build for ``aarch64`` (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
 
+Note that with the addition of ``push0`` opcode, ``shanghai`` is now the default compilation target for vyper. When deploying to a chain which does not support ``shanghai``, it is recommended to set ``--evm-version`` to ``paris``, otherwise it could result in hard-to-debug errors.
+
 Major refactoring PRs:
 
 - refactor front-end type system (`#2974 <https://github.com/vyperlang/vyper/pull/2974>`_)
