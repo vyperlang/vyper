@@ -39,7 +39,39 @@ def augmod(x: int128, y: int128) -> int128:
     print("Passed aug-assignment test")
 
 
-def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_internal_assign(get_contract_with_gas_estimation):
+    code = """
+@internal
+def foo(x: int128) -> int128:
+    x = 77
+    return x
+
+@external
+def bar(x: int128) -> int128:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar(123) == 77
+
+
+def test_internal_augassign(get_contract_with_gas_estimation):
+    code = """
+@internal
+def foo(x: int128) -> int128:
+    x += 77
+    return x
+
+@external
+def bar(x: int128) -> int128:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar(123) == 200
+
+
+def test_invalid_external_assign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def foo(x: int128):
@@ -48,7 +80,7 @@ def foo(x: int128):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
 
 
-def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_augassign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def foo(x: int128):
