@@ -242,10 +242,6 @@ class Expr:
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not version_check(begin="constantinople"):
-                raise EvmVersionException(
-                    "address.codehash is unavailable prior to constantinople ruleset", self.expr
-                )
             if addr.typ == AddressT():
                 return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
         # x.code: codecopy/extcodecopy of address x
@@ -401,7 +397,6 @@ class Expr:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
                 return
             op = shr if not left.typ.is_signed else sar
-            # note: sar NotImplementedError for pre-constantinople
             return IRnode.from_list(op(right, left), typ=new_typ)
 
         # enums can only do bit ops, not arithmetic.

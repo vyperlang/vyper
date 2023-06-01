@@ -1,7 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
     AddressT,
@@ -997,23 +996,16 @@ def zero_pad(bytez_placeholder):
 
 # convenience rewrites for shr/sar/shl
 def shr(bits, x):
-    if version_check(begin="constantinople"):
-        return ["shr", bits, x]
-    return ["div", x, ["exp", 2, bits]]
+    return ["shr", bits, x]
 
 
 # convenience rewrites for shr/sar/shl
 def shl(bits, x):
-    if version_check(begin="constantinople"):
-        return ["shl", bits, x]
-    return ["mul", x, ["exp", 2, bits]]
+    return ["shl", bits, x]
 
 
 def sar(bits, x):
-    if version_check(begin="constantinople"):
-        return ["sar", bits, x]
-
-    raise NotImplementedError("no SAR emulation for pre-constantinople EVM")
+    return ["sar", bits, x]
 
 
 def clamp_bytestring(ir_node):

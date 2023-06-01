@@ -2,7 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import EvmVersionException, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidType, TypeMismatch
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -13,11 +13,7 @@ def foo():
     a: uint256 = chain.id
     """
 
-    if EVM_VERSIONS[evm_version] < 2:
-        with pytest.raises(EvmVersionException):
-            compiler.compile_code(code, evm_version=evm_version)
-    else:
-        compiler.compile_code(code, evm_version=evm_version)
+    assert compiler.compile_code(code, evm_version=evm_version) is not None
 
 
 fail_list = [
@@ -71,10 +67,10 @@ def foo(inp: Bytes[10]) -> Bytes[3]:
 def test_chain_fail(bad_code):
     if isinstance(bad_code, tuple):
         with pytest.raises(bad_code[1]):
-            compiler.compile_code(bad_code[0], evm_version="istanbul")
+            compiler.compile_code(bad_code[0])
     else:
         with pytest.raises(TypeMismatch):
-            compiler.compile_code(bad_code, evm_version="istanbul")
+            compiler.compile_code(bad_code)
 
 
 valid_list = [
@@ -95,7 +91,7 @@ def check_chain_id(c: uint256) -> bool:
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_chain_success(good_code):
-    assert compiler.compile_code(good_code, evm_version="istanbul") is not None
+    assert compiler.compile_code(good_code) is not None
 
 
 def test_chainid_operation(get_contract_with_gas_estimation):
@@ -105,5 +101,5 @@ def test_chainid_operation(get_contract_with_gas_estimation):
 def get_chain_id() -> uint256:
     return chain.id
     """
-    c = get_contract_with_gas_estimation(code, evm_version="istanbul")
+    c = get_contract_with_gas_estimation(code)
     assert c.get_chain_id() == 131277322940537  # Default value of py-evm
