@@ -7,12 +7,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
 # 2. Fork versions aren't actually tied to anything. They are not a part of our
 #    official API. *DO NOT USE THE VALUES FOR ANYTHING IMPORTANT* besides versioning.
-# 3. There can be multiple aliases to the same version number (but not the reverse).
-# 4. When supporting multiple chains, if a chain gets a fix first, it increments the
-#    number first.
-# 5. Yes, this will probably have to be rethought if there's ever conflicting support
-#    between multiple chains for a specific feature. Let's hope not.
-# 6. We support at a maximum 3 hard forks (for any given chain).
+# 3. Per VIP-3365, we support mainnet fork choice rules up to 1 year old (and may optionally have forward support for experimental/unreleased fork choice rules)
 _evm_versions = ("istanbul", "berlin", "london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
