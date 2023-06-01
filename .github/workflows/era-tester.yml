@@ -1,4 +1,4 @@
-name: era compiler tester
+name: Era compiler tester
 
 # run the matter labs compiler test to integrate their test cases
 # this is intended as a diagnostic / spot check to check that we

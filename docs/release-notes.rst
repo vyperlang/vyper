@@ -14,16 +14,17 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-v0.3.9
+v0.3.9 ("Common Adder")
 ******
 
-Date released: 2023-05-24
+Date released: 2023-05-29
 
-This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release.
+This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release. @bout3fiddy also discovered a runtime performance (gas) regression for default functions in v0.3.8 which is fixed in this release.
 
 Fixes:
 
 - initcode codesize blowup (`#3450 <https://github.com/vyperlang/vyper/pull/3450>`_)
+- add back global calldatasize check for contracts with default fn (`#3463 <https://github.com/vyperlang/vyper/pull/3463>`_)
 
 
 v0.3.8
@@ -42,6 +43,8 @@ Non-breaking changes and improvements:
 - python 3.11 support (`#3129 <https://github.com/vyperlang/vyper/pull/3129>`_)
 - drop support for python 3.8 and 3.9 (`#3325 <https://github.com/vyperlang/vyper/pull/3325>`_)
 - build for ``aarch64`` (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
+
+Note that with the addition of ``push0`` opcode, ``shanghai`` is now the default compilation target for vyper. When deploying to a chain which does not support ``shanghai``, it is recommended to set ``--evm-version`` to ``paris``, otherwise it could result in hard-to-debug errors.
 
 Major refactoring PRs:
 
