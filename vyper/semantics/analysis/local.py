@@ -175,11 +175,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor = _LocalExpressionVisitor()
 
         # allow internal function params to be mutable
-        arg_location = DataLocation.MEMORY if self.func.is_internal else DataLocation.CALLDATA
-        arg_is_immutable = False if self.func.is_internal else True
+        location = DataLocation.MEMORY if self.func.is_internal else DataLocation.CALLDATA
+        is_immutable = False if self.func.is_internal else True
         for arg in self.func.arguments:
             namespace[arg.name] = VarInfo(
-                arg.typ, location=arg_location, is_immutable=arg_is_immutable
+                arg.typ, location=location, is_immutable=is_immutable
             )
 
         for node in fn_node.body:
