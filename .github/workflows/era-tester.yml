@@ -94,14 +94,14 @@ jobs:
         cp $(which vyper) era-compiler-tester/vyper-bin/vyper-${{ env.VYPER_VERSION }}
 
     - name: Run tester (fast)
-      description: Run era tester with no LLVM optimizations
+      # Run era tester with no LLVM optimizations
       if: ${{ github.ref != "refs/heads/master" }}
       run: |
         cd era-compiler-tester
         cargo run --release --bin compiler-tester -- -v --path=tests/vyper/ --mode="M0B0 ${{ env.VYPER_VERSION }}"
 
     - name: Run tester (slow)
-      description: Run era tester across the LLVM optimization matrix
+      # Run era tester across the LLVM optimization matrix
       if: ${{ github.ref == "refs/heads/master" }}
       run: |
         cd era-compiler-tester
