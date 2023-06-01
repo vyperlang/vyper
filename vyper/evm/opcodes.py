@@ -7,7 +7,9 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
 # 2. Fork versions aren't actually tied to anything. They are not a part of our
 #    official API. *DO NOT USE THE VALUES FOR ANYTHING IMPORTANT* besides versioning.
-# 3. Per VIP-3365, we support mainnet fork choice rules up to 1 year old (and may optionally have forward support for experimental/unreleased fork choice rules)
+# 3. Per VIP-3365, we support mainnet fork choice rules up to 1 year old
+#    (and may optionally have forward support for experimental/unreleased
+#    fork choice rules)
 _evm_versions = ("istanbul", "berlin", "london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
