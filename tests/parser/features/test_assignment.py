@@ -39,20 +39,52 @@ def augmod(x: int128, y: int128) -> int128:
     print("Passed aug-assignment test")
 
 
-def test_internal_assign(get_contract_with_gas_estimation):
-    code = """
+@pytest.mark.parametrize("typ,in_val,out_val", [
+    ("uint256", 77, 123),
+    ("uint256[3]", [1, 2, 3], [4, 5, 6]),
+    ("DynArray[uint256, 3]", [1, 2, 3], [4, 5, 6]),
+    ("Bytes[5]", b"vyper", b"conda"),
+])
+def test_internal_assign(get_contract_with_gas_estimation, typ, in_val, out_val):
+    code = f"""
 @internal
-def foo(x: int128) -> int128:
-    x = 77
+def foo(x: {typ}) -> {typ}:
+    x = {out_val}
     return x
 
 @external
-def bar(x: int128) -> int128:
+def bar(x: {typ}) -> {typ}:
     return self.foo(x)
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert c.bar(123) == 77
+    assert c.bar(in_val) == out_val
+
+
+def test_internal_assign_struct(get_contract_with_gas_estimation):
+    code = """
+enum Bar:
+    BAD
+    BAK
+    BAZ
+
+struct Foo:
+    a: uint256
+    b: DynArray[Bar, 3]
+    c: String[5]
+
+@internal
+def foo(x: Foo) -> Foo:
+    x = Foo({a: 789, b: [Bar.BAZ, Bar.BAK, Bar.BAD], c: \"conda\"})
+    return x
+
+@external
+def bar(x: Foo) -> Foo:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar((123, [1, 2, 4], "vyper")) == (789, [4, 2, 1], "conda")
 
 
 def test_internal_augassign(get_contract_with_gas_estimation):
