@@ -85,11 +85,14 @@ jobs:
           **/era-compiler-tester
         key: ${{ runner.os }}-${{ env.ERA_HASH }}-${{ env.ERA_VYPER_HASH }}
 
-    - name: Install Vyper
+    - name: Build Vyper
       run: |
         set -Eeuxo pipefail
         pip install .
         echo "VYPER_VERSION=$(vyper --version | cut -f1 -d'+')" >> $GITHUB_ENV
+
+    - name: Install Vyper
+      run: |
         mkdir era-compiler-tester/vyper-bin
         cp $(which vyper) era-compiler-tester/vyper-bin/vyper-${{ env.VYPER_VERSION }}
 
