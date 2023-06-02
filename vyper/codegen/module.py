@@ -141,8 +141,6 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(global_ctx.functions)
 
-    init_function: Optional[vy_ast.FunctionDef] = None
-
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
