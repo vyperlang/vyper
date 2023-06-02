@@ -1,8 +1,7 @@
 # a contract.vy -- all functions and constructor
 
-from typing import Any, List, Optional
+from typing import Any, List
 
-from vyper import ast as vy_ast
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
