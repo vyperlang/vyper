@@ -90,6 +90,33 @@ def bar(x: Foo) -> Foo:
     assert c.bar((123, [1, 2, 4], "vyper")) == (789, [4, 2, 1], "conda")
 
 
+def test_internal_assign_struct_member(get_contract_with_gas_estimation):
+    code = """
+enum Bar:
+    BAD
+    BAK
+    BAZ
+
+struct Foo:
+    a: uint256
+    b: DynArray[Bar, 3]
+    c: String[5]
+
+@internal
+def foo(x: Foo) -> Foo:
+    x.a = 789
+    x.b.pop()
+    return x
+
+@external
+def bar(x: Foo) -> Foo:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar((123, [1, 2, 4], "vyper")) == (789, [1, 2], "vyper")
+
+
 def test_internal_augassign(get_contract_with_gas_estimation):
     code = """
 @internal
@@ -121,33 +148,6 @@ def bar(x: {typ}) -> {typ}:
     c = get_contract_with_gas_estimation(code)
 
     assert c.bar([1, 2, 3]) == [1, 79, 3]
-
-
-def test_internal_augassign_struct(get_contract_with_gas_estimation):
-    code = """
-enum Bar:
-    BAD
-    BAK
-    BAZ
-
-struct Foo:
-    a: uint256
-    b: DynArray[Bar, 3]
-    c: String[5]
-
-@internal
-def foo(x: Foo) -> Foo:
-    x.a = 789
-    x.b.pop()
-    return x
-
-@external
-def bar(x: Foo) -> Foo:
-    return self.foo(x)
-    """
-    c = get_contract_with_gas_estimation(code)
-
-    assert c.bar((123, [1, 2, 4], "vyper")) == (789, [1, 2], "vyper")
 
 
 def test_invalid_external_assign(assert_compile_failed, get_contract_with_gas_estimation):
