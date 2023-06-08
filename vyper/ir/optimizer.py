@@ -14,6 +14,7 @@ from vyper.utils import (
     signed_to_unsigned,
     unsigned_to_signed,
 )
+from vyper.evm.opcodes import version_check
 
 SIGNED = False
 UNSIGNED = True
@@ -478,6 +479,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value == "seq":
         changed |= _merge_memzero(argz)
         changed |= _merge_calldataload(argz)
+        changed |= _merge_mload(argz)
         changed |= _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
@@ -640,14 +642,21 @@ def _remove_empty_seqs(argz):
             i += 1
     return changed
 
-
 def _merge_calldataload(argz):
-    # look for sequential operations copying from calldata to memory
-    # and merge them into a single calldatacopy operation
+    return _merge_load(argz, "calldataload", "calldatacopy")
+
+def _merge_mload(argz):
+    if not version_check(begin="cancun"):
+        return False
+    return _merge_load(argz, "mload", "mcopy")
+
+def _merge_load(argz, _LOAD, _COPY):
+    # look for sequential operations copying from X to Y
+    # and merge them into a single copy operation
     changed = False
     mstore_nodes: List = []
-    initial_mem_offset = 0
-    initial_calldata_offset = 0
+    initial_dst_offset = 0
+    initial_src_offset = 0
     total_length = 0
     idx = None
     for i, ir_node in enumerate(argz):
@@ -655,19 +664,19 @@ def _merge_calldataload(argz):
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
-            and ir_node.args[1].value == "calldataload"
+            and ir_node.args[1].value == _LOAD
             and isinstance(ir_node.args[1].args[0].value, int)
         ):
             # mstore of a zero value
-            mem_offset = ir_node.args[0].value
-            calldata_offset = ir_node.args[1].args[0].value
+            dst_offset = ir_node.args[0].value
+            src_offset = ir_node.args[1].args[0].value
             if not mstore_nodes:
-                initial_mem_offset = mem_offset
-                initial_calldata_offset = calldata_offset
+                initial_dst_offset = dst_offset
+                initial_src_offset = src_offset
                 idx = i
             if (
-                initial_mem_offset + total_length == mem_offset
-                and initial_calldata_offset + total_length == calldata_offset
+                initial_src_offset + total_length == src_offset
+                and initial_src_offset + total_length == src_offset
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
@@ -682,7 +691,7 @@ def _merge_calldataload(argz):
         if len(mstore_nodes) > 1:
             changed = True
             new_ir = IRnode.from_list(
-                ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
+                [_COPY, initial_dst_offset, initial_src_offset, total_length],
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
@@ -690,8 +699,8 @@ def _merge_calldataload(argz):
             # note: del xs[k:l] deletes l - k items
             del argz[idx + 1 : idx + len(mstore_nodes)]
 
-        initial_mem_offset = 0
-        initial_calldata_offset = 0
+        initial_dst_offset = 0
+        initial_src_offset = 0
         total_length = 0
         mstore_nodes.clear()
 
