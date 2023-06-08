@@ -380,6 +380,12 @@ def _optimize_binop(binop, args, ann, parent_op):
             # but xor is slightly easier to optimize because of being
             # commutative.
             # note that (xor (-1) x) has its own rule
+            # if (cond) {branch_a} <join point>
+            # EVM only has JUMPI, no JUMPNI
+            # cond iszero _join JUMPI {branch_a} _join
+            # (if cond already has an iszero in it, like pre-cond iszero):
+            # <pre-cond> iszero iszero _join JUMPI {branch_a} _join
+            # iszero iszero _label JMPI => _label JUMPI
             return finalize("iszero", [["xor", args[0], args[1]]])
 
         if binop == "ne" and parent_op == "iszero":

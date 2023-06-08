@@ -19,13 +19,8 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
-from vyper.utils import (
-    GAS_CALLDATACOPY_WORD,
-    GAS_CODECOPY_WORD,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-    ceil32,
-)
+from vyper.utils import ( GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32,)
+from vyper.evm.opcodes import version_check
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
@@ -90,12 +85,16 @@ def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
 
 
+def _mcopy_gas_bound(num_bytes):
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
+
+
 def _calldatacopy_gas_bound(num_bytes):
-    return GAS_CALLDATACOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 def _codecopy_gas_bound(num_bytes):
-    return GAS_CODECOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 # Copy byte array word-for-word (including layout)
@@ -268,8 +267,12 @@ def copy_bytes(dst, src, length, length_bound):
             # special cases: batch copy to memory
             # TODO: iloadbytes
             if src.location == MEMORY:
-                copy_op = ["staticcall", "gas", 4, src, length, dst, length]
-                gas_bound = _identity_gas_bound(length_bound)
+                if version_check(begin="cancun"):
+                    copy_op = ["mcopy", dst, src, length]
+                    gas_bound = _mcopy_gas_bound(length_bound)
+                else:
+                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
@@ -891,11 +894,11 @@ def _complex_make_setter(left, right):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    # if len(keyz) == 0:
-    #    return IRnode.from_list(["pass"])
+    if left.is_pointer and right.is_pointer:
+        len_ = left.typ.memory_bytes_required
+        return copy_bytes(left, right, len_, len_)
 
     # general case
-    # TODO use copy_bytes when the generated code is above a certain size
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
