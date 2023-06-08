@@ -2,6 +2,7 @@ import operator
 from typing import List, Optional, Tuple, Union
 
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import (
     ceil32,
@@ -14,7 +15,6 @@ from vyper.utils import (
     signed_to_unsigned,
     unsigned_to_signed,
 )
-from vyper.evm.opcodes import version_check
 
 SIGNED = False
 UNSIGNED = True
@@ -642,13 +642,16 @@ def _remove_empty_seqs(argz):
             i += 1
     return changed
 
+
 def _merge_calldataload(argz):
     return _merge_load(argz, "calldataload", "calldatacopy")
+
 
 def _merge_mload(argz):
     if not version_check(begin="cancun"):
         return False
     return _merge_load(argz, "mload", "mcopy")
+
 
 def _merge_load(argz, _LOAD, _COPY):
     # look for sequential operations copying from X to Y

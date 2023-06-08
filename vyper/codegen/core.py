@@ -1,6 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
     AddressT,
@@ -19,8 +20,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
-from vyper.utils import ( GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32,)
-from vyper.evm.opcodes import version_check
+from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
