@@ -672,7 +672,7 @@ def _merge_load(argz, _LOAD, _COPY):
                 initial_src_offset = src_offset
                 idx = i
             if (
-                initial_src_offset + total_length == src_offset
+                initial_dst_offset + total_length == dst_offset
                 and initial_src_offset + total_length == src_offset
             ):
                 mstore_nodes.append(ir_node)
