@@ -627,29 +627,26 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node: vy_ast.Compare, type_: Optional[VyperType] = None) -> None:
-        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):  # type: ignore[attr-defined]
-            if isinstance(node.right, vy_ast.List):  # type: ignore[attr-defined]
-                type_ = get_common_types(
-                    node.left, *node.right.elements  # type: ignore[attr-defined]
-                ).pop()
-                self.visit(node.left, type_)  # type: ignore[attr-defined]
-                rlen = len(node.right.elements)  # type: ignore[attr-defined]
-                self.visit(node.right, SArrayT(type_, rlen))  # type: ignore[attr-defined, arg-type]
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
+            if isinstance(node.right, vy_ast.List):
+                type_ = get_common_types(node.left, *node.right.elements).pop()
+                assert type_ is not None  # mypy hint
+                self.visit(node.left, type_)
+                rlen = len(node.right.elements)
+                self.visit(node.right, SArrayT(type_, rlen))
             else:
-                type_ = get_exact_type_from_node(node.right)  # type: ignore[attr-defined]
-                self.visit(node.right, type_)  # type: ignore[attr-defined]
+                type_ = get_exact_type_from_node(node.right)
+                self.visit(node.right, type_)
                 if isinstance(type_, EnumT):
-                    self.visit(node.left, type_)  # type: ignore[attr-defined]
+                    self.visit(node.left, type_)
                 else:
                     # array membership
-                    self.visit(
-                        node.left,  # type: ignore[attr-defined]
-                        type_.value_type,  # type: ignore[union-attr]
-                    )
+                    assert isinstance(type_, (SArrayT, DArrayT))
+                    self.visit(node.left, type_.value_type)
         else:
-            type_ = get_common_types(node.left, node.right).pop()  # type: ignore[attr-defined]
-            self.visit(node.left, type_)  # type: ignore[attr-defined]
-            self.visit(node.right, type_)  # type: ignore[attr-defined]
+            type_ = get_common_types(node.left, node.right).pop()
+            self.visit(node.left, type_)
+            self.visit(node.right, type_)
 
     def visit_Constant(self, node, type_):
         node._metadata["type"] = type_
