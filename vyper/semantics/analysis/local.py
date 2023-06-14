@@ -584,7 +584,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.right, type_)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, type_: Optional[VyperType] = None) -> None:
-        for value in node.values:  # type: ignore[attr-defined]
+        for value in node.values:
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType] = None) -> None:
@@ -714,7 +714,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
-        self.visit(node.operand, type_)  # type: ignore[attr-defined]
+        self.visit(node.operand, type_)
 
     def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType] = None) -> None:
         self.visit(node.test, BoolT())
