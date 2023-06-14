@@ -195,7 +195,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        self.expr_visitor = _LocalExpressionVisitor(self.func)
+        self.expr_visitor = _ExprVisitor(self.func)
         for arg in self.func.arguments:
             namespace[arg.name] = VarInfo(
                 arg.typ, location=DataLocation.CALLDATA, is_immutable=True
@@ -551,14 +551,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
-class _LocalExpressionVisitor(VyperNodeVisitorBase):
+class _ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
+    # XXX: type_ should probably never be None
     def visit(self, node, type_=None):
-        # the statement visitor sometimes passes type information about expressions
+        # XXX: does the visitor function ever choose some type that is different from type_?
+        # if it does, we need to be smarter here:
+        node._metadata["type"] = type_
+
         super().visit(node, type_)
 
     def visit_Attribute(self, node: vy_ast.Attribute, type_: Optional[VyperType] = None) -> None:
@@ -573,12 +577,9 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code_attribute(node, value_type)
 
-        node._metadata["type"] = type_
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
-
         self.visit(node.left, type_)
         self.visit(node.right, type_)
 
@@ -588,6 +589,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node: vy_ast.Call, type_: Optional[VyperType] = None) -> None:
         call_type = get_exact_type_from_node(node.func)
+        # hmm...
         node_type = type_ or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
         self.visit(node.func)
@@ -648,11 +650,7 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             self.visit(node.left, type_)
             self.visit(node.right, type_)
 
-    def visit_Constant(self, node, type_):
-        node._metadata["type"] = type_
-
     def visit_Dict(self, node: vy_ast.Dict, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
         for key in node.keys:
             self.visit(key)
         for value in node.values:
@@ -662,7 +660,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.value, type_)
 
     def visit_List(self, node: vy_ast.List, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
         for element in node.elements:
             self.visit(element, type_.value_type)  # type: ignore[union-attr]
 
@@ -670,14 +667,13 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
+        # whoa ..
         if isinstance(type_, TYPE_T):
             node._metadata["type"] = type_
         else:
             node._metadata["type"] = get_exact_type_from_node(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
-
         if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -710,8 +706,6 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
-
         if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -720,11 +714,9 @@ class _LocalExpressionVisitor(VyperNodeVisitorBase):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
         self.visit(node.operand, type_)  # type: ignore[attr-defined]
 
     def visit_IfExp(self, node: vy_ast.IfExp, type_: Optional[VyperType] = None) -> None:
-        node._metadata["type"] = type_
         self.visit(node.test, BoolT())
         self.visit(node.body, type_)
         self.visit(node.orelse, type_)

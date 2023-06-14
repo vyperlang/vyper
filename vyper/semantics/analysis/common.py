@@ -18,8 +18,7 @@ class VyperNodeVisitorBase:
             ast_type = class_.__name__
             visitor_fn = getattr(self, f"visit_{ast_type}", None)
             if visitor_fn:
-                visitor_fn(node, *args)
-                return
+                return visitor_fn(node, *args)
 
         node_type = type(node).__name__
         raise StructureException(
