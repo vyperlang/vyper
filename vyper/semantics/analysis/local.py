@@ -713,9 +713,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, type_: VyperType) -> None:
-        if isinstance(type_, TYPE_T):
-            # don't recurse; can't annotate AST children of type definition
-            return
+        node._metadata["type"] = type_
 
         assert isinstance(type_, TupleT)
         for element, subtype in zip(node.elements, type_.member_types):  # type: ignore[union-attr]
