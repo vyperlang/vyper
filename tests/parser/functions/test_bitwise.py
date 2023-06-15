@@ -35,12 +35,8 @@ def _shr(x: uint256, y: uint256) -> uint256:
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 def test_bitwise_opcodes(evm_version):
     opcodes = compile_code(code, ["opcodes"], evm_version=evm_version)["opcodes"]
-    if evm_version in ("byzantium", "atlantis"):
-        assert "SHL" not in opcodes
-        assert "SHR" not in opcodes
-    else:
-        assert "SHL" in opcodes
-        assert "SHR" in opcodes
+    assert "SHL" in opcodes
+    assert "SHR" in opcodes
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -59,10 +55,7 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
             assert c._shl(t, s) == (t << s) % (2**256)
 
 
-POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
-
-
-@pytest.mark.parametrize("evm_version", POST_BYZANTIUM)
+@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS.keys()))
 def test_signed_shift(get_contract_with_gas_estimation, evm_version):
     code = """
 @external
