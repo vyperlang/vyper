@@ -629,6 +629,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
+                print("visit_Call - arg type: ", arg_type)
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
@@ -714,6 +715,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Tuple(self, node: vy_ast.Tuple, type_: VyperType) -> None:
         node._metadata["type"] = type_
+
+        if isinstance(type_, TYPE_T):
+            # don't recurse; can't annotate AST children of type definition
+            return
 
         assert isinstance(type_, TupleT)
         for element, subtype in zip(node.elements, type_.member_types):  # type: ignore[union-attr]
