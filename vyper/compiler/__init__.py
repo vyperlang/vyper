@@ -32,6 +32,7 @@ OUTPUT_FORMATS = {
     "ir_runtime_dict": output.build_ir_runtime_dict_output,
     "method_identifiers": output.build_method_identifiers_output,
     "metadata": output.build_metadata_output,
+    "bb": output.build_basicblock_output,
     # requires assembly
     "abi": output.build_abi_output,
     "asm": output.build_asm_output,

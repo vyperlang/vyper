@@ -11,6 +11,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
+from vyper.ir.ir_to_bb_pass import convert_ir_basicblock
 
 
 class CompilerData:
@@ -120,6 +121,11 @@ class CompilerData:
     def _ir_output(self):
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.no_optimize)
+
+    @cached_property
+    def bb_output(self):
+        # fetch both deployment and runtime IR
+        return convert_ir_basicblock(self.global_ctx, self._ir_output[0])
 
     @property
     def ir_nodes(self) -> IRnode:
