@@ -629,7 +629,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
-                print("visit_Call - arg type: ", arg_type)
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
