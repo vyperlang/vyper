@@ -1,16 +1,23 @@
 from vyper.codegen.ir_basicblock import IRBasicBlock
 
 
-class IRFunction:
+class IRFunctionBase:
     name: str  # symbol name
-    basic_blocks: list
     args: list
+
+    def __init__(self, name, args=[]) -> None:
+        self.name = name
+        self.args = args
+
+
+class IRFunction(IRFunctionBase):
+    basic_blocks: list
     last_label: int
     last_variable: int
 
     def __init__(self, name) -> None:
+        super().__init__(name)
         self.basic_blocks = []
-        self.name = name
         self.last_label = 0
         self.last_variable = 0
 
@@ -43,8 +50,22 @@ class IRFunction:
         self.last_variable += 1
         return f"%{self.last_variable}"
 
+    def get_last_variable(self) -> str:
+        return f"%{self.last_variable}"
+
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"
         return str
+
+
+class IRFunctionIntrinsic(IRFunctionBase):
+    """
+    Intrinsic function, to represent sertain instructions of EVM that
+    are directly emmitted by the compiler frontend to the s-expression IR
+    """
+
+    def __repr__(self) -> str:
+        args = ", ".join([str(arg) for arg in self.args])
+        return f"{self.name}({args})"
