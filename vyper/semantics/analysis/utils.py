@@ -310,7 +310,7 @@ class _ExprAnalyser:
 
             if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
-                subtypes = self.types_from_List(node.elements[0])
+                subtypes = self.get_possible_types_from_node(node.elements[0])
             else:
                 # empty list literal `[]`
                 # subtype can be anything
