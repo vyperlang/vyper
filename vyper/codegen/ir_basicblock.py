@@ -7,7 +7,7 @@ class IRDebugInfo:
         self.src = src
 
     def __repr__(self) -> str:
-        return f"# {self.line_no} {self.src}"
+        return f"\t# line {self.line_no}: {self.src}".expandtabs(20)
 
 
 class IRInstruction:
