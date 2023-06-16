@@ -205,7 +205,7 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_ir = ["seq", body, exit]
+    func_common_ir = IRnode.from_list(["seq", body, exit], source_pos=getpos(code))
 
     if func_t.is_fallback or func_t.is_constructor:
         ret = ["seq"]
@@ -219,4 +219,4 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
         # TODO rethink this / make it clearer
         ret[-1][-1].append(func_common_ir)
 
-    return IRnode.from_list(ret, source_pos=getpos(code))
+    return IRnode.from_list(ret)
