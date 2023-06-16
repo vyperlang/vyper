@@ -462,14 +462,19 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
-                    # type information is applied directly here because the
-                    # scope is closed prior to the call to
-                    # `StatementAnnotationVisitor`
-                    node.target._metadata["type"] = type_
+                    self.expr_visitor.visit(node.target, type_)
+
+                    if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+                        self.expr_visitor.visit(node.iter, type_)
+                    if isinstance(node.iter, vy_ast.List):
+                        len_ = len(node.iter.elements)
+                        self.expr_visitor.visit(node.iter, SArrayT(type_, len_))
+                    if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+                        for a in node.iter.args:
+                            self.expr_visitor.visit(a, type_)
 
                     # success -- bail out instead of error handling.
-                    iter_type = type_
-                    break
+                    return
 
         else:
             if len(set(str(i) for i in for_loop_exceptions)) == 1:
@@ -489,15 +494,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     for type_, exc in zip(type_list, for_loop_exceptions)
                 ),
             )
-
-        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-            self.expr_visitor.visit(node.iter, iter_type)
-        if isinstance(node.iter, vy_ast.List):
-            len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
-        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            for a in node.iter.args:
-                self.expr_visitor.visit(a, iter_type)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
@@ -671,7 +667,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             if len(possible_base_types) == 1:
                 base_type = possible_base_types.pop()
 
-            elif type_ is not None and len(possible_base_types) > 1:
+            elif len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
                     if type_.compare_type(possible_type.value_type):
                         base_type = possible_type
