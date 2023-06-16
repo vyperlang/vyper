@@ -463,8 +463,8 @@ class IRnode:
         o = ""
         if self.annotation:
             o += f"/* {self.annotation} */ \n"
-        if self.source_pos:
-            o += f"/* POS {self.source_pos} */ "
+        #if self.source_pos:
+        #    o += f"/* POS {self.source_pos} */ "
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
