@@ -315,7 +315,7 @@ class _ExprAnalyser:
                 # empty list literal `[]`
                 # subtype can be anything
                 subtypes = types.PRIMITIVE_TYPES.values()
-                
+
             for t in subtypes:
                 # 1 is minimum possible length for dynarray,
                 # can be assigned to anything
