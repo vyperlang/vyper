@@ -394,11 +394,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
-            type_list = [
-                i
-                for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, (DArrayT, SArrayT))
-            ]
+            type_list = get_possible_types_from_node(node.iter)
+            if isinstance(node.iter, vy_ast.List) and any(isinstance(e, vy_ast.List) for e in node.iter.elements):
+                type_list = [
+                    i
+                    for i in type_list
+                    if isinstance(i, (DArrayT, SArrayT))
+                ]
+            else:
+                type_list = [i.value_type for i in type_list if isinstance(i, (DArrayT, SArrayT))]
 
         if not type_list:
             raise InvalidType("Not an iterable type", node.iter)
