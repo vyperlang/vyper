@@ -2,6 +2,10 @@ from vyper.codegen.ir_basicblock import IRBasicBlock
 
 
 class IRFunctionBase:
+    """
+    Base class for IRFunction and IRFunctionIntrinsic
+    """
+
     name: str  # symbol name
     args: list
 
@@ -11,6 +15,10 @@ class IRFunctionBase:
 
 
 class IRFunction(IRFunctionBase):
+    """
+    Function that contains basic blocks.
+    """
+
     basic_blocks: list
     last_label: int
     last_variable: int

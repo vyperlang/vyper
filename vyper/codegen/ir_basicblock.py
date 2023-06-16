@@ -1,4 +1,9 @@
 class IRDebugInfo:
+    """
+    IRDebugInfo represents debug information in IR, used to annotate IR instructions
+    with source code information when printing IR.
+    """
+
     line_no: int
     src: str
 
@@ -12,6 +17,13 @@ class IRDebugInfo:
 
 
 class IRInstruction:
+    """
+    IRInstruction represents an instruction in IR. Each instruction has an opcode,
+    operands, and return value. For example, the following IR instruction:
+        %1 = add %0, 1
+    has opcode "add", operands ["%0", "1"], and return value "%1".
+    """
+
     opcode: str
     operands: list
     ret: str
@@ -35,6 +47,28 @@ class IRInstruction:
 
 
 class IRBasicBlock:
+    """
+    IRBasicBlock represents a basic block in IR. Each basic block has a label and
+    a list of instructions, while belonging to a function.
+
+    The following IR code:
+        %1 = add %0, 1
+        %2 = mul %1, 2
+    is represented as:
+        bb = IRBasicBlock("bb", function)
+        bb.append_instruction(IRInstruction("add", ["%0", "1"], "%1"))
+        bb.append_instruction(IRInstruction("mul", ["%1", "2"], "%2"))
+
+    The label of a basic block is used to refer to it from other basic blocks in order
+    to branch to it.
+
+    The parent of a basic block is the function it belongs to.
+
+    The instructions of a basic block are executed sequentially, and the last instruction
+    of a basic block is always a terminator instruction, which is used to branch to other
+    basic blocks.
+    """
+
     label: str
     parent: any  # IRFunction
     instructions: list[IRInstruction]
