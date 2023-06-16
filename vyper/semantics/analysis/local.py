@@ -571,7 +571,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         type_ = get_exact_type_from_node(node)
         if self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node, type_)  # type: ignore[arg-type]
+            _validate_pure_access(node, type_)
 
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code_attribute(node, value_type)
@@ -628,7 +628,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
-                assert type_ is not None  # mypy hint
                 self.visit(node.left, type_)
                 rlen = len(node.right.elements)
                 self.visit(node.right, SArrayT(type_, rlen))
@@ -656,7 +655,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         assert isinstance(type_, (SArrayT, DArrayT))
         node._metadata["type"] = type_
         for element in node.elements:
-            self.visit(element, type_.value_type)  # type: ignore[union-attr]
+            self.visit(element, type_.value_type)
 
     def visit_Name(self, node, type_):
         if self.func.mutability == StateMutability.PURE:
@@ -700,7 +699,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             return
 
         assert isinstance(type_, TupleT)
-        for element, subtype in zip(node.elements, type_.member_types):  # type: ignore[union-attr]
+        for element, subtype in zip(node.elements, type_.member_types):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: VyperType) -> None:
