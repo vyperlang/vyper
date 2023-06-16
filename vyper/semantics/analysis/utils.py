@@ -536,6 +536,7 @@ def validate_expected_type(node, expected_type):
     None
     """
     given_types = _ExprAnalyser().get_possible_types_from_node(node)
+
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 
