@@ -653,7 +653,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_List(self, node: vy_ast.List, type_: VyperType) -> None:
         assert isinstance(type_, (SArrayT, DArrayT))
-        node._metadata["type"] = type_
         for element in node.elements:
             self.visit(element, type_.value_type)
 
