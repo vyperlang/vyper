@@ -1,12 +1,26 @@
+class IRDebugInfo:
+    line_no: int
+    src: str
+
+    def __init__(self, line_no, src) -> None:
+        self.line_no = line_no
+        self.src = src
+
+    def __repr__(self) -> str:
+        return f"# {self.line_no} {self.src}"
+
+
 class IRInstruction:
     opcode: str
     operands: list
     ret: str
+    dbg: IRDebugInfo
 
-    def __init__(self, opcode, operands, ret=None) -> None:
+    def __init__(self, opcode: str, operands: list, ret=None, dbg: IRDebugInfo = None) -> None:
         self.opcode = opcode
         self.operands = operands
         self.ret = ret
+        self.dbg = dbg
 
     def __repr__(self) -> str:
         s = ""
@@ -14,6 +28,8 @@ class IRInstruction:
             s += f"{self.ret} = "
         s += f"{self.opcode} "
         operands = ", ".join([str(op) for op in self.operands])
+        if self.dbg:
+            return s + operands + f" {self.dbg}"
         return s + operands
 
 
