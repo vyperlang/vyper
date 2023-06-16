@@ -306,15 +306,16 @@ class _ExprAnalyser:
     def types_from_List(self, node):
         # literal array
         if _is_empty_list(node):
-            # empty list literal `[]`
             ret = []
 
-            if len(node.elements) > 0 and all(_is_empty_list(e) for e in node.elements):
+            if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
                 subtypes = self.types_from_List(node.elements[0])
             else:
-                subtypes = types.PRIMITIVE_TYPES.values()
+                # empty list literal `[]`
                 # subtype can be anything
+                subtypes = types.PRIMITIVE_TYPES.values()
+                
             for t in subtypes:
                 # 1 is minimum possible length for dynarray,
                 # can be assigned to anything
