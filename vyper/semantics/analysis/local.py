@@ -442,7 +442,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         for_loop_exceptions = []
         iter_name = node.target.id
-        iter_type = None
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
@@ -467,8 +466,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # success -- bail out instead of error handling.
                     iter_type = type_
                     break
-
-        if iter_type is None:
+                    
+        else:
             if len(set(str(i) for i in for_loop_exceptions)) == 1:
                 # if every attempt at type checking raised the same exception
                 raise for_loop_exceptions[0]
