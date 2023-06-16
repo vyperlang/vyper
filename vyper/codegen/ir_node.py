@@ -451,7 +451,7 @@ class IRnode:
             return OKMAGENTA + val + ENDC
         return val
 
-    def repr(self) -> str:
+    def __repr__(self) -> str:
         if not len(self.args):
             if self.annotation:
                 return f"{self.repr_value} " + OKLIGHTBLUE + f"<{self.annotation}>" + ENDC
@@ -463,6 +463,8 @@ class IRnode:
         o = ""
         if self.annotation:
             o += f"/* {self.annotation} */ \n"
+        if self.source_pos:
+            o += f"/* POS {self.source_pos} */ "
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
@@ -477,7 +479,7 @@ class IRnode:
                 o += f"# Line {(arg_lineno)}\n  "
                 prev_lineno = arg_lineno
                 annotated = True
-            arg_repr = arg.repr()
+            arg_repr = repr(arg)
             if "\n" in arg_repr:
                 has_inner_newlines = True
             sub = arg_repr.replace("\n", "\n  ").strip(" ")
@@ -493,9 +495,6 @@ class IRnode:
             return output_on_one_line
         else:
             return output
-
-    def __repr__(self):
-        return self.repr()
 
     @classmethod
     def from_list(

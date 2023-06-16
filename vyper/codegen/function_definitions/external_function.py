@@ -68,7 +68,6 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
     #    copy calldata args to memory
     #    write default args to memory
     #    goto external_function_common_ir
-
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
@@ -201,22 +200,25 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     if context.return_type is not None:
         exit_sequence_args += ["ret_ofst", "ret_len"]
     # wrap the exit in a labeled block
-    exit = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
+    exit_ = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_ir = IRnode.from_list(["seq", body, exit], source_pos=getpos(code))
+    func_common_ir = IRnode.from_list(["seq", body, exit_], source_pos=getpos(code))
 
     if func_t.is_fallback or func_t.is_constructor:
         ret = ["seq"]
         # add a goto to make the function entry look like other functions
         # (for zksync interpreter)
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
-        ret.append(func_common_ir)
+        ret.append(IRnode.from_list(func_common_ir, source_pos=getpos(code)))
     else:
         ret = kwarg_handlers
         # sneak the base code into the kwarg handler
         # TODO rethink this / make it clearer
         ret[-1][-1].append(func_common_ir)
+        # annotate the first node in the function as soon as we have validated
+        # the method id.
+        ret[-1][2] = IRnode.from_list(ret[-1][2], source_pos=getpos(code))
 
     return IRnode.from_list(ret)
