@@ -395,12 +395,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
             type_list = get_possible_types_from_node(node.iter)
-            if isinstance(node.iter, vy_ast.List) and any(isinstance(e, vy_ast.List) for e in node.iter.elements):
-                type_list = [
-                    i
-                    for i in type_list
-                    if isinstance(i, (DArrayT, SArrayT))
-                ]
+            if isinstance(node.iter, vy_ast.List) and any(
+                isinstance(e, vy_ast.List) for e in node.iter.elements
+            ):
+                type_list = [i for i in type_list if isinstance(i, (DArrayT, SArrayT))]
             else:
                 type_list = [i.value_type for i in type_list if isinstance(i, (DArrayT, SArrayT))]
 
@@ -568,7 +566,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit(self, node, type_):
         # XXX: does the visitor function ever choose some type that is different from type_?
         # if it does, we need to be smarter here:
-        #node._metadata["type"] = type_
+        # node._metadata["type"] = type_
 
         super().visit(node, type_)
 
@@ -600,8 +598,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit_Call(self, node: vy_ast.Call, type_: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
         # hmm...
-        node_type = type_ 
-        #or call_type.fetch_call_return(node)
+        node_type = type_
+        # or call_type.fetch_call_return(node)
         node._metadata["type"] = node_type
         self.visit(node.func, call_type)
 
@@ -735,7 +733,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_IfExp(self, node: vy_ast.IfExp, type_: VyperType) -> None:
         node._metadata["type"] = type_
-        
+
         self.visit(node.test, BoolT())
         self.visit(node.body, type_)
         self.visit(node.orelse, type_)
