@@ -308,8 +308,14 @@ class _ExprAnalyser:
         if _is_empty_list(node):
             # empty list literal `[]`
             ret = []
-            # subtype can be anything
-            for t in types.PRIMITIVE_TYPES.values():
+
+            if len(node.elements) > 0 and all(_is_empty_list(e) for e in node.elements):
+                # empty nested list literals `[[], []]`
+                subtypes = self.types_from_List(node.elements[0])
+            else:
+                subtypes = types.PRIMITIVE_TYPES.values()
+                # subtype can be anything
+            for t in subtypes:
                 # 1 is minimum possible length for dynarray,
                 # can be assigned to anything
                 if isinstance(t, VyperType):
@@ -529,7 +535,6 @@ def validate_expected_type(node, expected_type):
     None
     """
     given_types = _ExprAnalyser().get_possible_types_from_node(node)
-
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 
