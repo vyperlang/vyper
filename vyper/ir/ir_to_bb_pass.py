@@ -12,6 +12,16 @@ def convert_ir_basicblock(ctx: GlobalContext, ir):
     _convert_ir_basicblock(global_function, ir)
     return global_function
 
+def _convert_binary_op(ctx: IRFunction, ir):
+    arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
+    arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
+    args = [arg_0, arg_1]
+
+    ret = ctx.get_next_variable()
+
+    inst = IRInstruction(ir.value, args, ret)
+    ctx.get_basic_block().append_instruction(inst)
+    return ret
 
 def _convert_ir_basicblock(ctx: IRFunction, ir):
     if ir.value == "deploy":
@@ -34,74 +44,15 @@ def _convert_ir_basicblock(ctx: IRFunction, ir):
         ctx.get_basic_block().append_instruction(inst)
 
         _convert_ir_basicblock(ctx, ir.args[2])  # body
-    elif ir.value == "le":
-        # args = []
-        # for arg in ir.args:
-        #     if isinstance(arg, str) and arg not in _symbols:
-        #         _symbols[arg] = ctx.get_next_label()
-        #         args.append(_symbols[arg])
-        #     else:
-        #         args.append(arg)
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
-        args = [arg_0, arg_1]
-
-        ret = ctx.get_next_variable()
-
-        inst = IRInstruction("le", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
-    elif ir.value == "ge":
-        # args = []
-        # for arg in ir.args:
-        #     if isinstance(arg, str) and arg not in _symbols:
-        #         _symbols[arg] = ctx.get_next_label()
-        #         args.append(_symbols[arg])
-        #     else:
-        #         args.append(arg)
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
-        args = [arg_0, arg_1]
-
-        ret = ctx.get_next_variable()
-
-        inst = IRInstruction("ge", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+    elif ir.value in ["le", "ge", "shr", "xor"]:
+        return _convert_binary_op(ctx, ir)
     elif ir.value == "iszero":
-        # args = []
-        # for arg in ir.args:
-        #     if isinstance(arg, str) and arg not in _symbols:
-        #         _symbols[arg] = ctx.get_next_label()
-        #         args.append(_symbols[arg])
-        #     else:
-        #         args.append(arg)
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
         args = [arg_0]
 
         ret = ctx.get_next_variable()
 
         inst = IRInstruction("iszero", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
-    elif ir.value == "shr":
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
-        args = [arg_0, arg_1]
-
-        ret = ctx.get_next_variable()
-
-        inst = IRInstruction("shr", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
-    elif ir.value == "xor":
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
-        args = [arg_0, arg_1]
-
-        ret = ctx.get_next_variable()
-
-        inst = IRInstruction("xor", args, ret)
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "goto":
