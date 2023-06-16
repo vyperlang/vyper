@@ -555,11 +555,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
-    # XXX: type_ should probably never be None
     def visit(self, node, type_):
-        # XXX: does the visitor function ever choose some type that is different from type_?
-        # if it does, we need to be smarter here:
-        # node._metadata["type"] = type_
+        node._metadata["type"] = type_
 
         super().visit(node, type_)
 
@@ -575,23 +572,18 @@ class _ExprVisitor(VyperNodeVisitorBase):
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code_attribute(node, value_type)
 
-        node._metadata["type"] = type_
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, type_: VyperType) -> None:
-        node._metadata["type"] = type_
-
         self.visit(node.left, type_)
         self.visit(node.right, type_)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, type_: VyperType) -> None:
-        node._metadata["type"] = type_
         for value in node.values:
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, type_: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
-        node._metadata["type"] = type_
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -629,7 +621,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node: vy_ast.Compare, type_: VyperType) -> None:
-        node._metadata["type"] = type_
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
@@ -652,10 +643,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, type_)
 
     def visit_Constant(self, node, type_):
-        node._metadata["type"] = type_
+        pass
 
     def visit_Index(self, node: vy_ast.Index, type_: VyperType) -> None:
-        node._metadata["type"] = type_
         self.visit(node.value, type_)
 
     def visit_List(self, node: vy_ast.List, type_: VyperType) -> None:
@@ -668,11 +658,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
-        node._metadata["type"] = type_
-
     def visit_Subscript(self, node: vy_ast.Subscript, type_: VyperType) -> None:
-        node._metadata["type"] = type_
-
         if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -705,8 +691,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, type_: VyperType) -> None:
-        node._metadata["type"] = type_
-
         if isinstance(type_, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -716,13 +700,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, type_: VyperType) -> None:
-        node._metadata["type"] = type_
-
         self.visit(node.operand, type_)
 
     def visit_IfExp(self, node: vy_ast.IfExp, type_: VyperType) -> None:
-        node._metadata["type"] = type_
-
         self.visit(node.test, BoolT())
         self.visit(node.body, type_)
         self.visit(node.orelse, type_)
