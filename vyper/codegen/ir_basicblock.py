@@ -1,18 +1,20 @@
 class IRInstruction:
     opcode: str
     operands: list
+    ret: str
 
-    def __init__(self, opcode, operands) -> None:
+    def __init__(self, opcode, operands, ret=None) -> None:
         self.opcode = opcode
         self.operands = operands
+        self.ret = ret
 
     def __repr__(self) -> str:
-        str = f"{self.opcode} "
-        for operand in self.operands:
-            str += f"{operand}"
-            if self.operands[-1] != operand:
-                str += ", "
-        return str
+        s = ""
+        if self.ret:
+            s += f"{self.ret} = "
+        s += f"{self.opcode} "
+        operands = ", ".join([str(op) for op in self.operands])
+        return s + operands
 
 
 class IRBasicBlock:
