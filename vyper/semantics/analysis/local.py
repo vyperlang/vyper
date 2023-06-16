@@ -585,15 +585,13 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.right, type_)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, type_: VyperType) -> None:
+        node._metadata["type"] = type_
         for value in node.values:
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, type_: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
-        # hmm...
-        node_type = type_
-        # or call_type.fetch_call_return(node)
-        node._metadata["type"] = node_type
+        node._metadata["type"] = type_
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -631,6 +629,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
     def visit_Compare(self, node: vy_ast.Compare, type_: VyperType) -> None:
+        node._metadata["type"] = type_
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
                 type_ = get_common_types(node.left, *node.right.elements).pop()
@@ -656,6 +655,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         node._metadata["type"] = type_
 
     def visit_Index(self, node: vy_ast.Index, type_: VyperType) -> None:
+        node._metadata["type"] = type_
         self.visit(node.value, type_)
 
     def visit_List(self, node: vy_ast.List, type_: VyperType) -> None:
@@ -668,11 +668,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
-        # whoa ..
-        if isinstance(type_, TYPE_T):
-            node._metadata["type"] = type_
-        else:
-            node._metadata["type"] = get_exact_type_from_node(node)
+        node._metadata["type"] = type_
 
     def visit_Subscript(self, node: vy_ast.Subscript, type_: VyperType) -> None:
         node._metadata["type"] = type_
