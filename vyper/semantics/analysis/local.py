@@ -628,7 +628,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 self.visit(node.right, SArrayT(cmp_type, rlen))
             else:
                 cmp_type = get_exact_type_from_node(node.right)
-                self.visit(node.right, type_)
+                self.visit(node.right, cmp_type)
                 if isinstance(cmp_type, EnumT):
                     self.visit(node.left, cmp_type)
                 else:
