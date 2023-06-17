@@ -1,3 +1,9 @@
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vyper.codegen.ir_function import IRFunction
+
+
 class IRDebugInfo:
     """
     IRDebugInfo represents debug information in IR, used to annotate IR instructions
@@ -7,7 +13,7 @@ class IRDebugInfo:
     line_no: int
     src: str
 
-    def __init__(self, line_no, src) -> None:
+    def __init__(self, line_no: int, src: str) -> None:
         self.line_no = line_no
         self.src = src
 
@@ -26,10 +32,10 @@ class IRInstruction:
 
     opcode: str
     operands: list
-    ret: str
-    dbg: IRDebugInfo
+    ret: Optional[str]
+    dbg: Optional[IRDebugInfo]
 
-    def __init__(self, opcode: str, operands: list, ret=None, dbg: IRDebugInfo = None) -> None:
+    def __init__(self, opcode: str, operands: list, ret: str = None, dbg: IRDebugInfo = None):
         self.opcode = opcode
         self.operands = operands
         self.ret = ret
@@ -70,15 +76,15 @@ class IRBasicBlock:
     """
 
     label: str
-    parent: any  # IRFunction
+    parent: "IRFunction"
     instructions: list[IRInstruction]
 
-    def __init__(self, label, parent) -> None:
+    def __init__(self, label: str, parent: "IRFunction") -> None:
         self.label = label
         self.parent = parent
         self.instructions = []
 
-    def append_instruction(self, instruction):
+    def append_instruction(self, instruction: IRInstruction) -> None:
         self.instructions.append(instruction)
 
     def __repr__(self) -> str:

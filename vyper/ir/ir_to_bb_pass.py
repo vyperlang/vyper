@@ -1,3 +1,4 @@
+from typing import Optional, Union
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_function import IRFunction, IRFunctionIntrinsic
@@ -8,25 +9,25 @@ from vyper.evm.opcodes import get_opcodes
 _symbols = {}
 
 
-def convert_ir_basicblock(ctx: GlobalContext, ir):
+def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     global_function = IRFunction("global")
     _convert_ir_basicblock(global_function, ir)
     return global_function
 
 
-def _convert_binary_op(ctx: IRFunction, ir):
+def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
     arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
     arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
     args = [arg_0, arg_1]
 
     ret = ctx.get_next_variable()
 
-    inst = IRInstruction(ir.value, args, ret)
+    inst = IRInstruction(str(ir.value), args, ret)
     ctx.get_basic_block().append_instruction(inst)
     return ret
 
 
-def _convert_ir_basicblock(ctx: IRFunction, ir):
+def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, int]]:
     if ir.value == "deploy":
         _convert_ir_basicblock(ctx, ir.args[1])
     elif ir.value == "seq":
@@ -42,12 +43,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir):
         sym = ir.args[0]
         # FIXME: How do I validate that the IR is indeed a symbol?
         _symbols[sym.value] = ctx.get_next_variable()
-
+        first_pos = ir.source_pos[0] if ir.source_pos else None
         inst = IRInstruction(
             "load",
             [_symbols[sym.value], ret],
             None,
-            IRDebugInfo(ir.source_pos, f"symbol: {sym.value}"),
+            IRDebugInfo(first_pos or 0, f"symbol: {sym.value}"),
         )
         ctx.get_basic_block().append_instruction(inst)
 
@@ -93,7 +94,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir):
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "label":
-        label = ir.args[0]
+        label = str(ir.args[0].value)
         bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2])
@@ -108,8 +109,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir):
         new_var = ctx.get_next_variable()
         _symbols[f"&{sym.value}"] = new_var
         assert ir.args[1].is_literal, "mstore expects a literal as second argument"
+        first_pos = ir.source_pos[0] if ir.source_pos else None
         inst = IRInstruction(
-            "load", [new_var, ir.args[1].value], None, IRDebugInfo(ir.source_pos[0], ir.annotation)
+            "load",
+            [new_var, ir.args[1].value],
+            None,
+            IRDebugInfo(first_pos or 0, ir.annotation or ""),
         )
         ctx.get_basic_block().append_instruction(inst)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
@@ -121,9 +126,11 @@ def _convert_ir_basicblock(ctx: IRFunction, ir):
     else:
         raise Exception(f"Unknown IR node: {ir}")
 
+    return None
 
-def _convert_ir_opcode(ctx: IRFunction, ir: IRnode):
-    opcode = ir.value.upper()
+
+def _convert_ir_opcode(ctx: IRFunction, ir: IRnode) -> None:
+    opcode = str(ir.value).upper()
     for arg in ir.args:
         if isinstance(arg, IRnode):
             _convert_ir_basicblock(ctx, arg)

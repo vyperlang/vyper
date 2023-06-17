@@ -1,3 +1,4 @@
+from typing import Optional
 from vyper.codegen.ir_basicblock import IRBasicBlock
 
 
@@ -9,7 +10,7 @@ class IRFunctionBase:
     name: str  # symbol name
     args: list
 
-    def __init__(self, name, args=[]) -> None:
+    def __init__(self, name: str, args: list = []) -> None:
         self.name = name
         self.args = args
 
@@ -23,7 +24,7 @@ class IRFunction(IRFunctionBase):
     last_label: int
     last_variable: int
 
-    def __init__(self, name) -> None:
+    def __init__(self, name: str) -> None:
         super().__init__(name)
         self.basic_blocks = []
         self.last_label = 0
@@ -31,14 +32,14 @@ class IRFunction(IRFunctionBase):
 
         self.append_basic_block(IRBasicBlock(name, self))
 
-    def append_basic_block(self, bb):
+    def append_basic_block(self, bb: IRBasicBlock) -> None:
         """
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
         self.basic_blocks.append(bb)
 
-    def get_basic_block(self, label=None) -> IRBasicBlock:
+    def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
         If label is None, return the last basic block.
@@ -48,7 +49,7 @@ class IRFunction(IRFunctionBase):
         for bb in self.basic_blocks:
             if bb.label == label:
                 return bb
-        return None
+        assert False, f"Basic block '{label}' not found"
 
     def get_next_label(self) -> str:
         self.last_label += 1
