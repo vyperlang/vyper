@@ -641,7 +641,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.left, type_)
             self.visit(node.right, type_)
 
-    def visit_Constant(self, node, type_):
+    def visit_Constant(self, node: vy_ast.Constant, type_: VyperType) -> None:
         pass
 
     def visit_Index(self, node: vy_ast.Index, type_: VyperType) -> None:
@@ -652,7 +652,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         for element in node.elements:
             self.visit(element, type_.value_type)
 
-    def visit_Name(self, node, type_):
+    def visit_Name(self, node: vy_ast.Name, type_: VyperType) -> None:
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
