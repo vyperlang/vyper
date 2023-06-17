@@ -565,7 +565,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability is not StateMutability.PAYABLE:
             _validate_msg_value_access(node)
 
-        type_ = get_exact_type_from_node(node)
         if self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, type_)
 
@@ -623,23 +622,23 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit_Compare(self, node: vy_ast.Compare, type_: VyperType) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if isinstance(node.right, vy_ast.List):
-                type_ = get_common_types(node.left, *node.right.elements).pop()
-                self.visit(node.left, type_)
+                cmp_type = get_common_types(node.left, *node.right.elements).pop()
+                self.visit(node.left, cmp_type)
                 rlen = len(node.right.elements)
-                self.visit(node.right, SArrayT(type_, rlen))
+                self.visit(node.right, SArrayT(cmp_type, rlen))
             else:
-                type_ = get_exact_type_from_node(node.right)
+                cmp_type = get_exact_type_from_node(node.right)
                 self.visit(node.right, type_)
-                if isinstance(type_, EnumT):
-                    self.visit(node.left, type_)
+                if isinstance(cmp_type, EnumT):
+                    self.visit(node.left, cmp_type)
                 else:
                     # array membership
-                    assert isinstance(type_, (SArrayT, DArrayT))
-                    self.visit(node.left, type_.value_type)
+                    assert isinstance(cmp_type, (SArrayT, DArrayT))
+                    self.visit(node.left, cmp_type.value_type)
         else:
-            type_ = get_common_types(node.left, node.right).pop()
-            self.visit(node.left, type_)
-            self.visit(node.right, type_)
+            cmp_type = get_common_types(node.left, node.right).pop()
+            self.visit(node.left, cmp_type)
+            self.visit(node.right, cmp_type)
 
     def visit_Constant(self, node: vy_ast.Constant, type_: VyperType) -> None:
         pass
