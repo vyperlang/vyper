@@ -118,14 +118,14 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             args[0].value = "pass"
         else:
             # handle jump to cleanup
-            assert is_symbol(args[0].value)
             ir_node.value = "seq"
 
             _t = ["seq"]
             if "return_buffer" in label_params:
                 _t.append(["pop", "pass"])
 
-            dest = args[0].value[5:]  # `_sym_foo` -> `foo`
+            dest = args[0].value
+            # works for both internal and external exit_to
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
             ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
