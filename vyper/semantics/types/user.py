@@ -164,6 +164,7 @@ class EventT(_UserType):
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
+        assert len(self.indexed) == len(self.arguments)
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
     # backward compatible
@@ -172,8 +173,13 @@ class EventT(_UserType):
         return self.members
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.arguments.values())
-        return f"event {self.name}({arg_types})"
+        args = []
+        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items()):
+            argtype_str = repr(argtype)
+            if is_indexed:
+                argtype_str = f"indexed({argtype_str})"
+            args.append(f"{argtype_str}")
+        return f"event {self.name}({','.join(args)})"
 
     # TODO rename to abi_signature
     @property
@@ -337,12 +343,12 @@ class InterfaceT(_UserType):
 
         # check for missing events
         for name, event in self.events.items():
-            if (
-                name not in namespace
-                or not isinstance(namespace[name], EventT)
-                or namespace[name].event_id != event.event_id
-            ):
+            if ( name not in namespace):
                 unimplemented.append(name)
+            if not isinstance(namespace[name], EventT):
+                unimplemented.append(f"{name} is not an event!")
+            if namespace[name].event_id != event.event_id or namespace[name].indexed != event.indexed:
+                unimplemented.append(f"{name} is not implemented! (should be {event})")
 
         if len(unimplemented) > 0:
             # TODO: improve the error message for cases where the
