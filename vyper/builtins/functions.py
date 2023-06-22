@@ -814,7 +814,7 @@ class ECAdd(BuiltinFunction):
                 typ=SArrayT(UINT256_T, 2),
                 location=MEMORY,
             )
-            return b2.resolve(b1.resolve(o))
+            return b1.resolve(b2.resolve(o))
 
 
 class ECMul(BuiltinFunction):
@@ -844,7 +844,7 @@ class ECMul(BuiltinFunction):
                 typ=SArrayT(UINT256_T, 2),
                 location=MEMORY,
             )
-            return b2.resolve(b1.resolve(o))
+            return b1.resolve(b2.resolve(o))
 
 
 def _generic_element_getter(op):
@@ -1525,13 +1525,14 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        c = args[2]
-
-        with c.cache_when_complex("c") as (b1, c):
-            ret = IRnode.from_list(
-                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]], typ=UINT256_T
-            )
-            return b1.resolve(ret)
+        x, y, z = args
+        with x.cache_when_complex("x") as (b1, x):
+            with y.cache_when_complex("y") as (b2, y):
+                with z.cache_when_complex("z") as (b3, z):
+                    ret = IRnode.from_list(
+                        ["seq", ["assert", z], [self._opcode, x, y, z]], typ=UINT256_T
+                    )
+                    return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class AddMod(_AddMulMod):
