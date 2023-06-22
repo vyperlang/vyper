@@ -90,6 +90,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 err_list.raise_if_not_empty()
 
         # generate an `InterfaceT` from the top-level node - used for building the ABI
+        # note: also validates unique method ids
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
@@ -105,8 +106,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # internal functions are intentionally included in this check, to prevent breaking
         # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
-        functions = [i for i in self_members.values() if isinstance(i, ContractFunctionT)]
-        validate_unique_method_ids(functions)
 
         # get list of internal function calls made by each function
         function_defs = self.ast.get_children(vy_ast.FunctionDef)
