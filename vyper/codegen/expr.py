@@ -368,13 +368,18 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
+        is_shift_op = isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift))
+
+        if is_shift_op:
+            assert is_numeric_type(left.typ)
+            assert is_numeric_type(right.typ)
+        else:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
+            assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
-        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         out_typ = left.typ
 
