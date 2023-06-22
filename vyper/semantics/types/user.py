@@ -313,11 +313,11 @@ class InterfaceT(_UserType):
 
         def _is_function_implemented(fn_name, fn_type):
             vyper_self = namespace["self"].typ
-            if name not in vyper_self.members:
+            if fn_name not in vyper_self.members:
                 return False
-            s = vyper_self.members[name]
+            s = vyper_self.members[fn_name]
             if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.members[name]
+                to_compare = vyper_self.members[fn_name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
                 to_compare = s.decl_node._metadata["func_type"]
