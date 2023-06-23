@@ -585,11 +585,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
         validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
 
+        rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
-            typ = get_possible_types_from_node(node.right).pop()
+            rtyp = get_possible_types_from_node(node.right).pop()
 
-        validate_expected_type(node.right, typ)
-        self.visit(node.right, typ)
+        validate_expected_type(node.right, rtyp)
+        self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
         assert typ == BoolT()  # sanity check
