@@ -47,6 +47,7 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
+    _BytestringT,
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
@@ -646,44 +647,42 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # membership in list literal - `x in [a, b, c]`
             if isinstance(node.right, vy_ast.List):
-                cmp_type = get_common_types(node.left, *node.right.elements).pop()
-                ltyp = cmp_type
+                cmp_typ = get_common_types(node.left, *node.right.elements).pop()
+                ltyp = cmp_typ
 
                 rlen = len(node.right.elements)
-                rtyp = SArrayT(cmp_type, rlen)
+                rtyp = SArrayT(cmp_typ, rlen)
                 validate_expected_type(node.right, rtyp)
                 self.visit(node.right, rtyp)
             else:
-                cmp_type = get_exact_type_from_node(node.right)
-                self.visit(node.right, cmp_type)
-                if isinstance(cmp_type, EnumT):
+                cmp_typ = get_exact_type_from_node(node.right)
+                self.visit(node.right, cmp_typ)
+                if isinstance(cmp_typ, EnumT):
                     # enum membership - `some_enum in other_enum`
-                    ltyp = cmp_type
+                    ltyp = cmp_typ
                 else:
                     # array membership - `x in my_list_variable`
-                    assert isinstance(cmp_type, (SArrayT, DArrayT))
-                    ltyp = cmp_type.value_type
+                    assert isinstance(cmp_typ, (SArrayT, DArrayT))
+                    ltyp = cmp_typ.value_type
 
             validate_expected_type(node.left, ltyp)
             self.visit(node.left, ltyp)
 
         else:
             # ex. a < b
-            possible_types = get_common_types(node.left, node.right)
-            cmp_typ = possible_types[0]
-            for typ in possible_types:
-                try:
-                    validate_expected_type(node.left, typ)
-                    validate_expected_type(node.right, typ)
-                    cmp_typ = typ
-                    break
-                except TypeMismatch:
-                    continue
-            else:
-                raise TypeCheckFailure("No possible common types", node)
+            cmp_typ = get_common_types(node.left, node.right).pop()
+            if isinstance(cmp_typ, _BytestringT):
+                # for bytestrings, do not downcast to the smaller common type
+                ltyp = get_exact_type_from_node(node.left)
+                rtyp = get_exact_type_from_node(node.right)
 
-            self.visit(node.left, cmp_typ)
-            self.visit(node.right, cmp_typ)
+            else:
+                ltyp = rtyp = cmp_typ
+                validate_expected_type(node.left, ltyp)
+                validate_expected_type(node.right, rtyp)
+
+            self.visit(node.left, ltyp)
+            self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         validate_expected_type(node, typ)
