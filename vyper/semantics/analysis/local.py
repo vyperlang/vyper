@@ -570,7 +570,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             _validate_msg_value_access(node)
 
         if self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node, self.func)
+            _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
         _validate_address_code(node, value_type)
