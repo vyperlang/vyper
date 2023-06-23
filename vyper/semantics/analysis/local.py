@@ -664,15 +664,27 @@ class _ExprVisitor(VyperNodeVisitorBase):
                     assert isinstance(cmp_type, (SArrayT, DArrayT))
                     ltyp = cmp_type.value_type
 
+            validate_expected_type(node.left, ltyp)
+            self.visit(node.left, ltyp)
+
         else:
             # ex. a < b
-            cmp_type = get_common_types(node.left, node.right).pop()
-            ltyp = cmp_type
-            validate_expected_type(node.right, cmp_type)
-            self.visit(node.right, cmp_type)
+            possible_types = get_common_types(node.left, node.right)
+            cmp_typ = possible_types[0]
+            for typ in possible_types:
+                try:
+                    validate_expected_type(node.left, typ)
+                    validate_expected_type(node.right, typ)
+                    cmp_typ = typ
+                    break
+                except TypeMismatch:
+                    continue
+                else:
+                    # this should have been caught in `get_common_types` but wasn't.
+                    raise TypeCheckFailure("No possible common types", node)
 
-        validate_expected_type(node.left, ltyp)
-        self.visit(node.left, ltyp)
+            self.visit(node.left, cmp_typ)
+            self.visit(node.right, cmp_typ)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         validate_expected_type(node, typ)
