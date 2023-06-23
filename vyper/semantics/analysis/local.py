@@ -557,11 +557,14 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
+        # recurse and typecheck in case we are being fed the wrong type for some reason.
+        # note that `validate_expected_type` is unnecessary for nodes that already
+        # rely on `get_exact_type_from_node` in `_ExprVisitor` because it would simply
+        # repeat the same call.
+        super().visit(node, typ)
+
         # annotate
         node._metadata["type"] = typ
-
-        # recurse
-        super().visit(node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
@@ -578,12 +581,16 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: VyperType) -> None:
+        validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
+
+        validate_expected_type(node.right, typ)
         self.visit(node.right, typ)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
         assert typ == BoolT()  # sanity check
         for value in node.values:
+            validate_expected_type(value, BoolT())
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
@@ -595,28 +602,36 @@ class _ExprVisitor(VyperNodeVisitorBase):
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
+                validate_expected_type(arg, typ)
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                self.visit(kwarg.value, call_type.call_site_kwargs[kwarg.arg].typ)
+                typ = call_type.call_site_kwargs[kwarg.arg].typ
+                validate_expected_type(kwarg.value, typ)
+                self.visit(kwarg.value, typ)
 
         elif is_type_t(call_type, EventT):
             # events have no kwargs
             expected_types = call_type.typedef.arguments.values()
             for arg, typ in zip(node.args, expected_types):
+                validate_expected_type(arg, typ)
                 self.visit(arg, typ)
         elif is_type_t(call_type, StructT):
             # struct ctors
             # ctors have no kwargs
             expected_types = call_type.typedef.members.values()
             for value, arg_type in zip(node.args[0].values, expected_types):
+                validate_expected_type(value, arg_type)
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
+                validate_expected_type(arg, arg_type)
                 self.visit(arg, arg_type)
         else:
             # builtin functions
+            # skip `validate_expected_type` since typechecking is performed in
+            # by `infer_arg_types`
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
@@ -629,34 +644,44 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # membership in list literal - `x in [a, b, c]`
             if isinstance(node.right, vy_ast.List):
                 cmp_type = get_common_types(node.left, *node.right.elements).pop()
-                self.visit(node.left, cmp_type)
+                ltyp = cmp_type
+
                 rlen = len(node.right.elements)
-                self.visit(node.right, SArrayT(cmp_type, rlen))
+                rtyp = SArrayT(cmp_type, rlen)
+                validate_expected_type(node.right, rtyp)
+                self.visit(node.right, rtyp)
             else:
                 cmp_type = get_exact_type_from_node(node.right)
                 self.visit(node.right, cmp_type)
                 if isinstance(cmp_type, EnumT):
                     # enum membership - `some_enum in other_enum`
-                    self.visit(node.left, cmp_type)
+                    ltyp = cmp_type
                 else:
                     # array membership - `x in my_list_variable`
                     assert isinstance(cmp_type, (SArrayT, DArrayT))
-                    self.visit(node.left, cmp_type.value_type)
+                    ltyp = cmp_type.value_type
+
         else:
             # ex. a < b
             cmp_type = get_common_types(node.left, node.right).pop()
-            self.visit(node.left, cmp_type)
+            ltyp = cmp_type
+            validate_expected_type(node.right, cmp_type)
             self.visit(node.right, cmp_type)
 
+        validate_expected_type(node.left, ltyp)
+        self.visit(node.left, ltyp)
+
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        pass
+        validate_expected_type(node, typ)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
+        validate_expected_type(node.value, typ)
         self.visit(node.value, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
+            validate_expected_type(element, typ.value_type)
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
@@ -674,6 +699,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for possible_type in possible_base_types:
                 if typ.compare_type(possible_type.value_type):
                     base_type = possible_type
+                    validate_expected_type(node.value, base_type)
                     break
             else:
                 # this should have been caught in
@@ -688,6 +714,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         index_types = get_possible_types_from_node(node.slice.value)
         index_type = index_types.pop()
 
+        base_type.validate_index_type(node.slice.value)
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
@@ -698,12 +725,17 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         assert isinstance(typ, TupleT)
         for element, subtype in zip(node.elements, typ.member_types):
+            validate_expected_type(element, subtype)
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
+        validate_expected_type(node.operand, typ)
         self.visit(node.operand, typ)
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
+        validate_expected_type(node.test, BoolT())
         self.visit(node.test, BoolT())
+        validate_expected_type(node.body, typ)
         self.visit(node.body, typ)
+        validate_expected_type(node.orelse, typ)
         self.visit(node.orelse, typ)
