@@ -557,9 +557,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        # typecheck (in case we are being fed the wrong type for some reason)
-        validate_expected_type(node, typ)
-
         # annotate
         node._metadata["type"] = typ
 
