@@ -702,10 +702,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             _validate_self_reference(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
-        if isinstance(typ, TYPE_T):
-            # don't recurse; can't annotate AST children of type definition
-            return
-
         if isinstance(node.value, vy_ast.List):
             possible_base_types = get_possible_types_from_node(node.value)
 
@@ -727,15 +723,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
         index_types = get_possible_types_from_node(node.slice.value)
         index_type = index_types.pop()
 
+        # TODO: is this a duplicate?
         base_type.validate_index_type(node.slice.value)
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
-        if isinstance(typ, TYPE_T):
-            # don't recurse; can't annotate AST children of type definition
-            return
-
         assert isinstance(typ, TupleT)
         for element, subtype in zip(node.elements, typ.member_types):
             validate_expected_type(element, subtype)
