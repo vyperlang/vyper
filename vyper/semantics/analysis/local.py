@@ -581,8 +581,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: VyperType) -> None:
+        print("visit_BinOp - type: ", typ)
         validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
+
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            typ = get_possible_types_from_node(node.right).pop()
 
         validate_expected_type(node.right, typ)
         self.visit(node.right, typ)
