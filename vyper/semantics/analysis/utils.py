@@ -24,7 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode
+from vyper.utils import checksum_encode, int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -593,8 +593,9 @@ def validate_unique_method_ids(functions: List) -> None:
     seen = set()
     for method_id in method_ids:
         if method_id in seen:
-            collision_str = ", ".join(i.name for i in functions if method_id in i.method_ids)
-            raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+            collision_str = ", ".join(x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == method_id)
+            collision_hex = int_to_fourbytes(method_id).hex()
+            raise StructureException(f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}")
         seen.add(method_id)
 
 
