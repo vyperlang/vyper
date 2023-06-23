@@ -727,7 +727,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         index_types = get_possible_types_from_node(node.slice.value)
         index_type = index_types.pop()
 
-        base_type.validate_index_type(node.slice.value)
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
