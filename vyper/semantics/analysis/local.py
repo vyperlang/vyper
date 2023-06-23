@@ -679,9 +679,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
                     break
                 except TypeMismatch:
                     continue
-                else:
-                    # this should have been caught in `get_common_types` but wasn't.
-                    raise TypeCheckFailure("No possible common types", node)
+            else:
+                raise TypeCheckFailure("No possible common types", node)
 
             self.visit(node.left, cmp_typ)
             self.visit(node.right, cmp_typ)
