@@ -467,6 +467,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     self.expr_visitor.visit(node.target, typ)
 
                     if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+                        typ = get_exact_type_from_node(node.iter)
                         self.expr_visitor.visit(node.iter, typ)
                     if isinstance(node.iter, vy_ast.List):
                         len_ = len(node.iter.elements)
@@ -602,7 +603,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
         # except for builtin functions, `get_exact_type_from_node`
-        # already calls `validate_expected_type` on the call args 
+        # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
         self.visit(node.func, call_type)
 
@@ -699,6 +700,11 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
+
+        if isinstance(typ, TYPE_T):
+            return
+
+        validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
