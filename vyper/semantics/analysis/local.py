@@ -590,7 +590,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             rtyp = get_possible_types_from_node(node.right).pop()
         else:
             validate_expected_type(node.right, rtyp)
-        
+
         self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
@@ -603,7 +603,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         call_type = get_exact_type_from_node(node.func)
         # except for builtin functios, `get_exact_type_from_node`
         # already calls `validate_expected_type` via
-        # `call_type.fetch_call_return` 
+        # `call_type.fetch_call_return`
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
