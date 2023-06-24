@@ -560,7 +560,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit(self, node, typ):
         # recurse and typecheck in case we are being fed the wrong type for some reason.
         # note that `validate_expected_type` is unnecessary for nodes that already
-        # rely on `get_exact_type_from_node` and `get_possible_types_from_node` because
+        # call `get_exact_type_from_node` and `get_possible_types_from_node` because
         # `validate_expected_type` would be calling the same function again.
         super().visit(node, typ)
 
@@ -601,9 +601,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
-        # except for builtin functios, `get_exact_type_from_node`
-        # already calls `validate_expected_type` via
-        # `call_type.fetch_call_return`
+        # except for builtin functions, `get_exact_type_from_node`
+        # already calls `validate_expected_type` on the call args 
+        # and kwargs via `call_type.fetch_call_return`
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
