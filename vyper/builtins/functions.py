@@ -475,6 +475,12 @@ class Len(BuiltinFunction):
 
         return vy_ast.Int.from_node(node, value=length)
 
+    def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+        # return a concrete type
+        typ = get_possible_types_from_node(node.args[0]).pop()
+        return [typ]
+
     def build_IR(self, node, context):
         arg = Expr(node.args[0], context).ir_node
         if arg.value == "~calldata":
