@@ -560,8 +560,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit(self, node, typ):
         # recurse and typecheck in case we are being fed the wrong type for some reason.
         # note that `validate_expected_type` is unnecessary for nodes that already
-        # rely on `get_exact_type_from_node` in `_ExprVisitor` because it would simply
-        # repeat the same call.
+        # rely on `get_exact_type_from_node` and `get_possible_types_from_node` because
+        # `validate_expected_type` would be calling the same function again.
         super().visit(node, typ)
 
         # annotate
@@ -588,8 +588,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
         rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
             rtyp = get_possible_types_from_node(node.right).pop()
-
-        validate_expected_type(node.right, rtyp)
+        else:
+            validate_expected_type(node.right, rtyp)
+        
         self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
@@ -600,6 +601,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
+        # except for builtin functios, `get_exact_type_from_node`
+        # already calls `validate_expected_type` via
+        # `call_type.fetch_call_return` 
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -607,36 +611,31 @@ class _ExprVisitor(VyperNodeVisitorBase):
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
-                validate_expected_type(arg, typ)
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 typ = call_type.call_site_kwargs[kwarg.arg].typ
-                validate_expected_type(kwarg.value, typ)
                 self.visit(kwarg.value, typ)
 
         elif is_type_t(call_type, EventT):
             # events have no kwargs
             expected_types = call_type.typedef.arguments.values()
             for arg, typ in zip(node.args, expected_types):
-                validate_expected_type(arg, typ)
                 self.visit(arg, typ)
         elif is_type_t(call_type, StructT):
             # struct ctors
             # ctors have no kwargs
             expected_types = call_type.typedef.members.values()
             for value, arg_type in zip(node.args[0].values, expected_types):
-                validate_expected_type(value, arg_type)
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
-                validate_expected_type(arg, arg_type)
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            # `infer_arg_Types` also does typechecking
             arg_types = call_type.infer_arg_types(node)
+            # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
@@ -712,7 +711,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for possible_type in possible_base_types:
                 if typ.compare_type(possible_type.value_type):
                     base_type = possible_type
-                    validate_expected_type(node.value, base_type)
                     break
             else:
                 # this should have been caught in
