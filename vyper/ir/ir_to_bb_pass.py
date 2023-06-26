@@ -35,8 +35,36 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
             _convert_ir_basicblock(ctx, ir_node)
     elif ir.value == "if":
         cond = ir.args[0]
-        _convert_ir_basicblock(ctx, cond)
+        current_bb = ctx.get_basic_block()
+        # convert the condition
+        cont_ret = _convert_ir_basicblock(ctx, cond)
+
+        label = ctx.get_next_label()
+        else_block = IRBasicBlock(label, ctx)
+        ctx.append_basic_block(else_block)
+
+        # convert "else"
+        if len(ir.args) == 3:
+            _convert_ir_basicblock(ctx, ir.args[2])
+
+        # convert "then"
+        then_label = ctx.get_next_label()
+        bb = IRBasicBlock(then_label, ctx)
+        ctx.append_basic_block(bb)
+
         _convert_ir_basicblock(ctx, ir.args[1])
+
+        inst = IRInstruction("br", [cont_ret, f"label %{then_label}", f"label %{label}"])
+        current_bb.append_instruction(inst)
+
+        # exit bb
+        exit_label = ctx.get_next_label()
+        bb = IRBasicBlock(exit_label, ctx)
+        bb = ctx.append_basic_block(bb)
+
+        exit_inst = IRInstruction("br", [f"label %{bb.label}"])
+        else_block.append_instruction(exit_inst)
+
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1])  # initialization
 
@@ -65,7 +93,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "goto":
-        inst = IRInstruction("br", ir.args)
+        inst = IRInstruction("br", [f"label %{ir.args[0]}"])
         ctx.get_basic_block().append_instruction(inst)
 
         label = ctx.get_next_label()
