@@ -36,11 +36,11 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
+
         # convert the condition
         cont_ret = _convert_ir_basicblock(ctx, cond)
 
-        label = ctx.get_next_label()
-        else_block = IRBasicBlock(label, ctx)
+        else_block = IRBasicBlock(ctx.get_next_label(), ctx)
         ctx.append_basic_block(else_block)
 
         # convert "else"
@@ -48,13 +48,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
             _convert_ir_basicblock(ctx, ir.args[2])
 
         # convert "then"
-        then_label = ctx.get_next_label()
-        bb = IRBasicBlock(then_label, ctx)
-        ctx.append_basic_block(bb)
+        then_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        ctx.append_basic_block(then_block)
 
         _convert_ir_basicblock(ctx, ir.args[1])
 
-        inst = IRInstruction("br", [cont_ret, f"label %{then_label}", f"label %{label}"])
+        inst = IRInstruction("br", [cont_ret, f"label %{then_block.label}"])
         current_bb.append_instruction(inst)
 
         # exit bb
