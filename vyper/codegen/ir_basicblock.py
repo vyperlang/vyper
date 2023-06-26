@@ -30,6 +30,7 @@ class IROperant:
     value: str
 
     def __init__(self, value: str) -> None:
+        assert isinstance(value, str), "value must be a string"
         self.value = value
 
     def __repr__(self) -> str:
@@ -42,7 +43,6 @@ class IRVariable(IROperant):
     """
 
     def __init__(self, value: str) -> None:
-        assert value.startswith("%"), f"IRVariable must start with '%', got '{value}'"
         super().__init__(value)
 
 
@@ -53,6 +53,9 @@ class IRLabel(IROperant):
 
     def __init__(self, value: str) -> None:
         super().__init__(value)
+
+    def __str__(self) -> str:
+        return f"label %{self.value}"
 
 
 class IRInstruction:
@@ -110,11 +113,11 @@ class IRBasicBlock:
     basic blocks.
     """
 
-    label: str
+    label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
 
-    def __init__(self, label: str, parent: "IRFunction") -> None:
+    def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         self.label = label
         self.parent = parent
         self.instructions = []
@@ -124,7 +127,7 @@ class IRBasicBlock:
         self.instructions.append(instruction)
 
     def __repr__(self) -> str:
-        str = f"{self.label}:\n"
+        str = f"{repr(self.label)}:\n"
         for instruction in self.instructions:
             str += f"    {instruction}\n"
         return str

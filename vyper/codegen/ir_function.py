@@ -7,10 +7,10 @@ class IRFunctionBase:
     Base class for IRFunction and IRFunctionIntrinsic
     """
 
-    name: str  # symbol name
+    name: IRLabel  # symbol name
     args: list
 
-    def __init__(self, name: str, args: list = []) -> None:
+    def __init__(self, name: IRLabel, args: list = []) -> None:
         self.name = name
         self.args = args
 
@@ -24,7 +24,7 @@ class IRFunction(IRFunctionBase):
     last_label: int
     last_variable: int
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: IRLabel) -> None:
         super().__init__(name)
         self.basic_blocks = []
         self.last_label = 0

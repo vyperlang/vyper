@@ -3,7 +3,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_function import IRFunction, IRFunctionIntrinsic
 from vyper.codegen.ir_basicblock import IRInstruction, IRDebugInfo
-from vyper.codegen.ir_basicblock import IRBasicBlock
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.evm.opcodes import get_opcodes
 
 _symbols = {}
@@ -12,7 +12,36 @@ _symbols = {}
 def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     global_function = IRFunction("global")
     _convert_ir_basicblock(global_function, ir)
+    _optimize_empty_basicblocks(global_function)
     return global_function
+
+
+def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
+    """
+    Remove empty basic blocks.
+    """
+    count = 0
+    i = 0
+    while i < len(ctx.basic_blocks):
+        bb = ctx.basic_blocks[i]
+        i += 1
+        if len(bb.instructions) > 0:
+            continue
+
+        next_label = ctx.basic_blocks[i].label if i < len(ctx.basic_blocks) else None
+        if next_label is None:
+            continue
+
+        for bb2 in ctx.basic_blocks:
+            for inst in bb2.instructions:
+                for arg in inst.operands:
+                    if isinstance(arg, IRLabel) and arg == bb.label:
+                        arg.label = next_label
+
+        ctx.basic_blocks.remove(bb)
+        count += 1
+
+    return count
 
 
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
@@ -53,7 +82,9 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         _convert_ir_basicblock(ctx, ir.args[1])
 
-        inst = IRInstruction("br", [cont_ret, f"label %{then_block.label}", f"label %{else_block.label}"])
+        inst = IRInstruction(
+            "br", [cont_ret, then_block.label, else_block.label]
+        )
         current_bb.append_instruction(inst)
 
         # exit bb
@@ -61,7 +92,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         bb = IRBasicBlock(exit_label, ctx)
         bb = ctx.append_basic_block(bb)
 
-        exit_inst = IRInstruction("br", [f"label %{bb.label}"])
+        exit_inst = IRInstruction("br", [bb.label])
         else_block.append_instruction(exit_inst)
 
     elif ir.value == "with":
@@ -92,7 +123,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "goto":
-        inst = IRInstruction("br", [f"label %{ir.args[0]}"])
+        inst = IRInstruction("br", [IRLabel(ir.args[0].value)])
         ctx.get_basic_block().append_instruction(inst)
 
         label = ctx.get_next_label()
@@ -125,7 +156,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "label":
-        label = str(ir.args[0].value)
+        label = IRLabel(ir.args[0].value)
         bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2])
