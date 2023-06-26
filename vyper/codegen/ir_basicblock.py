@@ -22,6 +22,39 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
+class IROperant:
+    """
+    IROperant represents an operand in IR. An operand can be a variable, label, or a constant.
+    """
+
+    value: str
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __repr__(self) -> str:
+        return self.value
+
+
+class IRVariable(IROperant):
+    """
+    IRVariable represents a variable in IR. A variable is a string that starts with a %.
+    """
+
+    def __init__(self, value: str) -> None:
+        assert value.startswith("%"), f"IRVariable must start with '%', got '{value}'"
+        super().__init__(value)
+
+
+class IRLabel(IROperant):
+    """
+    IRLabel represents a label in IR. A label is a string that starts with a %.
+    """
+
+    def __init__(self, value: str) -> None:
+        super().__init__(value)
+
+
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -31,11 +64,13 @@ class IRInstruction:
     """
 
     opcode: str
-    operands: list
+    operands: list[IROperant]
     ret: Optional[str]
     dbg: Optional[IRDebugInfo]
 
-    def __init__(self, opcode: str, operands: list, ret: str = None, dbg: IRDebugInfo = None):
+    def __init__(
+        self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
+    ):
         self.opcode = opcode
         self.operands = operands
         self.ret = ret
@@ -85,6 +120,7 @@ class IRBasicBlock:
         self.instructions = []
 
     def append_instruction(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.append(instruction)
 
     def __repr__(self) -> str:

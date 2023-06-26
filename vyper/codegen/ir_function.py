@@ -1,5 +1,5 @@
 from typing import Optional
-from vyper.codegen.ir_basicblock import IRBasicBlock
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRVariable, IRLabel
 
 
 class IRFunctionBase:
@@ -55,11 +55,11 @@ class IRFunction(IRFunctionBase):
 
     def get_next_label(self) -> str:
         self.last_label += 1
-        return f"{self.last_label}"
+        return IRLabel(f"{self.last_label}")
 
     def get_next_variable(self) -> str:
         self.last_variable += 1
-        return f"%{self.last_variable}"
+        return IRVariable(f"%{self.last_variable}")
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
