@@ -1,7 +1,7 @@
 from typing import Optional, Union
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.ir_function import IRFunction, IRFunctionIntrinsic
+from vyper.codegen.ir_function import IRFunctionBase, IRFunction, IRFunctionIntrinsic
 from vyper.codegen.ir_basicblock import IRInstruction, IRDebugInfo
 from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.evm.opcodes import get_opcodes
@@ -14,6 +14,7 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     _convert_ir_basicblock(global_function, ir)
     while _optimize_empty_basicblocks(global_function):
         pass
+    _optimize_unused_variables(global_function)
     return global_function
 
 
@@ -52,6 +53,36 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
     return count
 
 
+def _optimize_unused_variables(ctx: IRFunction) -> None:
+    """
+    Remove unused variables.
+    """
+    count = 0
+    uses = {}
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            for op in inst.operands:
+                if isinstance(op, IRVariable):
+                    uses[op] = uses.get(op, 0) + 1
+                elif isinstance(op, IRFunctionBase):
+                    for arg in op.args:
+                        if isinstance(arg, IRVariable):
+                            uses[arg] = uses.get(arg, 0) + 1
+
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            if inst.ret is None:
+                continue
+
+            if inst.ret in uses:
+                continue
+
+            print("Removing unused variable: %s" % inst.ret)
+
+    print(uses)
+    return count
+
+
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
     arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
     arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
@@ -68,8 +99,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     if ir.value == "deploy":
         _convert_ir_basicblock(ctx, ir.args[1])
     elif ir.value == "seq":
-        for ir_node in ir.args:
-            _convert_ir_basicblock(ctx, ir_node)
+        ret = None
+        for ir_node in ir.args:  # NOTE: skip the last one
+            r = _convert_ir_basicblock(ctx, ir_node)
+            if ir_node.is_literal == False:
+                ret = r
+        return ret
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
@@ -110,14 +145,14 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         first_pos = ir.source_pos[0] if ir.source_pos else None
         inst = IRInstruction(
             "load",
-            [_symbols[sym.value], ret],
-            None,
+            [ret],
+            _symbols[sym.value],
             IRDebugInfo(first_pos or 0, f"symbol: {sym.value}"),
         )
         ctx.get_basic_block().append_instruction(inst)
 
         _convert_ir_basicblock(ctx, ir.args[2])  # body
-    elif ir.value in ["le", "ge", "shr", "xor"]:
+    elif ir.value in ["le", "ge", "gt", "shr", "xor"]:
         return _convert_binary_op(ctx, ir)
     elif ir.value == "iszero":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
@@ -155,29 +190,28 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         return ret
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-
-        ret = ctx.get_next_variable()
         func = IRFunctionIntrinsic("assert", [arg_0])
-        inst = IRInstruction("call", [func], ret)
+        inst = IRInstruction("call", [func])
         ctx.get_basic_block().append_instruction(inst)
-        return ret
     elif ir.value == "label":
         bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2])
     elif ir.value == "return":
-        inst = IRInstruction("ret", [])
-        ctx.get_basic_block().append_instruction(inst)
         pass
     elif ir.value == "exit_to":
-        _convert_ir_basicblock(ctx, ir.args[2])
+        ret = _convert_ir_basicblock(ctx, ir.args[2])
 
         inst = IRInstruction("br", [IRLabel(ir.args[0].value, True)])
         ctx.get_basic_block().append_instruction(inst)
 
         bb = IRBasicBlock(ctx.get_next_label(), ctx)
         ctx.append_basic_block(bb)
-        pass
+
+        # for now
+        inst = IRInstruction("ret", [ret])
+        ctx.get_basic_block().append_instruction(inst)
+
     elif ir.value == "pass":
         pass
     elif ir.value == "mstore":
@@ -188,11 +222,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         first_pos = ir.source_pos[0] if ir.source_pos else None
         inst = IRInstruction(
             "load",
-            [new_var, ir.args[1].value],
-            None,
+            [ir.args[1].value],
+            new_var,
             IRDebugInfo(first_pos or 0, ir.annotation or ""),
         )
         ctx.get_basic_block().append_instruction(inst)
+        return new_var
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir)
     elif isinstance(ir.value, str) and ir.value in _symbols:
