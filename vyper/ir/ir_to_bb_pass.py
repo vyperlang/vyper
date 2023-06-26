@@ -202,16 +202,13 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "exit_to":
         ret = _convert_ir_basicblock(ctx, ir.args[2])
 
-        inst = IRInstruction("br", [IRLabel(ir.args[0].value, True)])
-        ctx.get_basic_block().append_instruction(inst)
-
-        bb = IRBasicBlock(ctx.get_next_label(), ctx)
-        ctx.append_basic_block(bb)
-
         # for now
         inst = IRInstruction("ret", [ret])
         ctx.get_basic_block().append_instruction(inst)
-
+    elif ir.value == "revert":
+        func = IRFunctionIntrinsic("revert", ir.args)
+        inst = IRInstruction("call", [func])
+        ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "pass":
         pass
     elif ir.value == "mstore":
