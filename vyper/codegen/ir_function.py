@@ -37,7 +37,12 @@ class IRFunction(IRFunctionBase):
         Append basic block to function.
         """
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
-        self.basic_blocks.append(bb)
+        last_bb = self.basic_blocks[-1] if len(self.basic_blocks) > 0 else None
+        if last_bb and len(last_bb.instructions) == 0:
+            # last basic block is empty, replace it
+            self.basic_blocks[-1] = bb
+        else:
+            self.basic_blocks.append(bb)
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """

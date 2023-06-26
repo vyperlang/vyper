@@ -67,6 +67,10 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "goto":
         inst = IRInstruction("br", ir.args)
         ctx.get_basic_block().append_instruction(inst)
+
+        label = ctx.get_next_label()
+        bb = IRBasicBlock(label, ctx)
+        ctx.append_basic_block(bb)
     elif ir.value == "calldatasize":
         ret = ctx.get_next_variable()
         func = IRFunctionIntrinsic("calldatasize", [])
