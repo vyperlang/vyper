@@ -51,11 +51,11 @@ class IRLabel(IROperant):
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
 
-    def __init__(self, value: str) -> None:
-        super().__init__(value)
+    is_symbol: bool = False
 
-    def __str__(self) -> str:
-        return f"label %{self.value}"
+    def __init__(self, value: str, is_symbol: bool = False) -> None:
+        super().__init__(value)
+        self.is_symbol = is_symbol
 
 
 class IRInstruction:
@@ -84,7 +84,9 @@ class IRInstruction:
         if self.ret:
             s += f"{self.ret} = "
         s += f"{self.opcode} "
-        operands = ", ".join([str(op) for op in self.operands])
+        operands = ", ".join(
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
+        )
         if self.dbg:
             return s + operands + f" {self.dbg}"
         return s + operands

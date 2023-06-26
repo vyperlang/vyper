@@ -12,7 +12,8 @@ _symbols = {}
 def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     global_function = IRFunction("global")
     _convert_ir_basicblock(global_function, ir)
-    _optimize_empty_basicblocks(global_function)
+    while _optimize_empty_basicblocks(global_function):
+        pass
     return global_function
 
 
@@ -28,17 +29,24 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
         if len(bb.instructions) > 0:
             continue
 
-        next_label = ctx.basic_blocks[i].label if i < len(ctx.basic_blocks) else None
-        if next_label is None:
+        replaced_label = bb.label
+        replacement_label = ctx.basic_blocks[i].label if i < len(ctx.basic_blocks) else None
+        if replacement_label is None:
             continue
+
+        # Try to preserve symbol labels
+        if replaced_label.is_symbol:
+            replaced_label, replacement_label = replacement_label, replaced_label
+            ctx.basic_blocks[i].label = replacement_label
 
         for bb2 in ctx.basic_blocks:
             for inst in bb2.instructions:
-                for arg in inst.operands:
-                    if isinstance(arg, IRLabel) and arg == bb.label:
-                        arg.label = next_label
+                for op in inst.operands:
+                    if isinstance(op, IRLabel) and op == replaced_label:
+                        op.label = replacement_label
 
         ctx.basic_blocks.remove(bb)
+        i -= 1
         count += 1
 
     return count
@@ -82,9 +90,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         _convert_ir_basicblock(ctx, ir.args[1])
 
-        inst = IRInstruction(
-            "br", [cont_ret, then_block.label, else_block.label]
-        )
+        inst = IRInstruction("br", [cont_ret, then_block.label, else_block.label])
         current_bb.append_instruction(inst)
 
         # exit bb
@@ -156,13 +162,17 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "label":
-        label = IRLabel(ir.args[0].value)
-        bb = IRBasicBlock(label, ctx)
+        bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2])
     elif ir.value == "return":
         pass
     elif ir.value == "exit_to":
+        inst = IRInstruction("br", [IRLabel(ir.args[0].value, True)])
+        ctx.get_basic_block().append_instruction(inst)
+
+        bb = IRBasicBlock(ctx.get_next_label(), ctx)
+        ctx.append_basic_block(bb)
         pass
     elif ir.value == "pass":
         pass
