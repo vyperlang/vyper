@@ -35,19 +35,9 @@ class IRFunction(IRFunctionBase):
     def append_basic_block(self, bb: IRBasicBlock) -> None:
         """
         Append basic block to function.
-        If the last basic block is empty it replaces it. Therefore it is
-        important to dispose of the original object when calling this method.
-        e.i. when you need to reference the label of the block later.
         """
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
-        last_bb = self.basic_blocks[-1] if len(self.basic_blocks) > 0 else None
-        if last_bb and len(last_bb.instructions) == 0:
-            # last basic block is empty, replace it
-            old_label = self.basic_blocks[-1].label
-            bb.label = old_label
-            self.basic_blocks[-1] = bb
-        else:
-            self.basic_blocks.append(bb)
+        self.basic_blocks.append(bb)
 
         return self.basic_blocks[-1]
 

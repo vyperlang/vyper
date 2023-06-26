@@ -53,7 +53,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         _convert_ir_basicblock(ctx, ir.args[1])
 
-        inst = IRInstruction("br", [cont_ret, f"label %{then_block.label}"])
+        inst = IRInstruction("br", [cont_ret, f"label %{then_block.label}", f"label %{else_block.label}"])
         current_bb.append_instruction(inst)
 
         # exit bb
