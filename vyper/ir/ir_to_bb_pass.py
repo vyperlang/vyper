@@ -166,8 +166,12 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2])
     elif ir.value == "return":
+        inst = IRInstruction("ret", [])
+        ctx.get_basic_block().append_instruction(inst)
         pass
     elif ir.value == "exit_to":
+        _convert_ir_basicblock(ctx, ir.args[2])
+
         inst = IRInstruction("br", [IRLabel(ir.args[0].value, True)])
         ctx.get_basic_block().append_instruction(inst)
 
