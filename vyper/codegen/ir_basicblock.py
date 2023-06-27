@@ -131,12 +131,18 @@ class IRBasicBlock:
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
 
+    def union_in(self, bb_set: set["IRBasicBlock"]) -> None:
+        self.in_set = self.in_set.union(bb_set)
+
+    def remove_in(self, bb: "IRBasicBlock") -> None:
+        self.in_set.remove(bb)
+
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.append(instruction)
 
     def __repr__(self) -> str:
-        str = f"{repr(self.label)}:\n"
+        s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}\n"
         for instruction in self.instructions:
-            str += f"    {instruction}\n"
-        return str
+            s += f"    {instruction}\n"
+        return s

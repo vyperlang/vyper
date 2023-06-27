@@ -14,7 +14,7 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     _convert_ir_basicblock(global_function, ir)
     while _optimize_empty_basicblocks(global_function):
         pass
-    _optimize_unused_variables(global_function)
+    # _optimize_unused_variables(global_function)
     return global_function
 
 
@@ -34,6 +34,8 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
         replacement_label = ctx.basic_blocks[i].label if i < len(ctx.basic_blocks) else None
         if replacement_label is None:
             continue
+
+        ctx.basic_blocks[i].union_in(bb.in_set)
 
         # Try to preserve symbol labels
         if replaced_label.is_symbol:
@@ -136,11 +138,11 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         exit_inst = IRInstruction("br", [bb.label])
         else_block.append_instruction(exit_inst)
 
+        # make forward edges
         then_block.add_in(current_bb)
         else_block.add_in(current_bb)
         bb.add_in(then_block)
         bb.add_in(else_block)
-
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1])  # initialization
 
