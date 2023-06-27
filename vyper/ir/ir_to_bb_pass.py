@@ -78,35 +78,45 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             for op in ops:
                 ctx.get_basic_block(op.value).add_in(bb)
 
-
-def _optimize_unused_variables(ctx: IRFunction) -> None:
+def _calculate_liveness(ctx: IRFunction) -> None:
     """
-    Remove unused variables.
+    Calculate liveness for each basic block.
     """
-    count = 0
-    uses = {}
     for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            for op in inst.operands:
-                if isinstance(op, IRVariable):
-                    uses[op] = uses.get(op, 0) + 1
-                elif isinstance(op, IRFunctionBase):
-                    for arg in op.args:
-                        if isinstance(arg, IRVariable):
-                            uses[arg] = uses.get(arg, 0) + 1
+        assert len(bb.instructions) > 0, "Basic block should not be empty"
+        last_inst = bb.instructions[-1]
+        assert (
+            last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
+        ), "Last instruction should be a terminator"
 
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            if inst.ret is None:
-                continue
+# def _optimize_unused_variables(ctx: IRFunction) -> None:
+#     """
+#     Remove unused variables.
+#     """
+#     count = 0
+#     uses = {}
+#     for bb in ctx.basic_blocks:
+#         for inst in bb.instructions:
+#             for op in inst.operands:
+#                 if isinstance(op, IRVariable):
+#                     uses[op] = uses.get(op, 0) + 1
+#                 elif isinstance(op, IRFunctionBase):
+#                     for arg in op.args:
+#                         if isinstance(arg, IRVariable):
+#                             uses[arg] = uses.get(arg, 0) + 1
 
-            if inst.ret in uses:
-                continue
+#     for bb in ctx.basic_blocks:
+#         for inst in bb.instructions:
+#             if inst.ret is None:
+#                 continue
 
-            print("Removing unused variable: %s" % inst.ret)
+#             if inst.ret in uses:
+#                 continue
 
-    print(uses)
-    return count
+#             print("Removing unused variable: %s" % inst.ret)
+
+#     print(uses)
+#     return count
 
 
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
