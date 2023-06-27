@@ -79,6 +79,12 @@ class IRInstruction:
         self.ret = ret
         self.dbg = dbg
 
+    def get_label_operands(self) -> list[IRLabel]:
+        """
+        Get all labels in instruction.
+        """
+        return [op for op in self.operands if isinstance(op, IRLabel)]
+
     def __repr__(self) -> str:
         s = ""
         if self.ret:
@@ -122,6 +128,7 @@ class IRBasicBlock:
     out: "IRBasicBlock"
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
+        assert isinstance(label, IRLabel), "label must be an IRLabel"
         self.label = label
         self.parent = parent
         self.instructions = []
