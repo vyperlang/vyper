@@ -49,7 +49,7 @@ class IRFunction(IRFunctionBase):
         if label is None:
             return self.basic_blocks[-1]
         for bb in self.basic_blocks:
-            if bb.label == label:
+            if bb.label.value == label:
                 return bb
         assert False, f"Basic block '{label}' not found"
 
