@@ -136,6 +136,11 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         exit_inst = IRInstruction("br", [bb.label])
         else_block.append_instruction(exit_inst)
 
+        then_block.add_in(current_bb)
+        else_block.add_in(current_bb)
+        bb.add_in(then_block)
+        bb.add_in(else_block)
+
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1])  # initialization
 
@@ -169,23 +174,21 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         label = ctx.get_next_label()
         bb = IRBasicBlock(label, ctx)
+        bb.add_in(ctx.get_basic_block())
         ctx.append_basic_block(bb)
     elif ir.value == "calldatasize":
         ret = ctx.get_next_variable()
-        func = IRFunctionIntrinsic("calldatasize", [])
-        inst = IRInstruction("call", [func], ret)
+        inst = IRInstruction("calldatasize", [], ret)
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "calldataload":
         ret = ctx.get_next_variable()
-        func = IRFunctionIntrinsic("calldataload", [ir.args[0]])
-        inst = IRInstruction("call", [func], ret)
+        inst = IRInstruction("calldataload", [ir.args[0].value], ret)
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "callvalue":
         ret = ctx.get_next_variable()
-        func = IRFunctionIntrinsic("callvalue", [])
-        inst = IRInstruction("call", [func], ret)
+        inst = IRInstruction("callvalue", [], ret)
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "assert":

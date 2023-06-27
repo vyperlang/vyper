@@ -118,11 +118,18 @@ class IRBasicBlock:
     label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
+    in_set: set["IRBasicBlock"]
+    out: "IRBasicBlock"
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         self.label = label
         self.parent = parent
         self.instructions = []
+        self.in_set = set()
+        self.out = None
+
+    def add_in(self, bb: "IRBasicBlock") -> None:
+        self.in_set.add(bb)
 
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"

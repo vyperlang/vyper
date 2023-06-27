@@ -53,6 +53,12 @@ class IRFunction(IRFunctionBase):
                 return bb
         assert False, f"Basic block '{label}' not found"
 
+    def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
+        """
+        Get basic blocks that contain label.
+        """
+        return [bb for bb in self.basic_blocks if basic_block.label == bb.label]
+
     def get_next_label(self) -> str:
         self.last_label += 1
         return IRLabel(f"{self.last_label}")
@@ -67,6 +73,7 @@ class IRFunction(IRFunctionBase):
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
+            str += f"in: {[b.label for b in self.get_basicblocks_in(bb)]}\n"
             str += f"{bb}\n"
         return str
 
