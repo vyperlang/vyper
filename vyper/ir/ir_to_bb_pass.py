@@ -141,15 +141,15 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         sym = ir.args[0]
         # FIXME: How do I validate that the IR is indeed a symbol?
-        _symbols[sym.value] = ctx.get_next_variable()
-        first_pos = ir.source_pos[0] if ir.source_pos else None
-        inst = IRInstruction(
-            "load",
-            [ret],
-            _symbols[sym.value],
-            IRDebugInfo(first_pos or 0, f"symbol: {sym.value}"),
-        )
-        ctx.get_basic_block().append_instruction(inst)
+        _symbols[sym.value] = ret
+        # first_pos = ir.source_pos[0] if ir.source_pos else None
+        # inst = IRInstruction(
+        #     "load",
+        #     [ret],
+        #     _symbols[sym.value],
+        #     IRDebugInfo(first_pos or 0, f"symbol: {sym.value}"),
+        # )
+        # ctx.get_basic_block().append_instruction(inst)
 
         return _convert_ir_basicblock(ctx, ir.args[2])  # body
     elif ir.value in ["eq", "le", "ge", "gt", "shr", "or", "xor", "add", "sub", "mul", "div", "mod"]:
@@ -215,23 +215,11 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         sym = ir.args[0]
         new_var = _symbols.get(f"&{sym.value}", None)
         assert new_var != None, "mload without mstore"
-
         return new_var
     elif ir.value == "mstore":
         sym = ir.args[0]
-        new_var = ctx.get_next_variable()
+        new_var = _convert_ir_basicblock(ctx, ir.args[1])
         _symbols[f"&{sym.value}"] = new_var
-
-        arg = _convert_ir_basicblock(ctx, ir.args[1])
-        
-        first_pos = ir.source_pos[0] if ir.source_pos else None
-        inst = IRInstruction(
-            "load",
-            [arg],
-            new_var,
-            IRDebugInfo(first_pos or 0, ir.annotation or ""),
-        )
-        ctx.get_basic_block().append_instruction(inst)
         return new_var
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir)
