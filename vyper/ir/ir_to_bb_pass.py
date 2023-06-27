@@ -22,6 +22,7 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     while _optimize_empty_basicblocks(global_function):
         pass
     _calculate_in_set(global_function)
+    _calculate_liveness(global_function)
     # _optimize_unused_variables(global_function)
     return global_function
 
@@ -88,6 +89,8 @@ def _calculate_liveness(ctx: IRFunction) -> None:
         assert (
             last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
         ), "Last instruction should be a terminator"
+
+        bb.compute_liveness()
 
 # def _optimize_unused_variables(ctx: IRFunction) -> None:
 #     """

@@ -89,7 +89,7 @@ class IRInstruction:
         """
         Get all input operands in instruction.
         """
-        return [op for op in self.operands if not isinstance(op, IRLabel)]
+        return [op for op in self.operands if isinstance(op, IRVariable)]
 
     def get_output_operands(self) -> list[IROperant]:
         return [self.ret]
@@ -135,6 +135,7 @@ class IRBasicBlock:
     instructions: list[IRInstruction]
     in_set: set["IRBasicBlock"]
     out: "IRBasicBlock"
+    liveness = {}
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -157,14 +158,20 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.append(instruction)
 
-    def compute_liveness(self, in_ops: set[IRVariable], out_ops: set[IRVariable]) -> None:
+    def compute_liveness(self) -> None:
         """
         Compute liveness of each instruction in basic block.
         WHEREILEFTOFF: Implement this.
         """
+        out_vars = set()
         for instruction in self.instructions:
-            out_ops = instruction.get_output_operands()
-            in_ops = instruction.get_input_operands()
+            out_vars.union(instruction.get_input_operands())
+            out = instruction.get_output_operands()[0]
+            if out in out_vars:
+                out_vars.remove(out)
+            self.liveness[out] = out_vars.copy()
+
+        # print("Liveness:", self.liveness)
 
     def __repr__(self) -> str:
         s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}\n"
