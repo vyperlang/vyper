@@ -6,14 +6,21 @@ from vyper.codegen.ir_basicblock import IRInstruction, IRDebugInfo
 from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.evm.opcodes import get_opcodes
 
+TERMINATOR_IR_INSTRUCTIONS = [
+    "br",
+    "ret",
+    "revert",
+]
+
 _symbols = {}
 
 
 def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
-    global_function = IRFunction("global")
+    global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir)
     while _optimize_empty_basicblocks(global_function):
         pass
+    _calculate_in_set(global_function)
     # _optimize_unused_variables(global_function)
     return global_function
 
@@ -35,8 +42,6 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
         if replacement_label is None:
             continue
 
-        ctx.basic_blocks[i].union_in(bb.in_set)
-
         # Try to preserve symbol labels
         if replaced_label.is_symbol:
             replaced_label, replacement_label = replacement_label, replaced_label
@@ -46,13 +51,31 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
             for inst in bb2.instructions:
                 for op in inst.operands:
                     if isinstance(op, IRLabel) and op == replaced_label:
-                        op.label = replacement_label
+                        op.value = replacement_label.value
 
         ctx.basic_blocks.remove(bb)
         i -= 1
         count += 1
 
     return count
+
+
+def _calculate_in_set(ctx: IRFunction) -> None:
+    """
+    Calculate in set for each basic block.
+    """
+    for bb in ctx.basic_blocks:
+        assert len(bb.instructions) > 0, "Basic block should not be empty"
+        last_inst = bb.instructions[-1]
+        assert (
+            last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
+        ), "Last instruction should be a terminator"
+
+        if last_inst.opcode == "br":
+            ops = last_inst.get_label_operands()
+            assert len(ops) >= 1, "br instruction should have at least one label operand"
+            for op in ops:
+                ctx.get_basic_block(op.value).add_in(bb)
 
 
 def _optimize_unused_variables(ctx: IRFunction) -> None:
@@ -138,11 +161,6 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         exit_inst = IRInstruction("br", [bb.label])
         else_block.append_instruction(exit_inst)
 
-        # make forward edges
-        then_block.add_in(current_bb)
-        else_block.add_in(current_bb)
-        bb.add_in(then_block)
-        bb.add_in(else_block)
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1])  # initialization
 
@@ -159,7 +177,20 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         # ctx.get_basic_block().append_instruction(inst)
 
         return _convert_ir_basicblock(ctx, ir.args[2])  # body
-    elif ir.value in ["eq", "le", "ge", "gt", "shr", "or", "xor", "add", "sub", "mul", "div", "mod"]:
+    elif ir.value in [
+        "eq",
+        "le",
+        "ge",
+        "gt",
+        "shr",
+        "or",
+        "xor",
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "mod",
+    ]:
         return _convert_binary_op(ctx, ir)
     elif ir.value == "iszero":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
@@ -176,7 +207,6 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         label = ctx.get_next_label()
         bb = IRBasicBlock(label, ctx)
-        bb.add_in(ctx.get_basic_block())
         ctx.append_basic_block(bb)
     elif ir.value == "calldatasize":
         ret = ctx.get_next_variable()
@@ -211,8 +241,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         inst = IRInstruction("ret", [ret])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
-        func = IRFunctionIntrinsic("revert", ir.args)
-        inst = IRInstruction("call", [func])
+        inst = IRInstruction("revert", ir.args)
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "pass":
         pass
