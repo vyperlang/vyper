@@ -151,8 +151,8 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         )
         ctx.get_basic_block().append_instruction(inst)
 
-        _convert_ir_basicblock(ctx, ir.args[2])  # body
-    elif ir.value in ["le", "ge", "gt", "shr", "xor"]:
+        return _convert_ir_basicblock(ctx, ir.args[2])  # body
+    elif ir.value in ["eq", "le", "ge", "gt", "shr", "or", "xor", "add", "sub", "mul", "div", "mod"]:
         return _convert_binary_op(ctx, ir)
     elif ir.value == "iszero":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
@@ -211,15 +211,23 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "pass":
         pass
+    elif ir.value == "mload":
+        sym = ir.args[0]
+        new_var = _symbols.get(f"&{sym.value}", None)
+        assert new_var != None, "mload without mstore"
+
+        return new_var
     elif ir.value == "mstore":
         sym = ir.args[0]
         new_var = ctx.get_next_variable()
         _symbols[f"&{sym.value}"] = new_var
-        assert ir.args[1].is_literal, "mstore expects a literal as second argument"
+
+        arg = _convert_ir_basicblock(ctx, ir.args[1])
+        
         first_pos = ir.source_pos[0] if ir.source_pos else None
         inst = IRInstruction(
             "load",
-            [ir.args[1].value],
+            [arg],
             new_var,
             IRDebugInfo(first_pos or 0, ir.annotation or ""),
         )
