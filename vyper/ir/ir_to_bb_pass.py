@@ -10,6 +10,7 @@ TERMINATOR_IR_INSTRUCTIONS = [
     "br",
     "ret",
     "revert",
+    "assert",
 ]
 
 _symbols = {}
@@ -225,8 +226,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         return ret
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        func = IRFunctionIntrinsic("assert", [arg_0])
-        inst = IRInstruction("call", [func])
+        inst = IRInstruction("assert", [arg_0])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "label":
         bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
