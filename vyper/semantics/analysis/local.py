@@ -672,10 +672,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
             if isinstance(cmp_typ, _BytestringT):
-                # for bytestrings, do not downcast to the smaller common type
+                # for bytestrings, get_common_types automatically downcasts
+                # to the smaller common type - that will annotate with the
+                # wrong type, instead use get_exact_type_from_node (which
+                # resolves to the right type for bytestrings anyways).
                 ltyp = get_exact_type_from_node(node.left)
                 rtyp = get_exact_type_from_node(node.right)
-
             else:
                 ltyp = rtyp = cmp_typ
                 validate_expected_type(node.left, ltyp)
