@@ -701,10 +701,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
-        if isinstance(typ, TYPE_T):
-            return
-
-        validate_expected_type(node, typ)
+        if not isinstance(typ, TYPE_T):
+            validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
