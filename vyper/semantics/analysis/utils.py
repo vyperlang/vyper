@@ -593,9 +593,13 @@ def validate_unique_method_ids(functions: List) -> None:
     seen = set()
     for method_id in method_ids:
         if method_id in seen:
-            collision_str = ", ".join(x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == method_id)
+            collision_str = ", ".join(
+                x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == method_id
+            )
             collision_hex = int_to_fourbytes(method_id).hex()
-            raise StructureException(f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}")
+            raise StructureException(
+                f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}"
+            )
         seen.add(method_id)
 
 
