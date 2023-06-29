@@ -89,9 +89,7 @@ def _calculate_liveness(bb: IRBasicBlock) -> None:
     for out_bb in bb.out_set:
         _calculate_liveness(out_bb)
         in_vars = out_bb.in_vars
-        print(in_vars, bb.out_vars)
         bb.out_vars = bb.out_vars.union(in_vars)
-        print(in_vars, bb.out_vars)
 
     bb.compute_liveness()
 
