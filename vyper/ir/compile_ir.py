@@ -667,8 +667,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_" + str(code.args[0]), "JUMP"])
         return o
     # push a literal symbol
-    elif isinstance(code.value, str) and is_symbol(code.value):
-        return [code.value]
+    elif code.value == "symbol":
+        return ["_sym_" + str(code.args[0])]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = code.args[0].value

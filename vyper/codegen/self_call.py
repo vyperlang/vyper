@@ -1,5 +1,5 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
-from vyper.codegen.ir_node import IRnode, push_label_to_stack
+from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
@@ -104,7 +104,7 @@ def ir_for_self_call(stmt_expr, context):
     if return_buffer is not None:
         goto_op += [return_buffer]
     # pass return label to subroutine
-    goto_op += [push_label_to_stack(return_label)]
+    goto_op += ["symbol", return_label]
 
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
