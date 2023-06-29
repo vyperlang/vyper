@@ -79,18 +79,22 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             for op in ops:
                 ctx.get_basic_block(op.value).add_in(bb)
 
+    # Fill in the "out" set for each basic block
+    for bb in ctx.basic_blocks:
+        for in_bb in bb.in_set:
+            in_bb.add_out(bb)
+
+
 def _calculate_liveness(ctx: IRFunction) -> None:
     """
     Calculate liveness for each basic block.
     """
-    for bb in ctx.basic_blocks:
-        assert len(bb.instructions) > 0, "Basic block should not be empty"
-        last_inst = bb.instructions[-1]
-        assert (
-            last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
-        ), "Last instruction should be a terminator"
+    t_bblocks = ctx.get_terminal_basicblocks()
+    print(t_bblocks)
+    visited = set()
+    for bb in t_bblocks:
+        bb.compute_liveness(visited)
 
-        bb.compute_liveness()
 
 # def _optimize_unused_variables(ctx: IRFunction) -> None:
 #     """

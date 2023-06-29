@@ -1,5 +1,11 @@
 from typing import Optional, TYPE_CHECKING
 
+TERMINAL_IR_INSTRUCTIONS = [
+    "ret",
+    "revert",
+    "assert",
+]
+
 if TYPE_CHECKING:
     from vyper.codegen.ir_function import IRFunction
 
@@ -143,7 +149,7 @@ class IRBasicBlock:
         self.parent = parent
         self.instructions = []
         self.in_set = set()
-        self.out = None
+        self.out_set = set()
 
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
@@ -154,27 +160,48 @@ class IRBasicBlock:
     def remove_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.remove(bb)
 
+    def add_out(self, bb: "IRBasicBlock") -> None:
+        self.out_set.add(bb)
+
+    def union_out(self, bb_set: set["IRBasicBlock"]) -> None:
+        self.out_set = self.out_set.union(bb_set)
+
+    def remove_out(self, bb: "IRBasicBlock") -> None:
+        self.out_set.remove(bb)
+
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.append(instruction)
 
-    def compute_liveness(self) -> None:
+    def is_terminal(self) -> bool:
+        """
+        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        """
+        assert len(self.instructions) > 0, "basic block must have at least one instruction"
+        return self.instructions[-1].opcode in TERMINAL_IR_INSTRUCTIONS
+
+    def compute_liveness(self, visited: set) -> None:
         """
         Compute liveness of each instruction in basic block.
-        WHEREILEFTOFF: Implement this.
         """
+        visited.add(self)
+
         out_vars = set()
-        for instruction in self.instructions:
-            out_vars.union(instruction.get_input_operands())
+        for instruction in self.instructions[::-1]:
+            out_vars = out_vars.union(instruction.get_input_operands())
             out = instruction.get_output_operands()[0]
             if out in out_vars:
                 out_vars.remove(out)
-            self.liveness[out] = out_vars.copy()
+            self.liveness[instruction] = out_vars.copy()
 
-        # print("Liveness:", self.liveness)
+        print("Liveness:", self.label, "\n", self.liveness[self.instructions[0]], "\n")
+
+        for bb in self.in_set:
+            if bb not in visited:
+                bb.compute_liveness(visited)
 
     def __repr__(self) -> str:
-        s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}\n"
+        s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"
         for instruction in self.instructions:
             s += f"    {instruction}\n"
         return s

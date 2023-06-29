@@ -59,6 +59,12 @@ class IRFunction(IRFunctionBase):
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.in_set]
 
+    def get_terminal_basicblocks(self) -> list[IRBasicBlock]:
+        """
+        Get basic blocks that contain label.
+        """
+        return [bb for bb in self.basic_blocks if bb.is_terminal()]
+
     def get_next_label(self) -> str:
         self.last_label += 1
         return IRLabel(f"{self.last_label}")
