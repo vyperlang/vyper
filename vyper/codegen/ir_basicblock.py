@@ -193,7 +193,7 @@ class IRBasicBlock:
         assert len(self.instructions) > 0, "basic block must have at least one instruction"
         return self.instructions[-1].opcode in TERMINAL_IR_INSTRUCTIONS
 
-    def compute_liveness(self) -> None:
+    def calculate_liveness(self) -> None:
         """
         Compute liveness of each instruction in basic block.
         """

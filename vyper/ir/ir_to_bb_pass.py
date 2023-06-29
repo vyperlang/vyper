@@ -91,7 +91,7 @@ def _calculate_liveness(bb: IRBasicBlock) -> None:
         in_vars = out_bb.in_vars
         bb.out_vars = bb.out_vars.union(in_vars)
 
-    bb.compute_liveness()
+    bb.calculate_liveness()
 
 
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
