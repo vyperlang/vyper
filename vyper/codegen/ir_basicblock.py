@@ -204,8 +204,6 @@ class IRBasicBlock:
                 self.out_vars.remove(out)
             instruction.liveness = self.out_vars.copy()
 
-        print("Liveness:", self.label, "\n", self.in_vars, "\n")
-
     def __repr__(self) -> str:
         s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"
         for instruction in self.instructions:
