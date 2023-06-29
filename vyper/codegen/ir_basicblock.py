@@ -108,8 +108,11 @@ class IRInstruction:
         operands = ", ".join(
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
         )
+        s += operands
+
         if self.dbg:
-            return s + operands + f" {self.dbg}"
+            return s + f" {self.dbg}"
+
         return s + operands
 
 
@@ -140,7 +143,8 @@ class IRBasicBlock:
     parent: "IRFunction"
     instructions: list[IRInstruction]
     in_set: set["IRBasicBlock"]
-    out: "IRBasicBlock"
+    out_set: set["IRBasicBlock"]
+    out_vars: set[IRVariable]
     liveness = {}
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -150,6 +154,7 @@ class IRBasicBlock:
         self.instructions = []
         self.in_set = set()
         self.out_set = set()
+        self.out_vars = set()
 
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
@@ -169,6 +174,10 @@ class IRBasicBlock:
     def remove_out(self, bb: "IRBasicBlock") -> None:
         self.out_set.remove(bb)
 
+    @property
+    def in_vars(self) -> set[IRVariable]:
+        return self.liveness[self.instructions[0]]
+
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         self.instructions.append(instruction)
@@ -180,25 +189,18 @@ class IRBasicBlock:
         assert len(self.instructions) > 0, "basic block must have at least one instruction"
         return self.instructions[-1].opcode in TERMINAL_IR_INSTRUCTIONS
 
-    def compute_liveness(self, visited: set) -> None:
+    def compute_liveness(self) -> None:
         """
         Compute liveness of each instruction in basic block.
         """
-        visited.add(self)
-
-        out_vars = set()
         for instruction in self.instructions[::-1]:
-            out_vars = out_vars.union(instruction.get_input_operands())
+            self.out_vars = self.out_vars.union(instruction.get_input_operands())
             out = instruction.get_output_operands()[0]
-            if out in out_vars:
-                out_vars.remove(out)
-            self.liveness[instruction] = out_vars.copy()
+            if out in self.out_vars:
+                self.out_vars.remove(out)
+            self.liveness[instruction] = self.out_vars.copy()
 
         print("Liveness:", self.label, "\n", self.liveness[self.instructions[0]], "\n")
-
-        for bb in self.in_set:
-            if bb not in visited:
-                bb.compute_liveness(visited)
 
     def __repr__(self) -> str:
         s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"

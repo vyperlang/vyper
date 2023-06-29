@@ -22,7 +22,7 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     while _optimize_empty_basicblocks(global_function):
         pass
     _calculate_in_set(global_function)
-    _calculate_liveness(global_function)
+    _calculate_liveness(global_function.basic_blocks[0])
     # _optimize_unused_variables(global_function)
     return global_function
 
@@ -85,45 +85,15 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             in_bb.add_out(bb)
 
 
-def _calculate_liveness(ctx: IRFunction) -> None:
-    """
-    Calculate liveness for each basic block.
-    """
-    t_bblocks = ctx.get_terminal_basicblocks()
-    print(t_bblocks)
-    visited = set()
-    for bb in t_bblocks:
-        bb.compute_liveness(visited)
+def _calculate_liveness(bb: IRBasicBlock) -> None:
+    for out_bb in bb.out_set:
+        _calculate_liveness(out_bb)
+        in_vars = out_bb.in_vars
+        print(in_vars, bb.out_vars)
+        bb.out_vars = bb.out_vars.union(in_vars)
+        print(in_vars, bb.out_vars)
 
-
-# def _optimize_unused_variables(ctx: IRFunction) -> None:
-#     """
-#     Remove unused variables.
-#     """
-#     count = 0
-#     uses = {}
-#     for bb in ctx.basic_blocks:
-#         for inst in bb.instructions:
-#             for op in inst.operands:
-#                 if isinstance(op, IRVariable):
-#                     uses[op] = uses.get(op, 0) + 1
-#                 elif isinstance(op, IRFunctionBase):
-#                     for arg in op.args:
-#                         if isinstance(arg, IRVariable):
-#                             uses[arg] = uses.get(arg, 0) + 1
-
-#     for bb in ctx.basic_blocks:
-#         for inst in bb.instructions:
-#             if inst.ret is None:
-#                 continue
-
-#             if inst.ret in uses:
-#                 continue
-
-#             print("Removing unused variable: %s" % inst.ret)
-
-#     print(uses)
-#     return count
+    bb.compute_liveness()
 
 
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
@@ -254,7 +224,8 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "exit_to":
         ret = _convert_ir_basicblock(ctx, ir.args[2])
 
-        # for now
+        # FIXME: for now
+
         inst = IRInstruction("ret", [ret])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
