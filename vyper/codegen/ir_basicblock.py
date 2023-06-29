@@ -76,6 +76,7 @@ class IRInstruction:
     operands: list[IROperant]
     ret: Optional[str]
     dbg: Optional[IRDebugInfo]
+    liveness: set[IRVariable]
 
     def __init__(
         self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
@@ -84,6 +85,7 @@ class IRInstruction:
         self.operands = operands
         self.ret = ret
         self.dbg = dbg
+        self.liveness = set()
 
     def get_label_operands(self) -> list[IRLabel]:
         """
@@ -113,7 +115,10 @@ class IRInstruction:
         if self.dbg:
             return s + f" {self.dbg}"
 
-        return s + operands
+        if self.liveness:
+            return f"{s: <30} # {self.liveness}"
+
+        return s
 
 
 class IRBasicBlock:
@@ -145,7 +150,6 @@ class IRBasicBlock:
     in_set: set["IRBasicBlock"]
     out_set: set["IRBasicBlock"]
     out_vars: set[IRVariable]
-    liveness = {}
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -176,7 +180,7 @@ class IRBasicBlock:
 
     @property
     def in_vars(self) -> set[IRVariable]:
-        return self.liveness[self.instructions[0]]
+        return self.instructions[0].liveness
 
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
@@ -198,9 +202,9 @@ class IRBasicBlock:
             out = instruction.get_output_operands()[0]
             if out in self.out_vars:
                 self.out_vars.remove(out)
-            self.liveness[instruction] = self.out_vars.copy()
+            instruction.liveness = self.out_vars.copy()
 
-        print("Liveness:", self.label, "\n", self.liveness[self.instructions[0]], "\n")
+        print("Liveness:", self.label, "\n", self.in_vars, "\n")
 
     def __repr__(self) -> str:
         s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"
