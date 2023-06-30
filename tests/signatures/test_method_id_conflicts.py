@@ -67,6 +67,13 @@ def gfah(): pass
 @view
 def eexo(): pass
     """,
+    """
+# check collision with ID = 0x00000000
+wycpnbqcyf:public(uint256)
+
+@external
+def randallsRevenge_ilxaotc(): pass
+    """,
 ]
 
 
