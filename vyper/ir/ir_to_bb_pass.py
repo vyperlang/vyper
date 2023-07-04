@@ -1,4 +1,5 @@
 from typing import Optional, Union
+from vyper.codegen.dfg import convert_ir_to_dfg, generate_evm
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_function import IRFunctionBase, IRFunction, IRFunctionIntrinsic
@@ -33,6 +34,11 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
 
     # Optimization pass: Remove unused variables
     _optimize_unused_variables(global_function)
+
+    convert_ir_to_dfg(global_function)
+
+    assembly = generate_evm(global_function)
+    print(assembly)
 
     return global_function
 

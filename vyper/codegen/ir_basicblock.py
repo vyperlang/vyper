@@ -92,15 +92,21 @@ class IRInstruction:
         Get all labels in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRLabel)]
-
+    
     def get_input_operands(self) -> list[IROperant]:
         """
-        Get all input operands in instruction.
+        Get all input operants in instruction.
+        """
+        return [op for op in self.operands if isinstance(op, IRLabel) == False]
+
+    def get_input_variables(self) -> list[IROperant]:
+        """
+        Get all input variables in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
     def get_output_operands(self) -> list[IROperant]:
-        return [self.ret]
+        return [self.ret] if self.ret else []
 
     def __repr__(self) -> str:
         s = ""
@@ -207,8 +213,8 @@ class IRBasicBlock:
         Compute liveness of each instruction in basic block.
         """
         for instruction in self.instructions[::-1]:
-            self.out_vars = self.out_vars.union(instruction.get_input_operands())
-            out = instruction.get_output_operands()[0]
+            self.out_vars = self.out_vars.union(instruction.get_input_variables())
+            out = instruction.get_output_operands()[0] if len(instruction.get_output_operands()) > 0 else None
             if out in self.out_vars:
                 self.out_vars.remove(out)
             instruction.liveness = self.out_vars.copy()
