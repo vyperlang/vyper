@@ -4,10 +4,12 @@ from typing import Optional, Tuple
 from vyper.utils import keccak256, bytes_to_int
 import math
 
+
 @dataclass
 class Signature:
     method_id: int
     payable: bool
+
 
 @dataclass
 class Bucket:
@@ -21,12 +23,14 @@ class Bucket:
 
 
 _D = {}
+
+
 # https://stackoverflow.com/a/568618/ but cache found data and
 # with comments removed
 # XXX: probably don't really want to use primes but keep this
 # for a bit just in case
 def _gen_primes():
-    """ Generate an infinite sequence of prime numbers."""
+    """Generate an infinite sequence of prime numbers."""
     q = 2
 
     while True:
@@ -40,11 +44,13 @@ def _gen_primes():
 
         q += 1
 
+
 def _image_of(xs, magic):
-    BITS_MAGIC = 31 # a constant which empirically produces good results
+    BITS_MAGIC = 31  # a constant which empirically produces good results
 
     # take the upper bits from the multiplication for more entropy
     return [((x * magic) >> (BITS_MAGIC)) % len(xs) for x in xs]
+
 
 def find_magic_for(xs):
     # for i, p in enumerate(_gen_primes()):
@@ -55,12 +61,12 @@ def find_magic_for(xs):
 
     raise Exception(f"Could not find hash for {xs}")
 
+
 # two layer method for generating perfect hash
 # first get "reasonably good" distribution by using
 # method_id % len(method_ids)
 # second, get the magic for the bucket.
 def _jumptable(method_ids, n_buckets):
-
     buckets = {}
     for x in method_ids:
         t = x % n_buckets
