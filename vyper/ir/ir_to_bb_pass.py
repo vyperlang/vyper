@@ -4,7 +4,7 @@ from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_function import IRFunctionBase, IRFunction, IRFunctionIntrinsic
 from vyper.codegen.ir_basicblock import IRInstruction, IRDebugInfo
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRLiteral
 from vyper.evm.opcodes import get_opcodes
 
 TERMINATOR_IR_INSTRUCTIONS = [
@@ -132,7 +132,7 @@ def _calculate_liveness(bb: IRBasicBlock) -> None:
 def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
     arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
     arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
-    args = [arg_0, arg_1]
+    args = [arg_1, arg_0]
 
     ret = ctx.get_next_variable()
 
@@ -273,7 +273,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         inst = IRInstruction("ret", [new_var])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
-        inst = IRInstruction("revert", ir.args)
+        inst = IRInstruction("revert", [])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "pass":
         pass

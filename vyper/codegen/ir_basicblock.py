@@ -28,6 +28,9 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
+IROperantValue = str | int
+
+
 class IROperant:
     """
     IROperant represents an operand in IR. An operand can be a variable, label, or a constant.
@@ -35,12 +38,29 @@ class IROperant:
 
     value: str
 
-    def __init__(self, value: str) -> None:
-        assert isinstance(value, str), "value must be a string"
+    def __init__(self, value: IROperantValue) -> None:
+        assert isinstance(value, IROperantValue), "value must be a string"
         self.value = value
+
+    @property
+    def is_literal(self) -> bool:
+        return False
 
     def __repr__(self) -> str:
         return self.value
+
+
+class IRLiteral(IROperant):
+    """
+    IRLiteral represents a literal in IR
+    """
+
+    def __init__(self, value: IROperantValue) -> None:
+        super().__init__(value)
+
+    @property
+    def is_literal(self) -> bool:
+        return True
 
 
 class IRVariable(IROperant):
@@ -48,7 +68,7 @@ class IRVariable(IROperant):
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
-    def __init__(self, value: str) -> None:
+    def __init__(self, value: IROperantValue) -> None:
         super().__init__(value)
 
 
@@ -92,7 +112,7 @@ class IRInstruction:
         Get all labels in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRLabel)]
-    
+
     def get_input_operands(self) -> list[IROperant]:
         """
         Get all input operants in instruction.
@@ -214,7 +234,11 @@ class IRBasicBlock:
         """
         for instruction in self.instructions[::-1]:
             self.out_vars = self.out_vars.union(instruction.get_input_variables())
-            out = instruction.get_output_operands()[0] if len(instruction.get_output_operands()) > 0 else None
+            out = (
+                instruction.get_output_operands()[0]
+                if len(instruction.get_output_operands()) > 0
+                else None
+            )
             if out in self.out_vars:
                 self.out_vars.remove(out)
             instruction.liveness = self.out_vars.copy()
