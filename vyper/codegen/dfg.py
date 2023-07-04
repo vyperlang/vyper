@@ -1,6 +1,23 @@
 from vyper.codegen.ir_basicblock import TERMINAL_IR_INSTRUCTIONS, IRInstruction, IROperant
 from vyper.codegen.ir_function import IRFunction
 
+ONE_TO_ONE_INSTRUCTIONS = [
+    "revert",
+    "assert",
+    "calldatasize", 
+    "calldatacopy", 
+    "calldataload", 
+    "callvalue", 
+    "shr",
+    "xor",
+    "or",
+    "add",
+    "sub",
+    "mul",
+    "div",
+    "eq",
+    "iszero",
+]
 
 class DFGNode:
     value: IRInstruction | IROperant
@@ -39,39 +56,61 @@ def generate_evm(ctx: IRFunction) -> list[str]:
 
     assembly = []
 
-    for bb in ctx.basic_blocks:
+    for i, bb in enumerate(ctx.basic_blocks):
+        if i != 0:
+            assembly.append(f"_label_{bb.label}")
+            assembly.append("JUMPDEST")
         for inst in bb.instructions:
-            _generate_evm_for_instruction_r(assembly, inst)
+            _generate_evm_for_instruction_r(ctx, assembly, inst)
 
     return assembly
 
+def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRInstruction) -> None:
+    for op in inst.get_output_operands():
+       _generate_evm_for_instruction_r(ctx, assembly, dfg_inputs[op])
 
-def _generate_evm_for_instruction_r(assembly: list, inst: IRInstruction) -> None:
     if inst in visited_instructions:
         return
-
     visited_instructions.add(inst)
 
-    for op in inst.get_input_operands():
-        _generate_evm_for_instruction_r(assembly, dfg_outputs[op])
+    operands = inst.get_input_operands()
 
     # Basically handle fences unmovable instructions etc WIP
     # if inst.opcode in ["ret"]:
     #     return
     # generate EVM for op
-    print("Generating EVM for instruction: ", inst)
-    _generate_evm_for_instruction(assembly, inst)
-
-    # for op in inst.get_output_operands():
-    #    _generate_evm_for_instruction_r(assembly, dfg_inputs[op])
-
-
-def _generate_evm_for_instruction(assembly: list, inst: IRInstruction) -> None:
     opcode = inst.opcode
 
-    if opcode == "calldatasize":
-        assembly.append("CALLDATASIZE")
-    elif opcode == "calldatacopy":
-        assembly.append("CALLDATACOPY")
+    # if opcode in ["le"]:
+    #     operands.reverse()
+
+    _emit_input_operands(ctx, assembly, operands)
+    print("Generating EVM for", inst)
+    if opcode in ONE_TO_ONE_INSTRUCTIONS:
+        assembly.append(opcode.upper())
+    elif opcode == "jnz":
+        assembly.append(f"_label_{inst.operands[1].value}")
+        assembly.append("JUMPI")
+    elif opcode == "jmp":
+        assembly.append(f"_label_{inst.operands[0].value}")
+        assembly.append("JUMP")
     elif opcode == "le":
-        assembly.append("LE")
+        assembly.append("GT")
+    elif opcode == "ge":
+        assembly.append("LT")
+    elif opcode == "ret":
+        assembly.append("RETURN")
+    elif opcode == "select":
+        assembly.append("select") # TODO: Implement
+    else:
+        raise Exception(f"Unknown opcode: {opcode}")
+
+
+def _emit_input_operands(ctx: IRFunction, assembly: list, ops: list[IROperant]) -> None:
+    for op in ops:
+        if isinstance(op, int):
+            assembly.append(f"PUSH1")
+            assembly.append(f"{op:#x}")
+            continue
+        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op])
+    

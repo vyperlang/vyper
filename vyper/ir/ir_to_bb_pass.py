@@ -38,7 +38,7 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     convert_ir_to_dfg(global_function)
 
     assembly = generate_evm(global_function)
-    print(assembly)
+    print(" ".join(assembly))
 
     return global_function
 
