@@ -7,7 +7,8 @@ from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.evm.opcodes import get_opcodes
 
 TERMINATOR_IR_INSTRUCTIONS = [
-    "br",
+    "jmp",
+    "jnz",
     "ret",
     "revert",
     "assert",
@@ -73,7 +74,7 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
         ), "Last instruction should be a terminator"
 
-        if last_inst.opcode == "br":
+        if last_inst.opcode in ["jmp", "jnz"]:
             ops = last_inst.get_label_operands()
             assert len(ops) >= 1, "br instruction should have at least one label operand"
             for op in ops:
@@ -136,7 +137,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
 
         _convert_ir_basicblock(ctx, ir.args[1])
 
-        inst = IRInstruction("br", [cont_ret, then_block.label, else_block.label])
+        inst = IRInstruction("jnz", [cont_ret, then_block.label, else_block.label])
         current_bb.append_instruction(inst)
 
         # exit bb
@@ -144,7 +145,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         bb = IRBasicBlock(exit_label, ctx)
         bb = ctx.append_basic_block(bb)
 
-        exit_inst = IRInstruction("br", [bb.label])
+        exit_inst = IRInstruction("jmp", [bb.label])
         else_block.append_instruction(exit_inst)
 
     elif ir.value == "with":
@@ -188,7 +189,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "goto":
-        inst = IRInstruction("br", [IRLabel(ir.args[0].value)])
+        inst = IRInstruction("jmp", [IRLabel(ir.args[0].value)])
         ctx.get_basic_block().append_instruction(inst)
 
         label = ctx.get_next_label()
