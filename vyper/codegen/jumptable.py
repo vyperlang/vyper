@@ -20,21 +20,23 @@ class Bucket:
         return _image_of([s for s in self.signatures], self.magic)
 
 
-# https://stackoverflow.com/a/568618/ with comments removed
+_D = {}
+# https://stackoverflow.com/a/568618/ but cache found data and
+# with comments removed
+# XXX: probably don't really want to use primes but keep this
+# for a bit just in case
 def _gen_primes():
     """ Generate an infinite sequence of prime numbers."""
-    D = {}
-
     q = 2
 
     while True:
-        if q not in D:
+        if q not in _D:
             yield q
-            D[q * q] = [q]
+            _D[q * q] = [q]
         else:
-            for p in D[q]:
-                D.setdefault(p + q, []).append(p)
-            del D[q]
+            for p in _D[q]:
+                _D.setdefault(p + q, []).append(p)
+            del _D[q]
 
         q += 1
 
