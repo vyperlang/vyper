@@ -260,8 +260,9 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "return":
         pass
     elif ir.value == "exit_to":
+        arg_2 = _convert_ir_basicblock(ctx, ir.args[2])
         sym = ir.args[1]
-        new_var = _symbols.get(f"&{sym.value}", None)
+        new_var = _symbols.get(f"&{sym.value}", arg_2)
         assert new_var != None, "exit_to with undefined variable"
         inst = IRInstruction("ret", [new_var])
         ctx.get_basic_block().append_instruction(inst)
