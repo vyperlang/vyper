@@ -40,17 +40,15 @@ def _gen_primes():
 
         q += 1
 
-#_PRIMES = []
-#for i, p in enumerate(_gen_primes()):
-#    if i >= 0xFFFF:
-#        break
-#    _PRIMES.append(p)
+def _image_of(xs, magic):
+    BITS_MAGIC = 31 # a constant which empirically produces good results
 
-def _image_of(xs, p):
-    return [((x * p) >> 32) % len(xs) for x in xs]
+    # take the upper bits from the multiplication for more entropy
+    return [((x * magic) >> (BITS_MAGIC)) % len(xs) for x in xs]
 
 def find_magic_for(xs):
-    for i in range(0xFFFF):
+    # for i, p in enumerate(_gen_primes()):
+    for i in range(2**16):
         test = _image_of(xs, i)
         if len(test) == len(set(test)):
             return i
@@ -61,11 +59,11 @@ def find_magic_for(xs):
 # first get "reasonably good" distribution by using
 # method_id % len(method_ids)
 # second, get the magic for the bucket.
-def _jumptable(method_ids, i):
+def _jumptable(method_ids, n_buckets):
 
     buckets = {}
     for x in method_ids:
-        t = x % i
+        t = x % n_buckets
         buckets.setdefault(t, [])
         buckets[t].append(x)
 
