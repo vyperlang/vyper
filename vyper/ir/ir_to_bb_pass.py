@@ -79,6 +79,8 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             assert len(ops) >= 1, "br instruction should have at least one label operand"
             for op in ops:
                 ctx.get_basic_block(op.value).add_in(bb)
+        elif last_inst.opcode == "assert":
+            ctx.get_basic_block_after(bb.label).add_in(bb)
 
     # Fill in the "out" set for each basic block
     for bb in ctx.basic_blocks:
