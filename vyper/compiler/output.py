@@ -222,9 +222,7 @@ def build_basicblock_output(compiler_data: CompilerData) -> str:
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
+        compiler_data.assembly_runtime, insert_vyper_signature=False
     )
     # Sort line_number_map
     out = OrderedDict()
