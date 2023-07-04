@@ -178,9 +178,18 @@ class IRBasicBlock:
     def remove_out(self, bb: "IRBasicBlock") -> None:
         self.out_set.remove(bb)
 
-    @property
-    def in_vars(self) -> set[IRVariable]:
-        return self.instructions[0].liveness
+    def in_vars_for(self, bb: "IRBasicBlock" = None) -> set[IRVariable]:
+        liveness = self.instructions[0].liveness.copy()
+
+        if bb:
+            for inst in self.instructions:
+                if inst.opcode == "select":
+                    if inst.operands[0] == bb.label and inst.operands[3] in liveness:
+                        liveness.remove(inst.operands[3])
+                    if inst.operands[2] == bb.label and inst.operands[1] in liveness:
+                        liveness.remove(inst.operands[1])
+
+        return liveness
 
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
@@ -203,6 +212,12 @@ class IRBasicBlock:
             if out in self.out_vars:
                 self.out_vars.remove(out)
             instruction.liveness = self.out_vars.copy()
+
+    def get_liveness(self) -> set[IRVariable]:
+        """
+        Get liveness of basic block.
+        """
+        return self.instructions[-1].liveness
 
     def __repr__(self) -> str:
         s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"

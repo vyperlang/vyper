@@ -30,9 +30,28 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     # TODO: can be split into a new pass
     _calculate_in_set(global_function)
     _calculate_liveness(global_function.basic_blocks[0])
-    # _optimize_unused_variables(global_function)
+
+    # Optimization pass: Remove unused variables
+    _optimize_unused_variables(global_function)
 
     return global_function
+
+
+def _optimize_unused_variables(ctx: IRFunction) -> int:
+    """
+    Remove unused variables.
+    """
+    count = 0
+    removeList = []
+    for bb in ctx.basic_blocks:
+        for i, inst in enumerate(bb.instructions[:-1]):
+            if inst.ret and inst.ret not in bb.instructions[i + 1].liveness:
+                removeList.append(inst)
+                count += 1
+
+        bb.instructions = [inst for inst in bb.instructions if inst not in removeList]
+
+    return count
 
 
 def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
@@ -98,7 +117,7 @@ def _calculate_in_set(ctx: IRFunction) -> None:
 def _calculate_liveness(bb: IRBasicBlock) -> None:
     for out_bb in bb.out_set:
         _calculate_liveness(out_bb)
-        in_vars = out_bb.in_vars
+        in_vars = out_bb.in_vars_for(bb)
         bb.out_vars = bb.out_vars.union(in_vars)
 
     bb.calculate_liveness()
