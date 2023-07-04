@@ -1,7 +1,7 @@
 # helper module which implements jumptable for function selection
 from dataclasses import dataclass
 from typing import Optional, Tuple
-from vyper.utils import keccak256, bytes_to_int
+from vyper.utils import keccak256, bytes_to_int, method_id_int
 import math
 
 
@@ -52,6 +52,10 @@ def _image_of(xs, magic):
     return [((x * magic) >> (BITS_MAGIC)) % len(xs) for x in xs]
 
 
+class _Failure(Exception):
+    pass
+
+
 def find_magic_for(xs):
     # for i, p in enumerate(_gen_primes()):
     for i in range(2**16):
@@ -59,14 +63,14 @@ def find_magic_for(xs):
         if len(test) == len(set(test)):
             return i
 
-    raise Exception(f"Could not find hash for {xs}")
+    raise _Failure(f"Could not find hash for {xs}")
 
 
 # two layer method for generating perfect hash
 # first get "reasonably good" distribution by using
 # method_id % len(method_ids)
 # second, get the magic for the bucket.
-def _jumptable(method_ids, n_buckets):
+def _jumptable_info(method_ids, n_buckets):
     buckets = {}
     for x in method_ids:
         t = x % n_buckets
@@ -81,5 +85,20 @@ def _jumptable(method_ids, n_buckets):
     return ret
 
 
-def jumptable_ir(signatures):
-    jumptable = _jumptable([sig.method_id for sig in signatures])
+def generate_jumptable_info(signatures):
+    method_ids = [method_id_int(sig) for sig in signatures]
+    n = len(signatures)
+    # start at bucket size of 5 and try to improve (generally
+    # speaking we want as few buckets as possible)
+    n_buckets = n // 5
+    ret = None
+    while n_buckets > 0:
+        try:
+            print(f"trying {n_buckets} (bucket size {n // n_buckets})")
+            ret = _jumptable_info(method_ids, n_buckets)
+        except _Failure:
+            # maybe try larger bucket size, but this seems pretty unlikely
+            if ret is None:
+                raise RuntimeError(f"Could not generate jumptable! {signatures}")
+            return ret
+        n_buckets -= 1
