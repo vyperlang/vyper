@@ -35,8 +35,6 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     # Optimization pass: Remove unused variables
     _optimize_unused_variables(global_function)
 
-    convert_ir_to_dfg(global_function)
-
     assembly = generate_evm(global_function)
     print(" ".join(assembly))
 

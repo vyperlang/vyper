@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import TERMINAL_IR_INSTRUCTIONS, IRInstruction, IROperant
+from vyper.codegen.ir_basicblock import TERMINAL_IR_INSTRUCTIONS, IRBasicBlock, IRInstruction, IROperant
 from vyper.codegen.ir_function import IRFunction
 
 ONE_TO_ONE_INSTRUCTIONS = [
@@ -35,6 +35,26 @@ dfg_outputs = {}
 
 
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
+    global dfg_inputs
+    global dfg_outputs
+    dfg_inputs = {}
+    dfg_outputs = {}
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            operands = inst.get_input_variables()
+            res = inst.get_output_operands()
+
+            for op in operands:
+                dfg_inputs[op] = inst
+
+            for op in res:
+                dfg_outputs[op] = inst
+
+def convert_bb_to_dfg(ctx: IRFunction, bb: IRBasicBlock) -> None:
+    global dfg_inputs
+    global dfg_outputs
+    dfg_inputs = {}
+    dfg_outputs = {}
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             operands = inst.get_input_variables()
@@ -51,26 +71,31 @@ visited_instructions = set()
 
 
 def generate_evm(ctx: IRFunction) -> list[str]:
-    dfg_inputs = {}
-    dfg_outputs = {}
-
     assembly = []
 
     FIXED = set(["ret", "assert", "revert"])
 
+    #convert_ir_to_dfg(ctx)
+
     for i, bb in enumerate(ctx.basic_blocks):
+        convert_bb_to_dfg(ctx,bb)
         if i != 0:
             assembly.append(f"_label_{bb.label}")
             assembly.append("JUMPDEST")
-        for inst in bb.instructions[:-1]:
+        for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, FIXED)
-        _generate_evm_for_instruction_r(ctx, assembly, bb.instructions[-1])
+        for inst in bb.instructions:
+            _generate_evm_for_instruction_r(ctx, assembly, inst)
 
     return assembly
 
 def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRInstruction, fixed: set = set()) -> None:
+    # Basically handle fences unmovable instructions etc WIP
+    if inst.opcode in fixed:
+        return
+    
     for op in inst.get_output_operands():
-       _generate_evm_for_instruction_r(ctx, assembly, dfg_inputs[op])
+       _generate_evm_for_instruction_r(ctx, assembly, dfg_inputs[op], fixed)
 
     if inst in visited_instructions:
         return
@@ -78,17 +103,14 @@ def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRIns
 
     operands = inst.get_input_operands()
 
-    # Basically handle fences unmovable instructions etc WIP
-    if inst.opcode in fixed:
-        return
     # generate EVM for op
     opcode = inst.opcode
 
     # if opcode in ["le"]:
     #     operands.reverse()
 
-    _emit_input_operands(ctx, assembly, operands)
-    print("Generating EVM for", inst)
+    _emit_input_operands(ctx, assembly, operands, fixed)
+    #print("Generating EVM for", inst)
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
     elif opcode == "jnz":
@@ -109,11 +131,11 @@ def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRIns
         raise Exception(f"Unknown opcode: {opcode}")
 
 
-def _emit_input_operands(ctx: IRFunction, assembly: list, ops: list[IROperant]) -> None:
+def _emit_input_operands(ctx: IRFunction, assembly: list, ops: list[IROperant], fixed: set) -> None:
     for op in ops:
         if isinstance(op, int):
             assembly.append(f"PUSH1")
             assembly.append(f"{op:#x}")
             continue
-        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op])
+        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op], fixed)
     
