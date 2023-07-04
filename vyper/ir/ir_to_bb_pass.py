@@ -17,14 +17,21 @@ TERMINATOR_IR_INSTRUCTIONS = [
 _symbols = {}
 
 
+def _get_symbols_common(a: dict, b: dict) -> dict:
+    return {k: [a[k], b[k]] for k in a.keys() & b.keys() if a[k] != b[k]}
+
+
 def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir)
     while _optimize_empty_basicblocks(global_function):
         pass
+
+    # TODO: can be split into a new pass
     _calculate_in_set(global_function)
     _calculate_liveness(global_function.basic_blocks[0])
     # _optimize_unused_variables(global_function)
+
     return global_function
 
 
@@ -130,8 +137,10 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.append_basic_block(else_block)
 
         # convert "else"
+        start_syms = _symbols.copy()
         if len(ir.args) == 3:
             _convert_ir_basicblock(ctx, ir.args[2])
+        after_else_syms = _symbols.copy()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label(), ctx)
@@ -142,10 +151,19 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         inst = IRInstruction("jnz", [cont_ret, then_block.label, else_block.label])
         current_bb.append_instruction(inst)
 
+        after_then_syms = _symbols.copy()
+
         # exit bb
         exit_label = ctx.get_next_label()
         bb = IRBasicBlock(exit_label, ctx)
         bb = ctx.append_basic_block(bb)
+
+        for sym, val in _get_symbols_common(after_then_syms, after_else_syms).items():
+            ret = ctx.get_next_variable()
+            _symbols[sym] = ret
+            bb.append_instruction(
+                IRInstruction("select", [then_block.label, val[0], else_block.label, val[1]], ret)
+            )
 
         exit_inst = IRInstruction("jmp", [bb.label])
         else_block.append_instruction(exit_inst)
@@ -223,11 +241,10 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "return":
         pass
     elif ir.value == "exit_to":
-        ret = _convert_ir_basicblock(ctx, ir.args[2])
-
-        # FIXME: for now
-
-        inst = IRInstruction("ret", [ret])
+        sym = ir.args[1]
+        new_var = _symbols.get(f"&{sym.value}", None)
+        assert new_var != None, "exit_to with undefined variable"
+        inst = IRInstruction("ret", [new_var])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
         inst = IRInstruction("revert", ir.args)
