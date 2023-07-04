@@ -3,10 +3,11 @@
 from typing import Any, List
 
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function
+from vyper.codegen.function_definitions import generate_ir_for_function, FuncIR
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
+from vyper.utils import method_id_int
 
 
 def _topsort_helper(functions, lookup):
@@ -47,6 +48,41 @@ def _is_payable(func_ast):
     return func_ast._metadata["type"].is_payable
 
 
+def _annotated_method_id(abi_sig):
+    method_id = method_id_int(abi_sig)
+    annotation = f"{hex(method_id)}: {abi_sig}"
+    return IRnode(method_id, annotation=annotation)
+
+
+def _ir_for_external_function(func_ast, *args, **kwargs):
+    # adapt whatever generate_ir_for_function gives us into an IR node
+    ret = ["seq"]
+    func_t = func_ast._metadata["type"]
+    func_ir = generate_ir_for_function(func_ast, *args, **kwargs)
+
+    if func_t.is_fallback or func_t.is_constructor:
+        assert len(func_ir.entry_points) == 1
+        # add a goto to make the function entry look like other functions
+        # (for zksync interpreter)
+        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
+        ret.append(func_ir.common_ir)
+
+    else:
+        for sig, ir_node in func_ir.entry_points.items():
+            method_id = _annotated_method_id(sig)
+            ret.append(["if", ["eq", "_calldata_method_id", method_id], ir_node])
+        # stick function common body into final entry point to save a jump
+        # TODO: this would not really be necessary if we had block reordering
+        # in optimizer.
+        ir_node.append(func_ir.common_ir)
+
+    return IRnode.from_list(ret)
+
+
+def _ir_for_internal_function(func_ast, *args, **kwargs):
+    return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
+
+
 # codegen for all runtime functions + callvalue/calldata checks + method selector routines
 def _runtime_ir(runtime_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
@@ -67,7 +103,7 @@ def _runtime_ir(runtime_functions, global_ctx):
     internal_functions_ir: list[IRnode] = []
 
     for func_ast in internal_functions:
-        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
+        func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
         internal_functions_ir.append(func_ir)
 
     # for some reason, somebody may want to deploy a contract with no
@@ -92,7 +128,7 @@ def _runtime_ir(runtime_functions, global_ctx):
     selector_section = ["seq"]
 
     for func_ast in payables:
-        func_ir = generate_ir_for_function(func_ast, global_ctx, False)
+        func_ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
         selector_section.append(func_ir)
 
     if batch_payable_check:
@@ -102,11 +138,11 @@ def _runtime_ir(runtime_functions, global_ctx):
         selector_section.append(nonpayable_check)
 
     for func_ast in nonpayables:
-        func_ir = generate_ir_for_function(func_ast, global_ctx, skip_nonpayable_check)
-        selector_section.append(func_ir)
+        ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
+        selector_section.append(ir)
 
     if default_function:
-        fallback_ir = generate_ir_for_function(
+        fallback_ir = _ir_for_external_function(
             default_function, global_ctx, skip_nonpayable_check=False
         )
     else:
@@ -149,7 +185,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = generate_ir_for_function(
+        init_func_ir = _ir_for_external_function(
             init_function, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
         )
 
@@ -184,10 +220,10 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         for f in internal_functions:
             init_func_t = init_function._metadata["type"]
             if f.name not in init_func_t.recursive_calls:
-                # unreachable
+                # unreachable code, delete it
                 continue
 
-            func_ir = generate_ir_for_function(
+            func_ir = _ir_for_internal_function(
                 f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
             )
             deploy_code.append(func_ir)
