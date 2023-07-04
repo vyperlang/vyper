@@ -56,16 +56,19 @@ def generate_evm(ctx: IRFunction) -> list[str]:
 
     assembly = []
 
+    FIXED = set(["ret", "assert", "revert"])
+
     for i, bb in enumerate(ctx.basic_blocks):
         if i != 0:
             assembly.append(f"_label_{bb.label}")
             assembly.append("JUMPDEST")
-        for inst in bb.instructions:
-            _generate_evm_for_instruction_r(ctx, assembly, inst)
+        for inst in bb.instructions[:-1]:
+            _generate_evm_for_instruction_r(ctx, assembly, inst, FIXED)
+        _generate_evm_for_instruction_r(ctx, assembly, bb.instructions[-1])
 
     return assembly
 
-def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRInstruction) -> None:
+def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRInstruction, fixed: set = set()) -> None:
     for op in inst.get_output_operands():
        _generate_evm_for_instruction_r(ctx, assembly, dfg_inputs[op])
 
@@ -76,8 +79,8 @@ def _generate_evm_for_instruction_r(ctx: IRFunction, assembly: list, inst: IRIns
     operands = inst.get_input_operands()
 
     # Basically handle fences unmovable instructions etc WIP
-    # if inst.opcode in ["ret"]:
-    #     return
+    if inst.opcode in fixed:
+        return
     # generate EVM for op
     opcode = inst.opcode
 
