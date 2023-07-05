@@ -6,6 +6,7 @@ from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function, FuncIR
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen import jumptable
 from vyper.exceptions import CompilerPanic
 from vyper.utils import method_id_int
 
@@ -83,8 +84,147 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
     return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
 
 
-# codegen for all runtime functions + callvalue/calldata checks + method selector routines
-def _runtime_ir(runtime_functions, global_ctx):
+# codegen for all runtime functions + callvalue/calldata checks,
+# with O(1) jumptable for selector table.
+def _runtime_ir_jumptable(runtime_functions, global_ctx):
+    # categorize the runtime functions because we will organize the runtime
+    # code into the following sections:
+    # payable functions, nonpayable functions, fallback function, internal_functions
+    internal_functions = [f for f in runtime_functions if _is_internal(f)]
+
+    external_functions = [f for f in runtime_functions if not _is_internal(f)]
+    default_function = next((f for f in external_functions if _is_fallback(f)), None)
+
+    internal_functions_ir: list[IRnode] = []
+
+    # compile internal functions first so we have the function info
+    for func_ast in internal_functions:
+        func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
+        internal_functions_ir.append(IRnode.from_list(func_ir))
+
+    function_irs = []
+    entry_points = {}  # map from ABI sigs to ir code
+
+    for code in external_functions:
+        func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
+        for abi_sig, entry_point in func_ir.entry_points.items():
+            assert abi_sig not in entry_points
+            entry_points[abi_sig] = entry_point
+        # stick function common body into final entry point to save a jump
+        entry_point.ir_node.append(func_ir.common_ir)
+
+    for entry_point in entry_points.values():
+        function_irs.append(IRnode.from_list(entry_point.ir_node))
+
+    function_irs.extend(internal_functions_ir)
+
+    jumptable_info = jumptable.generate_jumptable_info(entry_points.keys())
+    n_buckets = len(jumptable_info)
+
+    # 2 bytes for bucket magic, 2 bytes for bucket location
+    SZ_BUCKET_HEADER = 4
+
+    selector_section = ["seq"]
+
+    bucket_id = ["mod", "_calldata_method_id", n_buckets]
+    bucket_hdr_location = [
+        "add",
+        ["symbol", "BUCKET_HEADERS"],
+        ["mul", bucket_id, SZ_BUCKET_HEADER],
+    ]
+    # get bucket header
+    dst = 32 - SZ_BUCKET_HEADER
+    assert dst >= 0
+
+    # memory is PROBABLY 0, but just be paranoid.
+    selector_section.append(["mstore", 0, 0])
+    selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
+
+    # figure out the minimum number of bytes we can use to encode
+    # min_calldatasize in function info
+    largest_mincalldatasize = max(f.min_calldatasize for f in entry_points.values())
+    variable_bytes_needed = (largest_mincalldatasize.bit_length() + 7) // 8
+
+    func_info_size = 4 + 2 + variable_bytes_needed
+    # grab function info. 4 bytes for method id, 2 bytes for label,
+    # 1-3 bytes (packed) for: expected calldatasize, is payable bit
+    # TODO: might be able to improve codesize if we use variable # of bytes
+    # per bucket
+
+    # TODO: inline all bucket info when there is only one bucket, we know 
+    # all the data at compile-time.
+    hdr_info = IRnode.from_list(["mload", 0])
+    with hdr_info.cache_when_complex("hdr_info") as (b1, hdr_info):
+        bucket_location = ["and", 0xFFFF, hdr_info]
+        bucket_magic = shr(16, hdr_info)
+        # ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
+        func_id = [
+            "mod",
+            shr(jumptable.BITS_MAGIC, ["mul", bucket_magic, "_calldata_method_id"]),
+            n_buckets,
+        ]
+        func_info_location = ["add", bucket_location, ["mul", func_id, func_info_size]]
+        dst = 32 - func_info_size
+        assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
+        assert dst >= 0
+        selector_section.append(b1.resolve(["codecopy", dst, func_info_location, func_info_size]))
+
+    # TODO: add a special case when there is only one function?
+    func_info = IRnode.from_list(["mload", 0])
+    with func_info.cache_when_complex("func_info") as (b1, func_info):
+        x = ["seq"]
+
+        # expected calldatasize always satisfies (x - 4) % 32 == 0
+        # the lower 5 bits are always 0b00100, so we can use those
+        # bits for other purposes.
+        is_nonpayable = ["and", 1, func_info]
+        expected_calldatasize = ["and", 0xFFFFFE, func_info]
+
+        # method id <4 bytes> | label <2 bytes> | func info <1-3 bytes>
+
+        label_bits_ofst = variable_bytes_needed * 8
+        function_label = ["and", 0xFFFF, shr(label_bits_ofst, func_info)]
+        method_id_bits_ofst = (variable_bytes_needed + 3) * 8
+        function_method_id = shr(method_id_bits_ofst, func_info)
+
+        # check method id is right, if not then fallback.
+        calldatasize_valid = ["gt", "calldatasize", 3]
+        method_id_correct = ["eq", function_method_id, "_calldata_method_id"]
+        should_fallback = ["iszero", ["mul", calldatasize_valid, method_id_correct]]
+        x.append(["if", should_fallback, ["goto", "fallback"]])
+
+        # assert callvalue == 0 if nonpayable
+        payable_check = ["mul", is_nonpayable, "callvalue"]
+        # assert calldatasize correct
+        calldatasize_check = ["ge", "calldatasize", expected_calldatasize]
+        passed_entry_conditions = ["mul", payable_check, calldatasize_check]
+        x.append(["assert", passed_entry_conditions])
+        x.append(["goto", function_label])
+        selector_section.append(b1.resolve(x))
+
+    if default_function:
+        fallback_ir = _ir_for_external_function(
+            default_function, global_ctx, skip_nonpayable_check=False
+        )
+    else:
+        fallback_ir = IRnode.from_list(
+            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
+        )
+
+    runtime = [
+        "seq",
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+        ["label", "fallback", ["var_list"], fallback_ir],
+    ]
+
+    runtime.extend(function_irs)
+
+    return runtime
+
+
+# codegen for all runtime functions + callvalue/calldata checks + method
+# selector routines. use the old linear selector table implementation
+def _runtime_ir_legacy(runtime_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
     # payable functions, nonpayable functions, fallback function, internal_functions
@@ -98,8 +238,6 @@ def _runtime_ir(runtime_functions, global_ctx):
     payables = [f for f in regular_functions if _is_payable(f)]
     nonpayables = [f for f in regular_functions if not _is_payable(f)]
 
-    # create a map of the IR functions since they might live in both
-    # runtime and deploy code (if init function calls them)
     internal_functions_ir: list[IRnode] = []
 
     for func_ast in internal_functions:
@@ -179,7 +317,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
-    runtime = _runtime_ir(runtime_functions, global_ctx)
+    runtime = _runtime_ir_jumptable(runtime_functions, global_ctx)
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes

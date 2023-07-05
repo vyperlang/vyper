@@ -68,8 +68,14 @@ class FuncIR:
 
 
 @dataclass
+class EntryPointInfo:
+    min_calldatasize: int  # the min calldata required for this function
+    ir_node: IRnode  # the ir for this entry point
+
+
+@dataclass
 class ExternalFuncIR(FuncIR):
-    entry_points: dict[str, IRnode]  # map from abi sigs to entry points
+    entry_points: dict[str, EntryPointInfo]  # map from abi sigs to entry points
     common_ir: IRnode  # the "common" code for the function
 
 
@@ -132,7 +138,8 @@ def generate_ir_for_function(
         kwarg_handlers, common = generate_ir_for_external_function(
             code, func_t, context, skip_nonpayable_check
         )
-        ret = ExternalFuncIR(kwarg_handlers, common)
+        entry_points = {k: EntryPointInfo(mincalldatasize, ir_node) for k, (mincalldatasize, ir_node) in kwarg_handlers.items()}
+        ret = ExternalFuncIR(entry_points, common)
         # note: this ignores the cost of traversing selector table
         func_t._ir_info.gas_estimate = ret.common_ir.gas
 

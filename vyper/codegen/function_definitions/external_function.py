@@ -81,11 +81,6 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dic
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
 
-        # note we don't need the check if calldata_min_size == 4,
-        # because the global calldatasize check ensures that already.
-        if calldata_min_size > 4:
-            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
-
         # TODO optimize make_setter by using
         # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
@@ -116,7 +111,8 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dic
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
-        return abi_sig, ret
+        # return something we can turn into ExternalFuncIR
+        return abi_sig, calldata_min_size, ret
 
     ret = {}
 
@@ -130,11 +126,12 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dic
         calldata_kwargs = keyword_args[:i]
         default_kwargs = keyword_args[i:]
 
-        sig, ir_node = handler_for(calldata_kwargs, default_kwargs)
-        ret[sig] = ir_node
+        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs)
+        ret[sig] = calldata_min_size, ir_node
 
-    sig, ir_node = handler_for(keyword_args, [])
-    ret[sig] = ir_node
+    sig, calldata_min_size, ir_node = handler_for(keyword_args, [])
+
+    ret[sig] = calldata_min_size, ir_node
 
     return ret
 
