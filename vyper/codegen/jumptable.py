@@ -22,8 +22,7 @@ class Bucket:
         return _image_of([s for s in self.signatures], self.magic)
 
 
-_D = {}
-
+_PRIMES = []
 
 # https://stackoverflow.com/a/568618/ but cache found data and
 # with comments removed
@@ -31,28 +30,39 @@ _D = {}
 # for a bit just in case
 def _gen_primes():
     """Generate an infinite sequence of prime numbers."""
+    D = {}
     q = 2
+    i = 0
 
     while True:
-        if q not in _D:
-            yield q
-            _D[q * q] = [q]
+        if q < len(_PRIMES):
+            yield _PRIMES[i]
         else:
-            for p in _D[q]:
-                _D.setdefault(p + q, []).append(p)
-            del _D[q]
+            if q not in D:
+                _PRIMES.append(q)
+                yield q
+                D[q * q] = [q]
+            else:
+                for p in D[q]:
+                    D.setdefault(p + q, []).append(p)
+                del D[q]
 
+        i += 1
         q += 1
 
 
 BITS_MAGIC = 24  # a constant which produced good results, see _bench()
+
+# smallest prime larger than 2**n
+#prime_for_bits = [2, 3, 5, 11, 17, 37, 67, 131, 257, 521, 1031, 2053, 4099, 8209, 16411, 32771, 65537, 131101, 262147, 524309, 1048583, 2097169, 4194319, 8388617, 16777259, 33554467, 67108879, 134217757, 268435459, 536870923, 1073741827, 2147483659]
 
 
 def _image_of(xs, magic):
     bits_shift = BITS_MAGIC
 
     # take the upper bits from the multiplication for more entropy
-    return [((x * magic) >> (bits_shift)) % len(xs) for x in xs]
+    # can we do better using primes of some sort?
+    return [((x * magic) >> bits_shift) % len(xs) for x in xs]
 
 
 class _Failure(Exception):
@@ -60,11 +70,13 @@ class _Failure(Exception):
 
 
 def find_magic_for(xs):
-    # for i, p in enumerate(_gen_primes()):
-    for i in range(2**16):
-        test = _image_of(xs, i)
+    #for i, m in enumerate(_gen_primes()):
+    #    if i >= 2**16:
+    #        break
+    for m in range(2**16):
+        test = _image_of(xs, m)
         if len(test) == len(set(test)):
-            return i
+            return m
 
     raise _Failure(f"Could not find hash for {xs}")
 
@@ -88,43 +100,55 @@ def _jumptable_info(method_ids, n_buckets):
     return ret
 
 
-START_BUCKET_SIZE = 4
+START_BUCKET_SIZE = 5
 
 
 def generate_jumptable_info(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)
-    # start at bucket size of 4 and try to improve (generally
+    # start at bucket size of 5 and try to improve (generally
     # speaking we want as few buckets as possible)
     n_buckets = n // START_BUCKET_SIZE
     ret = None
+    tried_exhaustive = False
     while n_buckets > 0:
         try:
-            print(f"trying {n_buckets} (bucket size {n // n_buckets})")
+            #print(f"trying {n_buckets} (bucket size {n // n_buckets})")
             ret = _jumptable_info(method_ids, n_buckets)
         except _Failure:
-            # maybe try larger bucket size, but this seems pretty unlikely
-            if ret is None:
+            if ret is not None:
+                #print(f"(bailing out at {n_buckets})")
+                return ret
+
+            # we have not tried exhaustive search. try really hard
+            # to find a valid jumptable at the cost of performance
+            if not tried_exhaustive:
+                #print("failed with guess! trying exhaustive search.")
+                n_buckets = n
+                tried_exhaustive = True
+                continue
+            else:
                 raise RuntimeError(f"Could not generate jumptable! {signatures}")
-            return ret
         n_buckets -= 1
 
 # benchmark for quality of buckets
-def _bench():
+def _bench(N=1000):
     import random
 
     stats = []
-    for i in range(1000):
+    for i in range(N):
         seed = random.randint(0, 1_000_000)
         # "large" contracts in prod hit about ~50 methods, test with
         # double the limit
         sigs = [f"foo{i + seed}()" for i in range(100)]
 
         xs = generate_jumptable_info(sigs)
+        print(f"found. n buckets {len(xs)}")
         stats.append(xs)
 
     def mean(xs):
         return sum(xs) / len(xs)
 
     avg_n_buckets = mean([len(jt) for jt in stats])
+    # usually around ~14 buckets per 100 sigs
     print(f"average N buckets: {avg_n_buckets}")
