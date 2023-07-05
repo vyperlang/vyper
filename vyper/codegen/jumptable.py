@@ -45,11 +45,14 @@ def _gen_primes():
         q += 1
 
 
+BITS_MAGIC = 24  # a constant which produced good results, see _bench()
+
+
 def _image_of(xs, magic):
-    BITS_MAGIC = 31  # a constant which empirically produces good results
+    bits_shift = BITS_MAGIC
 
     # take the upper bits from the multiplication for more entropy
-    return [((x * magic) >> (BITS_MAGIC)) % len(xs) for x in xs]
+    return [((x * magic) >> (bits_shift)) % len(xs) for x in xs]
 
 
 class _Failure(Exception):
@@ -85,12 +88,15 @@ def _jumptable_info(method_ids, n_buckets):
     return ret
 
 
+START_BUCKET_SIZE = 4
+
+
 def generate_jumptable_info(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)
-    # start at bucket size of 5 and try to improve (generally
+    # start at bucket size of 4 and try to improve (generally
     # speaking we want as few buckets as possible)
-    n_buckets = n // 5
+    n_buckets = n // START_BUCKET_SIZE
     ret = None
     while n_buckets > 0:
         try:
@@ -102,3 +108,23 @@ def generate_jumptable_info(signatures):
                 raise RuntimeError(f"Could not generate jumptable! {signatures}")
             return ret
         n_buckets -= 1
+
+# benchmark for quality of buckets
+def _bench():
+    import random
+
+    stats = []
+    for i in range(1000):
+        seed = random.randint(0, 1_000_000)
+        # "large" contracts in prod hit about ~50 methods, test with
+        # double the limit
+        sigs = [f"foo{i + seed}()" for i in range(100)]
+
+        xs = generate_jumptable_info(sigs)
+        stats.append(xs)
+
+    def mean(xs):
+        return sum(xs) / len(xs)
+
+    avg_n_buckets = mean([len(jt) for jt in stats])
+    print(f"average N buckets: {avg_n_buckets}")
