@@ -896,13 +896,28 @@ def _complex_make_setter(left, right):
     if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
-        # 10 words is the cutoff for memory copy where identity is cheaper
-        # than unrolled mloads/mstores, also a good heuristic for other
-        # locations where we might want to start rolling the loop.
-        if len_ >= 32 * 10 or version_check(begin="cancun"):
+
+        has_storage = STORAGE in (left.location, right.location)
+        if has_storage:
+            # TODO: make this smarter, probably want to even loop for storage
+            # above a certain threshold. note a single sstore(dst (sload src))
+            # is 8 bytes, whereas loop overhead is 17 bytes.
+            should_batch_copy = False
+        else:
+            # 10 words is the cutoff for memory copy where identity is cheaper
+            # than unrolled mloads/mstores
+            # if MCOPY is available, mcopy is *always* better (except in
+            # the 1 word case, but that is already handled by copy_bytes).
+            if right.location == MEMORY:
+                should_batch_copy = (len_ >= 32 * 10 or version_check(begin="cancun"))
+            # calldata or code to memory - batch copy is always better.
+            else:
+                should_batch_copy = True
+
+        if should_batch_copy:
             return copy_bytes(left, right, len_, len_)
 
-    # general case
+    # general case, unroll
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
