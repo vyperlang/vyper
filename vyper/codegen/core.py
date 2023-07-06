@@ -257,7 +257,6 @@ def copy_bytes(dst, src, length, length_bound):
         assert src.is_pointer and dst.is_pointer
 
         # fast code for common case where num bytes is small
-        # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
             copy_op = STORE(dst, LOAD(src))
             ret = IRnode.from_list(copy_op, annotation=annotation)
@@ -897,7 +896,11 @@ def _complex_make_setter(left, right):
     if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
-        return copy_bytes(left, right, len_, len_)
+        # 10 words is the cutoff for memory copy where identity is cheaper
+        # than unrolled mloads/mstores, also a good heuristic for other
+        # locations where we might want to start rolling the loop.
+        if len_ >= 32*10 or version_check(begin="cancun"):
+            return copy_bytes(left, right, len_, len_)
 
     # general case
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
