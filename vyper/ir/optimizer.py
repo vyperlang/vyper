@@ -641,6 +641,10 @@ def _merge_calldataload(argz):
     return _merge_load(argz, "calldataload", "calldatacopy")
 
 
+def _merge_dload(argz):
+    return _merge_load(argz, "dload", "dloadbytes")
+
+
 def _merge_mload(argz):
     if not version_check(begin="cancun"):
         return False
