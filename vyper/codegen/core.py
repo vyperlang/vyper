@@ -899,7 +899,7 @@ def _complex_make_setter(left, right):
         # 10 words is the cutoff for memory copy where identity is cheaper
         # than unrolled mloads/mstores, also a good heuristic for other
         # locations where we might want to start rolling the loop.
-        if len_ >= 32*10 or version_check(begin="cancun"):
+        if len_ >= 32 * 10 or version_check(begin="cancun"):
             return copy_bytes(left, right, len_, len_)
 
     # general case
