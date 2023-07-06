@@ -909,7 +909,7 @@ def _complex_make_setter(left, right):
             # if MCOPY is available, mcopy is *always* better (except in
             # the 1 word case, but that is already handled by copy_bytes).
             if right.location == MEMORY:
-                should_batch_copy = (len_ >= 32 * 10 or version_check(begin="cancun"))
+                should_batch_copy = len_ >= 32 * 10 or version_check(begin="cancun")
             # calldata or code to memory - batch copy is always better.
             else:
                 should_batch_copy = True
