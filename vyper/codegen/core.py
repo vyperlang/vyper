@@ -894,7 +894,8 @@ def _complex_make_setter(left, right):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    if left.is_pointer and right.is_pointer:
+    if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+        assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
         return copy_bytes(left, right, len_, len_)
 
