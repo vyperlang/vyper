@@ -3,6 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions

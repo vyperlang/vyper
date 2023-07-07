@@ -7,6 +7,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
@@ -260,7 +261,9 @@ def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, optimize: OptimizationLevel = OptimizationLevel.GAS) -> list:
+def generate_assembly(
+    ir_nodes: IRnode, optimize: OptimizationLevel = OptimizationLevel.GAS
+) -> list:
     """
     Generate assembly instructions from IR.
 

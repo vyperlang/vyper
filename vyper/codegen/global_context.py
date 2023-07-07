@@ -8,7 +8,7 @@ from vyper.compiler.settings import OptimizationLevel
 # Datatype to store all global context information.
 # TODO: rename me to ModuleT
 class GlobalContext:
-    def __init__(self, module: Optional[vy_ast.Module] = None, optimize = OptimizationLevel.GAS):
+    def __init__(self, module: Optional[vy_ast.Module] = None, optimize=OptimizationLevel.GAS):
         self._module = module
 
     @cached_property

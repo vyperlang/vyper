@@ -5,6 +5,7 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import OptimizerLevel
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
     ContractCodes,
@@ -53,7 +54,7 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
-    optimize: OptimizationLevel = OptimizationLevel.GAS,
+    optimize: OptimizerLevel = OptimizerLevel.GAS,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
