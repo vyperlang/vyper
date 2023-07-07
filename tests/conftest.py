@@ -37,7 +37,12 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption("--optimize", choices=["codesize", "gas", "none"], default="gas", help="disable asm and IR optimizations")
+    parser.addoption(
+        "--optimize",
+        choices=["codesize", "gas", "none"],
+        default="gas",
+        help="disable asm and IR optimizations",
+    )
 
 
 @pytest.fixture(scope="module")

@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import OptimizationLevel
 
 codes = [
     """
@@ -72,7 +73,7 @@ def __init__():
 
 @pytest.mark.parametrize("code", codes)
 def test_dead_code_eliminator(code):
-    c = CompilerData(code, no_optimize=True)
+    c = CompilerData(code, optimize=OptimizationLevel.NONE)
     initcode_asm = [i for i in c.assembly if not isinstance(i, list)]
     runtime_asm = c.assembly_runtime
 
@@ -87,7 +88,7 @@ def test_dead_code_eliminator(code):
     for s in (ctor_only_label, runtime_only_label):
         assert s + "_runtime" in runtime_asm
 
-    c = CompilerData(code, no_optimize=False)
+    c = CompilerData(code, optimize=OptimizationLevel.GAS)
     initcode_asm = [i for i in c.assembly if not isinstance(i, list)]
     runtime_asm = c.assembly_runtime
 

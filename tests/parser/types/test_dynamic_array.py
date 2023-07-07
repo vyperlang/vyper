@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
@@ -1543,7 +1544,7 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-def test_nested_struct_of_lists(get_contract, assert_compile_failed, no_optimize):
+def test_nested_struct_of_lists(get_contract, assert_compile_failed, optimize):
     code = """
 struct nestedFoo:
     a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1585,7 +1586,7 @@ def bar2() -> uint256:
         newFoo.b1[0][1][0].a1[0][0][0]
     """
 
-    if no_optimize:
+    if optimize == OptimizationLevel.NONE:
         # fails at assembly stage with too many stack variables
         assert_compile_failed(lambda: get_contract(code), Exception)
     else:
