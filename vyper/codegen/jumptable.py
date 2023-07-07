@@ -139,12 +139,12 @@ def generate_jumptable_info(signatures):
 
 
 # benchmark for quality of buckets
-def _bench(N=1000):
+def _bench_perfect(N=1000):
     import random
 
     stats = []
     for i in range(N):
-        seed = random.randint(0, 1_000_000)
+        seed = random.randint(0, 2**64 - 1)
         # "large" contracts in prod hit about ~50 methods, test with
         # double the limit
         sigs = [f"foo{i + seed}()" for i in range(100)]
@@ -159,3 +159,24 @@ def _bench(N=1000):
     avg_n_buckets = mean([len(jt) for jt in stats])
     # usually around ~14 buckets per 100 sigs
     print(f"average N buckets: {avg_n_buckets}")
+
+def _bench_imperfect(N=10_000):
+    import random
+    from collections import Counter
+    from vyper.utils import method_id_int
+
+    stats = []
+    for _ in range(N):
+        seed = random.randint(0, 2**64 - 1)
+        sigs = [f"foo{i + seed}()" for i in range(80)]
+        images = [method_id_int(sig) % len(sigs) for sig in sigs]
+
+        counter = Counter(images)
+        worst_bucket_size = max(counter.values())
+        mean_bucket_size = sum(counter.values()) / len(counter.values())
+        stats.append((worst_bucket_size, mean_bucket_size))
+
+    print("worst worst bucket size:", max(x[0] for x in stats))
+    print("avg worst bucket size:", sum(x[0] for x in stats)/len(stats))
+    print("worst mean bucket size:", max(x[1] for x in stats))
+    print("avg mean bucket size:", sum(x[1] for x in stats)/len(stats))
