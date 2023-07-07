@@ -7,7 +7,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
@@ -50,7 +50,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
-        optimize: OptimizationLevel = OptimizationLevel.GAS,
+        settings: Settings = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
@@ -70,8 +70,8 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
-        optimize: OptimizationLevel, optional
-            Set optimization mode. Defaults to OptimizationLevel.GAS
+        settings: Settings
+            Set optimization mode.
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
@@ -81,14 +81,49 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
-        self.optimize = optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
+        self.settings = settings or Settings()
 
     @cached_property
-    def vyper_module(self) -> vy_ast.Module:
-        return generate_ast(self.source_code, self.source_id, self.contract_name)
+    def _generate_ast(self):
+        settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+        # validate the compiler settings
+        # XXX: this is a bit ugly, clean up later
+        if settings.evm_version is not None:
+            if (
+                self.settings.evm_version is not None
+                and self.settings.evm_version != settings.evm_version
+            ):
+                # TODO: consider raising an exception
+                warnings.warn(
+                    f"compiler settings indicate evm version {self.settings.evm_version}, "
+                    f"but source pragma indicates {settings.evm_version}.\n"
+                    f"using `evm version: {self.settings.evm_version}`!"
+                )
+
+            self.settings.evm_version = settings.evm_version
+
+        if settings.optimize is not None:
+            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
+                # TODO: consider raising an exception
+                warnings.warn(
+                    f"compiler options indicate optimization mode {self.settings.optimize}, "
+                    f"but source pragma indicates {settings.optimize}.\n"
+                    f"using `optimize: {self.settings.optimize}`!"
+                )
+            self.settings.optimize = settings.optimize
+
+        # ensure defaults
+        if self.settings.optimize is None:
+            self.settings.optimize = OptimizationLevel.default()
+
+        return ast
+
+    @cached_property
+    def vyper_module(self):
+        return self._generate_ast
 
     @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
@@ -120,7 +155,7 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.optimize)
+        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -143,11 +178,11 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.optimize)
+        return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.optimize)
+        return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:
@@ -170,7 +205,9 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
+def generate_ast(
+    source_code: str, source_id: int, contract_name: str
+) -> tuple[Settings, vy_ast.Module]:
     """
     Generate a Vyper AST from source code.
 

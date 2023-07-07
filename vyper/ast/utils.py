@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Union
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast
 from vyper.ast.pre_parser import pre_parse
+from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
@@ -12,7 +13,7 @@ def parse_to_ast(
     source_id: int = 0,
     contract_name: Optional[str] = None,
     add_fn_node: Optional[str] = None,
-) -> vy_ast.Module:
+) -> tuple[Settings, vy_ast.Module]:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
 
@@ -34,7 +35,7 @@ def parse_to_ast(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    class_types, reformatted_code = pre_parse(source_code)
+    settings, class_types, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
     except SyntaxError as e:
@@ -51,7 +52,7 @@ def parse_to_ast(
     annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
 
     # Convert to Vyper AST.
-    return vy_ast.get_node(py_ast)  # type: ignore
+    return settings, vy_ast.get_node(py_ast)
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:

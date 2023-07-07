@@ -5,8 +5,8 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
+from vyper.compiler.settings import Settings
+from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
 from vyper.typing import (
     ContractCodes,
     ContractPath,
@@ -47,14 +47,13 @@ OUTPUT_FORMATS = {
 }
 
 
-@evm_wrapper
 def compile_codes(
     contract_sources: ContractCodes,
     output_formats: Union[OutputDict, OutputFormats, None] = None,
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
-    optimize: OptimizationLevel = OptimizationLevel.GAS,
+    settings: Settings = None,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
@@ -74,11 +73,8 @@ def compile_codes(
         two arguments - the name of the contract, and the exception that was raised
     initial_id: int, optional
         The lowest source ID value to be used when generating the source map.
-    evm_version: str, optional
-        The target EVM ruleset to compile for. If not given, defaults to the latest
-        implemented ruleset.
-    optimize: OptimizationLevel, optional
-        Set optimization mode. Defaults to OptimizationLevel.GAS
+    settings: Settings, optional
+        Compiler settings
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
@@ -99,6 +95,8 @@ def compile_codes(
     Dict
         Compiler output as `{'contract name': {'output key': "output data"}}`
     """
+
+    settings = settings or None
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -122,27 +120,30 @@ def compile_codes(
 
         # make IR output the same between runs
         codegen.reset_names()
-        compiler_data = CompilerData(
-            source_code,
-            contract_name,
-            interfaces,
-            source_id,
-            optimize,
-            storage_layout_override,
-            show_gas_estimates,
-            no_bytecode_metadata,
-        )
-        for output_format in output_formats[contract_name]:
-            if output_format not in OUTPUT_FORMATS:
-                raise ValueError(f"Unsupported format type {repr(output_format)}")
-            try:
-                out.setdefault(contract_name, {})
-                out[contract_name][output_format] = OUTPUT_FORMATS[output_format](compiler_data)
-            except Exception as exc:
-                if exc_handler is not None:
-                    exc_handler(contract_name, exc)
-                else:
-                    raise exc
+
+        with anchor_evm_version(settings.evm_version):
+            compiler_data = CompilerData(
+                source_code,
+                contract_name,
+                interfaces,
+                source_id,
+                settings,
+                storage_layout_override,
+                show_gas_estimates,
+                no_bytecode_metadata,
+            )
+            for output_format in output_formats[contract_name]:
+                if output_format not in OUTPUT_FORMATS:
+                    raise ValueError(f"Unsupported format type {repr(output_format)}")
+                try:
+                    out.setdefault(contract_name, {})
+                    formatter = OUTPUT_FORMATS[output_format]
+                    out[contract_name][output_format] = formatter(compiler_data)
+                except Exception as exc:
+                    if exc_handler is not None:
+                        exc_handler(contract_name, exc)
+                    else:
+                        raise exc
 
     return out
 
@@ -154,8 +155,7 @@ def compile_code(
     contract_source: str,
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
-    evm_version: str = DEFAULT_EVM_VERSION,
-    optimize: OptimizationLevel = OptimizationLevel.GAS,
+    settings: Settings = None,
     storage_layout_override: StorageLayout = None,
     show_gas_estimates: bool = False,
 ) -> dict:
@@ -195,8 +195,7 @@ def compile_code(
         contract_sources,
         output_formats,
         interface_codes=interface_codes,
-        evm_version=evm_version,
-        optimize=optimize,
+        settings=settings,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
     )[UNKNOWN_CONTRACT_NAME]

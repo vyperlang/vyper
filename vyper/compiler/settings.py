@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -16,9 +17,9 @@ else:
 
 
 class OptimizationLevel(Enum):
-    NONE = 0
-    GAS = 1
-    CODESIZE = 2
+    NONE = 1
+    GAS = 2
+    CODESIZE = 3
 
     @classmethod
     def from_string(cls, val):
@@ -31,6 +32,13 @@ class OptimizationLevel(Enum):
                 return cls.CODESIZE
         raise ValueError(f"unrecognized optimization level: {val}")
 
-    # @classmethod
-    # def default(cls):
-    #    return cls.GAS
+    @classmethod
+    def default(cls):
+        return cls.GAS
+
+
+@dataclass
+class Settings:
+    compiler_version: Optional[str] = None
+    optimize: Optional[OptimizationLevel] = None
+    evm_version: Optional[str] = None

@@ -1,3 +1,4 @@
+import contextlib
 from typing import Dict, Optional
 
 from vyper.exceptions import CompilerPanic
@@ -206,17 +207,16 @@ PSEUDO_OPCODES: OpcodeMap = {
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
-def evm_wrapper(fn, *args, **kwargs):
-    def _wrapper(*args, **kwargs):
-        global active_evm_version
-        evm_version = kwargs.pop("evm_version", None) or DEFAULT_EVM_VERSION
-        active_evm_version = EVM_VERSIONS[evm_version]
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            active_evm_version = EVM_VERSIONS[DEFAULT_EVM_VERSION]
-
-    return _wrapper
+@contextlib.contextmanager
+def anchor_evm_version(evm_version: str = None):
+    global active_evm_version
+    anchor = active_evm_version
+    evm_version = evm_version or DEFAULT_EVM_VERSION
+    active_evm_version = EVM_VERSIONS[evm_version]
+    try:
+        yield
+    finally:
+        active_evm_version = anchor
 
 
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:

@@ -9,8 +9,8 @@ from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
+from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.typing import ContractCodes, ContractPath
 from vyper.utils import keccak256
@@ -147,9 +147,10 @@ def _standardize_path(path_str: str) -> str:
 
 def get_evm_version(input_dict: Dict) -> str:
     if "settings" not in input_dict:
-        return DEFAULT_EVM_VERSION
+        return None
 
-    evm_version = input_dict["settings"].get("evmVersion", DEFAULT_EVM_VERSION)
+    # TODO: move this validation somewhere it can be reused more easily
+    evm_version = input_dict["settings"].get("evmVersion")
     if evm_version in (
         "homestead",
         "tangerineWhistle",
@@ -360,17 +361,21 @@ def compile_from_input_dict(
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
-    evm_version = get_evm_version(input_dict)
+    evm_version = input_dict.get("evm_version")
 
-    optimize = input_dict["settings"].get("optimize", "gas")
+    optimize = input_dict["settings"].get("optimize")
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
             "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
         )
         optimize = OptimizationLevel.GAS if optimize else OptimizationLevel.NONE
-    else:
+    elif isinstance(optimize, str):
         optimize = OptimizationLevel.from_string(optimize)
+    else:
+        assert optimize is None
+
+    settings = Settings(evm_version=evm_version, optimize=optimize)
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
@@ -394,8 +399,7 @@ def compile_from_input_dict(
                     output_formats[contract_path],
                     interface_codes=interface_codes,
                     initial_id=id_,
-                    optimize=optimize,
-                    evm_version=evm_version,
+                    settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
