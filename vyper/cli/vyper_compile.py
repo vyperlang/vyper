@@ -11,7 +11,7 @@ import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
+from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
@@ -37,8 +37,6 @@ opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 hex-ir             - Output IR and assembly constants in hex instead of decimal
-no-optimize        - Do not optimize (don't use this for production code)
-no-bytecode-metadata - Do not add metadata to bytecode
 """
 
 combined_json_outputs = [
@@ -108,6 +106,7 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
+    parser.add_argument("--optimize", help="Optimization flag", choices=["gas", "codesize"])
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
@@ -153,13 +152,18 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
+    if args.no_optimize and args.optimize:
+        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
+
+    optimize = OptimizationLevel.NONE if args.no_optimize else OptimizationLevel.from_string(args.optimize)
+
     compiled = compile_files(
         args.input_files,
         output_formats,
         args.root_folder,
         args.show_gas_estimates,
         args.evm_version,
-        args.no_optimize,
+        optimize,
         args.storage_layout,
         args.no_bytecode_metadata,
     )
@@ -254,7 +258,7 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     evm_version: str = DEFAULT_EVM_VERSION,
-    no_optimize: bool = False,
+    optimize: OptimizationLevel = OptimizationLevel.GAS,
     storage_layout: Iterable[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
@@ -297,7 +301,7 @@ def compile_files(
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
         evm_version=evm_version,
-        no_optimize=no_optimize,
+        optimize=optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
         no_bytecode_metadata=no_bytecode_metadata,

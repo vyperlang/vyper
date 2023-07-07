@@ -40,8 +40,11 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="module")
-def no_optimize(pytestconfig):
-    return pytestconfig.getoption("no_optimize")
+def optimize(pytestconfig):
+    flag = pytestconfig.getoption("optimize")
+    if not flag:
+        return OptimizationLevel.GAS
+    return OptimizationLevel.from_string(flag)
 
 
 @pytest.fixture
@@ -58,13 +61,13 @@ def bytes_helper():
 
 
 @pytest.fixture
-def get_contract_from_ir(w3, no_optimize):
+def get_contract_from_ir(w3, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if not no_optimize:
+        if optimize != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
         bytecode, _ = compile_ir.assembly_to_evm(
-            compile_ir.compile_to_assembly(ir, no_optimize=no_optimize)
+            compile_ir.compile_to_assembly(ir, optimize=optimize)
         )
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -80,7 +83,7 @@ def get_contract_from_ir(w3, no_optimize):
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(no_optimize):
+def get_contract_module(optimize):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -93,7 +96,7 @@ def get_contract_module(no_optimize):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
     return get_contract_module
 
@@ -138,9 +141,9 @@ def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, no_optimize):
+def get_contract_with_gas_estimation(tester, w3, optimize):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        contract = _get_contract(w3, source_code, optimize, *args, **kwargs)
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -150,9 +153,9 @@ def get_contract_with_gas_estimation(tester, w3, no_optimize):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, no_optimize):
+def get_contract_with_gas_estimation_for_constants(w3, optimize):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 

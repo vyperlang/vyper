@@ -53,7 +53,7 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
-    no_optimize: bool = False,
+    optimize: OptimizationLevel = OptimizationLevel.GAS,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
@@ -76,8 +76,8 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    no_optimize: bool, optional
-        Turn off optimizations. Defaults to False
+    optimize: OptimizerLevel, optional
+        Set optimization mode. Defaults to OptimizationLevel.GAS
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
@@ -126,7 +126,7 @@ def compile_codes(
             contract_name,
             interfaces,
             source_id,
-            no_optimize,
+            optimize,
             storage_layout_override,
             show_gas_estimates,
             no_bytecode_metadata,
@@ -154,7 +154,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
-    no_optimize: bool = False,
+    optimize: OptimizerLevel = OptimizerLevel.GAS,
     storage_layout_override: StorageLayout = None,
     show_gas_estimates: bool = False,
 ) -> dict:
@@ -171,8 +171,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    no_optimize: bool, optional
-        Turn off optimizations. Defaults to False
+    optimize: OptimizerLevel, optional
+        Set optimization mode. Defaults to OptimizationLevel.GAS
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional
@@ -195,7 +195,7 @@ def compile_code(
         output_formats,
         interface_codes=interface_codes,
         evm_version=evm_version,
-        no_optimize=no_optimize,
+        optimize=optimize,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
     )[UNKNOWN_CONTRACT_NAME]

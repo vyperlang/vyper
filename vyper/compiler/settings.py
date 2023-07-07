@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from enum import Enum
 
 VYPER_COLOR_OUTPUT = os.environ.get("VYPER_COLOR_OUTPUT", "0") == "1"
 VYPER_ERROR_CONTEXT_LINES = int(os.environ.get("VYPER_ERROR_CONTEXT_LINES", "1"))
@@ -12,3 +13,23 @@ if _tb_limit_str is not None:
     VYPER_TRACEBACK_LIMIT = int(_tb_limit_str)
 else:
     VYPER_TRACEBACK_LIMIT = None
+
+class OptimizationLevel(Enum):
+    NONE = 0
+    GAS = 1
+    CODESIZE = 2
+
+    @classmethod
+    def from_string(cls, val):
+        match val:
+            case "none":
+                return cls.NONE
+            case "gas":
+                return cls.GAS
+            case "codesize":
+                return cls.CODESIZE
+        raise ValueError(f"unrecognized optimization level: {val}")
+
+    #@classmethod
+    #def default(cls):
+    #    return cls.GAS

@@ -213,9 +213,10 @@ The following example describes the expected input format of ``vyper-json``. Com
         // Optional
         "settings": {
             "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
-            // optional, whether or not optimizations are turned on
-            // defaults to true
-            "optimize": true,
+            // optional, optimization mode
+            // defaults to "gas". can be one of "gas", "codesize", "none",
+            // false  and true (the last two are for backwards compatibility).
+            "optimize": "gas",
             // optional, whether or not the bytecode should include Vyper's signature
             // defaults to true
             "bytecodeMetadata": true,

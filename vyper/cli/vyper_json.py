@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Hashable, List, Tuple, Union
 
 import vyper
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.typing import ContractCodes, ContractPath
@@ -360,7 +361,16 @@ def compile_from_input_dict(
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
     evm_version = get_evm_version(input_dict)
-    no_optimize = not input_dict["settings"].get("optimize", True)
+    input_dict["settings"].get()
+
+    optimize = input_dict["settings"].get("optimize", "gas")
+    if isinstance(optimize, bool):
+        # bool optimization level for backwards compatibility
+        warnings.warn("optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.")
+        optimize = OptimizationLevel.GAS if optimize else OptimizationLevel.NONE
+    else:
+        optimize = OptimizationLevel.from_string(optimize)
+
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
@@ -383,7 +393,7 @@ def compile_from_input_dict(
                     output_formats[contract_path],
                     interface_codes=interface_codes,
                     initial_id=id_,
-                    no_optimize=no_optimize,
+                    optimize=optimize,
                     evm_version=evm_version,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )

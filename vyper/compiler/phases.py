@@ -49,7 +49,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
-        no_optimize: bool = False,
+        optimize: OptimizationLevel = OptimizationLevel.GAS,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
@@ -69,8 +69,8 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
-        no_optimize: bool, optional
-            Turn off optimizations. Defaults to False
+        optimize: OptimizationLevel, optional
+            Set optimization mode. Defaults to OptimizationLevel.GAS
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
@@ -80,7 +80,7 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
-        self.no_optimize = no_optimize
+        self.optimize = optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
@@ -119,7 +119,7 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.no_optimize)
+        return generate_ir_nodes(self.global_ctx, self.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -142,11 +142,11 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.no_optimize)
+        return generate_assembly(self.ir_nodes, self.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.no_optimize)
+        return generate_assembly(self.ir_runtime, self.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:
@@ -233,7 +233,7 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -254,13 +254,13 @@ def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRn
         IR to generate runtime bytecode
     """
     ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if not no_optimize:
+    if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
+def generate_assembly(ir_nodes: IRnode, optimize: OptimizationLevel = OptimizationLevel.GAS) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -274,7 +274,7 @@ def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_ir.compile_to_assembly(ir_nodes, no_optimize=no_optimize)
+    assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(

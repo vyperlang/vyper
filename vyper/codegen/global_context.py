@@ -2,12 +2,13 @@ from functools import cached_property
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.compiler.settings import OptimizationLevel
 
 
 # Datatype to store all global context information.
 # TODO: rename me to ModuleT
 class GlobalContext:
-    def __init__(self, module: Optional[vy_ast.Module] = None):
+    def __init__(self, module: Optional[vy_ast.Module] = None, optimize = OptimizationLevel.GAS):
         self._module = module
 
     @cached_property
