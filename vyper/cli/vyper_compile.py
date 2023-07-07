@@ -155,9 +155,10 @@ def _parse_args(argv):
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
 
-    optimize = (
-        OptimizationLevel.NONE if args.no_optimize else OptimizationLevel.from_string(args.optimize)
-    )
+    if args.no_optimize or not args.optimize:
+        optimize = OptimizationLevel.NONE
+    else:
+        optimize = OptimizationLevel.from_string(args.optimize)
 
     compiled = compile_files(
         args.input_files,

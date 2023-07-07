@@ -5,7 +5,7 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import OptimizerLevel
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, evm_wrapper
 from vyper.typing import (
     ContractCodes,
@@ -54,7 +54,7 @@ def compile_codes(
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
-    optimize: OptimizerLevel = OptimizerLevel.GAS,
+    optimize: OptimizationLevel = OptimizationLevel.GAS,
     storage_layouts: Dict[ContractPath, StorageLayout] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
@@ -77,7 +77,7 @@ def compile_codes(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    optimize: OptimizerLevel, optional
+    optimize: OptimizationLevel, optional
         Set optimization mode. Defaults to OptimizationLevel.GAS
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
@@ -155,7 +155,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     evm_version: str = DEFAULT_EVM_VERSION,
-    optimize: OptimizerLevel = OptimizerLevel.GAS,
+    optimize: OptimizationLevel = OptimizationLevel.GAS,
     storage_layout_override: StorageLayout = None,
     show_gas_estimates: bool = False,
 ) -> dict:
@@ -172,7 +172,7 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    optimize: OptimizerLevel, optional
+    optimize: OptimizationLevel, optional
         Set optimization mode. Defaults to OptimizationLevel.GAS
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes

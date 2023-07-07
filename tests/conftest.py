@@ -10,7 +10,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.esttings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel
 from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
@@ -37,14 +37,12 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
+    parser.addoption("--optimize", choices=["codesize", "gas", "none"], default="gas", help="disable asm and IR optimizations")
 
 
 @pytest.fixture(scope="module")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
-    if not flag:
-        return OptimizationLevel.GAS
     return OptimizationLevel.from_string(flag)
 
 

@@ -361,7 +361,6 @@ def compile_from_input_dict(
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
 
     evm_version = get_evm_version(input_dict)
-    input_dict["settings"].get()
 
     optimize = input_dict["settings"].get("optimize", "gas")
     if isinstance(optimize, bool):
