@@ -86,7 +86,11 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
 
 # codegen for all runtime functions + callvalue/calldata checks,
 # with O(1) jumptable for selector table.
-def _runtime_ir_jumptable(runtime_functions, global_ctx):
+# uses two level strategy: uses `method_id % n_buckets` to descend
+# into a bucket (of about 8-10 items), and then uses perfect hash
+# to select the final function.
+# costs about 212 gas for typical function and 8 bytes of code.
+def _selector_section_dense(runtime_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
     # payable functions, nonpayable functions, fallback function, internal_functions
@@ -222,17 +226,115 @@ def _runtime_ir_jumptable(runtime_functions, global_ctx):
     return runtime
 
 
-# codegen for all runtime functions + callvalue/calldata checks + method
-# selector routines. use the old linear selector table implementation
-def _runtime_ir_legacy(runtime_functions, global_ctx):
+# codegen for all runtime functions + callvalue/calldata checks,
+# with O(1) jumptable for selector table.
+# uses two level strategy: uses `method_id % n_methods` to calculate
+# a bucket, and then descends into linear search from there.
+# costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
+# function and 24 bytes of code.
+def _selector_table_sparse(external_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
     # payable functions, nonpayable functions, fallback function, internal_functions
-    internal_functions = [f for f in runtime_functions if _is_internal(f)]
-
-    external_functions = [f for f in runtime_functions if not _is_internal(f)]
     default_function = next((f for f in external_functions if _is_fallback(f)), None)
 
+    function_irs = []
+    entry_points = {}  # map from ABI sigs to ir code
+
+    for code in external_functions:
+        func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
+        for abi_sig, entry_point in func_ir.entry_points.items():
+            assert abi_sig not in entry_points
+            entry_points[abi_sig] = entry_point
+
+        # stick function common body into final entry point to save a jump
+        entry_point.ir_node.append(func_ir.common_ir)
+
+    for entry_point in entry_points.values():
+        function_irs.append(IRnode.from_list(entry_point.ir_node))
+
+    n_buckets = len(external_functions)
+
+    # 2 bytes for bucket location
+    SZ_BUCKET_HEADER = 2
+
+    selector_section = ["seq"]
+
+    selector_section.append(["if", ["le", "calldatasize", 4], ["goto", "fallback"]])
+
+    bucket_id = ["mod", "_calldata_method_id", n_buckets]
+    bucket_hdr_location = [
+        "add",
+        ["symbol", "BUCKET_HEADERS"],
+        ["mul", bucket_id, SZ_BUCKET_HEADER],
+    ]
+    # get bucket header
+    dst = 32 - SZ_BUCKET_HEADER
+    assert dst >= 0
+
+    # memory is PROBABLY 0, but just be paranoid.
+    selector_section.append(["mstore", 0, 0])
+    selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
+
+    jumpdest = IRnode.from_list(["mload", 0])
+    selector_section.append(["goto", jumpdest])
+
+    # slight duplication with jumptable.py.
+    buckets = {}   
+    for sig, entry_point in entry_points.items():
+        t = x % n_buckets
+        buckets.setdefault(t, [])
+        buckets[t].append((sig, x))
+
+    for bucket_id, bucket in buckets.items():
+        bucket_label = f"selector_bucket_{bucket_id}"
+        selector_section.append(["label", bucket_label, ["var_list"], ["seq"]])
+
+        handle_bucket = ["seq"]
+
+        for sig, entry_point in bucket:
+
+            dispatch = ["seq"]  # actually dispatch into the function
+            callvalue_check = ["iszero", "callvalue"]
+            calldatasize_check = ["ge", "calldatasize", expected_calldatasize]
+            # TODO, optimize out when we can
+            dispatch.append(["assert", ["and", callvalue_check, calldatasize_check]])
+            dispatch.append(["goto", FUNCTION_LABEL])
+
+            handle_bucket.append(["if", ["eq", "_calldata_method_id", _annotated_method_id(sig)], dispatch])
+
+        handle_bucket.append(["goto", "fallback"])
+
+        selector_section.append(handle_bucket)
+
+    if default_function:
+        fallback_ir = _ir_for_external_function(
+            default_function, global_ctx, skip_nonpayable_check=False
+        )
+    else:
+        fallback_ir = IRnode.from_list(
+            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
+        )
+
+    runtime = [
+        "seq",
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+    ]
+
+    runtime.extend(function_irs)
+
+    return runtime
+
+
+
+# codegen for all runtime functions + callvalue/calldata checks + method
+# selector routines. use the old linear selector table implementation
+def _runtime_ir_legacy(runtime_functions, global_ctx):
+    default_function = next((f for f in external_functions if _is_fallback(f)), None)
+
+    # categorize the runtime functions because we will organize the runtime
+    # code into the following sections:
+    # payable functions, nonpayable functions, fallback function, internal_functions
     # functions that need to go exposed in the selector section
     regular_functions = [f for f in external_functions if not _is_fallback(f)]
     payables = [f for f in regular_functions if _is_payable(f)]
@@ -263,7 +365,7 @@ def _runtime_ir_legacy(runtime_functions, global_ctx):
     batch_payable_check = len(nonpayables) > 0 and default_is_nonpayable
     skip_nonpayable_check = batch_payable_check
 
-    selector_section = ["seq"]
+    selector_section = _selector_section() ["seq"]
 
     for func_ast in payables:
         func_ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
@@ -278,15 +380,6 @@ def _runtime_ir_legacy(runtime_functions, global_ctx):
     for func_ast in nonpayables:
         ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
         selector_section.append(ir)
-
-    if default_function:
-        fallback_ir = _ir_for_external_function(
-            default_function, global_ctx, skip_nonpayable_check=False
-        )
-    else:
-        fallback_ir = IRnode.from_list(
-            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
-        )
 
     # ensure the external jumptable section gets closed out
     # (for basic block hygiene and also for zksync interpreter)
@@ -317,7 +410,25 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
-    runtime = _runtime_ir_jumptable(runtime_functions, global_ctx)
+    internal_functions = [f for f in runtime_functions if _is_internal(f)]
+
+    external_functions = [f for f in runtime_functions if not _is_internal(f)]
+
+    if True:  # XXX: if options.optimize.gas
+        selector_table = _selector_table_sparse(runtime_functions, global_ctx)
+    else:  # options.optimize.codesize
+        selector_table = _selector_table_dense(runtime_functions, global_ctx)
+
+    if default_function:
+        fallback_ir = _ir_for_external_function(
+            default_function, global_ctx, skip_nonpayable_check=False
+        )
+    else:
+        fallback_ir = IRnode.from_list(
+            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
+        )
+
+    runtime = ["seq", selector_table, fallback_ir]
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes
