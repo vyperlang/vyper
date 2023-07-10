@@ -54,7 +54,7 @@ def compile_codes(
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
     settings: Settings = None,
-    storage_layouts: Dict[ContractPath, StorageLayout] = None,
+    storage_layouts: Optional[dict[ContractPath, Optional[StorageLayout]]] = None,
     show_gas_estimates: bool = False,
     no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
@@ -95,8 +95,7 @@ def compile_codes(
     Dict
         Compiler output as `{'contract name': {'output key': "output data"}}`
     """
-
-    settings = settings or None
+    settings = settings or Settings()
 
     if output_formats is None:
         output_formats = ("bytecode",)
@@ -156,7 +155,7 @@ def compile_code(
     output_formats: Optional[OutputFormats] = None,
     interface_codes: Optional[InterfaceImports] = None,
     settings: Settings = None,
-    storage_layout_override: StorageLayout = None,
+    storage_layout_override: Optional[StorageLayout] = None,
     show_gas_estimates: bool = False,
 ) -> dict:
     """

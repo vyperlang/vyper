@@ -28,7 +28,7 @@ extras_require = {
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
         "isort==5.9.3",
-        "mypy==0.910",
+        "mypy==0.940",
     ],
     "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],

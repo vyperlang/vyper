@@ -337,7 +337,7 @@ def _add_import(
         raise UndeclaredDefinition(f"Unknown interface: {name}. {suggestions_str}", node)
 
     if interface_codes[name]["type"] == "vyper":
-        interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
+        _, interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
         type_ = InterfaceT.from_ast(interface_ast)
     elif interface_codes[name]["type"] == "json":
         type_ = InterfaceT.from_json_abi(name, interface_codes[name]["code"])  # type: ignore

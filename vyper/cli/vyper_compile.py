@@ -5,7 +5,7 @@ import sys
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Set, TypeVar
+from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
@@ -266,8 +266,8 @@ def compile_files(
     output_formats: OutputFormats,
     root_folder: str = ".",
     show_gas_estimates: bool = False,
-    settings: Settings = None,
-    storage_layout: Iterable[str] = None,
+    settings: Optional[Settings] = None,
+    storage_layout: Optional[Iterable[str]] = None,
     no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
     root_path = Path(root_folder).resolve()

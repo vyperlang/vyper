@@ -1,5 +1,5 @@
 import contextlib
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
@@ -208,7 +208,7 @@ IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
 @contextlib.contextmanager
-def anchor_evm_version(evm_version: str = None):
+def anchor_evm_version(evm_version: Optional[str] = None) -> Generator:
     global active_evm_version
     anchor = active_evm_version
     evm_version = evm_version or DEFAULT_EVM_VERSION

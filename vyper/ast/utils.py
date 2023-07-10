@@ -52,7 +52,9 @@ def parse_to_ast(
     annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
 
     # Convert to Vyper AST.
-    return settings, vy_ast.get_node(py_ast)
+    module = vy_ast.get_node(py_ast)
+    assert isinstance(module, vy_ast.Module)  # mypy hint
+    return settings, module
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:

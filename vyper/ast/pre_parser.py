@@ -1,7 +1,6 @@
 import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
-from typing import Tuple
 
 from semantic_version import NpmSpec, Version
 
@@ -68,7 +67,7 @@ VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
 VYPER_EXPRESSION_TYPES = {"log"}
 
 
-def pre_parse(code: str) -> Tuple[ModificationOffsets, str]:
+def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,

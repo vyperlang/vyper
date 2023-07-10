@@ -298,9 +298,7 @@ def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(
-    ir_nodes: IRnode, optimize: OptimizationLevel = OptimizationLevel.GAS
-) -> list:
+def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = None) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -314,6 +312,7 @@ def generate_assembly(
     list
         List of assembly instructions.
     """
+    optimize = optimize or OptimizationLevel.GAS
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
