@@ -225,7 +225,7 @@ def generate_ast(
     vy_ast.Module
         Top-level Vyper AST node
     """
-    return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+    return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
 
 
 def generate_unfolded_ast(

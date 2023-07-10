@@ -27,7 +27,7 @@ def get_interface_file_path(base_paths: Sequence, import_path: str) -> Path:
 
 
 def extract_file_interface_imports(code: SourceCode) -> InterfaceImports:
-    _pragmas, ast_tree = vy_ast.parse_to_ast(code)
+    ast_tree = vy_ast.parse_to_ast(code)
 
     imports_dict: InterfaceImports = {}
     for node in ast_tree.get_children((vy_ast.Import, vy_ast.ImportFrom)):

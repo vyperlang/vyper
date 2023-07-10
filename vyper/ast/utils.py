@@ -1,5 +1,5 @@
 import ast as python_ast
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.annotation import annotate_python_ast
@@ -8,7 +8,11 @@ from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
-def parse_to_ast(
+def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
+    return parse_to_ast_with_settings(*args, **kwargs)[1]
+
+
+def parse_to_ast_with_settings(
     source_code: str,
     source_id: int = 0,
     contract_name: Optional[str] = None,

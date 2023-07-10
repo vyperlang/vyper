@@ -151,6 +151,9 @@ def get_evm_version(input_dict: Dict) -> Optional[str]:
 
     # TODO: move this validation somewhere it can be reused more easily
     evm_version = input_dict["settings"].get("evmVersion")
+    if evm_version is None:
+        return None
+
     if evm_version in (
         "homestead",
         "tangerineWhistle",

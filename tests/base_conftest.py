@@ -12,6 +12,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
+from vyper.compiler.settings import Settings
 
 
 class VyperMethod:
@@ -112,13 +113,15 @@ def w3(tester):
 
 
 def _get_contract(w3, source_code, optimize, *args, **kwargs):
+    settings = Settings()
+    settings.evm_version = kwargs.pop("evm_version", None)
+    settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
         # test that metadata gets generated
         ["abi", "bytecode", "metadata"],
+        settings=settings,
         interface_codes=kwargs.pop("interface_codes", None),
-        optimize=optimize,
-        evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
@@ -136,12 +139,14 @@ def _get_contract(w3, source_code, optimize, *args, **kwargs):
 
 
 def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwargs):
+    settings = Settings()
+    settings.evm_version = kwargs.pop("evm_version", None)
+    settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
         interface_codes=kwargs.pop("interface_codes", None),
-        optimize=optimize,
-        evm_version=kwargs.pop("evm_version", None),
+        settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.

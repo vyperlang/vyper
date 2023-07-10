@@ -51,14 +51,14 @@ invalid_versions = [
 @pytest.mark.parametrize("file_version", valid_versions)
 def test_valid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
-    validate_version_pragma(f" @version {file_version}", (SRC_LINE))
+    validate_version_pragma(f"{file_version}", (SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", invalid_versions)
 def test_invalid_version_pragma(file_version, mock_version):
     mock_version(COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(f" @version {file_version}", (SRC_LINE))
+        validate_version_pragma(f"{file_version}", (SRC_LINE))
 
 
 prerelease_valid_versions = [
@@ -98,11 +98,11 @@ prerelease_invalid_versions = [
 @pytest.mark.parametrize("file_version", prerelease_valid_versions)
 def test_prerelease_valid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
-    validate_version_pragma(f" @version {file_version}", (SRC_LINE))
+    validate_version_pragma(file_version, (SRC_LINE))
 
 
 @pytest.mark.parametrize("file_version", prerelease_invalid_versions)
 def test_prerelease_invalid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
     with pytest.raises(VersionException):
-        validate_version_pragma(f" @version {file_version}", (SRC_LINE))
+        validate_version_pragma(file_version, (SRC_LINE))

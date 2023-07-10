@@ -112,7 +112,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
 
             if typ == COMMENT:
                 contents = string[1:].strip()
-                if contents.startswith("@version "):
+                if contents.startswith("@version"):
                     if settings.compiler_version is not None:
                         raise StructureException("compiler version specified twice!", start)
                     compiler_version = contents.removeprefix("@version ").strip()
