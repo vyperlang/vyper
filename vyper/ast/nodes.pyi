@@ -3,7 +3,8 @@ from typing import Any, Optional, Sequence, Type, Union
 
 from .natspec import parse_natspec as parse_natspec
 from .utils import ast_to_dict as ast_to_dict
-from .utils import parse_to_ast as parse_to_ast, parse_to_ast_with_settings as parse_to_ast_with_settings
+from .utils import parse_to_ast as parse_to_ast
+from .utils import parse_to_ast_with_settings as parse_to_ast_with_settings
 
 NODE_BASE_ATTRIBUTES: Any
 NODE_SRC_ATTRIBUTES: Any

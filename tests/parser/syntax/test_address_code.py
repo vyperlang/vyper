@@ -175,7 +175,7 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
-    settings=Settings(optimize=optimize)
+    settings = Settings(optimize=optimize)
     code_compiled = compiler.compile_code(
         code, output_formats=["bytecode", "bytecode_runtime"], settings=settings
     )
