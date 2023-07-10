@@ -41,7 +41,7 @@ def pytest_addoption(parser):
         "--optimize",
         choices=["codesize", "gas", "none"],
         default="gas",
-        help="disable asm and IR optimizations",
+        help="change optimization mode",
     )
 
 
