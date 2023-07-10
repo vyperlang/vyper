@@ -12,6 +12,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
+from vyper.exceptions import StructureException
 
 
 class CompilerData:
@@ -96,22 +97,18 @@ class CompilerData:
                 self.settings.evm_version is not None
                 and self.settings.evm_version != settings.evm_version
             ):
-                # TODO: consider raising an exception
-                warnings.warn(
+                raise StructureException(
                     f"compiler settings indicate evm version {self.settings.evm_version}, "
-                    f"but source pragma indicates {settings.evm_version}.\n"
-                    f"using `evm version: {self.settings.evm_version}`!"
+                    f"but source pragma indicates {settings.evm_version}."
                 )
 
             self.settings.evm_version = settings.evm_version
 
         if settings.optimize is not None:
             if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
-                # TODO: consider raising an exception
-                warnings.warn(
+                raise StructureException(
                     f"compiler options indicate optimization mode {self.settings.optimize}, "
-                    f"but source pragma indicates {settings.optimize}.\n"
-                    f"using `optimize: {self.settings.optimize}`!"
+                    f"but source pragma indicates {settings.optimize}."
                 )
             self.settings.optimize = settings.optimize
 
