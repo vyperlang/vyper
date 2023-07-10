@@ -171,8 +171,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
-    optimize: OptimizationLevel, optional
-        Set optimization mode. Defaults to OptimizationLevel.GAS
+    settings: Settings, optional
+        Compiler settings.
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
     interface_codes: Dict, optional

@@ -309,7 +309,7 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     list
         List of assembly instructions.
     """
-    optimize = optimize or OptimizationLevel.GAS
+    optimize = optimize or OptimizationLevel.default()
     assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):

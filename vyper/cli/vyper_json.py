@@ -372,7 +372,7 @@ def compile_from_input_dict(
         warnings.warn(
             "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
         )
-        optimize = OptimizationLevel.GAS if optimize else OptimizationLevel.NONE
+        optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
         optimize = OptimizationLevel.from_string(optimize)
     else:
