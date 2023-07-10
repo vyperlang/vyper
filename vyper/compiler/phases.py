@@ -8,11 +8,11 @@ from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.exceptions import StructureException
 
 
 class CompilerData:
