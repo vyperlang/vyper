@@ -1,6 +1,7 @@
 import pytest
 
-from vyper.ast.pre_parser import validate_version_pragma
+from vyper.ast.pre_parser import pre_parse, validate_version_pragma
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
@@ -106,3 +107,77 @@ def test_prerelease_invalid_version_pragma(file_version, mock_version):
     mock_version(PRERELEASE_COMPILER_VERSION)
     with pytest.raises(VersionException):
         validate_version_pragma(file_version, (SRC_LINE))
+
+
+pragma_examples = [
+    (
+        """
+    """,
+        Settings(),
+    ),
+    (
+        """
+    #pragma optimize codesize
+    """,
+        Settings(optimize=OptimizationLevel.CODESIZE),
+    ),
+    (
+        """
+    #pragma optimize none
+    """,
+        Settings(optimize=OptimizationLevel.NONE),
+    ),
+    (
+        """
+    #pragma optimize gas
+    """,
+        Settings(optimize=OptimizationLevel.GAS),
+    ),
+    (
+        """
+    #pragma version 0.3.10
+    """,
+        Settings(compiler_version="0.3.10"),
+    ),
+    (
+        """
+    #pragma evm-version shanghai
+    """,
+        Settings(evm_version="shanghai"),
+    ),
+    (
+        """
+    #pragma optimize codesize
+    #pragma evm-version shanghai
+    """,
+        Settings(evm_version="shanghai", optimize=OptimizationLevel.GAS),
+    ),
+    (
+        """
+    #pragma version 0.3.10
+    #pragma evm-version shanghai
+    """,
+        Settings(evm_version="shanghai", compiler_version="0.3.10"),
+    ),
+    (
+        """
+    #pragma version 0.3.10
+    #pragma optimize gas
+    """,
+        Settings(compiler_version="0.3.10", optimize=OptimizationLevel.GAS),
+    ),
+    (
+        """
+    #pragma version 0.3.10
+    #pragma evm-version shanghai
+    #pragma optimize gas
+    """,
+        Settings(compiler_version="0.3.10", optimize=OptimizationLevel.GAS, evm_version="shanghai"),
+    ),
+]
+
+
+@pytest.mark.parametrize("code, expected_pragmas", pragma_examples)
+def parse_pragmas(code, expected_pragmas):
+    pragmas, _, _ = pre_parse(code)
+    assert pragmas == expected_pragmas
