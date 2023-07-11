@@ -38,11 +38,6 @@ class NullAttractor(int):
     __mul__ = __add__
 
 
-def push_label_to_stack(labelname: str) -> str:
-    #  items prefixed with `_sym_` are ignored until asm phase
-    return "_sym_" + labelname
-
-
 class Encoding(Enum):
     # vyper encoding, default for memory variables
     VYPER = auto()

@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import StructureException
 
@@ -13,20 +14,22 @@ def test_transient_blocked(evm_version):
     code = """
 my_map: transient(HashMap[address, uint256])
     """
+    settings = Settings(evm_version=evm_version)
     if EVM_VERSIONS[evm_version] >= EVM_VERSIONS["cancun"]:
-        assert compile_code(code, evm_version=evm_version) is not None
+        assert compile_code(code, settings=settings) is not None
     else:
         with pytest.raises(StructureException):
-            compile_code(code, evm_version=evm_version)
+            compile_code(code, settings=settings)
 
 
 @pytest.mark.parametrize("evm_version", list(post_cancun.keys()))
 def test_transient_compiles(evm_version):
     # test transient keyword at least generates TLOAD/TSTORE opcodes
+    settings = Settings(evm_version=evm_version)
     getter_code = """
 my_map: public(transient(HashMap[address, uint256]))
     """
-    t = compile_code(getter_code, evm_version=evm_version, output_formats=["opcodes_runtime"])
+    t = compile_code(getter_code, settings=settings, output_formats=["opcodes_runtime"])
     t = t["opcodes_runtime"].split(" ")
 
     assert "TLOAD" in t
@@ -39,7 +42,7 @@ my_map: transient(HashMap[address, uint256])
 def setter(k: address, v: uint256):
     self.my_map[k] = v
     """
-    t = compile_code(setter_code, evm_version=evm_version, output_formats=["opcodes_runtime"])
+    t = compile_code(setter_code, settings=settings, output_formats=["opcodes_runtime"])
     t = t["opcodes_runtime"].split(" ")
 
     assert "TLOAD" not in t
@@ -52,9 +55,7 @@ my_map: public(transient(HashMap[address, uint256]))
 def setter(k: address, v: uint256):
     self.my_map[k] = v
     """
-    t = compile_code(
-        getter_setter_code, evm_version=evm_version, output_formats=["opcodes_runtime"]
-    )
+    t = compile_code(getter_setter_code, settings=settings, output_formats=["opcodes_runtime"])
     t = t["opcodes_runtime"].split(" ")
 
     assert "TLOAD" in t

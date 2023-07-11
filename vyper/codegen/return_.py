@@ -21,7 +21,7 @@ Stmt = Any  # mypy kludge
 def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IRnode]:
     func_t = context.func_t
 
-    jump_to_exit = ["exit_to", f"_sym_{func_t._ir_info.exit_sequence_label}"]
+    jump_to_exit = ["exit_to", func_t._ir_info.exit_sequence_label]
 
     if context.return_type is None:
         if stmt.value is not None:
@@ -43,7 +43,8 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit])
 
     if context.return_type is None:
-        jump_to_exit += ["return_pc"]
+        if context.is_internal:
+            jump_to_exit += ["return_pc"]
         return finalize(["seq"])
 
     if context.is_internal:

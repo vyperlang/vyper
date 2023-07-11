@@ -1543,7 +1543,7 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-def test_nested_struct_of_lists(get_contract, assert_compile_failed, no_optimize):
+def test_nested_struct_of_lists(get_contract, assert_compile_failed, optimize):
     code = """
 struct nestedFoo:
     a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]

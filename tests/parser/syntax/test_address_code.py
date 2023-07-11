@@ -5,6 +5,7 @@ from eth_tester.exceptions import TransactionFailed
 from web3 import Web3
 
 from vyper import compiler
+from vyper.compiler.settings import Settings
 from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
@@ -161,7 +162,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, no_optimize: bool):
+def test_address_code_self_success(get_contract, optimize):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -174,8 +175,9 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
+    settings = Settings(optimize=optimize)
     code_compiled = compiler.compile_code(
-        code, output_formats=["bytecode", "bytecode_runtime"], no_optimize=no_optimize
+        code, output_formats=["bytecode", "bytecode_runtime"], settings=settings
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]

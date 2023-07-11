@@ -39,7 +39,118 @@ def augmod(x: int128, y: int128) -> int128:
     print("Passed aug-assignment test")
 
 
-def test_invalid_assign(assert_compile_failed, get_contract_with_gas_estimation):
+@pytest.mark.parametrize(
+    "typ,in_val,out_val",
+    [
+        ("uint256", 77, 123),
+        ("uint256[3]", [1, 2, 3], [4, 5, 6]),
+        ("DynArray[uint256, 3]", [1, 2, 3], [4, 5, 6]),
+        ("Bytes[5]", b"vyper", b"conda"),
+    ],
+)
+def test_internal_assign(get_contract_with_gas_estimation, typ, in_val, out_val):
+    code = f"""
+@internal
+def foo(x: {typ}) -> {typ}:
+    x = {out_val}
+    return x
+
+@external
+def bar(x: {typ}) -> {typ}:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar(in_val) == out_val
+
+
+def test_internal_assign_struct(get_contract_with_gas_estimation):
+    code = """
+enum Bar:
+    BAD
+    BAK
+    BAZ
+
+struct Foo:
+    a: uint256
+    b: DynArray[Bar, 3]
+    c: String[5]
+
+@internal
+def foo(x: Foo) -> Foo:
+    x = Foo({a: 789, b: [Bar.BAZ, Bar.BAK, Bar.BAD], c: \"conda\"})
+    return x
+
+@external
+def bar(x: Foo) -> Foo:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar((123, [1, 2, 4], "vyper")) == (789, [4, 2, 1], "conda")
+
+
+def test_internal_assign_struct_member(get_contract_with_gas_estimation):
+    code = """
+enum Bar:
+    BAD
+    BAK
+    BAZ
+
+struct Foo:
+    a: uint256
+    b: DynArray[Bar, 3]
+    c: String[5]
+
+@internal
+def foo(x: Foo) -> Foo:
+    x.a = 789
+    x.b.pop()
+    return x
+
+@external
+def bar(x: Foo) -> Foo:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar((123, [1, 2, 4], "vyper")) == (789, [1, 2], "vyper")
+
+
+def test_internal_augassign(get_contract_with_gas_estimation):
+    code = """
+@internal
+def foo(x: int128) -> int128:
+    x += 77
+    return x
+
+@external
+def bar(x: int128) -> int128:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar(123) == 200
+
+
+@pytest.mark.parametrize("typ", ["DynArray[uint256, 3]", "uint256[3]"])
+def test_internal_augassign_arrays(get_contract_with_gas_estimation, typ):
+    code = f"""
+@internal
+def foo(x: {typ}) -> {typ}:
+    x[1] += 77
+    return x
+
+@external
+def bar(x: {typ}) -> {typ}:
+    return self.foo(x)
+    """
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.bar([1, 2, 3]) == [1, 79, 3]
+
+
+def test_invalid_external_assign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def foo(x: int128):
@@ -48,7 +159,7 @@ def foo(x: int128):
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), ImmutableViolation)
 
 
-def test_invalid_augassign(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_external_augassign(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def foo(x: int128):
@@ -256,17 +367,33 @@ def foo():
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
-
-def test_assign_rhs_lhs_overlap(get_contract):
     # GH issue 2418
-    code = """
+
+
+overlap_codes = [
+    """
 @external
 def bug(xs: uint256[2]) -> uint256[2]:
     # Initial value
     ys: uint256[2] = xs
     ys = [ys[1], ys[0]]
     return ys
+    """,
     """
+foo: uint256[2]
+@external
+def bug(xs: uint256[2]) -> uint256[2]:
+    # Initial value
+    self.foo = xs
+    self.foo = [self.foo[1], self.foo[0]]
+    return self.foo
+    """,
+    # TODO add transient tests when it's available
+]
+
+
+@pytest.mark.parametrize("code", overlap_codes)
+def test_assign_rhs_lhs_overlap(get_contract, code):
     c = get_contract(code)
 
     assert c.bug([1, 2]) == [2, 1]
