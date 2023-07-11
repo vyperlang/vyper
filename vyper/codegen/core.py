@@ -1,5 +1,9 @@
+import contextlib
+from typing import Generator
+
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
@@ -878,6 +882,38 @@ def make_setter(left, right):
     return _complex_make_setter(left, right)
 
 
+_opt_level = OptimizationLevel.GAS
+
+
+@contextlib.contextmanager
+def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
+    """
+    Set the global optimization level variable for the duration of this
+    context manager.
+    """
+    assert isinstance(new_level, OptimizationLevel)
+
+    global _opt_level
+    try:
+        tmp = _opt_level
+        _opt_level = new_level
+        yield
+    finally:
+        _opt_level = tmp
+
+
+def _opt_codesize():
+    return _opt_level == OptimizationLevel.CODESIZE
+
+
+def _opt_gas():
+    return _opt_level == OptimizationLevel.GAS
+
+
+def _opt_none():
+    return _opt_level == OptimizationLevel.NONE
+
+
 def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
@@ -894,23 +930,33 @@ def _complex_make_setter(left, right):
         keys = left.typ.tuple_keys()
 
     if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+        # both left and right are pointers, see if we want to batch copy
+        # instead of unrolling the loop.
         assert left.encoding == Encoding.VYPER
         len_ = left.typ.memory_bytes_required
 
         has_storage = STORAGE in (left.location, right.location)
         if has_storage:
-            # TODO: make this smarter, probably want to even loop for storage
-            # above a certain threshold. note a single sstore(dst (sload src))
-            # is 8 bytes, whereas loop overhead is 17 bytes.
-            should_batch_copy = False
+            if _opt_codesize():
+                # note a single sstore(dst (sload src)) is 8 bytes,
+                # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
+                # whereas loop overhead is 17 bytes.
+                should_batch_copy = len_ >= 32 * 3
+            elif _opt_gas():
+                # kind of arbitrary, but cut off when code used > ~160 bytes
+                should_batch_copy = len_ >= 32 * 10
+            else:
+                # don't care, just generate the most readable version
+                should_batch_copy = True
         else:
             # 10 words is the cutoff for memory copy where identity is cheaper
             # than unrolled mloads/mstores
             # if MCOPY is available, mcopy is *always* better (except in
             # the 1 word case, but that is already handled by copy_bytes).
-            if right.location == MEMORY:
+            if right.location == MEMORY and _opt_gas():
                 should_batch_copy = len_ >= 32 * 10 or version_check(begin="cancun")
-            # calldata or code to memory - batch copy is always better.
+            # calldata to memory, code to memory, or prioritize codesize -
+            # batch copy is always better.
             else:
                 should_batch_copy = True
 

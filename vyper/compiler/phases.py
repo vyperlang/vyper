@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
+from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
@@ -268,7 +269,9 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(
+    global_ctx: GlobalContext, optimize: OptimizationLevel
+) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -288,7 +291,8 @@ def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
+    with anchor_opt_level(optimize):
+        ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
