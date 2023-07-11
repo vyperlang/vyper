@@ -79,8 +79,8 @@ jobs:
     strategy:
       matrix:
         python-version: [["3.10", "310"], ["3.11", "311"]]
-        # run in default (optimized) and --no-optimize mode
-        flag: ["core", "no-opt"]
+        # run in modes: --optimize [gas, none, codesize]
+        flag: ["core", "no-opt", "codesize"]
 
     name: py${{ matrix.python-version[1] }}-${{ matrix.flag }}
 
