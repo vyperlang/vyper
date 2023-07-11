@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
