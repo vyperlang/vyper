@@ -11,7 +11,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.ir.ir_to_bb_pass import convert_ir_basicblock
+from vyper.ir.ir_to_bb_pass import convert_ir_basicblock, generate_assembly_experimental
 
 
 class CompilerData:
@@ -54,6 +54,7 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
+        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -76,6 +77,8 @@ class CompilerData:
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
+        experimental_codegen: bool, optional
+            Use experimental codegen. Defaults to False
         """
         self.contract_name = contract_name
         self.source_code = source_code
@@ -85,6 +88,7 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
+        self.experimental_codegen = experimental_codegen
 
     @cached_property
     def vyper_module(self) -> vy_ast.Module:
@@ -125,7 +129,7 @@ class CompilerData:
     @cached_property
     def bb_output(self):
         # fetch both deployment and runtime IR
-        return convert_ir_basicblock(self.global_ctx, self._ir_output[0])
+        return convert_ir_basicblock(self._ir_output[0])
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -148,11 +152,17 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.no_optimize)
+        if self.experimental_codegen:
+            return generate_assembly_experimental(self.ir_nodes)
+        else:
+            return generate_assembly(self.ir_nodes, self.no_optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.no_optimize)
+        if self.experimental_codegen:
+            return generate_assembly_experimental(self.ir_runtime)
+        else:
+            return generate_assembly(self.ir_runtime, self.no_optimize)
 
     @cached_property
     def bytecode(self) -> bytes:

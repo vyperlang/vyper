@@ -12,7 +12,6 @@ TERMINATOR_IR_INSTRUCTIONS = [
     "jnz",
     "ret",
     "revert",
-    "assert",
 ]
 
 _symbols = {}
@@ -22,9 +21,19 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return {k: [a[k], b[k]] for k in a.keys() & b.keys() if a[k] != b[k]}
 
 
-def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
+def generate_assembly_experimental(ir: IRnode) -> list[str]:
+    global_function = convert_ir_basicblock(ir)
+    return generate_evm(global_function)
+
+
+def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir)
+
+    revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
+    revert_bb = global_function.append_basic_block(revert_bb)
+    revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
+
     while _optimize_empty_basicblocks(global_function):
         pass
 
@@ -34,9 +43,6 @@ def convert_ir_basicblock(ctx: GlobalContext, ir: IRnode) -> IRFunction:
 
     # Optimization pass: Remove unused variables
     _optimize_unused_variables(global_function)
-
-    assembly = generate_evm(global_function)
-    print(" ".join(assembly))
 
     return global_function
 
@@ -106,16 +112,17 @@ def _calculate_in_set(ctx: IRFunction) -> None:
 
         if last_inst.opcode in ["jmp", "jnz"]:
             ops = last_inst.get_label_operands()
-            assert len(ops) >= 1, "br instruction should have at least one label operand"
+            assert len(ops) >= 1, "branch instruction should have at least one label operand"
             for op in ops:
                 ctx.get_basic_block(op.value).add_in(bb)
-        elif last_inst.opcode == "assert":
-            ctx.get_basic_block_after(bb.label).add_in(bb)
 
     # Fill in the "out" set for each basic block
     for bb in ctx.basic_blocks:
         for in_bb in bb.in_set:
             in_bb.add_out(bb)
+
+
+liveness_visited = set()
 
 
 def _calculate_liveness(bb: IRBasicBlock) -> None:
@@ -124,12 +131,16 @@ def _calculate_liveness(bb: IRBasicBlock) -> None:
         in_vars = out_bb.in_vars_for(bb)
         bb.out_vars = bb.out_vars.union(in_vars)
 
+    if bb in liveness_visited:
+        return
+    liveness_visited.add(bb)
     bb.calculate_liveness()
 
 
-def _convert_binary_op(ctx: IRFunction, ir: IRnode) -> str:
-    arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-    arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
+def _convert_binary_op(ctx: IRFunction, ir: IRnode, swap: bool = False) -> str:
+    ir_args = ir.args[::-1] if swap else ir.args
+    arg_0 = _convert_ir_basicblock(ctx, ir_args[0])
+    arg_1 = _convert_ir_basicblock(ctx, ir_args[1])
     args = [arg_1, arg_0]
 
     ret = ctx.get_next_variable()
@@ -197,21 +208,14 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         sym = ir.args[0]
         # FIXME: How do I validate that the IR is indeed a symbol?
         _symbols[sym.value] = ret
-        # first_pos = ir.source_pos[0] if ir.source_pos else None
-        # inst = IRInstruction(
-        #     "load",
-        #     [ret],
-        #     _symbols[sym.value],
-        #     IRDebugInfo(first_pos or 0, f"symbol: {sym.value}"),
-        # )
-        # ctx.get_basic_block().append_instruction(inst)
 
         return _convert_ir_basicblock(ctx, ir.args[2])  # body
     elif ir.value in [
         "eq",
-        "le",
-        "ge",
         "gt",
+        "lt",
+        "slt",
+        "sgt",
         "shr",
         "or",
         "xor",
@@ -221,7 +225,13 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         "div",
         "mod",
     ]:
-        return _convert_binary_op(ctx, ir)
+        return _convert_binary_op(ctx, ir, ir.value in [])
+    elif ir.value == "le":
+        ir.value = "gt"
+        return _convert_binary_op(ctx, ir, False)  # TODO: check if this is correct order
+    elif ir.value == "ge":
+        ir.value = "lt"
+        return _convert_binary_op(ctx, ir, False)  # TODO: check if this is correct order
     elif ir.value == "iszero":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
         args = [arg_0]
@@ -244,8 +254,9 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "calldataload":
+        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
         ret = ctx.get_next_variable()
-        inst = IRInstruction("calldataload", [ir.args[0].value], ret)
+        inst = IRInstruction("calldataload", [arg_0], ret)
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "callvalue":
@@ -254,9 +265,16 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.get_basic_block().append_instruction(inst)
         return ret
     elif ir.value == "assert":
+        current_bb = ctx.get_basic_block()
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
-        inst = IRInstruction("assert", [arg_0])
-        ctx.get_basic_block().append_instruction(inst)
+
+        exit_label = ctx.get_next_label()
+        bb = IRBasicBlock(exit_label, ctx)
+        bb = ctx.append_basic_block(bb)
+
+        inst = IRInstruction("jnz", [arg_0, IRLabel("__revert"), exit_label])
+        current_bb.append_instruction(inst)
+
     elif ir.value == "label":
         bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
         ctx.append_basic_block(bb)
@@ -271,7 +289,9 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         inst = IRInstruction("ret", [new_var])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
-        inst = IRInstruction("revert", [])
+        arg_0 = _convert_ir_basicblock(ctx, ir.args[0])
+        arg_1 = _convert_ir_basicblock(ctx, ir.args[1])
+        inst = IRInstruction("revert", [arg_0, arg_1])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "pass":
         pass
@@ -290,7 +310,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif isinstance(ir.value, str) and ir.value in _symbols:
         return _symbols[ir.value]
     elif ir.is_literal:
-        return ir.value
+        return IRLiteral(ir.value)
     else:
         raise Exception(f"Unknown IR node: {ir}")
 

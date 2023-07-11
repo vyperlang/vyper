@@ -37,6 +37,7 @@ class IROperant:
     """
 
     value: str
+    use_count: int = 0
 
     def __init__(self, value: IROperantValue) -> None:
         assert isinstance(value, IROperantValue), "value must be a string"
@@ -47,7 +48,7 @@ class IROperant:
         return False
 
     def __repr__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 class IRLiteral(IROperant):
@@ -57,6 +58,7 @@ class IRLiteral(IROperant):
 
     def __init__(self, value: IROperantValue) -> None:
         super().__init__(value)
+        self.use_count = 1
 
     @property
     def is_literal(self) -> bool:
@@ -97,6 +99,7 @@ class IRInstruction:
     ret: Optional[str]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
+    parent: Optional["IRBasicBlock"]
 
     def __init__(
         self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
@@ -106,6 +109,7 @@ class IRInstruction:
         self.ret = ret
         self.dbg = dbg
         self.liveness = set()
+        self.parent = None
 
     def get_label_operands(self) -> list[IRLabel]:
         """
@@ -127,6 +131,13 @@ class IRInstruction:
 
     def get_output_operands(self) -> list[IROperant]:
         return [self.ret] if self.ret else []
+
+    def get_use_count_correction(self, op: IROperant) -> int:
+        use_count_correction = 0
+        for phi in self.parent.phi_vars.values():
+            if phi[1] == op:
+                use_count_correction += 1
+        return use_count_correction
 
     def __repr__(self) -> str:
         s = ""
@@ -176,6 +187,7 @@ class IRBasicBlock:
     in_set: set["IRBasicBlock"]
     out_set: set["IRBasicBlock"]
     out_vars: set[IRVariable]
+    phi_vars: dict[IRVariable, IRVariable]
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -185,6 +197,7 @@ class IRBasicBlock:
         self.in_set = set()
         self.out_set = set()
         self.out_vars = set()
+        self.phi_vars = {}
 
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
@@ -219,6 +232,7 @@ class IRBasicBlock:
 
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        instruction.parent = self
         self.instructions.append(instruction)
 
     def is_terminal(self) -> bool:

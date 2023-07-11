@@ -213,7 +213,7 @@ def compile_to_assembly(code, no_optimize=False):
 
     _add_postambles(res)
     if not no_optimize:
-        _optimize_assembly(res)
+        optimize_assembly(res)
     return res
 
 
@@ -933,10 +933,10 @@ def _stack_peephole_opts(assembly):
 
 
 # optimize assembly, in place
-def _optimize_assembly(assembly):
+def optimize_assembly(assembly):
     for x in assembly:
         if isinstance(x, list):
-            _optimize_assembly(x)
+            optimize_assembly(x)
 
     for _ in range(1024):
         changed = False
