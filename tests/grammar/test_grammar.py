@@ -38,9 +38,9 @@ def test_basic_grammar_empty():
 
 
 def utf8_encodable(terminal: str) -> bool:
+    if "\x00" in terminal or "\\ " in terminal or "\x0c" in terminal:
+        return False
     try:
-        if "\x00" in terminal or "\\ " in terminal or "\x0c" in terminal:
-            return False
         terminal.encode("utf-8-sig")
         return True
     except UnicodeEncodeError:  # pragma: no cover
