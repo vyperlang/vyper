@@ -414,10 +414,10 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
 
-    if True:  # XXX: if options.optimize.gas
-        selector_table = _selector_table_sparse(runtime_functions, global_ctx)
-    else:  # options.optimize.codesize
+    if core._opt_codesize():
         selector_table = _selector_table_dense(runtime_functions, global_ctx)
+    else:
+        selector_table = _selector_table_sparse(runtime_functions, global_ctx)
 
     if default_function:
         fallback_ir = _ir_for_external_function(
