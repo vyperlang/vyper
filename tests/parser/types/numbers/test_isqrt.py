@@ -13,8 +13,7 @@ def isqrt_contract(get_contract_module):
 def test(a: uint256) -> uint256:
     return isqrt(a)
     """
-    c = get_contract_module(code)
-    return c
+    return get_contract_module(code)
 
 
 def test_isqrt_literal(get_contract_with_gas_estimation):

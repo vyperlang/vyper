@@ -100,7 +100,7 @@ def compile_codes(
     if output_formats is None:
         output_formats = ("bytecode",)
     if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in contract_sources.keys())
+        output_formats = {k: output_formats for k in contract_sources.keys()}
 
     out: OrderedDict = OrderedDict()
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):

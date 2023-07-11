@@ -264,7 +264,7 @@ class VyperType:
         raise StructureException("Value is not callable", node)
 
     @classmethod
-    def get_subscripted_type(self, node: vy_ast.Index) -> None:
+    def get_subscripted_type(cls, node: vy_ast.Index) -> None:
         """
         Return the type of a subscript expression, e.g. x[1]
 
@@ -278,7 +278,7 @@ class VyperType:
         VyperType
             Type object for value at the given index.
         """
-        raise StructureException(f"'{self}' cannot be indexed into", node)
+        raise StructureException(f"'{cls}' cannot be indexed into", node)
 
     def add_member(self, name: str, type_: "VyperType") -> None:
         validate_identifier(name)

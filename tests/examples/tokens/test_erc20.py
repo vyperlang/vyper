@@ -16,8 +16,7 @@ TOKEN_INITIAL_SUPPLY = 0
 def c(get_contract, w3):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
-    c = get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
-    return c
+    return get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
 @pytest.fixture
@@ -28,8 +27,7 @@ def c_bad(get_contract, w3):
     bad_code = code.replace("self.totalSupply += _value", "").replace(
         "self.totalSupply -= _value", ""
     )
-    c = get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
-    return c
+    return get_contract(bad_code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
 @pytest.fixture
@@ -62,7 +60,7 @@ def test_initial_state(c, w3):
 
 
 def test_mint_and_burn(c, w3, assert_tx_failed):
-    minter, a1, a2 = w3.eth.accounts[0:3]
+    minter, a1, a2 = w3.eth.accounts[:3]
 
     # Test scenario were mints 2 to a1, burns twice (check balance consistency)
     assert c.balanceOf(a1) == 0
@@ -88,7 +86,7 @@ def test_mint_and_burn(c, w3, assert_tx_failed):
 
 def test_totalSupply(c, w3, assert_tx_failed):
     # Test total supply initially, after mint, between two burns, and after failed burn
-    minter, a1 = w3.eth.accounts[0:2]
+    minter, a1 = w3.eth.accounts[:2]
     assert c.totalSupply() == 0
     c.mint(a1, 2, transact={"from": minter})
     assert c.totalSupply() == 2
@@ -104,7 +102,7 @@ def test_totalSupply(c, w3, assert_tx_failed):
 
 
 def test_transfer(c, w3, assert_tx_failed):
-    minter, a1, a2 = w3.eth.accounts[0:3]
+    minter, a1, a2 = w3.eth.accounts[:3]
     assert_tx_failed(lambda: c.burn(1, transact={"from": a2}))
     c.mint(a1, 2, transact={"from": minter})
     c.burn(1, transact={"from": a1})
@@ -119,7 +117,7 @@ def test_transfer(c, w3, assert_tx_failed):
 
 
 def test_maxInts(c, w3, assert_tx_failed):
-    minter, a1, a2 = w3.eth.accounts[0:3]
+    minter, a1, a2 = w3.eth.accounts[:3]
     c.mint(a1, MAX_UINT256, transact={"from": minter})
     assert c.balanceOf(a1) == MAX_UINT256
     assert_tx_failed(lambda: c.mint(a1, 1, transact={"from": a1}))
@@ -151,7 +149,7 @@ def test_maxInts(c, w3, assert_tx_failed):
 
 
 def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
-    minter, a1, a2, a3 = w3.eth.accounts[0:4]
+    minter, a1, a2, a3 = w3.eth.accounts[:4]
     assert_tx_failed(lambda: c.burn(1, transact={"from": a2}))
     c.mint(a1, 1, transact={"from": minter})
     c.mint(a2, 1, transact={"from": minter})
@@ -199,7 +197,7 @@ def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
 
 
 def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
-    minter, a1, a2, a3 = w3.eth.accounts[0:4]
+    minter, a1, a2, a3 = w3.eth.accounts[:4]
     assert_tx_failed(lambda: c.burn(1, transact={"from": a2}))
     c.mint(a1, 1, transact={"from": minter})
     c.mint(a2, 1, transact={"from": minter})
@@ -249,7 +247,7 @@ def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
 
 
 def test_raw_logs(c, w3, get_log_args):
-    minter, a1, a2, a3 = w3.eth.accounts[0:4]
+    minter, a1, a2, a3 = w3.eth.accounts[:4]
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, transact={"from": minter}), c, "Transfer")
@@ -309,7 +307,7 @@ def test_raw_logs(c, w3, get_log_args):
 
 def test_bad_transfer(c_bad, w3, assert_tx_failed):
     # Ensure transfer fails if it would otherwise overflow balance when totalSupply is corrupted
-    minter, a1, a2 = w3.eth.accounts[0:3]
+    minter, a1, a2 = w3.eth.accounts[:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
     assert_tx_failed(lambda: c_bad.transfer(a1, 1, transact={"from": a2}))
@@ -320,7 +318,7 @@ def test_bad_transfer(c_bad, w3, assert_tx_failed):
 
 def test_bad_burn(c_bad, w3, assert_tx_failed):
     # Ensure burn fails if it would otherwise underflow balance when totalSupply is corrupted
-    minter, a1 = w3.eth.accounts[0:2]
+    minter, a1 = w3.eth.accounts[:2]
     assert c_bad.balanceOf(a1) == 0
     c_bad.mint(a1, 2, transact={"from": minter})
     assert c_bad.balanceOf(a1) == 2
@@ -329,7 +327,7 @@ def test_bad_burn(c_bad, w3, assert_tx_failed):
 
 def test_bad_transferFrom(c_bad, w3, assert_tx_failed):
     # Ensure transferFrom fails if it would otherwise overflow balance when totalSupply is corrupted
-    minter, a1, a2 = w3.eth.accounts[0:3]
+    minter, a1, a2 = w3.eth.accounts[:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
     c_bad.approve(a1, 1, transact={"from": a2})

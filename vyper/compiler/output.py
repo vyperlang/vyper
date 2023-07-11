@@ -16,11 +16,10 @@ from vyper.warnings import ContractSizeLimitWarning
 
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
-    ast_dict = {
+    return {
         "contract_name": compiler_data.contract_name,
         "ast": ast_to_dict(compiler_data.vyper_module),
     }
-    return ast_dict
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
@@ -206,7 +205,7 @@ def _build_asm(asm_list):
                 output_string += " "
             in_push -= 1
         else:
-            output_string += str(node) + " "
+            output_string += f"{str(node)} "
 
             if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
                 assert in_push == 0
@@ -228,7 +227,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     out["pc_pos_map_compressed"] = _compress_source_map(
         compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
     )
-    out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
+    out["pc_pos_map"] = {k: v for k, v in out["pc_pos_map"].items() if v}
     return out
 
 
@@ -295,7 +294,7 @@ def build_opcodes_runtime_output(compiler_data: CompilerData) -> str:
 def _build_opcodes(bytecode: bytes) -> str:
     bytecode_sequence = deque(bytecode)
 
-    opcode_map = dict((v[0], k) for k, v in opcodes.get_opcodes().items())
+    opcode_map = {v[0]: k for k, v in opcodes.get_opcodes().items()}
     opcode_output = []
 
     while bytecode_sequence:
@@ -303,7 +302,7 @@ def _build_opcodes(bytecode: bytes) -> str:
         opcode_output.append(opcode_map[op])
         if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(opcode_map[op][4:])
-            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
+            push_values = [hex(bytecode_sequence.popleft())[2:] for _ in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
 
     return " ".join(opcode_output)

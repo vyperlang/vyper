@@ -92,11 +92,8 @@ class BuiltinFunction:
     def _validate_arg_types(self, node):
         num_args = len(self._inputs)  # the number of args the signature indicates
 
-        expect_num_args = num_args
-        if self._has_varargs:
-            # note special meaning for -1 in validate_call_args API
-            expect_num_args = (num_args, -1)
-
+        # note special meaning for -1 in validate_call_args API
+        expect_num_args = (num_args, -1) if self._has_varargs else num_args
         validate_call_args(node, expect_num_args, self._kwargs)
 
         for arg, (_, expected) in zip(node.args, self._inputs):

@@ -29,10 +29,7 @@ def _deconstruct_complex_type(ir_node):
     else:
         ks = [IRnode.from_list(i, UINT256_T) for i in range(ir_t.count)]
 
-    ret = []
-    for k in ks:
-        ret.append(get_element_ptr(ir_node, k, array_bounds_check=False))
-    return ret
+    return [get_element_ptr(ir_node, k, array_bounds_check=False) for k in ks]
 
 
 # encode a child element of a complex type
@@ -187,9 +184,10 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
         return IRnode.from_list(ir_ret, annotation=annotation)
 
     # contains some computation, we need to only do it once.
-    with ir_node.cache_when_complex("to_encode") as (b1, ir_node), dst.cache_when_complex(
-        "dst"
-    ) as (b2, dst):
+    with (
+        ir_node.cache_when_complex("to_encode") as (b1, ir_node),
+        dst.cache_when_complex("dst") as (b2, dst),
+    ):
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if ir_node.typ._is_prim_word:

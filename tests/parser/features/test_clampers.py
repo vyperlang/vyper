@@ -24,8 +24,7 @@ def _make_abi_encode_tx(w3, address, signature, input_types, values):
 
 def _make_dynarray_data(offset, length, values):
     input = [offset] + [length] + values
-    data = "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in input)
-    return data
+    return "".join(int(i).to_bytes(32, "big", signed=i < 0).hex() for i in input)
 
 
 def _make_invalid_dynarray_tx(w3, address, signature, data):
@@ -100,15 +99,15 @@ def foo(s: bytes{n}) -> bytes{n}:
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("n", list(range(1, 32)))  # bytes32 always passes
 def test_bytes_m_clamper_failing(w3, get_contract, assert_tx_failed, n, evm_version):
-    values = []
-    values.append(b"\x00" * n + b"\x80")  # just one bit set
-    values.append(b"\xff" * n + b"\x80")  # n*8 + 1 bits set
-    values.append(b"\x00" * 31 + b"\x01")  # bytes32
-    values.append(b"\xff" * 32)  # bytes32
-    values.append(bytes(range(32)))  # 0x00010203..1f
-    values.append(bytes(range(1, 33)))  # 0x01020304..a0
-    values.append(b"\xff" * 32)
-
+    values = [
+        b"\x00" * n + b"\x80",
+        b"\xff" * n + b"\x80",
+        b"\x00" * 31 + b"\x01",
+        b"\xff" * 32,
+        bytes(range(32)),
+        bytes(range(1, 33)),
+        b"\xff" * 32,
+    ]
     code = f"""
 @external
 def foo(s: bytes{n}) -> bytes{n}:

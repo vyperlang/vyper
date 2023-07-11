@@ -20,7 +20,7 @@ def safeTransferFrom(_data: Bytes[100] = b"test", _b: int128 = 1):
     abi = get_contract(code)._classic_contract.abi
 
     assert len(abi) == 3
-    assert set([fdef["name"] for fdef in abi]) == {"safeTransferFrom"}
+    assert {fdef["name"] for fdef in abi} == {"safeTransferFrom"}
     assert abi[0]["inputs"] == []
     assert abi[1]["inputs"] == [{"type": "bytes", "name": "_data"}]
     assert abi[2]["inputs"] == [

@@ -99,10 +99,7 @@ def can_convert(i_typ, o_typ):
     if isinstance(i_typ, AddressT):
         if isinstance(o_typ, BytesM_T):
             return bytes_of_type(i_typ) <= bytes_of_type(o_typ)
-        if isinstance(o_typ, IntegerT):
-            return not o_typ.is_signed
-        return False
-
+        return not o_typ.is_signed if isinstance(o_typ, IntegerT) else False
     raise AssertionError(f"unreachable {i_typ} {o_typ}")
 
 
@@ -113,13 +110,12 @@ def uniq(xs):
 def _cases_for_int(typ):
     lo, hi = typ.ast_bounds
 
-    ret = [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
-
     # random cases cause reproducibility issues. TODO fixme
     # NUM_RANDOM_CASES = 6
+    # ret =  [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
     # ret.extend(random.randrange(lo, hi) for _ in range(NUM_RANDOM_CASES))
-
-    return ret
+    # return ret
+    return [lo - 1, lo, lo + 1, -1, 0, 1, hi - 1, hi, hi + 1]
 
 
 def _cases_for_decimal(typ):
@@ -267,28 +263,20 @@ def _signextend(val_bytes, bits):
 
 def _convert_int_to_int(val, o_typ):
     lo, hi = o_typ.int_bounds
-    if not lo <= val <= hi:
-        return None
-    return val
+    return None if not lo <= val <= hi else val
 
 
 def _convert_decimal_to_int(val, o_typ):
     # note special behavior for decimal: catch OOB before truncation.
     lo, hi = o_typ.int_bounds
-    if not lo <= val <= hi:
-        return None
-
-    return round_towards_zero(val)
+    return None if not lo <= val <= hi else round_towards_zero(val)
 
 
 def _convert_int_to_decimal(val, o_typ):
     ret = Decimal(val)
     lo, hi = o_typ.ast_bounds
 
-    if not lo <= ret <= hi:
-        return None
-
-    return ret
+    return None if not lo <= ret <= hi else ret
 
 
 def _py_convert(val, i_typ, o_typ):
@@ -334,10 +322,7 @@ def _py_convert(val, i_typ, o_typ):
 
         ret = _from_bits(val_bits, o_typ)
 
-        if isinstance(o_typ, AddressT):
-            return checksum_encode(ret)
-        return ret
-
+        return checksum_encode(ret) if isinstance(o_typ, AddressT) else ret
     except _OutOfBounds:
         return None
 
@@ -391,10 +376,8 @@ def generate_passing_cases():
     ret = []
     for i_typ, o_typ in convertible_pairs():
         cases = cases_for_pair(i_typ, o_typ)
-        for c in cases:
-            # only add convertible cases
-            if _py_convert(c, i_typ, o_typ) is not None:
-                ret.append((i_typ, o_typ, c))
+        # only add convertible cases
+        ret.extend((i_typ, o_typ, c) for c in cases if _py_convert(c, i_typ, o_typ) is not None)
     return sorted(ret)
 
 
@@ -402,15 +385,13 @@ def generate_reverting_cases():
     ret = []
     for i_typ, o_typ in convertible_pairs():
         cases = cases_for_pair(i_typ, o_typ)
-        for c in cases:
-            if _py_convert(c, i_typ, o_typ) is None:
-                ret.append((i_typ, o_typ, c))
+        ret.extend((i_typ, o_typ, c) for c in cases if _py_convert(c, i_typ, o_typ) is None)
     return sorted(ret)
 
 
 def _vyper_literal(val, typ):
     if isinstance(typ, BytesM_T):
-        return "0x" + val.hex()
+        return f"0x{val.hex()}"
     if isinstance(typ, DecimalT):
         tmp = val
         val = val.quantize(DECIMAL_EPSILON)
@@ -647,13 +628,10 @@ def foo() -> {o_typ}:
             c1_exception = TypeMismatch
 
     # compile-time folding not implemented for these:
-    skip_c1 = False
     # if isinstance(o_typ, IntegerT.signeds()) and isinstance(i_typ, Address()):
     #    skip_c1 = True
 
-    if isinstance(o_typ, BytesM_T):
-        skip_c1 = True
-
+    skip_c1 = isinstance(o_typ, BytesM_T)
     # if o_typ in (AddressT(), BYTES20_T):
     #    skip_c1 = True
 

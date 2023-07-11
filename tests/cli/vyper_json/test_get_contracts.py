@@ -42,7 +42,7 @@ def test_contracts_keccak():
     input_json = {"sources": {"foo.vy": {"content": FOO_CODE, "keccak256": hash_}}}
     get_input_dict_contracts(input_json)
 
-    input_json["sources"]["foo.vy"]["keccak256"] = "0x" + hash_
+    input_json["sources"]["foo.vy"]["keccak256"] = f"0x{hash_}"
     get_input_dict_contracts(input_json)
 
     input_json["sources"]["foo.vy"]["keccak256"] = "0x1234567890"

@@ -216,10 +216,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     node_list[0],
                 )
         if self.func.mutability is not StateMutability.PAYABLE:
-            node_list = fn_node.get_descendants(
+            if node_list := fn_node.get_descendants(
                 vy_ast.Attribute, {"value.id": "msg", "attr": "value"}
-            )
-            if node_list:
+            ):
                 raise NonPayableViolation(
                     "msg.value is not allowed in non-payable functions", node_list[0]
                 )
@@ -391,11 +390,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not type_list:
                     raise TypeMismatch("Iterator values are of different types", node.iter)
 
-        else:
-            # iteration over a variable or literal list
-            if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
-                raise StructureException("For loop must have at least 1 iteration", node.iter)
+        elif isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
+            raise StructureException("For loop must have at least 1 iteration", node.iter)
 
+        else:
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
@@ -406,9 +404,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise InvalidType("Not an iterable type", node.iter)
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-            # check for references to the iterated value within the body of the loop
-            assign = _check_iterator_modification(node.iter, node)
-            if assign:
+            if assign := _check_iterator_modification(node.iter, node):
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
         # Check if `iter` is a storage variable. get_descendants` is used to check for
@@ -476,7 +472,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         # if we have gotten here, there was an error for
         # every type tried for the iterator
 
-        if len(set(str(i) for i in for_loop_exceptions)) == 1:
+        if len({str(i) for i in for_loop_exceptions}) == 1:
             # if every attempt at type checking raised the same exception
             raise for_loop_exceptions[0]
 

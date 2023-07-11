@@ -138,9 +138,9 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
-        positional_args = []
-        for item in abi["inputs"]:
-            positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
+        positional_args = [
+            PositionalArg(item["name"], type_from_abi(item)) for item in abi["inputs"]
+        ]
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
@@ -368,10 +368,7 @@ class ContractFunctionT(VyperType):
             raise CompilerPanic("getter generated for non-public function")
         type_ = type_from_annotation(node.annotation, DataLocation.STORAGE)
         arguments, return_type = type_.getter_signature
-        args = []
-        for i, item in enumerate(arguments):
-            args.append(PositionalArg(f"arg{i}", item))
-
+        args = [PositionalArg(f"arg{i}", item) for i, item in enumerate(arguments)]
         return cls(
             node.target.id,
             args,
@@ -411,10 +408,7 @@ class ContractFunctionT(VyperType):
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
 
-        if self.mutability > other.mutability:
-            return False
-
-        return True
+        return self.mutability <= other.mutability
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:
@@ -479,9 +473,9 @@ class ContractFunctionT(VyperType):
         if self.n_keyword_args == 0:
             return _generate_method_id(self.name, arg_types)
 
-        method_ids = {}
+        method_ids: dict[str, int] = {}
         for i in range(self.n_positional_args, self.n_total_args + 1):
-            method_ids.update(_generate_method_id(self.name, arg_types[:i]))
+            method_ids |= _generate_method_id(self.name, arg_types[:i])
         return method_ids
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
@@ -564,20 +558,19 @@ class ContractFunctionT(VyperType):
         else:
             abi_dict["outputs"] = [typ.to_abi_arg()]
 
-        if self.n_keyword_args > 0:
-            # for functions with default args, return a dict for each possible arg count
-            result = []
-            for i in range(self.n_positional_args, self.n_total_args + 1):
-                result.append(abi_dict.copy())
-                result[-1]["inputs"] = result[-1]["inputs"][:i]
-            return result
-        else:
+        if self.n_keyword_args <= 0:
             return [abi_dict]
+        # for functions with default args, return a dict for each possible arg count
+        result = []
+        for i in range(self.n_positional_args, self.n_total_args + 1):
+            result.append(abi_dict.copy())
+            result[-1]["inputs"] = result[-1]["inputs"][:i]
+        return result
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
         args = self.positional_args + kwargs  # type: ignore
-        return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
+        return f"{self.name}(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
 class MemberFunctionT(VyperType):

@@ -93,7 +93,7 @@ def get_levenshtein_error_suggestions(key: str, namespace: Dict[str, Any], thres
         or an empty string.
     """
 
-    if key is None or key == "":
+    if not key:
         return ""
 
     distances = sorted([(i, levenshtein_norm(key, i)) for i in namespace], key=lambda k: k[1])

@@ -19,8 +19,8 @@ class _StringEnum(enum.Enum):
         return enum.auto()
 
     # Must be first, or else won't work, specifies what .value is
-    def _generate_next_value_(name, start, count, last_values):
-        return name.lower()
+    def _generate_next_value_(self, start, count, last_values):
+        return self.lower()
 
     # Override ValueError with our own internal exception
     @classmethod
@@ -29,7 +29,7 @@ class _StringEnum(enum.Enum):
 
     @classmethod
     def is_valid_value(cls, value: str) -> bool:
-        return value in set(o.value for o in cls)
+        return value in {o.value for o in cls}
 
     @classmethod
     def options(cls) -> List["_StringEnum"]:
@@ -196,8 +196,8 @@ class ExprInfo:
     is_immutable: bool = False
 
     def __post_init__(self):
-        should_match = ("typ", "location", "is_constant", "is_immutable")
         if self.var_info is not None:
+            should_match = ("typ", "location", "is_constant", "is_immutable")
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")

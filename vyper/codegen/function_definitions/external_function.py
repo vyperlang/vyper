@@ -72,7 +72,7 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
     def handler_for(calldata_kwargs, default_kwargs):
         calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
+        calldata_args_t = TupleT([arg.typ for arg in calldata_args])
 
         abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
         method_id = _annotated_method_id(abi_sig)
@@ -208,11 +208,13 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     func_common_ir = ["seq", body, exit]
 
     if func_t.is_fallback or func_t.is_constructor:
-        ret = ["seq"]
-        # add a goto to make the function entry look like other functions
-        # (for zksync interpreter)
-        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
-        ret.append(func_common_ir)
+        ret = [
+            "seq",
+            # add a goto to make the function entry look like other functions
+            # (for zksync interpreter)
+            ["goto", func_t._ir_info.external_function_base_entry_label],
+            func_common_ir,
+        ]
     else:
         ret = kwarg_handlers
         # sneak the base code into the kwarg handler

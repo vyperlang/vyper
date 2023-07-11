@@ -81,12 +81,12 @@ def test_dead_code_eliminator(code):
     runtime_only_label = "_sym_internal_runtime_only___"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert ctor_only_label + "_deploy" in initcode_asm
-    assert runtime_only_label + "_deploy" not in initcode_asm
+    assert f"{ctor_only_label}_deploy" in initcode_asm
+    assert f"{runtime_only_label}_deploy" not in initcode_asm
 
     # all labels should be in unoptimized runtime asm
     for s in (ctor_only_label, runtime_only_label):
-        assert s + "_runtime" in runtime_asm
+        assert f"{s}_runtime" in runtime_asm
 
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.GAS))
     initcode_asm = [i for i in c.assembly if not isinstance(i, list)]

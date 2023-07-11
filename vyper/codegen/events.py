@@ -57,7 +57,7 @@ def ir_node_for_log(expr, event, topic_nodes, data_nodes, context):
     encode_data = abi_encode(buf, data, context, returns_len=True, bufsz=bufsz)
 
     assert len(topics) <= 4, "too many topics"  # sanity check
-    log_opcode = "log" + str(len(topics))
+    log_opcode = f"log{len(topics)}"
 
     return IRnode.from_list(
         [log_opcode, buf, encode_data] + topics,

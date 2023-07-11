@@ -126,8 +126,7 @@ def sqrt_contract(get_contract_module):
 def test(a: decimal) -> decimal:
     return sqrt(a)
     """
-    c = get_contract_module(code)
-    return c
+    return get_contract_module(code)
 
 
 @pytest.mark.parametrize("value", [Decimal(0), Decimal(SizeLimits.MAX_INT128)])

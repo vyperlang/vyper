@@ -39,7 +39,7 @@ class _FuncIRInfo:
 
     @property
     def exit_sequence_label(self) -> str:
-        return self.ir_identifier + "_cleanup"
+        return f"{self.ir_identifier}_cleanup"
 
     @cached_property
     def ir_identifier(self) -> str:
@@ -52,10 +52,10 @@ class _FuncIRInfo:
         self.frame_info = frame_info
 
     @property
-    # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
+        """Common entry point for external function with kwargs."""
         assert not self.func_t.is_internal, "uh oh, should be external"
-        return self.ir_identifier + "_common"
+        return f"{self.ir_identifier}_common"
 
     def internal_function_label(self, is_ctor_context: bool = False) -> str:
         assert self.func_t.is_internal, "uh oh, should be internal"
@@ -106,11 +106,11 @@ def generate_ir_for_function(
     )
 
     if func_t.is_internal:
-        assert skip_nonpayable_check is False
+        assert not skip_nonpayable_check
         o = generate_ir_for_internal_function(code, func_t, context)
     else:
         if func_t.is_payable:
-            assert skip_nonpayable_check is False  # nonsense
+            assert not skip_nonpayable_check
         o = generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check)
 
     o.source_pos = getpos(code)

@@ -88,11 +88,7 @@ def _bytes_to_num(arg, out_typ, signed):
     else:
         raise CompilerPanic("unreachable")  # pragma: notest
 
-    if signed:
-        ret = sar(num_zero_bits, arg)
-    else:
-        ret = shr(num_zero_bits, arg)
-
+    ret = sar(num_zero_bits, arg) if signed else shr(num_zero_bits, arg)
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
     return IRnode.from_list(ret, annotation=annotation)
 
@@ -336,7 +332,7 @@ def to_decimal(expr, arg, out_typ):
     if isinstance(arg.typ, BytesT):
         arg_typ = arg.typ
         arg = _bytes_to_num(arg, out_typ, signed=True)
-        if arg_typ.maxlen * 8 > 168:
+        if arg_typ.maxlen > 21:
             arg = IRnode.from_list(arg, typ=out_typ)
             arg = clamp_basetype(arg)
 
@@ -384,11 +380,7 @@ def to_bytes_m(expr, arg, out_typ):
             arg = bytes_clamp(arg, out_typ.m)
 
     elif is_integer_type(arg.typ) or arg.typ == AddressT():
-        if arg.typ == AddressT():
-            int_bits = 160
-        else:
-            int_bits = arg.typ.bits
-
+        int_bits = 160 if arg.typ == AddressT() else arg.typ.bits
         if out_typ.m_bits < int_bits:
             # question: allow with runtime clamp?
             # arg = int_clamp(m_bits, signed=arg.typ.signed)

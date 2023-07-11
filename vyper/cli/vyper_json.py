@@ -125,8 +125,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
                 }
             )
 
-    output_json = {"compiler": f"vyper-{vyper.__version__}", "errors": [err_dict]}
-    return output_json
+    return {"compiler": f"vyper-{vyper.__version__}", "errors": [err_dict]}
 
 
 def _standardize_path(path_str: str) -> str:
@@ -241,7 +240,7 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
-            outputs = set(x for i in outputs.values() for x in i)
+            outputs = {x for i in outputs.values() for x in i}
         else:
             outputs = set(outputs)
 
@@ -293,13 +292,11 @@ def get_interface_codes(
         if not interface_path.startswith("."):
             keys.append(interface_path)
 
-        key = next((i for i in keys if i in interface_sources), None)
-        if key:
+        if key := next((i for i in keys if i in interface_sources), None):
             interfaces[interface_name] = interface_sources[key]
             continue
 
-        key = next((i + ".vy" for i in keys if i + ".vy" in contract_sources), None)
-        if key:
+        if key := next((f"{i}.vy" for i in keys if f"{i}.vy" in contract_sources), None):
             interfaces[interface_name] = {"type": "vyper", "code": contract_sources[key]}
             continue
 
@@ -444,7 +441,7 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
                 evm["opcodes"] = data["opcodes"]
 
         pc_maps_keys = ("source_map", "source_map_full")
-        if any(i + "_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
+        if any(f"{i}_runtime" in data for i in evm_keys) or any(i in data for i in pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("deployedBytecode", {})
             if "bytecode_runtime" in data:
                 evm["object"] = data["bytecode_runtime"]
@@ -503,17 +500,16 @@ def compile_json(
 
         output_dict = format_to_output_dict(compiler_data)
         if warn_data:
-            output_dict["errors"] = []
-            for path, msg in ((k, x) for k, v in warn_data.items() for x in v):
-                output_dict["errors"].append(
-                    {
-                        "type": msg.category.__name__,
-                        "component": "compiler",
-                        "severity": "warning",
-                        "message": msg.message,
-                        "sourceLocation": {"file": path},
-                    }
-                )
+            output_dict["errors"] = [
+                {
+                    "type": msg.category.__name__,
+                    "component": "compiler",
+                    "severity": "warning",
+                    "message": msg.message,
+                    "sourceLocation": {"file": path},
+                }
+                for path, msg in ((k, x) for k, v in warn_data.items() for x in v)
+            ]
         return output_dict
 
     except Exception as exc:

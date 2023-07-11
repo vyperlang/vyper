@@ -106,8 +106,7 @@ class _BaseVyperException(Exception):
                 if module_node.get("name") not in (None, "<unknown>"):
                     node_msg = f'{node_msg}contract "{module_node.name}:{node.lineno}", '
 
-                fn_node = node.get_ancestor(vy_ast.FunctionDef)
-                if fn_node:
+                if fn_node := node.get_ancestor(vy_ast.FunctionDef):
                     node_msg = f'{node_msg}function "{fn_node.name}", '
 
             col_offset_str = "" if node.col_offset is None else str(node.col_offset)

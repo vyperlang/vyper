@@ -68,13 +68,14 @@ class _WithBuilder:
         )
 
     def __enter__(self):
-        if self.should_inline:
+        return (
             # return the value instead of the named variable
             # so it can be inlined
-            return self, self.ir_node
-        else:
+            (self, self.ir_node)
+            if self.should_inline
             # return the named variable
-            return self, self.ir_var
+            else (self, self.ir_var)
+        )
 
     def __exit__(self, *args):
         pass
@@ -144,7 +145,7 @@ class IRnode:
         # children are correct. Also, find an upper bound on gas consumption
         # Numbers
         if isinstance(self.value, int):
-            _check(len(self.args) == 0, "int can't have arguments")
+            _check(not self.args, "int can't have arguments")
 
             # integers must be in the range (MIN_INT256, MAX_UINT256)
             _check(-(2**255) <= self.value < 2**256, "out of range")
@@ -174,7 +175,7 @@ class IRnode:
                     )
                     self._gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
-                if self.value.upper()[0:3] == "LOG" and isinstance(self.args[1].value, int):
+                if self.value.upper()[:3] == "LOG" and isinstance(self.args[1].value, int):
                     self._gas += self.args[1].value * 8
                 # Dynamic gas cost: non-zero-valued call
                 if self.value.upper() == "CALL" and self.args[2].value != 0:
@@ -203,7 +204,7 @@ class IRnode:
                     self.args[0].valency > 0,
                     f"zerovalent argument as a test to an if statement: {self.args[0]}",
                 )
-                _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
+                _check(len(self.args) in {2, 3}, "if statement can only have 2 or 3 arguments")
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
@@ -217,8 +218,7 @@ class IRnode:
                     f"zerovalent argument to with statement: {self.args[1]}",
                 )
                 self.valency = self.args[2].valency
-                self._gas = sum([arg.gas for arg in self.args]) + 5
-            # Repeat statements: repeat <index_name> <startval> <rounds> <rounds_bound> <body>
+                self._gas = sum(arg.gas for arg in self.args) + 5
             elif self.value == "repeat":
                 _check(
                     len(self.args) == 5, "repeat(index_name, startval, rounds, rounds_bound, body)"
@@ -252,7 +252,7 @@ class IRnode:
             # Seq statements: seq <statement> <statement> ...
             elif self.value == "seq":
                 self.valency = self.args[-1].valency if self.args else 0
-                self._gas = sum([arg.gas for arg in self.args]) + 30
+                self._gas = sum(arg.gas for arg in self.args) + 30
 
             # GOTO is a jump with args
             # e.g. (goto my_label x y z) will push x y and z onto the stack,
@@ -265,9 +265,9 @@ class IRnode:
                     )
 
                 self.valency = 0
-                self._gas = sum([arg.gas for arg in self.args])
+                self._gas = sum(arg.gas for arg in self.args)
             elif self.value == "label":
-                if not self.args[1].value == "var_list":
+                if self.args[1].value != "var_list":
                     raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
                 self.valency = 0
                 self._gas = 1 + sum(t.gas for t in self.args)
@@ -295,13 +295,12 @@ class IRnode:
                     _check(
                         arg.valency > 0, f"Multi expects all children to not be zerovalent: {arg}"
                     )
-                self.valency = sum([arg.valency for arg in self.args])
-                self._gas = sum([arg.gas for arg in self.args])
+                self.valency = sum(arg.valency for arg in self.args)
+                self._gas = sum(arg.gas for arg in self.args)
             elif self.value == "deploy":
                 self.valency = 0
                 _check(len(self.args) == 3, f"`deploy` should have three args {self}")
                 self._gas = NullAttractor()  # unknown
-            # Stack variables
             else:
                 self.valency = 1
                 self._gas = 3
@@ -434,9 +433,7 @@ class IRnode:
     def repr_value(self):
         if isinstance(self.value, int) and self.as_hex:
             return hex(self.value)
-        if not isinstance(self.value, str):
-            return str(self.value)
-        return self.value
+        return str(self.value) if not isinstance(self.value, str) else self.value
 
     @staticmethod
     def _colorise_keywords(val):
@@ -449,7 +446,7 @@ class IRnode:
     def repr(self) -> str:
         if not len(self.args):
             if self.annotation:
-                return f"{self.repr_value} " + OKLIGHTBLUE + f"<{self.annotation}>" + ENDC
+                return f"{self.repr_value} {OKLIGHTBLUE}" + f"<{self.annotation}>" + ENDC
             else:
                 return str(self.repr_value)
         # x = repr(self.to_list())
@@ -460,7 +457,7 @@ class IRnode:
             o += f"/* {self.annotation} */ \n"
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
-        o += "[" + self._colorise_keywords(self.repr_value)
+        o += f"[{self._colorise_keywords(self.repr_value)}"
         prev_lineno = self.source_pos[0] if self.source_pos else None
         arg_lineno = None
         annotated = False
@@ -484,10 +481,7 @@ class IRnode:
             (len(output_on_one_line) < 80 or len(self.args) == 1) and not annotated
         ) and not has_inner_newlines
 
-        if should_output_single_line:
-            return output_on_one_line
-        else:
-            return output
+        return output_on_one_line if should_output_single_line else output
 
     def __repr__(self):
         return self.repr()

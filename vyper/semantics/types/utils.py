@@ -58,11 +58,13 @@ def type_from_abi(abi_type: Dict) -> VyperType:
     else:
         try:
             t = namespace[type_string]
-            if type_string in ("Bytes", "String"):
+            return (
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t()
-            return t
+                t()
+                if type_string in ("Bytes", "String")
+                else t
+            )
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 

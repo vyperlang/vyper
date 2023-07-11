@@ -52,8 +52,7 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     for name in internal_calls:
         if name in fn_names:
             return fn_names + [name]
-        sequence = _find_cyclic_call(fn_names + [name], self_members)
-        if sequence:
+        if sequence := _find_cyclic_call(fn_names + [name], self_members):
             return sequence
     return None
 
@@ -110,11 +109,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # get list of internal function calls made by each function
         function_defs = self.ast.get_children(vy_ast.FunctionDef)
-        function_names = set(node.name for node in function_defs)
+        function_names = {node.name for node in function_defs}
         for node in function_defs:
-            calls_to_self = set(
+            calls_to_self = {
                 i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
-            )
+            }
             # anything that is not a function call will get semantically checked later
             calls_to_self = calls_to_self.intersection(function_names)
             self_members[node.name].internal_calls = calls_to_self
@@ -139,9 +138,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise CallViolation("Contract contains cyclic function call", *nodes)
 
             # get complete list of functions that are reachable from this function
-            function_set = set(i for i in self_members[fn_name].internal_calls if i in self_members)
+            function_set = {i for i in self_members[fn_name].internal_calls if i in self_members}
             while True:
-                expanded = set(x for i in function_set for x in self_members[i].internal_calls)
+                expanded = {x for i in function_set for x in self_members[i].internal_calls}
                 expanded |= function_set
                 if expanded == function_set:
                     break

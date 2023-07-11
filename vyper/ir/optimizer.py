@@ -95,9 +95,7 @@ def _flip_comparison_op(opname):
 
 # some annotations are really long. shorten them (except maybe in "verbose" mode?)
 def _shorten_annotation(annotation):
-    if len(annotation) > 16:
-        return annotation[:16] + "..."
-    return annotation
+    return f"{annotation[:16]}..." if len(annotation) > 16 else annotation
 
 
 def _wrap256(x, unsigned=UNSIGNED):
@@ -164,26 +162,28 @@ def _comparison_helper(binop, args, prefer_strict=False):
             # e.g. gt x 0, slt x MAX_INT256
             return ("ne", args)
 
-        if is_gt == is_strict:
+        new_rhs = (
             # x > 1 => x >= 2
             # x <= 1 => x < 2
-            new_rhs = rhs + 1
-        else:
+            rhs + 1
+            if is_gt == is_strict
             # x >= 1 => x > 0
             # x < 1 => x <= 0
-            new_rhs = rhs - 1
+            else rhs - 1
+        )
 
         # if args[1] is OOB, it should have been handled above
         # in the always/never cases
         assert _wrap256(new_rhs, unsigned) == new_rhs, "bad optimizer step"
 
         # change the strictness of the op
-        if prefer_strict:
+        new_op = (
             # e.g. "sge" => "sgt"
-            new_op = binop.replace("e", "t")
-        else:
+            binop.replace("e", "t")
+            if prefer_strict
             # e.g. "sgt" => "sge"
-            new_op = binop.replace("t", "e")
+            else binop.replace("t", "e")
+        )
 
         return (new_op, [args[0], new_rhs])
 
@@ -222,10 +222,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             args[1].is_complex_ir and not _deep_contains(new_args, args[1])
         )
 
-        if rollback:
-            return None
-
-        return new_val, new_args, new_ann
+        return None if rollback else (new_val, new_args, new_ann)
 
     if _is_int(args[0]) and _is_int(args[1]):
         # compile-time arithmetic
@@ -425,7 +422,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
 
     res = [_optimize(arg, node) for arg in node.args]
     argz: list
-    if len(res) == 0:
+    if not res:
         args_changed, argz = False, []
     else:
         changed_flags, argz = zip(*res)  # type: ignore
@@ -546,9 +543,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
                 f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
                 source_pos,
             )
-        else:
-            changed = True
-            return finalize("seq", [])
+        changed = True
+        return finalize("seq", [])
 
     return finalize(value, argz)
 
@@ -645,7 +641,6 @@ def _merge_calldataload(argz):
     total_length = 0
     idx = None
     for i, ir_node in enumerate(argz):
-        is_last_iteration = i == len(argz) - 1
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -666,6 +661,7 @@ def _merge_calldataload(argz):
                 mstore_nodes.append(ir_node)
                 total_length += 32
 
+                is_last_iteration = i == len(argz) - 1
                 # do not block the optimization if it continues thru
                 # the end of the (seq) block
                 if not is_last_iteration:

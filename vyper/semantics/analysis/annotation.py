@@ -28,8 +28,7 @@ class _AnnotationVisitorBase:
         # node types with a shared parent
         for class_ in node.__class__.mro():
             ast_type = class_.__name__
-            visitor_fn = getattr(self, f"visit_{ast_type}", None)
-            if visitor_fn:
+            if visitor_fn := getattr(self, f"visit_{ast_type}", None):
                 visitor_fn(node, *args)
                 return
         raise StructureException(f"Cannot annotate: {node.ast_type}", node)

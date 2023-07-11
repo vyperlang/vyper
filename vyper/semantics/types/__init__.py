@@ -21,10 +21,7 @@ def _get_primitive_types():
     # are in the namespace instead of concrete type objects.
     res.extend([BytesT, StringT])
 
-    ret = {t._id: t for t in res}
-    ret.update(_get_sequence_types())
-
-    return ret
+    return {t._id: t for t in res} | _get_sequence_types()
 
 
 def _get_sequence_types():

@@ -215,7 +215,7 @@ def foo(t: bool, x: uint256, y: uint256) -> uint256:
     """
     c = get_contract(code)
 
-    assert c.foo(test, x, y) == ((x * y) if (test and True) else (x + y + int(test)))
+    assert c.foo(test, x, y) == (x * y if test else x + y + int(test))
 
 
 @pytest.mark.parametrize("test", [True, False])

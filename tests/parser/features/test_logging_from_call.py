@@ -162,7 +162,7 @@ def test_func(_value: uint256,input: Bytes[2048]):
 
     assert w3.to_int(logs[0].args.testData1) == 333
 
-    assert w3.to_int(logs[0].args.testData2[0:8]) == 333
+    assert w3.to_int(logs[0].args.testData2[:8]) == 333
     assert w3.to_int(logs[0].args.testData2[8:16]) == 333
     assert logs[0].args.testData2[16:] == b"x" * 132
     assert w3.to_int(logs[0].args.testData3) == 333

@@ -33,7 +33,7 @@ class _CallKwargs:
 def _pack_arguments(fn_type, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleT([x.typ for x in args])
-    args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
+    args_as_tuple = IRnode.from_list(["multi"] + list(args), typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
     # sanity typecheck - make sure the arguments can be assigned
@@ -65,9 +65,7 @@ def _pack_arguments(fn_type, args, context):
     # the reason for the left padding is just so the alignment is easier.
     # XXX: we could align to buf (and also keep code size small) by using
     # (mstore buf (shl signature.method_id 224))
-    pack_args = ["seq"]
-    pack_args.append(["mstore", buf, util.method_id_int(abi_signature)])
-
+    pack_args = ["seq", ["mstore", buf, util.method_id_int(abi_signature)]]
     if len(args) != 0:
         pack_args.append(abi_encode(buf + 32, args_as_tuple, context, bufsz=buflen))
 
@@ -159,7 +157,7 @@ def _parse_kwargs(call_expr, context):
         default_return_value=call_kwargs.pop("default_return_value", None),
     )
 
-    if len(call_kwargs) != 0:
+    if call_kwargs:
         raise TypeCheckFailure(f"Unexpected keyword arguments: {call_kwargs}")
 
     return ret
@@ -175,12 +173,13 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
-    ret = ["seq"]
-
-    # this is a sanity check to prevent double evaluation of the external call
-    # in the codegen pipeline. if the external call gets doubly evaluated,
-    # a duplicate label exception will get thrown during assembly.
-    ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
+    ret = [
+        "seq",
+        # this is a sanity check to prevent double evaluation of the external call
+        # in the codegen pipeline. if the external call gets doubly evaluated,
+        # a duplicate label exception will get thrown during assembly.
+        eval_once_check(_freshname(call_expr.node_source_code)),
+    ]
 
     buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
 

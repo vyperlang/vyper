@@ -45,8 +45,8 @@ INPUT_JSON = {
 
 
 def _no_errors(output_json):
-    return "errors" not in output_json or not any(
-        err["severity"] == "error" for err in output_json["errors"]
+    return "errors" not in output_json or all(
+        err["severity"] != "error" for err in output_json["errors"]
     )
 
 

@@ -94,33 +94,32 @@ def set_storage_slots_with_overrides(
             continue
 
         # Expect to find this variable within the storage layout override
-        if variable_name in storage_layout_overrides:
-            reentrant_slot = storage_layout_overrides[variable_name]["slot"]
-            # Ensure that this slot has not been used, and prevents other storage variables
-            # from using the same slot
-            reserved_slots.reserve_slot_range(reentrant_slot, 1, variable_name)
-
-            type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
-
-            ret[variable_name] = {"type": "nonreentrant lock", "slot": reentrant_slot}
-        else:
+        if variable_name not in storage_layout_overrides:
             raise StorageLayoutException(
                 f"Could not find storage_slot for {variable_name}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
 
+        reentrant_slot = storage_layout_overrides[variable_name]["slot"]
+        # Ensure that this slot has not been used, and prevents other storage variables
+        # from using the same slot
+        reserved_slots.reserve_slot_range(reentrant_slot, 1, variable_name)
+
+        type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
+
+        ret[variable_name] = {"type": "nonreentrant lock", "slot": reentrant_slot}
     # Iterate through variables
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         # Ignore immutable parameters
         if node.get("annotation.func.id") == "immutable":
             continue
 
-        varinfo = node.target._metadata["varinfo"]
-
         # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
+            varinfo = node.target._metadata["varinfo"]
+
             storage_length = varinfo.typ.storage_size_in_words
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots

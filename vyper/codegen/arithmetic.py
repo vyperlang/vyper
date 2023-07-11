@@ -36,7 +36,7 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
 
-    if a in (-1, 0, 1):  # pragma: no cover
+    if a in {-1, 0, 1}:  # pragma: no cover
         raise CompilerPanic("Exponential operation is useless!")
 
     value_bits = num_bits - (1 if is_signed else 0)
@@ -77,10 +77,8 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
     #   (-a) ** (b + 1) == -(2 ** value_bits)
     # we can squeak one more out of it because lower bound of signed ints
     # is slightly wider than upper bound
-    if a_is_negative and (-a) ** (b + 1) == -(2**value_bits):  # NOTE: a = abs(a)
-        return b + 1
-    else:
-        return b  # Exact
+    # NOTE: a = abs(a)
+    return b + 1 if a_is_negative and (-a) ** (b + 1) == -(2**value_bits) else b
 
 
 def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int, int]:
@@ -110,7 +108,7 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     if num_bits % 8:  # pragma: no cover
         raise CompilerPanic("Type is not a modulo of 8")
 
-    if b in (0, 1):  # pragma: no cover
+    if b in {0, 1}:  # pragma: no cover
         raise CompilerPanic("Exponential operation is useless!")
 
     if b < 0:  # pragma: no cover
@@ -143,11 +141,12 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     if not is_signed:
         return 0, a
 
-    if (a + 1) ** b == (2**value_bits):
+    return (
         # edge case: lower bound is slightly wider than upper bound
-        return -(a + 1), a
-    else:
-        return -a, a
+        (-(a + 1), a)
+        if (a + 1) ** b == (2**value_bits)
+        else (-a, a)
+    )
 
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:
@@ -214,6 +213,7 @@ def safe_sub(x, y):
 
 # def safe_mul(x: IRnode, y: IRnode) -> IRnode:
 def safe_mul(x, y):
+    # sourcery skip: remove-redundant-pass
     # precondition: x.typ == y.typ
     assert x.typ == y.typ
     typ = x.typ
@@ -221,21 +221,13 @@ def safe_mul(x, y):
     # optimizer rules work better for the safemul checks below
     # if second operand is literal
     if x.is_literal:
-        tmp = x
-        x = y
-        y = tmp
-
+        x, y = y, x
     res = IRnode.from_list(["mul", x, y], typ=x.typ)
 
     DIV = "sdiv" if typ.is_signed else "div"
 
     with res.cache_when_complex("ans") as (b1, res):
-        ok = [1]  # True
-
-        if typ.bits > 128:  # check overflow mod 256
-            # assert (res/y == x | y == 0)
-            ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]]
-
+        ok = ["or", ["eq", [DIV, res, y], x], ["iszero", y]] if typ.bits > 128 else [1]
         # int256
         if typ.is_signed and typ.bits == 256:
             # special case:
@@ -279,6 +271,7 @@ def safe_mul(x, y):
 
 # def safe_div(x: IRnode, y: IRnode) -> IRnode:
 def safe_div(x, y):
+    # sourcery skip: remove-redundant-pass
     assert x.typ == y.typ
     typ = x.typ
 
@@ -301,7 +294,7 @@ def safe_div(x, y):
 
             if not x.is_literal and not y.is_literal:
                 ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]
-            # TODO push these rules into the optimizer
+            # TODO push some of this constant folding into optimizer
             elif x.is_literal and x.value == -(2**255):
                 ok = ["ne", y, ["not", 0]]
             elif y.is_literal and y.value == -1:

@@ -43,6 +43,6 @@ def test_in(addr: address) -> bool:
         "0xfBeeA1C75E4C4465CB2fccC9C6d6AFe984558e21",  # y but last bit flipped
     ]
     for t in should_in:
-        assert c.test_in(t) is (True if not invert else False)
+        assert c.test_in(t) is (not invert)
     for t in should_not_in:
-        assert c.test_in(t) is (True if invert else False)
+        assert c.test_in(t) is bool(invert)

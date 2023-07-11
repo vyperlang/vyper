@@ -194,10 +194,8 @@ class EventT(_UserType):
         -------
         Event object.
         """
-        members: dict = {}
         indexed: List = [i["indexed"] for i in abi["inputs"]]
-        for item in abi["inputs"]:
-            members[item["name"]] = type_from_abi(item)
+        members: dict = {item["name"]: type_from_abi(item) for item in abi["inputs"]}
         return cls(abi["name"], members, indexed)
 
     @classmethod
@@ -344,7 +342,7 @@ class InterfaceT(_UserType):
             ):
                 unimplemented.append(name)
 
-        if len(unimplemented) > 0:
+        if unimplemented:
             # TODO: improve the error message for cases where the
             # mismatch is small (like mutability, or just one argument
             # is off, etc).
@@ -387,8 +385,7 @@ class InterfaceT(_UserType):
         events: Dict = {}
 
         names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
-        collisions = set(i for i in names if names.count(i) > 1)
-        if collisions:
+        if collisions := {i for i in names if names.count(i) > 1}:
             collision_list = ", ".join(sorted(collisions))
             raise NamespaceCollision(
                 f"ABI '{name}' has multiple functions or events "

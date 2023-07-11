@@ -154,22 +154,20 @@ def _to_node(obj, parent):
 
 def _to_dict(value):
     # if value is a Vyper node, convert to a dict
-    if isinstance(value, VyperNode):
-        return value.to_dict()
-    return value
+    return value.to_dict() if isinstance(value, VyperNode) else value
 
 
 def _node_filter(node, filters):
     # recursive equality check for VyperNode.get_children filters
     if not filters:
         return True
-    for key, value in filters.items():
-        if isinstance(value, set):
-            if node.get(key) not in value:
-                return False
-        elif node.get(key) != value:
-            return False
-    return True
+    return not any(
+        isinstance(value, set)
+        and node.get(key) not in value
+        or not isinstance(value, set)
+        and node.get(key) != value
+        for key, value in filters.items()
+    )
 
 
 def _sort_nodes(node_iterable):
@@ -330,7 +328,7 @@ class VyperNode:
         and are not included within this sequence.
         """
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
-        return set(i for i in slot_fields if not i.startswith("_"))
+        return {i for i in slot_fields if not i.startswith("_")}
 
     def __hash__(self):
         values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
@@ -341,10 +339,10 @@ class VyperNode:
             return False
         if other.node_id != self.node_id:
             return False
-        for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
-            if getattr(self, field_name, None) != getattr(other, field_name, None):
-                return False
-        return True
+        return all(
+            getattr(self, field_name, None) == getattr(other, field_name, None)
+            for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__)
+        )
 
     def __repr__(self):
         cls = type(self)
@@ -1039,9 +1037,7 @@ class Div(Operator):
             )
         else:
             value = left // right
-            if value < 0:
-                return -(-left // right)
-            return value
+            return -(-left // right) if value < 0 else value
 
 
 class Mod(Operator):
@@ -1186,7 +1182,7 @@ class Compare(ExprNode):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if next((i for i in right.elements if not isinstance(i, Constant)), None):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if len(set([type(i) for i in right.elements])) > 1:
+            if len({type(i) for i in right.elements}) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
             value = self.op._op(left.value, [i.value for i in right.elements])
             return NameConstant.from_node(self, value=value)
@@ -1283,7 +1279,7 @@ class Subscript(ExprNode):
         if not isinstance(self.value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
         elements = self.value.elements
-        if len(set([type(i) for i in elements])) > 1:
+        if len({type(i) for i in elements}) > 1:
             raise UnfoldableNode("List contains multiple node types")
         idx = self.slice.get("value.value")
         if not isinstance(idx, int) or idx < 0 or idx >= len(elements):

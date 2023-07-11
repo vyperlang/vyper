@@ -15,10 +15,10 @@ def bar() -> bytes32:
 
     c = get_contract_with_gas_estimation(hash_code)
     for inp in (b"", b"cow", b"s" * 31, b"\xff" * 32, b"\n" * 33, b"g" * 64, b"h" * 65):
-        assert "0x" + c.foo(inp).hex() == keccak(inp).hex()
+        assert f"0x{c.foo(inp).hex()}" == keccak(inp).hex()
 
-    assert "0x" + c.bar().hex() == keccak(b"inp").hex()
-    assert "0x" + c.foob().hex() == keccak(b"inp").hex()
+    assert f"0x{c.bar().hex()}" == keccak(b"inp").hex()
+    assert f"0x{c.foob().hex()}" == keccak(b"inp").hex()
 
 
 def test_hash_code2(get_contract_with_gas_estimation):

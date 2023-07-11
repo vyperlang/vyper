@@ -13,21 +13,15 @@ class ABIType:
     # size (in bytes) in the static section (aka 'head')
     # when embedded in a complex type.
     def embedded_static_size(self):
-        if self.is_dynamic():
-            return 32
-        return self.static_size()
+        return 32 if self.is_dynamic() else self.static_size()
 
     # size bound in the dynamic section (aka 'tail')
     # when embedded in a complex type.
     def embedded_dynamic_size_bound(self):
-        if not self.is_dynamic():
-            return 0
-        return self.size_bound()
+        return 0 if not self.is_dynamic() else self.size_bound()
 
     def embedded_min_dynamic_size(self):
-        if not self.is_dynamic():
-            return 0
-        return self.min_size()
+        return 0 if not self.is_dynamic() else self.min_size()
 
     # size (in bytes) of the static section
     def static_size(self):
@@ -118,7 +112,7 @@ class ABI_FixedMxN(ABIType):
     def __init__(self, m_bits, n_places, signed):
         if not (0 < m_bits <= 256 and 0 == m_bits % 8):
             raise CompilerPanic("Invalid M for FixedMxN")
-        if not (0 < n_places and n_places <= 80):
+        if not 0 < n_places <= 80:
             raise CompilerPanic("Invalid N for FixedMxN")
 
         self.m_bits = m_bits
@@ -172,7 +166,7 @@ class ABI_Function(ABI_BytesM):
 # <type>[M]: a fixed-length array of M elements, M >= 0, of the given type.
 class ABI_StaticArray(ABIType):
     def __init__(self, subtyp, m_elems):
-        if not m_elems >= 0:
+        if m_elems < 0:
             raise CompilerPanic("Invalid M")
 
         self.subtyp = subtyp
@@ -199,7 +193,7 @@ class ABI_StaticArray(ABIType):
 
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
-        if not bytes_bound >= 0:
+        if bytes_bound < 0:
             raise CompilerPanic("Negative bytes_bound provided to ABI_Bytes")
 
         self.bytes_bound = bytes_bound
@@ -233,7 +227,7 @@ class ABI_String(ABI_Bytes):
 
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
-        if not elems_bound >= 0:
+        if elems_bound < 0:
             raise CompilerPanic("Negative bound provided to DynamicArray")
 
         self.subtyp = subtyp
@@ -266,16 +260,16 @@ class ABI_Tuple(ABIType):
         self.subtyps = subtyps
 
     def is_dynamic(self):
-        return any([t.is_dynamic() for t in self.subtyps])
+        return any(t.is_dynamic() for t in self.subtyps)
 
     def static_size(self):
-        return sum([t.embedded_static_size() for t in self.subtyps])
+        return sum(t.embedded_static_size() for t in self.subtyps)
 
     def dynamic_size_bound(self):
-        return sum([t.embedded_dynamic_size_bound() for t in self.subtyps])
+        return sum(t.embedded_dynamic_size_bound() for t in self.subtyps)
 
     def min_dynamic_size(self):
-        return sum([t.embedded_min_dynamic_size() for t in self.subtyps])
+        return sum(t.embedded_min_dynamic_size() for t in self.subtyps)
 
     def is_complex_type(self):
         return True

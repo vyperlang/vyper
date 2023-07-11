@@ -115,16 +115,17 @@ def make_byte_array_copier(dst, src):
         with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
             max_bytes = src.typ.maxlen
 
-            ret = ["seq"]
-
             dst_ = bytes_data_ptr(dst)
             src_ = bytes_data_ptr(src)
 
-            ret.append(copy_bytes(dst_, src_, len_, max_bytes))
-
-            # store length
-            ret.append(STORE(dst, len_))
-
+            ret = [
+                "seq",
+                *(
+                    copy_bytes(dst_, src_, len_, max_bytes),
+                    # store length
+                    STORE(dst, len_),
+                ),
+            ]
             return b1.resolve(b2.resolve(ret))
 
 
@@ -170,9 +171,7 @@ def _dynarray_make_setter(dst, src):
 
         # write the length word after data is copied
         store_length = STORE(dst, n_items)
-        ann = None
-        if src.annotation is not None:
-            ann = f"len({src.annotation})"
+        ann = f"len({src.annotation})" if src.annotation is not None else None
         store_length = IRnode.from_list(store_length, annotation=ann)
 
         ret.append(store_length)
@@ -243,9 +242,11 @@ def copy_bytes(dst, src, length, length_bound):
     dst = IRnode.from_list(dst)
     length = IRnode.from_list(length)
 
-    with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_bytes_count"
-    ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
+    with (
+        src.cache_when_complex("src") as (b1, src),
+        length.cache_when_complex("copy_bytes_count") as (b2, length),
+        dst.cache_when_complex("dst") as (b3, dst),
+    ):
         assert isinstance(length_bound, int) and length_bound >= 0
 
         # correctness: do not clobber dst
@@ -346,15 +347,17 @@ def append_dyn_array(darray_node, elem_node):
         len_ = get_dyn_array_count(darray_node)
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
             assertion = ["assert", ["lt", len_, darray_node.typ.count]]
-            ret.append(IRnode.from_list(assertion, error_msg=f"{darray_node.typ} bounds check"))
-            # NOTE: typechecks elem_node
-            # NOTE skip array bounds check bc we already asserted len two lines up
-            ret.append(
-                make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
+            ret.extend(
+                (
+                    IRnode.from_list(assertion, error_msg=f"{darray_node.typ} bounds check"),
+                    # NOTE: typechecks elem_node
+                    # NOTE skip array bounds check bc we already asserted len two lines up
+                    make_setter(
+                        get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node
+                    ),
+                    STORE(darray_node, ["add", len_, 1]),
+                )
             )
-
-            # store new length
-            ret.append(STORE(darray_node, ["add", len_, 1]))
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
@@ -435,16 +438,15 @@ def _get_element_ptr_tuplelike(parent, key):
     typ = parent.typ
     assert is_tuple_like(typ)
 
+    subtype = typ.member_types[key]
     if isinstance(typ, StructT):
         assert isinstance(key, str)
-        subtype = typ.member_types[key]
         attrs = list(typ.tuple_keys())
         index = attrs.index(key)
         annotation = key
     else:
         # TupleT
         assert isinstance(key, int)
-        subtype = typ.member_types[key]
         attrs = list(typ.tuple_keys())
         index = key
         annotation = None
@@ -629,18 +631,14 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
 def unwrap_location(orig):
     if orig.location is not None:
         return IRnode.from_list(LOAD(orig), typ=orig.typ)
-    else:
-        # CMC 2022-03-24 TODO refactor so this branch can be removed
-        if orig.value == "~empty":
-            # must be word type
-            return IRnode.from_list(0, typ=orig.typ)
-        return orig
+    # CMC 2022-03-24 TODO refactor so the `if orig.value == "~empty"` condition can be removed
+    return IRnode.from_list(0, typ=orig.typ) if orig.value == "~empty" else orig
 
 
 # utility function, constructs an IR tuple out of a list of IR nodes
 def ir_tuple_from_args(args):
     typ = TupleT([x.typ for x in args])
-    return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
+    return IRnode.from_list(["multi"] + list(args), typ=typ)
 
 
 def needs_external_call_wrap(typ):
@@ -664,9 +662,7 @@ def needs_external_call_wrap(typ):
 
 
 def calculate_type_for_external_return(typ):
-    if needs_external_call_wrap(typ):
-        return TupleT([typ])
-    return typ
+    return TupleT([typ]) if needs_external_call_wrap(typ) else typ
 
 
 def wrap_value_for_external_return(ir_val):
@@ -925,9 +921,7 @@ def eval_seq(ir_node):
     """
     if ir_node.value in ("seq", "with") and len(ir_node.args) > 0:
         return eval_seq(ir_node.args[-1])
-    if isinstance(ir_node.value, int):
-        return IRnode.from_list(ir_node)
-    return None
+    return IRnode.from_list(ir_node) if isinstance(ir_node.value, int) else None
 
 
 # TODO move return checks to vyper/semantics/validation
@@ -937,9 +931,7 @@ def is_return_from_function(node):
         "selfdestruct",
     ):
         return True
-    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
-        return True
-    return False
+    return isinstance(node, (vy_ast.Return, vy_ast.Raise))
 
 
 def check_single_exit(fn_node):
@@ -1044,11 +1036,7 @@ def clamp_basetype(ir_node):
             ret = int_clamp(ir_node, t.bits, signed=t.is_signed)
 
     elif isinstance(t, BytesM_T):
-        if t.m == 32:
-            ret = ir_node  # special case, no clamp.
-        else:
-            ret = bytes_clamp(ir_node, t.m)
-
+        ret = ir_node if t.m == 32 else bytes_clamp(ir_node, t.m)
     elif isinstance(t, (AddressT, InterfaceT)):
         ret = int_clamp(ir_node, 160)
     elif t in (BoolT(),):

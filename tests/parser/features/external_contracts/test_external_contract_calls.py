@@ -2475,7 +2475,7 @@ def foo(a: {typ}):
     w3.eth.send_transaction({"to": c1.address, "data": data})
 
     # Static size exceeds by 1 byte, ok
-    w3.eth.send_transaction({"to": c1.address, "data": data + "ff"})
+    w3.eth.send_transaction({"to": c1.address, "data": f"{data}ff"})
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])

@@ -192,7 +192,7 @@ def test_double_end(w3, auction_contract, assert_tx_failed):
 
 
 def test_blind_auction(w3, auction_contract):
-    k0, k1, k2, k3 = w3.eth.accounts[0:4]
+    k0, k1, k2, k3 = w3.eth.accounts[:4]
 
     ###################################################################
     #                         Place bids                              #

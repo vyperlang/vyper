@@ -34,7 +34,7 @@ class VyperMethod:
                 if x.get("name") == self._function.function_identifier
             ].pop()
             # To make tests faster just supply some high gas value.
-            modifier_dict.update({"gas": fn_abi.get("gas", 0) + 500000})
+            modifier_dict["gas"] = fn_abi.get("gas", 0) + 500000
         elif len(kwargs) == 1:
             modifier, modifier_dict = kwargs.popitem()
             if modifier not in self.ALLOWED_MODIFIERS:
@@ -69,11 +69,10 @@ class VyperContract:
             # Override namespace collisions
             if fn_name in protected_fn_names:
                 raise AttributeError(f"{fn_name} is protected!")
-            else:
-                _classic_method = getattr(self._classic_contract.functions, fn_name)
-                _concise_method = method_class(
-                    _classic_method, self._classic_contract._return_data_normalizers
-                )
+            _classic_method = getattr(self._classic_contract.functions, fn_name)
+            _concise_method = method_class(
+                _classic_method, self._classic_contract._return_data_normalizers
+            )
             setattr(self, fn_name, _concise_method)
 
     @classmethod
@@ -131,8 +130,7 @@ def _get_contract(w3, source_code, optimize, *args, **kwargs):
     value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
     c = w3.eth.contract(abi=abi, bytecode=bytecode)
     deploy_transaction = c.constructor(*args)
-    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0}
-    tx_info.update(kwargs)
+    tx_info = {"from": w3.eth.accounts[0], "value": value, "gasPrice": 0} | kwargs
     tx_hash = deploy_transaction.transact(tx_info)
     address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
@@ -155,7 +153,7 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
     bytecode_len = len(bytecode)
     bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
     # prepend a quick deploy preamble
-    deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
+    deploy_preamble = HexBytes(f"61{bytecode_len_hex}3d81600a3d39f3")
     deploy_bytecode = HexBytes(deploy_preamble) + bytecode
 
     deployer_abi = []  # just a constructor

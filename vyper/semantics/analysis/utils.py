@@ -185,11 +185,13 @@ class _ExprAnalyser:
         name = node.attr
         try:
             s = t.get_member(name, node)
-            if isinstance(s, VyperType):
+            return (
                 # ex. foo.bar(). bar() is a ContractFunctionT
-                return [s]
-            # general case. s is a VarInfo, e.g. self.foo
-            return [s.typ]
+                [s]
+                if isinstance(s, VyperType)
+                # general case. s is a VarInfo, e.g. self.foo
+                else [s.typ]
+            )
         except UnknownAttribute:
             if node.get("value.id") != "self":
                 raise
@@ -266,8 +268,7 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
-        return_value = var.fetch_call_return(node)
-        if return_value:
+        if return_value := var.fetch_call_return(node):
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
 
@@ -325,8 +326,7 @@ class _ExprAnalyser:
 
         if len(types_list) > 0:
             count = len(node.elements)
-            ret = []
-            ret.extend([SArrayT(t, count) for t in types_list])
+            ret = [SArrayT(t, count) for t in types_list]
             ret.extend([DArrayT(t, count) for t in types_list])
             return ret
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
@@ -345,12 +345,13 @@ class _ExprAnalyser:
         try:
             t = self.namespace[node.id]
             # when this is a type, we want to lower it
-            if isinstance(t, VyperType):
+            return (
                 # TYPE_T is used to handle cases where a type can occur in call or
                 # attribute conditions, like Enum.foo or MyStruct({...})
-                return [TYPE_T(t)]
-
-            return [t.typ]
+                [TYPE_T(t)]
+                if isinstance(t, VyperType)
+                else [t.typ]
+            )
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
@@ -396,9 +397,7 @@ def _is_empty_list(node):
     if not isinstance(node, vy_ast.List):
         return False
 
-    if not node.elements:
-        return True
-    return all(_is_empty_list(t) for t in node.elements)
+    return all(_is_empty_list(t) for t in node.elements) if node.elements else True
 
 
 def _is_type_in_list(obj, types_list):

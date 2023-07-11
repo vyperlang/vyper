@@ -389,7 +389,7 @@ def __default__():
     w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
     data = bytes([1, 2, 3, 4])
     for i in range(5):
-        calldata = "0x" + data[:i].hex()
+        calldata = f"0x{data[:i].hex()}"
         assert_tx_failed(
             lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})
         )

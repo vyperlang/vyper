@@ -42,7 +42,7 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
 
     # Legitimate approval
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    c.approve(0, "0x" + to.hex(), value, data, sigs, transact={"value": value, "from": a1})
+    c.approve(0, f"0x{to.hex()}", value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
     assert_tx_failed(

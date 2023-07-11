@@ -1078,9 +1078,7 @@ def foo(xs: DynArray[uint256, 5]) -> uint256:
 
 @pytest.mark.parametrize("subtyp", ["uint8", "int128", "uint256"])
 def test_append_literal(get_contract, subtyp):
-    data = [1, 2, 3]
-    if subtyp == "int128":
-        data = [-1, 2, 3]
+    data = [-1, 2, 3] if subtyp == "int128" else [1, 2, 3]
     code = f"""
 @external
 def foo() -> DynArray[{subtyp}, 3]:

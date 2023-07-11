@@ -200,8 +200,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
-            mod = (len(value) - 2) % 8
-            if mod:
+            if mod := (len(value) - 2) % 8:
                 raise SyntaxException(
                     f"Bit notation requires a multiple of 8 bits. {8-mod} bit(s) are missing.",
                     self._source_code,

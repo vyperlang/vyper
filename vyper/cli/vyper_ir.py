@@ -56,7 +56,7 @@ def compile_to_ir(input_file, output_formats, show_gas_estimates=False):
 
     if "bytecode" in output_formats:
         (bytecode, _srcmap) = compile_ir.assembly_to_evm(asm)
-        compiler_data["bytecode"] = "0x" + bytecode.hex()
+        compiler_data["bytecode"] = f"0x{bytecode.hex()}"
 
     return compiler_data
 

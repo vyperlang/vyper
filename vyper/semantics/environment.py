@@ -50,11 +50,7 @@ def get_constant_vars() -> Dict:
     """
     Get a dictionary of constant environment variables.
     """
-    result = {}
-    for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, is_constant=True)
-
-    return result
+    return {k: VarInfo(v, is_constant=True) for k, v in CONSTANT_ENVIRONMENT_VARS.items()}
 
 
 MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}

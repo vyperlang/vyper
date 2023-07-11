@@ -27,7 +27,7 @@ jobs:
       run: pip install .[lint]
 
     - name: Run Black
-      run: black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
+      run: black --check ./vyper ./tests ./setup.py
 
     - name: Run flake8
       run: flake8 ./vyper ./tests ./setup.py

@@ -323,9 +323,8 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
 def _find_nested_opcode(assembly, key):
     if key in assembly:
         return True
-    else:
-        sublists = [sub for sub in assembly if isinstance(sub, list)]
-        return any(_find_nested_opcode(x, key) for x in sublists)
+    sublists = [sub for sub in assembly if isinstance(sub, list)]
+    return any(_find_nested_opcode(x, key) for x in sublists)
 
 
 def generate_bytecode(assembly: list, insert_vyper_signature: bool) -> bytes:

@@ -648,14 +648,10 @@ def convert_v1_abi(abi):
             if mutability == "payable":
                 func_abi["constant"] = False
                 func_abi["payable"] = True
-            elif mutability == "view":
+            elif mutability in ["view", "pure"]:
                 func_abi["constant"] = True
                 func_abi["payable"] = False
-            elif mutability == "pure":
-                # NOTE: pure "changes" to "view"
-                func_abi["constant"] = True
-                func_abi["payable"] = False
-            else:  # "nonpayable"
+            else:
                 func_abi["constant"] = False
                 func_abi["payable"] = False
         else:  # Assume "nonpayable" by default

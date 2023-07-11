@@ -132,7 +132,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
 
     if ir_node.value == "label":
-        label_params = set(t.value for t in ir_node.args[1].args)
+        label_params = {t.value for t in ir_node.args[1].args}
 
     for t in args:
         _rewrite_return_sequences(t, label_params)
@@ -157,7 +157,7 @@ def _add_postambles(asm_ops):
         # shared failure block
         to_append.extend(_revert_string)
 
-    if len(to_append) > 0:
+    if to_append:
         # for some reason there might not be a STOP at the end of asm_ops.
         # (generally vyper programs will have it but raw IR might not).
         asm_ops.append("STOP")
@@ -232,10 +232,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if isinstance(ofst.value, int):
             # resolve at compile time using magic _OFST op
             return ["_OFST", sym, ofst.value]
-        else:
-            # if we can't resolve at compile time, resolve at runtime
-            ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
-            return ofst + [sym, "ADD"]
+        # if we can't resolve at compile time, resolve at runtime
+        ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        return ofst + [sym, "ADD"]
 
     def _height_of(witharg):
         ret = height - withargs[witharg]
@@ -266,7 +265,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
-        return ["DUP" + str(_height_of(code.value))]
+        return [f"DUP{str(_height_of(code.value))}"]
 
     # Setting variables connected to with statements
     elif code.value == "set":
@@ -275,7 +274,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if height - withargs[code.args[0].value] > 16:
             raise Exception("With statement too deep")
         return _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height) + [
-            "SWAP" + str(height - withargs[code.args[0].value]),
+            f"SWAP{str(height - withargs[code.args[0].value])}",
             "POP",
         ]
 
@@ -665,11 +664,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend(["_sym_" + str(code.args[0]), "JUMP"])
+        o.extend([f"_sym_{str(code.args[0])}", "JUMP"])
         return o
     # push a literal symbol
     elif code.value == "symbol":
-        return ["_sym_" + str(code.args[0])]
+        return [f"_sym_{str(code.args[0])}"]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = code.args[0].value
@@ -705,7 +704,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # label params to be consumed implicitly
         pop_scoped_vars = []
 
-        return ["_sym_" + label_name, "JUMPDEST"] + body_asm + pop_scoped_vars
+        return [f"_sym_{label_name}", "JUMPDEST"] + body_asm + pop_scoped_vars
 
     elif code.value == "unique_symbol":
         symbol = code.args[0].value
@@ -728,7 +727,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "pc_debugger":
         return mkdebug(pc_debugger=True, source_pos=code.source_pos)
     else:
-        raise Exception("Weird code element: " + repr(code))
+        raise Exception(f"Weird code element: {repr(code)}")
 
 
 def note_line_num(line_number_map, item, pos):
@@ -744,8 +743,7 @@ def note_line_num(line_number_map, item, pos):
         if item.error_msg is not None:
             line_number_map["error_map"][pos] = item.error_msg
 
-    added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
-    return added_line_breakpoint
+    return note_breakpoint(line_number_map, item, pos)
 
 
 def note_breakpoint(line_number_map, item, pos):
@@ -817,25 +815,16 @@ def _merge_jumpdests(assembly):
     while i < len(assembly) - 3:
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMPDEST":
-                # _sym_x JUMPDEST _sym_y JUMPDEST
-                # replace all instances of _sym_x with _sym_y
-                # (except for _sym_x JUMPDEST - don't want duplicate labels)
-                new_symbol = assembly[i + 2]
-                for j in range(len(assembly)):
-                    if assembly[j] == current_symbol and i != j:
-                        assembly[j] = new_symbol
-                        changed = True
-            elif is_symbol(assembly[i + 2]) and assembly[i + 3] == "JUMP":
-                # _sym_x JUMPDEST _sym_y JUMP
-                # replace all instances of _sym_x with _sym_y
-                # (except for _sym_x JUMPDEST - don't want duplicate labels)
-                new_symbol = assembly[i + 2]
-                for j in range(len(assembly)):
-                    if assembly[j] == current_symbol and i != j:
-                        assembly[j] = new_symbol
-                        changed = True
-
+            if is_symbol(assembly[i + 2]):
+                if assembly[i + 3] in ["JUMPDEST", "JUMP"]:
+                    # _sym_x JUMPDEST _sym_y JUMPDEST
+                    # replace all instances of _sym_x with _sym_y
+                    # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                    new_symbol = assembly[i + 2]
+                    for j in range(len(assembly)):
+                        if assembly[j] == current_symbol and i != j:
+                            assembly[j] = new_symbol
+                            changed = True
         i += 1
 
     return changed
@@ -958,9 +947,8 @@ def _optimize_assembly(assembly):
 def adjust_pc_maps(pc_maps, ofst):
     assert ofst >= 0
 
-    ret = {}
     # source breakpoints, don't need to modify
-    ret["breakpoints"] = pc_maps["breakpoints"].copy()
+    ret = {"breakpoints": pc_maps["breakpoints"].copy()}
     ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
     ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
     ret["pc_pos_map"] = {k + ofst: v for (k, v) in pc_maps["pc_pos_map"].items()}
@@ -1038,12 +1026,13 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
         if item == "JUMP":
             last = assembly[i - 1]
             if is_symbol(last) and last.startswith("_sym_internal"):
-                if last.endswith("cleanup"):
+                line_number_map["pc_jump_map"][pc] = (
                     # exit an internal function
-                    line_number_map["pc_jump_map"][pc] = "o"
-                else:
+                    "o"
+                    if last.endswith("cleanup")
                     # enter an internal function
-                    line_number_map["pc_jump_map"][pc] = "i"
+                    else "i"
+                )
             else:
                 # everything else
                 line_number_map["pc_jump_map"][pc] = "-"
@@ -1052,7 +1041,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
 
         # update pc
         if is_symbol(item):
-            if assembly[i + 1] == "JUMPDEST" or assembly[i + 1] == "BLANK":
+            if assembly[i + 1] in ["JUMPDEST", "BLANK"]:
                 # Don't increment pc as the symbol itself doesn't go into code
                 if item in symbol_map:
                     raise CompilerPanic(f"duplicate jumpdest {item}")
@@ -1078,8 +1067,8 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
         elif isinstance(item, list):
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
-            for key in line_number_map:
-                line_number_map[key].update(t[key])
+            for key, value in line_number_map.items():
+                value.update(t[key])
             pc += len(runtime_code)
 
         else:
@@ -1116,7 +1105,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             continue
 
         elif is_symbol(item):
-            if assembly[i + 1] != "JUMPDEST" and assembly[i + 1] != "BLANK":
+            if assembly[i + 1] not in ["JUMPDEST", "BLANK"]:
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
@@ -1146,7 +1135,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             o += runtime_code
         else:
             # Should never reach because, assembly is create in _compile_to_assembly.
-            raise Exception("Weird symbol in assembly: " + str(item))  # pragma: no cover
+            raise Exception(f"Weird symbol in assembly: {str(item)}")
 
     o += bytecode_suffix
 

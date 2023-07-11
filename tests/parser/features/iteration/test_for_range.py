@@ -218,7 +218,7 @@ def foo(a: {typ}) -> {typ}:
     return self.result
     """
     c = get_contract(code)
-    if val + 1 >= 19:
+    if val >= 18:
         assert c.foo(val) == 31337
     else:
         assert c.foo(val) == val + 1
@@ -237,7 +237,7 @@ def foo(a: {typ}) -> {typ}:
     return 31337
     """
     c = get_contract(code)
-    if val + 1 >= 19:
+    if val >= 18:
         assert c.foo(val) == 31337
     else:
         assert c.foo(val) == val + 1
@@ -260,7 +260,7 @@ def foo(a: {typ}):
     """
     c = get_contract(code)
     c.foo(val, transact={})
-    if val + 1 >= 19:
+    if val >= 18:
         assert c.result() == 31337
     else:
         assert c.result() == val + 1

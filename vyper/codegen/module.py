@@ -73,13 +73,11 @@ def _runtime_ir(runtime_functions, global_ctx):
     # for some reason, somebody may want to deploy a contract with no
     # external functions, or more likely, a "pure data" contract which
     # contains immutables
-    if len(external_functions) == 0:
+    if not external_functions:
         # TODO: prune internal functions in this case? dead code eliminator
         # might not eliminate them, since internal function jumpdest is at the
         # first instruction in the contract.
-        runtime = ["seq"] + internal_functions_ir
-        return runtime
-
+        return ["seq"] + internal_functions_ir
     # note: if the user does not provide one, the default fallback function
     # reverts anyway. so it does not hurt to batch the payable check.
     default_is_nonpayable = default_function is None or not _is_payable(default_function)
@@ -95,7 +93,7 @@ def _runtime_ir(runtime_functions, global_ctx):
         func_ir = generate_ir_for_function(func_ast, global_ctx, False)
         selector_section.append(func_ir)
 
-    if batch_payable_check:
+    if skip_nonpayable_check:
         nonpayable_check = IRnode.from_list(
             ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
         )
@@ -122,17 +120,14 @@ def _runtime_ir(runtime_functions, global_ctx):
 
     global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
 
-    runtime = [
+    return [
         "seq",
         global_calldatasize_check,
         ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
         close_selector_section,
         ["label", "fallback", ["var_list"], fallback_ir],
+        *internal_functions_ir,
     ]
-
-    runtime.extend(internal_functions_ir)
-
-    return runtime
 
 
 # take a GlobalContext, and generate the runtime and deploy IR
@@ -175,10 +170,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         if immutables_len > 0:
             deploy_code.append(["iload", max(0, immutables_len - 32)])
 
-        deploy_code.append(init_func_ir)
-
-        deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
-
+        deploy_code.extend((init_func_ir, ["deploy", init_mem_used, runtime, immutables_len]))
         # internal functions come after everything else
         internal_functions = [f for f in runtime_functions if _is_internal(f)]
         for f in internal_functions:
@@ -192,9 +184,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
             )
             deploy_code.append(func_ir)
 
-    else:
-        if immutables_len != 0:
-            raise CompilerPanic("unreachable")
+    elif immutables_len == 0:
         deploy_code.append(["deploy", 0, runtime, 0])
 
+    else:
+        raise CompilerPanic("unreachable")
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)

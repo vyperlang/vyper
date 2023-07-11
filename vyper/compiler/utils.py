@@ -4,12 +4,11 @@ from vyper.semantics.types.function import ContractFunctionT
 
 
 def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
-    # note: `.gas_estimate` is added to ContractFunctionT._ir_info
-    # in vyper/semantics/types/function.py
-    ret = {}
-    for k, v in func_ts.items():
-        ret[k] = v._ir_info.gas_estimate
-    return ret
+    """
+    Note: `.gas_estimate` is added to ContractFunctionT._ir_info
+          in vyper/semantics/types/function.py
+    """
+    return {k: v._ir_info.gas_estimate for k, v in func_ts.items()}
 
 
 def expand_source_map(compressed_map: str) -> list:

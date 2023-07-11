@@ -20,7 +20,7 @@ def eip1167_initcode(_addr):
 # initcode used by CreateCopyOf
 def vyper_initcode(runtime_bytecode):
     bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(6, "0")
-    return HexBytes("0x62" + bytecode_len_hex + "3d81600b3d39f3") + runtime_bytecode
+    return HexBytes(f"0x62{bytecode_len_hex}3d81600b3d39f3") + runtime_bytecode
 
 
 def test_create_minimal_proxy_to_create(get_contract):
@@ -39,7 +39,7 @@ def test() -> address:
     nonce = 1
     rlp_encoded = rlp.encode([address_bits, nonce])
     expected_create_address = keccak256(rlp_encoded)[12:].rjust(20, b"\x00")
-    assert c.test() == checksum_encode("0x" + expected_create_address.hex())
+    assert c.test() == checksum_encode(f"0x{expected_create_address.hex()}")
 
 
 def test_create_minimal_proxy_to_call(get_contract, w3):

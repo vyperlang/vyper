@@ -137,16 +137,15 @@ class Expr:
 
     def _make_bytelike(self, btype, bytez, bytez_length):
         placeholder = self.context.new_internal_variable(btype)
-        seq = []
-        seq.append(["mstore", placeholder, bytez_length])
-        for i in range(0, len(bytez), 32):
-            seq.append(
-                [
-                    "mstore",
-                    ["add", placeholder, i + 32],
-                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
-                ]
-            )
+        seq = [["mstore", placeholder, bytez_length]]
+        seq.extend(
+            [
+                "mstore",
+                ["add", placeholder, i + 32],
+                bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
+            ]
+            for i in range(0, len(bytez), 32)
+        )
         return IRnode.from_list(
             ["seq"] + seq + [placeholder],
             typ=btype,
@@ -226,7 +225,7 @@ class Expr:
                     seq = ["balance", addr]
                 return IRnode.from_list(seq, typ=UINT256_T)
         # x.codesize: codesize of address x
-        elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
+        elif self.expr.attr in ["codesize", "is_contract"]:
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if addr.typ == AddressT():
                 if self.expr.attr == "codesize":
@@ -261,7 +260,7 @@ class Expr:
                 varinfo.position.position,
                 typ=varinfo.typ,
                 location=location,
-                annotation="self." + self.expr.attr,
+                annotation=f"self.{self.expr.attr}",
             )
             ret._referenced_variables = {varinfo}
 
@@ -490,10 +489,7 @@ class Expr:
     @staticmethod
     def _signed_to_unsigned_comparision_op(op):
         translation_map = {"sgt": "gt", "sge": "ge", "sle": "le", "slt": "lt"}
-        if op in translation_map:
-            return translation_map[op]
-        else:
-            return op
+        return translation_map.get(op, op)
 
     def parse_Compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
@@ -505,13 +501,12 @@ class Expr:
         if isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)):
             if is_array_like(right.typ):
                 return self.build_in_comparator()
-            else:
-                assert isinstance(right.typ, EnumT), right.typ
-                intersection = ["and", left, right]
-                if isinstance(self.expr.op, vy_ast.In):
-                    return IRnode.from_list(["iszero", ["iszero", intersection]], typ=BoolT())
-                elif isinstance(self.expr.op, vy_ast.NotIn):
-                    return IRnode.from_list(["iszero", intersection], typ=BoolT())
+            assert isinstance(right.typ, EnumT), right.typ
+            intersection = ["and", left, right]
+            if isinstance(self.expr.op, vy_ast.In):
+                return IRnode.from_list(["iszero", ["iszero", intersection]], typ=BoolT())
+            elif isinstance(self.expr.op, vy_ast.NotIn):
+                return IRnode.from_list(["iszero", intersection], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Gt):
             op = "sgt"
@@ -545,7 +540,7 @@ class Expr:
 
         # Compare other types.
         elif is_numeric_type(left.typ) and is_numeric_type(right.typ):
-            if left.typ == right.typ and right.typ == UINT256_T:
+            if left.typ == right.typ == UINT256_T:
                 # signed comparison ops work for any integer
                 # type BESIDES uint256
                 op = self._signed_to_unsigned_comparision_op(op)
@@ -706,8 +701,7 @@ class Expr:
     def parse_Tuple(self):
         tuple_elements = [Expr(x, self.context).ir_node for x in self.expr.elements]
         typ = TupleT([x.typ for x in tuple_elements])
-        multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
-        return multi_ir
+        return IRnode.from_list(["multi"] + tuple_elements, typ=typ)
 
     def parse_IfExp(self):
         test = Expr.parse_value_expr(self.expr.test, self.context)
@@ -744,9 +738,7 @@ class Expr:
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
-        )
+        return IRnode.from_list(["multi"] + [member_subs[key] for key in member_subs], typ=typ)
 
     # Parse an expression that results in a value
     @classmethod

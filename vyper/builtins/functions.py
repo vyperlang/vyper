@@ -123,8 +123,7 @@ class TypenameFoldedFunction(FoldedFunction):
     _inputs = [("typename", "TYPE_DEFINITION")]
 
     def fetch_call_return(self, node):
-        type_ = self.infer_arg_types(node)[0].typedef
-        return type_
+        return self.infer_arg_types(node)[0].typedef
 
     def infer_arg_types(self, node):
         validate_call_args(node, 1)
@@ -297,11 +296,7 @@ class Slice(BuiltinFunction):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
+        return_type = StringT() if isinstance(arg_type, StringT) else BytesT()
         # validate start and length are in bounds
 
         arg = node.args[0]
@@ -359,15 +354,12 @@ class Slice(BuiltinFunction):
             assert is_bytes32, src
             src = ensure_in_memory(src, context)
 
-        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
-            b2,
-            start,
-        ), length.cache_when_complex("length") as (b3, length):
-            if is_bytes32:
-                src_maxlen = 32
-            else:
-                src_maxlen = src.typ.maxlen
-
+        with (
+            src.cache_when_complex("src") as (b1, src),
+            start.cache_when_complex("start") as (b2, start),
+            length.cache_when_complex("length") as (b3, length),
+        ):
+            src_maxlen = 32 if is_bytes32 else src.typ.maxlen
             dst_maxlen = length.value if length.is_literal else src_maxlen
 
             buflen = dst_maxlen
@@ -431,8 +423,6 @@ class Slice(BuiltinFunction):
 
                 # len + (32 if start % 32 > 0 else 0)
                 copy_len = ["add", length, ["mul", 32, ["iszero", ["iszero", ["mod", start, 32]]]]]
-                copy_maxlen = buflen
-
             else:
                 # all other address spaces (mem, calldata, code) we have
                 # byte-aligned access so we can just do the easy thing,
@@ -441,7 +431,7 @@ class Slice(BuiltinFunction):
                 copy_src = add_ofst(src_data, start)
                 copy_dst = dst_data
                 copy_len = length
-                copy_maxlen = buflen
+            copy_maxlen = buflen
 
             do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
 
@@ -488,14 +478,8 @@ class Concat(BuiltinFunction):
     def fetch_call_return(self, node):
         arg_types = self.infer_arg_types(node)
 
-        length = 0
-        for arg_t in arg_types:
-            length += arg_t.length
-
-        if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
+        length = sum(arg_t.length for arg_t in arg_types)
+        return_type = StringT() if isinstance(arg_types[0], StringT) else BytesT()
         return_type.set_length(length)
         return return_type
 
@@ -532,7 +516,7 @@ class Concat(BuiltinFunction):
 
         # Maximum length of the output
         dst_maxlen = sum(
-            [arg.typ.maxlen if isinstance(arg.typ, _BytestringT) else arg.typ.m for arg in args]
+            arg.typ.maxlen if isinstance(arg.typ, _BytestringT) else arg.typ.m for arg in args
         )
 
         # TODO: try to grab these from semantic analysis
@@ -574,14 +558,10 @@ class Concat(BuiltinFunction):
                         ret.append(b1.resolve(b2.resolve(do_copy)))
 
             else:
-                ret.append(STORE(dst_data, unwrap_location(arg)))
-                ret.append(["set", ofst, ["add", ofst, arg.typ.m]])
-
-        ret.append(STORE(dst, ofst))
-
-        # Memory location of the output
-        ret.append(dst)
-
+                ret.extend(
+                    (STORE(dst_data, unwrap_location(arg)), ["set", ofst, ["add", ofst, arg.typ.m]])
+                )
+        ret.extend((STORE(dst, ofst), dst))
         return IRnode.from_list(
             ["with", ofst, 0, ret], typ=ret_typ, location=MEMORY, annotation="concat"
         )
@@ -730,8 +710,7 @@ class MethodID(FoldedFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        type_ = self.infer_kwarg_types(node)
-        return type_
+        return self.infer_kwarg_types(node)
 
     def infer_kwarg_types(self, node):
         if node.keywords:
@@ -881,8 +860,7 @@ class Extract32(BuiltinFunction):
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
-        return_type = self.infer_kwarg_types(node)["output_type"].typedef
-        return return_type
+        return self.infer_kwarg_types(node)["output_type"].typedef
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -1104,10 +1082,7 @@ class RawCall(BuiltinFunction):
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
         if outsize is None:
-            if revert_on_failure:
-                return None
-            return BoolT()
-
+            return None if revert_on_failure else BoolT()
         if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
 
@@ -1115,9 +1090,7 @@ class RawCall(BuiltinFunction):
             return_type = BytesT()
             return_type.set_min_length(outsize.value)
 
-            if revert_on_failure:
-                return return_type
-            return TupleT([BoolT(), return_type])
+            return return_type if revert_on_failure else TupleT([BoolT(), return_type])
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -1341,7 +1314,7 @@ class RawLog(BuiltinFunction):
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(topics_length), placeholder, 32] + topics,
+                    [f"log{topics_length}", placeholder, 32] + topics,
                 ]
             )
 
@@ -1352,7 +1325,7 @@ class RawLog(BuiltinFunction):
                 "with",
                 "_sub",
                 input_buf,
-                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
+                [f"log{topics_length}", ["add", "_sub", 32], ["mload", "_sub"], *topics],
             ]
         )
 
@@ -1485,10 +1458,7 @@ class Shift(BuiltinFunction):
             # have been validated anyway
             raise InvalidLiteral("Shift must be between -256 and 256", node.args[1])
 
-        if shift < 0:
-            value = value >> -shift
-        else:
-            value = (value << shift) % (2**256)
+        value = value >> -shift if shift < 0 else (value << shift) % (2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1631,10 +1601,7 @@ def _create_ir(value, buf, length, salt=None, checked=True):
         ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
     )
 
-    if not checked:
-        return ret
-
-    return clamp_nonzero(ret)
+    return ret if not checked else clamp_nonzero(ret)
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1823,14 +1790,15 @@ class CreateCopyOf(_CreateBase):
         with target.cache_when_complex("create_target") as (b1, target):
             codesize = IRnode.from_list(["extcodesize", target])
             msize = IRnode.from_list(["msize"])
-            with codesize.cache_when_complex("target_codesize") as (
-                b2,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
-                ir = ["seq"]
-
-                # make sure there is actually code at the target
-                ir.append(["assert", codesize])
+            with (
+                codesize.cache_when_complex("target_codesize") as (b2, codesize),
+                msize.cache_when_complex("mem_ofst") as (b3, mem_ofst),
+            ):
+                ir = [
+                    "seq",
+                    # make sure there is actually code at the target
+                    ["assert", codesize],
+                ]
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1900,34 +1868,35 @@ class CreateFromBlueprint(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
-            "encoded_args_len"
-        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
+        with (
+            target.cache_when_complex("create_target") as (b1, target),
+            argslen.cache_when_complex("encoded_args_len") as (b2, encoded_args_len),
+            code_offset.cache_when_complex("code_ofst") as (b3, codeofst),
+        ):
             codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
-            with codesize.cache_when_complex("target_codesize") as (
-                b4,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
-                ir = ["seq"]
-
-                # make sure there is code at the target, and that
-                # code_ofst <= (extcodesize target).
-                # (note if code_ofst > (extcodesize target), would be
-                # OOG on the EXTCODECOPY)
-                # (code_ofst == (extcodesize target) would be empty
-                # initcode, which we disallow for hygiene reasons -
-                # same as `create_copy_of` on an empty target).
-                ir.append(["assert", ["sgt", codesize, 0]])
-
-                # copy the target code into memory.
-                # layout starting from mem_ofst:
-                # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
-
-                ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
+            with (
+                codesize.cache_when_complex("target_codesize") as (b4, codesize),
+                msize.cache_when_complex("mem_ofst") as (b5, mem_ofst),
+            ):
+                ir = [
+                    "seq",
+                    # make sure there is code at the target, and that
+                    # code_ofst <= (extcodesize target).
+                    # (note if code_ofst > (extcodesize target), would be
+                    # OOG on the EXTCODECOPY)
+                    # (code_ofst == (extcodesize target) would be empty
+                    # initcode, which we disallow for hygiene reasons -
+                    # same as `create_copy_of` on an empty target).
+                    ["assert", ["sgt", codesize, 0]],
+                    # copy the target code into memory.
+                    # layout starting from mem_ofst:
+                    # 00...00 (22 0's) | preamble | bytecode
+                    ["extcodecopy", target, mem_ofst, codeofst, codesize],
+                    copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz),
+                ]
 
                 # theoretically, dst = "msize", but just be safe.
                 # if len(ctor_args) > 0:
@@ -1951,8 +1920,7 @@ class _UnsafeMath(BuiltinFunction):
         return f"builtin function unsafe_{self.op}"
 
     def fetch_call_return(self, node):
-        return_type = self.infer_arg_types(node).pop()
-        return return_type
+        return self.infer_arg_types(node).pop()
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -2036,8 +2004,7 @@ class _MinMax(BuiltinFunction):
         return type(node.args[0]).from_node(node, value=value)
 
     def fetch_call_return(self, node):
-        return_type = self.infer_arg_types(node).pop()
-        return return_type
+        return self.infer_arg_types(node).pop()
 
     def infer_arg_types(self, node):
         self._validate_arg_types(node)
@@ -2055,19 +2022,18 @@ class _MinMax(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         op = self._opcode
 
-        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
-            b2,
-            right,
+        with (
+            args[0].cache_when_complex("_l") as (b1, left),
+            args[1].cache_when_complex("_r") as (b2, right),
         ):
-            if left.typ == right.typ:
-                if left.typ != UINT256_T:
-                    # if comparing like types that are not uint256, use SLT or SGT
-                    op = f"s{op}"
-                o = ["select", [op, left, right], left, right]
-                otyp = left.typ
-
-            else:
+            if left.typ != right.typ:
                 raise TypeMismatch(f"Minmax types incompatible: {left.typ.typ} {right.typ.typ}")
+            if left.typ != UINT256_T:
+                # if comparing like types that are not uint256, use SLT or SGT
+                op = f"s{op}"
+            o = ["select", [op, left, right], left, right]
+            otyp = left.typ
+
             return IRnode.from_list(b1.resolve(b2.resolve(o)), typ=otyp)
 
 
@@ -2245,12 +2211,9 @@ class ISqrt(BuiltinFunction):
                     ["ge", y, 2 ** (16 + 8)],
                     ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
                 ],
+                ["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]],
             ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
-
-            for _ in range(7):
-                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
-
+            ret.extend(["set", z, ["div", ["add", ["div", x, z], z], 2]] for _ in range(7))
             # note: If ``x+1`` is a perfect square, then the Babylonian
             # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
             # consecutive iterations. return the floor value always.
@@ -2317,16 +2280,10 @@ class Print(BuiltinFunction):
         # create a signature like "log(uint256)"
         sig = "log" + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
+        ret = ["seq"]
         if kwargs["hardhat_compat"] is True:
             method_id = method_id_int(sig)
             buflen = 32 + args_abi_t.size_bound()
-
-            # 32 bytes extra space for the method id
-            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
-
-            ret = ["seq"]
-            ret.append(["mstore", buf, method_id])
-            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         else:
             method_id = method_id_int("log(string,bytes)")
@@ -2336,12 +2293,13 @@ class Print(BuiltinFunction):
 
             schema_t = StringT(len(schema))
             schema_buf = context.new_internal_variable(schema_t)
-            ret = ["seq"]
-            ret.append(["mstore", schema_buf, len(schema)])
-
-            # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))])
-
+            ret.extend(
+                (
+                    ["mstore", schema_buf, len(schema)],
+                    # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
+                    ["mstore", schema_buf + 32, bytes_to_int(schema.ljust(32, b"\x00"))],
+                )
+            )
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
 
@@ -2361,15 +2319,17 @@ class Print(BuiltinFunction):
 
             # add 32 for method id padding
             buflen = 32 + args_as_tuple.typ.abi_type.size_bound()
-            buf = context.new_internal_variable(get_type_for_exact_size(buflen))
-            ret.append(["mstore", buf, method_id])
-            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+        # 32 bytes extra space for the method id
+        buf = context.new_internal_variable(get_type_for_exact_size(buflen))
+
+        ret.append(["mstore", buf, method_id])
+        encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
         ret.append(["staticcall", "gas", CONSOLE_ADDRESS, buf + 28, ["add", 4, encode], 0, 0])
 
-        return IRnode.from_list(ret, annotation="print:" + sig)
+        return IRnode.from_list(ret, annotation=f"print:{sig}")
 
 
 class ABIEncode(BuiltinFunction):
@@ -2409,13 +2369,10 @@ class ABIEncode(BuiltinFunction):
         assert isinstance(ensure_tuple, bool)
         has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
+        arg_types = self.infer_arg_types(node)
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
-        arg_abi_types = []
-        arg_types = self.infer_arg_types(node)
-        for arg_t in arg_types:
-            arg_abi_types.append(arg_t.abi_type)
-
+        arg_abi_types = [arg_t.abi_type for arg_t in arg_types]
         # special case, no tuple
         if len(arg_abi_types) == 1 and not ensure_tuple:
             arg_abi_t = arg_abi_types[0]
@@ -2686,7 +2643,7 @@ STMT_DISPATCH_TABLE = {
     "create_from_blueprint": CreateFromBlueprint(),
 }
 
-BUILTIN_FUNCTIONS = {**STMT_DISPATCH_TABLE, **DISPATCH_TABLE}.keys()
+BUILTIN_FUNCTIONS = (STMT_DISPATCH_TABLE | DISPATCH_TABLE).keys()
 
 
 def get_builtin_functions():

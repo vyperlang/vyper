@@ -12,7 +12,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
 _evm_versions = ("istanbul", "berlin", "london", "paris", "shanghai", "cancun")
-EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
+EVM_VERSIONS: dict[str, int] = {v: i for i, v in enumerate(_evm_versions)}
 
 
 DEFAULT_EVM_VERSION: str = "shanghai"
@@ -225,15 +225,11 @@ def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
         return value[:3] + (gas,)
     if len(gas) <= idx:
         return value[:3] + (gas[-1],)
-    if gas[idx] is None:
-        return None
-    return value[:3] + (gas[idx],)
+    return None if gas[idx] is None else value[:3] + (gas[idx],)
 
 
 def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
-    return dict(
-        (k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None  # type: ignore
-    )
+    return {k: _gas(v, idx) for k, v in opcodes.items() if _gas(v, idx) is not None}  # type: ignore
 
 
 _evm_opcodes: Dict[int, OpcodeRulesetMap] = {

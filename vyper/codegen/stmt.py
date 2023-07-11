@@ -150,7 +150,7 @@ class Stmt:
 
                     return append_dyn_array(darray, arg)
                 else:
-                    assert len(args) == 0
+                    assert not args
                     return pop_dyn_array(darray, return_popped_item=False)
 
         if is_self_function:
@@ -181,9 +181,7 @@ class Stmt:
         # TODO this is probably useful in codegen.core
         # compare with eval_seq.
         def _get_last(ir):
-            if len(ir.args) == 0:
-                return ir.value
-            return _get_last(ir.args[-1])
+            return ir.value if len(ir.args) == 0 else _get_last(ir.args[-1])
 
         # TODO maybe use ensure_in_memory
         if msg_ir.location != MEMORY:
@@ -211,10 +209,7 @@ class Stmt:
             ["mstore", buf - 32, 0x20],
             ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
         ]
-        if is_raise:
-            ir_node = revert_seq
-        else:
-            ir_node = ["if", ["iszero", test_expr], revert_seq]
+        ir_node = revert_seq if is_raise else ["if", ["iszero", test_expr], revert_seq]
         return IRnode.from_list(ir_node, error_msg="user revert with reason")
 
     def parse_Assert(self):
@@ -289,11 +284,12 @@ class Stmt:
 
         self.context.forvars[varname] = True
 
-        loop_body = ["seq"]
-        # store the current value of i so it is accessible to userland
-        loop_body.append(["mstore", iptr, i])
-        loop_body.append(parse_body(self.stmt.body, self.context))
-
+        loop_body = [
+            "seq",
+            # store the current value of i so it is accessible to userland
+            ["mstore", iptr, i],
+            parse_body(self.stmt.body, self.context),
+        ]
         ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
         del self.context.forvars[varname]
 
