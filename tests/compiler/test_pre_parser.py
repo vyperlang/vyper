@@ -1,6 +1,8 @@
-from pytest import raises
+import pytest
 
-from vyper.exceptions import SyntaxException
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import StructureException, SyntaxException
 
 
 def test_semicolon_prohibited(get_contract):
@@ -10,7 +12,7 @@ def test() -> int128:
     return a + b
     """
 
-    with raises(SyntaxException):
+    with pytest.raises(SyntaxException):
         get_contract(code)
 
 
@@ -70,6 +72,57 @@ def test():
     assert get_contract(code)
 
 
+def test_version_pragma2(get_contract):
+    # new, `#pragma` way of doing things
+    from vyper import __version__
+
+    installed_version = ".".join(__version__.split(".")[:3])
+
+    code = f"""
+#pragma version {installed_version}
+
+@external
+def test():
+    pass
+    """
+    assert get_contract(code)
+
+
+def test_evm_version_check(assert_compile_failed):
+    code = """
+#pragma evm-version berlin
+    """
+    assert compile_code(code, settings=Settings(evm_version=None)) is not None
+    assert compile_code(code, settings=Settings(evm_version="berlin")) is not None
+    # should fail if compile options indicate different evm version
+    # from source pragma
+    with pytest.raises(StructureException):
+        compile_code(code, settings=Settings(evm_version="shanghai"))
+
+
+def test_optimization_mode_check():
+    code = """
+#pragma optimize codesize
+    """
+    assert compile_code(code, settings=Settings(optimize=None))
+    # should fail if compile options indicate different optimization mode
+    # from source pragma
+    with pytest.raises(StructureException):
+        compile_code(code, settings=Settings(optimize=OptimizationLevel.GAS))
+    with pytest.raises(StructureException):
+        compile_code(code, settings=Settings(optimize=OptimizationLevel.NONE))
+
+
+def test_optimization_mode_check_none():
+    code = """
+#pragma optimize none
+    """
+    assert compile_code(code, settings=Settings(optimize=None))
+    # "none" conflicts with "gas"
+    with pytest.raises(StructureException):
+        compile_code(code, settings=Settings(optimize=OptimizationLevel.GAS))
+
+
 def test_version_empty_version(assert_compile_failed, get_contract):
     code = """
 #@version
@@ -110,5 +163,5 @@ def foo():
     convert(
     """
 
-    with raises(SyntaxException):
+    with pytest.raises(SyntaxException):
         get_contract(code)
