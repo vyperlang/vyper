@@ -122,7 +122,7 @@ Setting the Target EVM Version
 When you compile your contract code, you can specify the target Ethereum Virtual Machine version to compile for, to access or avoid particular features. You can specify the version either with a source code pragma or as a compiler option. It is recommended to use the compiler option when you want flexibility (for instance, ease of deploying across different chains), and the source code pragma when you want bytecode reproducibility (for instance, when verifying code on a block explorer).
 
 .. note::
-   If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised.
+   If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised and compilation will not continue.
 
 For instance, the adding the following pragma to a contract indicates that it should be compiled for the "shanghai" fork of the EVM.
 
@@ -134,7 +134,7 @@ For instance, the adding the following pragma to a contract indicates that it sh
 
     Compiling for the wrong EVM version can result in wrong, strange, or failing behavior. Please ensure, especially if running a private chain, that you use matching EVM versions.
 
-When compiling via ``vyper``, you can specify the EVM version option using the ``--evm-version`` flag:
+When compiling via the ``vyper`` CLI, you can specify the EVM version option using the ``--evm-version`` flag:
 
 ::
 

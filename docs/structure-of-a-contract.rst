@@ -12,7 +12,7 @@ This section provides a quick overview of the types of data present within a con
 Pragmas
 ==============
 
-Vyper supports several directives to control compiler modes and help with build reproducibility
+Vyper supports several source code directives to control compiler modes and help with build reproducibility.
 
 Version Pragma
 --------------
@@ -37,7 +37,7 @@ In the above examples, the contract will only compile with Vyper versions ``0.3.
 Optimization Mode
 -----------------
 
-The optimization mode can be one of "none", "codesize", or "gas" (default). For instance, the following contract will be compiled in a way which tries to minimize codesize:
+The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For instance, the following contract will be compiled in a way which tries to minimize codesize:
 
 .. code-block:: python
 
