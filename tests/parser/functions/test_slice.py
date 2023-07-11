@@ -71,10 +71,10 @@ def do_splice() -> Bytes[{length_bound}]:
         or (literal_length and length > length_bound)
         or (literal_start and start > length_bound)
         or (literal_length and length < 1)
-        or (len(bytesdata) > length_bound)
     ):
         assert_compile_failed(lambda: _get_contract(), ArgumentException)
-    elif start + length > len(bytesdata):
+    elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
+        # deploy fail
         assert_tx_failed(lambda: _get_contract())
     else:
         c = _get_contract()
@@ -141,9 +141,11 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         or (literal_length and length > length_bound)
         or (literal_start and start > length_bound)
         or (literal_length and length < 1)
-        or len(bytesdata) > length_bound
     ):
         assert_compile_failed(lambda: _get_contract(), ArgumentException)
+    elif len(bytesdata) > length_bound:
+        # deploy fail
+        assert_tx_failed(lambda: _get_contract())
     elif start + length > len(bytesdata):
         c = _get_contract()
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
