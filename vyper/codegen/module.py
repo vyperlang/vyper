@@ -89,7 +89,7 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
 # uses two level strategy: uses `method_id % n_buckets` to descend
 # into a bucket (of about 8-10 items), and then uses perfect hash
 # to select the final function.
-# costs about 212 gas for typical function and 8 bytes of code.
+# costs about 212 gas for typical function and 8 bytes of code (+ ~87 bytes of global overhead)
 def _selector_section_dense(runtime_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
@@ -231,7 +231,7 @@ def _selector_section_dense(runtime_functions, global_ctx):
 # uses two level strategy: uses `method_id % n_methods` to calculate
 # a bucket, and then descends into linear search from there.
 # costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
-# function and 24 bytes of code.
+# function and 24 bytes of code (+ ~23 bytes of global overhead)
 def _selector_table_sparse(external_functions, global_ctx):
     # categorize the runtime functions because we will organize the runtime
     # code into the following sections:
@@ -414,10 +414,12 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     external_functions = [f for f in runtime_functions if not _is_internal(f)]
 
-    if core._opt_codesize():
-        selector_table = _selector_table_dense(runtime_functions, global_ctx)
+    # dense vs sparse global overhead is amortized after about 4 methods
+    dense = False  # if core._opt_codesize() and len(external_functions) > 4:
+    if dense:
+        selector_table = _selector_table_dense(external_functions, global_ctx)
     else:
-        selector_table = _selector_table_sparse(runtime_functions, global_ctx)
+        selector_table = _selector_table_sparse(external_functions, global_ctx)
 
     if default_function:
         fallback_ir = _ir_for_external_function(
