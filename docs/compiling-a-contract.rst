@@ -132,7 +132,7 @@ For instance, the adding the following pragma to a contract indicates that it sh
 
 .. warning::
 
-    Compiling for the wrong EVM version can result in wrong, strange and failing behaviour. Please ensure, especially if running a private chain, that you use matching EVM versions.
+    Compiling for the wrong EVM version can result in wrong, strange, or failing behavior. Please ensure, especially if running a private chain, that you use matching EVM versions.
 
 When compiling via ``vyper``, you can specify the EVM version option using the ``--evm-version`` flag:
 
