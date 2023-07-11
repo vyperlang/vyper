@@ -99,6 +99,11 @@ See :ref:`searching_for_imports` for more information on Vyper's import system.
 Online Compilers
 ================
 
+Try VyperLang!
+-----------------
+
+`Try VyperLang! <https://try.vyperlang.org>`_ is a JupterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
+
 Remix IDE
 ---------
 
@@ -109,22 +114,33 @@ Remix IDE
    While the Vyper version of the Remix IDE compiler is updated on a regular basis, it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
 
 
+.. _evm-version:
+
 Setting the Target EVM Version
 ==============================
 
-When you compile your contract code, you can specify the Ethereum Virtual Machine version to compile for, to avoid particular features or behaviours.
+When you compile your contract code, you can specify the target Ethereum Virtual Machine version to compile for, to access or avoid particular features. You can specify the version either with a source code pragma or as a compiler option. It is recommended to use the compiler option when you want flexibility (for instance, ease of deploying across different chains), and the source code pragma when you want bytecode reproducibility (for instance, when verifying code on a block explorer).
+
+.. note::
+   If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised.
+
+For instance, the adding the following pragma to a contract indicates that it should be compiled for the "shanghai" fork of the EVM.
+
+.. code-block:: python
+
+   #pragma evm-version shanghai
 
 .. warning::
 
     Compiling for the wrong EVM version can result in wrong, strange and failing behaviour. Please ensure, especially if running a private chain, that you use matching EVM versions.
 
-When compiling via ``vyper``, include the ``--evm-version`` flag:
+When compiling via ``vyper``, you can specify the EVM version option using the ``--evm-version`` flag:
 
 ::
 
     $ vyper --evm-version [VERSION]
 
-When using the JSON interface, include the ``"evmVersion"`` key within the ``"settings"`` field:
+When using the JSON interface, you can include the ``"evmVersion"`` key within the ``"settings"`` field:
 
 .. code-block:: javascript
 
