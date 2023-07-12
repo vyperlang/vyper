@@ -4,10 +4,8 @@ from vyper.semantics.types.function import ContractFunctionT
 
 
 def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
-    """
-    Note: `.gas_estimate` is added to ContractFunctionT._ir_info
-          in vyper/semantics/types/function.py
-    """
+    # note: `.gas_estimate` is added to ContractFunctionT._ir_info
+    # in vyper/semantics/types/function.py
     return {k: v._ir_info.gas_estimate for k, v in func_ts.items()}
 
 
