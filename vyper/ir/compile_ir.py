@@ -265,7 +265,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # Variables connected to with statements
     elif isinstance(code.value, str) and code.value in withargs:
-        return [f"DUP{str(_height_of(code.value))}"]
+        return [f"DUP{_height_of(code.value)}"]
 
     # Setting variables connected to with statements
     elif code.value == "set":
@@ -274,7 +274,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         if height - withargs[code.args[0].value] > 16:
             raise Exception("With statement too deep")
         return _compile_to_assembly(code.args[1], withargs, existing_labels, break_dest, height) + [
-            f"SWAP{str(height - withargs[code.args[0].value])}",
+            f"SWAP{height - withargs[code.args[0].value]}",
             "POP",
         ]
 
@@ -664,11 +664,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o = []
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
-        o.extend([f"_sym_{str(code.args[0])}", "JUMP"])
+        o.extend([f"_sym_{code.args[0]}", "JUMP"])
         return o
     # push a literal symbol
     elif code.value == "symbol":
-        return [f"_sym_{str(code.args[0])}"]
+        return [f"_sym_{code.args[0]}"]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = code.args[0].value
@@ -727,7 +727,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "pc_debugger":
         return mkdebug(pc_debugger=True, source_pos=code.source_pos)
     else:
-        raise Exception(f"Weird code element: {repr(code)}")
+        raise Exception(f"Weird code element: {code!r}")
 
 
 def note_line_num(line_number_map, item, pos):
@@ -815,16 +815,16 @@ def _merge_jumpdests(assembly):
     while i < len(assembly) - 3:
         if is_symbol(assembly[i]) and assembly[i + 1] == "JUMPDEST":
             current_symbol = assembly[i]
-            if is_symbol(assembly[i + 2]):
-                if assembly[i + 3] in ["JUMPDEST", "JUMP"]:
-                    # _sym_x JUMPDEST _sym_y JUMPDEST
-                    # replace all instances of _sym_x with _sym_y
-                    # (except for _sym_x JUMPDEST - don't want duplicate labels)
-                    new_symbol = assembly[i + 2]
-                    for j in range(len(assembly)):
-                        if assembly[j] == current_symbol and i != j:
-                            assembly[j] = new_symbol
-                            changed = True
+            new_symbol = assembly[i + 2]
+            if is_symbol(new_symbol) and assembly[i + 3] in {"JUMPDEST", "JUMP"}:
+                # _sym_x JUMPDEST _sym_y JUMPDEST
+                # _sym_x JUMPDEST _sym_y JUMP
+                # replace all instances of _sym_x with _sym_y
+                # (except for _sym_x JUMPDEST - don't want duplicate labels)
+                for j in range(len(assembly)):
+                    if assembly[j] == current_symbol and i != j:
+                        assembly[j] = new_symbol
+                        changed = True
         i += 1
 
     return changed
@@ -1041,7 +1041,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
 
         # update pc
         if is_symbol(item):
-            if assembly[i + 1] in ["JUMPDEST", "BLANK"]:
+            if assembly[i + 1] in {"JUMPDEST", "BLANK"}:
                 # Don't increment pc as the symbol itself doesn't go into code
                 if item in symbol_map:
                     raise CompilerPanic(f"duplicate jumpdest {item}")
@@ -1105,7 +1105,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             continue
 
         elif is_symbol(item):
-            if assembly[i + 1] not in ["JUMPDEST", "BLANK"]:
+            if assembly[i + 1] not in {"JUMPDEST", "BLANK"}:
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=CODE_OFST_SIZE))
                 o += bytecode
 
@@ -1135,7 +1135,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             o += runtime_code
         else:
             # Should never reach because, assembly is create in _compile_to_assembly.
-            raise Exception(f"Weird symbol in assembly: {str(item)}")
+            raise Exception(f"Weird symbol in assembly: {item}")
 
     o += bytecode_suffix
 
