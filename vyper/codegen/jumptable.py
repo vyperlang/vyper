@@ -11,6 +11,7 @@ class Signature:
     payable: bool
 
 
+# bucket for dense function
 @dataclass
 class Bucket:
     bucket_id: int
@@ -86,16 +87,21 @@ def find_magic_for(xs):
     raise _Failure(f"Could not find hash for {xs}")
 
 
-# two layer method for generating perfect hash
-# first get "reasonably good" distribution by using
-# method_id % len(method_ids)
-# second, get the magic for the bucket.
-def _jumptable_info(method_ids, n_buckets):
+def _mk_buckets(method_ids, n_buckets):
     buckets = {}
     for x in method_ids:
         t = x % n_buckets
         buckets.setdefault(t, [])
         buckets[t].append(x)
+    return buckets
+
+
+# two layer method for generating perfect hash
+# first get "reasonably good" distribution by using
+# method_id % len(method_ids)
+# second, get the magic for the bucket.
+def _dense_jumptable_info(method_ids, n_buckets):
+    buckets = _mk_buckets(method_ids, n_buckets)
 
     ret = {}
     for bucket_id, method_ids in buckets.items():
@@ -108,7 +114,7 @@ def _jumptable_info(method_ids, n_buckets):
 START_BUCKET_SIZE = 5
 
 
-def generate_jumptable_info(signatures):
+def generate_dense_jumptable_info(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)
     # start at bucket size of 5 and try to improve (generally
@@ -119,7 +125,7 @@ def generate_jumptable_info(signatures):
     while n_buckets > 0:
         try:
             # print(f"trying {n_buckets} (bucket size {n // n_buckets})")
-            ret = _jumptable_info(method_ids, n_buckets)
+            ret = _dense_jumptable_info(method_ids, n_buckets)
         except _Failure:
             if ret is not None:
                 break
@@ -138,8 +144,36 @@ def generate_jumptable_info(signatures):
     return ret
 
 
+def generate_sparse_jumptable_buckets(signatures):
+    method_ids = [method_id_int(sig) for sig in signatures]
+    n = len(signatures)
+
+    # search a range of buckets to try to minimize bucket size
+    # (doing the range search improves worst worst bucket size from 9 to 4,
+    # see _bench_sparse)
+    lo = max(1, math.floor(n * 0.85))
+    hi = max(1, math.ceil(n * 1.15))
+    stats = {}
+    for i in range(lo, hi + 1):
+        buckets = _mk_buckets(method_ids, i)
+
+        stats[i] = buckets
+
+    ret = None
+    min_max_bucket_size = hi + 1  # smallest max_bucket_size
+    # find the smallest i which gives us the smallest max_bucket_size
+    for i, buckets in stats.items():
+        max_bucket_size = max(len(bucket) for bucket in buckets.values())
+        if max_bucket_size < min_max_bucket_size:
+            min_max_bucket_size = max_bucket_size
+            ret = buckets
+
+    assert ret is not None
+    return ret
+
+
 # benchmark for quality of buckets
-def _bench_perfect(N=1000):
+def _bench_dense(N=1_000, n_methods=100):
     import random
 
     stats = []
@@ -147,9 +181,9 @@ def _bench_perfect(N=1000):
         seed = random.randint(0, 2**64 - 1)
         # "large" contracts in prod hit about ~50 methods, test with
         # double the limit
-        sigs = [f"foo{i + seed}()" for i in range(100)]
+        sigs = [f"foo{i + seed}()" for i in range(n_methods)]
 
-        xs = generate_jumptable_info(sigs)
+        xs = generate_dense_jumptable_info(sigs)
         print(f"found. n buckets {len(xs)}")
         stats.append(xs)
 
@@ -158,25 +192,31 @@ def _bench_perfect(N=1000):
 
     avg_n_buckets = mean([len(jt) for jt in stats])
     # usually around ~14 buckets per 100 sigs
+    # N=10, time=3.6s
     print(f"average N buckets: {avg_n_buckets}")
 
-def _bench_imperfect(N=10_000):
+
+def _bench_sparse(N=10_000, n_methods=80):
     import random
-    from collections import Counter
-    from vyper.utils import method_id_int
 
     stats = []
     for _ in range(N):
         seed = random.randint(0, 2**64 - 1)
-        sigs = [f"foo{i + seed}()" for i in range(80)]
-        images = [method_id_int(sig) % len(sigs) for sig in sigs]
+        sigs = [f"foo{i + seed}()" for i in range(n_methods)]
+        buckets = generate_sparse_jumptable_buckets(sigs)
 
-        counter = Counter(images)
-        worst_bucket_size = max(counter.values())
-        mean_bucket_size = sum(counter.values()) / len(counter.values())
+        bucket_sizes = [len(bucket) for bucket in buckets.values()]
+        worst_bucket_size = max(bucket_sizes)
+        mean_bucket_size = sum(bucket_sizes) / len(bucket_sizes)
         stats.append((worst_bucket_size, mean_bucket_size))
 
+    # N=10_000, time=9s
+    # range 0.85*n - 1.15*n
+    # worst worst bucket size: 4
+    # avg worst bucket size: 3.0018
+    # worst mean bucket size: 2.0
+    # avg mean bucket size: 1.579112583664968
     print("worst worst bucket size:", max(x[0] for x in stats))
-    print("avg worst bucket size:", sum(x[0] for x in stats)/len(stats))
+    print("avg worst bucket size:", sum(x[0] for x in stats) / len(stats))
     print("worst mean bucket size:", max(x[1] for x in stats))
-    print("avg mean bucket size:", sum(x[1] for x in stats)/len(stats))
+    print("avg mean bucket size:", sum(x[1] for x in stats) / len(stats))

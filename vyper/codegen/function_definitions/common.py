@@ -69,7 +69,8 @@ class FuncIR:
 
 @dataclass
 class EntryPointInfo:
-    min_calldatasize: int  # the min calldata required for this function
+    func_t: ContractFunctionT
+    min_calldatasize: int  # the min calldata required for this entry point
     ir_node: IRnode  # the ir for this entry point
 
 
@@ -133,12 +134,13 @@ def generate_ir_for_function(
         ret = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
         func_t._ir_info.gas_estimate = ret.func_ir.gas
     else:
-        if func_t.is_payable:
-            assert skip_nonpayable_check is False  # nonsense
         kwarg_handlers, common = generate_ir_for_external_function(
             code, func_t, context, skip_nonpayable_check
         )
-        entry_points = {k: EntryPointInfo(mincalldatasize, ir_node) for k, (mincalldatasize, ir_node) in kwarg_handlers.items()}
+        entry_points = {
+            k: EntryPointInfo(func_t, mincalldatasize, ir_node)
+            for k, (mincalldatasize, ir_node) in kwarg_handlers.items()
+        }
         ret = ExternalFuncIR(entry_points, common)
         # note: this ignores the cost of traversing selector table
         func_t._ir_info.gas_estimate = ret.common_ir.gas

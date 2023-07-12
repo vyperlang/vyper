@@ -111,6 +111,10 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dic
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
+        method_id = util.method_id_int(abi_sig)
+        label = f"{func_t._ir_info.ir_identifier}{method_id}"
+        ret = ["label", label, ["var_list"], ret]
+
         # return something we can turn into ExternalFuncIR
         return abi_sig, calldata_min_size, ret
 
