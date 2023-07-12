@@ -232,7 +232,7 @@ def _selector_section_sparse(external_functions, global_ctx):
     for entry_point in entry_points.values():
         function_irs.append(IRnode.from_list(entry_point.ir_node))
 
-    n_buckets = len(external_functions)
+    n_buckets, buckets = jumptable.generate_sparse_jumptable_buckets(entry_points.keys())
 
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
@@ -242,24 +242,35 @@ def _selector_section_sparse(external_functions, global_ctx):
     # note: this can be dropped in most cases.
     selector_section.append(["if", ["le", "calldatasize", 4], ["goto", "fallback"]])
 
-    bucket_id = ["mod", "_calldata_method_id", n_buckets]
-    bucket_hdr_location = [
-        "add",
-        ["symbol", "BUCKET_HEADERS"],
-        ["mul", bucket_id, SZ_BUCKET_HEADER],
-    ]
-    # get bucket header
-    dst = 32 - SZ_BUCKET_HEADER
-    assert dst >= 0
+    if n_buckets > 1:
+        bucket_id = ["mod", "_calldata_method_id", n_buckets]
+        bucket_hdr_location = [
+            "add",
+            ["symbol", "selector_buckets"],
+            ["mul", bucket_id, SZ_BUCKET_HEADER],
+        ]
+        # get bucket header
+        dst = 32 - SZ_BUCKET_HEADER
+        assert dst >= 0
 
-    # memory is PROBABLY 0, but just be paranoid.
-    selector_section.append(["mstore", 0, 0])
-    selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
+        # memory is PROBABLY 0, but just be paranoid.
+        selector_section.append(["mstore", 0, 0])
+        selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
-    jumpdest = IRnode.from_list(["mload", 0])
-    selector_section.append(["goto", jumpdest])
+        jumpdest = IRnode.from_list(["mload", 0])
+        selector_section.append(["goto", jumpdest])
 
-    buckets = jumptable.generate_sparse_jumptable_buckets(entry_points.keys())
+        jumptable_data = ["data", "selector_buckets"]
+        for i in range(n_buckets):
+            if i in buckets:
+                bucket_label = f"selector_bucket_{i}"
+                jumptable_data.append(["symbol", bucket_label])
+            else:
+                # empty bucket
+                jumptable_data.append(["symbol", "fallback"])
+
+        selector_section.append(jumptable_data)
+
 
     for bucket_id, bucket in buckets.items():
         bucket_label = f"selector_bucket_{bucket_id}"
@@ -293,10 +304,14 @@ def _selector_section_sparse(external_functions, global_ctx):
 
         selector_section.append(handle_bucket)
 
-    for entry_point in entry_points.values():
-        selector_section.append(entry_point.ir_node)
+    ret = [
+        "seq",
+        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
+    ]
 
-    return selector_section
+    ret.extend(function_irs)
+
+    return ret
 
 
 # codegen for all runtime functions + callvalue/calldata checks + method

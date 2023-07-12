@@ -159,14 +159,13 @@ def generate_sparse_jumptable_buckets(signatures):
 
         stats[i] = buckets
 
-    ret = None
     min_max_bucket_size = hi + 1  # smallest max_bucket_size
     # find the smallest i which gives us the smallest max_bucket_size
     for i, buckets in stats.items():
         max_bucket_size = max(len(bucket) for bucket in buckets.values())
         if max_bucket_size < min_max_bucket_size:
             min_max_bucket_size = max_bucket_size
-            ret = buckets
+            ret = i, buckets
 
     assert ret is not None
     return ret

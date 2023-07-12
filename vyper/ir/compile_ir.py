@@ -660,6 +660,25 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             height,
         )
 
+    elif code.value == "data":
+        o = []
+        o.append("_sym_" + str(code.args[0]))
+
+        for c in code.args[1:]:
+            if isinstance(c, int):
+                assert 0 <= c < 256
+                o.append(c)
+            elif isinstance(c, bytes):
+                as_ints = list(c)  # list(b"1234") -> [49, 50, 51, 52]
+                o.extend(as_ints)
+            elif isinstance(c, IRnode):
+                assert c.value == "symbol"
+                o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height))
+            else:
+                raise ValueError(f"Invalid data: {type(c)} {c}")
+
+        return o
+
     # jump to a symbol, and push variable # of arguments onto stack
     elif code.value == "goto":
         o = []
