@@ -223,7 +223,7 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
 
     _add_postambles(res)
 
-    relocate_data_segments(res)
+    relocate_segments(res)
 
     if optimize != OptimizationLevel.NONE:
         _optimize_assembly(res)
@@ -1067,22 +1067,26 @@ class _DataHeader:
     def __repr__(self):
         return f"DATA {self.label}"
 
-def relocate_data_segments(assembly):
+def relocate_segments(assembly):
     # relocate all data segments to the end, otherwise data could be
     # interpreted as PUSH instructions and mangle otherwise valid jumpdests
+    # relocate all runtime segments to the end as well
     data_segments = []
     non_data_segments = []
+    code_segments = []
     for t in assembly:
         if isinstance(t, list):
             if isinstance(t[0], _DataHeader):
                 data_segments.append(t)
             else:
-                relocate_data_segments(t)  # recurse
-                non_data_segments.append(t)
+                relocate_segments(t)  # recurse
+                assert isinstance(t[0], _RuntimeHeader)
+                code_segments.append(t)
         else:
             non_data_segments.append(t)
     assembly.clear()
     assembly.extend(non_data_segments)
+    assembly.extend(code_segments)
     assembly.extend(data_segments)
 
 
