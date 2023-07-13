@@ -259,6 +259,10 @@ def _selector_section_sparse(external_functions, global_ctx):
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # map from method ids back to signatures
 
+    selector_section = ["seq"]
+    if len(external_functions) == 0:
+        return selector_section
+
     for code in external_functions:
         func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
         for abi_sig, entry_point in func_ir.entry_points.items():
@@ -275,7 +279,6 @@ def _selector_section_sparse(external_functions, global_ctx):
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
 
-    selector_section = ["seq"]
 
     # XXX: AWAITING MCOPY PR
     # if n_buckets > 1 or core._opt_none():
