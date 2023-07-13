@@ -124,9 +124,9 @@ def _selector_section_dense(external_functions, global_ctx):
     jumptable_info = jumptable.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
 
-    #  bucket magic <2 bytes> | bucket location <2 bytes>
+    #  bucket magic <2 bytes> | bucket location <2 bytes> | bucket size <1 byte>
     # TODO: can make it smaller if the largest bucket magic <= 255
-    SZ_BUCKET_HEADER = 4
+    SZ_BUCKET_HEADER = 5
 
     selector_section = ["seq"]
 
@@ -159,13 +159,14 @@ def _selector_section_dense(external_functions, global_ctx):
 
     hdr_info = IRnode.from_list(["mload", 0])
     with hdr_info.cache_when_complex("hdr_info") as (b1, hdr_info):
-        bucket_location = ["and", 0xFFFF, hdr_info]
-        bucket_magic = shr(16, hdr_info)
+        bucket_location = ["and", 0xFFFF, shr(8, hdr_info)]
+        bucket_magic = shr(24, hdr_info)
+        bucket_size = ["and", 0xFF, hdr_info]
         # ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
         func_id = [
             "mod",
             shr(jumptable.BITS_MAGIC, ["mul", bucket_magic, "_calldata_method_id"]),
-            n_buckets,
+            bucket_size,
         ]
         func_info_location = ["add", bucket_location, ["mul", func_id, func_info_size]]
         dst = 32 - func_info_size
@@ -214,6 +215,9 @@ def _selector_section_dense(external_functions, global_ctx):
     for bucket_id, bucket in jumptable_info.items():
         bucket_headers.append(bucket.magic.to_bytes(2, "big"))
         bucket_headers.append(["symbol", f"bucket_{bucket_id}"])
+        # note: buckets are usually ~10 items. to_bytes would
+        # fail if the int is too big.
+        bucket_headers.append(bucket.bucket_size.to_bytes(1, "big"))
 
     selector_section.append(bucket_headers)
 
