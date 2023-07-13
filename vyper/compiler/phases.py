@@ -7,6 +7,8 @@ from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
@@ -49,7 +51,7 @@ class CompilerData:
         contract_name: str = "VyperContract",
         interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
-        no_optimize: bool = False,
+        settings: Settings = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
@@ -69,8 +71,8 @@ class CompilerData:
             * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
-        no_optimize: bool, optional
-            Turn off optimizations. Defaults to False
+        settings: Settings
+            Set optimization mode.
         show_gas_estimates: bool, optional
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
@@ -80,14 +82,45 @@ class CompilerData:
         self.source_code = source_code
         self.interface_codes = interface_codes
         self.source_id = source_id
-        self.no_optimize = no_optimize
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
+        self.settings = settings or Settings()
 
     @cached_property
-    def vyper_module(self) -> vy_ast.Module:
-        return generate_ast(self.source_code, self.source_id, self.contract_name)
+    def _generate_ast(self):
+        settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+        # validate the compiler settings
+        # XXX: this is a bit ugly, clean up later
+        if settings.evm_version is not None:
+            if (
+                self.settings.evm_version is not None
+                and self.settings.evm_version != settings.evm_version
+            ):
+                raise StructureException(
+                    f"compiler settings indicate evm version {self.settings.evm_version}, "
+                    f"but source pragma indicates {settings.evm_version}."
+                )
+
+            self.settings.evm_version = settings.evm_version
+
+        if settings.optimize is not None:
+            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
+                raise StructureException(
+                    f"compiler options indicate optimization mode {self.settings.optimize}, "
+                    f"but source pragma indicates {settings.optimize}."
+                )
+            self.settings.optimize = settings.optimize
+
+        # ensure defaults
+        if self.settings.optimize is None:
+            self.settings.optimize = OptimizationLevel.default()
+
+        return ast
+
+    @cached_property
+    def vyper_module(self):
+        return self._generate_ast
 
     @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
@@ -119,7 +152,7 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.no_optimize)
+        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -142,11 +175,11 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.no_optimize)
+        return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.no_optimize)
+        return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:
@@ -169,7 +202,9 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast.Module:
+def generate_ast(
+    source_code: str, source_id: int, contract_name: str
+) -> tuple[Settings, vy_ast.Module]:
     """
     Generate a Vyper AST from source code.
 
@@ -187,7 +222,7 @@ def generate_ast(source_code: str, source_id: int, contract_name: str) -> vy_ast
     vy_ast.Module
         Top-level Vyper AST node
     """
-    return vy_ast.parse_to_ast(source_code, source_id, contract_name)
+    return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
 
 
 def generate_unfolded_ast(
@@ -233,7 +268,7 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: GlobalContext, optimize: bool) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -254,13 +289,13 @@ def generate_ir_nodes(global_ctx: GlobalContext, no_optimize: bool) -> tuple[IRn
         IR to generate runtime bytecode
     """
     ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if not no_optimize:
+    if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
+def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = None) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -274,7 +309,8 @@ def generate_assembly(ir_nodes: IRnode, no_optimize: bool = False) -> list:
     list
         List of assembly instructions.
     """
-    assembly = compile_ir.compile_to_assembly(ir_nodes, no_optimize=no_optimize)
+    optimize = optimize or OptimizationLevel.default()
+    assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
