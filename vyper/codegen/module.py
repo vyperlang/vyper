@@ -140,8 +140,9 @@ def _selector_section_dense(external_functions, global_ctx):
     dst = 32 - SZ_BUCKET_HEADER
     assert dst >= 0
 
-    # memory is PROBABLY 0, but just be paranoid.
-    selector_section.append(["assert", ["eq", "msize", 0]])
+    # XXX: re-enable this in debug mode:
+    #selector_section.append(["assert", ["eq", "msize", 0]])
+
     selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
     # figure out the minimum number of bytes we can use to encode
@@ -284,8 +285,8 @@ def _selector_section_sparse(external_functions, global_ctx):
         dst = 32 - SZ_BUCKET_HEADER
         assert dst >= 0
 
-        # memory is PROBABLY 0, but just be paranoid.
-        selector_section.append(["assert", ["eq", "msize", 0]])
+        # XXX: re-enable this in debug mode
+        #selector_section.append(["assert", ["eq", "msize", 0]])
         selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
