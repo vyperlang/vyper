@@ -667,12 +667,11 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         data_node = [_DATA]
 
         for c in code.args[1:]:
-            if isinstance(c, int):
+            if isinstance(c.value, int):
                 assert 0 <= c < 256, f"invalid data byte {c}"
-                data_node.append(c)
-            elif isinstance(c, bytes):
-                as_ints = list(c)  # list(b"1234") -> [49, 50, 51, 52]
-                data_node.extend(as_ints)
+                data_node.append(c.value)
+            elif isinstance(c.value, bytes):
+                data_node.append(c.value)
             elif isinstance(c, IRnode):
                 assert c.value == "symbol"
                 data_node.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height))
@@ -1017,6 +1016,9 @@ def _data_to_evm(assembly, symbol_map):
             ret.extend(symbol)
         elif isinstance(item, int):
             ret.append(item)
+        elif isinstance(item, bytes):
+            as_ints = list(item)
+            ret.extend(as_ints)
         else:
             raise ValueError(f"invalid data {type(item)} {item}")
     return ret
@@ -1031,6 +1033,8 @@ def _length_of_data(assembly):
         elif isinstance(i, int):
             assert 0 <= i < 256, f"invalid data byte {i}"
             ret += 1
+        elif isinstance(i, bytes):
+            ret += len(i)
         else:
             raise ValueError(f"invalid data {type(i)} {i}")
     return ret
@@ -1150,7 +1154,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
-        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
+        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:

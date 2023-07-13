@@ -55,9 +55,9 @@ def _annotated_method_id(abi_sig):
     return IRnode(method_id, annotation=annotation)
 
 
-#def label_for_entry_point(abi_sig, entry_point):
-#    method_id = method_id_int(abi_sig)
-#    return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
+def label_for_entry_point(abi_sig, entry_point):
+    method_id = method_id_int(abi_sig)
+    return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
 
 
 # TODO: probably dead code
@@ -101,22 +101,28 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
 def _selector_section_dense(external_functions, global_ctx):
     function_irs = []
     entry_points = {}  # map from ABI sigs to ir code
+    sig_of = {}  # reverse map from method ids to abi sig
 
     for code in external_functions:
         func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
         for abi_sig, entry_point in func_ir.entry_points.items():
             assert abi_sig not in entry_points
             entry_points[abi_sig] = entry_point
+            sig_of[method_id_int(abi_sig)] = abi_sig
         # stick function common body into final entry point to save a jump
-        entry_point.ir_node.append(func_ir.common_ir)
+        ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
+        entry_point.ir_node = ir_node
 
-    for entry_point in entry_points.values():
-        function_irs.append(IRnode.from_list(entry_point.ir_node))
+    for abi_sig, entry_point in entry_points.items():
+        label = label_for_entry_point(abi_sig, entry_point) 
+        ir_node = ["label", label, ["var_list"], entry_point.ir_node]
+        function_irs.append(IRnode.from_list(ir_node))
 
     jumptable_info = jumptable.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
 
     # 2 bytes for bucket magic, 2 bytes for bucket location
+    # TODO: can make it smaller if the largest bucket magic <= 255
     SZ_BUCKET_HEADER = 4
 
     selector_section = ["seq"]
@@ -132,15 +138,15 @@ def _selector_section_dense(external_functions, global_ctx):
     assert dst >= 0
 
     # memory is PROBABLY 0, but just be paranoid.
-    selector_section.append(["mstore", 0, 0])
+    selector_section.append(["assert", ["eq", "msize", 0]])
     selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
     # figure out the minimum number of bytes we can use to encode
     # min_calldatasize in function info
     largest_mincalldatasize = max(f.min_calldatasize for f in entry_points.values())
-    variable_bytes_needed = (largest_mincalldatasize.bit_length() + 7) // 8
+    FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
 
-    func_info_size = 4 + 2 + variable_bytes_needed
+    func_info_size = 4 + 2 + FN_METADATA_BYTES
     # grab function info. 4 bytes for method id, 2 bytes for label,
     # 1-3 bytes (packed) for: expected calldatasize, is payable bit
     # NOTE: might be able to improve codesize if we use variable # of bytes
@@ -163,8 +169,8 @@ def _selector_section_dense(external_functions, global_ctx):
         selector_section.append(b1.resolve(["codecopy", dst, func_info_location, func_info_size]))
 
     func_info = IRnode.from_list(["mload", 0])
-    variable_bytes_mask = 2 ** (variable_bytes_needed * 8) - 1
-    calldatasize_mask = variable_bytes_mask - 1  # ex. 0xFFFE
+    fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
+    calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE
     with func_info.cache_when_complex("func_info") as (b1, func_info):
         x = ["seq"]
 
@@ -176,9 +182,9 @@ def _selector_section_dense(external_functions, global_ctx):
 
         # method id <4 bytes> | label <2 bytes> | func info <1-3 bytes>
 
-        label_bits_ofst = variable_bytes_needed * 8
+        label_bits_ofst = FN_METADATA_BYTES * 8
         function_label = ["and", 0xFFFF, shr(label_bits_ofst, func_info)]
-        method_id_bits_ofst = (variable_bytes_needed + 3) * 8
+        method_id_bits_ofst = (FN_METADATA_BYTES + 3) * 8
         function_method_id = shr(method_id_bits_ofst, func_info)
 
         # check method id is right, if not then fallback.
@@ -193,8 +199,31 @@ def _selector_section_dense(external_functions, global_ctx):
         bad_calldatasize = ["lt", "calldatasize", expected_calldatasize]
         failed_entry_conditions = ["or", bad_callvalue, bad_calldatasize]
         x.append(["assert", ["iszero", failed_entry_conditions]])
-        x.append(["goto", function_label])
+        x.append(["jump", function_label])
         selector_section.append(b1.resolve(x))
+
+    bucket_headers = ["data", "BUCKET_HEADERS"]
+
+    for bucket_id, bucket in jumptable_info.items():
+        bucket_headers.append(["symbol", f"bucket_{bucket_id}"])
+        bucket_headers.append(bucket.magic.to_bytes(2, "big"))
+
+    selector_section.append(bucket_headers)
+
+    for bucket_id, bucket in jumptable_info.items():
+        function_infos = ["data", f"bucket_{bucket_id}"]
+        for method_id in bucket.method_ids:
+            abi_sig = sig_of[method_id]
+            entry_point = entry_points[abi_sig]
+
+            method_id_bytes = method_id.to_bytes(4, "big")
+            symbol = ["symbol", label_for_entry_point(abi_sig, entry_point)]
+            func_metadata_int = entry_point.min_calldatasize | int(not entry_point.func_t.is_payable)
+            func_metadata = func_metadata_int.to_bytes(FN_METADATA_BYTES, "big")
+
+            function_infos.extend([method_id_bytes, symbol, func_metadata])
+
+        selector_section.append(function_infos)
 
     runtime = [
         "seq",
@@ -218,7 +247,6 @@ def _selector_section_sparse(external_functions, global_ctx):
     # payable functions, nonpayable functions, fallback function, internal_functions
     default_function = next((f for f in external_functions if _is_fallback(f)), None)
 
-    function_irs = []
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # map from method ids back to signatures
 
@@ -254,7 +282,7 @@ def _selector_section_sparse(external_functions, global_ctx):
         assert dst >= 0
 
         # memory is PROBABLY 0, but just be paranoid.
-        selector_section.append(["mstore", 0, 0])
+        selector_section.append(["assert", ["eq", "msize", 0]])
         selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
@@ -321,8 +349,6 @@ def _selector_section_sparse(external_functions, global_ctx):
         "seq",
         ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
     ]
-
-    ret.extend(function_irs)
 
     return ret
 
@@ -424,7 +450,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = False  # if core._opt_codesize() and len(external_functions) > 4:
+    dense = False # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

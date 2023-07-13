@@ -16,15 +16,15 @@ class Signature:
 class Bucket:
     bucket_id: int
     magic: int
-    signatures: list[int]
+    method_ids: list[int]
 
     @property
     def image(self):
-        return _image_of([s for s in self.signatures], self.magic)
+        return _image_of([s for s in self.method_ids], self.magic)
 
     @property
     def bucket_size(self):
-        return len(self.signatures)
+        return len(self.method_ids)
 
 
 _PRIMES = []
@@ -114,6 +114,9 @@ def _dense_jumptable_info(method_ids, n_buckets):
 START_BUCKET_SIZE = 5
 
 
+# this is expensive! for 80 methods, costs about 350ms and probably
+# linear in # of methods.
+# see _bench_perfect()
 def generate_dense_jumptable_info(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)
