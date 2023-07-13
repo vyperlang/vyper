@@ -55,9 +55,9 @@ def _annotated_method_id(abi_sig):
     return IRnode(method_id, annotation=annotation)
 
 
-def label_for_entry_point(abi_sig, entry_point):
-    method_id = method_id_int(abi_sig)
-    return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
+#def label_for_entry_point(abi_sig, entry_point):
+#    method_id = method_id_int(abi_sig)
+#    return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
 
 
 # TODO: probably dead code
@@ -233,9 +233,6 @@ def _selector_section_sparse(external_functions, global_ctx):
         ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
         entry_point.ir_node = ir_node
 
-    for entry_point in entry_points.values():
-        function_irs.append(IRnode.from_list(entry_point.ir_node))
-
     n_buckets, buckets = jumptable.generate_sparse_jumptable_buckets(entry_points.keys())
 
     # 2 bytes for bucket location
@@ -288,7 +285,6 @@ def _selector_section_sparse(external_functions, global_ctx):
             sig = sig_of[method_id]
             entry_point = entry_points[sig]
             func_t = entry_point.func_t
-            entry_point_label = f"{func_t._ir_info.ir_identifier}{method_id}"
             expected_calldatasize = entry_point.min_calldatasize
 
             dispatch = ["seq"]  # code to dispatch into the function
@@ -300,7 +296,13 @@ def _selector_section_sparse(external_functions, global_ctx):
             )
 
             dispatch.append(["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]])
-            dispatch.append(["goto", entry_point_label])
+            # we could skip a jumpdest per method if we out-lined the entry point
+            # so the dispatcher looks just like -
+            # ```(if (eq <calldata_method_id> method_id)
+            #   (goto entry_point_label))```
+            # it would another optimization for patterns like
+            # `if ... (goto)` though.
+            dispatch.append(entry_point.ir_node)
 
             method_id_check = ["eq", "_calldata_method_id", _annotated_method_id(sig)]
             has_trailing_zeroes = method_id.to_bytes(4, "big").endswith(b"\x00")
