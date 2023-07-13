@@ -4,7 +4,7 @@ from typing import Optional
 
 import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import check_single_exit, getpos
+from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.global_context import GlobalContext
@@ -131,8 +131,8 @@ def generate_ir_for_function(
 
     if func_t.is_internal:
         assert skip_nonpayable_check is False
-        ret = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
-        func_t._ir_info.gas_estimate = ret.func_ir.gas
+        ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
+        func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
     else:
         kwarg_handlers, common = generate_ir_for_external_function(
             code, func_t, context, skip_nonpayable_check
@@ -160,6 +160,6 @@ def generate_ir_for_function(
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
         mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
-        ret.common_ir.add_gas_estimate += mem_expansion_cost
+        ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
 
     return ret

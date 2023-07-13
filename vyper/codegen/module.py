@@ -2,11 +2,11 @@
 
 from typing import Any, List
 
+from vyper.codegen import jumptable
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function, FuncIR
+from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen import jumptable
 from vyper.exceptions import CompilerPanic
 from vyper.utils import method_id_int
 
@@ -114,7 +114,7 @@ def _selector_section_dense(external_functions, global_ctx):
         entry_point.ir_node = ir_node
 
     for abi_sig, entry_point in entry_points.items():
-        label = label_for_entry_point(abi_sig, entry_point) 
+        label = label_for_entry_point(abi_sig, entry_point)
         ir_node = ["label", label, ["var_list"], entry_point.ir_node]
         function_irs.append(IRnode.from_list(ir_node))
 
@@ -199,7 +199,7 @@ def _selector_section_dense(external_functions, global_ctx):
         failed_entry_conditions = ["or", bad_callvalue, bad_calldatasize]
         check_entry_conditions = IRnode.from_list(
             ["assert", ["iszero", failed_entry_conditions]],
-            error_msg = "bad calldatasize or callvalue"
+            error_msg="bad calldatasize or callvalue",
         )
         x.append(check_entry_conditions)
         x.append(["jump", function_label])
@@ -221,7 +221,9 @@ def _selector_section_dense(external_functions, global_ctx):
 
             method_id_bytes = method_id.to_bytes(4, "big")
             symbol = ["symbol", label_for_entry_point(abi_sig, entry_point)]
-            func_metadata_int = entry_point.min_calldatasize | int(not entry_point.func_t.is_payable)
+            func_metadata_int = entry_point.min_calldatasize | int(
+                not entry_point.func_t.is_payable
+            )
             func_metadata = func_metadata_int.to_bytes(FN_METADATA_BYTES, "big")
 
             function_infos.extend([method_id_bytes, symbol, func_metadata])
@@ -245,11 +247,6 @@ def _selector_section_dense(external_functions, global_ctx):
 # costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
 # function and 24 bytes of code (+ ~23 bytes of global overhead)
 def _selector_section_sparse(external_functions, global_ctx):
-    # categorize the runtime functions because we will organize the runtime
-    # code into the following sections:
-    # payable functions, nonpayable functions, fallback function, internal_functions
-    default_function = next((f for f in external_functions if _is_fallback(f)), None)
-
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # map from method ids back to signatures
 
@@ -272,7 +269,7 @@ def _selector_section_sparse(external_functions, global_ctx):
     selector_section = ["seq"]
 
     # XXX: AWAITING MCOPY PR
-    #if n_buckets > 1 or core._opt_none():
+    # if n_buckets > 1 or core._opt_none():
     if n_buckets > 1:
         bucket_id = ["mod", "_calldata_method_id", n_buckets]
         bucket_hdr_location = [
@@ -305,7 +302,6 @@ def _selector_section_sparse(external_functions, global_ctx):
 
         selector_section.append(jumptable_data)
 
-
     for bucket_id, bucket in buckets.items():
         bucket_label = f"selector_bucket_{bucket_id}"
         selector_section.append(["label", bucket_label, ["var_list"], ["seq"]])
@@ -326,9 +322,11 @@ def _selector_section_sparse(external_functions, global_ctx):
                 [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
             )
 
-            dispatch.append(IRnode.from_list(
-                ["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]],
-                error_msg="bad calldatasize or callvalue")
+            dispatch.append(
+                IRnode.from_list(
+                    ["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]],
+                    error_msg="bad calldatasize or callvalue",
+                )
             )
             # we could skip a jumpdest per method if we out-lined the entry point
             # so the dispatcher looks just like -
@@ -351,85 +349,9 @@ def _selector_section_sparse(external_functions, global_ctx):
 
         selector_section.append(handle_bucket)
 
-    ret = [
-        "seq",
-        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-    ]
+    ret = ["seq", ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section]]
 
     return ret
-
-
-# codegen for all runtime functions + callvalue/calldata checks + method
-# selector routines. use the old linear selector table implementation
-def _runtime_ir_legacy(runtime_functions, global_ctx):
-    default_function = next((f for f in external_functions if _is_fallback(f)), None)
-
-    # categorize the runtime functions because we will organize the runtime
-    # code into the following sections:
-    # payable functions, nonpayable functions, fallback function, internal_functions
-    # functions that need to go exposed in the selector section
-    regular_functions = [f for f in external_functions if not _is_fallback(f)]
-    payables = [f for f in regular_functions if _is_payable(f)]
-    nonpayables = [f for f in regular_functions if not _is_payable(f)]
-
-    internal_functions_ir: list[IRnode] = []
-
-    for func_ast in internal_functions:
-        func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
-        internal_functions_ir.append(func_ir)
-
-    # for some reason, somebody may want to deploy a contract with no
-    # external functions, or more likely, a "pure data" contract which
-    # contains immutables
-    if len(external_functions) == 0:
-        # TODO: prune internal functions in this case? dead code eliminator
-        # might not eliminate them, since internal function jumpdest is at the
-        # first instruction in the contract.
-        runtime = ["seq"] + internal_functions_ir
-        return runtime
-
-    # note: if the user does not provide one, the default fallback function
-    # reverts anyway. so it does not hurt to batch the payable check.
-    default_is_nonpayable = default_function is None or not _is_payable(default_function)
-
-    # when a contract has a nonpayable default function,
-    # we can do a single check for all nonpayable functions
-    batch_payable_check = len(nonpayables) > 0 and default_is_nonpayable
-    skip_nonpayable_check = batch_payable_check
-
-    # selector_section = _selector_section() ["seq"]
-
-    for func_ast in payables:
-        func_ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
-        selector_section.append(func_ir)
-
-    if batch_payable_check:
-        nonpayable_check = IRnode.from_list(
-            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
-        )
-        selector_section.append(nonpayable_check)
-
-    for func_ast in nonpayables:
-        ir = _ir_for_external_function(func_ast, global_ctx, skip_nonpayable_check)
-        selector_section.append(ir)
-
-    # ensure the external jumptable section gets closed out
-    # (for basic block hygiene and also for zksync interpreter)
-    # NOTE: this jump gets optimized out in assembly since the
-    # fallback label is the immediate next instruction,
-    close_selector_section = ["goto", "fallback"]
-
-    global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
-
-    runtime = [
-        "seq",
-        global_calldatasize_check,
-        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-        close_selector_section,
-        ["label", "fallback", ["var_list"], fallback_ir],
-    ]
-
-    return runtime
 
 
 # take a GlobalContext, and generate the runtime and deploy IR
@@ -456,7 +378,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = True # if core._opt_codesize() and len(external_functions) > 4:
+    dense = True  # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

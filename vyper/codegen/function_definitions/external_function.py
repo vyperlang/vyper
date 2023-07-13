@@ -1,6 +1,3 @@
-from typing import Any, List
-
-import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
@@ -15,7 +12,7 @@ from vyper.semantics.types.function import ContractFunctionT
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(func_t: ContractFunctionT, context: Context) -> List[IRnode]:
+def _register_function_args(func_t: ContractFunctionT, context: Context) -> list[IRnode]:
     ret = []
     # the type of the calldata
     base_args_t = TupleT(tuple(arg.typ for arg in func_t.positional_args))
@@ -52,7 +49,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> List
     return ret
 
 
-def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dict[str, IRnode]:
+def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dict[str, tuple[int, IRnode]]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -111,9 +108,9 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> dic
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
-        #method_id = util.method_id_int(abi_sig)
-        #label = f"{func_t._ir_info.ir_identifier}{method_id}"
-        #ret = ["label", label, ["var_list"], ret]
+        # method_id = util.method_id_int(abi_sig)
+        # label = f"{func_t._ir_info.ir_identifier}{method_id}"
+        # ret = ["label", label, ["var_list"], ret]
 
         # return something we can turn into ExternalFuncIR
         return abi_sig, calldata_min_size, ret

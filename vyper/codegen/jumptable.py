@@ -1,8 +1,8 @@
 # helper module which implements jumptable for function selection
-from dataclasses import dataclass
-from typing import Optional, Tuple
-from vyper.utils import keccak256, bytes_to_int, method_id_int
 import math
+from dataclasses import dataclass
+
+from vyper.utils import method_id_int
 
 
 @dataclass
@@ -27,7 +27,7 @@ class Bucket:
         return len(self.method_ids)
 
 
-_PRIMES = []
+_PRIMES: list[int] = []
 
 
 # https://stackoverflow.com/a/568618/ but cache found data and
@@ -58,9 +58,6 @@ def _gen_primes():
 
 
 BITS_MAGIC = 24  # a constant which produced good results, see _bench()
-
-# smallest prime larger than 2**n
-# prime_for_bits = [2, 3, 5, 11, 17, 37, 67, 131, 257, 521, 1031, 2053, 4099, 8209, 16411, 32771, 65537, 131101, 262147, 524309, 1048583, 2097169, 4194319, 8388617, 16777259, 33554467, 67108879, 134217757, 268435459, 536870923, 1073741827, 2147483659]
 
 
 def _image_of(xs, magic):

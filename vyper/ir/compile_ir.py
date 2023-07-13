@@ -670,7 +670,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 data_node.append(c.value)
             elif isinstance(c, IRnode):
                 assert c.value == "symbol"
-                data_node.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height))
+                data_node.extend(
+                    _compile_to_assembly(c, withargs, existing_labels, break_dest, height)
+                )
             else:
                 raise ValueError(f"Invalid data: {type(c)} {c}")
 
@@ -790,7 +792,7 @@ def _prune_unreachable_code(assembly):
             instr = assembly[i][-1]
 
         if assembly[i] in _TERMINAL_OPS and not (
-            is_symbol(assembly[i + 1]) or isinstance(assembly[i+1], list)
+            is_symbol(assembly[i + 1]) or isinstance(assembly[i + 1], list)
         ):
             changed = True
             del assembly[i + 1]
@@ -1026,7 +1028,7 @@ def _length_of_data(assembly):
         if is_symbol(item):
             ret += SYMBOL_SIZE
         elif isinstance(item, int):
-            assert 0 <= item < 256, f"invalid data byte {i}"
+            assert 0 <= item < 256, f"invalid data byte {item}"
             ret += 1
         elif isinstance(item, bytes):
             ret += len(item)
@@ -1044,9 +1046,11 @@ class _RuntimeHeader:
     def __repr__(self):
         return f"<RUNTIME {self.label} mem @{self.ctor_mem_size}>"
 
+
 class _DataHeader:
     def __init__(self, label):
         self.label = label
+
     def __repr__(self):
         return f"DATA {self.label}"
 
@@ -1088,7 +1092,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     mem_ofst_size, ctor_mem_size = None, None
     max_mem_ofst = 0
     for i, item in enumerate(assembly):
-        if isinstance(item, list) and isinstance(item[0],  _RuntimeHeader):
+        if isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
             assert ctor_mem_size is None
