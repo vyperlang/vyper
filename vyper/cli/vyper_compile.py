@@ -165,7 +165,7 @@ def _parse_args(argv):
         settings.evm_version = args.evm_version
 
     if args.verbose:
-        print(f"using `{settings}`", file=sys.stderr)
+        print(f"cli specified: `{settings}`", file=sys.stderr)
 
     compiled = compile_files(
         args.input_files,

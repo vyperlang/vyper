@@ -267,8 +267,9 @@ class IRnode:
                 self.valency = 0
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "label":
-                if not self.args[1].value == "var_list":
-                    raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
+                _check(self.args[1].value == "var_list",
+                    f"2nd argument to label must be var_list, {self}")
+                _check(len(args) == 3, f"label should have 3 args but has {len(args)}, {self}")
                 self.valency = 0
                 self._gas = 1 + sum(t.gas for t in self.args)
             elif self.value == "unique_symbol":

@@ -60,6 +60,7 @@ def label_for_entry_point(abi_sig, entry_point):
     return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
 
 
+# TODO: probably dead code
 def _ir_for_external_function(func_ast, *args, **kwargs):
     # adapt whatever generate_ir_for_function gives us into an IR node
     ret = ["seq"]
@@ -77,10 +78,12 @@ def _ir_for_external_function(func_ast, *args, **kwargs):
         for sig, ir_node in func_ir.entry_points.items():
             method_id = _annotated_method_id(sig)
             ret.append(["if", ["eq", "_calldata_method_id", method_id], ir_node])
+
         # stick function common body into final entry point to save a jump
-        # TODO: this would not really be necessary if we had block reordering
-        # in optimizer.
-        ir_node.append(func_ir.common_ir)
+        # TODO: this would not really be necessary if we had basic block
+        # reordering in optimizer.
+        ir_node = ["seq", ir_node, func_ir.common_ir]
+        func_ir.entry_points[sig] = ir_node
 
     return IRnode.from_list(ret)
 
@@ -227,7 +230,8 @@ def _selector_section_sparse(external_functions, global_ctx):
             sig_of[method_id_int(abi_sig)] = abi_sig
 
         # stick function common body into final entry point to save a jump
-        entry_point.ir_node.append(func_ir.common_ir)
+        ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
+        entry_point.ir_node = ir_node
 
     for entry_point in entry_points.values():
         function_irs.append(IRnode.from_list(entry_point.ir_node))
@@ -255,7 +259,10 @@ def _selector_section_sparse(external_functions, global_ctx):
         selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
-        selector_section.append(["goto", jumpdest])
+        # don't particularly like using `jump` here since it can cause
+        # issues for other backends, consider changing `goto` to allow
+        # dynamic jumps, or adding some kind of jumptable instruction
+        selector_section.append(["jump", jumpdest])
 
         jumptable_data = ["data", "selector_buckets"]
         for i in range(n_buckets):
@@ -427,7 +434,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
         )
 
-    runtime = ["seq", selector_section, fallback_ir]
+    runtime = ["seq", selector_section, ["label", "fallback", ["var_list"], fallback_ir]]
 
     runtime.extend(internal_functions_ir)
 
