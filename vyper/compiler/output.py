@@ -306,8 +306,8 @@ def _build_opcodes(bytecode: bytes) -> str:
             # we can have push_len > len(bytecode_sequence) when there is data
             # (instead of code) at end of contract
             # CMC 2023-07-13 maybe just strip known data segments?
-            if push_len <= len(bytecode_sequence):
-                push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
-                opcode_output.append(f"0x{''.join(push_values).upper()}")
+            push_len = min(push_len, len(bytecode_sequence))
+            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
+            opcode_output.append(f"0x{''.join(push_values).upper()}")
 
     return " ".join(opcode_output)
