@@ -387,7 +387,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = True  # if core._opt_codesize() and len(external_functions) > 4:
+    dense = False # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

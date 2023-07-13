@@ -158,10 +158,19 @@ def _add_postambles(asm_ops):
         to_append.extend(_revert_string)
 
     if len(to_append) > 0:
+        # insert the postambles *before* runtime code
+        # so the data section of the runtime code can't bork the postambles.
+        runtime = None
+        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], _RuntimeHeader):
+            runtime = asm_ops.pop()
+
         # for some reason there might not be a STOP at the end of asm_ops.
         # (generally vyper programs will have it but raw IR might not).
         asm_ops.append("STOP")
         asm_ops.extend(to_append)
+
+        if runtime:
+            asm_ops.append(runtime)
 
     # need to do this recursively since every sublist is basically
     # treated as its own program (there are no global labels.)
@@ -213,6 +222,9 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     res = _compile_to_assembly(code)
 
     _add_postambles(res)
+
+    relocate_data_segments(res)
+
     if optimize != OptimizationLevel.NONE:
         _optimize_assembly(res)
     return res
@@ -922,6 +934,7 @@ def _prune_unused_jumpdests(assembly):
         if is_symbol(assembly[i]) and not is_symbol_map_indicator(assembly[i + 1]):
             used_jumpdests.add(assembly[i])
 
+    for i in range(len(assembly)):
         if isinstance(assembly[i], list) and isinstance(assembly[i][0], _DataHeader):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
@@ -1054,6 +1067,24 @@ class _DataHeader:
     def __repr__(self):
         return f"DATA {self.label}"
 
+def relocate_data_segments(assembly):
+    # relocate all data segments to the end, otherwise data could be
+    # interpreted as PUSH instructions and mangle otherwise valid jumpdests
+    data_segments = []
+    non_data_segments = []
+    for t in assembly:
+        if isinstance(t, list):
+            if isinstance(t[0], _DataHeader):
+                data_segments.append(t)
+            else:
+                relocate_data_segments(t)  # recurse
+                non_data_segments.append(t)
+        else:
+            non_data_segments.append(t)
+    assembly.clear()
+    assembly.extend(non_data_segments)
+    assembly.extend(data_segments)
+
 
 def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     """
@@ -1110,17 +1141,6 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
 
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
-
-    # relocate all data segments to the end, otherwise data could be
-    # interpreted as PUSH instructions and mangle otherwies valid jumpdests
-    data_segments = []
-    non_data_segments = []
-    for t in assembly:
-        if isinstance(t, list) and isinstance(t[0], _DataHeader):
-            data_segments.append(t)
-        else:
-            non_data_segments.append(t)
-    assembly = non_data_segments + data_segments
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
