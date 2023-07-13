@@ -520,7 +520,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # since the asm data structures are very primitive, to make sure
         # assembly_to_evm is able to calculate data offsets correctly,
         # we pass the memsize via magic opcodes to the subcode
-        subcode = [_RUNTIME, memsize] + subcode
+        subcode = [_RuntimeHeader(memsize)] + subcode
 
         # append the runtime code after the ctor code
         # `append(...)` call here is intentional.
@@ -972,7 +972,7 @@ def _stack_peephole_opts(assembly):
 # optimize assembly, in place
 def _optimize_assembly(assembly):
     for x in assembly:
-        if isinstance(x, list) and x[0] == _RUNTIME:
+        if isinstance(x, list) and isinstance(x[0], _RuntimeHeader):
             _optimize_assembly(x)
 
     for _ in range(1024):
@@ -1037,15 +1037,18 @@ def _length_of_data(assembly):
 
 
 
-class _Singleton:
-    def __init__(self, description):
-        self.description = description
+class _RuntimeHeader:
+    def __init__(self, ctor_mem_size):
+        self.ctor_mem_size = ctor_mem_size
 
     def __repr__(self):
-        return repr(self.description)
+        return f"<RUNTIME mem @{self.ctor_mem_size}>"
 
-_RUNTIME = _Singleton("RUNTIME")
-_DATA = _Singleton("DATA")
+class _DataHeader:
+    def __repr__(self):
+        return "DATA"
+
+_DATA = _DataHeader()
 
 
 def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
@@ -1085,7 +1088,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     mem_ofst_size, ctor_mem_size = None, None
     max_mem_ofst = 0
     for i, item in enumerate(assembly):
-        if isinstance(item, list) and item[0] == _RUNTIME:
+        if isinstance(item, list) and isinstance(item[0],  _RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
             assert isinstance(item[1], int)
@@ -1147,7 +1150,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
-        elif isinstance(item, list) and item[0] == _RUNTIME:
+        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
@@ -1209,7 +1212,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             ret.append(DUP_OFFSET + int(item[3:]))
         elif item[:4] == "SWAP":
             ret.append(SWAP_OFFSET + int(item[4:]))
-        elif isinstance(item, list) and item[0] == _RUNTIME:
+        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
             ret.extend(runtime_code)
         elif isinstance(item, list) and item[0] == _DATA:
             ret.extend(_data_to_evm(item, symbol_map))
