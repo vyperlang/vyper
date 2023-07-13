@@ -141,7 +141,7 @@ def _selector_section_dense(external_functions, global_ctx):
     assert dst >= 0
 
     # XXX: re-enable this in debug mode:
-    #selector_section.append(["assert", ["eq", "msize", 0]])
+    # selector_section.append(["assert", ["eq", "msize", 0]])
 
     selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
@@ -291,7 +291,7 @@ def _selector_section_sparse(external_functions, global_ctx):
         assert dst >= 0
 
         # XXX: re-enable this in debug mode
-        #selector_section.append(["assert", ["eq", "msize", 0]])
+        # selector_section.append(["assert", ["eq", "msize", 0]])
         selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
@@ -387,7 +387,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = False # if core._opt_codesize() and len(external_functions) > 4:
+    dense = False  # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

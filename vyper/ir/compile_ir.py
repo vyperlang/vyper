@@ -1067,6 +1067,7 @@ class _DataHeader:
     def __repr__(self):
         return f"DATA {self.label}"
 
+
 def relocate_segments(assembly):
     # relocate all data segments to the end, otherwise data could be
     # interpreted as PUSH instructions and mangle otherwise valid jumpdests
