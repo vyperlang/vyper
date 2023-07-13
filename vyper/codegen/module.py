@@ -140,7 +140,7 @@ def _selector_section_dense(external_functions, global_ctx):
     func_info_size = 4 + 2 + variable_bytes_needed
     # grab function info. 4 bytes for method id, 2 bytes for label,
     # 1-3 bytes (packed) for: expected calldatasize, is payable bit
-    # TODO: might be able to improve codesize if we use variable # of bytes
+    # NOTE: might be able to improve codesize if we use variable # of bytes
     # per bucket
 
     hdr_info = IRnode.from_list(["mload", 0])
@@ -239,9 +239,6 @@ def _selector_section_sparse(external_functions, global_ctx):
 
     selector_section = ["seq"]
 
-    # TODO: drop this and replace with per-method checks if has trailing 0s.
-    selector_section.append(["if", ["le", "calldatasize", 4], ["goto", "fallback"]])
-
     if n_buckets > 1:
         bucket_id = ["mod", "_calldata_method_id", n_buckets]
         bucket_hdr_location = [
@@ -296,9 +293,14 @@ def _selector_section_sparse(external_functions, global_ctx):
             dispatch.append(["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]])
             dispatch.append(["goto", entry_point_label])
 
-            handle_bucket.append(
-                ["if", ["eq", "_calldata_method_id", _annotated_method_id(sig)], dispatch]
-            )
+            method_id_check = ["eq", "_calldata_method_id", _annotated_method_id(sig)]
+            has_trailing_zeroes = method_id.to_bytes(4, "big").endswith(b"\x00")
+            if has_trailing_zeroes:
+                # if the method id check has trailing 0s, we need to include
+                # a calldatasize check to distinguish from when not enough
+                # bytes are provided for the method id in calldata.
+                method_id_check = ["and", ["ge", "calldatasize", 4], method_id_check]
+            handle_bucket.append(["if", method_id_check, dispatch])
 
         handle_bucket.append(["goto", "fallback"])
 
