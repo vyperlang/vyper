@@ -103,6 +103,9 @@ def _selector_section_dense(external_functions, global_ctx):
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # reverse map from method ids to abi sig
 
+    if len(external_functions) == 0:
+        return IRnode.from_list(["seq"])
+
     for code in external_functions:
         func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
         for abi_sig, entry_point in func_ir.entry_points.items():
