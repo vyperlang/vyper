@@ -239,7 +239,7 @@ def _selector_section_sparse(external_functions, global_ctx):
 
     selector_section = ["seq"]
 
-    # note: this can be dropped in most cases.
+    # TODO: drop this and replace with per-method checks if has trailing 0s.
     selector_section.append(["if", ["le", "calldatasize", 4], ["goto", "fallback"]])
 
     if n_buckets > 1:
