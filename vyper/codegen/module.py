@@ -243,6 +243,8 @@ def _selector_section_sparse(external_functions, global_ctx):
 
     selector_section = ["seq"]
 
+    # XXX: AWAITING MCOPY PR
+    #if n_buckets > 1 or core._opt_none():
     if n_buckets > 1:
         bucket_id = ["mod", "_calldata_method_id", n_buckets]
         bucket_hdr_location = [
@@ -418,6 +420,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
+    # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
     dense = False  # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
