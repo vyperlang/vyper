@@ -121,7 +121,7 @@ def _selector_section_dense(external_functions, global_ctx):
     jumptable_info = jumptable.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
 
-    # 2 bytes for bucket magic, 2 bytes for bucket location
+    #  bucket magic <2 bytes> | bucket location <2 bytes>
     # TODO: can make it smaller if the largest bucket magic <= 255
     SZ_BUCKET_HEADER = 4
 
@@ -147,8 +147,9 @@ def _selector_section_dense(external_functions, global_ctx):
     FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
 
     func_info_size = 4 + 2 + FN_METADATA_BYTES
-    # grab function info. 4 bytes for method id, 2 bytes for label,
-    # 1-3 bytes (packed) for: expected calldatasize, is payable bit
+    # grab function info.
+    # method id <4 bytes> | label <2 bytes> | func info <1-3 bytes>
+    # func info (1-3 bytes, packed) for: expected calldatasize, is_nonpayable bit
     # NOTE: might be able to improve codesize if we use variable # of bytes
     # per bucket
 
@@ -180,11 +181,9 @@ def _selector_section_dense(external_functions, global_ctx):
         is_nonpayable = ["and", 1, func_info]
         expected_calldatasize = ["and", calldatasize_mask, func_info]
 
-        # method id <4 bytes> | label <2 bytes> | func info <1-3 bytes>
-
         label_bits_ofst = FN_METADATA_BYTES * 8
         function_label = ["and", 0xFFFF, shr(label_bits_ofst, func_info)]
-        method_id_bits_ofst = (FN_METADATA_BYTES + 3) * 8
+        method_id_bits_ofst = (FN_METADATA_BYTES + 2) * 8
         function_method_id = shr(method_id_bits_ofst, func_info)
 
         # check method id is right, if not then fallback.
@@ -198,15 +197,19 @@ def _selector_section_dense(external_functions, global_ctx):
         # assert calldatasize correct
         bad_calldatasize = ["lt", "calldatasize", expected_calldatasize]
         failed_entry_conditions = ["or", bad_callvalue, bad_calldatasize]
-        x.append(["assert", ["iszero", failed_entry_conditions]])
+        check_entry_conditions = IRnode.from_list(
+            ["assert", ["iszero", failed_entry_conditions]],
+            error_msg = "bad calldatasize or callvalue"
+        )
+        x.append(check_entry_conditions)
         x.append(["jump", function_label])
         selector_section.append(b1.resolve(x))
 
     bucket_headers = ["data", "BUCKET_HEADERS"]
 
     for bucket_id, bucket in jumptable_info.items():
-        bucket_headers.append(["symbol", f"bucket_{bucket_id}"])
         bucket_headers.append(bucket.magic.to_bytes(2, "big"))
+        bucket_headers.append(["symbol", f"bucket_{bucket_id}"])
 
     selector_section.append(bucket_headers)
 
@@ -323,7 +326,10 @@ def _selector_section_sparse(external_functions, global_ctx):
                 [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
             )
 
-            dispatch.append(["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]])
+            dispatch.append(IRnode.from_list(
+                ["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]],
+                error_msg="bad calldatasize or callvalue")
+            )
             # we could skip a jumpdest per method if we out-lined the entry point
             # so the dispatcher looks just like -
             # ```(if (eq <calldata_method_id> method_id)
@@ -450,7 +456,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
 
     # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = False # if core._opt_codesize() and len(external_functions) > 4:
+    dense = True # if core._opt_codesize() and len(external_functions) > 4:
     if dense:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

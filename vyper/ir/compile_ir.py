@@ -1012,13 +1012,12 @@ def _data_to_evm(assembly, symbol_map):
     assert assembly[0] == _DATA
     for item in assembly[1:]:
         if is_symbol(item):
-            symbol = symbol_map[item].to_bytes(2, "big")
+            symbol = symbol_map[item].to_bytes(SYMBOL_SIZE, "big")
             ret.extend(symbol)
         elif isinstance(item, int):
             ret.append(item)
         elif isinstance(item, bytes):
-            as_ints = list(item)
-            ret.extend(as_ints)
+            ret.extend(item)
         else:
             raise ValueError(f"invalid data {type(item)} {item}")
     return ret
@@ -1029,7 +1028,7 @@ def _length_of_data(assembly):
     ret = 0
     for i in assembly:
         if is_symbol(i):
-            ret += 2
+            ret += SYMBOL_SIZE
         elif isinstance(i, int):
             assert 0 <= i < 256, f"invalid data byte {i}"
             ret += 1
@@ -1095,11 +1094,10 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
         if isinstance(item, list) and isinstance(item[0],  _RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
-            assert isinstance(item[1], int)
             assert ctor_mem_size is None
-            ctor_mem_size = item[1]
+            ctor_mem_size = item[0].ctor_mem_size
 
-            runtime_code, runtime_map = assembly_to_evm(item[2:])
+            runtime_code, runtime_map = assembly_to_evm(item[1:])
 
             runtime_code_start, runtime_code_end = _runtime_code_offsets(
                 ctor_mem_size, len(runtime_code)
