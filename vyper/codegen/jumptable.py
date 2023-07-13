@@ -23,6 +23,11 @@ class Bucket:
         return _image_of([s for s in self.method_ids], self.magic)
 
     @property
+    # return method ids, sorted by by their image
+    def method_ids_image_order(self):
+        return [x[1] for x in sorted(zip(self.image, self.method_ids))]
+
+    @property
     def bucket_size(self):
         return len(self.method_ids)
 
@@ -114,6 +119,7 @@ START_BUCKET_SIZE = 5
 # this is expensive! for 80 methods, costs about 350ms and probably
 # linear in # of methods.
 # see _bench_perfect()
+# note the buckets are NOT in order!
 def generate_dense_jumptable_info(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)
@@ -144,6 +150,7 @@ def generate_dense_jumptable_info(signatures):
     return ret
 
 
+# note the buckets are NOT in order!
 def generate_sparse_jumptable_buckets(signatures):
     method_ids = [method_id_int(sig) for sig in signatures]
     n = len(signatures)

@@ -212,7 +212,7 @@ def _selector_section_dense(external_functions, global_ctx):
 
     bucket_headers = ["data", "BUCKET_HEADERS"]
 
-    for bucket_id, bucket in jumptable_info.items():
+    for bucket_id, bucket in sorted(jumptable_info.items()):
         bucket_headers.append(bucket.magic.to_bytes(2, "big"))
         bucket_headers.append(["symbol", f"bucket_{bucket_id}"])
         # note: buckets are usually ~10 items. to_bytes would
@@ -223,7 +223,8 @@ def _selector_section_dense(external_functions, global_ctx):
 
     for bucket_id, bucket in jumptable_info.items():
         function_infos = ["data", f"bucket_{bucket_id}"]
-        for method_id in bucket.method_ids:
+        # sort function infos by their image.
+        for method_id in bucket.method_ids_image_order:
             abi_sig = sig_of[method_id]
             entry_point = entry_points[abi_sig]
 
