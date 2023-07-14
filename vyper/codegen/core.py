@@ -938,7 +938,7 @@ def _complex_make_setter(left, right):
         has_storage = STORAGE in (left.location, right.location)
         if has_storage:
             if _opt_codesize():
-                # note a single sstore(dst (sload src)) is 8 bytes,
+                # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
                 # whereas loop overhead is 16-17 bytes.
                 base_cost = 3
@@ -947,6 +947,9 @@ def _complex_make_setter(left, right):
                     base_cost += 1
                 if right._optimized.is_literal:
                     base_cost += 1
+                # the formula is a heuristic, but it works.
+                # (CMC 2023-07-14 could get more detailed for PUSH1 vs
+                # PUSH2 etc but not worried about that too much now)
                 should_batch_copy = len_ >= 32 * base_cost
             elif _opt_gas():
                 # kind of arbitrary, but cut off when code used > ~160 bytes
