@@ -279,7 +279,6 @@ def _selector_section_sparse(external_functions, global_ctx):
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
 
-
     # XXX: AWAITING MCOPY PR
     # if n_buckets > 1 or core._opt_none():
     if n_buckets > 1:
