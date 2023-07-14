@@ -135,15 +135,16 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     def _get_contract():
         return get_contract(code, bytesdata)
 
-    length_bound = len(bytesdata) if location == "literal" else length_bound
+    data_length = len(bytesdata) if location == "literal" else length_bound
     if (
-        (start + length > length_bound and literal_start and literal_length)
-        or (literal_length and length > length_bound)
-        or (literal_start and start > length_bound)
+        (start + length > data_length and literal_start and literal_length)
+        or (literal_length and length > data_length)
+        or (location == "literal" and len(bytesdata) > length_bound)
+        or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
         assert_compile_failed(lambda: _get_contract(), ArgumentException)
-    elif len(bytesdata) > length_bound:
+    elif len(bytesdata) > data_length:
         # deploy fail
         assert_tx_failed(lambda: _get_contract())
     elif start + length > len(bytesdata):
