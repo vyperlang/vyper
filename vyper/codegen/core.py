@@ -955,13 +955,29 @@ def _complex_make_setter(left, right):
                 # don't care, just generate the most readable version
                 should_batch_copy = True
         else:
-            # 10 words is the cutoff for memory copy where identity is cheaper
+            # find a cutoff for memory copy where identity is cheaper
             # than unrolled mloads/mstores
             # if MCOPY is available, mcopy is *always* better (except in
             # the 1 word case, but that is already handled by copy_bytes).
-            if right.location == MEMORY and _opt_gas():
-                should_batch_copy = len_ >= 32 * 10 or version_check(begin="cancun")
-            # calldata to memory, code to memory, or prioritize codesize -
+            if right.location == MEMORY and _opt_gas() and not version_check(begin="cancun"):
+                # cost for 0th word - (mstore dst (mload src))
+                base_unroll_cost = 12
+                nth_word_cost = base_unroll_cost
+                if not left._optimized.is_literal:
+                    # (mstore (add N dst) (mload src))
+                    nth_word_cost += 6
+                if not right._optimized.is_literal:
+                    # (mstore dst (mload (add N src)))
+                    nth_word_cost += 6
+
+                identity_base_cost = 115  # staticcall 4 gas dst len src len
+
+                n_words = ceil32(len_) // 32
+                should_batch_copy = (
+                    base_unroll_cost + (nth_word_cost * (n_words - 1)) >= identity_base_cost
+                )
+
+            # calldata to memory, code to memory, cancun, or codesize -
             # batch copy is always better.
             else:
                 should_batch_copy = True
