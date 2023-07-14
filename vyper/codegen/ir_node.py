@@ -363,7 +363,7 @@ class IRnode:
         # eventually
         return self.location is not None
 
-    @cached_property
+    @property  # probably could be cached_property but be paranoid
     def _optimized(self):
         # TODO figure out how to fix this circular import
         from vyper.ir.optimizer import optimize

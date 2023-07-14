@@ -940,7 +940,7 @@ def _complex_make_setter(left, right):
             if _opt_codesize():
                 # note a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
-                # whereas loop overhead is 17 bytes.
+                # whereas loop overhead is 16-17 bytes.
                 base_cost = 3
                 if left._optimized.is_literal:
                     # code size is smaller since add is performed at compile-time
