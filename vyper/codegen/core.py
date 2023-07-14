@@ -949,7 +949,9 @@ def _complex_make_setter(left, right):
                     base_cost += 1
                 # the formula is a heuristic, but it works.
                 # (CMC 2023-07-14 could get more detailed for PUSH1 vs
-                # PUSH2 etc but not worried about that too much now)
+                # PUSH2 etc but not worried about that too much now,
+                # it's probably better to add a proper unroll rule in the
+                # optimizer.)
                 should_batch_copy = len_ >= 32 * base_cost
             elif _opt_gas():
                 # kind of arbitrary, but cut off when code used > ~160 bytes
