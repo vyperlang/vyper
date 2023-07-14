@@ -941,7 +941,13 @@ def _complex_make_setter(left, right):
                 # note a single sstore(dst (sload src)) is 8 bytes,
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
                 # whereas loop overhead is 17 bytes.
-                should_batch_copy = len_ >= 32 * 3
+                base_cost = 3
+                if left._optimized.is_literal:
+                    # code size is smaller since add is performed at compile-time
+                    base_cost += 1
+                if right._optimized.is_literal:
+                    base_cost += 1
+                should_batch_copy = len_ >= 32 * base_cost
             elif _opt_gas():
                 # kind of arbitrary, but cut off when code used > ~160 bytes
                 should_batch_copy = len_ >= 32 * 10
