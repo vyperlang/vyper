@@ -2,8 +2,7 @@
 
 from typing import Any, List
 
-from vyper.codegen import jumptable
-from vyper.codegen import core
+from vyper.codegen import core, jumptable
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
