@@ -87,10 +87,7 @@ class InternalFuncIR(FuncIR):
 
 # TODO: should split this into external and internal ir generation?
 def generate_ir_for_function(
-    code: vy_ast.FunctionDef,
-    global_ctx: GlobalContext,
-    skip_nonpayable_check: bool,
-    is_ctor_context: bool = False,
+    code: vy_ast.FunctionDef, global_ctx: GlobalContext, is_ctor_context: bool = False
 ) -> FuncIR:
     """
     Parse a function and produce IR code for the function, includes:
@@ -130,13 +127,10 @@ def generate_ir_for_function(
     )
 
     if func_t.is_internal:
-        assert skip_nonpayable_check is False
         ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
         func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
     else:
-        kwarg_handlers, common = generate_ir_for_external_function(
-            code, func_t, context, skip_nonpayable_check
-        )
+        kwarg_handlers, common = generate_ir_for_external_function(code, func_t, context)
         entry_points = {
             k: EntryPointInfo(func_t, mincalldatasize, ir_node)
             for k, (mincalldatasize, ir_node) in kwarg_handlers.items()

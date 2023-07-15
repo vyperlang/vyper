@@ -60,30 +60,23 @@ def label_for_entry_point(abi_sig, entry_point):
     return f"{entry_point.func_t._ir_info.ir_identifier}{method_id}"
 
 
-# TODO: probably dead code
-def _ir_for_external_function(func_ast, *args, **kwargs):
-    # adapt whatever generate_ir_for_function gives us into an IR node
-    ret = ["seq"]
+# adapt whatever generate_ir_for_function gives us into an IR node
+def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
     func_t = func_ast._metadata["type"]
+    assert func_t.is_fallback or func_t.is_constructor
+
+    ret = ["seq"]
+    if not func_t.is_payable:
+        callvalue_check = ["assert", ["iszero", "callvalue"]]
+        ret.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
+
     func_ir = generate_ir_for_function(func_ast, *args, **kwargs)
+    assert len(func_ir.entry_points) == 1
 
-    if func_t.is_fallback or func_t.is_constructor:
-        assert len(func_ir.entry_points) == 1
-        # add a goto to make the function entry look like other functions
-        # (for zksync interpreter)
-        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
-        ret.append(func_ir.common_ir)
-
-    else:
-        for sig, ir_node in func_ir.entry_points.items():
-            method_id = _annotated_method_id(sig)
-            ret.append(["if", ["eq", "_calldata_method_id", method_id], ir_node])
-
-        # stick function common body into final entry point to save a jump
-        # TODO: this would not really be necessary if we had basic block
-        # reordering in optimizer.
-        ir_node = ["seq", ir_node, func_ir.common_ir]
-        func_ir.entry_points[sig] = ir_node
+    # add a goto to make the function entry look like other functions
+    # (for zksync interpreter)
+    ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
+    ret.append(func_ir.common_ir)
 
     return IRnode.from_list(ret)
 
@@ -107,7 +100,7 @@ def _selector_section_dense(external_functions, global_ctx):
         return IRnode.from_list(["seq"])
 
     for code in external_functions:
-        func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
+        func_ir = generate_ir_for_function(code, global_ctx)
         for abi_sig, entry_point in func_ir.entry_points.items():
             assert abi_sig not in entry_points
             entry_points[abi_sig] = entry_point
@@ -264,7 +257,7 @@ def _selector_section_sparse(external_functions, global_ctx):
         return selector_section
 
     for code in external_functions:
-        func_ir = generate_ir_for_function(code, global_ctx, skip_nonpayable_check=True)
+        func_ir = generate_ir_for_function(code, global_ctx)
         for abi_sig, entry_point in func_ir.entry_points.items():
             assert abi_sig not in entry_points
             entry_points[abi_sig] = entry_point
@@ -392,9 +385,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         selector_section = _selector_section_sparse(external_functions, global_ctx)
 
     if default_function:
-        fallback_ir = _ir_for_external_function(
-            default_function, global_ctx, skip_nonpayable_check=False
-        )
+        fallback_ir = _ir_for_fallback_or_ctor(default_function, global_ctx)
     else:
         fallback_ir = IRnode.from_list(
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
@@ -408,9 +399,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_external_function(
-            init_function, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
-        )
+        init_func_ir = _ir_for_fallback_or_ctor(init_function, global_ctx, is_ctor_context=True)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
@@ -446,9 +435,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
                 # unreachable code, delete it
                 continue
 
-            func_ir = _ir_for_internal_function(
-                f, global_ctx, skip_nonpayable_check=False, is_ctor_context=True
-            )
+            func_ir = _ir_for_internal_function(f, global_ctx, is_ctor_context=True)
             deploy_code.append(func_ir)
 
     else:

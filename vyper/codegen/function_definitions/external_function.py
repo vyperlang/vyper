@@ -142,7 +142,7 @@ def _generate_kwarg_handlers(
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check):
+def generate_ir_for_external_function(code, func_t, context):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef,
@@ -166,14 +166,6 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     # once optional args have been handled,
     # generate the main body of the function
     body += handle_base_args
-
-    if not func_t.is_payable and not skip_nonpayable_check:
-        # if the contract contains payable functions, but this is not one of them
-        # add an assertion that the value of the call is zero
-        nonpayable_check = IRnode.from_list(
-            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
-        )
-        body.append(nonpayable_check)
 
     body += nonreentrant_pre
 
