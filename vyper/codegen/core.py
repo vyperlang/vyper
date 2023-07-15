@@ -115,15 +115,17 @@ def make_byte_array_copier(dst, src):
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        if _opt_gas() and not version_check(begin="cancun") and src.typ.maxlen <= 32:
-            # it's cheaper to run two load/stores instead of batch copy
+        has_storage = STORAGE in (src.location, dst.location)
+        batch_uses_identity = dst.location == src.location == MEMORY and not version_check(begin="cancun")
+        if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
+            # it's cheaper to run two load/stores instead of copy_bytes
             len_ = get_bytearray_length(src)
-            dst_data = get_bytearray_ptr(dst)
-            src_data = get_bytearray_ptr(src)
+            dst_data = bytes_data_ptr(dst)
+            src_data = bytes_data_ptr(src)
             ret = ["seq"]
             ret.append(STORE(dst, len_))
             ret.append(STORE(dst_data, src_data))
-            return b1.resolve(b2.resolve(ret))
+            return b1.resolve(ret)
 
         len_ = add_ofst(get_bytearray_length(src), 32)
         max_bytes = src.typ.maxlen + 32
