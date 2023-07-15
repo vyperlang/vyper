@@ -2,7 +2,7 @@
 
 from typing import Any, List
 
-from vyper.codegen import core, jumptable
+from vyper.codegen import core, jumptable_utils
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
@@ -114,7 +114,7 @@ def _selector_section_dense(external_functions, global_ctx):
         ir_node = ["label", label, ["var_list"], entry_point.ir_node]
         function_irs.append(IRnode.from_list(ir_node))
 
-    jumptable_info = jumptable.generate_dense_jumptable_info(entry_points.keys())
+    jumptable_info = jumptable_utils.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
 
     #  bucket magic <2 bytes> | bucket location <2 bytes> | bucket size <1 byte>
@@ -158,7 +158,7 @@ def _selector_section_dense(external_functions, global_ctx):
         # ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
         func_id = [
             "mod",
-            shr(jumptable.BITS_MAGIC, ["mul", bucket_magic, "_calldata_method_id"]),
+            shr(jumptable_utils.BITS_MAGIC, ["mul", bucket_magic, "_calldata_method_id"]),
             bucket_size,
         ]
         func_info_location = ["add", bucket_location, ["mul", func_id, func_info_size]]
@@ -267,7 +267,7 @@ def _selector_section_sparse(external_functions, global_ctx):
         ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
         entry_point.ir_node = ir_node
 
-    n_buckets, buckets = jumptable.generate_sparse_jumptable_buckets(entry_points.keys())
+    n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(entry_points.keys())
 
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
