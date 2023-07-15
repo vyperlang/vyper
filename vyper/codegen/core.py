@@ -213,19 +213,17 @@ def _dynarray_make_setter(dst, src):
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
                 ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
+                # write the length word after data is copied
+                ret.append(STORE(dst, count))
 
             else:
                 element_size = src.typ.value_type.memory_bytes_required
                 # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
+                n_bytes = add_ofst(_mul(count, element_size), 32)
+                max_bytes = 32 + src.typ.count * element_size
 
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+                ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
 
-            # write the length word after data is copied
-            ret.append(STORE(dst, count))
 
             return b1.resolve(b2.resolve(ret))
 
