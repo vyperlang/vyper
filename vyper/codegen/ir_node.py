@@ -49,10 +49,7 @@ class Encoding(Enum):
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        # TODO figure out how to fix this circular import
-        from vyper.ir.optimizer import optimize
-
-        if should_inline and optimize(ir_node).is_complex_ir:
+        if should_inline and ir_node._optimized.is_complex_ir:
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -376,6 +373,13 @@ class IRnode:
         # eventually
         return self.location is not None
 
+    @property  # probably could be cached_property but be paranoid
+    def _optimized(self):
+        # TODO figure out how to fix this circular import
+        from vyper.ir.optimizer import optimize
+
+        return optimize(self)
+
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
     # IR value (if it is expensive, or more importantly if its computation
@@ -392,13 +396,11 @@ class IRnode:
     #   return builder.resolve(ret)
     # ```
     def cache_when_complex(self, name):
-        from vyper.ir.optimizer import optimize
-
         # for caching purposes, see if the ir_node will be optimized
         # because a non-literal expr could turn into a literal,
         # (e.g. `(add 1 2)`)
         # TODO this could really be moved into optimizer.py
-        should_inline = not optimize(self).is_complex_ir
+        should_inline = not self._optimized.is_complex_ir
 
         return _WithBuilder(self, name, should_inline)
 

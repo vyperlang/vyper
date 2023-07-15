@@ -105,7 +105,7 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
-    parser.add_argument("--optimize", help="Optimization flag", choices=["gas", "codesize"])
+    parser.add_argument("--optimize", help="Optimization flag", choices=["gas", "codesize", "none"])
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )

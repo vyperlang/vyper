@@ -1,4 +1,6 @@
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
 from vyper.exceptions import ArgumentException
 
@@ -7,14 +9,6 @@ _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
 def _generate_bytes(length):
     return bytes(list(range(length)))
-
-
-# good numbers to try
-_fun_numbers = [0, 1, 5, 31, 32, 33, 64, 99, 100, 101]
-
-
-# [b"", b"\x01", b"\x02"...]
-_bytes_examples = [_generate_bytes(i) for i in _fun_numbers if i <= 100]
 
 
 def test_basic_slice(get_contract_with_gas_estimation):
@@ -31,12 +25,16 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     assert x == b"klmnopqrst", x
 
 
-@pytest.mark.parametrize("bytesdata", _bytes_examples)
-@pytest.mark.parametrize("start", _fun_numbers)
+# note: optimization boundaries at 32, 64 and 320 depending on mode
+_draw_1024 = st.integers(min_value=0, max_value=1024)
+_draw_1024_1 = st.integers(min_value=1, max_value=1024)
+_bytes_1024 = st.binary(min_size=0, max_size=1024)
+
+
 @pytest.mark.parametrize("literal_start", (True, False))
-@pytest.mark.parametrize("length", _fun_numbers)
 @pytest.mark.parametrize("literal_length", (True, False))
-@pytest.mark.fuzzing
+@given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
+@settings(max_examples=25, deadline=None)
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
@@ -46,47 +44,48 @@ def test_slice_immutable(
     literal_start,
     length,
     literal_length,
+    length_bound,
 ):
     _start = start if literal_start else "start"
     _length = length if literal_length else "length"
 
     code = f"""
-IMMUTABLE_BYTES: immutable(Bytes[100])
-IMMUTABLE_SLICE: immutable(Bytes[100])
+IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
+IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
 @external
-def __init__(inp: Bytes[100], start: uint256, length: uint256):
+def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
     IMMUTABLE_BYTES = inp
     IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
 
 @external
-def do_splice() -> Bytes[100]:
+def do_splice() -> Bytes[{length_bound}]:
     return IMMUTABLE_SLICE
     """
 
+    def _get_contract():
+        return get_contract(code, bytesdata, start, length)
+
     if (
-        (start + length > 100 and literal_start and literal_length)
-        or (literal_length and length > 100)
-        or (literal_start and start > 100)
+        (start + length > length_bound and literal_start and literal_length)
+        or (literal_length and length > length_bound)
+        or (literal_start and start > length_bound)
         or (literal_length and length < 1)
     ):
-        assert_compile_failed(
-            lambda: get_contract(code, bytesdata, start, length), ArgumentException
-        )
-    elif start + length > len(bytesdata):
-        assert_tx_failed(lambda: get_contract(code, bytesdata, start, length))
+        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+    elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
+        # deploy fail
+        assert_tx_failed(lambda: _get_contract())
     else:
-        c = get_contract(code, bytesdata, start, length)
+        c = _get_contract()
         assert c.do_splice() == bytesdata[start : start + length]
 
 
 @pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
-@pytest.mark.parametrize("bytesdata", _bytes_examples)
-@pytest.mark.parametrize("start", _fun_numbers)
 @pytest.mark.parametrize("literal_start", (True, False))
-@pytest.mark.parametrize("length", _fun_numbers)
 @pytest.mark.parametrize("literal_length", (True, False))
-@pytest.mark.fuzzing
+@given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
+@settings(max_examples=25, deadline=None)
 def test_slice_bytes(
     get_contract,
     assert_compile_failed,
@@ -97,9 +96,10 @@ def test_slice_bytes(
     literal_start,
     length,
     literal_length,
+    length_bound,
 ):
     if location == "memory":
-        spliced_code = "foo: Bytes[100] = inp"
+        spliced_code = f"foo: Bytes[{length_bound}] = inp"
         foo = "foo"
     elif location == "storage":
         spliced_code = "self.foo = inp"
@@ -120,31 +120,38 @@ def test_slice_bytes(
     _length = length if literal_length else "length"
 
     code = f"""
-foo: Bytes[100]
-IMMUTABLE_BYTES: immutable(Bytes[100])
+foo: Bytes[{length_bound}]
+IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 @external
-def __init__(foo: Bytes[100]):
+def __init__(foo: Bytes[{length_bound}]):
     IMMUTABLE_BYTES = foo
 
 @external
-def do_slice(inp: Bytes[100], start: uint256, length: uint256) -> Bytes[100]:
+def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Bytes[{length_bound}]:
     {spliced_code}
     return slice({foo}, {_start}, {_length})
     """
 
-    length_bound = len(bytesdata) if location == "literal" else 100
+    def _get_contract():
+        return get_contract(code, bytesdata)
+
+    data_length = len(bytesdata) if location == "literal" else length_bound
     if (
-        (start + length > length_bound and literal_start and literal_length)
-        or (literal_length and length > length_bound)
-        or (literal_start and start > length_bound)
+        (start + length > data_length and literal_start and literal_length)
+        or (literal_length and length > data_length)
+        or (location == "literal" and len(bytesdata) > length_bound)
+        or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
-        assert_compile_failed(lambda: get_contract(code, bytesdata), ArgumentException)
+        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+    elif len(bytesdata) > data_length:
+        # deploy fail
+        assert_tx_failed(lambda: _get_contract())
     elif start + length > len(bytesdata):
-        c = get_contract(code, bytesdata)
+        c = _get_contract()
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
     else:
-        c = get_contract(code, bytesdata)
+        c = _get_contract()
         assert c.do_slice(bytesdata, start, length) == bytesdata[start : start + length], code
 
 

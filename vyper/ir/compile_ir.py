@@ -309,6 +309,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return o
 
     # batch copy from data section of the currently executing code to memory
+    # (probably should have named this dcopy but oh well)
     elif code.value == "dloadbytes":
         dst = code.args[0]
         src = code.args[1]

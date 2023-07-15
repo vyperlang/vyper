@@ -89,6 +89,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
+    "MCOPY": (0x5E, 3, 0, (None, None, None, None, None, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
@@ -171,8 +172,8 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, 100),
-    "TSTORE": (0x5D, 2, 0, 100),
+    "TLOAD": (0x5C, 1, 1, (None, None, None, None, None, 100)),
+    "TSTORE": (0x5D, 2, 0, (None, None, None, None, None, 100)),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
