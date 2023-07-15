@@ -1047,7 +1047,7 @@ class AsWeiValue(BuiltinFunction):
 
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
-            if value.typ in (UINT256_T, UINT8_T):
+            if value.typ in IntegerT.unsigneds():
                 sub = [
                     "with",
                     "ans",
@@ -1061,10 +1061,28 @@ class AsWeiValue(BuiltinFunction):
                         "ans",
                     ],
                 ]
-            elif value.typ == INT128_T:
-                # signed types do not require bounds checks because the
-                # largest possible converted value will not overflow 2**256
-                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            elif value.typ in IntegerT.signeds():
+                sub = [
+                    "with",
+                    "ans",
+                    ["mul", value, denom_divisor],
+                    [
+                        "seq",
+                        [
+                            "assert",
+                            [
+                                "and",
+                                ["sgt", value, -1],
+                                [
+                                    "or",
+                                    ["eq", ["div", "ans", value], denom_divisor],
+                                    ["iszero", value],
+                                ],
+                            ],
+                        ],
+                        "ans",
+                    ],
+                ]
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
