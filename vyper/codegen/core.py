@@ -957,6 +957,7 @@ def _complex_make_setter(left, right):
                 # kind of arbitrary, but cut off when code used > ~160 bytes
                 should_batch_copy = len_ >= 32 * 10
             else:
+                assert _opt_none()
                 # don't care, just generate the most readable version
                 should_batch_copy = True
         else:
