@@ -1,6 +1,11 @@
+import contextlib
+from typing import Generator
+
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
     AddressT,
@@ -19,13 +24,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
-from vyper.utils import (
-    GAS_CALLDATACOPY_WORD,
-    GAS_CODECOPY_WORD,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-    ceil32,
-)
+from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
@@ -90,12 +89,16 @@ def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
 
 
+def _mcopy_gas_bound(num_bytes):
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
+
+
 def _calldatacopy_gas_bound(num_bytes):
-    return GAS_CALLDATACOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 def _codecopy_gas_bound(num_bytes):
-    return GAS_CODECOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 # Copy byte array word-for-word (including layout)
@@ -258,7 +261,6 @@ def copy_bytes(dst, src, length, length_bound):
         assert src.is_pointer and dst.is_pointer
 
         # fast code for common case where num bytes is small
-        # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
             copy_op = STORE(dst, LOAD(src))
             ret = IRnode.from_list(copy_op, annotation=annotation)
@@ -268,8 +270,12 @@ def copy_bytes(dst, src, length, length_bound):
             # special cases: batch copy to memory
             # TODO: iloadbytes
             if src.location == MEMORY:
-                copy_op = ["staticcall", "gas", 4, src, length, dst, length]
-                gas_bound = _identity_gas_bound(length_bound)
+                if version_check(begin="cancun"):
+                    copy_op = ["mcopy", dst, src, length]
+                    gas_bound = _mcopy_gas_bound(length_bound)
+                else:
+                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
@@ -876,6 +882,38 @@ def make_setter(left, right):
     return _complex_make_setter(left, right)
 
 
+_opt_level = OptimizationLevel.GAS
+
+
+@contextlib.contextmanager
+def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
+    """
+    Set the global optimization level variable for the duration of this
+    context manager.
+    """
+    assert isinstance(new_level, OptimizationLevel)
+
+    global _opt_level
+    try:
+        tmp = _opt_level
+        _opt_level = new_level
+        yield
+    finally:
+        _opt_level = tmp
+
+
+def _opt_codesize():
+    return _opt_level == OptimizationLevel.CODESIZE
+
+
+def _opt_gas():
+    return _opt_level == OptimizationLevel.GAS
+
+
+def _opt_none():
+    return _opt_level == OptimizationLevel.NONE
+
+
 def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
@@ -891,11 +929,69 @@ def _complex_make_setter(left, right):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    # if len(keyz) == 0:
-    #    return IRnode.from_list(["pass"])
+    if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+        # both left and right are pointers, see if we want to batch copy
+        # instead of unrolling the loop.
+        assert left.encoding == Encoding.VYPER
+        len_ = left.typ.memory_bytes_required
 
-    # general case
-    # TODO use copy_bytes when the generated code is above a certain size
+        has_storage = STORAGE in (left.location, right.location)
+        if has_storage:
+            if _opt_codesize():
+                # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
+                # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
+                # whereas loop overhead is 16-17 bytes.
+                base_cost = 3
+                if left._optimized.is_literal:
+                    # code size is smaller since add is performed at compile-time
+                    base_cost += 1
+                if right._optimized.is_literal:
+                    base_cost += 1
+                # the formula is a heuristic, but it works.
+                # (CMC 2023-07-14 could get more detailed for PUSH1 vs
+                # PUSH2 etc but not worried about that too much now,
+                # it's probably better to add a proper unroll rule in the
+                # optimizer.)
+                should_batch_copy = len_ >= 32 * base_cost
+            elif _opt_gas():
+                # kind of arbitrary, but cut off when code used > ~160 bytes
+                should_batch_copy = len_ >= 32 * 10
+            else:
+                assert _opt_none()
+                # don't care, just generate the most readable version
+                should_batch_copy = True
+        else:
+            # find a cutoff for memory copy where identity is cheaper
+            # than unrolled mloads/mstores
+            # if MCOPY is available, mcopy is *always* better (except in
+            # the 1 word case, but that is already handled by copy_bytes).
+            if right.location == MEMORY and _opt_gas() and not version_check(begin="cancun"):
+                # cost for 0th word - (mstore dst (mload src))
+                base_unroll_cost = 12
+                nth_word_cost = base_unroll_cost
+                if not left._optimized.is_literal:
+                    # (mstore (add N dst) (mload src))
+                    nth_word_cost += 6
+                if not right._optimized.is_literal:
+                    # (mstore dst (mload (add N src)))
+                    nth_word_cost += 6
+
+                identity_base_cost = 115  # staticcall 4 gas dst len src len
+
+                n_words = ceil32(len_) // 32
+                should_batch_copy = (
+                    base_unroll_cost + (nth_word_cost * (n_words - 1)) >= identity_base_cost
+                )
+
+            # calldata to memory, code to memory, cancun, or codesize -
+            # batch copy is always better.
+            else:
+                should_batch_copy = True
+
+        if should_batch_copy:
+            return copy_bytes(left, right, len_, len_)
+
+    # general case, unroll
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
