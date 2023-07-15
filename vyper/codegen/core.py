@@ -110,25 +110,25 @@ def make_byte_array_copier(dst, src):
     _check_assign_bytes(dst, src)
 
     # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.value == "~empty":
+    if src.typ.maxlen == 0:
         # set length word to 0.
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-            max_bytes = src.typ.maxlen
-
+        if _opt_gas() and not version_check(begin="cancun") and src.typ.maxlen <= 32:
+            # it's cheaper to run two load/stores instead of batch copy
+            len_ = get_bytearray_length(src)
+            dst_data = get_bytearray_ptr(dst)
+            src_data = get_bytearray_ptr(src)
             ret = ["seq"]
-
-            dst_ = bytes_data_ptr(dst)
-            src_ = bytes_data_ptr(src)
-
-            ret.append(copy_bytes(dst_, src_, len_, max_bytes))
-
-            # store length
             ret.append(STORE(dst, len_))
-
+            ret.append(STORE(dst_data, src_data))
             return b1.resolve(b2.resolve(ret))
+
+        len_ = add_ofst(get_bytearray_length(src), 32)
+        max_bytes = src.typ.maxlen + 32
+        ret = copy_bytes(dst, src, len_, max_bytes)
+        return b1.resolve(ret)
 
 
 def bytes_data_ptr(ptr):
