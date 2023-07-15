@@ -3,6 +3,7 @@
 from typing import Any, List
 
 from vyper.codegen import jumptable
+from vyper.codegen import core
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
@@ -279,9 +280,7 @@ def _selector_section_sparse(external_functions, global_ctx):
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
 
-    # XXX: AWAITING MCOPY PR
-    # if n_buckets > 1 or core._opt_none():
-    if n_buckets > 1:
+    if n_buckets > 1 or core._opt_none():
         bucket_id = ["mod", "_calldata_method_id", n_buckets]
         bucket_hdr_location = [
             "add",
@@ -387,10 +386,8 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
-    # XXX: AWAITING MCOPY PR
     # dense vs sparse global overhead is amortized after about 4 methods
-    dense = False  # if core._opt_codesize() and len(external_functions) > 4:
-    if dense:
+    if core._opt_codesize() and len(external_functions) > 4:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:
         selector_section = _selector_section_sparse(external_functions, global_ctx)
