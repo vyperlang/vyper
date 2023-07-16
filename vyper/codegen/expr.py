@@ -5,6 +5,7 @@ import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    _freshname,
     clamp,
     ensure_in_memory,
     get_dyn_array_count,
@@ -50,13 +51,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
-from vyper.utils import (
-    DECIMAL_DIVISOR,
-    bytes_to_int,
-    is_checksum_encoded,
-    string_to_bytes,
-    vyper_warn,
-)
+from vyper.utils import DECIMAL_DIVISOR, is_checksum_encoded, string_to_bytes, vyper_warn
 
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -137,21 +132,20 @@ class Expr:
 
     def _make_bytelike(self, btype, bytez, bytez_length):
         placeholder = self.context.new_internal_variable(btype)
-        seq = []
-        seq.append(["mstore", placeholder, bytez_length])
-        for i in range(0, len(bytez), 32):
-            seq.append(
-                [
-                    "mstore",
-                    ["add", placeholder, i + 32],
-                    bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
-                ]
-            )
+        ret = ["seq"]
+        assert isinstance(bytez, bytes)
+        label = _freshname("bytesdata")
+        len_ = len(bytez)
+        # NOTE: addl opportunities for optimization:
+        # - intern repeated bytestrings
+        # - instantiate into memory lazily, pass around bytestring
+        #   literals in IR.
+        ret.append(["data", label, bytez])
+        ret.append(["codecopy", placeholder + 32, ["symbol", label], len_])
+        ret.append(["mstore", placeholder, len_])
+        ret.append(placeholder)
         return IRnode.from_list(
-            ["seq"] + seq + [placeholder],
-            typ=btype,
-            location=MEMORY,
-            annotation=f"Create {btype}: {bytez}",
+            ret, typ=btype, location=MEMORY, annotation=f"Create {btype}: {repr(bytez)}"
         )
 
     # True, False, None constants

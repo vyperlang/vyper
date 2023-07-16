@@ -159,6 +159,7 @@ def hex_to_int(inp):
 
 
 # Converts bytes to an integer
+# TODO: use int.from_bytes
 def bytes_to_int(bytez):
     o = 0
     for b in bytez:
