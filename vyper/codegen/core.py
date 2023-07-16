@@ -121,11 +121,12 @@ def make_byte_array_copier(dst, src):
         if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
             # it's cheaper to run two load/stores instead of copy_bytes
             len_ = get_bytearray_length(src)
-            dst_data = bytes_data_ptr(dst)
-            src_data = LOAD(bytes_data_ptr(src))
             ret = ["seq"]
             ret.append(STORE(dst, len_))
-            ret.append(STORE(dst_data, src_data))
+
+            dst_data_ptr = bytes_data_ptr(dst)
+            src_data_ptr = bytes_data_ptr(src)
+            ret.append(STORE(dst_data_ptr, LOAD(src_data_ptr)))
             return b1.resolve(ret)
 
         len_ = add_ofst(get_bytearray_length(src), 32)
