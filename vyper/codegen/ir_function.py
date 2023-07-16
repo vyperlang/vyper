@@ -20,7 +20,7 @@ class IRFunction(IRFunctionBase):
     Function that contains basic blocks.
     """
 
-    basic_blocks: list
+    basic_blocks: list["IRBasicBlock"]
     last_label: int
     last_variable: int
 

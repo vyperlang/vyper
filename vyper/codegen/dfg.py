@@ -50,8 +50,8 @@ class DFGNode:
         self.successors = []
 
 
-dfg_inputs = {}
-dfg_outputs = {}
+dfg_inputs = {str: IRInstruction}
+dfg_outputs = {str: IRInstruction}
 
 NOT_IN_STACK = 1
 
@@ -106,13 +106,13 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
             for op in operands:
                 op.use_count += 1
-                dfg_inputs[op] = inst
+                dfg_inputs[op.value] = inst
 
             for op in res:
-                dfg_outputs[op] = inst
+                dfg_outputs[op.value] = inst
 
 
-visited_instructions = set()
+visited_instructions = {IRInstruction}
 
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
@@ -130,8 +130,8 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
             block_a = ctx.get_basic_block(inst.operands[0].value)
             block_b = ctx.get_basic_block(inst.operands[2].value)
 
-            block_a.phi_vars[ret_op] = (inst.operands[1], inst.operands[3])
-            block_b.phi_vars[ret_op] = (inst.operands[3], inst.operands[1])
+            block_a.phi_vars[ret_op.value] = inst.operands[3]
+            block_b.phi_vars[ret_op.value] = inst.operands[1]
 
     for i, bb in enumerate(ctx.basic_blocks):
         if i != 0:
@@ -150,7 +150,7 @@ def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: list[str]
 ) -> None:
     for op in inst.get_output_operands():
-        target = dfg_inputs[op]
+        target = dfg_inputs[op.value]
         if target.parent != inst.parent:
             continue
         _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
@@ -237,4 +237,4 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.append(op)
             continue
-        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op], stack_map)
+        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)

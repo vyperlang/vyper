@@ -135,7 +135,7 @@ class IRInstruction:
     def get_use_count_correction(self, op: IROperant) -> int:
         use_count_correction = 0
         for phi in self.parent.phi_vars.values():
-            if phi[1] == op:
+            if phi == op:
                 use_count_correction += 1
         return use_count_correction
 
@@ -187,7 +187,7 @@ class IRBasicBlock:
     in_set: set["IRBasicBlock"]
     out_set: set["IRBasicBlock"]
     out_vars: set[IRVariable]
-    phi_vars: dict[IRVariable, IRVariable]
+    phi_vars: dict[str:IRVariable]
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
