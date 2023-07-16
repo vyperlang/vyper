@@ -120,15 +120,19 @@ def make_byte_array_copier(dst, src):
         batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
         if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
             # it's cheaper to run two load/stores instead of copy_bytes
-            len_ = get_bytearray_length(src)
+
             ret = ["seq"]
+            # store length word
+            len_ = get_bytearray_length(src)
             ret.append(STORE(dst, len_))
 
+            # store the 1 word of data
             dst_data_ptr = bytes_data_ptr(dst)
             src_data_ptr = bytes_data_ptr(src)
             ret.append(STORE(dst_data_ptr, LOAD(src_data_ptr)))
             return b1.resolve(ret)
 
+        # batch copy the length word + data using copy_bytes.
         len_ = add_ofst(get_bytearray_length(src), 32)
         max_bytes = src.typ.maxlen + 32
         ret = copy_bytes(dst, src, len_, max_bytes)
@@ -226,6 +230,7 @@ def _dynarray_make_setter(dst, src):
                 n_bytes = add_ofst(_mul(count, element_size), 32)
                 max_bytes = 32 + src.typ.count * element_size
 
+                # copy the entire dynarray, including length word
                 ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
 
             return b1.resolve(b2.resolve(ret))
