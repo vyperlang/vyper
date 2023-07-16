@@ -110,18 +110,19 @@ def make_byte_array_copier(dst, src):
     _check_assign_bytes(dst, src)
 
     # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.typ.maxlen == 0:
+    if src.value == "~empty" or src.typ.maxlen == 0:
         # set length word to 0.
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
         has_storage = STORAGE in (src.location, dst.location)
-        batch_uses_identity = dst.location == src.location == MEMORY and not version_check(begin="cancun")
+        is_memory_copy = dst.location == src.location == MEMORY
+        batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
         if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
             # it's cheaper to run two load/stores instead of copy_bytes
             len_ = get_bytearray_length(src)
             dst_data = bytes_data_ptr(dst)
-            src_data = bytes_data_ptr(src)
+            src_data = LOAD(bytes_data_ptr(src))
             ret = ["seq"]
             ret.append(STORE(dst, len_))
             ret.append(STORE(dst_data, src_data))
@@ -225,7 +226,6 @@ def _dynarray_make_setter(dst, src):
                 max_bytes = 32 + src.typ.count * element_size
 
                 ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
-
 
             return b1.resolve(b2.resolve(ret))
 
