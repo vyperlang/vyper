@@ -32,36 +32,6 @@ class Bucket:
         return len(self.method_ids)
 
 
-_PRIMES: list[int] = []
-
-
-# https://stackoverflow.com/a/568618/ but cache found data and
-# with comments removed
-# XXX: probably don't really want to use primes but keep this
-# for a bit just in case
-def _gen_primes():
-    """Generate an infinite sequence of prime numbers."""
-    D = {}
-    q = 2
-    i = 0
-
-    while True:
-        if q < len(_PRIMES):
-            yield _PRIMES[i]
-        else:
-            if q not in D:
-                _PRIMES.append(q)
-                yield q
-                D[q * q] = [q]
-            else:
-                for p in D[q]:
-                    D.setdefault(p + q, []).append(p)
-                del D[q]
-
-        i += 1
-        q += 1
-
-
 BITS_MAGIC = 24  # a constant which produced good results, see _bench()
 
 
@@ -78,9 +48,6 @@ class _Failure(Exception):
 
 
 def find_magic_for(xs):
-    # for i, m in enumerate(_gen_primes()):
-    #    if i >= 2**16:
-    #        break
     for m in range(2**16):
         test = _image_of(xs, m)
         if len(test) == len(set(test)):
