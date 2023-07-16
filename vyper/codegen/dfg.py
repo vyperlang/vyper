@@ -197,12 +197,22 @@ def _generate_evm_for_instruction_r(
 
     for j in range(i, len(operands)):
         op = operands[j]
+        final_stack_depth = -(len(operands) - j - 1)
         depth = stack_map_get_depth_in(stack_map, op)
-        is_in_place = depth == 0
+        is_in_place = depth == final_stack_depth
 
         if not is_in_place:
-            assembly.append(f"SWAP{-depth}")
-            stack_map_swap(stack_map, -depth)
+            if final_stack_depth == 0:
+                assembly.append(f"SWAP{-depth}")
+                stack_map_swap(stack_map, -depth)
+            elif depth == 0:
+                assembly.append(f"SWAP{-final_stack_depth}")
+                stack_map_swap(stack_map, -final_stack_depth)
+            else:
+                assembly.append(f"SWAP{-depth}")
+                stack_map_swap(stack_map, -depth)
+                assembly.append(f"SWAP{-final_stack_depth}")
+                stack_map_swap(stack_map, -final_stack_depth)
 
     ### BEGIN STACK HANDLING CASES ###
     # if len(operands) == 1:
