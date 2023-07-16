@@ -222,7 +222,7 @@ def _dynarray_make_setter(dst, src):
 
             else:
                 element_size = src.typ.value_type.memory_bytes_required
-                # number of elements * size of element in bytes
+                # number of elements * size of element in bytes + length word
                 n_bytes = add_ofst(_mul(count, element_size), 32)
                 max_bytes = 32 + src.typ.count * element_size
 
