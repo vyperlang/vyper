@@ -183,8 +183,6 @@ def _generate_evm_for_instruction_r(
             stack_map_dup(stack_map, -depth)
             op.use_count -= 1
 
-    copy_count = 0
-    i = 0
     for i in range(len(operands)):
         op = operands[i]
         final_stack_depth = -(len(operands) - i - 1)
@@ -192,7 +190,6 @@ def _generate_evm_for_instruction_r(
         assert depth != NOT_IN_STACK, "Operand not in stack"
         in_place_op = stack_map_peek(stack_map, -final_stack_depth)
         is_in_place = in_place_op.value == op.value
-        # is_in_place = depth == final_stack_depth
 
         if not is_in_place:
             if final_stack_depth == 0 and depth != 0:
@@ -229,10 +226,6 @@ def _generate_evm_for_instruction_r(
         pass
     else:
         raise Exception(f"Unknown opcode: {opcode}")
-
-    for i in range(copy_count):
-        assembly.append("SWAP1")
-        assembly.append("POP")
 
 
 def _emit_input_operands(
