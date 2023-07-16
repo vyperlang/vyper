@@ -190,22 +190,15 @@ def _generate_evm_for_instruction_r(
         final_stack_depth = -(len(operands) - i - 1)
         depth = stack_map_get_depth_in(stack_map, op)
         assert depth != NOT_IN_STACK, "Operand not in stack"
-        is_in_place = depth == final_stack_depth
+        in_place_op = stack_map_peek(stack_map, -final_stack_depth)
+        is_in_place = in_place_op.value == op.value
+        # is_in_place = depth == final_stack_depth
 
         if not is_in_place:
-            break
-
-    for j in range(i, len(operands)):
-        op = operands[j]
-        final_stack_depth = -(len(operands) - j - 1)
-        depth = stack_map_get_depth_in(stack_map, op)
-        is_in_place = depth == final_stack_depth
-
-        if not is_in_place:
-            if final_stack_depth == 0:
+            if final_stack_depth == 0 and depth != 0:
                 assembly.append(f"SWAP{-depth}")
                 stack_map_swap(stack_map, -depth)
-            elif depth == 0:
+            elif final_stack_depth != 0 and depth == 0:
                 assembly.append(f"SWAP{-final_stack_depth}")
                 stack_map_swap(stack_map, -final_stack_depth)
             else:
