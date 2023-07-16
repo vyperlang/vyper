@@ -53,45 +53,65 @@ class DFGNode:
 dfg_inputs = {str: IRInstruction}
 dfg_outputs = {str: IRInstruction}
 
-NOT_IN_STACK = 1
 
+class StackMap:
+    NOT_IN_STACK = 1
+    stack_map: list[str]
+    assembly: list[str]
 
-def stack_map_get_depth_in(stack_map: list[str], op: IROperant) -> int:
-    """
-    Returns the depth of the first matching operand in the stack map.
-    If the operand is not in the stack map, returns NOT_IN_STACK.
-    """
-    for i, stack_op in enumerate(stack_map[::-1]):
-        if isinstance(stack_op, IROperant) and stack_op.value == op.value:
-            return -i
+    def __init__(self, assembly: list[str]):
+        self.stack_map = []
+        self.assembly = assembly
 
-    return NOT_IN_STACK
+    def get_height(self) -> int:
+        """
+        Returns the height of the stack map.
+        """
+        return len(self.stack_map)
 
+    def push(self, op: IROperant) -> None:
+        """
+        Pushes an operand onto the stack map.
+        """
+        self.stack_map.append(op)
 
-def stack_map_peek(stack_map: list[str], depth: int) -> IROperant:
-    """
-    Returns the top of the stack map.
-    """
-    return stack_map[-depth - 1]
+    def pop(self, num: int = 1) -> None:
+        del self.stack_map[len(self.stack_map) - num :]
 
+    def get_depth_in(self, op: IROperant) -> int:
+        """
+        Returns the depth of the first matching operand in the stack map.
+        If the operand is not in the stack map, returns NOT_IN_STACK.
+        """
+        for i, stack_op in enumerate(self.stack_map[::-1]):
+            if isinstance(stack_op, IROperant) and stack_op.value == op.value:
+                return -i
 
-def stack_map_poke(stack_map: list[str], depth: int, op: IROperant) -> None:
-    """
-    Pokes an operand at the given depth in the stack map.
-    """
-    stack_map[-depth - 1] = op
+        return StackMap.NOT_IN_STACK
 
+    def peek(self, depth: int) -> IROperant:
+        """
+        Returns the top of the stack map.
+        """
+        return self.stack_map[-depth - 1]
 
-def stack_map_dup(stack_map: list[str], depth: int) -> None:
-    stack_map.append(stack_map_peek(stack_map, depth))
+    def poke(self, depth: int, op: IROperant) -> None:
+        """
+        Pokes an operand at the given depth in the stack map.
+        """
+        self.stack_map[-depth - 1] = op
 
+    def dup(self, depth: int) -> None:
+        # assert depth < 0, "Cannot dup positive depth"
+        self.assembly.append(f"DUP{-depth+1}")
+        self.stack_map.append(self.peek(-depth))
 
-def stack_map_swap(stack_map: list[str], depth: int) -> None:
-    stack_map[-depth - 1], stack_map[-1] = stack_map[-1], stack_map[-depth - 1]
-
-
-def stack_map_pop(stack_map: list[str]) -> None:
-    stack_map.pop()
+    def swap(self, depth: int) -> None:
+        self.assembly.append(f"SWAP{depth}")
+        self.stack_map[depth - 1], self.stack_map[-1] = (
+            self.stack_map[-1],
+            self.stack_map[depth - 1],
+        )
 
 
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
@@ -117,7 +137,7 @@ visited_instructions = {IRInstruction}
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     assembly = []
-    stack_map = []
+    stack_map = StackMap(assembly)
     convert_ir_to_dfg(ctx)
 
     for bb in ctx.basic_blocks:
@@ -147,7 +167,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 
 def _generate_evm_for_instruction_r(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: list[str]
+    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> None:
     for op in inst.get_output_operands():
         target = dfg_inputs[op.value]
@@ -176,38 +196,33 @@ def _generate_evm_for_instruction_r(
         # final_stack_depth = -(len(operands) - i - 1)
         ucc = inst.get_use_count_correction(op)
         assert op.use_count >= ucc, "Operand used up"
-        depth = stack_map_get_depth_in(stack_map, op)
-        assert depth != NOT_IN_STACK, "Operand not in stack"
+        depth = stack_map.get_depth_in(op)
+        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         needs_copy = op.use_count - ucc > 1
         if needs_copy:
-            assembly.append(f"DUP{-depth+1}")
-            stack_map_dup(stack_map, -depth)
+            stack_map.dup(depth)
             op.use_count -= 1
 
     for i in range(len(operands)):
         op = operands[i]
         final_stack_depth = -(len(operands) - i - 1)
-        depth = stack_map_get_depth_in(stack_map, op)
-        assert depth != NOT_IN_STACK, "Operand not in stack"
-        in_place_op = stack_map_peek(stack_map, -final_stack_depth)
+        depth = stack_map.get_depth_in(op)
+        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        in_place_op = stack_map.peek(-final_stack_depth)
         is_in_place = in_place_op.value == op.value
 
         if not is_in_place:
             if final_stack_depth == 0 and depth != 0:
-                assembly.append(f"SWAP{-depth}")
-                stack_map_swap(stack_map, -depth)
+                stack_map.swap(depth)
             elif final_stack_depth != 0 and depth == 0:
-                assembly.append(f"SWAP{-final_stack_depth}")
-                stack_map_swap(stack_map, -final_stack_depth)
+                stack_map.swap(final_stack_depth)
             else:
-                assembly.append(f"SWAP{-depth}")
-                stack_map_swap(stack_map, -depth)
-                assembly.append(f"SWAP{-final_stack_depth}")
-                stack_map_swap(stack_map, -final_stack_depth)
+                stack_map.swap(depth)
+                stack_map.swap(final_stack_depth)
 
-    del stack_map[len(stack_map) - len(operands) :]
+    stack_map.pop(len(operands))
     if inst.ret is not None:
-        stack_map.append(inst.ret)
+        stack_map.push(inst.ret)
 
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
@@ -230,11 +245,11 @@ def _generate_evm_for_instruction_r(
 
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, ops: list[IROperant], stack_map: list[str]
+    ctx: IRFunction, assembly: list, ops: list[IROperant], stack_map: StackMap
 ) -> None:
     for op in ops:
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
-            stack_map.append(op)
+            stack_map.push(op)
             continue
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
