@@ -157,6 +157,12 @@ def _add_postambles(asm_ops):
         # shared failure block
         to_append.extend(_revert_string)
 
+    _revertdata_label = "_sym_propagate_revert_data"
+    _revertdata_string = [_revertdata_label, "JUMPDEST", "RETURNDATASIZE", *PUSH(0), *PUSH(0), "RETURNDATACOPY", "RETURNDATASIZE", "REVERT"]
+    if _revertdata_label in asm_ops:
+        # shared failure block
+        to_append.extend(_revertdata_string)
+
     if len(to_append) > 0:
         # for some reason there might not be a STOP at the end of asm_ops.
         # (generally vyper programs will have it but raw IR might not).

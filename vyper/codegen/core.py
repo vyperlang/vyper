@@ -77,10 +77,15 @@ def get_type_for_exact_size(n_bytes):
 
 # propagate revert message when calls to external contracts fail
 def check_external_call(call_ir):
+    if _opt_codesize():
+        ret = ["jumpi", ["symbol", "propagate_revert_data"], ["iszero", call_ir]]
+        return IRnode.from_list(ret, error_msg="external call failed")
+
     copy_revertdata = ["returndatacopy", 0, 0, "returndatasize"]
     revert = IRnode.from_list(["revert", 0, "returndatasize"], error_msg="external call failed")
 
     propagate_revert_ir = ["seq", copy_revertdata, revert]
+
     return ["if", ["iszero", call_ir], propagate_revert_ir]
 
 
