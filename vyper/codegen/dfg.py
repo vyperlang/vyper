@@ -115,7 +115,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 visited_instructions = set()
 
 
-def generate_evm(ctx: IRFunction) -> list[str]:
+def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     assembly = []
     stack_map = []
     convert_ir_to_dfg(ctx)
@@ -140,7 +140,8 @@ def generate_evm(ctx: IRFunction) -> list[str]:
         for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
 
-    optimize_assembly(assembly)
+    if no_optimize == False:
+        optimize_assembly(assembly)
 
     return assembly
 

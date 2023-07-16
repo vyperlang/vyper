@@ -153,14 +153,14 @@ class CompilerData:
     @cached_property
     def assembly(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(self.ir_nodes)
+            return generate_assembly_experimental(self.ir_nodes, self.no_optimize)
         else:
             return generate_assembly(self.ir_nodes, self.no_optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(self.ir_runtime)
+            return generate_assembly_experimental(self.ir_runtime, self.no_optimize)
         else:
             return generate_assembly(self.ir_runtime, self.no_optimize)
 

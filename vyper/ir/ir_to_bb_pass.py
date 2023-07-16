@@ -21,12 +21,12 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return {k: [a[k], b[k]] for k in a.keys() & b.keys() if a[k] != b[k]}
 
 
-def generate_assembly_experimental(ir: IRnode) -> list[str]:
+def generate_assembly_experimental(ir: IRnode, no_optimize: bool = False) -> list[str]:
     global_function = convert_ir_basicblock(ir)
-    return generate_evm(global_function)
+    return generate_evm(global_function, no_optimize)
 
 
-def convert_ir_basicblock(ir: IRnode) -> IRFunction:
+def convert_ir_basicblock(ir: IRnode, no_optimize: bool = False) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir)
 
@@ -39,10 +39,14 @@ def convert_ir_basicblock(ir: IRnode) -> IRFunction:
 
     # TODO: can be split into a new pass
     _calculate_in_set(global_function)
+
     while True:
         _calculate_liveness(global_function.basic_blocks[0], set())
 
         # Optimization pass: Remove unused variables
+        if no_optimize:
+            break
+
         removed = _optimize_unused_variables(global_function)
         if len(removed) == 0:
             break
