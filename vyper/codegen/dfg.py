@@ -102,11 +102,12 @@ class StackMap:
         self.stack_map[-depth - 1] = op
 
     def dup(self, depth: int) -> None:
-        # assert depth < 0, "Cannot dup positive depth"
+        assert depth <= 0, "Cannot dup positive depth"
         self.assembly.append(f"DUP{-depth+1}")
         self.stack_map.append(self.peek(-depth))
 
     def swap(self, depth: int) -> None:
+        assert depth < 0, "Cannot swap positive depth"
         self.assembly.append(f"SWAP{depth}")
         self.stack_map[depth - 1], self.stack_map[-1] = (
             self.stack_map[-1],
