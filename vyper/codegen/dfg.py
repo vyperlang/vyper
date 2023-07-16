@@ -171,91 +171,124 @@ def _generate_evm_for_instruction_r(
 
     _emit_input_operands(ctx, assembly, operands, stack_map)
 
-    ### BEGIN STACK HANDLING CASES ###
-    if len(operands) == 1:
-        op = operands[0]
+    for op in operands:
+        # final_stack_depth = -(len(operands) - i - 1)
         ucc = inst.get_use_count_correction(op)
         assert op.use_count >= ucc, "Operand used up"
         depth = stack_map_get_depth_in(stack_map, op)
         assert depth != NOT_IN_STACK, "Operand not in stack"
         needs_copy = op.use_count - ucc > 1
-        in_place = depth == 0
-        if in_place:
-            if needs_copy:
-                assembly.append("DUP1")
-                stack_map_dup(stack_map, 0)
-        else:
-            if needs_copy:
-                assembly.append(f"DUP{-depth+1}")
-                stack_map_dup(stack_map, -depth)
-            assembly.append(f"SWAP1")
-            stack_map_swap(stack_map, -depth)
-
         if needs_copy:
+            assembly.append(f"DUP{-depth+1}")
+            stack_map_dup(stack_map, -depth)
             op.use_count -= 1
 
-    elif len(operands) == 2:
-        op0, op1 = operands[0], operands[1]
-        ucc0, ucc1 = inst.get_use_count_correction(op0), inst.get_use_count_correction(op1)
-        assert op0.use_count >= ucc0, "Operand 0 used up"
-        assert op1.use_count >= ucc1, "Operand 1 used up"
-        depth0 = stack_map_get_depth_in(stack_map, op0)
-        depth1 = stack_map_get_depth_in(stack_map, op1)
-        assert depth0 != NOT_IN_STACK, f"Operand {op0} not in stack"
-        assert depth1 != NOT_IN_STACK, f"Operand {op1} not in stack"
-        needs_copy0 = op0.use_count - ucc0 > 1
-        needs_copy1 = op1.use_count - ucc1 > 1
-        in_place0 = depth0 == -1
-        in_place1 = depth1 == 0
-        if in_place0 and in_place1:
-            if needs_copy0:
-                assembly.append(f"DUP{-depth0+1}")
-                stack_map_dup(stack_map, -depth0)
-                assembly.append(f"SWAP1")
-                stack_map_swap(stack_map, 1)
-            if needs_copy1:
-                assembly.append(f"DUP{-depth1+1}")
-                stack_map_dup(stack_map, -depth1)
-                assembly.append(f"SWAP2")
-                stack_map_swap(stack_map, 2)
-                assembly.append(f"SWAP1")
-                stack_map_swap(stack_map, 1)
-            # else:
-            #     assembly.append(f"SWAP1")
-            #     stack_map_swap(stack_map, 1)
-        else:
-            if needs_copy0:
-                assembly.append(f"DUP{-depth0+1}")
-                stack_map_dup(stack_map, -depth0)
-            else:
-                if depth0 != 0:
-                    assembly.append(f"SWAP{-depth0}")
-                    stack_map_swap(stack_map, -depth0)
-            assembly.append(f"SWAP1")
-            stack_map_swap(stack_map, 1)
+    copy_count = 0
+    i = 0
+    for i in range(len(operands)):
+        op = operands[i]
+        final_stack_depth = -(len(operands) - i - 1)
+        depth = stack_map_get_depth_in(stack_map, op)
+        assert depth != NOT_IN_STACK, "Operand not in stack"
+        is_in_place = depth == final_stack_depth
 
-            depth1 = stack_map_get_depth_in(stack_map, op1)
-            in_place1 = depth1 == 0
+        if not is_in_place:
+            break
 
-            if needs_copy1:
-                if not in_place1:
-                    assembly.append(f"SWAP{-depth1}")
-                    stack_map_swap(stack_map, -depth1)
-                assembly.append(f"DUP1")
-                stack_map_dup(stack_map, 0)
-                assembly.append(f"SWAP2")
-                stack_map_swap(stack_map, 2)
-                assembly.append(f"SWAP1")
-                stack_map_swap(stack_map, 1)
-            else:
-                if not in_place1:
-                    assembly.append(f"SWAP{-depth1}")
-                    stack_map_swap(stack_map, -depth1)
+    for j in range(i, len(operands)):
+        op = operands[j]
+        depth = stack_map_get_depth_in(stack_map, op)
+        is_in_place = depth == 0
 
-        if needs_copy0:
-            op0.use_count -= 1
-        if needs_copy1:
-            op1.use_count -= 1
+        if not is_in_place:
+            assembly.append(f"SWAP{-depth}")
+            stack_map_swap(stack_map, -depth)
+
+    ### BEGIN STACK HANDLING CASES ###
+    # if len(operands) == 1:
+    #     op = operands[0]
+    #     ucc = inst.get_use_count_correction(op)
+    #     assert op.use_count >= ucc, "Operand used up"
+    #     depth = stack_map_get_depth_in(stack_map, op)
+    #     assert depth != NOT_IN_STACK, "Operand not in stack"
+    #     needs_copy = op.use_count - ucc > 1
+    #     in_place = depth == 0
+    #     if in_place:
+    #         if needs_copy:
+    #             assembly.append("DUP1")
+    #             stack_map_dup(stack_map, 0)
+    #     else:
+    #         if needs_copy:
+    #             assembly.append(f"DUP{-depth+1}")
+    #             stack_map_dup(stack_map, -depth)
+    #         assembly.append(f"SWAP1")
+    #         stack_map_swap(stack_map, -depth)
+
+    #     if needs_copy:
+    #         op.use_count -= 1
+
+    # elif len(operands) == 2:
+    #     op0, op1 = operands[0], operands[1]
+    #     ucc0, ucc1 = inst.get_use_count_correction(op0), inst.get_use_count_correction(op1)
+    #     assert op0.use_count >= ucc0, "Operand 0 used up"
+    #     assert op1.use_count >= ucc1, "Operand 1 used up"
+    #     depth0 = stack_map_get_depth_in(stack_map, op0)
+    #     depth1 = stack_map_get_depth_in(stack_map, op1)
+    #     assert depth0 != NOT_IN_STACK, f"Operand {op0} not in stack"
+    #     assert depth1 != NOT_IN_STACK, f"Operand {op1} not in stack"
+    #     needs_copy0 = op0.use_count - ucc0 > 1
+    #     needs_copy1 = op1.use_count - ucc1 > 1
+    #     in_place0 = depth0 == -1
+    #     in_place1 = depth1 == 0
+    #     if in_place0 and in_place1:
+    #         if needs_copy0:
+    #             assembly.append(f"DUP{-depth0+1}")
+    #             stack_map_dup(stack_map, -depth0)
+    #             assembly.append(f"SWAP1")
+    #             stack_map_swap(stack_map, 1)
+    #         if needs_copy1:
+    #             assembly.append(f"DUP{-depth1+1}")
+    #             stack_map_dup(stack_map, -depth1)
+    #             assembly.append(f"SWAP2")
+    #             stack_map_swap(stack_map, 2)
+    #             assembly.append(f"SWAP1")
+    #             stack_map_swap(stack_map, 1)
+    #         # else:
+    #         #     assembly.append(f"SWAP1")
+    #         #     stack_map_swap(stack_map, 1)
+    #     else:
+    #         if needs_copy0:
+    #             assembly.append(f"DUP{-depth0+1}")
+    #             stack_map_dup(stack_map, -depth0)
+    #         else:
+    #             if depth0 != 0:
+    #                 assembly.append(f"SWAP{-depth0}")
+    #                 stack_map_swap(stack_map, -depth0)
+    #         assembly.append(f"SWAP1")
+    #         stack_map_swap(stack_map, 1)
+
+    #         depth1 = stack_map_get_depth_in(stack_map, op1)
+    #         in_place1 = depth1 == 0
+
+    #         if needs_copy1:
+    #             if not in_place1:
+    #                 assembly.append(f"SWAP{-depth1}")
+    #                 stack_map_swap(stack_map, -depth1)
+    #             assembly.append(f"DUP1")
+    #             stack_map_dup(stack_map, 0)
+    #             assembly.append(f"SWAP2")
+    #             stack_map_swap(stack_map, 2)
+    #             assembly.append(f"SWAP1")
+    #             stack_map_swap(stack_map, 1)
+    #         else:
+    #             if not in_place1:
+    #                 assembly.append(f"SWAP{-depth1}")
+    #                 stack_map_swap(stack_map, -depth1)
+
+    #     if needs_copy0:
+    #         op0.use_count -= 1
+    #     if needs_copy1:
+    #         op1.use_count -= 1
 
     del stack_map[len(stack_map) - len(operands) :]
     if inst.ret is not None:
@@ -279,6 +312,10 @@ def _generate_evm_for_instruction_r(
         pass
     else:
         raise Exception(f"Unknown opcode: {opcode}")
+
+    for i in range(copy_count):
+        assembly.append("SWAP1")
+        assembly.append("POP")
 
 
 def _emit_input_operands(
