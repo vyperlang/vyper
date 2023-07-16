@@ -48,7 +48,7 @@ def validate_call_args(
             arg_count = (arg_count[0], 2**64)
 
         if arg_count[0] == arg_count[1]:
-            arg_count == arg_count[0]
+            arg_count = arg_count[0]
 
     if isinstance(node.func, vy_ast.Attribute):
         msg = f" for call to '{node.func.attr}'"
