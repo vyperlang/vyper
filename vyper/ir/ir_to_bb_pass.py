@@ -20,7 +20,7 @@ def generate_assembly_experimental(
     ir: IRnode, optimize: Optional[OptimizationLevel] = None
 ) -> list[str]:
     global_function = convert_ir_basicblock(ir)
-    return generate_evm(global_function, optimize)
+    return generate_evm(global_function, optimize is OptimizationLevel.NONE)
 
 
 def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
