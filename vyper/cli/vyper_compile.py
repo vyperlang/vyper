@@ -11,7 +11,12 @@ import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    _set_debug_mode,
+)
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
@@ -106,6 +111,7 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument("--optimize", help="Optimization flag", choices=["gas", "codesize", "none"])
+    parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
@@ -150,6 +156,9 @@ def _parse_args(argv):
         ir_node.AS_HEX_DEFAULT = True
 
     output_formats = tuple(uniq(args.format.split(",")))
+
+    if args.debug:
+        _set_debug_mode(True)
 
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")

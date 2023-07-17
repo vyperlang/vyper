@@ -42,3 +42,16 @@ class Settings:
     compiler_version: Optional[str] = None
     optimize: Optional[OptimizationLevel] = None
     evm_version: Optional[str] = None
+
+
+_DEBUG = False
+
+
+def _is_debug_mode():
+    global _DEBUG
+    return _DEBUG
+
+
+def _set_debug_mode(dbg: bool = False):
+    global _DEBUG
+    _DEBUG = dbg

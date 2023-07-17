@@ -7,6 +7,7 @@ from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
 from vyper.utils import method_id_int
 
@@ -134,7 +135,8 @@ def _selector_section_dense(external_functions, global_ctx):
     assert dst >= 0
 
     # XXX: re-enable this in debug mode:
-    # selector_section.append(["assert", ["eq", "msize", 0]])
+    if _is_debug_mode():
+        selector_section.append(["assert", ["eq", "msize", 0]])
 
     selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
@@ -283,8 +285,9 @@ def _selector_section_sparse(external_functions, global_ctx):
         dst = 32 - SZ_BUCKET_HEADER
         assert dst >= 0
 
-        # XXX: re-enable this in debug mode
-        # selector_section.append(["assert", ["eq", "msize", 0]])
+        if _is_debug_mode():
+            selector_section.append(["assert", ["eq", "msize", 0]])
+
         selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
