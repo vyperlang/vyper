@@ -21,7 +21,7 @@ def test_selector_table_fuzz(
         return f"foo{seed + i}({args})"
 
     def generate_func_def(mutability, calldata_words, i):
-        args = "" if not calldata_words else f"uint256[{calldata_words}]"
+        args = "" if not calldata_words else f"x: uint256[{calldata_words}]"
         return f"""
 @external
 {mutability}
