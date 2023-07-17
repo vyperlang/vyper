@@ -3,6 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -201,7 +202,7 @@ def apply_line_numbers(func):
 
 
 @apply_line_numbers
-def compile_to_assembly(code, no_optimize=False):
+def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     global _revert_label
     _revert_label = mksymbol("revert")
 
@@ -212,7 +213,7 @@ def compile_to_assembly(code, no_optimize=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res)
-    if not no_optimize:
+    if optimize != OptimizationLevel.NONE:
         optimize_assembly(res)
     return res
 
@@ -296,6 +297,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return o
 
     # batch copy from data section of the currently executing code to memory
+    # (probably should have named this dcopy but oh well)
     elif code.value == "dloadbytes":
         dst = code.args[0]
         src = code.args[1]

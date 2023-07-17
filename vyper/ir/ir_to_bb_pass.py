@@ -5,6 +5,7 @@ from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_basicblock import IRInstruction
 from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRLiteral
 from vyper.evm.opcodes import get_opcodes
+from vyper.compiler.settings import OptimizationLevel
 
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]
 
@@ -15,12 +16,14 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return {k: [a[k], b[k]] for k in a.keys() & b.keys() if a[k] != b[k]}
 
 
-def generate_assembly_experimental(ir: IRnode, no_optimize: bool = False) -> list[str]:
+def generate_assembly_experimental(
+    ir: IRnode, optimize: Optional[OptimizationLevel] = None
+) -> list[str]:
     global_function = convert_ir_basicblock(ir)
-    return generate_evm(global_function, no_optimize)
+    return generate_evm(global_function, optimize)
 
 
-def convert_ir_basicblock(ir: IRnode, no_optimize: bool = False) -> IRFunction:
+def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir)
 
@@ -38,7 +41,7 @@ def convert_ir_basicblock(ir: IRnode, no_optimize: bool = False) -> IRFunction:
         _calculate_liveness(global_function.basic_blocks[0], set())
 
         # Optimization pass: Remove unused variables
-        if no_optimize:
+        if optimize is OptimizationLevel.NONE:
             break
 
         removed = _optimize_unused_variables(global_function)

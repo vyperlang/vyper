@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+import contextlib
+from typing import Dict, Generator, Optional
 
 from vyper.exceptions import CompilerPanic
 from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
@@ -88,6 +89,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
+    "MCOPY": (0x5E, 3, 0, (None, None, None, None, None, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
@@ -170,8 +172,8 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, 100),
-    "TSTORE": (0x5D, 2, 0, 100),
+    "TLOAD": (0x5C, 1, 1, (None, None, None, None, None, 100)),
+    "TSTORE": (0x5D, 2, 0, (None, None, None, None, None, 100)),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
@@ -206,17 +208,16 @@ PSEUDO_OPCODES: OpcodeMap = {
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
-def evm_wrapper(fn, *args, **kwargs):
-    def _wrapper(*args, **kwargs):
-        global active_evm_version
-        evm_version = kwargs.pop("evm_version", None) or DEFAULT_EVM_VERSION
-        active_evm_version = EVM_VERSIONS[evm_version]
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            active_evm_version = EVM_VERSIONS[DEFAULT_EVM_VERSION]
-
-    return _wrapper
+@contextlib.contextmanager
+def anchor_evm_version(evm_version: Optional[str] = None) -> Generator:
+    global active_evm_version
+    anchor = active_evm_version
+    evm_version = evm_version or DEFAULT_EVM_VERSION
+    active_evm_version = EVM_VERSIONS[evm_version]
+    try:
+        yield
+    finally:
+        active_evm_version = anchor
 
 
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
