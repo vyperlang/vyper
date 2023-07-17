@@ -98,7 +98,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         _ns = Namespace()
         # note that we don't just copy the namespace because
         # there are constructor issues.
-        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})
+        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
         module_node._metadata["namespace"] = _ns
 
         # check for collisions between 4byte function selectors

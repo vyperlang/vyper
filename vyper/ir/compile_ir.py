@@ -3,6 +3,7 @@ import functools
 import math
 
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
@@ -118,14 +119,14 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             args[0].value = "pass"
         else:
             # handle jump to cleanup
-            assert is_symbol(args[0].value)
             ir_node.value = "seq"
 
             _t = ["seq"]
             if "return_buffer" in label_params:
                 _t.append(["pop", "pass"])
 
-            dest = args[0].value[5:]  # `_sym_foo` -> `foo`
+            dest = args[0].value
+            # works for both internal and external exit_to
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
             ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
@@ -201,7 +202,7 @@ def apply_line_numbers(func):
 
 
 @apply_line_numbers
-def compile_to_assembly(code, no_optimize=False):
+def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     global _revert_label
     _revert_label = mksymbol("revert")
 
@@ -212,7 +213,7 @@ def compile_to_assembly(code, no_optimize=False):
     res = _compile_to_assembly(code)
 
     _add_postambles(res)
-    if not no_optimize:
+    if optimize != OptimizationLevel.NONE:
         _optimize_assembly(res)
     return res
 
@@ -296,6 +297,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         return o
 
     # batch copy from data section of the currently executing code to memory
+    # (probably should have named this dcopy but oh well)
     elif code.value == "dloadbytes":
         dst = code.args[0]
         src = code.args[1]
@@ -667,8 +669,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_" + str(code.args[0]), "JUMP"])
         return o
     # push a literal symbol
-    elif isinstance(code.value, str) and is_symbol(code.value):
-        return [code.value]
+    elif code.value == "symbol":
+        return ["_sym_" + str(code.args[0])]
     # set a symbol as a location.
     elif code.value == "label":
         label_name = code.args[0].value
@@ -968,9 +970,7 @@ def adjust_pc_maps(pc_maps, ofst):
     return ret
 
 
-def assembly_to_evm(
-    assembly, pc_ofst=0, insert_vyper_signature=False, disable_bytecode_metadata=False
-):
+def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
     """
     Assembles assembly into EVM
 
@@ -994,7 +994,7 @@ def assembly_to_evm(
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
 
     bytecode_suffix = b""
-    if (not disable_bytecode_metadata) and insert_vyper_signature:
+    if insert_vyper_signature:
         # CBOR encoded: {"vyper": [major,minor,patch]}
         bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
         bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
@@ -1011,11 +1011,7 @@ def assembly_to_evm(
     for i, item in enumerate(assembly):
         if isinstance(item, list):
             assert runtime_code is None, "Multiple subcodes"
-            runtime_code, runtime_map = assembly_to_evm(
-                item,
-                insert_vyper_signature=True,
-                disable_bytecode_metadata=disable_bytecode_metadata,
-            )
+            runtime_code, runtime_map = assembly_to_evm(item)
 
             assert item[0].startswith("_DEPLOY_MEM_OFST_")
             assert ctor_mem_size is None

@@ -1376,7 +1376,7 @@ class BitwiseAnd(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1402,7 +1402,7 @@ class BitwiseOr(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1428,7 +1428,7 @@ class BitwiseXor(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1453,7 +1453,7 @@ class BitwiseNot(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Num):
+        if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
 
         value = node.args[0].value
@@ -1480,7 +1480,7 @@ class Shift(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
+        if [i for i in node.args if not isinstance(i, vy_ast.Int)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
         if value < 0 or value >= 2**256:
@@ -1528,10 +1528,10 @@ class _AddMulMod(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 3)
-        if isinstance(node.args[2], vy_ast.Num) and node.args[2].value == 0:
+        if isinstance(node.args[2], vy_ast.Int) and node.args[2].value == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)

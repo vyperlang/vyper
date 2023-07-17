@@ -367,17 +367,33 @@ def foo():
 """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
-
-def test_assign_rhs_lhs_overlap(get_contract):
     # GH issue 2418
-    code = """
+
+
+overlap_codes = [
+    """
 @external
 def bug(xs: uint256[2]) -> uint256[2]:
     # Initial value
     ys: uint256[2] = xs
     ys = [ys[1], ys[0]]
     return ys
+    """,
     """
+foo: uint256[2]
+@external
+def bug(xs: uint256[2]) -> uint256[2]:
+    # Initial value
+    self.foo = xs
+    self.foo = [self.foo[1], self.foo[0]]
+    return self.foo
+    """,
+    # TODO add transient tests when it's available
+]
+
+
+@pytest.mark.parametrize("code", overlap_codes)
+def test_assign_rhs_lhs_overlap(get_contract, code):
     c = get_contract(code)
 
     assert c.bug([1, 2]) == [2, 1]

@@ -1,5 +1,7 @@
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
+
 
 @pytest.mark.parametrize(
     "typ,value",
@@ -269,7 +271,7 @@ def __init__(to_copy: address):
 # GH issue 3101, take 2
 def test_immutables_initialized2(get_contract, get_contract_from_ir):
     dummy_contract = get_contract_from_ir(
-        ["deploy", 0, ["seq"] + ["invalid"] * 600, 0], no_optimize=True
+        ["deploy", 0, ["seq"] + ["invalid"] * 600, 0], optimize=OptimizationLevel.NONE
     )
 
     # rekt because immutables section extends past allocated memory
