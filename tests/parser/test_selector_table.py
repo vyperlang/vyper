@@ -57,7 +57,7 @@ event _Return:
 def __default__():
     log CalledDefault()"""
 
-        c = get_contract(code)
+        c = get_contract(code, override_opt_level=opt_level)
 
         for i, (mutability, n_calldata_words) in enumerate(methods):
             funcname = f"foo{seed + i}"
