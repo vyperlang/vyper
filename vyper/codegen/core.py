@@ -110,25 +110,33 @@ def make_byte_array_copier(dst, src):
     _check_assign_bytes(dst, src)
 
     # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.value == "~empty":
+    if src.value == "~empty" or src.typ.maxlen == 0:
         # set length word to 0.
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-            max_bytes = src.typ.maxlen
+        has_storage = STORAGE in (src.location, dst.location)
+        is_memory_copy = dst.location == src.location == MEMORY
+        batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
+        if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
+            # it's cheaper to run two load/stores instead of copy_bytes
 
             ret = ["seq"]
-
-            dst_ = bytes_data_ptr(dst)
-            src_ = bytes_data_ptr(src)
-
-            ret.append(copy_bytes(dst_, src_, len_, max_bytes))
-
-            # store length
+            # store length word
+            len_ = get_bytearray_length(src)
             ret.append(STORE(dst, len_))
 
-            return b1.resolve(b2.resolve(ret))
+            # store the single data word.
+            dst_data_ptr = bytes_data_ptr(dst)
+            src_data_ptr = bytes_data_ptr(src)
+            ret.append(STORE(dst_data_ptr, LOAD(src_data_ptr)))
+            return b1.resolve(ret)
+
+        # batch copy the bytearray (including length word) using copy_bytes
+        len_ = add_ofst(get_bytearray_length(src), 32)
+        max_bytes = src.typ.maxlen + 32
+        ret = copy_bytes(dst, src, len_, max_bytes)
+        return b1.resolve(ret)
 
 
 def bytes_data_ptr(ptr):
@@ -213,19 +221,17 @@ def _dynarray_make_setter(dst, src):
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
                 ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
+                # write the length word after data is copied
+                ret.append(STORE(dst, count))
 
             else:
                 element_size = src.typ.value_type.memory_bytes_required
-                # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
+                # number of elements * size of element in bytes + length word
+                n_bytes = add_ofst(_mul(count, element_size), 32)
+                max_bytes = 32 + src.typ.count * element_size
 
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
-
-            # write the length word after data is copied
-            ret.append(STORE(dst, count))
+                # batch copy the entire dynarray, including length word
+                ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
 
             return b1.resolve(b2.resolve(ret))
 
