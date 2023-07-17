@@ -1135,7 +1135,7 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
             assert ctor_mem_size is None
             ctor_mem_size = item[0].ctor_mem_size
 
-            runtime_code, runtime_map = assembly_to_evm(item[1:])
+            runtime_code, runtime_map, _ = assembly_to_evm(item[1:])
 
             runtime_code_start, runtime_code_end = _runtime_code_offsets(
                 ctor_mem_size, len(runtime_code)
@@ -1229,18 +1229,18 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
         elif is_symbol(item):
             # push a symbol to stack
             if not is_symbol_map_indicator(assembly[i + 1]):
-                bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=SYMBOL_SIZE))
+                bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=SYMBOL_SIZE))
                 ret.extend(bytecode)
 
         elif is_mem_sym(item):
-            bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
+            bytecode, _, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=mem_ofst_size))
             ret.extend(bytecode)
 
         elif is_ofst(item):
             # _OFST _sym_foo 32
             ofst = symbol_map[assembly[i + 1]] + assembly[i + 2]
             n = mem_ofst_size if is_mem_sym(assembly[i + 1]) else SYMBOL_SIZE
-            bytecode, _ = assembly_to_evm(PUSH_N(ofst, n))
+            bytecode, _, _ = assembly_to_evm(PUSH_N(ofst, n))
             ret.extend(bytecode)
             to_skip = 2
 

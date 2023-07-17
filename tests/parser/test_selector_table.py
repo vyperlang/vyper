@@ -43,12 +43,12 @@ def foo{seed + i}({args}) -> uint256:
         code = "\n".join(generate_func_def(m, s, i) for i, (m, s) in enumerate(methods))
 
         default_function = """
-event Default:
+event CalledDefault:
     pass
 
 @external
 def __default__():
-    log Default()
+    log CalledDefault()
         """
         code = code + default_function
 
@@ -73,7 +73,7 @@ def __default__():
                 # hit default function
 
                 tx = w3.eth.send_transaction({"to": c.address, "data": hexstr})
-                logs = get_logs(tx, c, "Default")
+                logs = get_logs(tx, c, "CalledDefault")
                 assert len(logs) == 1
 
             else:
