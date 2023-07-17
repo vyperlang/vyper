@@ -1,10 +1,4 @@
-from vyper.codegen.ir_basicblock import (
-    TERMINAL_IR_INSTRUCTIONS,
-    IRBasicBlock,
-    IRInstruction,
-    IROperant,
-    IRLiteral,
-)
+from vyper.codegen.ir_basicblock import IRInstruction, IROperant
 from vyper.codegen.ir_function import IRFunction
 from vyper.ir.compile_ir import PUSH, optimize_assembly
 
@@ -30,13 +24,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "sgt",
 ]
 
-OPERANT_ORDER_IRELEVANT_INSTRUCTIONS = [
-    "xor",
-    "or",
-    "add",
-    "mul",
-    "eq",
-]
+OPERANT_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
 
 
 class DFGNode:
@@ -167,7 +155,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
 
-    if no_optimize == False:
+    if no_optimize is False:
         optimize_assembly(assembly)
 
     return assembly

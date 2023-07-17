@@ -1,18 +1,12 @@
 from typing import Optional, Union
-from vyper.codegen.dfg import convert_ir_to_dfg, generate_evm
-from vyper.codegen.global_context import GlobalContext
+from vyper.codegen.dfg import generate_evm
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.ir_function import IRFunctionBase, IRFunction, IRFunctionIntrinsic
-from vyper.codegen.ir_basicblock import IRInstruction, IRDebugInfo
+from vyper.codegen.ir_function import IRFunction
+from vyper.codegen.ir_basicblock import IRInstruction
 from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRLiteral
 from vyper.evm.opcodes import get_opcodes
 
-TERMINATOR_IR_INSTRUCTIONS = [
-    "jmp",
-    "jnz",
-    "ret",
-    "revert",
-]
+TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]
 
 _symbols = {}
 
@@ -162,7 +156,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ret = None
         for ir_node in ir.args:  # NOTE: skip the last one
             r = _convert_ir_basicblock(ctx, ir_node)
-            if ir_node.is_literal == False:
+            if ir_node.is_literal is False:
                 ret = r
         return ret
     elif ir.value == "if":
@@ -176,7 +170,6 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         ctx.append_basic_block(else_block)
 
         # convert "else"
-        start_syms = _symbols.copy()
         if len(ir.args) == 3:
             _convert_ir_basicblock(ctx, ir.args[2])
         after_else_syms = _symbols.copy()
@@ -229,6 +222,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         "mul",
         "div",
         "mod",
+        "sha3",
     ]:
         return _convert_binary_op(ctx, ir, ir.value in [])
     elif ir.value == "le":
@@ -290,7 +284,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
         arg_2 = _convert_ir_basicblock(ctx, ir.args[2])
         sym = ir.args[1]
         new_var = _symbols.get(f"&{sym.value}", arg_2)
-        assert new_var != None, "exit_to with undefined variable"
+        assert new_var is not None, "exit_to with undefined variable"
         inst = IRInstruction("ret", [new_var])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
@@ -303,7 +297,7 @@ def _convert_ir_basicblock(ctx: IRFunction, ir: IRnode) -> Optional[Union[str, i
     elif ir.value == "mload":
         sym = ir.args[0]
         new_var = _symbols.get(f"&{sym.value}", None)
-        assert new_var != None, "mload without mstore"
+        assert new_var is not None, "mload without mstore"
         return new_var
     elif ir.value == "mstore":
         sym = ir.args[0]

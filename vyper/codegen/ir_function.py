@@ -51,7 +51,7 @@ class IRFunction(IRFunctionBase):
         for bb in self.basic_blocks:
             if bb.label.value == label:
                 return bb
-        assert False, f"Basic block '{label}' not found"
+        raise AssertionError(f"Basic block '{label}' not found")
 
     def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
         """
@@ -60,7 +60,7 @@ class IRFunction(IRFunctionBase):
         for i, bb in enumerate(self.basic_blocks[:-1]):
             if bb.label.value == label.value:
                 return self.basic_blocks[i + 1]
-        assert False, f"Basic block after '{label}' not found"
+        raise AssertionError(f"Basic block after '{label}' not found")
 
     def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
         """

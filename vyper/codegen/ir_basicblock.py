@@ -1,10 +1,6 @@
 from typing import Optional, TYPE_CHECKING
 
-TERMINAL_IR_INSTRUCTIONS = [
-    "ret",
-    "revert",
-    "assert",
-]
+TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
 
 if TYPE_CHECKING:
     from vyper.codegen.ir_function import IRFunction
@@ -121,7 +117,7 @@ class IRInstruction:
         """
         Get all input operants in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRLabel) == False]
+        return [op for op in self.operands if isinstance(op, IRLabel) is False]
 
     def get_input_variables(self) -> list[IROperant]:
         """
@@ -264,7 +260,10 @@ class IRBasicBlock:
         return self.instructions[-1].liveness
 
     def __repr__(self) -> str:
-        s = f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]} OUT={[bb.label for bb in self.out_set]} \n"
+        s = (
+            f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
+            " OUT={[bb.label for bb in self.out_set]} \n"
+        )
         for instruction in self.instructions:
             s += f"    {instruction}\n"
         return s
