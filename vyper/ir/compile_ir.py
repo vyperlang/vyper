@@ -1266,4 +1266,4 @@ def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
-    return bytes(ret), line_number_map
+    return bytes(ret), line_number_map, symbol_map
