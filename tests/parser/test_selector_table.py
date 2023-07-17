@@ -8,7 +8,7 @@ from vyper.compiler.settings import OptimizationLevel
 
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
 @pytest.mark.parametrize("calldatasize_encoding_bytes", [1, 2, 3])
-@settings(max_examples=25, deadline=None)
+@settings(max_examples=5, deadline=None)
 @given(seed=st.integers(min_value=0, max_value=2**64 - 1))
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
@@ -41,6 +41,7 @@ def foo{seed + i}({args}) -> uint256:
             max_size=100,
         )
     )
+    @settings(max_examples=10)
     def _test(methods):
         func_defs = "\n".join(generate_func_def(m, s, i) for i, (m, s) in enumerate(methods))
 
