@@ -2,8 +2,8 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from vyper.exceptions import ArgumentException
 from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -150,7 +150,7 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
-        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+        assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
     elif len(bytesdata) > data_length:
         # deploy fail
         assert_tx_failed(lambda: _get_contract())
