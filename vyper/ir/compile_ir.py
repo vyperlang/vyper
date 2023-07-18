@@ -935,11 +935,11 @@ def _prune_unused_jumpdests(assembly):
         if is_symbol(assembly[i]) and not is_symbol_map_indicator(assembly[i + 1]):
             used_jumpdests.add(assembly[i])
 
-    for i in range(len(assembly)):
-        if isinstance(assembly[i], list) and isinstance(assembly[i][0], _DataHeader):
+    for item in assembly:
+        if isinstance(item, list) and isinstance(item[0],_DataHeader):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
-            for t in assembly[i]:
+            for t in item:
                 if is_symbol(t):
                     used_jumpdests.add(t)
 
