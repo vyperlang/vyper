@@ -3,6 +3,7 @@ import pytest
 from hypothesis import given, settings
 
 from vyper.exceptions import ArgumentException
+from vyper.compiler.settings import OptimizationLevel
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -33,12 +34,15 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 
 @pytest.mark.parametrize("literal_start", (True, False))
 @pytest.mark.parametrize("literal_length", (True, False))
+@pytest.mark.parametrize("opt_level", list(OptimizationLevel))
 @given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
-@settings(max_examples=25, deadline=None)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
     assert_tx_failed,
+    opt_level,
     bytesdata,
     start,
     literal_start,
@@ -64,7 +68,7 @@ def do_splice() -> Bytes[{length_bound}]:
     """
 
     def _get_contract():
-        return get_contract(code, bytesdata, start, length)
+        return get_contract(code, bytesdata, start, length, override_opt_level=opt_level)
 
     if (
         (start + length > length_bound and literal_start and literal_length)
@@ -84,12 +88,15 @@ def do_splice() -> Bytes[{length_bound}]:
 @pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
 @pytest.mark.parametrize("literal_start", (True, False))
 @pytest.mark.parametrize("literal_length", (True, False))
+@pytest.mark.parametrize("opt_level", list(OptimizationLevel))
 @given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
-@settings(max_examples=25, deadline=None)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.fuzzing
 def test_slice_bytes(
     get_contract,
     assert_compile_failed,
     assert_tx_failed,
+    opt_level,
     location,
     bytesdata,
     start,
@@ -133,7 +140,7 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     """
 
     def _get_contract():
-        return get_contract(code, bytesdata)
+        return get_contract(code, bytesdata, override_opt_level=opt_level)
 
     data_length = len(bytesdata) if location == "literal" else length_bound
     if (
