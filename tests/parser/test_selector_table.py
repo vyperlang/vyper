@@ -40,7 +40,7 @@ def foo{seed + i}({args}) -> uint256:
             max_size=100,
         )
     )
-    @settings(max_examples=10)
+    @settings(max_examples=25)
     def _test(methods):
         func_defs = "\n".join(generate_func_def(m, s, i) for i, (m, s) in enumerate(methods))
 
