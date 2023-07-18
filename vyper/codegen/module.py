@@ -85,6 +85,23 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
 def _ir_for_internal_function(func_ast, *args, **kwargs):
     return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
 
+def _generate_external_entry_points(external_functions, global_ctx):
+    entry_points = {}  # map from ABI sigs to ir code
+    sig_of = {}  # reverse map from method ids to abi sig
+
+    for code in external_functions:
+        func_ir = generate_ir_for_function(code, global_ctx)
+        for abi_sig, entry_point in func_ir.entry_points.items():
+            assert abi_sig not in entry_points
+            entry_points[abi_sig] = entry_point
+            sig_of[method_id_int(abi_sig)] = abi_sig
+
+        # stick function common body into final entry point to save a jump
+        ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
+        entry_point.ir_node = ir_node
+
+    return entry_points, sig_of
+
 
 # codegen for all runtime functions + callvalue/calldata checks,
 # with O(1) jumptable for selector table.
@@ -94,26 +111,11 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
 # costs about 212 gas for typical function and 8 bytes of code (+ ~87 bytes of global overhead)
 def _selector_section_dense(external_functions, global_ctx):
     function_irs = []
-    entry_points = {}  # map from ABI sigs to ir code
-    sig_of = {}  # reverse map from method ids to abi sig
 
     if len(external_functions) == 0:
         return IRnode.from_list(["seq"])
 
-    for code in external_functions:
-        func_ir = generate_ir_for_function(code, global_ctx)
-        for abi_sig, entry_point in func_ir.entry_points.items():
-            assert abi_sig not in entry_points
-            entry_points[abi_sig] = entry_point
-            sig_of[method_id_int(abi_sig)] = abi_sig
-        # stick function common body into final entry point to save a jump
-        ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
-        entry_point.ir_node = ir_node
-
-    for abi_sig, entry_point in entry_points.items():
-        label = label_for_entry_point(abi_sig, entry_point)
-        ir_node = ["label", label, ["var_list"], entry_point.ir_node]
-        function_irs.append(IRnode.from_list(ir_node))
+    entry_points, sig_of = _generate_external_entry_points(external_functions, global_ctx)
 
     jumptable_info = jumptable_utils.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
@@ -251,30 +253,20 @@ def _selector_section_dense(external_functions, global_ctx):
 # costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
 # function and 24 bytes of code (+ ~23 bytes of global overhead)
 def _selector_section_sparse(external_functions, global_ctx):
-    entry_points = {}  # map from ABI sigs to ir code
-    sig_of = {}  # map from method ids back to signatures
 
-    selector_section = ["seq"]
+    ret = ["seq"]
+
     if len(external_functions) == 0:
-        return selector_section
+        return ret
 
-    for code in external_functions:
-        func_ir = generate_ir_for_function(code, global_ctx)
-        for abi_sig, entry_point in func_ir.entry_points.items():
-            assert abi_sig not in entry_points
-            entry_points[abi_sig] = entry_point
-            sig_of[method_id_int(abi_sig)] = abi_sig
-
-        # stick function common body into final entry point to save a jump
-        ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
-        entry_point.ir_node = ir_node
+    entry_points, sig_of = _generate_external_entry_points(external_functions, global_ctx)
 
     n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(entry_points.keys())
 
     # 2 bytes for bucket location
     SZ_BUCKET_HEADER = 2
 
-    if n_buckets > 1 and not core._opt_none():
+    if n_buckets > 1:
         bucket_id = ["mod", "_calldata_method_id", n_buckets]
         bucket_hdr_location = [
             "add",
@@ -286,15 +278,15 @@ def _selector_section_sparse(external_functions, global_ctx):
         assert dst >= 0
 
         if _is_debug_mode():
-            selector_section.append(["assert", ["eq", "msize", 0]])
+            ret.append(["assert", ["eq", "msize", 0]])
 
-        selector_section.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
+        ret.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
         jumpdest = IRnode.from_list(["mload", 0])
         # don't particularly like using `jump` here since it can cause
         # issues for other backends, consider changing `goto` to allow
         # dynamic jumps, or adding some kind of jumptable instruction
-        selector_section.append(["jump", jumpdest])
+        ret.append(["jump", jumpdest])
 
         jumptable_data = ["data", "selector_buckets"]
         for i in range(n_buckets):
@@ -305,11 +297,11 @@ def _selector_section_sparse(external_functions, global_ctx):
                 # empty bucket
                 jumptable_data.append(["symbol", "fallback"])
 
-        selector_section.append(jumptable_data)
+        ret.append(jumptable_data)
 
     for bucket_id, bucket in buckets.items():
         bucket_label = f"selector_bucket_{bucket_id}"
-        selector_section.append(["label", bucket_label, ["var_list"], ["seq"]])
+        ret.append(["label", bucket_label, ["var_list"], ["seq"]])
 
         handle_bucket = ["seq"]
 
@@ -350,11 +342,58 @@ def _selector_section_sparse(external_functions, global_ctx):
                 method_id_check = ["and", ["ge", "calldatasize", 4], method_id_check]
             handle_bucket.append(["if", method_id_check, dispatch])
 
+        # close out the bucket with a goto fallback so we don't keep searching
         handle_bucket.append(["goto", "fallback"])
 
-        selector_section.append(handle_bucket)
+        ret.append(handle_bucket)
 
-    ret = ["seq", ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section]]
+    ret = ["seq", ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), ret]]
+
+    return ret
+
+
+# codegen for all runtime functions + callvalue/calldata checks,
+# O(n) linear search for the method id
+def _selector_section_linear(external_functions, global_ctx):
+    ret = ["seq"]
+    if len(external_functions) == 0:
+        return ret
+
+    ret.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
+
+    entry_points, sig_of = _generate_external_entry_points(external_functions, global_ctx)
+
+    dispatcher = ["seq"]
+
+    for sig, entry_point in entry_points.items():
+        func_t = entry_point.func_t
+        expected_calldatasize = entry_point.min_calldatasize
+
+        dispatch = ["seq"]  # code to dispatch into the function
+        skip_callvalue_check = func_t.is_payable
+        skip_calldatasize_check = expected_calldatasize == 4
+        bad_callvalue = [0] if skip_callvalue_check else ["callvalue"]
+        bad_calldatasize = (
+            [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
+        )
+
+        dispatch.append(IRnode.from_list(["assert", ["iszero", bad_callvalue]], error_msg="nonpayable check"))
+        dispatch.append(IRnode.from_list(["assert", ["iszero", bad_calldatasize]], error_msg="calldatasize check"))
+        # we could skip a jumpdest per method if we out-lined the entry point
+        # so the dispatcher looks just like -
+        # ```(if (eq <calldata_method_id> method_id)
+        #   (goto entry_point_label))```
+        # it would another optimization for patterns like
+        # `if ... (goto)` though.
+        dispatch.append(entry_point.ir_node)
+
+        method_id_check = ["eq", "_calldata_method_id", _annotated_method_id(sig)]
+        dispatcher.append(["if", method_id_check, dispatch])
+
+    ret.append(["with", "_calldata_method_id", shr(224, ["calldataload", 0]), dispatcher])
+
+    # close out the selector section with a goto fallback
+    ret.append(["goto", "fallback"])
 
     return ret
 
@@ -382,7 +421,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
     # dense vs sparse global overhead is amortized after about 4 methods
-    if core._opt_codesize() and len(external_functions) > 4:
+    if core._opt_none():
+        selector_section = _selector_section_linear(external_functions, global_ctx)
+    elif core._opt_codesize() and len(external_functions) > 4:
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:
         selector_section = _selector_section_sparse(external_functions, global_ctx)

@@ -76,9 +76,8 @@ def __default__():
                 assert event.args.val == i
             else:
                 hexstr = (method_id + argsdata).hex()
-                assert_tx_failed(
-                    lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr, "value": 1})
-                )
+                txdata = {"to": c.address, "data": hexstr, "value": 1}
+                assert_tx_failed( lambda: w3.eth.send_transaction(txdata))
 
             # now do calldatasize check
             calldata = (method_id + argsdata)[:-1]  # strip one byte
