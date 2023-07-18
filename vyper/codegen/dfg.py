@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IROperant
+from vyper.codegen.ir_basicblock import IRInstruction, IROperand
 from vyper.codegen.ir_function import IRFunction
 from vyper.ir.compile_ir import PUSH, optimize_assembly
 
@@ -28,11 +28,11 @@ OPERANT_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
 
 
 class DFGNode:
-    value: IRInstruction | IROperant
+    value: IRInstruction | IROperand
     predecessors: list["DFGNode"]
     successors: list["DFGNode"]
 
-    def __init__(self, value: IRInstruction | IROperant):
+    def __init__(self, value: IRInstruction | IROperand):
         self.value = value
         self.predecessors = []
         self.successors = []
@@ -57,7 +57,7 @@ class StackMap:
         """
         return len(self.stack_map)
 
-    def push(self, op: IROperant) -> None:
+    def push(self, op: IROperand) -> None:
         """
         Pushes an operand onto the stack map.
         """
@@ -66,24 +66,24 @@ class StackMap:
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IROperant) -> int:
+    def get_depth_in(self, op: IROperand) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
         for i, stack_op in enumerate(self.stack_map[::-1]):
-            if isinstance(stack_op, IROperant) and stack_op.value == op.value:
+            if isinstance(stack_op, IROperand) and stack_op.value == op.value:
                 return -i
 
         return StackMap.NOT_IN_STACK
 
-    def peek(self, depth: int) -> IROperant:
+    def peek(self, depth: int) -> IROperand:
         """
         Returns the top of the stack map.
         """
         return self.stack_map[-depth - 1]
 
-    def poke(self, depth: int, op: IROperant) -> None:
+    def poke(self, depth: int, op: IROperand) -> None:
         """
         Pokes an operand at the given depth in the stack map.
         """
@@ -240,7 +240,7 @@ def _generate_evm_for_instruction_r(
 
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, ops: list[IROperant], stack_map: StackMap
+    ctx: IRFunction, assembly: list, ops: list[IROperand], stack_map: StackMap
 ) -> None:
     for op in ops:
         if op.is_literal:
