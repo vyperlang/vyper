@@ -52,6 +52,6 @@ def _is_debug_mode():
     return _DEBUG
 
 
-def _set_debug_mode(dbg: bool = False):
+def _set_debug_mode(dbg: bool = False) -> None:
     global _DEBUG
     _DEBUG = dbg
