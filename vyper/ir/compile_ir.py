@@ -936,7 +936,7 @@ def _prune_unused_jumpdests(assembly):
             used_jumpdests.add(assembly[i])
 
     for item in assembly:
-        if isinstance(item, list) and isinstance(item[0],_DataHeader):
+        if isinstance(item, list) and isinstance(item[0], _DataHeader):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             for t in item:

@@ -15,7 +15,6 @@ from vyper.compiler.settings import OptimizationLevel
 def test_selector_table_fuzz(
     max_calldata_bytes, seed, opt_level, w3, get_contract, assert_tx_failed, get_logs
 ):
-
     def abi_sig(calldata_words, i):
         args = "" if not calldata_words else f"uint256[{calldata_words}]"
         return f"foo{seed + i}({args})"
@@ -77,7 +76,7 @@ def __default__():
             else:
                 hexstr = (method_id + argsdata).hex()
                 txdata = {"to": c.address, "data": hexstr, "value": 1}
-                assert_tx_failed( lambda: w3.eth.send_transaction(txdata))
+                assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
 
             # now do calldatasize check
             calldata = (method_id + argsdata)[:-1]  # strip one byte

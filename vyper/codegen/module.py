@@ -85,6 +85,7 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
 def _ir_for_internal_function(func_ast, *args, **kwargs):
     return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
 
+
 def _generate_external_entry_points(external_functions, global_ctx):
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # reverse map from method ids to abi sig
@@ -116,6 +117,12 @@ def _selector_section_dense(external_functions, global_ctx):
         return IRnode.from_list(["seq"])
 
     entry_points, sig_of = _generate_external_entry_points(external_functions, global_ctx)
+
+    # generate the label so the jumptable works
+    for abi_sig, entry_point in entry_points.items():
+        label = label_for_entry_point(abi_sig, entry_point)
+        ir_node = ["label", label, ["var_list"], entry_point.ir_node]
+        function_irs.append(IRnode.from_list(ir_node))
 
     jumptable_info = jumptable_utils.generate_dense_jumptable_info(entry_points.keys())
     n_buckets = len(jumptable_info)
@@ -253,7 +260,6 @@ def _selector_section_dense(external_functions, global_ctx):
 # costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
 # function and 24 bytes of code (+ ~23 bytes of global overhead)
 def _selector_section_sparse(external_functions, global_ctx):
-
     ret = ["seq"]
 
     if len(external_functions) == 0:
@@ -377,8 +383,14 @@ def _selector_section_linear(external_functions, global_ctx):
             [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
         )
 
-        dispatch.append(IRnode.from_list(["assert", ["iszero", bad_callvalue]], error_msg="nonpayable check"))
-        dispatch.append(IRnode.from_list(["assert", ["iszero", bad_calldatasize]], error_msg="calldatasize check"))
+        dispatch.append(
+            IRnode.from_list(["assert", ["iszero", bad_callvalue]], error_msg="nonpayable check")
+        )
+        dispatch.append(
+            IRnode.from_list(
+                ["assert", ["iszero", bad_calldatasize]], error_msg="calldatasize check"
+            )
+        )
         # we could skip a jumpdest per method if we out-lined the entry point
         # so the dispatcher looks just like -
         # ```(if (eq <calldata_method_id> method_id)
