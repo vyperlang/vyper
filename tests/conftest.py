@@ -51,6 +51,7 @@ def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
 
+
 @pytest.fixture(scope="session", autouse=True)
 def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
