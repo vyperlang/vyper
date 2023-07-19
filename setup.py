@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 extras_require = {
     "test": [
@@ -88,7 +88,7 @@ setup(
     license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
-    packages=find_packages(include="vyper",),
+    packages=["vyper"],
     python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
