@@ -88,7 +88,7 @@ setup(
     license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
-    packages=find_packages(exclude=("tests", "docs")),
+    packages=find_packages(include="vyper",),
     python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
