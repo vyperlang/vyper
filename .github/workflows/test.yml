@@ -89,7 +89,7 @@ jobs:
             opt-mode: core
             debug: false
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
 
     steps:
     - uses: actions/checkout@v1
@@ -104,7 +104,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' }} --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
