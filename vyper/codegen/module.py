@@ -143,7 +143,6 @@ def _selector_section_dense(external_functions, global_ctx):
     dst = 32 - SZ_BUCKET_HEADER
     assert dst >= 0
 
-    # XXX: re-enable this in debug mode:
     if _is_debug_mode():
         selector_section.append(["assert", ["eq", "msize", 0]])
 
@@ -435,7 +434,7 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     if core._opt_none():
         selector_section = _selector_section_linear(external_functions, global_ctx)
     # dense vs sparse global overhead is amortized after about 4 methods
-    # also, --debug will force dense selector table if _opt_codesize is selected.
+    # --debug will force dense selector table if _opt_codesize is selected.
     elif core._opt_codesize() and (len(external_functions) > 4 or _is_debug_mode()):
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:

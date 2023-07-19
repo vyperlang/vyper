@@ -86,7 +86,7 @@ jobs:
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
-            opt-mode: core
+            opt-mode: gas
             debug: false
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
