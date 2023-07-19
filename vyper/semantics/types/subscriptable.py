@@ -35,9 +35,10 @@ class _SubscriptableT(VyperType):
 
     def validate_index_type(self, node):
         # TODO: break this cycle
-        from vyper.semantics.analysis.utils import validate_expected_type
+        #from vyper.semantics.analysis.utils import validate_expected_type
 
-        validate_expected_type(node, self.key_type)
+        #validate_expected_type(node, self.key_type)
+        pass
 
 
 class HashMapT(_SubscriptableT):
@@ -126,7 +127,7 @@ class _SequenceT(_SubscriptableT):
 
     def validate_index_type(self, node):
         # TODO break this cycle
-        from vyper.semantics.analysis.utils import validate_expected_type
+        #from vyper.semantics.analysis.utils import validate_expected_type
 
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
@@ -134,7 +135,8 @@ class _SequenceT(_SubscriptableT):
             if node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
-        validate_expected_type(node, IntegerT.any())
+        #validate_expected_type(node, IntegerT.any())
+        pass
 
     def get_subscripted_type(self, node):
         return self.value_type
