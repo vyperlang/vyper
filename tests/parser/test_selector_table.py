@@ -16,7 +16,14 @@ from vyper.compiler.settings import OptimizationLevel
 )
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
-    max_calldata_bytes, seed, max_default_args, opt_level, w3, get_contract, assert_tx_failed, get_logs
+    max_calldata_bytes,
+    seed,
+    max_default_args,
+    opt_level,
+    w3,
+    get_contract,
+    assert_tx_failed,
+    get_logs,
 ):
     def abi_sig(calldata_words, i, n_default_args):
         args = [] if not calldata_words else [f"uint256[{calldata_words}]"]
@@ -55,7 +62,9 @@ def foo{seed + i}({args}) -> uint256:
     )
     @settings(max_examples=25)
     def _test(methods):
-        func_defs = "\n".join(generate_func_def(m, s, i, d) for i, (m, s, _, d) in enumerate(methods))
+        func_defs = "\n".join(
+            generate_func_def(m, s, i, d) for i, (m, s, _, d) in enumerate(methods)
+        )
 
         code = f"""
 event CalledDefault: pass  #TODO: allow newline in lark grammar
@@ -75,7 +84,6 @@ def __default__():
         for i, (mutability, n_calldata_words, n_strip_bytes, n_default_args) in enumerate(methods):
             funcname = f"foo{seed + i}"
             func = getattr(c, funcname)
-
 
             for j in range(n_default_args + 1):
                 args = [[1] * n_calldata_words] if n_calldata_words else []
@@ -110,6 +118,8 @@ def __default__():
                     assert len(logs) == 1
 
                 else:
-                    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr}))
+                    assert_tx_failed(
+                        lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr})
+                    )
 
     _test()
