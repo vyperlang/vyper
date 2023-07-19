@@ -12,19 +12,25 @@ from vyper.compiler.settings import OptimizationLevel
 @settings(max_examples=5, deadline=None)
 @given(
     seed=st.integers(min_value=0, max_value=2**64 - 1),
-    n_strip_bytes=st.integers(min_value=1, max_value=4),
+    max_default_args=st.integers(min_value=0, max_value=4),
 )
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
-    max_calldata_bytes, seed, n_strip_bytes, opt_level, w3, get_contract, assert_tx_failed, get_logs
+    max_calldata_bytes, seed, max_default_args, opt_level, w3, get_contract, assert_tx_failed, get_logs
 ):
-    def abi_sig(calldata_words, i):
-        args = "" if not calldata_words else f"uint256[{calldata_words}]"
-        return f"foo{seed + i}({args})"
+    def abi_sig(calldata_words, i, n_default_args):
+        args = [] if not calldata_words else [f"uint256[{calldata_words}]"]
+        args.extend(["uint256"] * n_default_args)
+        argstr = ",".join(args)
+        return f"foo{seed + i}({argstr})"
 
-    def generate_func_def(mutability, calldata_words, i):
-        args = "" if not calldata_words else f"x: uint256[{calldata_words}]"
+    def generate_func_def(mutability, calldata_words, i, n_default_args):
+        arglist = [] if not calldata_words else [f"x: uint256[{calldata_words}]"]
+        for j in range(n_default_args):
+            arglist.append(f"x{j}: uint256 = 0")
+        args = ", ".join(arglist)
         _log_return = f"log _Return({i})" if mutability == "@payable" else ""
+
         return f"""
 @external
 {mutability}
@@ -38,6 +44,10 @@ def foo{seed + i}({args}) -> uint256:
             st.tuples(
                 st.sampled_from(["@pure", "@view", "@nonpayable", "@payable"]),
                 st.integers(min_value=0, max_value=max_calldata_bytes // 32),
+                # n bytes to strip from calldata
+                st.integers(min_value=1, max_value=4),
+                # n default args
+                st.integers(min_value=0, max_value=max_default_args),
             ),
             min_size=1,
             max_size=100,
@@ -45,7 +55,7 @@ def foo{seed + i}({args}) -> uint256:
     )
     @settings(max_examples=25)
     def _test(methods):
-        func_defs = "\n".join(generate_func_def(m, s, i) for i, (m, s) in enumerate(methods))
+        func_defs = "\n".join(generate_func_def(m, s, i, d) for i, (m, s, _, d) in enumerate(methods))
 
         code = f"""
 event CalledDefault: pass  #TODO: allow newline in lark grammar
@@ -62,37 +72,44 @@ def __default__():
 
         c = get_contract(code, override_opt_level=opt_level)
 
-        for i, (mutability, n_calldata_words) in enumerate(methods):
+        for i, (mutability, n_calldata_words, n_strip_bytes, n_default_args) in enumerate(methods):
             funcname = f"foo{seed + i}"
             func = getattr(c, funcname)
-            args = [[1] * n_calldata_words] if n_calldata_words else []
-            assert func(*args) == i
 
-            method_id = utils.method_id(abi_sig(n_calldata_words, i))
-            argsdata = b"\x00" * (n_calldata_words * 32)
 
-            # do payable check
-            if mutability == "@payable":
-                tx = func(*args, transact={"value": 1})
-                (event,) = get_logs(tx, c, "_Return")
-                assert event.args.val == i
-            else:
-                hexstr = (method_id + argsdata).hex()
-                txdata = {"to": c.address, "data": hexstr, "value": 1}
-                assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
+            for j in range(n_default_args + 1):
+                args = [[1] * n_calldata_words] if n_calldata_words else []
+                args.extend([1] * j)
 
-            # now do calldatasize check
-            # strip some bytes
-            calldata = (method_id + argsdata)[:-n_strip_bytes]
-            hexstr = calldata.hex()
-            if n_calldata_words == 0:
-                # no args, hit default function
+                # check the function returns as expected
+                assert func(*args) == i
 
-                tx = w3.eth.send_transaction({"to": c.address, "data": hexstr})
-                logs = get_logs(tx, c, "CalledDefault")
-                assert len(logs) == 1
+                method_id = utils.method_id(abi_sig(n_calldata_words, i, j))
 
-            else:
-                assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr}))
+                argsdata = b"\x00" * (n_calldata_words * 32 + j * 32)
+
+                # do payable check
+                if mutability == "@payable":
+                    tx = func(*args, transact={"value": 1})
+                    (event,) = get_logs(tx, c, "_Return")
+                    assert event.args.val == i
+                else:
+                    hexstr = (method_id + argsdata).hex()
+                    txdata = {"to": c.address, "data": hexstr, "value": 1}
+                    assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
+
+                # now do calldatasize check
+                # strip some bytes
+                calldata = (method_id + argsdata)[:-n_strip_bytes]
+                hexstr = calldata.hex()
+                if n_calldata_words == 0 and j == 0:
+                    # no args, hit default function
+
+                    tx = w3.eth.send_transaction({"to": c.address, "data": hexstr})
+                    logs = get_logs(tx, c, "CalledDefault")
+                    assert len(logs) == 1
+
+                else:
+                    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr}))
 
     _test()
