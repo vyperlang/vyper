@@ -10,10 +10,13 @@ from vyper.compiler.settings import OptimizationLevel
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @settings(max_examples=5, deadline=None)
-@given(seed=st.integers(min_value=0, max_value=2**64 - 1))
+@given(
+    seed=st.integers(min_value=0, max_value=2**64 - 1),
+    n_strip_bytes=st.integers(min_value=1, max_value=4),
+)
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
-    max_calldata_bytes, seed, opt_level, w3, get_contract, assert_tx_failed, get_logs
+    max_calldata_bytes, seed, n_strip_bytes, opt_level, w3, get_contract, assert_tx_failed, get_logs
 ):
     def abi_sig(calldata_words, i):
         args = "" if not calldata_words else f"uint256[{calldata_words}]"
@@ -79,7 +82,8 @@ def __default__():
                 assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
 
             # now do calldatasize check
-            calldata = (method_id + argsdata)[:-1]  # strip one byte
+            # strip some bytes
+            calldata = (method_id + argsdata)[:-n_strip_bytes]
             hexstr = calldata.hex()
             if n_calldata_words == 0:
                 # no args, hit default function
@@ -90,9 +94,5 @@ def __default__():
 
             else:
                 assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr}))
-
-        # TODO:
-        # - test default function with 0 bytes
-        # - test default function with 0-3 bytes of calldata
 
     _test()
