@@ -119,12 +119,12 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                     validate_version_pragma(compiler_version, start)
                     settings.compiler_version = compiler_version
 
-                if string.startswith("#pragma "):
-                    pragma = string.removeprefix("#pragma").strip()
+                if contents.startswith("pragma "):
+                    pragma = contents.removeprefix("pragma ").strip()
                     if pragma.startswith("version "):
                         if settings.compiler_version is not None:
                             raise StructureException("pragma version specified twice!", start)
-                        compiler_version = pragma.removeprefix("version ".strip())
+                        compiler_version = pragma.removeprefix("version ").strip()
                         validate_version_pragma(compiler_version, start)
                         settings.compiler_version = compiler_version
 
