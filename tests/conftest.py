@@ -10,7 +10,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
@@ -43,12 +43,19 @@ def pytest_addoption(parser):
         default="gas",
         help="change optimization mode",
     )
+    parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
 
 @pytest.fixture(scope="module")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(pytestconfig):
+    debug = pytestconfig.getoption("enable_compiler_debug_mode")
+    assert isinstance(debug, bool)
+    _set_debug_mode(debug)
 
 
 @pytest.fixture

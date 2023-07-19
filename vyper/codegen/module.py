@@ -432,10 +432,11 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
         func_ir = _ir_for_internal_function(func_ast, global_ctx, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
-    # dense vs sparse global overhead is amortized after about 4 methods
     if core._opt_none():
         selector_section = _selector_section_linear(external_functions, global_ctx)
-    elif core._opt_codesize() and len(external_functions) > 4:
+    # dense vs sparse global overhead is amortized after about 4 methods
+    # also, --debug will force dense selector table if _opt_codesize is selected.
+    elif core._opt_codesize() and (len(external_functions) > 4 or _is_debug_mode()):
         selector_section = _selector_section_dense(external_functions, global_ctx)
     else:
         selector_section = _selector_section_sparse(external_functions, global_ctx)

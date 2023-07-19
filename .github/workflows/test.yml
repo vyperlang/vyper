@@ -80,16 +80,16 @@ jobs:
       matrix:
         python-version: [["3.11", "311"]]
         # run in modes: --optimize [gas, none, codesize]
-        opt-mode: ["core", "no-opt", "codesize"]
-        debug: ["", "--debug"]
+        opt-mode: ["gas", "none", "codesize"]
+        debug: [true, false]
         # run across other python versions.# we don't really need to run all
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
             opt-mode: core
-            debug: ""
+            debug: false
 
-    name: py${{ matrix.python-version[1] }}-${{ matrix.opt-mode }}${{ matrix.debug }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && "-debug"}}
 
     steps:
     - uses: actions/checkout@v1
@@ -104,7 +104,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.opt-mode }} tox -r -- ${{ matrix.debug }} --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && "--enable-compiler-debug-mode" || "" }} --reruns 10 --reruns-delay 1 -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
