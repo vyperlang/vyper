@@ -89,7 +89,7 @@ jobs:
             opt-mode: core
             debug: false
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && "-debug"}}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && "-debug" || "" }}
 
     steps:
     - uses: actions/checkout@v1
