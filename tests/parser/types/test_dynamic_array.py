@@ -440,6 +440,24 @@ def check(a: {type}) -> bool:
     assert c.check(false_value) is False
 
 
+def test_enum_member_in_list(get_contract_with_gas_estimation):
+    code = """
+enum Foo:
+    A
+    B
+    C
+
+@external
+def check(a: Foo) -> bool:
+    x: DynArray[Foo, 2] = [Foo.A, Foo.C]
+    return a in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.check(1) is True
+    assert c.check(4) is True
+    assert c.check(2) is False
+
+
 @pytest.mark.parametrize("type_", ("uint256", "bytes32", "address"))
 def test_member_in_empty_list(get_contract_with_gas_estimation, type_):
     code = f"""
@@ -457,6 +475,29 @@ def check_not_in(s: uint128) -> bool:
     """
     c = get_contract_with_gas_estimation(code)
     for s in (0, 1, 2, 3):
+        assert c.check_in(s) is False
+        assert c.check_not_in(s) is True
+
+
+def test_enum_member_in_empty_list(get_contract_with_gas_estimation):
+    code = """
+enum Foo:
+    A
+    B
+    C
+
+@external
+def check_in(s: Foo) -> bool:
+    x: DynArray[Foo, 2] = []
+    return s in x
+
+@external
+def check_not_in(s: Foo) -> bool:
+    x: DynArray[Foo, 2] = []
+    return s not in x
+    """
+    c = get_contract_with_gas_estimation(code)
+    for s in (1, 2, 4):
         assert c.check_in(s) is False
         assert c.check_not_in(s) is True
 
