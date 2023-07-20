@@ -1634,7 +1634,9 @@ def _create_ir(value, buf, length, salt=None, checked=True):
     if not checked:
         return ret
 
-    return clamp_nonzero(ret)
+    ret = clamp_nonzero(ret)
+    ret.set_error_msg(f"{create_op} failed")
+    return ret
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1830,7 +1832,10 @@ class CreateCopyOf(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
-                ir.append(["assert", codesize])
+                check_codesize = ["assert", codesize]
+                ir.append(
+                    IRnode.from_list(check_codesize), error_msg="empty target (create_copy_of)"
+                )
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1920,7 +1925,11 @@ class CreateFromBlueprint(_CreateBase):
                 # (code_ofst == (extcodesize target) would be empty
                 # initcode, which we disallow for hygiene reasons -
                 # same as `create_copy_of` on an empty target).
-                ir.append(["assert", ["sgt", codesize, 0]])
+                check_codesize = ["assert", ["sgt", codesize, 0]]
+                ir.append(
+                    IRnode.from_list(check_codesize),
+                    error_msg="empty target (create_from_blueprint)",
+                )
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
