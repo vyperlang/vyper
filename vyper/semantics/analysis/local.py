@@ -37,6 +37,7 @@ from vyper.semantics.types import (
     TYPE_T,
     AddressT,
     BoolT,
+    BytesT,
     DArrayT,
     EnumT,
     EventT,
@@ -232,7 +233,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        validate_expected_type(node.value, typ)
+        #validate_expected_type(node.value, typ)
 
         try:
             self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
@@ -262,7 +263,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, target.typ)
@@ -691,7 +691,11 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        validate_expected_type(node, typ)
+        if typ in (BytesT, StringT):
+            typ = typ.from_literal(node)
+            node._metadata["type"] = typ
+
+        typ.validate_literal(node)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
         validate_expected_type(node.value, typ)
