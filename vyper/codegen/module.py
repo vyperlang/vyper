@@ -242,14 +242,11 @@ def _selector_section_dense(external_functions, global_ctx):
 
         selector_section.append(function_infos)
 
-    runtime = [
-        "seq",
-        ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-    ]
+    ret = ["seq", ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section]]
 
-    runtime.extend(function_irs)
+    ret.extend(function_irs)
 
-    return runtime
+    return ret
 
 
 # codegen for all runtime functions + callvalue/calldata checks,
@@ -403,9 +400,6 @@ def _selector_section_linear(external_functions, global_ctx):
 
     ret.append(["with", "_calldata_method_id", shr(224, ["calldataload", 0]), dispatcher])
 
-    # close out the selector section with a goto fallback
-    ret.append(["goto", "fallback"])
-
     return ret
 
 
@@ -447,7 +441,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
         )
 
-    runtime = ["seq", selector_section, ["label", "fallback", ["var_list"], fallback_ir]]
+    runtime = ["seq", selector_section]
+    runtime.append(["goto", "fallback"])
+    runtime.append(["label", "fallback", ["var_list"], fallback_ir])
 
     runtime.extend(internal_functions_ir)
 
