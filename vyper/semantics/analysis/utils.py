@@ -186,14 +186,14 @@ class _ExprAnalyser:
         name = node.attr
         try:
             s = t.get_member(name, node)
+            if isinstance(s, VyperType):
+                # ex. foo.bar(). bar() is a ContractFunctionT
+                return [s]
             if is_self_reference and (s.is_constant or s.is_immutable):
                 raise InvalidReference(
                     f"'{name}' is not a storage variable, it should not be prepended with self",
                     node,
                 )
-            if isinstance(s, VyperType):
-                # ex. foo.bar(). bar() is a ContractFunctionT
-                return [s]
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
         except UnknownAttribute:
