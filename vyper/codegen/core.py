@@ -539,7 +539,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         # an array index, and the clamp will throw an error.
         # NOTE: there are optimization rules for this when ix or bound is literal
         ix = clamp("lt", ix, bound)
-        ix.set_error_message(f"{parent.typ} bounds check")
+        ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
