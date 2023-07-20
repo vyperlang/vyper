@@ -46,6 +46,19 @@ enum Roles:
     ADMIN
 
 @external
+def foo(x: Roles) -> bool:
+    return x in [Roles.USER, Roles.ADMIN]
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+enum Roles:
+    USER
+    STAFF
+    ADMIN
+
+@external
 def foo(x: Roles) -> Roles:
     return x.USER  # can't dereference on enum instance
     """,
