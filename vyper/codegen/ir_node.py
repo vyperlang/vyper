@@ -336,7 +336,7 @@ class IRnode:
     def set_error_msg(self, error_msg: str) -> None:
         self.error_msg = error_msg
         for arg in self.args:
-            self.set_error_msg(error_msg)
+            arg.set_error_msg(error_msg)
 
 
     # get the unique symbols contained in this node, which provides
