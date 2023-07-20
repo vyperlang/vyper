@@ -473,6 +473,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value == "seq":
         changed |= _merge_memzero(argz)
         changed |= _merge_calldataload(argz)
+        changed |= _merge_dload(argz)
         changed |= _merge_mload(argz)
         changed |= _remove_empty_seqs(argz)
 
