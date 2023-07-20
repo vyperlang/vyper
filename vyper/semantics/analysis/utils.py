@@ -240,7 +240,11 @@ class _ExprAnalyser:
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if any(isinstance(t, EnumT) for t in left):
+            print(left)
+            print(right)
+            if any(isinstance(t, EnumT) for t in left) and not any(
+                isinstance(i, (DArrayT, SArrayT)) for i in right
+            ):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
@@ -254,6 +258,7 @@ class _ExprAnalyser:
                     "Right operand must be Array for membership comparison", node.right
                 )
             types_list = [i for i in left if _is_type_in_list(i, [i.value_type for i in right])]
+            print("types list: ", types_list)
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
