@@ -338,7 +338,6 @@ class IRnode:
         for arg in self.args:
             arg.set_error_msg(error_msg)
 
-
     # get the unique symbols contained in this node, which provides
     # sanity check invariants for the optimizer.
     # cache because it's a perf hotspot. note that this (and other cached
