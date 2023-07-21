@@ -171,7 +171,7 @@ def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
 
 
-def _validate_pure_access(node: vy_ast.Attribute, typ: VyperType) -> None:
+def _validate_pure_access(node: vy_ast.Attribute, typ: Optional[VyperType] = None) -> None:
     env_vars = set(CONSTANT_ENVIRONMENT_VARS.keys()) | set(MUTABLE_ENVIRONMENT_VARS.keys())
     if isinstance(node.value, vy_ast.Name) and node.value.id in env_vars:
         if isinstance(typ, ContractFunctionT) and typ.mutability == StateMutability.PURE:
@@ -198,7 +198,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        self.expr_visitor = _ExprVisitor(self.func)
+        self.expr_visitor = _ExprVisitor(self.func, self.namespace)
 
         # allow internal function params to be mutable
         location, is_immutable = (
@@ -263,6 +263,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
+        #validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, target.typ)
@@ -555,10 +556,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 class _ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
-    def __init__(self, fn_node: ContractFunctionT):
+    def __init__(self, fn_node: ContractFunctionT, namespace: dict):
         self.func = fn_node
+        self.namespace = namespace
 
-    def visit(self, node, typ):
+    def visit(self, node, typ=None):
         # recurse and typecheck in case we are being fed the wrong type for
         # some reason. note that `validate_expected_type` is unnecessary
         # for nodes that already call `get_exact_type_from_node` and
@@ -570,9 +572,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
         super().visit(node, typ)
 
         # annotate
-        node._metadata["type"] = typ
+        if typ:
+            node._metadata["type"] = typ
 
-    def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
+    def visit_Attribute(self, node: vy_ast.Attribute, typ: Optional[VyperType] = None) -> None:
         _validate_msg_data_attribute(node)
 
         if self.func.mutability is not StateMutability.PAYABLE:
@@ -586,7 +589,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         self.visit(node.value, value_type)
 
-    def visit_BinOp(self, node: vy_ast.BinOp, typ: VyperType) -> None:
+    def visit_BinOp(self, node: vy_ast.BinOp, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
 
@@ -598,14 +601,17 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         self.visit(node.right, rtyp)
 
-    def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
+    def visit_BoolOp(self, node: vy_ast.BoolOp, typ: Optional[VyperType] = None) -> None:
         assert typ == BoolT()  # sanity check
         for value in node.values:
             validate_expected_type(value, BoolT())
             self.visit(value, BoolT())
 
-    def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        call_type = get_exact_type_from_node(node.func)
+    def visit_Call(self, node: vy_ast.Call, typ: Optional[VyperType] = None) -> None:
+        self.visit(node.func)
+        call_type = node.func._metadata["type"]
+
+        #call_type = get_exact_type_from_node(node.func)
         # except for builtin functions, `get_exact_type_from_node`
         # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
@@ -647,7 +653,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
-    def visit_Compare(self, node: vy_ast.Compare, typ: VyperType) -> None:
+    def visit_Compare(self, node: vy_ast.Compare, typ: Optional[VyperType] = None) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # membership in list literal - `x in [a, b, c]`
             if isinstance(node.right, vy_ast.List):
@@ -690,31 +696,54 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
 
-    def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
+    def visit_Constant(self, node: vy_ast.Constant, typ: Optional[VyperType] = None) -> None:
         if typ in (BytesT, StringT):
             typ = typ.from_literal(node)
             node._metadata["type"] = typ
 
         typ.validate_literal(node)
 
-    def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
+    def visit_Index(self, node: vy_ast.Index, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.value, typ)
         self.visit(node.value, typ)
 
-    def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
+    def visit_List(self, node: vy_ast.List, typ: Optional[VyperType] = None) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             validate_expected_type(element, typ.value_type)
             self.visit(element, typ.value_type)
 
-    def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
+    def visit_Name(self, node: vy_ast.Name, typ: Optional[VyperType] = None) -> None:
         if self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
+
+        if not typ:
+            name = node.id
+            if (
+                name not in self.namespace
+                and "self" in self.namespace
+                and name in self.namespace["self"].typ.members
+            ):
+                raise InvalidReference(
+                    f"'{name}' is a storage variable, access it as self.{name}", node
+                )
+            try:
+                typ = self.namespace[node.id]
+                # when this is a type, we want to lower it
+                if isinstance(typ, VyperType):
+                    # TYPE_T is used to handle cases where a type can occur in call or
+                    # attribute conditions, like Enum.foo or MyStruct({...})
+                    typ = TYPE_T(typ)
+
+                node._metadata["type"] = typ
+
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
 
         if not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
 
-    def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
+    def visit_Subscript(self, node: vy_ast.Subscript, typ: Optional[VyperType] = None) -> None:
         if isinstance(typ, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -742,7 +771,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
-    def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
+    def visit_Tuple(self, node: vy_ast.Tuple, typ: Optional[VyperType] = None) -> None:
         if isinstance(typ, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
@@ -752,11 +781,11 @@ class _ExprVisitor(VyperNodeVisitorBase):
             validate_expected_type(element, subtype)
             self.visit(element, subtype)
 
-    def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
+    def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.operand, typ)
         self.visit(node.operand, typ)
 
-    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
+    def visit_IfExp(self, node: vy_ast.IfExp, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.test, BoolT())
         self.visit(node.test, BoolT())
         validate_expected_type(node.body, typ)
