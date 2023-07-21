@@ -176,7 +176,7 @@ def _bench_sparse(N=10_000, n_methods=80):
     for _ in range(N):
         seed = random.randint(0, 2**64 - 1)
         sigs = [f"foo{i + seed}()" for i in range(n_methods)]
-        buckets = generate_sparse_jumptable_buckets(sigs)
+        _, buckets = generate_sparse_jumptable_buckets(sigs)
 
         bucket_sizes = [len(bucket) for bucket in buckets.values()]
         worst_bucket_size = max(bucket_sizes)

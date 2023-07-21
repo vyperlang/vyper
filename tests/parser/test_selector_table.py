@@ -3,7 +3,48 @@ import pytest
 from hypothesis import given, settings
 
 import vyper.utils as utils
+from vyper.codegen.jumptable_utils import (
+    generate_dense_jumptable_info,
+    generate_sparse_jumptable_buckets,
+)
 from vyper.compiler.settings import OptimizationLevel
+
+
+@given(
+    n_methods=st.integers(min_value=1, max_value=100),
+    seed=st.integers(min_value=0, max_value=2**64 - 1),
+)
+@pytest.mark.fuzzing
+@settings(max_examples=10, deadline=None)
+def test_sparse_jumptable_probe_depth(n_methods, seed):
+    sigs = [f"foo{i + seed}()" for i in range(n_methods)]
+    _, buckets = generate_sparse_jumptable_buckets(sigs)
+    bucket_sizes = [len(bucket) for bucket in buckets.values()]
+
+    # generally bucket sizes should be bounded at around 4, but
+    # just test that they don't get really out of hand
+    assert max(bucket_sizes) <= 8
+
+    # generally mean bucket size should be around 1.6, here just
+    # test they don't get really out of hand
+    assert sum(bucket_sizes) / len(bucket_sizes) <= 4
+
+
+@given(
+    n_methods=st.integers(min_value=4, max_value=100),
+    seed=st.integers(min_value=0, max_value=2**64 - 1),
+)
+@pytest.mark.fuzzing
+@settings(max_examples=10, deadline=None)
+def test_dense_jumptable_bucket_size(n_methods, seed):
+    sigs = [f"foo{i + seed}()" for i in range(n_methods)]
+    n = len(sigs)
+    buckets = generate_dense_jumptable_info(sigs)
+    n_buckets = len(buckets)
+
+    # generally should be around 14 buckets per 100 methods, here
+    # we test they don't get really out of hand
+    assert n_buckets / n < 0.4 or n < 10
 
 
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
