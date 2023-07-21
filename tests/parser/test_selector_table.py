@@ -13,6 +13,7 @@ from vyper.compiler.settings import OptimizationLevel
 @given(
     seed=st.integers(min_value=0, max_value=2**64 - 1),
     max_default_args=st.integers(min_value=0, max_value=4),
+    default_fn_mutability=st.sampled_from(["", "@pure", "@view", "@nonpayable", "@payable"]),
 )
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
@@ -20,6 +21,7 @@ def test_selector_table_fuzz(
     seed,
     max_default_args,
     opt_level,
+    default_fn_mutability,
     w3,
     get_contract,
     assert_tx_failed,
@@ -66,6 +68,16 @@ def foo{seed + i}({args}) -> uint256:
             generate_func_def(m, s, i, d) for i, (m, s, _, d) in enumerate(methods)
         )
 
+        if default_fn_mutability == "":
+            default_fn_code = ""
+        else:
+            default_fn_code = """
+@external
+{default_fn_mutability}
+def __default__():
+    log CalledDefault()
+            """
+
         code = f"""
 event CalledDefault: pass  #TODO: allow newline in lark grammar
 
@@ -74,10 +86,8 @@ event _Return:
 
 {func_defs}
 
-
-@external
-def __default__():
-    log CalledDefault()"""
+{default_fn_code}
+        """
 
         c = get_contract(code, override_opt_level=opt_level)
 
@@ -110,16 +120,26 @@ def __default__():
                 # strip some bytes
                 calldata = (method_id + argsdata)[:-n_strip_bytes]
                 hexstr = calldata.hex()
+                tx_params = {"to": c.address, "data": hexstr}
                 if n_calldata_words == 0 and j == 0:
                     # no args, hit default function
+                    if default_fn_mutability == "":
+                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                    elif default_fn_mutability == "@payable":
+                        # we should be able to send eth to it
+                        tx_params["value"] = 1
+                        tx = w3.eth.send_transaction(tx_params)
+                        logs = get_logs(tx, c, "CalledDefault")
+                        assert len(logs) == 1
+                    else:
+                        tx = w3.eth.send_transaction(tx_params)
+                        logs = get_logs(tx, c, "CalledDefault")
+                        assert len(logs) == 1
 
-                    tx = w3.eth.send_transaction({"to": c.address, "data": hexstr})
-                    logs = get_logs(tx, c, "CalledDefault")
-                    assert len(logs) == 1
-
+                        # check default function reverts
+                        tx_params["value"] = 1
+                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
                 else:
-                    assert_tx_failed(
-                        lambda: w3.eth.send_transaction({"to": c.address, "data": hexstr})
-                    )
+                    assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
 
     _test()
