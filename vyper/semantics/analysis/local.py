@@ -20,6 +20,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+from vyper.semantics import types
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
@@ -267,8 +268,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         #validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
-        self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
+        self.expr_visitor.visit(node.value)
+        
+        value_typ = node.value._metadata.get("type")
+        if not target.typ.compare_type(value_typ):
+            raise TypeMismatch(f"Expected {target.typ} but got {value_typ} instead", node.value)        
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -588,7 +593,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
                     # ex. foo.bar(). bar() is a ContractFunctionT
                     typ = s
                 # general case. s is a VarInfo, e.g. self.foo
-                typ = s.typ
+                else:
+                    typ = s.typ
             except UnknownAttribute:
                 if node.get("value.id") != "self":
                     raise
@@ -733,7 +739,37 @@ class _ExprVisitor(VyperNodeVisitorBase):
             typ = typ.from_literal(node)
             node._metadata["type"] = typ
 
-        typ.validate_literal(node)
+        if typ:
+            typ.validate_literal(node)
+            return 
+        
+        for t in types.PRIMITIVE_TYPES.values():
+            try:
+                # clarity and perf note: will be better to construct a
+                # map from node types to valid vyper types
+                if not isinstance(node, t._valid_literal):
+                    continue
+
+                # special handling for bytestrings since their
+                # class objects are in the type map, not the type itself
+                # (worth rethinking this design at some point.)
+                if t in (BytesT, StringT):
+                    t = t.from_literal(node)
+
+                # any more validation which needs to occur
+                t.validate_literal(node)
+                node._metadata["type"] = t
+                return
+
+            except VyperException:
+                continue
+        
+        # failed; prepare a good error message
+        if isinstance(node, vy_ast.Num):
+            raise OverflowException(
+                "Numeric literal is outside of allowable range for number types", node
+            )
+        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def visit_Index(self, node: vy_ast.Index, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.value, typ)

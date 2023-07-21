@@ -573,7 +573,14 @@ class StructT(_UserType):
 
         members = self.member_types
         keys = list(self.member_types.keys())
-        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
+        values = node.args[0].values
+
+        if len(members) > len(values):
+            raise VariableDeclarationException(
+                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
+            )
+        
+        for i, (key, value) in enumerate(zip(node.args[0].keys, values)):
             if key is None or key.get("id") not in members:
                 suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
                 raise UnknownAttribute(
@@ -587,11 +594,6 @@ class StructT(_UserType):
                     f"keys in this struct are {list(self.member_types.items())})",
                     key,
                 )
-
-        if len(keys) > len(members):
-            raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
-            )
 
     def validate_arg_types(self, node: vy_ast.Call):
         members = self.member_types.copy()
