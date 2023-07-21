@@ -70,16 +70,24 @@ def foo{seed + i}({args}) -> uint256:
 
         if default_fn_mutability == "":
             default_fn_code = ""
-        else:
+        elif default_fn_mutability in ("@nonpayable", "@payable"):
             default_fn_code = f"""
 @external
 {default_fn_mutability}
 def __default__():
     log CalledDefault()
             """
+        else:
+            # can't log from pure/view functions, just test that it returns
+            default_fn_code = """
+@external
+def __default__():
+    pass
+            """
 
         code = f"""
-event CalledDefault: pass  #TODO: allow newline in lark grammar
+event CalledDefault:
+    pass
 
 event _Return:
     val: uint256
@@ -133,8 +141,12 @@ event _Return:
                         assert len(logs) == 1
                     else:
                         tx = w3.eth.send_transaction(tx_params)
-                        logs = get_logs(tx, c, "CalledDefault")
-                        assert len(logs) == 1
+
+                        # note: can't emit logs from view/pure functions,
+                        # so the logging is not tested.
+                        if default_fn_mutability == "@nonpayable":
+                            logs = get_logs(tx, c, "CalledDefault")
+                            assert len(logs) == 1
 
                         # check default function reverts
                         tx_params["value"] = 1
