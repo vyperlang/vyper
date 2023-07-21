@@ -32,7 +32,7 @@ class Bucket:
         return len(self.method_ids)
 
 
-BITS_MAGIC = 24  # a constant which produced good results, see _bench()
+BITS_MAGIC = 24  # a constant which produced good results, see _bench_dense()
 
 
 def _image_of(xs, magic):
