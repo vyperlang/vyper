@@ -16,6 +16,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnknownAttribute,
     VariableDeclarationException,
     VyperException,
 )
@@ -576,6 +577,34 @@ class _ExprVisitor(VyperNodeVisitorBase):
             node._metadata["type"] = typ
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: Optional[VyperType] = None) -> None:
+        self.visit(node.value)
+        value_type = node.value._metadata["type"]
+
+        if not typ:
+            name = node.attr
+            try:
+                s = value_type.get_member(name, node)
+                if isinstance(s, VyperType):
+                    # ex. foo.bar(). bar() is a ContractFunctionT
+                    typ = s
+                # general case. s is a VarInfo, e.g. self.foo
+                typ = s.typ
+            except UnknownAttribute:
+                if node.get("value.id") != "self":
+                    raise
+                if name in self.namespace:
+                    raise InvalidReference(
+                        f"'{name}' is not a storage variable, it should not be prepended with self",
+                        node,
+                    ) from None
+
+                suggestions_str = get_levenshtein_error_suggestions(name, value_type.members, 0.4)
+                raise UndeclaredDefinition(
+                    f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+                ) from None
+
+            node._metadata["type"] = typ
+
         _validate_msg_data_attribute(node)
 
         if self.func.mutability is not StateMutability.PAYABLE:
@@ -584,10 +613,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
-        value_type = get_exact_type_from_node(node.value)
+        #value_type = get_exact_type_from_node(node.value)
         _validate_address_code(node, value_type)
-
-        self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: Optional[VyperType] = None) -> None:
         validate_expected_type(node.left, typ)
@@ -638,7 +665,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # ctors have no kwargs
             expected_types = call_type.typedef.members.values()
             for value, arg_type in zip(node.args[0].values, expected_types):
-                self.visit(value, arg_type)
+                self.visit(value)
+                
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
@@ -652,6 +680,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
+
+        return_typ = call_type.fetch_call_return(node)
+        node._metadata["type"] = return_typ
 
     def visit_Compare(self, node: vy_ast.Compare, typ: Optional[VyperType] = None) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -728,20 +759,21 @@ class _ExprVisitor(VyperNodeVisitorBase):
                     f"'{name}' is a storage variable, access it as self.{name}", node
                 )
             try:
-                typ = self.namespace[node.id]
+                t = self.namespace[node.id]
+                node._metadata["type"] = t
                 # when this is a type, we want to lower it
-                if isinstance(typ, VyperType):
+                if isinstance(t, VyperType):
                     # TYPE_T is used to handle cases where a type can occur in call or
                     # attribute conditions, like Enum.foo or MyStruct({...})
-                    typ = TYPE_T(typ)
-
-                node._metadata["type"] = typ
+                    node._metadata["type"] = TYPE_T(t)
+                elif isinstance(t, VarInfo):
+                    node._metadata["type"] = t.typ
 
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-        if not isinstance(typ, TYPE_T):
-            validate_expected_type(node, typ)
+        #if not isinstance(typ, TYPE_T):
+        #    validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: Optional[VyperType] = None) -> None:
         if isinstance(typ, TYPE_T):

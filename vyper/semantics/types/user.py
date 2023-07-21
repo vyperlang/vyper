@@ -11,6 +11,7 @@ from vyper.exceptions import (
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
+    TypeMismatch,
     UnknownAttribute,
     VariableDeclarationException,
 )
@@ -587,7 +588,11 @@ class StructT(_UserType):
                     key,
                 )
 
-            validate_expected_type(value, members.pop(key.id))
+            annotated = value._metadata.get("type")
+            expected = members.pop(key.id)
+            if not annotated.compare_type(expected):
+                raise TypeMismatch(f"Expected {expected} but got {annotated} instead", value)
+
 
         if members:
             raise VariableDeclarationException(
