@@ -71,7 +71,7 @@ def foo{seed + i}({args}) -> uint256:
         if default_fn_mutability == "":
             default_fn_code = ""
         else:
-            default_fn_code = """
+            default_fn_code = f"""
 @external
 {default_fn_mutability}
 def __default__():
