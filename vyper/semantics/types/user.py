@@ -560,7 +560,7 @@ class StructT(_UserType):
     # TODO breaking change: use kwargs instead of dict
     # when using the type itself (not an instance) in the call position
     # maybe rename to _ctor_call_return
-    def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
+    def validate_expected_node(self, node: vy_ast.Call) -> "StructT":
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(
@@ -571,7 +571,7 @@ class StructT(_UserType):
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
-        members = self.member_types.copy()
+        members = self.member_types
         keys = list(self.member_types.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
@@ -588,15 +588,21 @@ class StructT(_UserType):
                     key,
                 )
 
+        if len(keys) > len(members):
+            raise VariableDeclarationException(
+                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
+            )
+
+    def validate_arg_types(self, node: vy_ast.Call):
+        members = self.member_types.copy()
+        keys = list(self.member_types.keys())
+        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             annotated = value._metadata.get("type")
             expected = members.pop(key.id)
             if not annotated.compare_type(expected):
                 raise TypeMismatch(f"Expected {expected} but got {annotated} instead", value)
 
-
-        if members:
-            raise VariableDeclarationException(
-                f"Struct declaration does not define all fields: {', '.join(list(members))}", node
-            )
-
+    def _ctor_call_return(self, node: vy_ast.Call):
+        self.validate_expected_node(node)
+        self.validate_arg_types(node)
         return StructT(self._id, self.member_types)

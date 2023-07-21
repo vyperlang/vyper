@@ -663,9 +663,13 @@ class _ExprVisitor(VyperNodeVisitorBase):
         elif is_type_t(call_type, StructT):
             # struct ctors
             # ctors have no kwargs
-            expected_types = call_type.typedef.members.values()
-            for value, arg_type in zip(node.args[0].values, expected_types):
+            typ = call_type.typedef
+            typ.validate_expected_node(node)
+            for value in node.args[0].values:
                 self.visit(value)
+            
+            typ.validate_arg_types(node)
+            node._metadata["type"] = typ
                 
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
@@ -680,9 +684,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
-
-        return_typ = call_type.fetch_call_return(node)
-        node._metadata["type"] = return_typ
 
     def visit_Compare(self, node: vy_ast.Compare, typ: Optional[VyperType] = None) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
