@@ -560,7 +560,7 @@ class StructT(_UserType):
     # TODO breaking change: use kwargs instead of dict
     # when using the type itself (not an instance) in the call position
     # maybe rename to _ctor_call_return
-    def validate_expected_node(self, node: vy_ast.Call) -> "StructT":
+    def validate_node(self, node: vy_ast.Call) -> "StructT":
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Dict):
             raise VariableDeclarationException(
@@ -575,9 +575,15 @@ class StructT(_UserType):
         keys = list(self.member_types.keys())
         values = node.args[0].values
 
-        if len(members) > len(values):
+        num_members = len(members)
+        num_values = len(values)
+        if num_members > num_values:
             raise VariableDeclarationException(
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
+            )
+        elif num_members < num_values:
+            raise UnknownAttribute(
+                f"Unknown or duplicate struct member.", values[num_values - num_members]
             )
         
         for i, (key, value) in enumerate(zip(node.args[0].keys, values)):
@@ -605,6 +611,6 @@ class StructT(_UserType):
                 raise TypeMismatch(f"Expected {expected} but got {annotated} instead", value)
 
     def _ctor_call_return(self, node: vy_ast.Call):
-        self.validate_expected_node(node)
+        self.validate_node(node)
         self.validate_arg_types(node)
         return StructT(self._id, self.member_types)

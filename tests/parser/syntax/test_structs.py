@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InstantiationException,
+    InvalidLiteral,
     InvalidType,
     StructureException,
     TypeMismatch,
@@ -254,7 +255,7 @@ nom: C[3]
 def foo():
     self.mom = Mom({a: self.nom, b: 5.5})
     """,
-        TypeMismatch,
+        InvalidLiteral,
     ),
     (
         """

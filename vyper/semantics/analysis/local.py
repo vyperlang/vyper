@@ -672,7 +672,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # struct ctors
             # ctors have no kwargs
             typ = call_type.typedef
-            typ.validate_expected_node(node)
+            typ.validate_node(node)
             for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
                 self.visit(value, arg_type)
             
@@ -835,6 +835,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         else:
             base_type = get_exact_type_from_node(node.value)
+
+        base_type.validate_index_type(node.slice.value)
 
         # get the correct type for the index, it might
         # not be base_type.key_type
