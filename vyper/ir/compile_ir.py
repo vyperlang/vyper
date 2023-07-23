@@ -151,7 +151,7 @@ def _add_postambles(asm_ops):
 
     global _revert_label
 
-    _revert_string = [_revert_label, "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+    _revert_string = [_revert_label, "JUMPDEST", *PUSH(0), *PUSH(0), "REVERT"]
 
     if _revert_label in asm_ops:
         # shared failure block
@@ -934,6 +934,50 @@ def _stack_peephole_opts(assembly):
     return changed
 
 
+def _is_sym(asm):
+    return isinstance(asm, str) and asm.startswith('_sym_')
+
+
+def _merge_staggered_jumps(assembly):
+    '''
+    <cond>
+    <join_dest>
+    jumpi
+        <alt_dest>
+        jump
+    join_dest:
+
+    =>
+
+    <cond>
+    iszero
+    <alt_dest>
+    jumpi
+    '''
+    pattern_size = 6
+    changed = False
+    i = 0
+    while i < len(assembly) - pattern_size + 1:
+        target_dest, jumpi, alt_dest, jump, land_dest, jt = assembly[i:i + pattern_size]
+        if _is_sym(target_dest)\
+                and _is_sym(alt_dest)\
+                and target_dest == land_dest\
+                and jumpi == 'JUMPI'\
+                and jump == 'JUMP'\
+                and jt == 'JUMPDEST':
+            assembly[i + 0] = 'ISZERO'
+            assembly[i + 1] = alt_dest
+            assembly[i + 2] = 'JUMPI'
+            del assembly[i + 5]
+            del assembly[i + 4]
+            del assembly[i + 3]
+            changed = True
+
+        i += 1
+
+    return changed
+
+
 # optimize assembly, in place
 def _optimize_assembly(assembly):
     for x in assembly:
@@ -949,6 +993,7 @@ def _optimize_assembly(assembly):
         changed |= _prune_inefficient_jumps(assembly)
         changed |= _prune_unused_jumpdests(assembly)
         changed |= _stack_peephole_opts(assembly)
+        changed |= _merge_staggered_jumps(assembly)
 
         if not changed:
             return

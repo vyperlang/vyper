@@ -105,30 +105,37 @@ def _runtime_ir(runtime_functions, global_ctx):
         func_ir = generate_ir_for_function(func_ast, global_ctx, skip_nonpayable_check)
         selector_section.append(func_ir)
 
-    if default_function:
-        fallback_ir = generate_ir_for_function(
-            default_function, global_ctx, skip_nonpayable_check=False
-        )
-    else:
-        fallback_ir = IRnode.from_list(
-            ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
-        )
-
     # ensure the external jumptable section gets closed out
     # (for basic block hygiene and also for zksync interpreter)
     # NOTE: this jump gets optimized out in assembly since the
     # fallback label is the immediate next instruction,
     close_selector_section = ["goto", "fallback"]
 
-    global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
+    if default_function:
+        global_calldatasize_check = ["if", ["lt", "calldatasize", 4], ["goto", "fallback"]]
+    else:
+        global_calldatasize_check = ["assert", ["ge", "calldatasize", 4]]
 
     runtime = [
         "seq",
         global_calldatasize_check,
         ["with", "_calldata_method_id", shr(224, ["calldataload", 0]), selector_section],
-        close_selector_section,
-        ["label", "fallback", ["var_list"], fallback_ir],
     ]
+
+    if default_function:
+        fallback_ir = generate_ir_for_function(
+            default_function, global_ctx, skip_nonpayable_check=False
+        )
+        runtime.extend([
+            close_selector_section,
+            ["label", "fallback", ["var_list"], fallback_ir]
+        ])
+    else:
+        runtime.extend([
+            IRnode.from_list(
+                ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
+            )
+        ])
 
     runtime.extend(internal_functions_ir)
 
