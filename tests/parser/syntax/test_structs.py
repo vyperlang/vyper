@@ -254,7 +254,7 @@ nom: C[3]
 def foo():
     self.mom = Mom({a: self.nom, b: 5.5})
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

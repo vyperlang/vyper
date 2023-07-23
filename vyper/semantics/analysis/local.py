@@ -585,31 +585,33 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value)
         value_type = node.value._metadata["type"]
 
-        if not typ:
-            name = node.attr
-            try:
-                s = value_type.get_member(name, node)
-                if isinstance(s, VyperType):
-                    # ex. foo.bar(). bar() is a ContractFunctionT
-                    typ = s
-                # general case. s is a VarInfo, e.g. self.foo
-                else:
-                    typ = s.typ
-            except UnknownAttribute:
-                if node.get("value.id") != "self":
-                    raise
-                if name in self.namespace:
-                    raise InvalidReference(
-                        f"'{name}' is not a storage variable, it should not be prepended with self",
-                        node,
-                    ) from None
-
-                suggestions_str = get_levenshtein_error_suggestions(name, value_type.members, 0.4)
-                raise UndeclaredDefinition(
-                    f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+        name = node.attr
+        try:
+            s = value_type.get_member(name, node)
+            if isinstance(s, VyperType):
+                # ex. foo.bar(). bar() is a ContractFunctionT
+                derived_typ = s
+            # general case. s is a VarInfo, e.g. self.foo
+            else:
+                derived_typ = s.typ
+        except UnknownAttribute:
+            if node.get("value.id") != "self":
+                raise
+            if name in self.namespace:
+                raise InvalidReference(
+                    f"'{name}' is not a storage variable, it should not be prepended with self",
+                    node,
                 ) from None
 
-            node._metadata["type"] = typ
+            suggestions_str = get_levenshtein_error_suggestions(name, value_type.members, 0.4)
+            raise UndeclaredDefinition(
+                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+            ) from None
+
+        if typ and not typ.compare_type(derived_typ):
+            raise TypeMismatch(f"Expected {derived_typ} but got {typ} instead", node)
+
+        node._metadata["type"] = derived_typ
 
         _validate_msg_data_attribute(node)
 
@@ -671,8 +673,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # ctors have no kwargs
             typ = call_type.typedef
             typ.validate_expected_node(node)
-            for value in node.args[0].values:
-                self.visit(value)
+            for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
+                self.visit(value, arg_type)
             
             typ.validate_arg_types(node)
             node._metadata["type"] = typ
@@ -741,7 +743,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         if typ:
             typ.validate_literal(node)
-            return 
         
         for t in types.PRIMITIVE_TYPES.values():
             try:
@@ -758,7 +759,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
                 # any more validation which needs to occur
                 t.validate_literal(node)
-                node._metadata["type"] = t
+                if typ and typ.compare_type(t):
+                    node._metadata["type"] = t
+                elif not typ:     
+                    node._metadata["type"] = t
                 return
 
             except VyperException:
