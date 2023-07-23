@@ -690,10 +690,7 @@ def _merge_load(argz, _LOAD, _COPY):
 
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
-        # note: (mstore dst (dload src)) is ALWAYS better as straight
-        # dloadbytes to dst (because dload implicitly generates codecopy)
-        rewrite_threshold = 0 if _LOAD == "dload" else 1
-        if len(mstore_nodes) > rewrite_threshold:
+        if len(mstore_nodes) > 1:
             changed = True
             new_ir = IRnode.from_list(
                 [_COPY, initial_dst_offset, initial_src_offset, total_length],
