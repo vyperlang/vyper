@@ -1,4 +1,4 @@
-# a contract.vy -- all functions and constructor
+# a compilation unit -- all functions and constructor
 
 from typing import Any, List
 
