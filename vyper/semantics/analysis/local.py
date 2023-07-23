@@ -559,6 +559,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
+def _is_empty_list(node):
+    # Checks if a node is a `List` node with an empty list for `elements`,
+    # including any nested `List` nodes. ex. `[]` or `[[]]` will return True,
+    # [1] will return False.
+    if not isinstance(node, vy_ast.List):
+        return False
+
+    if not node.elements:
+        return True
+    return all(_is_empty_list(t) for t in node.elements)
+
+
 class _ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
@@ -780,10 +792,57 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, typ)
 
     def visit_List(self, node: vy_ast.List, typ: Optional[VyperType] = None) -> None:
-        assert isinstance(typ, (SArrayT, DArrayT))
+        if _is_empty_list(node):
+            ret = []
+
+            if len(node.elements) > 0:
+                # empty nested list literals `[[], []]`
+                subtypes = get_possible_types_from_node(node.elements[0])
+            else:
+                # empty list literal `[]`
+                # subtype can be anything
+                subtypes = types.PRIMITIVE_TYPES.values()
+
+            for t in subtypes:
+                # 1 is minimum possible length for dynarray,
+                # can be assigned to anything
+                if isinstance(t, VyperType):
+                    derived_typ = DArrayT(t, 1)
+                    break
+                elif isinstance(t, type) and issubclass(t, VyperType):
+                    # for typeclasses like bytestrings, use a generic type acceptor
+                    derived_typ = DArrayT(t.any(), 1)
+                    break
+                else:
+                    raise CompilerPanic("busted type {t}", node)
+
+            if typ:
+                typ.compare_type(derived_typ)
+
+            node._metadata["type"] = derived_typ
+            return 
+        
+        value_types = set()
         for element in node.elements:
-            validate_expected_type(element, typ.value_type)
-            self.visit(element, typ.value_type)
+            self.visit(element)
+            value_types.add(element._metadata["type"])
+        
+        if len(value_types) > 1:   
+            raise InvalidLiteral("Array contains multiple, incompatible types", node)
+            
+        value_typ = list(value_types)[0]
+
+        count = len(node.elements)
+        
+        sarray_t = SArrayT(value_typ, count)
+        darray_t = DArrayT(value_typ, count)
+
+        if typ and typ.compare_type(sarray_t):
+            derived_typ = sarray_t
+        elif typ and typ.compare_type(darray_t):
+            derived_typ = darray_t
+            
+        node._metadata["type"] = derived_typ
 
     def visit_Name(self, node: vy_ast.Name, typ: Optional[VyperType] = None) -> None:
         if self.func.mutability == StateMutability.PURE:
