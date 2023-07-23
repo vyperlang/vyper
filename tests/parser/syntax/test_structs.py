@@ -4,7 +4,6 @@ from vyper import compiler
 from vyper.exceptions import (
     InstantiationException,
     InvalidLiteral,
-    InvalidType,
     StructureException,
     TypeMismatch,
     UnknownAttribute,

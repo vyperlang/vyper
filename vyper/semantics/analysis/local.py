@@ -4,18 +4,22 @@ from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    CompilerPanic,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
     InvalidLiteral,
     InvalidOperation,
+    InvalidReference,
     InvalidType,
     IteratorException,
     NonPayableViolation,
+    OverflowException,
     StateAccessViolation,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UndeclaredDefinition,
     UnknownAttribute,
     VariableDeclarationException,
     VyperException,
@@ -23,6 +27,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -235,7 +240,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        #validate_expected_type(node.value, typ)
+        # validate_expected_type(node.value, typ)
 
         try:
             self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
@@ -265,15 +270,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        #validate_expected_type(node.value, target.typ)
+        # validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.target, target.typ)
         self.expr_visitor.visit(node.value)
-        
+
         value_typ = node.value._metadata.get("type")
         if not target.typ.compare_type(value_typ):
-            raise TypeMismatch(f"Expected {target.typ} but got {value_typ} instead", node.value)        
+            raise TypeMismatch(f"Expected {target.typ} but got {value_typ} instead", node.value)
 
     def visit_AugAssign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -633,7 +638,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
-        #value_type = get_exact_type_from_node(node.value)
+        # value_type = get_exact_type_from_node(node.value)
         _validate_address_code(node, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: Optional[VyperType] = None) -> None:
@@ -658,7 +663,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.func)
         call_type = node.func._metadata["type"]
 
-        #call_type = get_exact_type_from_node(node.func)
+        # call_type = get_exact_type_from_node(node.func)
         # except for builtin functions, `get_exact_type_from_node`
         # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
@@ -685,12 +690,14 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # ctors have no kwargs
             typ = call_type.typedef
             typ.validate_node(node)
-            for value, arg_type in zip(node.args[0].values, list(call_type.typedef.members.values())):
+            for value, arg_type in zip(
+                node.args[0].values, list(call_type.typedef.members.values())
+            ):
                 self.visit(value, arg_type)
-            
+
             typ.validate_arg_types(node)
             node._metadata["type"] = typ
-                
+
         elif isinstance(call_type, MemberFunctionT):
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
@@ -755,7 +762,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         if typ:
             typ.validate_literal(node)
-        
+
         for t in types.PRIMITIVE_TYPES.values():
             try:
                 # clarity and perf note: will be better to construct a
@@ -773,13 +780,13 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 t.validate_literal(node)
                 if typ and typ.compare_type(t):
                     node._metadata["type"] = t
-                elif not typ:     
+                elif not typ:
                     node._metadata["type"] = t
                 return
 
             except VyperException:
                 continue
-        
+
         # failed; prepare a good error message
         if isinstance(node, vy_ast.Num):
             raise OverflowException(
@@ -793,8 +800,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_List(self, node: vy_ast.List, typ: Optional[VyperType] = None) -> None:
         if _is_empty_list(node):
-            ret = []
-
             if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
                 subtypes = get_possible_types_from_node(node.elements[0])
@@ -820,20 +825,20 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 typ.compare_type(derived_typ)
 
             node._metadata["type"] = derived_typ
-            return 
-        
+            return
+
         value_types = set()
         for element in node.elements:
             self.visit(element)
             value_types.add(element._metadata["type"])
-        
-        if len(value_types) > 1:   
+
+        if len(value_types) > 1:
             raise InvalidLiteral("Array contains multiple, incompatible types", node)
-            
+
         value_typ = list(value_types)[0]
 
         count = len(node.elements)
-        
+
         sarray_t = SArrayT(value_typ, count)
         darray_t = DArrayT(value_typ, count)
 
@@ -841,7 +846,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             derived_typ = sarray_t
         elif typ and typ.compare_type(darray_t):
             derived_typ = darray_t
-            
+
         node._metadata["type"] = derived_typ
 
     def visit_Name(self, node: vy_ast.Name, typ: Optional[VyperType] = None) -> None:
@@ -872,7 +877,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
-        #if not isinstance(typ, TYPE_T):
+        # if not isinstance(typ, TYPE_T):
         #    validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: Optional[VyperType] = None) -> None:
