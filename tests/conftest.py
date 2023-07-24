@@ -78,7 +78,7 @@ def get_contract_from_ir(w3, optimize):
         ir = IRnode.from_list(ir)
         if optimize != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
-        bytecode, _, _ = compile_ir.assembly_to_evm(
+        bytecode, _ = compile_ir.assembly_to_evm(
             compile_ir.compile_to_assembly(ir, optimize=optimize)
         )
         abi = kwargs.get("abi") or []

@@ -233,7 +233,7 @@ def test(code_ofst: uint256) -> address:
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
     ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _, _ = compile_ir.assembly_to_evm(
+    bytecode, _ = compile_ir.assembly_to_evm(
         compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
     )
     # manually deploy the bytecode
