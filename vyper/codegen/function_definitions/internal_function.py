@@ -41,8 +41,8 @@ def generate_ir_for_internal_function(
 
     for arg in func_t.arguments:
         # allocate a variable for every arg, setting mutability
-        # to False to comply with vyper semantics, function arguments are immutable
-        context.new_variable(arg.name, arg.typ, is_mutable=False)
+        # to True to allow internal function arguments to be mutable
+        context.new_variable(arg.name, arg.typ, is_mutable=True)
 
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 

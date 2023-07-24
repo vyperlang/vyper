@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import compiler
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import InvalidType, TypeMismatch
 
@@ -12,8 +13,9 @@ def test_evm_version(evm_version):
 def foo():
     a: uint256 = chain.id
     """
+    settings = Settings(evm_version=evm_version)
 
-    assert compiler.compile_code(code, evm_version=evm_version) is not None
+    assert compiler.compile_code(code, settings=settings) is not None
 
 
 fail_list = [

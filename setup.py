@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 extras_require = {
     "test": [
@@ -28,7 +28,7 @@ extras_require = {
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
         "isort==5.9.3",
-        "mypy==0.910",
+        "mypy==0.982",
     ],
     "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
@@ -88,7 +88,7 @@ setup(
     license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
-    packages=find_packages(exclude=("tests", "docs")),
+    packages=["vyper"],
     python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[

@@ -59,5 +59,8 @@ def test_get_opcodes(evm_version):
         assert "PUSH0" in ops
 
     if evm_version in ("cancun",):
-        assert "TLOAD" in ops
-        assert "TSTORE" in ops
+        for op in ("TLOAD", "TSTORE", "MCOPY"):
+            assert op in ops
+    else:
+        for op in ("TLOAD", "TSTORE", "MCOPY"):
+            assert op not in ops

@@ -20,9 +20,13 @@ class Namespace(dict):
         List of sets containing the key names for each scope
     """
 
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls, *args, **kwargs)
+        self._scopes = []
+        return self
+
     def __init__(self):
         super().__init__()
-        self._scopes = []
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
