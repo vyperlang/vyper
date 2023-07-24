@@ -1834,7 +1834,7 @@ class CreateCopyOf(_CreateBase):
                 # make sure there is actually code at the target
                 check_codesize = ["assert", codesize]
                 ir.append(
-                    IRnode.from_list(check_codesize), error_msg="empty target (create_copy_of)"
+                    IRnode.from_list(check_codesize, error_msg="empty target (create_copy_of)")
                 )
 
                 # store the preamble at msize + 22 (zero padding)
@@ -1927,8 +1927,9 @@ class CreateFromBlueprint(_CreateBase):
                 # same as `create_copy_of` on an empty target).
                 check_codesize = ["assert", ["sgt", codesize, 0]]
                 ir.append(
-                    IRnode.from_list(check_codesize),
-                    error_msg="empty target (create_from_blueprint)",
+                    IRnode.from_list(
+                        check_codesize, error_msg="empty target (create_from_blueprint)"
+                    )
                 )
 
                 # copy the target code into memory.
