@@ -194,6 +194,27 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
+def _validate_op(node, types_list, validation_fn_name):
+    if not types_list:
+        # TODO raise a better error here: say which types.
+        raise TypeMismatch(f"Cannot perform {node.op.description} between dislike types", node)
+
+    ret = []
+    err_list = []
+    for type_ in types_list:
+        _validate_fn = getattr(type_, validation_fn_name)
+        try:
+            _validate_fn(node)
+            ret.append(type_)
+        except InvalidOperation as e:
+            err_list.append(e)
+
+    if ret:
+        return ret
+
+    raise err_list[0]
+
+
 class FunctionNodeVisitor(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
@@ -642,14 +663,38 @@ class _ExprVisitor(VyperNodeVisitorBase):
         _validate_address_code(node, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: Optional[VyperType] = None) -> None:
-        validate_expected_type(node.left, typ)
+        # binary operation: `x + y`
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            # ad-hoc handling for LShift and RShift, since operands
+            # can be different types
+            types_list = get_possible_types_from_node(node.left)
+        else:
+            types_list = get_common_types(node.left, node.right)
+
+        if (
+            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            and isinstance(node.right, vy_ast.Num)
+            and not node.right.value
+        ):
+            raise ZeroDivisionException(f"{node.op.description} by zero", node)
+
+        _validate_op(node, types_list, "validate_numeric_op")
+
+        if typ:
+            for t in types_list:
+                if t.compare_type(typ):
+                    node._metadata["type"] = typ
+                    break
+            else:
+                raise TypeMismatch(f"Expected {typ} but it is not a possible type", node)
+        else:
+            typ = types_list.pop()
+
         self.visit(node.left, typ)
 
         rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
             rtyp = get_possible_types_from_node(node.right).pop()
-        else:
-            validate_expected_type(node.right, rtyp)
 
         self.visit(node.right, rtyp)
 
