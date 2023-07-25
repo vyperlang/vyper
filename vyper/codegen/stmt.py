@@ -258,11 +258,17 @@ class Stmt:
         arg0 = self.stmt.iter.args[0]
         num_of_args = len(self.stmt.iter.args)
 
+        kwargs = {
+            s.arg: Expr.parse_value_expr(s.value, self.context)
+            for s in self.stmt.iter.keywords or []
+        }
+
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
-            arg0_val = self._get_range_const_value(arg0)
+            n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
-            rounds = arg0_val
+            rounds = n
+            rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
@@ -270,6 +276,7 @@ class Stmt:
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
             rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
+            rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
@@ -278,9 +285,10 @@ class Stmt:
             start = Expr.parse_value_expr(arg0, self.context)
             _, hi = start.typ.int_bounds
             start = clamp("le", start, hi + 1 - rounds)
+            rounds_bound = rounds
 
-        r = rounds if isinstance(rounds, int) else rounds.value
-        if r < 1:
+        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
+        if bound < 1:
             return
 
         varname = self.stmt.target.id
@@ -294,7 +302,7 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
+        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds_bound, loop_body])
         del self.context.forvars[varname]
 
         return ir_node
