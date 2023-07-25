@@ -86,7 +86,7 @@ class BytesM_T(_PrimT):
         val = node.value
 
         if node.n_bytes != self.m:
-            raise InvalidLiteral("Invalid literal for type {self}", node)
+            raise InvalidLiteral(f"Invalid literal for type {self}", node)
 
         nibbles = val[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):

@@ -274,7 +274,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.target, target.typ)
-        self.expr_visitor.visit(node.value)
+        self.expr_visitor.visit(node.value, target.typ)
 
         value_typ = node.value._metadata.get("type")
         if not target.typ.compare_type(value_typ):
