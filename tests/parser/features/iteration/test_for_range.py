@@ -27,7 +27,7 @@ def repeat(n: uint256) -> uint256:
     for n in range(7):
         assert c.repeat(n) == sum(range(n))
 
-    # n greater than bound
+    # check codegen inserts assertion for n greater than bound
     assert_tx_failed(lambda: c.repeat(7))
 
 

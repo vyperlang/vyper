@@ -302,6 +302,9 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
+        # NOTE: codegen for `repeat` inserts an assertion that rounds <= rounds_bound.
+        # if we ever want to remove that, we need to manually add the assertion
+        # where it makes sense.
         ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds_bound, loop_body])
         del self.context.forvars[varname]
 
