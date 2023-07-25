@@ -358,6 +358,8 @@ def _selector_section_sparse(external_functions, global_ctx):
 
 # codegen for all runtime functions + callvalue/calldata checks,
 # O(n) linear search for the method id
+# mainly keep this in for backends which cannot handle the indirect jump
+# in selector_section_dense and selector_section_sparse
 def _selector_section_linear(external_functions, global_ctx):
     ret = ["seq"]
     if len(external_functions) == 0:
@@ -374,27 +376,15 @@ def _selector_section_linear(external_functions, global_ctx):
         expected_calldatasize = entry_point.min_calldatasize
 
         dispatch = ["seq"]  # code to dispatch into the function
-        skip_callvalue_check = func_t.is_payable
-        skip_calldatasize_check = expected_calldatasize == 4
-        bad_callvalue = [0] if skip_callvalue_check else ["callvalue"]
-        bad_calldatasize = (
-            [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
-        )
 
-        dispatch.append(
-            IRnode.from_list(["assert", ["iszero", bad_callvalue]], error_msg="nonpayable check")
-        )
-        dispatch.append(
-            IRnode.from_list(
-                ["assert", ["iszero", bad_calldatasize]], error_msg="calldatasize check"
-            )
-        )
-        # we could skip a jumpdest per method if we out-lined the entry point
-        # so the dispatcher looks just like -
-        # ```(if (eq <calldata_method_id> method_id)
-        #   (goto entry_point_label))```
-        # it would need another optimization for patterns like
-        # `if ... (goto)` though.
+        if not func_t.is_payable:
+            callvalue_check = ["assert", ["iszero", "callvalue"]]
+            dispatch.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
+
+        good_calldatasize = ["ge", "calldatasize", expected_calldatasize]
+        calldatasize_check = ["assert", good_calldatasize]
+        dispatch.append(IRnode.from_list(calldatasize_check, error_msg="calldatasize check"))
+
         dispatch.append(entry_point.ir_node)
 
         method_id_check = ["eq", "_calldata_method_id", _annotated_method_id(sig)]
