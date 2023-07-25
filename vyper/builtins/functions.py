@@ -764,29 +764,19 @@ class ECRecover(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
+        input_buf = context.new_internal_variable(get_type_for_exact_size(128))
+        output_buf = MemoryPositions.FREE_VAR_SPACE
         return IRnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, args[0]],
-                ["mstore", ["add", placeholder_node, 32], args[1]],
-                ["mstore", ["add", placeholder_node, 64], args[2]],
-                ["mstore", ["add", placeholder_node, 96], args[3]],
-                [
-                    "pop",
-                    [
-                        "staticcall",
-                        ["gas"],
-                        1,
-                        placeholder_node,
-                        128,
-                        MemoryPositions.FREE_VAR_SPACE,
-                        32,
-                    ],
-                ],
-                ["mload", MemoryPositions.FREE_VAR_SPACE],
+                # clear output memory first, ecrecover can return 0 bytes
+                ["mstore", output_buf, 0],
+                ["mstore", input_buf, args[0]],
+                ["mstore", input_buf + 32, args[1]],
+                ["mstore", input_buf + 64, args[2]],
+                ["mstore", input_buf + 96, args[3]],
+                ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
+                ["mload", output_buf],
             ],
             typ=AddressT(),
         )
