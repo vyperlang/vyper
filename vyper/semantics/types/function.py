@@ -499,9 +499,6 @@ class ContractFunctionT(VyperType):
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.argument_types):
-            validate_expected_type(arg, expected)
-
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
             if kwarg.arg in self.call_site_kwargs:
@@ -511,7 +508,6 @@ class ContractFunctionT(VyperType):
                         f"`{kwarg.arg}=` specified but {self.name}() does not return anything",
                         kwarg.value,
                     )
-                validate_expected_type(kwarg.value, kwarg_settings.typ)
                 if kwarg_settings.require_literal:
                     if not isinstance(kwarg.value, vy_ast.Constant):
                         raise InvalidType(

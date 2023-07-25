@@ -578,10 +578,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.member_types):
-                validate_expected_type(given, expected)
-        else:
-            validate_expected_type(values, self.func.return_type)
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
@@ -715,6 +711,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         #self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
+            node._metadata["type"] = call_type.fetch_call_return(node)
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
@@ -748,7 +745,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            node._metadata["type"] = call_type.fetch_call_return(node)
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             # `infer_arg_types` already calls `validate_expected_type`
@@ -757,6 +753,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
             kwarg_types = call_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
+
+            node._metadata["type"] = call_type.fetch_call_return(node)
 
     def visit_Compare(self, node: vy_ast.Compare, typ: Optional[VyperType] = None) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -891,6 +889,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if typ and typ.compare_type(sarray_t):
             derived_typ = sarray_t
         elif typ and typ.compare_type(darray_t):
+            derived_typ = darray_t
+        else:
             derived_typ = darray_t
 
         node._metadata["type"] = derived_typ
