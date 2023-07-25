@@ -380,10 +380,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
-                self.expr_visitor.visit(args[0])
                 type_list = get_possible_types_from_node(args[0])
             else:
-                self.expr_visitor.visit(args[0])
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
                     # range(x, x + CONSTANT)
@@ -409,7 +407,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    self.expr_visitor.visit(args[1])
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
