@@ -148,6 +148,13 @@ class IRnode:
 
             self.valency = 1
             self._gas = 5
+        elif isinstance(self.value, bytes):
+            # a literal bytes value, probably inside a "data" node.
+            _check(len(self.args) == 0, "bytes can't have arguments")
+
+            self.valency = 0
+            self._gas = 0
+
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in get_ir_opcodes():
@@ -264,8 +271,11 @@ class IRnode:
                 self.valency = 0
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "label":
-                if not self.args[1].value == "var_list":
-                    raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
+                _check(
+                    self.args[1].value == "var_list",
+                    f"2nd argument to label must be var_list, {self}",
+                )
+                _check(len(args) == 3, f"label should have 3 args but has {len(args)}, {self}")
                 self.valency = 0
                 self._gas = 1 + sum(t.gas for t in self.args)
             elif self.value == "unique_symbol":
