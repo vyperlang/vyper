@@ -273,13 +273,19 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Assert(self, node):
         if node.msg:
-            _validate_revert_reason(node.msg)
+            if isinstance(node.msg, vy_ast.Str):
+                if not node.msg.value.strip():
+                    raise StructureException("Reason string cannot be empty", node.msg)
+            elif not (isinstance(node.msg, vy_ast.Name) and node.msg.id == "UNREACHABLE"):
+                try:
+                    self.visit(node.msg, StringT(1024))
+                except TypeMismatch as e:
+                    raise InvalidType("revert reason must fit within String[1024]") from e
 
         try:
-            validate_expected_type(node.test, BoolT())
+            self.expr_visitor.visit(node.test, BoolT())
         except InvalidType:
             raise InvalidType("Assertion test value must be a boolean", node.test)
-        self.expr_visitor.visit(node.test, BoolT())
 
     def visit_Assign(self, node):
         if isinstance(node.value, vy_ast.Tuple):
@@ -307,7 +313,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         lhs_info = get_expr_info(node.target)
 
-        validate_expected_type(node.value, lhs_info.typ)
+        #validate_expected_type(node.value, lhs_info.typ)
         lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, lhs_info.typ)
@@ -388,10 +394,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation("Value must be a literal", node)
                 if args[0].value <= 0:
                     raise StructureException("For loop must have at least 1 iteration", args[0])
-                validate_expected_type(args[0], IntegerT.any())
+                self.expr_visitor.visit(args[0])
                 type_list = get_possible_types_from_node(args[0])
             else:
-                validate_expected_type(args[0], IntegerT.any())
+                self.expr_visitor.visit(args[0])
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
                     # range(x, x + CONSTANT)
@@ -417,7 +423,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerT.any())
+                    self.expr_visitor.visit(args[1])
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
@@ -532,7 +538,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         )
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())
         with self.namespace.enter_scope():
             for n in node.body:
@@ -697,7 +702,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: Optional[VyperType] = None) -> None:
         assert typ == BoolT()  # sanity check
         for value in node.values:
-            validate_expected_type(value, BoolT())
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, typ: Optional[VyperType] = None) -> None:
@@ -765,7 +769,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
                 rlen = len(node.right.elements)
                 rtyp = SArrayT(cmp_typ, rlen)
-                validate_expected_type(node.right, rtyp)
                 self.visit(node.right, rtyp)
             else:
                 cmp_typ = get_exact_type_from_node(node.right)
@@ -778,7 +781,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
                     assert isinstance(cmp_typ, (SArrayT, DArrayT))
                     ltyp = cmp_typ.value_type
 
-            validate_expected_type(node.left, ltyp)
             self.visit(node.left, ltyp)
 
         else:
@@ -793,8 +795,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 rtyp = get_exact_type_from_node(node.right)
             else:
                 ltyp = rtyp = cmp_typ
-                validate_expected_type(node.left, ltyp)
-                validate_expected_type(node.right, rtyp)
 
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
@@ -839,7 +839,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def visit_Index(self, node: vy_ast.Index, typ: Optional[VyperType] = None) -> None:
-        validate_expected_type(node.value, typ)
         self.visit(node.value, typ)
 
     def visit_List(self, node: vy_ast.List, typ: Optional[VyperType] = None) -> None:
@@ -967,17 +966,35 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         assert isinstance(typ, TupleT)
         for element, subtype in zip(node.elements, typ.member_types):
-            validate_expected_type(element, subtype)
             self.visit(element, subtype)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: Optional[VyperType] = None) -> None:
-        validate_expected_type(node.operand, typ)
         self.visit(node.operand, typ)
 
+        types_list = get_possible_types_from_node(node.operand)
+        _validate_op(node, types_list, "validate_numeric_op")
+
+        if typ:
+            for t in types_list:
+                if typ.compare_type(t):
+                    break
+            else:
+                raise TypeMismatch(f"{typ} is not a possible type", node)
+
     def visit_IfExp(self, node: vy_ast.IfExp, typ: Optional[VyperType] = None) -> None:
-        validate_expected_type(node.test, BoolT())
         self.visit(node.test, BoolT())
-        validate_expected_type(node.body, typ)
+
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        for t in types_list:
+            if t.compare_type(typ):
+                break
+        else:
+             raise TypeMismatch(f"{typ} is not a possible type", node)
         self.visit(node.body, typ)
-        validate_expected_type(node.orelse, typ)
         self.visit(node.orelse, typ)
