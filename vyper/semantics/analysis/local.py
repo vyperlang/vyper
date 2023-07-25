@@ -23,6 +23,7 @@ from vyper.exceptions import (
     UnknownAttribute,
     VariableDeclarationException,
     VyperException,
+    ZeroDivisionException,
 )
 from vyper.semantics import types
 from vyper.semantics.analysis.base import VarInfo
@@ -313,7 +314,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         lhs_info = get_expr_info(node.target)
 
-        #validate_expected_type(node.value, lhs_info.typ)
+        # validate_expected_type(node.value, lhs_info.typ)
         lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, lhs_info.typ)
@@ -712,7 +713,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # except for builtin functions, `get_exact_type_from_node`
         # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
-        #self.visit(node.func, call_type)
+        # self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
             node._metadata["type"] = call_type.fetch_call_return(node)
@@ -885,14 +886,13 @@ class _ExprVisitor(VyperNodeVisitorBase):
         sarray_t = SArrayT(value_typ, count)
         darray_t = DArrayT(value_typ, count)
 
-
         if typ:
             for t in (sarray_t, darray_t):
                 if typ.compare_type(t):
                     derived_typ = t
             else:
                 raise TypeMismatch(f"Expected {sarray_t} or {darray_t} but got {typ} instead", node)
-            
+
         else:
             derived_typ = darray_t
 
@@ -995,6 +995,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
             if t.compare_type(typ):
                 break
         else:
-             raise TypeMismatch(f"{typ} is not a possible type", node)
+            raise TypeMismatch(f"{typ} is not a possible type", node)
         self.visit(node.body, typ)
         self.visit(node.orelse, typ)
