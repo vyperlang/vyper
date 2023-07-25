@@ -195,6 +195,8 @@ def _selector_section_dense(external_functions, global_ctx):
         function_method_id = shr(method_id_bits_ofst, func_info)
 
         # check method id is right, if not then fallback.
+        # need to check calldatasize >= 4 in case there are
+        # trailing 0s in the method id.
         calldatasize_valid = ["gt", "calldatasize", 3]
         method_id_correct = ["eq", function_method_id, "_calldata_method_id"]
         should_fallback = ["iszero", ["and", calldatasize_valid, method_id_correct]]
@@ -202,7 +204,7 @@ def _selector_section_dense(external_functions, global_ctx):
 
         # assert callvalue == 0 if nonpayable
         bad_callvalue = ["mul", is_nonpayable, "callvalue"]
-        # assert calldatasize correct
+        # assert calldatasize at least minimum for the abi type
         bad_calldatasize = ["lt", "calldatasize", expected_calldatasize]
         failed_entry_conditions = ["or", bad_callvalue, bad_calldatasize]
         check_entry_conditions = IRnode.from_list(
@@ -391,7 +393,7 @@ def _selector_section_linear(external_functions, global_ctx):
         # so the dispatcher looks just like -
         # ```(if (eq <calldata_method_id> method_id)
         #   (goto entry_point_label))```
-        # it would another optimization for patterns like
+        # it would need another optimization for patterns like
         # `if ... (goto)` though.
         dispatch.append(entry_point.ir_node)
 
