@@ -19,6 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
+from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -248,6 +249,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             # validate_expected_type(node.value, type_)
+            print("constant typ: ", type_)
+            ExprVisitor(fn_node=None, namespace=None).visit(node.value, type_)
             _validate_self_namespace()
 
             return _finalize()

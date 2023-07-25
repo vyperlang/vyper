@@ -215,7 +215,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        self.expr_visitor = _ExprVisitor(self.func, self.namespace)
+        self.expr_visitor = ExprVisitor(self.func, self.namespace)
 
         # allow internal function params to be mutable
         location, is_immutable = (
@@ -566,6 +566,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         elif self.func.return_type is None:
             raise FunctionDeclarationException("Function does not return any values", node)
 
+        self.expr_visitor.visit(node.value)
         if isinstance(values, vy_ast.Tuple):
             values = values.elements
             if not isinstance(self.func.return_type, TupleT):
@@ -576,7 +577,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-        self.expr_visitor.visit(node.value, self.func.return_type)
+            for given, expected in zip(values, self.func.return_type.member_types):
+                given_typ = given._metadata["type"]
+                if not given_typ.compare_type(expected):
+                    raise InvalidType(f"Expected {expected} but got {given_typ} instead", given)
+        else:
+            given_typ = values._metadata["type"]
+            expected_typ = self.func.return_type
+            if not given_typ.compare_type(expected_typ):
+                raise InvalidType(f"Expected {expected_typ} but got {given_typ} instead", values)
 
 
 def _is_empty_list(node):
@@ -591,10 +600,10 @@ def _is_empty_list(node):
     return all(_is_empty_list(t) for t in node.elements)
 
 
-class _ExprVisitor(VyperNodeVisitorBase):
+class ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
-    def __init__(self, fn_node: ContractFunctionT, namespace: dict):
+    def __init__(self, fn_node: ContractFunctionT = None, namespace: dict = None):
         self.func = fn_node
         self.namespace = namespace
 
@@ -685,6 +694,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             typ = types_list.pop()
 
         self.visit(node.left, typ)
+        node._metadata["type"] = typ
 
         rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
@@ -799,6 +809,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         if typ:
             typ.validate_literal(node)
+            return
+
+        if "type" in node._metadata:
+            return
 
         for t in types.PRIMITIVE_TYPES.values():
             try:
@@ -862,33 +876,36 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
             node._metadata["type"] = derived_typ
             return
+        
+        types_list = get_common_types(*node.elements)
+        derived_typ = None
+        print("visit List")
+        if len(types_list) > 0:
+            count = len(node.elements)
+            ret = []
+            ret.extend([SArrayT(t, count) for t in types_list])
+            ret.extend([DArrayT(t, count) for t in types_list])
 
-        value_types = set()
-        for element in node.elements:
-            self.visit(element)
-            value_types.add(element._metadata["type"])
-
-        if len(value_types) > 1:
-            raise InvalidLiteral("Array contains multiple, incompatible types", node)
-
-        value_typ = list(value_types)[0]
-
-        count = len(node.elements)
-
-        sarray_t = SArrayT(value_typ, count)
-        darray_t = DArrayT(value_typ, count)
-
-        if typ:
-            for t in (sarray_t, darray_t):
-                if typ.compare_type(t):
-                    derived_typ = t
+            if typ:
+                for t in ret:
+                    if typ.compare_type(t):
+                        derived_typ = t
+                        break
+                else:
+                    raise InvalidType(f"Expected {typ}", node)
             else:
-                raise TypeMismatch(f"Expected {sarray_t} or {darray_t} but got {typ} instead", node)
+                derived_typ = types_list.pop()
 
-        else:
-            derived_typ = darray_t
+            if derived_typ:
+                node._metadata["type"] = derived_typ
 
-        node._metadata["type"] = derived_typ
+                for e in node.elements:
+                    print("visit list elements - ", derived_typ)
+                    self.visit(e, derived_typ.value_type)
+                
+                return
+
+        raise InvalidLiteral("Array contains multiple, incompatible types", node)
 
     def visit_Name(self, node: vy_ast.Name, typ: Optional[VyperType] = None) -> None:
         if self.func.mutability == StateMutability.PURE:
@@ -953,9 +970,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        assert isinstance(typ, TupleT)
-        for element, subtype in zip(node.elements, typ.member_types):
-            self.visit(element, subtype)
+        for element in node.elements:
+            self.visit(element)
+            print("element: ", element)
+            print("type" in element._metadata)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: Optional[VyperType] = None) -> None:
         self.visit(node.operand, typ)
