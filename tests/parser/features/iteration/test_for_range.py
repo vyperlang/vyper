@@ -14,6 +14,23 @@ def repeat(z: int128) -> int128:
     assert c.repeat(9) == 54
 
 
+def test_range_bound(get_contract, assert_tx_failed):
+    code = """
+@external
+def repeat(n: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(n, bound=6):
+        x += i
+    return x
+    """
+    c = get_contract(code)
+    for n in range(7):
+        assert c.repeat(n) == sum(range(n))
+
+    # n greater than bound
+    assert_tx_failed(lambda: c.repeat(7))
+
+
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @external
