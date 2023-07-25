@@ -886,10 +886,14 @@ class _ExprVisitor(VyperNodeVisitorBase):
         sarray_t = SArrayT(value_typ, count)
         darray_t = DArrayT(value_typ, count)
 
-        if typ and typ.compare_type(sarray_t):
-            derived_typ = sarray_t
-        elif typ and typ.compare_type(darray_t):
-            derived_typ = darray_t
+
+        if typ:
+            for t in (sarray_t, darray_t):
+                if typ.compare_type(t):
+                    derived_typ = t
+            else:
+                raise TypeMismatch(f"Expected {sarray_t} or {darray_t} but got {typ} instead", node)
+            
         else:
             derived_typ = darray_t
 
