@@ -667,7 +667,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # except for builtin functions, `get_exact_type_from_node`
         # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
-        self.visit(node.func, call_type)
+        #self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls
@@ -703,6 +703,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
+            node._metadata["type"] = call_type.fetch_call_return(node)
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             # `infer_arg_types` already calls `validate_expected_type`
