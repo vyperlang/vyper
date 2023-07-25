@@ -130,18 +130,6 @@ def _check_iterator_modification(
     return None
 
 
-def _validate_revert_reason(msg_node: vy_ast.VyperNode) -> None:
-    if msg_node:
-        if isinstance(msg_node, vy_ast.Str):
-            if not msg_node.value.strip():
-                raise StructureException("Reason string cannot be empty", msg_node)
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-
-
 # helpers
 def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> None:
     if isinstance(value_type, AddressT) and node.attr == "code":
@@ -262,7 +250,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        # validate_expected_type(node.value, typ)
 
         try:
             self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
@@ -298,7 +285,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        # validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.target, target.typ)
@@ -314,7 +300,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         lhs_info = get_expr_info(node.target)
 
-        # validate_expected_type(node.value, lhs_info.typ)
         lhs_info.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, lhs_info.typ)
@@ -562,8 +547,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, f.typedef)
 
     def visit_Raise(self, node):
-        if node.exc:
-            _validate_revert_reason(node.exc)
+        msg_node = node.exc
+        if msg_node:
+            if isinstance(msg_node, vy_ast.Str):
+                if not msg_node.value.strip():
+                    raise StructureException("Reason string cannot be empty", msg_node)
+            elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
+                try:
+                    self.expr_visitor.visit(msg_node, StringT(1024))
+                except TypeMismatch as e:
+                    raise InvalidType("revert reason must fit within String[1024]") from e
+
+
 
     def visit_Return(self, node):
         values = node.value
@@ -925,9 +920,6 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
-
-        # if not isinstance(typ, TYPE_T):
-        #    validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: Optional[VyperType] = None) -> None:
         if isinstance(typ, TYPE_T):
