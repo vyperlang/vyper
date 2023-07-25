@@ -14,8 +14,39 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.3.10 ("Black Adder")
+***********************
+
+Date released: 2023-08-04(?)
+
+v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode, adds new vyper-specific ``#pragma`` directive,s uses Cancun's ``MCOPY`` opcode for some compiler generated code, and generates selector tables which now feature O(1) performance.
+
+Breaking changes:
+- chore: drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
+- chore: remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
+
+New features and improvements:
+- feat: let params of internal functions be mutable (`#3473 <https://github.com/vyperlang/vyper/pull/3473>`_)
+- feat: add optimization mode to vyper compiler (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_)
+- feat: improve batch copy performance (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_)
+
+Notable fixes:
+- fix: pycryptodome for arm-targeted binaries (`#3485 <https://github.com/vyperlang/vyper/pull/3485>`_)
+
+Other chores, docs and fixes
+- docs: shanghai is default compilation target (`#3474 <https://github.com/vyperlang/vyper/pull/3474>`_)
+- fix: wrong variable in type annotation of ``IfExp`` (`#3460 <https://github.com/vyperlang/vyper/pull/3460>`_)
+- chore: update tload/tstore opcodes per latest 1153 (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
+- chore: add __new__ to Namespace (`#3489 <https://github.com/vyperlang/vyper/pull/3489>`_)
+- fix: improve error message for conflicting methods IDs (`#3491 <https://github.com/vyperlang/vyper/pull/3491>`_)
+- fix: typechecking of folded builtins (`#3490 <https://github.com/vyperlang/vyper/pull/3490>`_)
+- feat: optimize dynarray and bytearray copies (`#3499 <https://github.com/vyperlang/vyper/pull/3499>`_)
+- fix: issue with finding installed packages in editable mode (`#3510 <https://github.com/vyperlang/vyper/pull/3510>`_)
+- feat: optimize dload/mstore sequences (`#3525 <https://github.com/vyperlang/vyper/pull/3525>`_)
+
+
 v0.3.9 ("Common Adder")
-******
+***********************
 
 Date released: 2023-05-29
 
