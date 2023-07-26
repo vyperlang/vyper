@@ -383,7 +383,7 @@ Cryptography
 
     .. note::
 
-         We strongly recommend using Vyper versions ``>=0.3.10`` if ``ecrecover`` is employed due to the security advisory `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
+         Prior to Vyper ``0.3.10``, the ``ecrecover`` function could return an undefined (possibly nonzero) value for invalid inputs to ``ecrecover``. For more information, please see `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
 
     .. code-block:: python
 
