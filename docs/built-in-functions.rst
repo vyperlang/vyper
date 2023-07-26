@@ -379,7 +379,11 @@ Cryptography
     * ``s``: second 32 bytes of signature
     * ``v``: final 1 byte of signature
 
-    Returns the associated address, or ``0`` on error.
+    Returns the associated address, or ``empty(address)`` on error.
+
+    .. note::
+
+         We strongly recommend using Vyper versions ``>=0.3.10`` if ``ecrecover`` is employed due to the security advisory `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
 
     .. code-block:: python
 
