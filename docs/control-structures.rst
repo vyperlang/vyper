@@ -273,6 +273,14 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: python
 
+    for i in range(stop, bound=N):
+        ...
+
+``stop`` can be any integer greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime.
+
+
+.. code-block:: python
+
     for i in range(START, STOP):
         ...
 
