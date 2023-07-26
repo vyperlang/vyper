@@ -584,7 +584,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         else:
             given_typ = node.value._metadata["type"]
             expected_typ = self.func.return_type
-            if not given_typ.compare_type(expected_typ):
+            if not expected_typ.compare_type(given_typ):
                 raise InvalidType(f"Expected {expected_typ} but got {given_typ} instead", values)
 
 
@@ -703,9 +703,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: Optional[VyperType] = None) -> None:
-        assert typ == BoolT()  # sanity check
+        if typ:
+            assert typ == BoolT()  # sanity check
         for value in node.values:
             self.visit(value, BoolT())
+        node._metadata["type"] = BoolT()
 
     def visit_Call(self, node: vy_ast.Call, typ: Optional[VyperType] = None) -> None:
         self.visit(node.func)
@@ -802,6 +804,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
 
+        node._metadata["type"] = BoolT()
+
     def visit_Constant(self, node: vy_ast.Constant, typ: Optional[VyperType] = None) -> None:
         if typ in (BytesT, StringT):
             typ = typ.from_literal(node)
@@ -809,6 +813,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if typ:
             typ.validate_literal(node)
+            node._metadata["type"] = typ
             return
 
         if "type" in node._metadata:
