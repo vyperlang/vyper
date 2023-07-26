@@ -511,10 +511,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
                         for a in node.iter.args:
                             self.expr_visitor.visit(a, typ)
-
-                    for a in node.iter.keywords:
-                        if a.arg == "bound":
-                            self.expr_visitor.visit(a.value, typ)
+                        for a in node.iter.keywords:
+                            if a.arg == "bound":
+                                self.expr_visitor.visit(a.value, typ)
 
                     # success -- do not enter error handling section
                     return
