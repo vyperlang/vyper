@@ -774,7 +774,7 @@ The following VIPs were implemented for Beta 13:
 
 - Add ``vyper-json`` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/vyperlang/vyper/issues/1525>`_)
-- Require unitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
+- Require uninitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
 
 Some of the bug and stability fixes:
 
