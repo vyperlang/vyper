@@ -582,7 +582,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not given_typ.compare_type(expected):
                     raise InvalidType(f"Expected {expected} but got {given_typ} instead", given)
         else:
-            given_typ = values._metadata["type"]
+            given_typ = node.value._metadata["type"]
             expected_typ = self.func.return_type
             if not given_typ.compare_type(expected_typ):
                 raise InvalidType(f"Expected {expected_typ} but got {given_typ} instead", values)
@@ -879,7 +879,6 @@ class ExprVisitor(VyperNodeVisitorBase):
         
         types_list = get_common_types(*node.elements)
         derived_typ = None
-        print("visit List")
         if len(types_list) > 0:
             count = len(node.elements)
             ret = []
@@ -900,7 +899,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                 node._metadata["type"] = derived_typ
 
                 for e in node.elements:
-                    print("visit list elements - ", derived_typ)
                     self.visit(e, derived_typ.value_type)
                 
                 return
@@ -965,6 +963,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
+        node._metadata["type"] = base_type.get_subscripted_type(node.slice.value)
+
     def visit_Tuple(self, node: vy_ast.Tuple, typ: Optional[VyperType] = None) -> None:
         if isinstance(typ, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
@@ -972,8 +972,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         for element in node.elements:
             self.visit(element)
-            print("element: ", element)
-            print("type" in element._metadata)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: Optional[VyperType] = None) -> None:
         self.visit(node.operand, typ)
