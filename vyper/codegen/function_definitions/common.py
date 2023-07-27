@@ -4,7 +4,6 @@ from typing import Optional
 
 import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.global_context import GlobalContext
@@ -100,10 +99,6 @@ def generate_ir_for_function(
 
     # generate _FuncIRInfo
     func_t._ir_info = _FuncIRInfo(func_t)
-
-    # Validate return statements.
-    # XXX: This should really be in semantics pass.
-    check_single_exit(code)
 
     callees = func_t.called_functions
 
