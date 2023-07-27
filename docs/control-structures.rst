@@ -276,15 +276,21 @@ Ranges are created using the ``range`` function. The following examples are vali
     for i in range(stop, bound=N):
         ...
 
-``stop`` can be any integer greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime.
+``stop`` can be any integer greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. To avoid the possibility of runtime reversion, use this in combination with ``min()``:
 
+.. code-block:: python
+
+    for i in range(min(stop, N), bound=N):
+        ...
+
+Another use of range can be with ``START`` and ``STOP`` bounds.
 
 .. code-block:: python
 
     for i in range(START, STOP):
         ...
 
-``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
+Here ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
 
 .. code-block:: python
 
