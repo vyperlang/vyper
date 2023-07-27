@@ -15,7 +15,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    is_return_from_function,
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
@@ -25,6 +24,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.semantics.analysis.local import is_terminus_node
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
@@ -425,7 +425,7 @@ def parse_stmt(stmt, context):
 def _is_terminated(code):
     last_stmt = code[-1]
 
-    if is_return_from_function(last_stmt):
+    if is_terminus_node(last_stmt):
         return True
 
     if isinstance(last_stmt, vy_ast.If):

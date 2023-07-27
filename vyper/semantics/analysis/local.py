@@ -65,7 +65,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
+def is_terminus_node(node: vy_ast.VyperNode) -> bool:
     if getattr(node, "_is_terminus", None):
         return True
     if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
@@ -76,8 +76,27 @@ def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
 
 
 def check_for_terminus(node_list: list) -> bool:
-    if next((i for i in node_list if _is_terminus_node(i)), None):
+    terminus_nodes = []
+
+    # Check for invalid code after returns
+    last_node_pos = len(node_list) - 1
+    for idx, n in enumerate(node_list):
+        if is_terminus_node(n):
+            terminus_nodes.append(n)
+            if idx < last_node_pos:
+                # is not last statement in body.
+                raise StructureException(
+                    "Exit statement with succeeding code (that will not execute).",
+                    node_list[idx + 1],
+                )
+
+    if len(terminus_nodes) > 1:
+        raise StructureException(
+            "Too many exit statements (return, raise or selfdestruct).", terminus_nodes[-1]
+        )
+    elif len(terminus_nodes) == 1:
         return True
+
     for node in [i for i in node_list if isinstance(i, vy_ast.If)][::-1]:
         if not node.orelse or not check_for_terminus(node.orelse):
             continue

@@ -1,7 +1,6 @@
 import contextlib
 from typing import Generator
 
-from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
@@ -1031,17 +1030,6 @@ def eval_seq(ir_node):
     if isinstance(ir_node.value, int):
         return IRnode.from_list(ir_node)
     return None
-
-
-def is_return_from_function(node):
-    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
-        "raw_revert",
-        "selfdestruct",
-    ):
-        return True
-    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
-        return True
-    return False
 
 
 def mzero(dst, nbytes):
