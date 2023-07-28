@@ -19,7 +19,7 @@ v0.3.10 ("Black Adder")
 
 Date released: 2023-08-04(?)
 
-v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode, adds new vyper-specific ``#pragma`` directive,s uses Cancun's ``MCOPY`` opcode for some compiler generated code, and generates selector tables which now feature O(1) performance.
+v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode, adds new vyper-specific ``#pragma`` directives, uses Cancun's ``MCOPY`` opcode for some compiler generated code, and generates selector tables which now feature O(1) performance.
 
 Breaking changes:
 - chore: drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
