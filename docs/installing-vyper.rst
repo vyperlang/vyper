@@ -76,7 +76,7 @@ Each tagged version of vyper is uploaded to `pypi <https://pypi.org/project/vype
 To install a specific version use:
 ::
 
-    pip install vyper==0.2.15
+    pip install vyper==0.3.7
 
 
 nix
