@@ -27,9 +27,9 @@ class IRDebugInfo:
 IROperantValue = str | int
 
 
-class IROperand:
+class IROperant:
     """
-    IROperand represents an operand in IR. An operand can be a variable, label, or a constant.
+    IROperant represents an operand in IR. An operand can be a variable, label, or a constant.
     """
 
     value: str
@@ -47,7 +47,7 @@ class IROperand:
         return str(self.value)
 
 
-class IRLiteral(IROperand):
+class IRLiteral(IROperant):
     """
     IRLiteral represents a literal in IR
     """
@@ -61,7 +61,7 @@ class IRLiteral(IROperand):
         return True
 
 
-class IRVariable(IROperand):
+class IRVariable(IROperant):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
@@ -70,7 +70,7 @@ class IRVariable(IROperand):
         super().__init__(value)
 
 
-class IRLabel(IROperand):
+class IRLabel(IROperant):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -91,14 +91,14 @@ class IRInstruction:
     """
 
     opcode: str
-    operands: list[IROperand]
+    operands: list[IROperant]
     ret: Optional[str]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
 
     def __init__(
-        self, opcode: str, operands: list[IROperand], ret: str = None, dbg: IRDebugInfo = None
+        self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
     ):
         self.opcode = opcode
         self.operands = operands
@@ -113,22 +113,22 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRLabel)]
 
-    def get_input_operands(self) -> list[IROperand]:
+    def get_input_operands(self) -> list[IROperant]:
         """
         Get all input operants in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRLabel) is False]
 
-    def get_input_variables(self) -> list[IROperand]:
+    def get_input_variables(self) -> list[IROperant]:
         """
         Get all input variables in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    def get_output_operands(self) -> list[IROperand]:
+    def get_output_operands(self) -> list[IROperant]:
         return [self.ret] if self.ret else []
 
-    def get_use_count_correction(self, op: IROperand) -> int:
+    def get_use_count_correction(self, op: IROperant) -> int:
         use_count_correction = 0
         for _, phi in self.parent.phi_vars.items():
             if phi.value == op.value:
@@ -226,6 +226,10 @@ class IRBasicBlock:
 
         return liveness
 
+    @property
+    def is_reachable(self) -> bool:
+        return len(self.in_set) > 0
+
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         instruction.parent = self
@@ -262,7 +266,7 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
-            " OUT={[bb.label for bb in self.out_set]} \n"
+            f" OUT={[bb.label for bb in self.out_set]} \n"
         )
         for instruction in self.instructions:
             s += f"    {instruction}\n"

@@ -32,7 +32,7 @@ class IRFunction(IRFunctionBase):
 
         self.append_basic_block(IRBasicBlock(name, self))
 
-    def append_basic_block(self, bb: IRBasicBlock) -> None:
+    def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
         """
         Append basic block to function.
         """
@@ -84,6 +84,19 @@ class IRFunction(IRFunctionBase):
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
+
+    def remove_unreachable_blocks(self) -> int:
+        removed = 0
+        new_basic_blocks = []
+        for bb in self.basic_blocks:
+            if not bb.is_reachable and bb.label.value != "global":
+                for bb2 in bb.out_set:
+                    bb2.in_set.remove(bb)
+                removed += 1
+            else:
+                new_basic_blocks.append(bb)
+        self.basic_blocks = new_basic_blocks
+        return removed
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"

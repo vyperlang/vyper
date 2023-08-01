@@ -440,6 +440,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+    is_self_call = node.is_self_call
+    passthrough_metadata = node.passthrough_metadata
 
     changed = False
 
@@ -462,6 +464,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
+            is_self_call=is_self_call,
+            passthrough_metadata=passthrough_metadata,
         )
 
         if should_check_symbols:

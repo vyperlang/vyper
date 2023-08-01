@@ -163,7 +163,7 @@ class CompilerData:
     @cached_property
     def bb_output(self):
         # fetch both deployment and runtime IR
-        return convert_ir_basicblock(self._ir_output[0])
+        return convert_ir_basicblock(self._ir_output[1])
 
     @property
     def ir_nodes(self) -> IRnode:

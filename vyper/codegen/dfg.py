@@ -1,6 +1,8 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IROperand
+from vyper.codegen.ir_basicblock import IRInstruction, IROperant, IRLabel
 from vyper.codegen.ir_function import IRFunction
 from vyper.ir.compile_ir import PUSH, optimize_assembly
+from vyper.compiler.utils import StackMap
+from vyper.utils import MemoryPositions
 
 ONE_TO_ONE_INSTRUCTIONS = [
     "revert",
@@ -9,7 +11,14 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "calldatacopy",
     "calldataload",
     "callvalue",
+    "selfbalance",
+    "sload",
+    "sstore",
+    "timestamp",
+    "caller",
     "shr",
+    "shl",
+    "and",
     "xor",
     "or",
     "add",
@@ -22,91 +31,29 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "lt",
     "slt",
     "sgt",
+    "log0",
+    "log1",
+    "log2",
+    "log3",
+    "log4",
 ]
 
 OPERANT_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
 
 
 class DFGNode:
-    value: IRInstruction | IROperand
+    value: IRInstruction | IROperant
     predecessors: list["DFGNode"]
     successors: list["DFGNode"]
 
-    def __init__(self, value: IRInstruction | IROperand):
+    def __init__(self, value: IRInstruction | IROperant):
         self.value = value
         self.predecessors = []
         self.successors = []
 
 
-dfg_inputs = {str: IRInstruction}
+dfg_inputs = {str: [IRInstruction]}
 dfg_outputs = {str: IRInstruction}
-
-
-class StackMap:
-    NOT_IN_STACK = 1
-    stack_map: list[str]
-    assembly: list[str]
-
-    def __init__(self, assembly: list[str]):
-        self.stack_map = []
-        self.assembly = assembly
-
-    def get_height(self) -> int:
-        """
-        Returns the height of the stack map.
-        """
-        return len(self.stack_map)
-
-    def push(self, op: IROperand) -> None:
-        """
-        Pushes an operand onto the stack map.
-        """
-        self.stack_map.append(op)
-
-    def pop(self, num: int = 1) -> None:
-        del self.stack_map[len(self.stack_map) - num :]
-
-    def get_depth_in(self, op: IROperand) -> int:
-        """
-        Returns the depth of the first matching operand in the stack map.
-        If the operand is not in the stack map, returns NOT_IN_STACK.
-        """
-        for i, stack_op in enumerate(self.stack_map[::-1]):
-            if isinstance(stack_op, IROperand) and stack_op.value == op.value:
-                return -i
-
-        return StackMap.NOT_IN_STACK
-
-    def peek(self, depth: int) -> IROperand:
-        """
-        Returns the top of the stack map.
-        """
-        return self.stack_map[-depth - 1]
-
-    def poke(self, depth: int, op: IROperand) -> None:
-        """
-        Pokes an operand at the given depth in the stack map.
-        """
-        self.stack_map[-depth - 1] = op
-
-    def dup(self, depth: int) -> None:
-        """
-        Duplicates the operand at the given depth in the stack map.
-        """
-        assert depth <= 0, "Cannot dup positive depth"
-        self.assembly.append(f"DUP{-depth+1}")
-        self.stack_map.append(self.peek(-depth))
-
-    def swap(self, depth: int) -> None:
-        """
-        Swaps the operand at the given depth in the stack map with the top of the stack.
-        """
-        assert depth < 0, "Cannot swap positive depth"
-        self.assembly.append(f"SWAP{-depth}")
-        self.stack_map[depth - 1], self.stack_map[-1] = (
-            self.stack_map[-1],
-            self.stack_map[depth - 1],
-        )
 
 
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
@@ -121,7 +68,9 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
             for op in operands:
                 op.use_count += 1
-                dfg_inputs[op.value] = inst
+                dfg_inputs[op.value] = (
+                    [inst] if dfg_inputs.get(op.value) is None else dfg_inputs[op.value] + [inst]
+                )
 
             for op in res:
                 dfg_outputs[op.value] = inst
@@ -150,7 +99,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     for i, bb in enumerate(ctx.basic_blocks):
         if i != 0:
-            assembly.append(f"_sym_label_{bb.label}")
+            assembly.append(f"_sym_{bb.label}")
             assembly.append("JUMPDEST")
         for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
@@ -161,14 +110,19 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return assembly
 
 
+# TODO: refactor this
+label_counter = 0
+
+
 def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> None:
+    global label_counter
     for op in inst.get_output_operands():
-        target = dfg_inputs[op.value]
-        if target.parent != inst.parent:
-            continue
-        _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
+        for target in dfg_inputs.get(op.value, []):
+            if target.parent != inst.parent:
+                continue
+            _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
         return
@@ -221,26 +175,73 @@ def _generate_evm_for_instruction_r(
 
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
+    elif opcode == "alloca":
+        pass
+    elif opcode == "load":
+        pass
     elif opcode == "jnz":
-        assembly.append(f"_sym_label_{inst.operands[1].value}")
+        assembly.append(f"_sym_{inst.operands[1].value}")
         assembly.append("JUMPI")
     elif opcode == "jmp":
-        assembly.append(f"_sym_label_{inst.operands[0].value}")
+        assembly.append(f"_sym_{inst.operands[0].value}")
         assembly.append("JUMP")
     elif opcode == "gt":
         assembly.append("GT")
     elif opcode == "lt":
         assembly.append("LT")
+    elif opcode == "call":
+        target = inst.operands[0]
+        if type(target) is IRLabel:
+            assembly.extend(
+                [
+                    f"_sym_label_ret_{label_counter}",
+                    f"_sym_{target.value}",
+                    "JUMP",
+                    f"_sym_label_ret_{label_counter}",
+                    "JUMPDEST",
+                ]
+            )
+            label_counter += 1
+        else:
+            assembly.append("CALL")
     elif opcode == "ret":
-        assembly.append("RETURN")
+        if len(inst.operands) == 1:
+            assembly.append("SWAP1")
+            assembly.append("JUMP")
+        else:
+            assembly.append("RETURN")
     elif opcode == "select":
         pass
+    elif opcode == "sha3":
+        assembly.append("SHA3")
+    elif opcode == "sha3_64":
+        assembly.extend(
+            [
+                *PUSH(MemoryPositions.FREE_VAR_SPACE2),
+                "MSTORE",
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "MSTORE",
+                *PUSH(64),
+                *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                "SHA3",
+            ]
+        )
+    elif opcode == "ceil32":
+        assembly.extend(
+            [
+                *PUSH(31),
+                "ADD",
+                *PUSH(31),
+                "NOT",
+                "AND",
+            ]
+        )
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, ops: list[IROperand], stack_map: StackMap
+    ctx: IRFunction, assembly: list, ops: list[IROperant], stack_map: StackMap
 ) -> None:
     for op in ops:
         if op.is_literal:

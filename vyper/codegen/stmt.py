@@ -67,7 +67,11 @@ class Stmt:
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node
 
-        lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
+        lhs = IRnode.from_list(
+            alloced,
+            typ=ltyp,
+            location=MEMORY,
+        )
 
         return make_setter(lhs, rhs)
 
