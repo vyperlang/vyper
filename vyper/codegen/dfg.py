@@ -1,7 +1,7 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IROperant, IRLabel
+from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperant
 from vyper.codegen.ir_function import IRFunction
-from vyper.ir.compile_ir import PUSH, optimize_assembly
 from vyper.compiler.utils import StackMap
+from vyper.ir.compile_ir import PUSH, optimize_assembly
 from vyper.utils import MemoryPositions
 
 ONE_TO_ONE_INSTRUCTIONS = [

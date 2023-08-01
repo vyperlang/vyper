@@ -1,11 +1,11 @@
 from typing import Optional, Union
+
 from vyper.codegen.dfg import generate_evm
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperant
 from vyper.codegen.ir_function import IRFunction
-from vyper.codegen.ir_basicblock import IRInstruction
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperant
-from vyper.evm.opcodes import get_opcodes
+from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.opcodes import get_opcodes
 from vyper.semantics.types.function import ContractFunctionT
 
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]

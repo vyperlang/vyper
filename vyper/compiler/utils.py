@@ -1,4 +1,5 @@
 from typing import Dict
+
 from vyper.codegen.ir_basicblock import IROperant
 from vyper.semantics.types.function import ContractFunctionT
 

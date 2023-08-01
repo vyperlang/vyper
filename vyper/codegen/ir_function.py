@@ -1,5 +1,6 @@
 from typing import Optional
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRVariable, IRLabel
+
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
 
 
 class IRFunctionBase:
