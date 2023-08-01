@@ -227,15 +227,7 @@ def _generate_evm_for_instruction_r(
             ]
         )
     elif opcode == "ceil32":
-        assembly.extend(
-            [
-                *PUSH(31),
-                "ADD",
-                *PUSH(31),
-                "NOT",
-                "AND",
-            ]
-        )
+        assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
