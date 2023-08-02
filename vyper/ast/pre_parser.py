@@ -100,6 +100,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
         code_bytes = code.encode("utf-8")
         token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
+        # keep track of the offset of the expected position of the colon for type annotation
+        # of a loop variable in a `for` loop
+        for_loop_iter_type_offset = 0
         for i in range(len(token_list)):
             token = token_list[i]
             toks = [token]
@@ -148,6 +151,22 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                 raise SyntaxException(
                     f"The `{string}` keyword is not allowed. ", code, start[0], start[1]
                 )
+
+            if typ == NAME and string == "for":
+                for_loop_iter_type_offset = 3
+
+            # modify `for i: uint256 in ...` to `for i, uint256 in ...`
+            if for_loop_iter_type_offset:
+                for_loop_iter_type_offset -= 1
+                if for_loop_iter_type_offset == 0:
+                    if string == ":":
+                        toks = [TokenInfo(OP, ",", start, end, line)]
+                        modification_offsets[start] = string.capitalize()
+                    else:
+                        prev_token = token_list[i - 1]
+                        raise SyntaxException(
+                            f"Loop variable requires type annotation e.g. `for i: uint256 in ...` ", code, prev_token.start[0], prev_token.start[1]
+                        )
 
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
