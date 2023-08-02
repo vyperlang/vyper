@@ -291,7 +291,7 @@ class Stmt:
         if bound < 1:
             return
 
-        varname = self.stmt.target.id
+        varname = self.stmt.target.elements[0].id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
         iptr = self.context.new_variable(varname, iter_typ)
 
@@ -322,7 +322,7 @@ class Stmt:
         iter_list.typ.value_type = target_type
 
         # user-supplied name for loop variable
-        varname = self.stmt.target.id
+        varname = self.stmt.target.elements[0].id
         loop_var = IRnode.from_list(
             self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
