@@ -6,7 +6,7 @@ def test_basic_repeater(get_contract_with_gas_estimation):
 @external
 def repeat(z: int128) -> int128:
     x: int128 = 0
-    for i in range(6):
+    for i: int128 in range(6):
         x = x + z
     return(x)
     """
@@ -19,7 +19,7 @@ def test_range_bound(get_contract, assert_tx_failed):
 @external
 def repeat(n: uint256) -> uint256:
     x: uint256 = 0
-    for i in range(n, bound=6):
+    for i: uint256 in range(n, bound=6):
         x += i
     return x
     """
@@ -37,11 +37,11 @@ def test_digit_reverser(get_contract_with_gas_estimation):
 def reverse_digits(x: int128) -> int128:
     dig: int128[6] = [0, 0, 0, 0, 0, 0]
     z: int128 = x
-    for i in range(6):
+    for i: int128 in range(6):
         dig[i] = z % 10
         z = z / 10
     o: int128 = 0
-    for i in range(6):
+    for i: int128 in range(6):
         o = o * 10 + dig[i]
     return o
 
@@ -56,9 +56,9 @@ def test_more_complex_repeater(get_contract_with_gas_estimation):
 @external
 def repeat() -> int128:
     out: int128 = 0
-    for i in range(6):
+    for i: int128 in range(6):
         out = out * 10
-        for j in range(4):
+        for j: int128 in range(4):
             out = out + j
     return(out)
     """
@@ -73,7 +73,7 @@ def test_offset_repeater(get_contract_with_gas_estimation, typ):
 @external
 def sum() -> {typ}:
     out: {typ} = 0
-    for i in range(80, 121):
+    for i: {typ} in range(80, 121):
         out = out + i
     return out
     """
@@ -88,7 +88,7 @@ def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
 @external
 def sum(frm: {typ}, to: {typ}) -> {typ}:
     out: {typ} = 0
-    for i in range(frm, frm + 101):
+    for i: {typ} in range(frm, frm + 101):
         if i == to:
             break
         out = out + i
@@ -108,7 +108,7 @@ def _bar() -> bool:
 
 @external
 def foo() -> bool:
-    for i in range(3):
+    for i: int128 in range(3):
         self._bar()
     return True
     """
@@ -122,8 +122,8 @@ def test_return_inside_repeater(get_contract, typ):
     code = f"""
 @internal
 def _final(a: {typ}) -> {typ}:
-    for i in range(10):
-        for j in range(10):
+    for i: {typ} in range(10):
+        for j: {typ} in range(10):
             if j > 5:
                 if i > a:
                     return i
@@ -153,7 +153,7 @@ def test_for_range_edge(get_contract, typ):
 def test():
     found: bool = False
     x: {typ} = max_value({typ})
-    for i in range(x, x + 1):
+    for i: {typ} in range(x, x + 1):
         if i == max_value({typ}):
             found = True
 
@@ -161,7 +161,7 @@ def test():
 
     found = False
     x = max_value({typ}) - 1
-    for i in range(x, x + 2):
+    for i: {typ} in range(x, x + 2):
         if i == max_value({typ}):
             found = True
 
@@ -177,7 +177,7 @@ def test_for_range_oob_check(get_contract, assert_tx_failed, typ):
 @external
 def test():
     x: {typ} = max_value({typ})
-    for i in range(x, x+2):
+    for i: {typ} in range(x, x+2):
         pass
     """
     c = get_contract(code)
@@ -189,8 +189,8 @@ def test_return_inside_nested_repeater(get_contract, typ):
     code = f"""
 @internal
 def _final(a: {typ}) -> {typ}:
-    for i in range(10):
-        for x in range(10):
+    for i: {typ} in range(10):
+        for x: {typ} in range(10):
             if i + x > a:
                 return i + x
     return 31337
@@ -218,8 +218,8 @@ def test_return_void_nested_repeater(get_contract, typ, val):
 result: {typ}
 @internal
 def _final(a: {typ}):
-    for i in range(10):
-        for x in range(10):
+    for i: {typ} in range(10):
+        for x: {typ} in range(10):
             if i + x > a:
                 self.result = i + x
                 return
@@ -247,8 +247,8 @@ def test_external_nested_repeater(get_contract, typ, val):
     code = f"""
 @external
 def foo(a: {typ}) -> {typ}:
-    for i in range(10):
-        for x in range(10):
+    for i: {typ} in range(10):
+        for x: {typ} in range(10):
             if i + x > a:
                 return i + x
     return 31337
@@ -268,8 +268,8 @@ def test_external_void_nested_repeater(get_contract, typ, val):
 result: public({typ})
 @external
 def foo(a: {typ}):
-    for i in range(10):
-        for x in range(10):
+    for i: {typ} in range(10):
+        for x: {typ} in range(10):
             if i + x > a:
                 self.result = i + x
                 return
@@ -288,8 +288,8 @@ def test_breaks_and_returns_inside_nested_repeater(get_contract, typ):
     code = f"""
 @internal
 def _final(a: {typ}) -> {typ}:
-    for i in range(10):
-        for x in range(10):
+    for i: {typ} in range(10):
+        for x: {typ} in range(10):
             if a < 2:
                 break
             return 6
