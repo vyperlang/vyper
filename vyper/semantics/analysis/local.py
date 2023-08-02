@@ -22,7 +22,6 @@ from vyper.semantics.analysis.annotation import StatementAnnotationVisitor
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
-    get_common_types,
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
@@ -39,7 +38,6 @@ from vyper.semantics.types import (
     DArrayT,
     EventT,
     HashMapT,
-    IntegerT,
     SArrayT,
     StringT,
     StructT,
@@ -417,7 +415,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             ]
 
             if not type_list:
-                raise InvalidType(f"{iter_type} is not a possible value type of iterator", node.iter)
+                raise InvalidType(
+                    f"{iter_type} is not a possible value type of iterator", node.iter
+                )
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop

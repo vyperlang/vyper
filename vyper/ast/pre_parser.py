@@ -165,7 +165,10 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                     else:
                         prev_token = token_list[i - 1]
                         raise SyntaxException(
-                            f"Loop variable requires type annotation e.g. `for i: uint256 in ...` ", code, prev_token.start[0], prev_token.start[1]
+                            "Loop variable requires type annotation e.g. `for i: uint256 in ...`",
+                            code,
+                            prev_token.start[0],
+                            prev_token.start[1],
                         )
 
             if typ == NAME:
