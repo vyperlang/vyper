@@ -340,6 +340,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
+        iter_type = type_from_annotation(node.target.elements[1], DataLocation.MEMORY)
+
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
             if node.iter.get("func.id") != "range":
@@ -354,25 +356,25 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 # range(CONSTANT)
                 n = args[0]
                 bound = kwargs.pop("bound", None)
-                validate_expected_type(n, IntegerT.any())
+                validate_expected_type(n, iter_type)
 
                 if bound is None:
                     if not isinstance(n, vy_ast.Num):
                         raise StateAccessViolation("Value must be a literal", n)
                     if n.value <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
-                    type_list = get_possible_types_from_node(n)
 
                 else:
                     if not isinstance(bound, vy_ast.Num):
                         raise StateAccessViolation("bound must be a literal", bound)
                     if bound.value <= 0:
                         raise StructureException("bound must be at least 1", args[0])
-                    type_list = get_common_types(n, bound)
+                    if iter_type not in get_possible_types_from_node(bound):
+                        raise TypeMismatch(f"{iter_type} is not a possible type of bound", bound)
 
             else:
-                validate_expected_type(args[0], IntegerT.any())
-                type_list = get_common_types(*args)
+                validate_expected_type(args[0], iter_type)
+                validate_expected_type(args[1], iter_type)
                 if not isinstance(args[0], vy_ast.Constant):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
@@ -397,12 +399,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     # range(CONSTANT, CONSTANT)
                     if not isinstance(args[1], vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerT.any())
+                    validate_expected_type(args[1], iter_type)
                     if args[0].value >= args[1].value:
                         raise StructureException("Second value must be > first value", args[1])
 
-                if not type_list:
-                    raise TypeMismatch("Iterator values are of different types", node.iter)
+            type_list = [iter_type]
 
         else:
             # iteration over a variable or literal list
@@ -412,11 +413,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             type_list = [
                 i.value_type
                 for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, (DArrayT, SArrayT))
+                if isinstance(i, (DArrayT, SArrayT)) and i.value_type.compare_type(iter_type)
             ]
 
-        if not type_list:
-            raise InvalidType("Not an iterable type", node.iter)
+            if not type_list:
+                raise InvalidType(f"{iter_type} is not a possible value type of iterator", node.iter)
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop
@@ -457,11 +458,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
         self.expr_visitor.visit(node.iter)
 
-        if not isinstance(node.target, vy_ast.Name):
+        if not isinstance(node.target, vy_ast.Tuple):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
         for_loop_exceptions = []
-        iter_name = node.target.id
+        iter_name = node.target.elements[0].id
         for type_ in type_list:
             # type check the for loop body using each possible type for iterator value
 
