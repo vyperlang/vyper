@@ -404,6 +404,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not type_list:
                     raise TypeMismatch("Iterator values are of different types", node.iter)
 
+            # Check for state-modifying function calls in `range` expression
+            range_call_nodes = node.iter.get_descendants(vy_ast.Call)
+            for call_node in range_call_nodes:
+                call_type = get_exact_type_from_node(call_node.func)
+                if isinstance(call_type, ContractFunctionT) and call_type.is_mutable:
+                    raise ImmutableViolation(
+                        "Cannot call state-modifying functions for `range` expression", call_node
+                    )
+
         else:
             # iteration over a variable or literal list
             if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
@@ -423,15 +432,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             assign = _check_iterator_modification(node.iter, node)
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
-
-        # Check for state-modifying function calls in `iter`
-        iter_call_nodes = node.iter.get_descendants(vy_ast.Call)
-        for call_node in iter_call_nodes:
-            call_type = get_exact_type_from_node(call_node.func)
-            if isinstance(call_type, ContractFunctionT) and call_type.is_mutable:
-                raise ImmutableViolation(
-                    "Cannot call state-modifying functions for `range` expression", call_node
-                )
 
         # Check if `iter` is a storage variable. get_descendants` is used to check for
         # nested `self` (e.g. structs)
