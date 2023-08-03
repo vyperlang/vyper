@@ -21,7 +21,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(a.foo(), bound = 12):
+    for i in range(a.foo(), bound=12):
         pass
     """,
         ImmutableViolation,
@@ -34,7 +34,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(max(a.foo(), 123), bound = 12):
+    for i in range(max(a.foo(), 123), bound=12):
         pass
     """,
         ImmutableViolation,
@@ -47,7 +47,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(a.foo(), a.foo()+1):
+    for i in range(a.foo(), a.foo() + 1):
         pass
     """,
         ImmutableViolation,
@@ -110,7 +110,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(a.foo(), bound = 12):
+    for i in range(a.foo(), bound=12):
         pass
     """,
     """
@@ -120,7 +120,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(max(a.foo(), 123), bound = 12):
+    for i in range(max(a.foo(), 123), bound=12):
         pass
     """,
     """
@@ -130,7 +130,7 @@ interface A:
 @external
 def bar(x:address):
     a: A = A(x)
-    for i in range(a.foo(), a.foo()+1):
+    for i in range(a.foo(), a.foo() + 1):
         pass
     """,
     """
