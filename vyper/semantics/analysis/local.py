@@ -424,6 +424,15 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if assign:
                 raise ImmutableViolation("Cannot modify array during iteration", assign)
 
+        # Check for state-modifying functions in `iter`
+        iter_call_nodes = node.iter.get_descendants(vy_ast.Call)
+        for call_node in iter_call_nodes:
+            call_type = get_exact_type_from_node(call_node.func)
+            if isinstance(call_type, ContractFunctionT) and call_type.is_mutable:
+                raise ImmutableViolation(
+                    "Cannot call state-modifying functions for `range` expression", call_node
+                )
+
         # Check if `iter` is a storage variable. get_descendants` is used to check for
         # nested `self` (e.g. structs)
         iter_is_storage_var = (
