@@ -187,6 +187,7 @@ Bugfixes:
 
 v0.3.5
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 2022-08-05
 
@@ -415,6 +416,7 @@ Fixes:
 
 v0.2.13
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 06-07-2021
 
@@ -521,6 +523,7 @@ Fixes:
 
 v0.2.6
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 10-10-2020
 
