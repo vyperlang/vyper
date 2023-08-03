@@ -403,6 +403,7 @@ Fixes:
 
 v0.2.14
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 20-07-2021
 
@@ -414,7 +415,6 @@ Fixes:
 
 v0.2.13
 *******
-**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 06-07-2021
 
