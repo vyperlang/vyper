@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import ImmutableViolation, StructureException
 
 fail_list = [
     (
@@ -12,7 +12,59 @@ def foo():
         pass
     """,
         StructureException,
-    )
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), bound = 12):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(max(a.foo(), 123), bound = 12):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), a.foo()+1):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(min(a.foo(), 123), min(a.foo(), 123) + 1):
+        pass
+    """,
+        ImmutableViolation,
+    ),
 ]
 
 
@@ -50,6 +102,46 @@ foos: Foo[3]
 def kick_foos():
     for foo in self.foos:
         foo.kick()
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), bound = 12):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(max(a.foo(), 123), bound = 12):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), a.foo()+1):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(min(a.foo(), 123), min(a.foo(), 123) + 1):
+        pass
     """,
 ]
 
