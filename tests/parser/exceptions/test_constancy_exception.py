@@ -119,7 +119,8 @@ def foo() -> int128:
 @external
 def bar():
     for i in range(self.foo(), self.foo() + 1):
-        pass""",
+        pass
+        """,
     ],
 )
 def test_immutability_violations(bad_code):
