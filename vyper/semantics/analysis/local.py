@@ -371,6 +371,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_common_types(n, bound)
 
             else:
+                if kwargs:
+                    raise StructureException(
+                        """Keyword arguments are not supported for `range(N, M)` and
+                         `range(x, x + N)` expressions""",
+                        node.iter.keywords,
+                    )
+
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
