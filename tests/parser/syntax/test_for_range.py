@@ -65,6 +65,20 @@ def bar(x:address):
     """,
         ImmutableViolation,
     ),
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i in range(self.arr.pop(), self.arr.pop() + 2):
+        b.append(i)
+    return b, self.arr
+    """,
+        ImmutableViolation,
+    )
 ]
 
 
