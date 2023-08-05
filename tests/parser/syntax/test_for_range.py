@@ -114,7 +114,7 @@ def foo(a: address):
         pass
         """,
         ImmutableViolation,
-    )
+    ),
 ]
 
 
