@@ -404,11 +404,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 if not type_list:
                     raise TypeMismatch("Iterator values are of different types", node.iter)
 
-            # Check for state-modifying function calls in `range` expression
+            # Check for state-modifying expressions in `range` expression
             range_call_nodes = node.iter.get_descendants(vy_ast.Call)
             for call_node in range_call_nodes:
                 call_type = get_exact_type_from_node(call_node.func)
-                if isinstance(call_type, ContractFunctionT) and call_type.is_mutable:
+                disallowed_builtins = (
+                    "raw_call",
+                    "create_minimal_proxy_to",
+                    "create_copy_of",
+                    "create_from_blueprint",
+                )
+                if (
+                    # state-modifying internal and external calls
+                    (isinstance(call_type, ContractFunctionT) and call_type.is_mutable)
+                    # `pop` on dynamic arrays
+                    or (isinstance(call_type, MemberFunctionT) and call_type.is_modifying)
+                    # state-modifying builtin functions
+                    or call_node.get("func.id") in disallowed_builtins
+                ):
                     raise ImmutableViolation(
                         "Cannot call state-modifying functions for `range` expression", call_node
                     )
