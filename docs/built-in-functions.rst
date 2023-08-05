@@ -573,6 +573,24 @@ Math
         >>> ExampleContract.foo(3.1337)
         4
 
+.. py:function:: epsilon(typename) -> Any
+
+    Returns the smallest non-zero value for a decimal type.
+
+    * ``typename``: Name of the decimal type (currently only ``decimal``)
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> decimal:
+            return epsilon(decimal)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        Decimal('1E-10')
+
 .. py:function:: floor(value: decimal) -> int256
 
     Round a decimal down to the nearest integer.
