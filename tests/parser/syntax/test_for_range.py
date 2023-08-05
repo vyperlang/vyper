@@ -78,6 +78,42 @@ def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
     return b, self.arr
     """,
         ImmutableViolation,
+    ),
+    (
+        """
+@external
+def bar(x:address):
+    for i in range(1 if raw_call(x, b'', revert_on_failure=False) else 2 , bound = 12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_minimal_proxy_to(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_copy_of(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_from_blueprint(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
     )
 ]
 
