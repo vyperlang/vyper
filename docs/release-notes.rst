@@ -336,6 +336,7 @@ Special thanks to @skellet0r for some major features in this release!
 
 v0.3.0
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1` or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38<https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-10-04
 
@@ -368,6 +369,7 @@ Special thanks to contributions from @skellet0r and @benjyz for this release!
 
 v0.2.16
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1` or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38<https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-08-27
 
@@ -392,6 +394,7 @@ Special thanks to contributions from @skellet0r, @sambacha and @milancermak for 
 
 v0.2.15
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1` or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38<https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 23-07-2021
 
