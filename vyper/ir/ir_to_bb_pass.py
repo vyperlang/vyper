@@ -503,6 +503,19 @@ def _convert_ir_basicblock(
         return new_var
     elif ir.value == "return_buffer":
         return IRLabel("return_buffer", True)
+    elif ir.value == "repeat":
+        # TODO: implement repeat
+        sym = ir.args[0]
+        start = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+
+        new_var = ctx.get_next_variable()
+        inst = IRInstruction("load", [start], new_var)
+        ctx.get_basic_block().append_instruction(inst)
+        symbols[sym.value] = new_var
+
+        # rounds_bound = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+        # body = ir.args[3]
+        pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         # count = int(ir.value[3:])
         args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
