@@ -881,7 +881,7 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-def test_constant_external_contract_call_cannot_change_state(
+def test_constant_external_contract_call_cannot_change_state1(
     assert_compile_failed, get_contract_with_gas_estimation
 ):
     c = """
@@ -892,6 +892,23 @@ interface Foo:
 @view
 def set_lucky_expr(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
+    """
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
+
+    print("Successfully blocked an external contract call from a constant function")
+
+
+def test_constant_external_contract_call_cannot_change_state2(
+    assert_compile_failed, get_contract_with_gas_estimation
+):
+    c = """
+interface Foo:
+    def set_lucky(_lucky: int128) -> int128: nonpayable
+
+@external
+@view
+def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
+    return Foo(arg1).set_lucky(arg2)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
 
