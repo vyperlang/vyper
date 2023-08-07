@@ -76,16 +76,111 @@ def foo():
     for i in range(x):
         pass""",
         """
-f:int128
+from vyper.interfaces import ERC20
+
+token: ERC20
 
 @external
-def a (x:int128):
-    self.f = 100
-
 @view
+def topup(amount: uint256):
+    assert self.token.transferFrom(msg.sender, self, amount)
+        """,
+        """
+from vyper.interfaces import ERC20
+
+token: ERC20
+
 @external
-def b():
-    self.a(10)""",
+@view
+def topup(amount: uint256):
+    x: bool = self.token.transferFrom(msg.sender, self, amount)
+        """,
+        """
+from vyper.interfaces import ERC20
+
+token: ERC20
+
+@external
+@view
+def topup(amount: uint256):
+    x: bool = False
+    x = self.token.transferFrom(msg.sender, self, amount)
+        """,
+        """
+from vyper.interfaces import ERC20
+
+token: ERC20
+
+@external
+@view
+def topup(amount: uint256) -> bool:
+    return self.token.transferFrom(msg.sender, self, amount)
+        """,
+        """
+a: DynArray[uint256, 3]
+
+@external
+@view
+def foo():
+    assert self.a.pop() > 123, "vyper"
+        """,
+        """
+a: DynArray[uint256, 3]
+
+@external
+@view
+def foo():
+    x: uint256 = self.a.pop()
+        """,
+        """
+a: DynArray[uint256, 3]
+
+@external
+@view
+def foo():
+    x: uint256 = 0
+    x = self.a.pop()
+        """,
+        """
+a: DynArray[uint256, 3]
+
+@external
+@view
+def foo() -> uint256:
+    return self.a.pop()
+        """,
+        """
+@external
+@view
+def foo(x: address):
+    assert convert(
+        raw_call(
+            x,
+            b'',
+            max_outsize=32,
+            revert_on_failure=False
+        ), uint256
+    ) > 123, "vyper"
+        """,
+        """
+@external
+@view
+def foo(a: address):
+    x: address = create_minimal_proxy_to(a)
+        """,
+        """
+@external
+@view
+def foo(a: address):
+    x: address = empty(address)
+    x = create_copy_of(a)
+        """,
+        """
+@external
+@view
+def foo(a: address) -> address:
+    return create_from_blueprint(a)
+        """,
     ],
 )
 def test_statefulness_violations(bad_code):
