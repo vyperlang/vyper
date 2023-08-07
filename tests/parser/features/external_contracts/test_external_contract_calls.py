@@ -892,11 +892,6 @@ interface Foo:
 @view
 def set_lucky_expr(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
-
-@external
-@view
-def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
-    return Foo(arg1).set_lucky(arg2)
     """
     assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
 
