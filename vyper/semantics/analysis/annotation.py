@@ -184,8 +184,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
+            # note that mutability for`raw_call` is handled in its `build_IR` function
             mutable_builtins = (
-                "raw_call",
                 "create_minimal_proxy_to",
                 "create_copy_of",
                 "create_from_blueprint",
