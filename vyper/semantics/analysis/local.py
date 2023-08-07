@@ -346,10 +346,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            validate_call_args(node.iter, (1, 2), kwargs=["bound"])
+            range_ = node.iter
+            validate_call_args(range_, (1, 2), kwargs=["bound"])
 
-            args = node.iter.args
-            kwargs = {s.arg: s.value for s in node.iter.keywords or []}
+            args = range_.args
+            kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
                 # range(CONSTANT)
                 n = args[0]
@@ -371,11 +372,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_common_types(n, bound)
 
             else:
-                if kwargs:
+                if range_.keywords:
                     raise StructureException(
-                        """Keyword arguments are not supported for `range(N, M)` and
-                         `range(x, x + N)` expressions""",
-                        node.iter.keywords,
+                        "Keyword arguments are not supported for `range(N, M)` and"
+                        "`range(x, x + N)` expressions",
+                        range_.keywords[0],
                     )
 
                 validate_expected_type(args[0], IntegerT.any())
