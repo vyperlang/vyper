@@ -1,12 +1,13 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException, TypeCheckFailure
+from vyper.exceptions import StateAccessViolation, StructureException, TypeCheckFailure
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
+    get_expr_info,
     get_possible_types_from_node,
 )
 from vyper.semantics.types import TYPE_T, BoolT, EnumT, EventT, SArrayT, StructT, is_type_t
-from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 
 
 class _AnnotationVisitorBase:
@@ -136,6 +137,23 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         self.visit(node.func)
 
         if isinstance(call_type, ContractFunctionT):
+            if (
+                call_type.mutability > StateMutability.VIEW
+                and self.func.mutability <= StateMutability.VIEW
+            ):
+                raise StateAccessViolation(
+                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
+                    node,
+                )
+
+            if (
+                self.func.mutability == StateMutability.PURE
+                and call_type.mutability != StateMutability.PURE
+            ):
+                raise StateAccessViolation(
+                    "Cannot call non-pure function from a pure function", node
+                )
+
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
@@ -157,10 +175,30 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             ):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
+            if call_type.is_modifying:
+                # it's a dotted function call like dynarray.pop()
+                expr_info = get_expr_info(node.func.value)
+                expr_info.validate_modification(node, self.func.mutability)
+
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
+            mutable_builtins = (
+                "raw_call",
+                "create_minimal_proxy_to",
+                "create_copy_of",
+                "create_from_blueprint",
+            )
+            if (
+                self.func.mutability <= StateMutability.VIEW
+                and node.get("func.id") in mutable_builtins
+            ):
+                raise StateAccessViolation(
+                    f"Cannot call a mutating builtin from a {self.func.mutability.value} function",
+                    node,
+                )
+
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             for arg, arg_type in zip(node.args, arg_types):

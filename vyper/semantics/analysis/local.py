@@ -518,29 +518,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
-        if isinstance(fn_type, ContractFunctionT):
-            if (
-                fn_type.mutability > StateMutability.VIEW
-                and self.func.mutability <= StateMutability.VIEW
-            ):
-                raise StateAccessViolation(
-                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
-                    node,
-                )
-
-            if (
-                self.func.mutability == StateMutability.PURE
-                and fn_type.mutability != StateMutability.PURE
-            ):
-                raise StateAccessViolation(
-                    "Cannot call non-pure function from a pure function", node
-                )
-
-        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            # it's a dotted function call like dynarray.pop()
-            expr_info = get_expr_info(node.value.func.value)
-            expr_info.validate_modification(node, self.func.mutability)
-
         # NOTE: fetch_call_return validates call args.
         return_value = fn_type.fetch_call_return(node.value)
         if (
