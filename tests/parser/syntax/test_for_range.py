@@ -83,7 +83,13 @@ def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
         """
 @external
 def bar(x:address):
-    for i in range(1 if raw_call(x, b'', revert_on_failure=False) else 2 , bound = 12):
+    for i in range(1 if raw_call(
+            x,
+            b'',
+            max_outsize=32,
+        ) == b"vyper" else 2,
+        bound=12
+    ):
         pass
         """,
         ImmutableViolation,
@@ -193,6 +199,19 @@ def bar(x:address):
     for i in range(min(a.foo(), 123), min(a.foo(), 123) + 1):
         pass
     """,
+    """
+@external
+def bar(x:address):
+    for i in range(1 if raw_call(
+            x,
+            b'',
+            max_outsize=32,
+            is_static_call=True
+        ) == b"vyper" else 2,
+        bound=12
+    ):
+        pass
+        """,
 ]
 
 
