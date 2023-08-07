@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.exceptions import FunctionDeclarationException
 
 
@@ -28,3 +30,25 @@ def foo() -> num:
     assert_compile_failed(
         lambda: get_contract_with_gas_estimation_for_constants(code), FunctionDeclarationException
     )
+
+
+good_code = [
+    """
+@external
+@view
+def foo(x: address):
+    assert convert(
+        raw_call(
+            x,
+            b'',
+            max_outsize=32,
+            is_static_call=True,
+        ), uint256
+    ) > 123, "vyper"
+    """
+]
+
+
+@pytest.mark.parametrize("code", good_code)
+def test_view_call_compiles(get_contract, code):
+    get_contract(code)
