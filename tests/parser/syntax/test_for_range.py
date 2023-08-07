@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import ImmutableViolation, StructureException
 
 fail_list = [
     (
@@ -12,7 +12,115 @@ def foo():
         pass
     """,
         StructureException,
-    )
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), bound=12):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(max(a.foo(), 123), bound=12):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), a.foo() + 1):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+interface A:
+    def foo()-> uint256: nonpayable
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(min(a.foo(), 123), min(a.foo(), 123) + 1):
+        pass
+    """,
+        ImmutableViolation,
+    ),
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i in range(self.arr.pop(), self.arr.pop() + 2):
+        b.append(i)
+    return b, self.arr
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def bar(x:address):
+    for i in range(1 if raw_call(
+            x,
+            b'',
+            max_outsize=32,
+        ) == b"vyper" else 2,
+        bound=12
+    ):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_minimal_proxy_to(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_copy_of(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo(a: address):
+    for i in range(1 if convert(create_from_blueprint(a), uint256) > 2 else 2, bound=12):
+        pass
+        """,
+        ImmutableViolation,
+    ),
 ]
 
 
@@ -51,6 +159,59 @@ def kick_foos():
     for foo in self.foos:
         foo.kick()
     """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), bound=12):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(max(a.foo(), 123), bound=12):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(a.foo(), a.foo() + 1):
+        pass
+    """,
+    """
+interface A:
+    def foo()-> uint256: view
+
+@external
+def bar(x:address):
+    a: A = A(x)
+    for i in range(min(a.foo(), 123), min(a.foo(), 123) + 1):
+        pass
+    """,
+    """
+@external
+def bar(x:address):
+    for i in range(1 if raw_call(
+            x,
+            b'',
+            max_outsize=32,
+            is_static_call=True
+        ) == b"vyper" else 2,
+        bound=12
+    ):
+        pass
+        """,
 ]
 
 

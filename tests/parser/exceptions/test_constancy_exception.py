@@ -48,17 +48,6 @@ def foo() -> int128:
 def foo() -> int128:
     x: address = create_minimal_proxy_to(0x1234567890123456789012345678901234567890, value=9)
     return 5""",
-        # test constancy in range expressions
-        """
-glob: int128
-@internal
-def foo() -> int128:
-    self.glob += 1
-    return 5
-@external
-def bar():
-    for i in range(self.foo(), self.foo() + 1):
-        pass""",
         """
 glob: int128
 @internal
@@ -119,6 +108,18 @@ struct Foo:
 def foo(f: Foo) -> Foo:
     f.a[1] = [0, 1]
     return f
+        """,
+        # test constancy in range expressions
+        """
+glob: int128
+@internal
+def foo() -> int128:
+    self.glob += 1
+    return 5
+@external
+def bar():
+    for i in range(self.foo(), self.foo() + 1):
+        pass
         """,
     ],
 )
