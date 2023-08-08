@@ -1,6 +1,7 @@
+from symtable import SymbolTable
 from typing import Optional
 
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable, IROperant
 
 
 class IRFunctionBase:
@@ -98,6 +99,15 @@ class IRFunction(IRFunctionBase):
                 new_basic_blocks.append(bb)
         self.basic_blocks = new_basic_blocks
         return removed
+
+    def append_instruction(self, opcode: str, args: list[IROperant]):
+        """
+        Append instruction to last basic block.
+        """
+        ret = self.get_next_variable()
+        inst = IRInstruction(opcode, args, ret)
+        self.get_basic_block().append_instruction(inst)
+        return ret
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"

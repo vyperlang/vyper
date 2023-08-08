@@ -9,6 +9,25 @@ from vyper.evm.opcodes import get_opcodes
 from vyper.semantics.types.function import ContractFunctionT
 
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]
+BINARY_IR_INSTRUCTIONS = [
+    "eq",
+    "gt",
+    "lt",
+    "slt",
+    "sgt",
+    "shr",
+    "shl",
+    "or",
+    "xor",
+    "and",
+    "add",
+    "sub",
+    "mul",
+    "div",
+    "mod",
+    "sha3",
+    "sha3_64",
+]
 
 SymbolTable = dict[str, IROperant]
 
@@ -238,10 +257,7 @@ def _convert_ir_basicblock(
         for arg in ir.args:
             args.append(_convert_ir_basicblock(ctx, arg, symbols))
 
-        ret = ctx.get_next_variable()
-        inst = IRInstruction("call", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        return ctx.append_instruction("call", args)
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
@@ -288,33 +304,13 @@ def _convert_ir_basicblock(
 
         sym = ir.args[0]
         if ret.is_literal:
-            new_var = ctx.get_next_variable()
-            inst = IRInstruction("load", [ret], new_var)
-            ctx.get_basic_block().append_instruction(inst)
+            new_var = ctx.append_instruction("load", [ret])
             symbols[sym.value] = new_var
         else:
             symbols[sym.value] = ret
 
         return _convert_ir_basicblock(ctx, ir.args[2], symbols)  # body
-    elif ir.value in [
-        "eq",
-        "gt",
-        "lt",
-        "slt",
-        "sgt",
-        "shr",
-        "shl",
-        "or",
-        "xor",
-        "and",
-        "add",
-        "sub",
-        "mul",
-        "div",
-        "mod",
-        "sha3",
-        "sha3_64",
-    ]:
+    elif ir.value in BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3", "sha3_64"])
     elif ir.value == "le":
         ir.value = "gt"
@@ -330,44 +326,24 @@ def _convert_ir_basicblock(
         return _convert_binary_op(ctx, ir, symbols, False)  # TODO: check if this is correct order
     elif ir.value == "iszero":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        args = [arg_0]
-
-        ret = ctx.get_next_variable()
-
-        inst = IRInstruction("iszero", args, ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        return ctx.append_instruction("iszero", [arg_0])
     elif ir.value == "goto":
         return _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "ceil32":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("ceil32", [arg_0], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("ceil32", [arg_0])
     elif ir.value == "set":
         sym = ir.args[0]
-        new_var = ctx.get_next_variable()
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
-        inst = IRInstruction("load", [arg_1], new_var)
-        ctx.get_basic_block().append_instruction(inst)
+        new_var = ctx.append_instruction("load", [arg_1])
         symbols[sym.value] = new_var
     elif ir.value == "calldatasize":
-        ret = ctx.get_next_variable()
-        inst = IRInstruction("calldatasize", [], ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        return ctx.append_instruction("calldatasize", [])
     elif ir.value == "calldataload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        ret = ctx.get_next_variable()
-        inst = IRInstruction("calldataload", [arg_0], ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        return ctx.append_instruction("calldataload", [arg_0])
     elif ir.value == "callvalue":
-        ret = ctx.get_next_variable()
-        inst = IRInstruction("callvalue", [], ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        return ctx.append_instruction("callvalue", [])
     elif ir.value == "calldatacopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
@@ -383,9 +359,7 @@ def _convert_ir_basicblock(
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         current_bb = ctx.get_basic_block()
 
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("iszero", [arg_0], new_var)
-        current_bb.append_instruction(inst)
+        new_var = ctx.append_instruction("iszero", [arg_0])
 
         exit_label = ctx.get_next_label()
         bb = IRBasicBlock(exit_label, ctx)
@@ -426,21 +400,12 @@ def _convert_ir_basicblock(
         inst = IRInstruction("revert", [arg_0, arg_1])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "timestamp":
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("timestamp", [], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("timestamp", [])
     elif ir.value == "caller":
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("caller", [], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("caller", [])
     elif ir.value == "dload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("calldataload", [arg_0], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("calldataload", [arg_0])
     elif ir.value == "pass":
         pass
     elif ir.value == "stop":
@@ -448,10 +413,7 @@ def _convert_ir_basicblock(
     elif ir.value == "return":
         pass
     elif ir.value == "selfbalance":
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("selfbalance", [], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("selfbalance", [])
     elif ir.value == "mload":
         sym = ir.args[0]
         if sym.is_literal:
@@ -474,23 +436,16 @@ def _convert_ir_basicblock(
                 symbols[f"&{sym_ir.value}"] = arg_1
                 return arg_1
             else:
-                new_var = ctx.get_next_variable()
-                inst = IRInstruction("load", [sym], new_var)
-                ctx.get_basic_block().append_instruction(inst)
+                new_var = ctx.append_instruction("load", [sym])
                 symbols[f"&{sym_ir.value}"] = new_var
                 return new_var
         else:
-            new_var = ctx.get_next_variable()
-            inst = IRInstruction("load", [arg_1], new_var)
-            ctx.get_basic_block().append_instruction(inst)
+            new_var = ctx.append_instruction("load", [arg_1])
             symbols[sym_ir.value] = new_var
             return new_var
     elif ir.value == "sload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("sload", [arg_0], new_var)
-        ctx.get_basic_block().append_instruction(inst)
-        return new_var
+        return ctx.append_instruction("sload", [arg_0])
     elif ir.value == "sstore":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
@@ -504,9 +459,15 @@ def _convert_ir_basicblock(
     elif ir.value == "return_buffer":
         return IRLabel("return_buffer", True)
     elif ir.value == "repeat":
-        # TODO: implement repeat
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+        bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
+        body = ir.args[4]
+
+        r_ir = IRnode.from_list(["with", sym, [start], body])
+
+        return _convert_ir_opcode(r_ir)
 
         new_var = ctx.get_next_variable()
         inst = IRInstruction("load", [start], new_var)
