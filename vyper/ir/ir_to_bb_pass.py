@@ -6,9 +6,7 @@ from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.bb_optimizer import (
-    optimize_function,
-)
+from vyper.ir.bb_optimizer import optimize_function
 from vyper.semantics.types.function import ContractFunctionT
 
 BINARY_IR_INSTRUCTIONS = [
@@ -111,7 +109,7 @@ def _handle_internal_func(
     old_ir_mempos = 0
     old_ir_mempos += 64
 
-    for arg in func_t.arguments:
+    for _ in func_t.arguments:
         new_var = ctx.get_next_variable()
 
         alloca_inst = IRInstruction("alloca", [], new_var)
@@ -336,8 +334,8 @@ def _convert_ir_basicblock(
     elif ir.value == "repeat":
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols)
-        end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
+        # end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+        # bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
         body = ir.args[4]
 
         r_ir = IRnode.from_list(["with", sym, [start], body])
