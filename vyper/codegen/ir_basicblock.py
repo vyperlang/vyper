@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 
 TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
+TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]
 
 if TYPE_CHECKING:
     from vyper.codegen.ir_function import IRFunction
