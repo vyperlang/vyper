@@ -29,6 +29,8 @@ BINARY_IR_INSTRUCTIONS = [
     "sha3_64",
 ]
 
+MAPPED_IR_INSTRUCTIONS = {"le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
+
 SymbolTable = dict[str, IROperant]
 
 
@@ -198,18 +200,13 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
     for arg in args_ir:
         if arg.value != "with":
             ret = _convert_ir_basicblock(ctx, arg, symbols)
-            new_var = ctx.get_next_variable()
-            inst = IRInstruction("calldataload", [ret], new_var)
-            ctx.get_basic_block().append_instruction(inst)
+            new_var = ctx.append_instruction("calldataload", [ret])
             ret_values.append(new_var)
         else:
             ret = _convert_ir_basicblock(ctx, arg, symbols)
             ret_values.append(ret)
 
-    call_ret = ctx.get_next_variable()
-    call_inst = IRInstruction("call", ret_values, call_ret)
-    ctx.get_basic_block().append_instruction(call_inst)
-    return call_ret
+    return ctx.append_instruction("call", ret_values)
 
 
 def _handle_internal_func(
@@ -232,12 +229,35 @@ def _handle_internal_func(
     return ir.args[0].args[2]
 
 
+def _convert_ir_simple_node(
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
+) -> Optional[Union[str, int]]:
+    args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
+    return ctx.append_instruction(ir.value, args)
+
+
 def _convert_ir_basicblock(
     ctx: IRFunction, ir: IRnode, symbols: SymbolTable
 ) -> Optional[Union[str, int]]:
     # symbols = symbols.copy()
 
-    if ir.value == "deploy":
+    if ir.value in BINARY_IR_INSTRUCTIONS:
+        return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3", "sha3_64"])
+
+    elif ir.value in MAPPED_IR_INSTRUCTIONS.keys():
+        ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
+        return _convert_binary_op(ctx, ir, symbols)
+
+    elif ir.value in ["iszero", "ceil32", "calldataload"]:
+        return _convert_ir_simple_node(ctx, ir, symbols)
+
+    elif ir.value in ["timestamp", "caller", "selfbalance", "calldatasize", "callvalue"]:
+        return ctx.append_instruction(ir.value, [])
+
+    elif ir.value in ["pass", "stop", "return"]:
+        pass
+
+    elif ir.value == "deploy":
         _convert_ir_basicblock(ctx, ir.args[1], symbols)
     elif ir.value == "seq":
         if ir.is_self_call:
@@ -310,50 +330,22 @@ def _convert_ir_basicblock(
             symbols[sym.value] = ret
 
         return _convert_ir_basicblock(ctx, ir.args[2], symbols)  # body
-    elif ir.value in BINARY_IR_INSTRUCTIONS:
-        return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3", "sha3_64"])
-    elif ir.value == "le":
-        ir.value = "gt"
-        return _convert_binary_op(ctx, ir, symbols, False)  # TODO: check if this is correct order
-    elif ir.value == "sle":
-        ir.value = "sgt"
-        return _convert_binary_op(ctx, ir, symbols, False)  # TODO: check if this is correct order
-    elif ir.value == "ge":
-        ir.value = "lt"
-        return _convert_binary_op(ctx, ir, symbols, False)  # TODO: check if this is correct order
-    elif ir.value == "sge":
-        ir.value = "slt"
-        return _convert_binary_op(ctx, ir, symbols, False)  # TODO: check if this is correct order
-    elif ir.value == "iszero":
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        return ctx.append_instruction("iszero", [arg_0])
     elif ir.value == "goto":
         return _append_jmp(ctx, IRLabel(ir.args[0].value))
-    elif ir.value == "ceil32":
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        return ctx.append_instruction("ceil32", [arg_0])
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         new_var = ctx.append_instruction("load", [arg_1])
         symbols[sym.value] = new_var
-    elif ir.value == "calldatasize":
-        return ctx.append_instruction("calldatasize", [])
-    elif ir.value == "calldataload":
-        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
-        return ctx.append_instruction("calldataload", [arg_0])
-    elif ir.value == "callvalue":
-        return ctx.append_instruction("callvalue", [])
+
     elif ir.value == "calldatacopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        # orig_sym = symbols.get(f"&{arg_0.value}", None)
-        # assert orig_sym is None, "calldatacopy should not have a symbol"
-        new_var = ctx.get_next_variable()
+
+        new_var = ctx.append_instruction("calldatacopy", [arg_1, size])
+
         symbols[f"&{arg_0.value}"] = new_var
-        inst = IRInstruction("calldatacopy", [arg_1, size], new_var)
-        ctx.get_basic_block().append_instruction(inst)
         return new_var
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
@@ -399,21 +391,11 @@ def _convert_ir_basicblock(
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         inst = IRInstruction("revert", [arg_0, arg_1])
         ctx.get_basic_block().append_instruction(inst)
-    elif ir.value == "timestamp":
-        return ctx.append_instruction("timestamp", [])
-    elif ir.value == "caller":
-        return ctx.append_instruction("caller", [])
+
     elif ir.value == "dload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         return ctx.append_instruction("calldataload", [arg_0])
-    elif ir.value == "pass":
-        pass
-    elif ir.value == "stop":
-        pass
-    elif ir.value == "return":
-        pass
-    elif ir.value == "selfbalance":
-        return ctx.append_instruction("selfbalance", [])
+
     elif ir.value == "mload":
         sym = ir.args[0]
         if sym.is_literal:
