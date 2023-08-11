@@ -2,6 +2,7 @@ import re
 from enum import Enum, auto
 from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
+import contextlib
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.address_space import AddrSpace
@@ -44,6 +45,47 @@ class Encoding(Enum):
     # abi encoded, default for args/return values from external funcs
     ABI = auto()
     # future: packed
+
+
+# create multiple with scopes if any of the items are complex, to force
+# ordering of side effects.
+# CMC 2023-08-10 this is horrible! remove this _as soon as_ we have
+# real variables in IR (that we can declare without explicit scoping -
+# needs liveness analysis).
+@contextlib.contextmanager
+def scope_multi(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
+
+    class _Builder:
+        def resolve(self, body):
+            if not should_scope:
+                # uses of the variable have already been inlined
+                return body
+
+            ret = body
+            # build with scopes from inside-out (hence reversed)
+            for arg, name in reversed(list(zip(ir_nodes, names))):
+                ret = ["with", name, arg, ret]
+
+            if isinstance(body, IRnode):
+                return IRnode.from_list(
+                    ret, typ=body.typ, location=body.location, encoding=body.encoding
+                )
+            else:
+                return ret
+
+
+    b = _Builder()
+    if should_scope:
+        ir_vars = tuple(IRnode.from_list(
+            name, typ=arg.typ, location=arg.location, encoding=arg.encoding
+        ) for (arg, name) in zip(ir_nodes, names))
+        yield b, ir_vars
+    else:
+        # inline them
+        yield b, ir_nodes
 
 
 # this creates a magical block which maps to IR `with`
