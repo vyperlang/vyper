@@ -90,7 +90,7 @@ def _calculate_in_set(ctx: IRFunction) -> None:
         last_inst = bb.instructions[-1]
         assert (
             last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
-        ), "Last instruction should be a terminator"
+        ), "Last instruction should be a terminator" + str(bb)
 
         for inst in bb.instructions:
             if inst.opcode in ["jmp", "jnz", "call"]:
@@ -105,13 +105,14 @@ def _calculate_in_set(ctx: IRFunction) -> None:
 
 
 def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
+    if bb in liveness_visited:
+        return
+    liveness_visited.add(bb)
+
     bb.out_vars = set()
     for out_bb in bb.out_set:
         _calculate_liveness(out_bb, liveness_visited)
         in_vars = out_bb.in_vars_for(bb)
         bb.out_vars = bb.out_vars.union(in_vars)
 
-    if bb in liveness_visited:
-        return
-    liveness_visited.add(bb)
     bb.calculate_liveness()

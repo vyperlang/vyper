@@ -76,11 +76,11 @@ class IRFunction(IRFunctionBase):
         """
         return [bb for bb in self.basic_blocks if bb.is_terminal()]
 
-    def get_next_label(self) -> str:
+    def get_next_label(self) -> IRLabel:
         self.last_label += 1
         return IRLabel(f"{self.last_label}")
 
-    def get_next_variable(self) -> str:
+    def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
 

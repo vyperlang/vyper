@@ -53,8 +53,8 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
 
-    if optimize is not OptimizationLevel.NONE:
-        optimize_function(global_function)
+    # if optimize is not OptimizationLevel.NONE:
+    #     optimize_function(global_function)
 
     return global_function
 
@@ -81,6 +81,12 @@ def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
     label = ctx.get_next_label()
     bb = IRBasicBlock(label, ctx)
     ctx.append_basic_block(bb)
+
+
+def _new_block(ctx: IRFunction) -> IRBasicBlock:
+    bb = IRBasicBlock(ctx.get_next_label(), ctx)
+    bb = ctx.append_basic_block(bb)
+    return bb
 
 
 def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None:
@@ -200,6 +206,8 @@ def _convert_ir_basicblock(
         bb = IRBasicBlock(exit_label, ctx)
         bb = ctx.append_basic_block(bb)
 
+        # _emit_selects(ctx, after_then_syms, after_else_syms, then_block, else_block, bb)
+
         for sym, val in _get_symbols_common(after_then_syms, after_else_syms).items():
             ret = ctx.get_next_variable()
             symbols[sym] = ret
@@ -244,11 +252,9 @@ def _convert_ir_basicblock(
 
         new_var = ctx.append_instruction("iszero", [arg_0])
 
-        exit_label = ctx.get_next_label()
-        bb = IRBasicBlock(exit_label, ctx)
-        bb = ctx.append_basic_block(bb)
+        exit_block = _new_block(ctx)
 
-        inst = IRInstruction("jnz", [new_var, IRLabel("__revert"), exit_label])
+        inst = IRInstruction("jnz", [new_var, IRLabel("__revert"), exit_block.label])
         current_bb.append_instruction(inst)
 
     elif ir.value == "label":
@@ -334,21 +340,49 @@ def _convert_ir_basicblock(
     elif ir.value == "repeat":
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols)
-        # end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        # bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
+        end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+        bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
         body = ir.args[4]
 
-        r_ir = IRnode.from_list(["with", sym, [start], body])
+        increment_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        counter_inc_var = ctx.get_next_variable()
 
-        return _convert_ir_opcode(r_ir)
+        entry_block = ctx.get_basic_block()
+        cond_block = IRBasicBlock(ctx.get_next_label(), ctx)
 
-        new_var = ctx.get_next_variable()
-        inst = IRInstruction("load", [start], new_var)
+        counter_var = ctx.get_next_variable()
+        ret = ctx.get_next_variable()
+        symbols[sym.value] = ret
+        cond_block.append_instruction(
+            IRInstruction(
+                "select",
+                [entry_block.label, counter_var, increment_block.label, counter_inc_var],
+                ret,
+            )
+        )
+
+        inst = IRInstruction("load", [start], counter_var)
         ctx.get_basic_block().append_instruction(inst)
-        symbols[sym.value] = new_var
+        symbols[sym.value] = counter_var
+        inst = IRInstruction("jmp", [increment_block.label])
+        ctx.get_basic_block().append_instruction(inst)
 
-        # rounds_bound = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        # body = ir.args[3]
+        ctx.append_basic_block(increment_block)
+
+        cont_ret = ctx.get_next_variable()
+        inst = IRInstruction("sub", [ret, end], cont_ret)
+        cond_block.append_instruction(inst)
+
+        body_block = _new_block(ctx)
+        _convert_ir_basicblock(ctx, body, symbols)
+        jump_cond = IRInstruction("jmp", [cond_block.label])
+        body_block.append_instruction(jump_cond)
+
+        exit_block = _new_block(ctx)
+
+        inst = IRInstruction("jnz", [cont_ret, body_block.label, exit_block.label])
+        cond_block.append_instruction(inst)
+
         pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         # count = int(ir.value[3:])
