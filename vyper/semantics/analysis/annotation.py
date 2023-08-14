@@ -187,7 +187,8 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            _check_mutability(call_type)
+            if hasattr(call_type, "mutability"):
+                _check_mutability(call_type)
 
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
