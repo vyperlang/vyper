@@ -6,7 +6,6 @@ from vyper.utils import MemoryPositions
 
 ONE_TO_ONE_INSTRUCTIONS = [
     "revert",
-    "assert",
     "calldatasize",
     "calldatacopy",
     "calldataload",
@@ -104,6 +103,9 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
 
+    # Append postambles
+    assembly.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+
     if no_optimize is False:
         optimize_assembly(assembly)
 
@@ -135,8 +137,14 @@ def _generate_evm_for_instruction_r(
     if opcode == "select":
         ret = inst.get_output_operands()[0]
         inputs = inst.get_input_variables()
-        for input in inputs:
-            input.value = ret.value
+        depth = stack_map.get_depth_in(inputs)
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        to_be_replaced = stack_map.peek(depth)
+        if to_be_replaced.use_count > 1:
+            to_be_replaced.use_count -= 1
+            stack_map.push(ret)
+        else:
+            stack_map.poke(depth, ret)
         return
 
     _emit_input_operands(ctx, assembly, operands, stack_map)
@@ -228,6 +236,8 @@ def _generate_evm_for_instruction_r(
         )
     elif opcode == "ceil32":
         assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
+    elif opcode == "assert":
+        assembly.extend(["_sym___revert", "JUMPI"])
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 

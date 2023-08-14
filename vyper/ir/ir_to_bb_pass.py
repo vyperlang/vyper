@@ -53,8 +53,8 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
 
-    # if optimize is not OptimizationLevel.NONE:
-    #     optimize_function(global_function)
+    if optimize is not OptimizationLevel.NONE:
+        optimize_function(global_function)
 
     return global_function
 
@@ -127,15 +127,24 @@ def _handle_internal_func(
 
 
 def _convert_ir_simple_node(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
+    ctx: IRFunction,
+    ir: IRnode,
+    symbols: SymbolTable,
 ) -> Optional[Union[str, int]]:
     args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
     return ctx.append_instruction(ir.value, args)
 
 
+_break_target: IRBasicBlock = None
+_continue_target: IRBasicBlock = None
+
+
 def _convert_ir_basicblock(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
+    ctx: IRFunction,
+    ir: IRnode,
+    symbols: SymbolTable,
 ) -> Optional[Union[str, int]]:
+    global _break_target, _continue_target
     # symbols = symbols.copy()
 
     if ir.value in BINARY_IR_INSTRUCTIONS:
@@ -215,8 +224,13 @@ def _convert_ir_basicblock(
                 IRInstruction("select", [then_block.label, val[0], else_block.label, val[1]], ret)
             )
 
-        exit_inst = IRInstruction("jmp", [bb.label])
-        else_block.append_instruction(exit_inst)
+        if else_block.is_terminated is False:
+            exit_inst = IRInstruction("jmp", [bb.label])
+            else_block.append_instruction(exit_inst)
+
+        if then_block.is_terminated is False:
+            exit_inst = IRInstruction("jmp", [bb.label])
+            then_block.append_instruction(exit_inst)
 
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1], symbols)  # initialization
@@ -252,11 +266,8 @@ def _convert_ir_basicblock(
 
         new_var = ctx.append_instruction("iszero", [arg_0])
 
-        exit_block = _new_block(ctx)
-
-        inst = IRInstruction("jnz", [new_var, IRLabel("__revert"), exit_block.label])
+        inst = IRInstruction("assert", [new_var])
         current_bb.append_instruction(inst)
-
     elif ir.value == "label":
         bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
         ctx.append_basic_block(bb)
@@ -281,7 +292,7 @@ def _convert_ir_basicblock(
 
             ret_ir = _convert_ir_basicblock(ctx, ret_var, symbols)
             new_var = symbols.get(f"&{ret_ir.value}", ret_ir)
-            inst = IRInstruction("ret", [ret_ir, last_ir])
+            inst = IRInstruction("ret", [last_ir, new_var])
             ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
@@ -308,16 +319,12 @@ def _convert_ir_basicblock(
     elif ir.value == "mstore":
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        sym = symbols.get(f"&{arg_1.value}", None)
 
         if sym_ir.is_literal:
-            sym = symbols.get(f"&{arg_1.value}", None)
-            if sym is None:
-                symbols[f"&{sym_ir.value}"] = arg_1
-                return arg_1
-            else:
-                new_var = ctx.append_instruction("load", [sym])
-                symbols[f"&{sym_ir.value}"] = new_var
-                return new_var
+            new_var = ctx.append_instruction("load", [arg_1])
+            symbols[f"&{sym_ir.value}"] = new_var
+            return new_var
         else:
             new_var = ctx.append_instruction("load", [arg_1])
             symbols[sym_ir.value] = new_var
@@ -338,19 +345,30 @@ def _convert_ir_basicblock(
     elif ir.value == "return_buffer":
         return IRLabel("return_buffer", True)
     elif ir.value == "repeat":
+        #
+        # repeat(sym, start, end, bound, body)
+        # 1) entry block         ]
+        # 2) init counter block  ] -> same block
+        # 3) condition block (exit block, body block)
+        # 4) body block
+        # 5) increment block
+        # 6) exit block
+        # TODO: Add the extra bounds check after clarify
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         end = _convert_ir_basicblock(ctx, ir.args[2], symbols)
         bound = _convert_ir_basicblock(ctx, ir.args[3], symbols)
         body = ir.args[4]
 
-        increment_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        counter_inc_var = ctx.get_next_variable()
-
         entry_block = ctx.get_basic_block()
         cond_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        body_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        jump_up_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        increment_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        exit_block = IRBasicBlock(ctx.get_next_label(), ctx)
 
         counter_var = ctx.get_next_variable()
+        counter_inc_var = ctx.get_next_variable()
         ret = ctx.get_next_variable()
         symbols[sym.value] = ret
         cond_block.append_instruction(
@@ -364,26 +382,48 @@ def _convert_ir_basicblock(
         inst = IRInstruction("load", [start], counter_var)
         ctx.get_basic_block().append_instruction(inst)
         symbols[sym.value] = counter_var
-        inst = IRInstruction("jmp", [increment_block.label])
+        inst = IRInstruction("jmp", [cond_block.label])
         ctx.get_basic_block().append_instruction(inst)
 
+        cont_ret = ctx.get_next_variable()
+        inst = IRInstruction("xor", [ret, end], cont_ret)
+        cond_block.append_instruction(inst)
+        ctx.append_basic_block(cond_block)
+
+        ctx.append_basic_block(body_block)
+        old_targets = _break_target, _continue_target
+        _break_target, _continue_target = exit_block, increment_block
+        _convert_ir_basicblock(ctx, body, symbols)
+        _break_target, _continue_target = old_targets
+        body_end = ctx.get_basic_block()
+        if body_end.is_terminal() is False:
+            body_end.append_instruction(IRInstruction("jmp", [jump_up_block.label]))
+
+        jump_cond = IRInstruction("jmp", [increment_block.label])
+        jump_up_block.append_instruction(jump_cond)
+        ctx.append_basic_block(jump_up_block)
+
+        increment_block.append_instruction(
+            IRInstruction("add", [counter_var, IRLiteral(1)], counter_inc_var)
+        )
+        increment_block.append_instruction(IRInstruction("jmp", [cond_block.label]))
         ctx.append_basic_block(increment_block)
 
-        cont_ret = ctx.get_next_variable()
-        inst = IRInstruction("sub", [ret, end], cont_ret)
+        ctx.append_basic_block(exit_block)
+
+        inst = IRInstruction("jnz", [cont_ret, exit_block.label, body_block.label])
         cond_block.append_instruction(inst)
-
-        body_block = _new_block(ctx)
-        _convert_ir_basicblock(ctx, body, symbols)
-        jump_cond = IRInstruction("jmp", [cond_block.label])
-        body_block.append_instruction(jump_cond)
-
-        exit_block = _new_block(ctx)
-
-        inst = IRInstruction("jnz", [cont_ret, body_block.label, exit_block.label])
-        cond_block.append_instruction(inst)
-
+    elif ir.value == "break":
+        assert _break_target is not None, "Break with no break target"
+        inst = IRInstruction("jmp", [_break_target.label])
+        ctx.get_basic_block().append_instruction(inst)
+        ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+    elif ir.value == "continue":
         pass
+        assert _continue_target is not None, "Continue with no contrinue target"
+        inst = IRInstruction("jmp", [_continue_target.label])
+        ctx.get_basic_block().append_instruction(inst)
+        ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         # count = int(ir.value[3:])
         args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]

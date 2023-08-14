@@ -20,8 +20,7 @@ def optimize_function(ctx: IRFunction):
         return ctx
 
     while True:
-        _calculate_liveness(ctx.basic_blocks[0], set())
-
+        _calculate_liveness(ctx.basic_blocks[0], {})
         removed = _optimize_unused_variables(ctx)
         if len(removed) == 0:
             break
@@ -105,12 +104,10 @@ def _calculate_in_set(ctx: IRFunction) -> None:
 
 
 def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
-    if bb in liveness_visited:
-        return
-    liveness_visited.add(bb)
-
-    bb.out_vars = set()
     for out_bb in bb.out_set:
+        if liveness_visited.get(bb, None) == out_bb:
+            continue
+        liveness_visited[bb] = out_bb
         _calculate_liveness(out_bb, liveness_visited)
         in_vars = out_bb.in_vars_for(bb)
         bb.out_vars = bb.out_vars.union(in_vars)

@@ -72,14 +72,17 @@ class StackMap:
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IROperant) -> int:
+    def get_depth_in(self, op: IROperant | list[IROperant]) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
         for i, stack_op in enumerate(self.stack_map[::-1]):
-            if isinstance(stack_op, IROperant) and stack_op.value == op.value:
-                return -i
+            if isinstance(stack_op, IROperant):
+                if isinstance(op, IROperant) and stack_op.value == op.value:
+                    return -i
+                elif isinstance(op, list) and stack_op in op:
+                    return -i
 
         return StackMap.NOT_IN_STACK
 

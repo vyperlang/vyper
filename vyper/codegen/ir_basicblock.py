@@ -220,10 +220,14 @@ class IRBasicBlock:
         if bb:
             for inst in self.instructions:
                 if inst.opcode == "select":
-                    if inst.operands[0] == bb.label and inst.operands[3] in liveness:
-                        liveness.remove(inst.operands[3])
-                    if inst.operands[2] == bb.label and inst.operands[1] in liveness:
-                        liveness.remove(inst.operands[1])
+                    if inst.operands[0] == bb.label:
+                        liveness.add(inst.operands[1])
+                        if inst.operands[3] in liveness:
+                            liveness.remove(inst.operands[3])
+                    if inst.operands[2] == bb.label:
+                        liveness.add(inst.operands[3])
+                        if inst.operands[1] in liveness:
+                            liveness.remove(inst.operands[1])
 
         return liveness
 
@@ -243,20 +247,30 @@ class IRBasicBlock:
         assert len(self.instructions) > 0, "basic block must have at least one instruction"
         return self.instructions[-1].opcode in TERMINAL_IR_INSTRUCTIONS
 
+    @property
+    def is_terminated(self) -> bool:
+        """
+        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        """
+        if len(self.instructions) == 0:
+            return False
+        return self.instructions[-1].opcode in TERMINATOR_IR_INSTRUCTIONS
+
     def calculate_liveness(self) -> None:
         """
-        Compute liveness of each instruction in basic block.
+        Compute liveness of each instruction in the basic block.
         """
+        liveness = self.out_vars.copy()
         for instruction in self.instructions[::-1]:
-            self.out_vars = self.out_vars.union(instruction.get_input_variables())
+            liveness = liveness.union(instruction.get_input_variables())
             out = (
                 instruction.get_output_operands()[0]
                 if len(instruction.get_output_operands()) > 0
                 else None
             )
-            if out in self.out_vars:
-                self.out_vars.remove(out)
-            instruction.liveness = self.out_vars.copy()
+            if out in liveness:
+                liveness.remove(out)
+            instruction.liveness = liveness
 
     def get_liveness(self) -> set[IRVariable]:
         """
