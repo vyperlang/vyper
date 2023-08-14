@@ -6,6 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.semantics.analysis.base import StateMutability
 from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
@@ -77,6 +78,7 @@ def process_inputs(wrapped_fn):
 class BuiltinFunction:
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
+    mutability = StateMutability.PURE
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg, expected_type):

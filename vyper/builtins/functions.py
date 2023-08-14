@@ -51,7 +51,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import StateMutability, VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -1083,12 +1083,15 @@ class RawCall(BuiltinFunction):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _return_type = None
+    mutability = StateMutability.NONPAYABLE
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
+        value = kwargz.get("value")
+        static_call = kwargz.get("is_static_call")
         outsize = kwargz.get("max_outsize")
         revert_on_failure = kwargz.get("revert_on_failure")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
@@ -1100,6 +1103,11 @@ class RawCall(BuiltinFunction):
 
         if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
             raise
+
+        if static_call:
+            self.mutability = StateMutability.VIEW
+        elif value:
+            self.mutability = StateMutability.PAYABLE
 
         if outsize.value:
             return_type = BytesT()
@@ -1724,6 +1732,7 @@ class _CreateBase(BuiltinFunction):
         "salt": KwargSettings(BYTES32_T, empty_value),
     }
     _return_type = AddressT()
+    mutability = StateMutability.PAYABLE
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):

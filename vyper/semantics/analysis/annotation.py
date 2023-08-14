@@ -136,7 +136,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
         node._metadata["type"] = node_type
         self.visit(node.func)
 
-        if isinstance(call_type, ContractFunctionT):
+        def _check_mutability(call_type):
             if (
                 call_type.mutability > StateMutability.VIEW
                 and self.func.mutability <= StateMutability.VIEW
@@ -153,6 +153,9 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 raise StateAccessViolation(
                     "Cannot call non-pure function from a pure function", node
                 )
+
+        if isinstance(call_type, ContractFunctionT):
+            _check_mutability(call_type)
 
             # function calls
             if call_type.is_internal:
@@ -184,20 +187,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # note that mutability for`raw_call` is handled in its `build_IR` function
-            mutable_builtins = (
-                "create_minimal_proxy_to",
-                "create_copy_of",
-                "create_from_blueprint",
-            )
-            if (
-                self.func.mutability <= StateMutability.VIEW
-                and node.get("func.id") in mutable_builtins
-            ):
-                raise StateAccessViolation(
-                    f"Cannot call a mutating builtin from a {self.func.mutability.value} function",
-                    node,
-                )
+            _check_mutability(call_type)
 
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
