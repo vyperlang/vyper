@@ -264,9 +264,9 @@ def _convert_ir_basicblock(
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         current_bb = ctx.get_basic_block()
 
-        new_var = ctx.append_instruction("iszero", [arg_0])
+        #new_var = ctx.append_instruction("iszero", [arg_0])
 
-        inst = IRInstruction("assert", [new_var])
+        inst = IRInstruction("assert", [arg_0])
         current_bb.append_instruction(inst)
     elif ir.value == "label":
         bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
