@@ -641,7 +641,7 @@ class BuiltinFunctionT(VyperType):
     _kwargs: Dict[str, KwargSettings] = {}
 
     # helper function to deal with TYPE_DEFINITIONs
-    def _validate_single(self, arg, expected_type):
+    def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
         # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
         # refactor me.
         if expected_type == "TYPE_DEFINITION":
@@ -651,7 +651,7 @@ class BuiltinFunctionT(VyperType):
         else:
             validate_expected_type(arg, expected_type)
 
-    def _validate_arg_types(self, node):
+    def _validate_arg_types(self, node: vy_ast.Call) -> None:
         num_args = len(self._inputs)  # the number of args the signature indicates
 
         expect_num_args = num_args
@@ -680,13 +680,15 @@ class BuiltinFunctionT(VyperType):
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
 
-    def fetch_call_return(self, node):
+    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)
 
         if self._return_type:
             return self._return_type
 
-    def infer_arg_types(self, node):
+        return None
+
+    def infer_arg_types(self, node: vy_ast.Call) -> list[VyperType]:
         self._validate_arg_types(node)
         ret = [expected for (_, expected) in self._inputs]
 
@@ -698,7 +700,7 @@ class BuiltinFunctionT(VyperType):
         ret.extend(get_exact_type_from_node(arg) for arg in varargs)
         return ret
 
-    def infer_kwarg_types(self, node):
+    def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:
         return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
 
     def __repr__(self):
