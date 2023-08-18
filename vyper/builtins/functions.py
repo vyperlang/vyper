@@ -293,7 +293,6 @@ class Slice(BuiltinFunctionT):
         ("start", UINT256_T),
         ("length", UINT256_T),
     ]
-    _return_type = None
 
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
@@ -868,7 +867,6 @@ class Extract32(BuiltinFunctionT):
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in _validate_arg_types)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BYTES32_T)}
-    _return_type = None
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -1083,7 +1081,6 @@ class RawCall(BuiltinFunctionT):
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
-    _return_type = None
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -1231,7 +1228,6 @@ class Send(BuiltinFunctionT):
     _inputs = [("to", AddressT()), ("value", UINT256_T)]
     # default gas stipend is 0
     _kwargs = {"gas": KwargSettings(UINT256_T, 0)}
-    _return_type = None
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1246,7 +1242,6 @@ class Send(BuiltinFunctionT):
 class SelfDestruct(BuiltinFunctionT):
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
-    _return_type = None
     _is_terminus = True
     _warned = False
 

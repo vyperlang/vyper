@@ -2,7 +2,7 @@ import re
 import warnings
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -638,7 +638,9 @@ class MemberFunctionT(VyperType):
 
 class BuiltinFunctionT(VyperType):
     _has_varargs = False
+    _inputs: list[tuple[str, Any]] = []
     _kwargs: Dict[str, KwargSettings] = {}
+    _return_type: Optional[VyperType] = None
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -654,12 +656,12 @@ class BuiltinFunctionT(VyperType):
     def _validate_arg_types(self, node: vy_ast.Call) -> None:
         num_args = len(self._inputs)  # the number of args the signature indicates
 
-        expect_num_args = num_args
+        expect_num_args: Union[int, tuple] = num_args
         if self._has_varargs:
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, expect_num_args, self._kwargs)
+        validate_call_args(node, expect_num_args, list(self._kwargs.keys()))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             self._validate_single(arg, expected)
