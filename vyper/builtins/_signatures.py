@@ -1,4 +1,4 @@
-import functools
+from functools import wraps
 
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
@@ -37,7 +37,7 @@ def process_inputs(wrapped_fn):
     classes in `vyper.functions.functions`.
     """
 
-    @functools.wraps(wrapped_fn)
+    @wraps(wrapped_fn)
     def decorator_fn(self, node, context):
         subs = []
         for arg in node.args:
