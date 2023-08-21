@@ -685,10 +685,7 @@ class BuiltinFunctionT(VyperType):
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)
 
-        if self._return_type:
-            return self._return_type
-
-        return None
+        return self._return_type
 
     def infer_arg_types(self, node: vy_ast.Call) -> list[VyperType]:
         self._validate_arg_types(node)
