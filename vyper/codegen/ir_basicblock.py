@@ -97,6 +97,7 @@ class IRInstruction:
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
+    fen: int
 
     def __init__(
         self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
@@ -107,6 +108,7 @@ class IRInstruction:
         self.dbg = dbg
         self.liveness = set()
         self.parent = None
+        self.fen = -1
 
     def get_label_operands(self) -> list[IRLabel]:
         """

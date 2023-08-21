@@ -100,6 +100,13 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         if i != 0:
             assembly.append(f"_sym_{bb.label}")
             assembly.append("JUMPDEST")
+
+        fen = 0
+        for inst in bb.instructions:
+            inst.fen = fen
+            if inst.opcode in ["call", "sload", "sstore", "assert"]:
+                fen += 1
+
         for inst in bb.instructions:
             _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
 
@@ -120,9 +127,12 @@ def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> None:
     global label_counter
+
     for op in inst.get_output_operands():
         for target in dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
+                continue
+            if target.fen != inst.fen:
                 continue
             _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
