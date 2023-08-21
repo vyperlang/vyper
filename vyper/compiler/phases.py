@@ -279,7 +279,6 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
     validate_semantics(vyper_module_folded, interface_codes)
-    vy_ast.expansion.expand_annotated_ast(vyper_module_folded)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables

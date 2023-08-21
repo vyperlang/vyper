@@ -1,6 +1,3 @@
-from typing import Any, List
-
-import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
@@ -15,7 +12,7 @@ from vyper.semantics.types.function import ContractFunctionT
 
 # register function args with the local calling context.
 # also allocate the ones that live in memory (i.e. kwargs)
-def _register_function_args(func_t: ContractFunctionT, context: Context) -> List[IRnode]:
+def _register_function_args(func_t: ContractFunctionT, context: Context) -> list[IRnode]:
     ret = []
     # the type of the calldata
     base_args_t = TupleT(tuple(arg.typ for arg in func_t.positional_args))
@@ -52,13 +49,9 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> List
     return ret
 
 
-def _annotated_method_id(abi_sig):
-    method_id = util.method_id_int(abi_sig)
-    annotation = f"{hex(method_id)}: {abi_sig}"
-    return IRnode(method_id, annotation=annotation)
-
-
-def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> List[Any]:
+def _generate_kwarg_handlers(
+    func_t: ContractFunctionT, context: Context
+) -> dict[str, tuple[int, IRnode]]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -75,7 +68,6 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
         abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
-        method_id = _annotated_method_id(abi_sig)
 
         calldata_kwargs_ofst = IRnode(
             4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
@@ -87,11 +79,6 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
         # ensure calldata is at least of minimum length
         args_abi_t = calldata_args_t.abi_type
         calldata_min_size = args_abi_t.min_size() + 4
-
-        # note we don't need the check if calldata_min_size == 4,
-        # because the global calldatasize check ensures that already.
-        if calldata_min_size > 4:
-            ret.append(["assert", ["ge", "calldatasize", calldata_min_size]])
 
         # TODO optimize make_setter by using
         # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
@@ -123,11 +110,10 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
 
-        method_id_check = ["eq", "_calldata_method_id", method_id]
-        ret = ["if", method_id_check, ret]
-        return ret
+        # return something we can turn into ExternalFuncIR
+        return abi_sig, calldata_min_size, ret
 
-    ret = ["seq"]
+    ret = {}
 
     keyword_args = func_t.keyword_args
 
@@ -139,9 +125,12 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
         calldata_kwargs = keyword_args[:i]
         default_kwargs = keyword_args[i:]
 
-        ret.append(handler_for(calldata_kwargs, default_kwargs))
+        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs)
+        ret[sig] = calldata_min_size, ir_node
 
-    ret.append(handler_for(keyword_args, []))
+    sig, calldata_min_size, ir_node = handler_for(keyword_args, [])
+
+    ret[sig] = calldata_min_size, ir_node
 
     return ret
 
@@ -149,7 +138,7 @@ def _generate_kwarg_handlers(func_t: ContractFunctionT, context: Context) -> Lis
 # TODO it would be nice if this returned a data structure which were
 # amenable to generating a jump table instead of the linear search for
 # method_id we have now.
-def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check):
+def generate_ir_for_external_function(code, func_t, context):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef,
@@ -174,14 +163,6 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     # generate the main body of the function
     body += handle_base_args
 
-    if not func_t.is_payable and not skip_nonpayable_check:
-        # if the contract contains payable functions, but this is not one of them
-        # add an assertion that the value of the call is zero
-        nonpayable_check = IRnode.from_list(
-            ["assert", ["iszero", "callvalue"]], error_msg="nonpayable check"
-        )
-        body.append(nonpayable_check)
-
     body += nonreentrant_pre
 
     body += [parse_body(code.body, context, ensure_terminated=True)]
@@ -201,22 +182,10 @@ def generate_ir_for_external_function(code, func_t, context, skip_nonpayable_che
     if context.return_type is not None:
         exit_sequence_args += ["ret_ofst", "ret_len"]
     # wrap the exit in a labeled block
-    exit = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
+    exit_ = ["label", func_t._ir_info.exit_sequence_label, exit_sequence_args, exit_sequence]
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_ir = ["seq", body, exit]
+    func_common_ir = IRnode.from_list(["seq", body, exit_], source_pos=getpos(code))
 
-    if func_t.is_fallback or func_t.is_constructor:
-        ret = ["seq"]
-        # add a goto to make the function entry look like other functions
-        # (for zksync interpreter)
-        ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
-        ret.append(func_common_ir)
-    else:
-        ret = kwarg_handlers
-        # sneak the base code into the kwarg handler
-        # TODO rethink this / make it clearer
-        ret[-1][-1].append(func_common_ir)
-
-    return IRnode.from_list(ret, source_pos=getpos(code))
+    return kwarg_handlers, func_common_ir

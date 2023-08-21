@@ -539,6 +539,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         # an array index, and the clamp will throw an error.
         # NOTE: there are optimization rules for this when ix or bound is literal
         ix = clamp("lt", ix, bound)
+        ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
@@ -1032,7 +1033,6 @@ def eval_seq(ir_node):
     return None
 
 
-# TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
         "raw_revert",
@@ -1044,6 +1044,8 @@ def is_return_from_function(node):
     return False
 
 
+# TODO this is almost certainly duplicated with check_terminus_node
+# in vyper/semantics/analysis/local.py
 def check_single_exit(fn_node):
     _check_return_body(fn_node, fn_node.body)
     for node in fn_node.get_descendants(vy_ast.If):

@@ -187,6 +187,7 @@ Bugfixes:
 
 v0.3.5
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 2022-08-05
 
@@ -335,6 +336,7 @@ Special thanks to @skellet0r for some major features in this release!
 
 v0.3.0
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-10-04
 
@@ -367,6 +369,7 @@ Special thanks to contributions from @skellet0r and @benjyz for this release!
 
 v0.2.16
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-08-27
 
@@ -391,6 +394,7 @@ Special thanks to contributions from @skellet0r, @sambacha and @milancermak for 
 
 v0.2.15
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 23-07-2021
 
@@ -403,6 +407,7 @@ Fixes:
 
 v0.2.14
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 20-07-2021
 
@@ -521,6 +526,7 @@ Fixes:
 
 v0.2.6
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 10-10-2020
 
@@ -774,7 +780,7 @@ The following VIPs were implemented for Beta 13:
 
 - Add ``vyper-json`` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/vyperlang/vyper/issues/1525>`_)
-- Require unitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
+- Require uninitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
 
 Some of the bug and stability fixes:
 

@@ -113,6 +113,23 @@ Remix IDE
 
    While the Vyper version of the Remix IDE compiler is updated on a regular basis, it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
 
+.. _optimization-mode:
+
+Compiler Optimization Modes
+===========================
+
+The vyper CLI tool accepts an optimization mode ``"none"``, ``"codesize"``, or ``"gas"`` (default). It can be set using the ``--optimize`` flag. For example, invoking ``vyper --optimize codesize MyContract.vy`` will compile the contract, optimizing for code size. As a rough summary of the differences between gas and codesize mode, in gas optimized mode, the compiler will try to generate bytecode which minimizes gas (up to a point), including:
+
+* using a sparse selector table which optimizes for gas over codesize
+* inlining some constants, and
+* trying to unroll some loops, especially for data copies.
+
+In codesize optimized mode, the compiler will try hard to minimize codesize by
+
+* using a dense selector table
+* out-lining code, and
+* using more loops for data copies.
+
 
 .. _evm-version:
 

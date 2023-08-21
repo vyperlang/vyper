@@ -12,7 +12,26 @@ def foo():
         pass
     """,
         StructureException,
-    )
+    ),
+    (
+        """
+@external
+def bar():
+    for i in range(1,2,bound=2):
+        pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def bar():
+    x:uint256 = 1
+    for i in range(x,x+1,bound=2):
+        pass
+    """,
+        StructureException,
+    ),
 ]
 
 

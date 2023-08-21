@@ -269,7 +269,11 @@ def _convert_ir_basicblock(
         inst = IRInstruction("assert", [new_var])
         current_bb.append_instruction(inst)
     elif ir.value == "label":
-        bb = IRBasicBlock(IRLabel(ir.args[0].value, True), ctx)
+        label = IRLabel(ir.args[0].value, True)
+        if ctx.get_basic_block().is_terminated is False:
+            inst = IRInstruction("jmp", [label])
+            ctx.get_basic_block().append_instruction(inst)
+        bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2], symbols)
     elif ir.value == "exit_to":
