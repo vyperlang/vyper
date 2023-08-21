@@ -834,6 +834,31 @@ def _prune_inefficient_jumps(assembly):
     return changed
 
 
+def _optimize_inefficient_jumps(assembly):
+    # optimize sequences `_sym_common JUMPI _sym_x JUMP _sym_common JUMPDEST`
+    # to `ISZERO _sym_x JUMPI _sym_common JUMPDEST`
+    changed = False
+    i = 0
+    while i < len(assembly) - 6:
+        if (
+            is_symbol(assembly[i])
+            and assembly[i + 1] == "JUMPI"
+            and is_symbol(assembly[i + 2])
+            and assembly[i + 3] == "JUMP"
+            and assembly[i] == assembly[i + 4]
+            and assembly[i + 5] == "JUMPDEST"
+        ):
+            changed = True
+            assembly[i] = "ISZERO"
+            assembly[i + 1] = assembly[i + 2]
+            assembly[i + 2] = "JUMPI"
+            del assembly[i + 3 : i + 4]
+        else:
+            i += 1
+
+    return changed
+
+
 def _merge_jumpdests(assembly):
     # When we have multiple JUMPDESTs in a row, or when a JUMPDEST
     # is immediately followed by another JUMP, we can skip the
@@ -990,6 +1015,7 @@ def _optimize_assembly(assembly):
         changed |= _merge_iszero(assembly)
         changed |= _merge_jumpdests(assembly)
         changed |= _prune_inefficient_jumps(assembly)
+        changed |= _optimize_inefficient_jumps(assembly)
         changed |= _prune_unused_jumpdests(assembly)
         changed |= _stack_peephole_opts(assembly)
 
