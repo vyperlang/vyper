@@ -477,6 +477,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value == "seq":
         changed |= _merge_memzero(argz)
         changed |= _merge_calldataload(argz)
+        changed |= _merge_dload(argz)
+        changed |= _rewrite_mstore_dload(argz)
         changed |= _merge_mload(argz)
         changed |= _remove_empty_seqs(argz)
 
@@ -647,6 +649,18 @@ def _merge_calldataload(argz):
 
 def _merge_dload(argz):
     return _merge_load(argz, "dload", "dloadbytes")
+
+
+def _rewrite_mstore_dload(argz):
+    changed = False
+    for i, arg in enumerate(argz):
+        if arg.value == "mstore" and arg.args[1].value == "dload":
+            dst = arg.args[0]
+            src = arg.args[1].args[0]
+            len_ = 32
+            argz[i] = IRnode.from_list(["dloadbytes", dst, src, len_], source_pos=arg.source_pos)
+            changed = True
+    return changed
 
 
 def _merge_mload(argz):

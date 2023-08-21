@@ -764,29 +764,19 @@ class ECRecover(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
+        input_buf = context.new_internal_variable(get_type_for_exact_size(128))
+        output_buf = MemoryPositions.FREE_VAR_SPACE
         return IRnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, args[0]],
-                ["mstore", ["add", placeholder_node, 32], args[1]],
-                ["mstore", ["add", placeholder_node, 64], args[2]],
-                ["mstore", ["add", placeholder_node, 96], args[3]],
-                [
-                    "pop",
-                    [
-                        "staticcall",
-                        ["gas"],
-                        1,
-                        placeholder_node,
-                        128,
-                        MemoryPositions.FREE_VAR_SPACE,
-                        32,
-                    ],
-                ],
-                ["mload", MemoryPositions.FREE_VAR_SPACE],
+                # clear output memory first, ecrecover can return 0 bytes
+                ["mstore", output_buf, 0],
+                ["mstore", input_buf, args[0]],
+                ["mstore", input_buf + 32, args[1]],
+                ["mstore", input_buf + 64, args[2]],
+                ["mstore", input_buf + 96, args[3]],
+                ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
+                ["mload", output_buf],
             ],
             typ=AddressT(),
         )
@@ -1634,7 +1624,9 @@ def _create_ir(value, buf, length, salt=None, checked=True):
     if not checked:
         return ret
 
-    return clamp_nonzero(ret)
+    ret = clamp_nonzero(ret)
+    ret.set_error_msg(f"{create_op} failed")
+    return ret
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1830,7 +1822,10 @@ class CreateCopyOf(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
-                ir.append(["assert", codesize])
+                check_codesize = ["assert", codesize]
+                ir.append(
+                    IRnode.from_list(check_codesize, error_msg="empty target (create_copy_of)")
+                )
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1920,7 +1915,12 @@ class CreateFromBlueprint(_CreateBase):
                 # (code_ofst == (extcodesize target) would be empty
                 # initcode, which we disallow for hygiene reasons -
                 # same as `create_copy_of` on an empty target).
-                ir.append(["assert", ["sgt", codesize, 0]])
+                check_codesize = ["assert", ["sgt", codesize, 0]]
+                ir.append(
+                    IRnode.from_list(
+                        check_codesize, error_msg="empty target (create_from_blueprint)"
+                    )
+                )
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:

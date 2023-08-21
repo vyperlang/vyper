@@ -180,24 +180,30 @@ class _ExprAnalyser:
         raise StructureException("Cannot determine type of this object", node)
 
     def types_from_Attribute(self, node):
+        is_self_reference = node.get("value.id") == "self"
         # variable attribute, e.g. `foo.bar`
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
+
+        def _raise_invalid_reference(name, node):
+            raise InvalidReference(
+                f"'{name}' is not a storage variable, it should not be prepended with self", node
+            )
+
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
+            if is_self_reference and (s.is_constant or s.is_immutable):
+                _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
         except UnknownAttribute:
-            if node.get("value.id") != "self":
+            if not is_self_reference:
                 raise
             if name in self.namespace:
-                raise InvalidReference(
-                    f"'{name}' is not a storage variable, it should not be prepended with self",
-                    node,
-                ) from None
+                _raise_invalid_reference(name, node)
 
             suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(

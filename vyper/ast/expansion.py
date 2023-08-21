@@ -49,7 +49,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
             # for each input type we wrap it in a `Subscript` to access a specific member
             return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
-        return_stmt._metadata["type"] = node._metadata["type"]
 
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):

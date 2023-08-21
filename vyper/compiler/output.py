@@ -304,9 +304,13 @@ def _build_opcodes(bytecode: bytes) -> str:
 
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
-        opcode_output.append(opcode_map[op])
+        opcode_output.append(opcode_map.get(op, f"VERBATIM_{hex(op)}"))
         if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(opcode_map[op][4:])
+            # we can have push_len > len(bytecode_sequence) when there is data
+            # (instead of code) at end of contract
+            # CMC 2023-07-13 maybe just strip known data segments?
+            push_len = min(push_len, len(bytecode_sequence))
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
 

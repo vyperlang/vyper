@@ -11,7 +11,12 @@ import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT, OptimizationLevel, Settings
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    _set_debug_mode,
+)
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
@@ -105,7 +110,12 @@ def _parse_args(argv):
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
-    parser.add_argument("--optimize", help="Optimization flag", choices=["gas", "codesize", "none"])
+    parser.add_argument(
+        "--optimize",
+        help="Optimization flag (defaults to 'gas')",
+        choices=["gas", "codesize", "none"],
+    )
+    parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
@@ -156,6 +166,9 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
+    if args.debug:
+        _set_debug_mode(True)
+
     if args.no_optimize and args.optimize:
         raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
 
@@ -170,7 +183,7 @@ def _parse_args(argv):
         settings.evm_version = args.evm_version
 
     if args.verbose:
-        print(f"using `{settings}`", file=sys.stderr)
+        print(f"cli specified: `{settings}`", file=sys.stderr)
 
     compiled = compile_files(
         args.input_files,

@@ -95,6 +95,9 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
             iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
+            for a in node.iter.keywords:
+                if a.arg == "bound":
+                    self.expr_visitor.visit(a.value, iter_type)
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):

@@ -37,13 +37,13 @@ In the above examples, the contract will only compile with Vyper versions ``0.3.
 Optimization Mode
 -----------------
 
-The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For instance, the following contract will be compiled in a way which tries to minimize codesize:
+The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a contract will cause it to try to optimize for codesize:
 
 .. code-block:: python
 
    #pragma optimize codesize
 
-The optimization mode can also be set as a compiler option. If the compiler option conflicts with the source code pragma, an exception will be raised and compilation will not continue.
+The optimization mode can also be set as a compiler option, which is documented in :ref:`optimization-mode`. If the compiler option conflicts with the source code pragma, an exception will be raised and compilation will not continue.
 
 EVM Version
 -----------------

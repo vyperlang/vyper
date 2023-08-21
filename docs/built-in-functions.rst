@@ -379,7 +379,11 @@ Cryptography
     * ``s``: second 32 bytes of signature
     * ``v``: final 1 byte of signature
 
-    Returns the associated address, or ``0`` on error.
+    Returns the associated address, or ``empty(address)`` on error.
+
+    .. note::
+
+         Prior to Vyper ``0.3.10``, the ``ecrecover`` function could return an undefined (possibly nonzero) value for invalid inputs to ``ecrecover``. For more information, please see `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
 
     .. code-block:: python
 
@@ -572,6 +576,24 @@ Math
 
         >>> ExampleContract.foo(3.1337)
         4
+
+.. py:function:: epsilon(typename) -> Any
+
+    Returns the smallest non-zero value for a decimal type.
+
+    * ``typename``: Name of the decimal type (currently only ``decimal``)
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> decimal:
+            return epsilon(decimal)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        Decimal('1E-10')
 
 .. py:function:: floor(value: decimal) -> int256
 
