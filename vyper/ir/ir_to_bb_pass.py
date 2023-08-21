@@ -1,7 +1,14 @@
 from typing import Optional, Union
 
 from vyper.codegen.dfg import generate_evm
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperant
+from vyper.codegen.ir_basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperant,
+    IRVariable,
+)
 from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
@@ -152,7 +159,8 @@ def _convert_ir_basicblock(
 
     elif ir.value in MAPPED_IR_INSTRUCTIONS.keys():
         ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
-        return _convert_binary_op(ctx, ir, symbols)
+        new_var = _convert_binary_op(ctx, ir, symbols)
+        return ctx.append_instruction("iszero", [new_var])
 
     elif ir.value in ["iszero", "ceil32", "calldataload"]:
         return _convert_ir_simple_node(ctx, ir, symbols)
@@ -296,7 +304,10 @@ def _convert_ir_basicblock(
 
             ret_ir = _convert_ir_basicblock(ctx, ret_var, symbols)
             new_var = symbols.get(f"&{ret_ir.value}", ret_ir)
+            new_var.mem_type = IRVariable.MemType.MEMORY
+            new_var.mem_addr = ret_ir.value
             inst = IRInstruction("ret", [last_ir, new_var])
+            inst.operand_access[1] = 1
             ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)

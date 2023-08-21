@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperant
+from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperant, IRVariable
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, optimize_assembly
@@ -85,6 +85,11 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
+            if inst.opcode == "ret":
+                inst.operands[1].mem_type = IRVariable.MemType.MEMORY
+
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
             if inst.opcode != "select":
                 continue
 
@@ -157,7 +162,7 @@ def _generate_evm_for_instruction_r(
             stack_map.poke(depth, ret)
         return
 
-    _emit_input_operands(ctx, assembly, operands, stack_map)
+    _emit_input_operands(ctx, assembly, inst, stack_map)
 
     for op in operands:
         # final_stack_depth = -(len(operands) - i - 1)
@@ -251,13 +256,26 @@ def _generate_evm_for_instruction_r(
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
+    if inst.ret is not None:
+        assert isinstance(inst.ret, IRVariable), "Return value must be a variable"
+        if inst.ret.mem_type == IRVariable.MemType.MEMORY:
+            assembly.extend([*PUSH(inst.ret.mem_addr)])
+            assembly.append("MSTORE")
+
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, ops: list[IROperant], stack_map: StackMap
+    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> None:
+    ops = inst.get_input_operands()
     for op in ops:
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op)
             continue
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
+        if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
+            if inst.get_input_operant_access(ops.index(op)) == 1:
+                assembly.extend([*PUSH(op.mem_addr)])
+            else:
+                assembly.extend([*PUSH(op.mem_addr)])
+                assembly.append("MLOAD")

@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Optional
+from enum import Enum
 
 TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "revert"]
@@ -67,6 +68,10 @@ class IRVariable(IROperant):
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
+    MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
+    mem_type: MemType = MemType.OPERAND_STACK
+    mem_addr: int = -1
+
     def __init__(self, value: IROperantValue) -> None:
         super().__init__(value)
 
@@ -93,6 +98,8 @@ class IRInstruction:
 
     opcode: str
     operands: list[IROperant]
+    # TODO: Refactor this into an IROperantAccess class 0: value, 1: address (memory)
+    operand_access: list[int]
     ret: Optional[str]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
@@ -104,6 +111,7 @@ class IRInstruction:
     ):
         self.opcode = opcode
         self.operands = operands
+        self.operand_access = [0] * len(operands)
         self.ret = ret
         self.dbg = dbg
         self.liveness = set()
@@ -121,6 +129,12 @@ class IRInstruction:
         Get all input operants in instruction.
         """
         return [op for op in self.operands if isinstance(op, IRLabel) is False]
+
+    def get_input_operant_access(self, index: int) -> int:
+        """
+        Get input operant access in instruction.
+        """
+        return self.operand_access[index] if len(self.operand_access) > index else 0
 
     def get_input_variables(self) -> list[IROperant]:
         """
