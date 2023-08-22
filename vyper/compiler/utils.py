@@ -100,7 +100,7 @@ class StackMap:
         """
         Pokes an operand at the given depth in the stack map.
         """
-        assert depth < 0, "Bad depth"
+        assert depth <= 0, "Bad depth"
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
         self.stack_map[-depth - 1] = op
 
