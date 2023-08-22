@@ -157,9 +157,9 @@ def _generate_evm_for_instruction_r(
         to_be_replaced = stack_map.peek(depth)
         if to_be_replaced.use_count > 1:
             to_be_replaced.use_count -= 1
-            stack_map.push(ret)
+            stack_map.push(ret.target)
         else:
-            stack_map.poke(depth, ret)
+            stack_map.poke(depth, ret.target)
         return
 
     _emit_input_operands(ctx, assembly, inst, stack_map)
@@ -194,7 +194,7 @@ def _generate_evm_for_instruction_r(
 
     stack_map.pop(len(operands))
     if inst.ret is not None:
-        stack_map.push(inst.ret)
+        stack_map.push(inst.ret.target)
 
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
@@ -258,7 +258,7 @@ def _generate_evm_for_instruction_r(
 
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
-        if inst.ret.mem_type == IRVariable.MemType.MEMORY:
+        if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(inst.ret.target.mem_addr)])
             assembly.append("MSTORE")
 

@@ -152,7 +152,7 @@ class IRInstruction:
         self.opcode = opcode
         self.operands = [op if isinstance(op, IROperant) else IROperant(op) for op in operands]
         self.operand_access = [0] * len(operands)
-        self.ret = ret
+        self.ret = ret if isinstance(ret, IROperant) else IROperant(ret) if ret else None
         self.dbg = dbg
         self.liveness = set()
         self.parent = None
@@ -318,7 +318,7 @@ class IRBasicBlock:
         for instruction in self.instructions[::-1]:
             liveness = liveness.union(instruction.get_input_variables())
             out = (
-                instruction.get_output_operands()[0]
+                instruction.get_output_operands()[0].target
                 if len(instruction.get_output_operands()) > 0
                 else None
             )

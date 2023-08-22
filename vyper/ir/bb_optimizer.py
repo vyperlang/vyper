@@ -36,7 +36,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
         for i, inst in enumerate(bb.instructions[:-1]):
             if inst.opcode in ["call", "sload", "sstore"]:
                 continue
-            if inst.ret and inst.ret not in bb.instructions[i + 1].liveness:
+            if inst.ret and inst.ret.target not in bb.instructions[i + 1].liveness:
                 removeList.append(inst)
                 count += 1
 
