@@ -62,13 +62,13 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     dfg_outputs = {}
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            operands = inst.get_input_variables()
+            variables = inst.get_input_variables()
             res = inst.get_output_operands()
 
-            for op in operands:
-                op.target.use_count += 1
-                dfg_inputs[op.value] = (
-                    [inst] if dfg_inputs.get(op.value) is None else dfg_inputs[op.value] + [inst]
+            for v in variables:
+                v.use_count += 1
+                dfg_inputs[v.value] = (
+                    [inst] if dfg_inputs.get(v.value) is None else dfg_inputs[v.value] + [inst]
                 )
 
             for op in res:
@@ -259,7 +259,7 @@ def _generate_evm_for_instruction_r(
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.mem_type == IRVariable.MemType.MEMORY:
-            assembly.extend([*PUSH(inst.ret.mem_addr)])
+            assembly.extend([*PUSH(inst.ret.target.mem_addr)])
             assembly.append("MSTORE")
 
 
@@ -273,9 +273,9 @@ def _emit_input_operands(
             stack_map.push(op)
             continue
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
-        if op.is_variable and op.mem_type == IRVariable.MemType.MEMORY:
+        if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
             if inst.get_input_operant_access(ops.index(op)) == 1:
-                assembly.extend([*PUSH(op.mem_addr)])
+                assembly.extend([*PUSH(op.target.mem_addr)])
             else:
-                assembly.extend([*PUSH(op.mem_addr)])
+                assembly.extend([*PUSH(op.target.mem_addr)])
                 assembly.append("MLOAD")

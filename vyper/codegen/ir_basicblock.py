@@ -176,11 +176,11 @@ class IRInstruction:
         """
         return self.operand_access[index] if len(self.operand_access) > index else 0
 
-    def get_input_variables(self) -> list[IROperant]:
+    def get_input_variables(self) -> list[IRVariable]:
         """
         Get all input variables in instruction.
         """
-        return [op for op in self.operands if op.is_variable]
+        return [op.target for op in self.operands if op.is_variable]
 
     def get_output_operands(self) -> list[IROperant]:
         return [self.ret] if self.ret else []
@@ -274,14 +274,14 @@ class IRBasicBlock:
         if bb:
             for inst in self.instructions:
                 if inst.opcode == "select":
-                    if inst.operands[0] == bb.label:
-                        liveness.add(inst.operands[1])
-                        if inst.operands[3] in liveness:
-                            liveness.remove(inst.operands[3])
-                    if inst.operands[2] == bb.label:
-                        liveness.add(inst.operands[3])
-                        if inst.operands[1] in liveness:
-                            liveness.remove(inst.operands[1])
+                    if inst.operands[0].target == bb.label:
+                        liveness.add(inst.operands[1].target)
+                        if inst.operands[3].target in liveness:
+                            liveness.remove(inst.operands[3].target)
+                    if inst.operands[2].target == bb.label:
+                        liveness.add(inst.operands[3].target)
+                        if inst.operands[1].target in liveness:
+                            liveness.remove(inst.operands[1].target)
 
         return liveness
 
