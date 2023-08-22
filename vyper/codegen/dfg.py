@@ -85,11 +85,6 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            if inst.opcode == "ret":
-                inst.operands[1].target.mem_type = IRVariable.MemType.MEMORY
-
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
             if inst.opcode != "select":
                 continue
 
@@ -214,7 +209,7 @@ def _generate_evm_for_instruction_r(
         assembly.append("LT")
     elif opcode == "call":
         target = inst.operands[0]
-        if type(target) is IRLabel:
+        if target.is_label:
             assembly.extend(
                 [
                     f"_sym_label_ret_{label_counter}",
