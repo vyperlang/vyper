@@ -6,7 +6,7 @@ from vyper.codegen.ir_basicblock import (
     IRInstruction,
     IRLabel,
     IRLiteral,
-    IROperant,
+    IRValueBase,
     IRVariable,
 )
 from vyper.codegen.ir_function import IRFunction
@@ -38,7 +38,7 @@ BINARY_IR_INSTRUCTIONS = [
 
 MAPPED_IR_INSTRUCTIONS = {"le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
 
-SymbolTable = dict[str, IROperant]
+SymbolTable = dict[str, IRValueBase]
 
 
 def _get_symbols_common(a: dict, b: dict) -> dict:
@@ -68,7 +68,7 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
 
 def _convert_binary_op(
     ctx: IRFunction, ir: IRnode, symbols: SymbolTable, swap: bool = False
-) -> str:
+) -> IRVariable:
     ir_args = ir.args[::-1] if swap else ir.args
     arg_0 = _convert_ir_basicblock(ctx, ir_args[0], symbols)
     arg_1 = _convert_ir_basicblock(ctx, ir_args[1], symbols)

@@ -26,19 +26,15 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-IROperantValue = str | int
+IRValueBaseValue = str | int
 
 
-class IROperant:
-    """
-    IROperant represents an operand in IR. An operand can be a variable, label, or a constant.
-    """
-
-    value: str
+class IRValueBase:
+    value: IRValueBaseValue
     use_count: int = 0
 
-    def __init__(self, value: IROperantValue) -> None:
-        assert isinstance(value, IROperantValue), "value must be a string"
+    def __init__(self, value: IRValueBaseValue) -> None:
+        assert isinstance(value, IRValueBaseValue), "value must be an IRValueBaseValue"
         self.value = value
 
     @property
@@ -49,12 +45,12 @@ class IROperant:
         return str(self.value)
 
 
-class IRLiteral(IROperant):
+class IRLiteral(IRValueBase):
     """
     IRLiteral represents a literal in IR
     """
 
-    def __init__(self, value: IROperantValue) -> None:
+    def __init__(self, value: IRValueBaseValue) -> None:
         super().__init__(value)
         self.use_count = 1
 
@@ -63,7 +59,7 @@ class IRLiteral(IROperant):
         return True
 
 
-class IRVariable(IROperant):
+class IRVariable(IRValueBase):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
@@ -72,11 +68,11 @@ class IRVariable(IROperant):
     mem_type: MemType = MemType.OPERAND_STACK
     mem_addr: int = -1
 
-    def __init__(self, value: IROperantValue) -> None:
+    def __init__(self, value: IRValueBaseValue) -> None:
         super().__init__(value)
 
 
-class IRLabel(IROperant):
+class IRLabel(IRValueBase):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -86,6 +82,46 @@ class IRLabel(IROperant):
     def __init__(self, value: str, is_symbol: bool = False) -> None:
         super().__init__(value)
         self.is_symbol = is_symbol
+
+
+IROperantTarget = IRLiteral | IRVariable | IRLabel
+
+
+class IROperant:
+    """
+    IROperant represents an operand of an IR instuction. An operand can be a variable, label, or a constant.
+    """
+
+    target: IRValueBase
+    address_access: bool = False
+    use_count: int = 0
+
+    def __init__(self, target: IRValueBase, address_access: bool = False) -> None:
+        assert isinstance(target, IRValueBase), "value must be an IRValueBase"
+        self.address_access = address_access
+        self.target = target
+
+    def is_targeting(self, target: IRValueBase) -> bool:
+        return self.target.value == target.value
+
+    @property
+    def value(self) -> IRValueBaseValue:
+        return self.target.value
+
+    @property
+    def is_literal(self) -> bool:
+        return isinstance(self.target, IRLiteral)
+
+    @property
+    def is_variable(self) -> bool:
+        return isinstance(self.target, IRVariable)
+
+    @property
+    def is_label(self) -> bool:
+        return isinstance(self.target, IRLabel)
+
+    def __repr__(self) -> str:
+        return str(self.target)
 
 
 class IRInstruction:
@@ -100,17 +136,21 @@ class IRInstruction:
     operands: list[IROperant]
     # TODO: Refactor this into an IROperantAccess class 0: value, 1: address (memory)
     operand_access: list[int]
-    ret: Optional[str]
+    ret: Optional[IROperant]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
     fen: int
 
     def __init__(
-        self, opcode: str, operands: list[IROperant], ret: str = None, dbg: IRDebugInfo = None
+        self,
+        opcode: str,
+        operands: list[IROperant | IRValueBase],
+        ret: IROperant = None,
+        dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
-        self.operands = operands
+        self.operands = [op if isinstance(op, IROperant) else IROperant(op) for op in operands]
         self.operand_access = [0] * len(operands)
         self.ret = ret
         self.dbg = dbg
@@ -122,13 +162,13 @@ class IRInstruction:
         """
         Get all labels in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRLabel)]
+        return [op for op in self.operands if op.is_label]
 
     def get_input_operands(self) -> list[IROperant]:
         """
         Get all input operants in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRLabel) is False]
+        return [op for op in self.operands if not op.is_label]
 
     def get_input_operant_access(self, index: int) -> int:
         """
@@ -140,7 +180,7 @@ class IRInstruction:
         """
         Get all input variables in instruction.
         """
-        return [op for op in self.operands if isinstance(op, IRVariable)]
+        return [op for op in self.operands if op.is_variable]
 
     def get_output_operands(self) -> list[IROperant]:
         return [self.ret] if self.ret else []
@@ -157,9 +197,7 @@ class IRInstruction:
         if self.ret:
             s += f"{self.ret} = "
         s += f"{self.opcode} "
-        operands = ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
-        )
+        operands = ", ".join([(f"label %{op}" if op.is_label else str(op)) for op in self.operands])
         s += operands
 
         if self.dbg:

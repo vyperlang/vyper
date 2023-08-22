@@ -70,8 +70,8 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
         for bb2 in ctx.basic_blocks:
             for inst in bb2.instructions:
                 for op in inst.operands:
-                    if isinstance(op, IRLabel) and op == replaced_label:
-                        op.value = replacement_label.value
+                    if op.is_label and op.value == replaced_label.value:
+                        op.target = replacement_label
 
         ctx.basic_blocks.remove(bb)
         i -= 1
