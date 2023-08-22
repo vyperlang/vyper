@@ -8,6 +8,7 @@ from vyper.codegen.ir_basicblock import (
     IRLiteral,
     IRValueBase,
     IRVariable,
+    IROperand,
 )
 from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
@@ -137,7 +138,7 @@ def _convert_ir_simple_node(
     ctx: IRFunction,
     ir: IRnode,
     symbols: SymbolTable,
-) -> Optional[Union[str, int]]:
+) -> IRVariable:
     args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
     return ctx.append_instruction(ir.value, args)
 
@@ -150,7 +151,7 @@ def _convert_ir_basicblock(
     ctx: IRFunction,
     ir: IRnode,
     symbols: SymbolTable,
-) -> Optional[Union[str, int]]:
+) -> Optional[IRVariable]:
     global _break_target, _continue_target
     # symbols = symbols.copy()
 
@@ -306,8 +307,8 @@ def _convert_ir_basicblock(
             new_var = symbols.get(f"&{ret_ir.value}", ret_ir)
             new_var.mem_type = IRVariable.MemType.MEMORY
             new_var.mem_addr = ret_ir.value
-            inst = IRInstruction("ret", [last_ir, new_var])
-            inst.operand_access[1] = 1
+            new_op = IROperand(new_var, True)
+            inst = IRInstruction("ret", [last_ir, new_op])
             ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)

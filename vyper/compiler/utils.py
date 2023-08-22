@@ -1,6 +1,6 @@
 from typing import Dict
 
-from vyper.codegen.ir_basicblock import IROperant, IRValueBase
+from vyper.codegen.ir_basicblock import IRValueBase
 from vyper.semantics.types.function import ContractFunctionT
 
 

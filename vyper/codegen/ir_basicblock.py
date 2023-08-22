@@ -84,12 +84,12 @@ class IRLabel(IRValueBase):
         self.is_symbol = is_symbol
 
 
-IROperantTarget = IRLiteral | IRVariable | IRLabel
+IROperandTarget = IRLiteral | IRVariable | IRLabel
 
 
-class IROperant:
+class IROperand:
     """
-    IROperant represents an operand of an IR instuction. An operand can be a variable, label, or a constant.
+    IROperand represents an operand of an IR instuction. An operand can be a variable, label, or a constant.
     """
 
     target: IRValueBase
@@ -133,10 +133,8 @@ class IRInstruction:
     """
 
     opcode: str
-    operands: list[IROperant]
-    # TODO: Refactor this into an IROperantAccess class 0: value, 1: address (memory)
-    operand_access: list[int]
-    ret: Optional[IROperant]
+    operands: list[IROperand]
+    ret: Optional[IROperand]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
@@ -145,14 +143,13 @@ class IRInstruction:
     def __init__(
         self,
         opcode: str,
-        operands: list[IROperant | IRValueBase],
-        ret: IROperant = None,
+        operands: list[IROperand | IRValueBase],
+        ret: IROperand = None,
         dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
-        self.operands = [op if isinstance(op, IROperant) else IROperant(op) for op in operands]
-        self.operand_access = [0] * len(operands)
-        self.ret = ret if isinstance(ret, IROperant) else IROperant(ret) if ret else None
+        self.operands = [op if isinstance(op, IROperand) else IROperand(op) for op in operands]
+        self.ret = ret if isinstance(ret, IROperand) else IROperand(ret) if ret else None
         self.dbg = dbg
         self.liveness = set()
         self.parent = None
@@ -164,17 +161,11 @@ class IRInstruction:
         """
         return [op for op in self.operands if op.is_label]
 
-    def get_input_operands(self) -> list[IROperant]:
+    def get_input_operands(self) -> list[IROperand]:
         """
-        Get all input operants in instruction.
+        Get all input operands in instruction.
         """
         return [op for op in self.operands if not op.is_label]
-
-    def get_input_operant_access(self, index: int) -> int:
-        """
-        Get input operant access in instruction.
-        """
-        return self.operand_access[index] if len(self.operand_access) > index else 0
 
     def get_input_variables(self) -> list[IRVariable]:
         """
@@ -182,10 +173,10 @@ class IRInstruction:
         """
         return [op.target for op in self.operands if op.is_variable]
 
-    def get_output_operands(self) -> list[IROperant]:
+    def get_output_operands(self) -> list[IROperand]:
         return [self.ret] if self.ret else []
 
-    def get_use_count_correction(self, op: IROperant) -> int:
+    def get_use_count_correction(self, op: IROperand) -> int:
         use_count_correction = 0
         for _, phi in self.parent.phi_vars.items():
             if phi.value == op.target.value:

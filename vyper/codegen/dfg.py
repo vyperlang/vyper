@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperant, IRVariable
+from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, optimize_assembly
@@ -37,15 +37,15 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "log4",
 ]
 
-OPERANT_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
+OPERAND_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
 
 
 class DFGNode:
-    value: IRInstruction | IROperant
+    value: IRInstruction | IROperand
     predecessors: list["DFGNode"]
     successors: list["DFGNode"]
 
-    def __init__(self, value: IRInstruction | IROperant):
+    def __init__(self, value: IRInstruction | IROperand):
         self.value = value
         self.predecessors = []
         self.successors = []
@@ -274,7 +274,7 @@ def _emit_input_operands(
             continue
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
-            if inst.get_input_operant_access(ops.index(op)) == 1:
+            if op.address_access:
                 assembly.extend([*PUSH(op.target.mem_addr)])
             else:
                 assembly.extend([*PUSH(op.target.mem_addr)])
