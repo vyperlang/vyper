@@ -254,6 +254,11 @@ def _convert_ir_basicblock(
         return _convert_ir_basicblock(ctx, ir.args[2], symbols)  # body
     elif ir.value == "goto":
         return _append_jmp(ctx, IRLabel(ir.args[0].value))
+    elif ir.value == "jump":
+        arg_1 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        inst = IRInstruction("jmp", [arg_1])
+        ctx.get_basic_block().append_instruction(inst)
+        _new_block(ctx)
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
@@ -269,6 +274,18 @@ def _convert_ir_basicblock(
 
         symbols[f"&{arg_0.value}"] = new_var
         return new_var
+    elif ir.value == "codecopy":
+        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+
+        new_var = ctx.append_instruction("codecopy", [arg_1, size])
+
+        symbols[f"&{arg_0.value}"] = new_var
+    elif ir.value == "symbol":
+        return IRLabel(ir.args[0].value)
+    elif ir.value == "data":
+        pass
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         current_bb = ctx.get_basic_block()
@@ -327,6 +344,10 @@ def _convert_ir_basicblock(
             if new_var is None:
                 new_var = ctx.get_next_variable()
                 symbols[f"&{sym.value}"] = new_var
+                v = _convert_ir_basicblock(ctx, sym, symbols)
+                op = IROperand(v, True)
+                inst = IRInstruction("load", [op], new_var)
+                ctx.get_basic_block().append_instruction(inst)
             return new_var
         else:
             new_var = _convert_ir_basicblock(ctx, sym, symbols)

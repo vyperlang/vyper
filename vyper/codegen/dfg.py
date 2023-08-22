@@ -201,8 +201,11 @@ def _generate_evm_for_instruction_r(
         assembly.append(f"_sym_{inst.operands[1].value}")
         assembly.append("JUMPI")
     elif opcode == "jmp":
-        assembly.append(f"_sym_{inst.operands[0].value}")
-        assembly.append("JUMP")
+        if inst.operands[0].is_label:
+            assembly.append(f"_sym_{inst.operands[0].value}")
+            assembly.append("JUMP")
+        else:
+            assembly.append("JUMP")
     elif opcode == "gt":
         assembly.append("GT")
     elif opcode == "lt":
