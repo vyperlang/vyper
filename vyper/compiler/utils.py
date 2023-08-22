@@ -1,6 +1,6 @@
 from typing import Dict
 
-from vyper.codegen.ir_basicblock import IROperant
+from vyper.codegen.ir_basicblock import IROperant, IRValueBase
 from vyper.semantics.types.function import ContractFunctionT
 
 
@@ -50,7 +50,7 @@ def _expand_row(row):
 
 class StackMap:
     NOT_IN_STACK = 1
-    stack_map: list[str]
+    stack_map: list[IRValueBase]
     assembly: list[str]
 
     def __init__(self, assembly: list[str]):
@@ -63,39 +63,45 @@ class StackMap:
         """
         return len(self.stack_map)
 
-    def push(self, op: IROperant) -> None:
+    def push(self, op: IRValueBase) -> None:
         """
         Pushes an operand onto the stack map.
         """
+        assert isinstance(op, IRValueBase), f"push takes IRValueBase, got '{op}'"
         self.stack_map.append(op)
 
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IROperant | list[IROperant]) -> int:
+    def get_depth_in(self, op: IRValueBase | list[IRValueBase]) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
+        assert isinstance(op, IRValueBase) or isinstance(
+            op, list
+        ), f"get_depth_in takes IRValueBase or list, got '{op}'"
         for i, stack_op in enumerate(self.stack_map[::-1]):
-            if isinstance(stack_op, IROperant):
-                if isinstance(op, IROperant) and stack_op.value == op.value:
+            if isinstance(stack_op, IRValueBase):
+                if isinstance(op, IRValueBase) and stack_op.value == op.value:
                     return -i
                 elif isinstance(op, list) and stack_op in op:
                     return -i
 
         return StackMap.NOT_IN_STACK
 
-    def peek(self, depth: int) -> IROperant:
+    def peek(self, depth: int) -> IRValueBase:
         """
         Returns the top of the stack map.
         """
         return self.stack_map[-depth - 1]
 
-    def poke(self, depth: int, op: IROperant) -> None:
+    def poke(self, depth: int, op: IRValueBase) -> None:
         """
         Pokes an operand at the given depth in the stack map.
         """
+        assert depth < 0, "Bad depth"
+        assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
         self.stack_map[-depth - 1] = op
 
     def dup(self, depth: int) -> None:

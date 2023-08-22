@@ -188,7 +188,7 @@ class IRInstruction:
     def get_use_count_correction(self, op: IROperant) -> int:
         use_count_correction = 0
         for _, phi in self.parent.phi_vars.items():
-            if phi.value == op.value:
+            if phi.value == op.target.value:
                 use_count_correction += 1
         return use_count_correction
 

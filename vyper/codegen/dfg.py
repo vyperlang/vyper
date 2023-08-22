@@ -167,21 +167,21 @@ def _generate_evm_for_instruction_r(
     for op in operands:
         # final_stack_depth = -(len(operands) - i - 1)
         ucc = inst.get_use_count_correction(op)
-        assert op.use_count >= ucc, "Operand used up"
-        depth = stack_map.get_depth_in(op)
+        assert op.target.use_count >= ucc, "Operand used up"
+        depth = stack_map.get_depth_in(op.target)
         assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-        needs_copy = op.use_count - ucc > 1
+        needs_copy = op.target.use_count - ucc > 1
         if needs_copy:
             stack_map.dup(depth)
-            op.use_count -= 1
+            op.target.use_count -= 1
 
     for i in range(len(operands)):
         op = operands[i]
         final_stack_depth = -(len(operands) - i - 1)
-        depth = stack_map.get_depth_in(op)
+        depth = stack_map.get_depth_in(op.target)
         assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-        in_place_op = stack_map.peek(-final_stack_depth)
-        is_in_place = in_place_op.value == op.value
+        in_place_var = stack_map.peek(-final_stack_depth)
+        is_in_place = in_place_var.value == op.target.value
 
         if not is_in_place:
             if final_stack_depth == 0 and depth != 0:
@@ -270,7 +270,7 @@ def _emit_input_operands(
     for op in ops:
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
-            stack_map.push(op)
+            stack_map.push(op.target)
             continue
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
