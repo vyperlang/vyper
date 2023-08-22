@@ -121,7 +121,7 @@ class IROperand:
         return isinstance(self.target, IRLabel)
 
     def __repr__(self) -> str:
-        return str(self.target)
+        return f"{'ptr ' if self.address_access else ''}{self.target}"
 
 
 class IRInstruction:
