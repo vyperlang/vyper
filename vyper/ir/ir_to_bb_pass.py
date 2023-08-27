@@ -111,7 +111,7 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
             ret = _convert_ir_basicblock(ctx, arg, symbols)
             ret_values.append(ret)
 
-    return ctx.append_instruction("call", ret_values)
+    return ctx.append_instruction("invoke", ret_values)
 
 
 def _handle_internal_func(

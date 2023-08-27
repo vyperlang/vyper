@@ -210,7 +210,7 @@ def _generate_evm_for_instruction_r(
         assembly.append("GT")
     elif opcode == "lt":
         assembly.append("LT")
-    elif opcode == "call":
+    elif opcode == "invoke":
         target = inst.operands[0]
         if target.is_label:
             assembly.extend(
@@ -223,8 +223,8 @@ def _generate_evm_for_instruction_r(
                 ]
             )
             label_counter += 1
-        else:
-            assembly.append("CALL")
+    elif opcode == "call":
+        assembly.append("CALL")
     elif opcode == "ret":
         if len(inst.operands) == 1:
             assembly.append("SWAP1")
