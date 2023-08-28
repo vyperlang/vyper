@@ -212,25 +212,24 @@ def _generate_evm_for_instruction_r(
         assembly.append("LT")
     elif opcode == "invoke":
         target = inst.operands[0]
-        if target.is_label:
-            assembly.extend(
-                [
-                    f"_sym_label_ret_{label_counter}",
-                    f"_sym_{target.value}",
-                    "JUMP",
-                    f"_sym_label_ret_{label_counter}",
-                    "JUMPDEST",
-                ]
-            )
-            label_counter += 1
+        assert target.is_label, "invoke target must be a label"
+        assembly.extend(
+            [
+                f"_sym_label_ret_{label_counter}",
+                f"_sym_{target.value}",
+                "JUMP",
+                f"_sym_label_ret_{label_counter}",
+                "JUMPDEST",
+            ]
+        )
     elif opcode == "call":
         assembly.append("CALL")
     elif opcode == "ret":
-        if len(inst.operands) == 1:
-            assembly.append("SWAP1")
-            assembly.append("JUMP")
-        else:
-            assembly.append("RETURN")
+        assert len(inst.operands) == 1, "ret instruction takes one operand"
+        assembly.append("SWAP1")
+        assembly.append("JUMP")
+    elif opcode == "return":
+        assembly.append("RETURN")
     elif opcode == "select":
         pass
     elif opcode == "sha3":

@@ -322,7 +322,7 @@ def _convert_ir_basicblock(
             new_var.mem_type = IRVariable.MemType.MEMORY
             new_var.mem_addr = ret_ir.value
             new_op = IROperand(new_var, True)
-            inst = IRInstruction("ret", [last_ir, new_op])
+            inst = IRInstruction("return", [last_ir, new_op])
             ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
