@@ -458,6 +458,20 @@ def _convert_ir_basicblock(
         inst = IRInstruction("jmp", [_continue_target.label])
         ctx.get_basic_block().append_instruction(inst)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+    elif ir.value == "gas":
+        return ctx.append_instruction("gas", [])
+    elif ir.value == "returndatasize":
+        return ctx.append_instruction("returndatasize", [])
+    elif ir.value == "returndatacopy":
+        assert len(ir.args) == 3, "returndatacopy with wrong number of arguments"
+        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+
+        new_var = ctx.append_instruction("returndatacopy", [arg_1, size])
+
+        symbols[f"&{arg_0.value}"] = new_var
+        return new_var
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         # count = int(ir.value[3:])
         args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]

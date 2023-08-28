@@ -34,7 +34,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
     removeList = []
     for bb in ctx.basic_blocks:
         for i, inst in enumerate(bb.instructions[:-1]):
-            if inst.opcode in ["call", "sload", "sstore"]:
+            if inst.opcode in ["call", "invoke", "sload", "sstore"]:
                 continue
             if inst.ret and inst.ret.target not in bb.instructions[i + 1].liveness:
                 removeList.append(inst)
@@ -92,7 +92,7 @@ def _calculate_in_set(ctx: IRFunction) -> None:
         ), "Last instruction should be a terminator" + str(bb)
 
         for inst in bb.instructions:
-            if inst.opcode in ["jmp", "jnz", "call"]:
+            if inst.opcode in ["jmp", "jnz", "call", "invoke"]:
                 ops = inst.get_label_operands()
                 for op in ops:
                     ctx.get_basic_block(op.value).add_in(bb)

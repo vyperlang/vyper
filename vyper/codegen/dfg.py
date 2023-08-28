@@ -104,7 +104,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         fen = 0
         for inst in bb.instructions:
             inst.fen = fen
-            if inst.opcode in ["call", "sload", "sstore", "assert"]:
+            if inst.opcode in ["call", "invoke", "sload", "sstore", "assert"]:
                 fen += 1
 
         for inst in bb.instructions:
