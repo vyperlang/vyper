@@ -51,11 +51,9 @@ def _expand_row(row):
 class StackMap:
     NOT_IN_STACK = 1
     stack_map: list[IRValueBase]
-    assembly: list[str]
 
-    def __init__(self, assembly: list[str]):
+    def __init__(self):
         self.stack_map = []
-        self.assembly = assembly
 
     def get_height(self) -> int:
         """
@@ -104,20 +102,20 @@ class StackMap:
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
         self.stack_map[-depth - 1] = op
 
-    def dup(self, depth: int) -> None:
+    def dup(self, assembly: list[str], depth: int) -> None:
         """
         Duplicates the operand at the given depth in the stack map.
         """
         assert depth <= 0, "Cannot dup positive depth"
-        self.assembly.append(f"DUP{-depth+1}")
+        assembly.append(f"DUP{-depth+1}")
         self.stack_map.append(self.peek(-depth))
 
-    def swap(self, depth: int) -> None:
+    def swap(self, assembly: list[str], depth: int) -> None:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.
         """
         assert depth < 0, "Cannot swap positive depth"
-        self.assembly.append(f"SWAP{-depth}")
+        assembly.append(f"SWAP{-depth}")
         self.stack_map[depth - 1], self.stack_map[-1] = (
             self.stack_map[-1],
             self.stack_map[depth - 1],
