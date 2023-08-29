@@ -68,8 +68,12 @@ class IRVariable(IRValueBase):
     mem_type: MemType = MemType.OPERAND_STACK
     mem_addr: int = -1
 
-    def __init__(self, value: IRValueBaseValue) -> None:
+    def __init__(
+        self, value: IRValueBaseValue, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
+    ) -> None:
         super().__init__(value)
+        self.mem_type = mem_type
+        self.mem_addr = mem_addr
 
 
 class IRLabel(IRValueBase):
@@ -94,11 +98,15 @@ class IROperand:
 
     target: IRValueBase
     address_access: bool = False
+    address_offset: int = 0
     use_count: int = 0
 
-    def __init__(self, target: IRValueBase, address_access: bool = False) -> None:
+    def __init__(
+        self, target: IRValueBase, address_access: bool = False, address_offset: int = 0
+    ) -> None:
         assert isinstance(target, IRValueBase), "value must be an IRValueBase"
         self.address_access = address_access
+        self.address_offset = address_offset
         self.target = target
 
     def is_targeting(self, target: IRValueBase) -> bool:
@@ -121,7 +129,8 @@ class IROperand:
         return isinstance(self.target, IRLabel)
 
     def __repr__(self) -> str:
-        return f"{'ptr ' if self.address_access else ''}{self.target}"
+        offsetStr = f"{self.address_offset:+}" if self.address_offset else ""
+        return f"{'ptr ' if self.address_access else ''}{self.target}{offsetStr}"
 
 
 class IRInstruction:
