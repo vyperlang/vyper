@@ -161,7 +161,7 @@ def _add_postambles(asm_ops):
         # insert the postambles *before* runtime code
         # so the data section of the runtime code can't bork the postambles.
         runtime = None
-        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], _RuntimeHeader):
+        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], RuntimeHeader):
             runtime = asm_ops.pop()
 
         # for some reason there might not be a STOP at the end of asm_ops.
@@ -528,7 +528,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         # since the asm data structures are very primitive, to make sure
         # assembly_to_evm is able to calculate data offsets correctly,
         # we pass the memsize via magic opcodes to the subcode
-        subcode = [_RuntimeHeader(runtime_begin, memsize)] + subcode
+        subcode = [RuntimeHeader(runtime_begin, memsize)] + subcode
 
         # append the runtime code after the ctor code
         # `append(...)` call here is intentional.
@@ -1011,7 +1011,7 @@ def _stack_peephole_opts(assembly):
 # optimize assembly, in place
 def optimize_assembly(assembly):
     for x in assembly:
-        if isinstance(x, list) and isinstance(x[0], _RuntimeHeader):
+        if isinstance(x, list) and isinstance(x[0], RuntimeHeader):
             optimize_assembly(x)
 
     for _ in range(1024):
@@ -1083,7 +1083,7 @@ def _length_of_data(assembly):
     return ret
 
 
-class _RuntimeHeader:
+class RuntimeHeader:
     def __init__(self, label, ctor_mem_size):
         self.label = label
         self.ctor_mem_size = ctor_mem_size
@@ -1113,7 +1113,7 @@ def _relocate_segments(assembly):
                 data_segments.append(t)
             else:
                 _relocate_segments(t)  # recurse
-                assert isinstance(t[0], _RuntimeHeader)
+                assert isinstance(t[0], RuntimeHeader)
                 code_segments.append(t)
         else:
             non_data_segments.append(t)
@@ -1168,7 +1168,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
     mem_ofst_size, ctor_mem_size = None, None
     max_mem_ofst = 0
     for i, item in enumerate(assembly):
-        if isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        if isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
             assert ctor_mem_size is None
@@ -1229,7 +1229,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
-        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             symbol_map[item[0].label] = pc
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
@@ -1293,7 +1293,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             ret.append(DUP_OFFSET + int(item[3:]))
         elif item[:4] == "SWAP":
             ret.append(SWAP_OFFSET + int(item[4:]))
-        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             ret.extend(runtime_code)
         elif isinstance(item, list) and isinstance(item[0], _DataHeader):
             ret.extend(_data_to_evm(item, symbol_map))
