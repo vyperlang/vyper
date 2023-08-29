@@ -216,10 +216,6 @@ def _build_asm(asm_list):
     return output_string
 
 
-def build_basicblock_output(compiler_data: CompilerData) -> str:
-    return compiler_data.bb_output
-
-
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_vyper_signature=False

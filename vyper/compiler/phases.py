@@ -158,12 +158,11 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
-
-    @cached_property
-    def bb_output(self):
-        # fetch both deployment and runtime IR
-        return convert_ir_basicblock(self._ir_output[1])
+        nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        if self.experimental_codegen:
+            return [None, convert_ir_basicblock(nodes[1])]
+        else:
+            return nodes
 
     @property
     def ir_nodes(self) -> IRnode:
