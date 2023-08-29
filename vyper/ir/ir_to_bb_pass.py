@@ -199,13 +199,13 @@ def _convert_ir_basicblock(
         if argsOffset.is_literal:
             addr = argsOffset.value - 32 + 4
             argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
-            argsOffsetOp = IROperand(argsOffsetVar, True, +4)
+            argsOffsetOp = IROperand(argsOffsetVar, True, -4)
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
 
         inst = IRInstruction(
-            "call", [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize], retVar
+            "call", [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize][::-1], retVar
         )
         ctx.get_basic_block().append_instruction(inst)
         return retVar
