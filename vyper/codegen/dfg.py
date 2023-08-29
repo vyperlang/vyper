@@ -198,7 +198,7 @@ def _generate_evm_for_instruction_r(
         assembly.append(opcode.upper())
     elif opcode == "alloca":
         pass
-    elif opcode == "load":
+    elif opcode == "store":
         pass
     elif opcode == "jnz":
         assembly.append(f"_sym_{inst.operands[1].value}")
@@ -275,7 +275,7 @@ def _emit_input_operands(
         _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
             if op.address_access:
-                assembly.extend([*PUSH(op.target.mem_addr)])
+                assembly.extend([*PUSH(op.addr)])
             else:
-                assembly.extend([*PUSH(op.target.mem_addr)])
+                assembly.extend([*PUSH(op.addr)])
                 assembly.append("MLOAD")

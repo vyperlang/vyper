@@ -105,8 +105,12 @@ class IROperand:
         self, target: IRValueBase, address_access: bool = False, address_offset: int = 0
     ) -> None:
         assert isinstance(target, IRValueBase), "value must be an IRValueBase"
-        self.address_access = address_access
-        self.address_offset = address_offset
+        if address_access:
+            assert (
+                isinstance(target, IRVariable) and target.mem_type == IRVariable.MemType.MEMORY
+            ), "address access can only be used for memory variables"
+            self.address_access = address_access
+            self.address_offset = address_offset
         self.target = target
 
     def is_targeting(self, target: IRValueBase) -> bool:
@@ -115,6 +119,12 @@ class IROperand:
     @property
     def value(self) -> IRValueBaseValue:
         return self.target.value
+
+    @property
+    def addr(self) -> int:
+        assert self.is_variable, "address can only be accessed for variables"
+        target: IRVariable = self.target
+        return target.mem_addr + self.address_offset
 
     @property
     def is_literal(self) -> bool:
@@ -197,7 +207,9 @@ class IRInstruction:
         if self.ret:
             s += f"{self.ret} = "
         s += f"{self.opcode} "
-        operands = ", ".join([(f"label %{op}" if op.is_label else str(op)) for op in self.operands])
+        operands = ", ".join(
+            [(f"label %{op}" if op.is_label else str(op)) for op in self.operands[::-1]]
+        )
         s += operands
 
         if self.dbg:

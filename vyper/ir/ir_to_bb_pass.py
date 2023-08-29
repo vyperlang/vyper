@@ -199,7 +199,9 @@ def _convert_ir_basicblock(
         if argsOffset.is_literal:
             addr = argsOffset.value - 32 + 4
             argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
-            argsOffsetOp = IROperand(argsOffsetVar, True, -4)
+            argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
+            argsOffsetVar.mem_addr = addr
+            argsOffsetOp = IROperand(argsOffsetVar, True, 32 - 4)
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
@@ -262,7 +264,7 @@ def _convert_ir_basicblock(
 
         sym = ir.args[0]
         if ret.is_literal:
-            new_var = ctx.append_instruction("load", [ret])
+            new_var = ctx.append_instruction("store", [ret])
             symbols[sym.value] = new_var
         else:
             symbols[sym.value] = ret
@@ -278,7 +280,7 @@ def _convert_ir_basicblock(
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
-        new_var = ctx.append_instruction("load", [arg_1])
+        new_var = ctx.append_instruction("store", [arg_1])
         symbols[sym.value] = new_var
 
     elif ir.value == "calldatacopy":
@@ -359,7 +361,7 @@ def _convert_ir_basicblock(
                 symbols[f"&{sym.value}"] = new_var
                 v = _convert_ir_basicblock(ctx, sym, symbols)
                 op = IROperand(v, True)
-                inst = IRInstruction("load", [op], new_var)
+                inst = IRInstruction("store", [op], new_var)
                 ctx.get_basic_block().append_instruction(inst)
             return new_var
         else:
@@ -372,11 +374,11 @@ def _convert_ir_basicblock(
         sym = symbols.get(f"&{arg_1.value}", None)
 
         if sym_ir.is_literal:
-            new_var = ctx.append_instruction("load", [arg_1])
+            new_var = ctx.append_instruction("store", [arg_1])
             symbols[f"&{sym_ir.value}"] = new_var
             return new_var
         else:
-            new_var = ctx.append_instruction("load", [arg_1])
+            new_var = ctx.append_instruction("store", [arg_1])
             symbols[sym_ir.value] = new_var
             return new_var
     elif ir.value == "sload":
@@ -429,7 +431,7 @@ def _convert_ir_basicblock(
             )
         )
 
-        inst = IRInstruction("load", [start], counter_var)
+        inst = IRInstruction("store", [start], counter_var)
         ctx.get_basic_block().append_instruction(inst)
         symbols[sym.value] = counter_var
         inst = IRInstruction("jmp", [cond_block.label])
