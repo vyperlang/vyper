@@ -227,6 +227,7 @@ def _generate_evm_for_instruction_r(
                 "JUMPDEST",
             ]
         )
+        label_counter += 1
     elif opcode == "call":
         assembly.append("CALL")
     elif opcode == "ret":
@@ -274,7 +275,7 @@ def _generate_evm_for_instruction_r(
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
-            assembly.extend([*PUSH(inst.ret.target.mem_addr)])
+            assembly.extend([*PUSH(inst.ret.addr)])
             assembly.append("MSTORE")
 
     return assembly

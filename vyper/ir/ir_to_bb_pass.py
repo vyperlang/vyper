@@ -373,7 +373,7 @@ def _convert_ir_basicblock(
                 new_var = ctx.get_next_variable()
                 symbols[f"&{sym.value}"] = new_var
                 v = _convert_ir_basicblock(ctx, sym, symbols)
-                op = IROperand(v, True)
+                op = IROperand(v, not v.is_literal)
                 inst = IRInstruction("store", [op], new_var)
                 ctx.get_basic_block().append_instruction(inst)
             return new_var
