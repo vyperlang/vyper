@@ -49,8 +49,7 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
 def generate_assembly_experimental(
     ir: IRnode, optimize: Optional[OptimizationLevel] = None
 ) -> list[str]:
-    global_function = convert_ir_basicblock(ir)
-    return generate_evm(global_function, optimize is OptimizationLevel.NONE)
+    return generate_evm(ir, optimize is OptimizationLevel.NONE)
 
 
 def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
@@ -173,7 +172,21 @@ def _convert_ir_basicblock(
         pass
 
     elif ir.value == "deploy":
-        _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        memsize = ir.args[0].value
+        ir_runtime = ir.args[1]
+        padding = ir.args[2].value
+        assert isinstance(memsize, int), "non-int memsize"
+        assert isinstance(padding, int), "non-int padding"
+
+        runtimeLabel = ctx.get_next_label()
+
+        inst = IRInstruction("deploy", [IRLiteral(memsize), runtimeLabel, IRLiteral(padding)])
+        ctx.get_basic_block().append_instruction(inst)
+
+        bb = IRBasicBlock(runtimeLabel, ctx)
+        ctx.append_basic_block(bb)
+
+        _convert_ir_basicblock(ctx, ir_runtime, symbols)
     elif ir.value == "seq":
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols)
