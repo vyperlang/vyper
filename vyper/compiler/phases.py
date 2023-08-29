@@ -160,7 +160,7 @@ class CompilerData:
         # fetch both deployment and runtime IR
         nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
         if self.experimental_codegen:
-            return [None, convert_ir_basicblock(nodes[1])]
+            return [convert_ir_basicblock(nodes[0]), convert_ir_basicblock(nodes[1])]
         else:
             return nodes
 
