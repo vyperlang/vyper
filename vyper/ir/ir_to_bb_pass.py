@@ -188,11 +188,27 @@ def _convert_ir_basicblock(
 
         return ret
     elif ir.value == "call":  # external call
-        args = []
-        for arg in ir.args:
-            args.append(_convert_ir_basicblock(ctx, arg, symbols))
+        gas = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        address = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        value = _convert_ir_basicblock(ctx, ir.args[2], symbols)
+        argsOffset = _convert_ir_basicblock(ctx, ir.args[3], symbols)
+        argsSize = _convert_ir_basicblock(ctx, ir.args[4], symbols)
+        retOffset = _convert_ir_basicblock(ctx, ir.args[5], symbols)
+        retSize = _convert_ir_basicblock(ctx, ir.args[6], symbols)
 
-        return ctx.append_instruction("call", args)
+        if argsOffset.is_literal:
+            addr = argsOffset.value - 32 + 4
+            argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
+            argsOffsetOp = IROperand(argsOffsetVar, True, +4)
+
+        retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
+        symbols[f"&{retOffset.value}"] = retVar
+
+        inst = IRInstruction(
+            "call", [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize], retVar
+        )
+        ctx.get_basic_block().append_instruction(inst)
+        return retVar
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
