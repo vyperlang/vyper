@@ -1,7 +1,7 @@
 from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperand, IRVariable
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
-from vyper.ir.compile_ir import PUSH, optimize_assembly
+from vyper.ir.compile_ir import PUSH, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions
 
 ONE_TO_ONE_INSTRUCTIONS = [
@@ -82,8 +82,10 @@ visited_instructions = {IRInstruction}
 
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
+    stack_map = StackMap()
     assembly = []
-    stack_map = StackMap(assembly)
+    asm = assembly
+
     convert_ir_to_dfg(ctx)
 
     for bb in ctx.basic_blocks:
@@ -101,8 +103,8 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     for i, bb in enumerate(ctx.basic_blocks):
         if i != 0:
-            assembly.append(f"_sym_{bb.label}")
-            assembly.append("JUMPDEST")
+            asm.append(f"_sym_{bb.label}")
+            asm.append("JUMPDEST")
 
         fen = 0
         for inst in bb.instructions:
@@ -111,13 +113,13 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
                 fen += 1
 
         for inst in bb.instructions:
-            _generate_evm_for_instruction_r(ctx, assembly, inst, stack_map)
+            asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
 
     # Append postambles
-    assembly.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+    asm.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
 
     if no_optimize is False:
-        optimize_assembly(assembly)
+        optimize_assembly(asm)
 
     return assembly
 
@@ -128,7 +130,7 @@ label_counter = 0
 
 def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
-) -> None:
+) -> list[str]:
     global label_counter
 
     for op in inst.get_output_operands():
@@ -137,10 +139,10 @@ def _generate_evm_for_instruction_r(
                 continue
             if target.fen != inst.fen:
                 continue
-            _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
+            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
-        return
+        return assembly
     visited_instructions.add(inst)
 
     # generate EVM for op
@@ -158,7 +160,7 @@ def _generate_evm_for_instruction_r(
             stack_map.push(ret.target)
         else:
             stack_map.poke(depth, ret.target)
-        return
+        return assembly
 
     _emit_input_operands(ctx, assembly, inst, stack_map)
 
@@ -170,7 +172,7 @@ def _generate_evm_for_instruction_r(
         assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         needs_copy = op.target.use_count - ucc > 1
         if needs_copy:
-            stack_map.dup(depth)
+            stack_map.dup(assembly, depth)
             op.target.use_count -= 1
 
     for i in range(len(operands)):
@@ -183,12 +185,12 @@ def _generate_evm_for_instruction_r(
 
         if not is_in_place:
             if final_stack_depth == 0 and depth != 0:
-                stack_map.swap(depth)
+                stack_map.swap(assembly, depth)
             elif final_stack_depth != 0 and depth == 0:
-                stack_map.swap(final_stack_depth)
+                stack_map.swap(assembly, final_stack_depth)
             else:
-                stack_map.swap(depth)
-                stack_map.swap(final_stack_depth)
+                stack_map.swap(assembly, depth)
+                stack_map.swap(assembly, final_stack_depth)
 
     stack_map.pop(len(operands))
     if inst.ret is not None:
@@ -253,6 +255,19 @@ def _generate_evm_for_instruction_r(
         assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
     elif opcode == "assert":
         assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+    elif opcode == "deploy":
+        memsize = inst.operands[0].value
+        padding = inst.operands[2].value
+        assembly.clear()
+        assembly.extend(
+            ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
+        )
+        assembly.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
+        assembly.extend(["_mem_deploy_start"])  # stack: len mem_ofst
+        assembly.extend(["RETURN"])
+        assembly.append([RuntimeHeader("_sym_runtime_begin", memsize)])
+        assembly = assembly[-1]
+        pass
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
@@ -261,6 +276,8 @@ def _generate_evm_for_instruction_r(
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(inst.ret.target.mem_addr)])
             assembly.append("MSTORE")
+
+    return assembly
 
 
 def _emit_input_operands(
@@ -272,10 +289,12 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op.target)
             continue
-        _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
+        assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
             if op.address_access:
                 assembly.extend([*PUSH(op.addr)])
             else:
                 assembly.extend([*PUSH(op.addr)])
                 assembly.append("MLOAD")
+
+    return assembly
