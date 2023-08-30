@@ -355,6 +355,7 @@ def _convert_ir_basicblock(
             new_op = IROperand(new_var, True)
             inst = IRInstruction("return", [last_ir, new_op])
             ctx.get_basic_block().append_instruction(inst)
+            ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
