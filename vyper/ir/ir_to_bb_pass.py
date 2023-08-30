@@ -130,6 +130,12 @@ def _handle_internal_func(
         symbols[f"&{old_ir_mempos}"] = new_var
         old_ir_mempos += 32
 
+    # return address
+    new_var = ctx.get_next_variable()
+    alloca_inst = IRInstruction("alloca", [], new_var)
+    bb.append_instruction(alloca_inst)
+    symbols[f"return_pc"] = new_var
+
     return ir.args[0].args[2]
 
 
@@ -158,8 +164,10 @@ def _convert_ir_basicblock(
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3", "sha3_64"])
 
     elif ir.value in MAPPED_IR_INSTRUCTIONS.keys():
+        org_value = ir.value
         ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols)
+        ir.value = org_value
         return ctx.append_instruction("iszero", [new_var])
 
     elif ir.value in ["iszero", "ceil32", "calldataload"]:
@@ -337,7 +345,7 @@ def _convert_ir_basicblock(
         elif len(ir.args) >= 2:
             ret_var = ir.args[1]
             if ret_var.value == "return_pc":
-                inst = IRInstruction("ret", [symbols["return_buffer"]])
+                inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
                 ctx.get_basic_block().append_instruction(inst)
                 return None
             # else:

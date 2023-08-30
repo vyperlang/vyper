@@ -109,7 +109,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         fen = 0
         for inst in bb.instructions:
             inst.fen = fen
-            if inst.opcode in ["call", "invoke", "sload", "sstore", "assert"]:
+            if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
                 fen += 1
 
         for inst in bb.instructions:
@@ -231,8 +231,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "call":
         assembly.append("CALL")
     elif opcode == "ret":
-        assert len(inst.operands) == 1, "ret instruction takes one operand"
-        assembly.append("SWAP1")
+        assert len(inst.operands) == 2, "ret instruction takes one operand"
         assembly.append("JUMP")
     elif opcode == "return":
         assembly.append("RETURN")
