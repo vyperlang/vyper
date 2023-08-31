@@ -260,6 +260,39 @@ def __default__():
     w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
+# check max_outsize=0 does same thing as not setting max_outsize
+def test_max_outsize_0(get_contract):
+    mock1_code = """
+@external
+def foo():
+    return
+    """
+    mock2_code = """
+@external
+def foo():
+    raise
+    """
+    code = """
+@external
+def test_raw_call(_target: address) -> (bool, bool):
+    # compiles
+    a: bool = raw_call(_target, method_id("foo()"), revert_on_failure=False)
+    # should have same behavior
+    b: bool = raw_call(_target, method_id("foo()"), max_outsize=0, revert_on_failure=False)
+    return a, b
+    """
+
+    c = get_contract(code)
+
+    mock1 = get_contract(mock1_code)
+    a, b = c.test_raw_call(mock1.address)
+    assert a == b and a is True
+
+    mock2 = get_contract(mock2_code)
+    a, b = c.test_raw_call(mock2.address)
+    assert a == b and a is False
+
+
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
     target_source = """
 baz: int128
