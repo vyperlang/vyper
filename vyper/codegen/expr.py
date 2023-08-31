@@ -662,9 +662,7 @@ class Expr:
             elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(
-                        args[0], function_name, self.context, self.expr._metadata["type"]
-                    )
+                    return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
             # Interface assignment. Bar(<address>).
             elif isinstance(self.expr._metadata["type"], InterfaceT):
@@ -733,7 +731,7 @@ class Expr:
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
     @staticmethod
-    def struct_literals(expr, name, context, typ):
+    def struct_literals(expr, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
