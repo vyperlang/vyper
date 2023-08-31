@@ -102,12 +102,13 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None
     target_label = goto_ir.args[0].value  # goto
     ret_values = [IRLabel(target_label)]
     for arg in args_ir:
-        if arg.value != "with":
+        if arg.is_literal:
             ret = _convert_ir_basicblock(ctx, arg, symbols)
-            new_var = ctx.append_instruction("calldataload", [ret])
-            ret_values.append(new_var)
+            ret_values.append(ret)
         else:
-            ret = _convert_ir_basicblock(ctx, arg, symbols)
+            ret = _convert_ir_basicblock(ctx, arg._optimized, symbols)
+            if arg.location and arg.location.load_op == "calldataload":
+                ret = ctx.append_instruction(arg.location.load_op, [ret])
             ret_values.append(ret)
 
     return ctx.append_instruction("invoke", ret_values)
