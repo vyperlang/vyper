@@ -380,7 +380,6 @@ class Expr:
                 raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
             assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
-
         out_typ = left.typ
 
         if isinstance(self.expr.op, vy_ast.BitAnd):
