@@ -284,14 +284,17 @@ def _convert_ir_basicblock(
     elif ir.value == "with":
         ret = _convert_ir_basicblock(ctx, ir.args[1], symbols)  # initialization
 
+        # Handle with nesting with same symbol
+        with_symbols = symbols.copy()
+
         sym = ir.args[0]
         if ret.is_literal:
             new_var = ctx.append_instruction("store", [ret])
-            symbols[sym.value] = new_var
+            with_symbols[sym.value] = new_var
         else:
-            symbols[sym.value] = ret
+            with_symbols[sym.value] = ret
 
-        return _convert_ir_basicblock(ctx, ir.args[2], symbols)  # body
+        return _convert_ir_basicblock(ctx, ir.args[2], with_symbols)  # body
     elif ir.value == "goto":
         return _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "jump":
