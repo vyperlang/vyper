@@ -8,18 +8,18 @@ from vyper.codegen.ir_function import IRFunction
 
 
 def optimize_function(ctx: IRFunction):
-    while _optimize_empty_basicblocks(ctx):
-        pass
-
-    _calculate_in_set(ctx)
-
-    while ctx.remove_unreachable_blocks():
-        pass
-
-    if len(ctx.basic_blocks) == 0:
-        return ctx
-
     while True:
+        while _optimize_empty_basicblocks(ctx):
+            pass
+
+        _calculate_in_set(ctx)
+
+        while ctx.remove_unreachable_blocks():
+            pass
+
+        if len(ctx.basic_blocks) == 0:
+            return ctx
+
         _calculate_liveness(ctx.basic_blocks[0], {})
         removed = _optimize_unused_variables(ctx)
         if len(removed) == 0:
@@ -84,6 +84,12 @@ def _calculate_in_set(ctx: IRFunction) -> None:
     """
     Calculate in set for each basic block.
     """
+    for bb in ctx.basic_blocks:
+        bb.in_set = set()
+        bb.out_set = set()
+        bb.out_vars = set()
+        bb.phi_vars = {}
+
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]
