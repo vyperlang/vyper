@@ -91,6 +91,28 @@ def append():
 def foo():
     self.append()
     """,
+    """
+@internal
+@view
+def gfah():
+    pass
+
+@internal
+@view
+def eexo():
+    pass
+    """,
+    """
+@internal
+@view
+def gfah():
+    pass
+
+@external
+@view
+def eexo():
+    pass
+    """,
 ]
 
 
