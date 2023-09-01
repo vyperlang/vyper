@@ -67,7 +67,6 @@ from vyper.interfaces import ERC20
 
 implements: ERC20
 
-
 @external
 def test() -> bool:
     return True

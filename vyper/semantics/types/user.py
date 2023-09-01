@@ -345,6 +345,8 @@ class InterfaceT(_UserType):
         for name, event in self.events.items():
             if name not in namespace:
                 unimplemented.append(name)
+                continue
+
             if not isinstance(namespace[name], EventT):
                 unimplemented.append(f"{name} is not an event!")
             if (
