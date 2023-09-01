@@ -261,24 +261,39 @@ def __default__():
     w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
-# check max_outsize=0 does same thing as not setting max_outsize
+# check max_outsize=0 does same thing as not setting max_outsize.
 # compile to bytecode and compare bytecode directly.
-def test_max_outsize_0(get_contract):
+def test_max_outsize_0():
+    code1 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"))
+    """
+    code2 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"), max_outsize=0)
+    """
+    output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, ["bytecode", "bytecode_runtime"])
+    assert output1 == output2
+
+
+# check max_outsize=0 does same thing as not setting max_outsize,
+# this time with revert_on_failure set to False
+def test_max_outsize_0_no_revert_on_failure():
     code1 = """
 @external
 def test_raw_call(_target: address) -> bool:
     # compile raw_call both ways, with revert_on_failure
     a: bool = raw_call(_target, method_id("foo()"), revert_on_failure=False)
-    # and without revert_on_failure
-    raw_call(_target, method_id("foo()"))
     return a
     """
-    # write same code, but with max_outsize=0
+    # same code, but with max_outsize=0
     code2 = """
 @external
 def test_raw_call(_target: address) -> bool:
     a: bool = raw_call(_target, method_id("foo()"), max_outsize=0, revert_on_failure=False)
-    raw_call(_target, method_id("foo()"), max_outsize=0)
     return a
     """
     output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
