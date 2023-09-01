@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.codegen.ir_basicblock import IRInstruction, IROperand, IRVariable, IRBasicBlock
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, RuntimeHeader, optimize_assembly
@@ -79,12 +79,15 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
 
 visited_instructions = {IRInstruction}
+visited_basicblocks = {IRBasicBlock}
 
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
+    global visited_instructions, visited_basicblocks
     stack_map = StackMap()
-    assembly = []
-    asm = assembly
+    asm = []
+    visited_instructions = set()
+    visited_basicblocks = set()
 
     convert_ir_to_dfg(ctx)
 
@@ -101,27 +104,83 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
             block_a.phi_vars[ret_op.value] = inst.operands[3]
             block_b.phi_vars[ret_op.value] = inst.operands[1]
 
-    for i, bb in enumerate(ctx.basic_blocks):
-        if i != 0:
-            asm.append(f"_sym_{bb.label}")
-            asm.append("JUMPDEST")
+    _generate_evm_for_basicblock(ctx, asm, ctx.basic_blocks[0], stack_map)
 
-        fen = 0
-        for inst in bb.instructions:
-            inst.fen = fen
-            if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
-                fen += 1
+    # for i, bb in enumerate(ctx.basic_blocks):
+    #     if i != 0:
+    #         asm.append(f"_sym_{bb.label}")
+    #         asm.append("JUMPDEST")
 
-        for inst in bb.instructions:
-            asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
+    #     # values to pop from stack
+    #     in_vars = set()
+    #     for in_bb in bb.in_set:
+    #         in_vars |= in_bb.out_vars.difference(bb.in_vars_for(in_bb))
+    #     print(f"IN_VARS: {in_vars}")
+
+    #     # for var in in_vars:
+    #     #     depth = stack_map.get_depth_in(var)
+    #     #     assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+    #     #     if depth != 0:
+    #     #         stack_map.swap(asm, depth)
+    #     #     stack_map.pop()
+    #     #     asm.append("POP")
+
+    #     fen = 0
+    #     for inst in bb.instructions:
+    #         inst.fen = fen
+    #         if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
+    #             fen += 1
+
+    #     # for inst in bb.instructions:
+    #     #     asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
+    #     asm = _generate_evm_for_instruction_r(ctx, asm, bb.instructions[-1], stack_map)
 
     # Append postambles
-    asm.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+    asm.extend(["_sym___revert__contract", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
 
     if no_optimize is False:
         optimize_assembly(asm)
 
-    return assembly
+    return asm
+
+
+def _generate_evm_for_basicblock(
+    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
+):
+    if basicblock in visited_basicblocks:
+        return asm
+    visited_basicblocks.add(basicblock)
+
+    asm.append(f"_sym_{basicblock.label}")
+    asm.append("JUMPDEST")
+
+    # values to pop from stack
+    in_vars = set()
+    for in_bb in basicblock.in_set:
+        in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
+    # print(f"IN_VARS: {in_vars}")
+
+    # for var in in_vars:
+    #     depth = stack_map.get_depth_in(var)
+    #     assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+    #     if depth != 0:
+    #         stack_map.swap(asm, depth)
+    #     stack_map.pop()
+    #     asm.append("POP")
+
+    fen = 0
+    for inst in basicblock.instructions:
+        inst.fen = fen
+        if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
+            fen += 1
+
+    for inst in basicblock.instructions:
+        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
+
+    for bb in basicblock.out_set:
+        _generate_evm_for_basicblock(ctx, asm, bb, stack_map.copy())
+
+    return asm
 
 
 # TODO: refactor this
@@ -254,7 +313,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "ceil32":
         assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
     elif opcode == "assert":
-        assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+        assembly.extend(["ISZERO", "_sym___revert__contract", "JUMPI"])
     elif opcode == "deploy":
         memsize = inst.operands[0].value
         padding = inst.operands[2].value

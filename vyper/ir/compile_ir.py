@@ -1215,6 +1215,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             if is_symbol_map_indicator(assembly[i + 1]):
                 # Don't increment pc as the symbol itself doesn't go into code
                 if item in symbol_map:
+                    print(assembly)
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc
