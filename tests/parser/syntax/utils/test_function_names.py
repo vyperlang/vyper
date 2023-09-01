@@ -23,6 +23,20 @@ def wei(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var1
     """,
+    """
+foo: public(uint256)
+
+@external
+def foo():
+    pass
+    """,
+    """
+@external
+def foo():
+    pass
+
+foo: public(uint256)
+    """,
 ]
 
 
@@ -76,6 +90,30 @@ def append():
 @external
 def foo():
     self.append()
+    """,
+    # "method id" collisions between internal functions are allowed
+    """
+@internal
+@view
+def gfah():
+    pass
+
+@internal
+@view
+def eexo():
+    pass
+    """,
+    # "method id" collisions between internal+external functions are allowed
+    """
+@internal
+@view
+def gfah():
+    pass
+
+@external
+@view
+def eexo():
+    pass
     """,
 ]
 
