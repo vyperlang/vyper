@@ -343,11 +343,14 @@ class InterfaceT(_UserType):
 
         # check for missing events
         for name, event in self.events.items():
-            if ( name not in namespace):
+            if name not in namespace:
                 unimplemented.append(name)
             if not isinstance(namespace[name], EventT):
                 unimplemented.append(f"{name} is not an event!")
-            if namespace[name].event_id != event.event_id or namespace[name].indexed != event.indexed:
+            if (
+                namespace[name].event_id != event.event_id
+                or namespace[name].indexed != event.indexed
+            ):
                 unimplemented.append(f"{name} is not implemented! (should be {event})")
 
         if len(unimplemented) > 0:
