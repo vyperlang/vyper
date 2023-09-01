@@ -40,8 +40,6 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "log4",
 ]
 
-OPERAND_ORDER_IRELEVANT_INSTRUCTIONS = ["xor", "or", "add", "mul", "eq"]
-
 
 class DFGNode:
     value: IRInstruction | IROperand

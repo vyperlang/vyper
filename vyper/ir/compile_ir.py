@@ -2,6 +2,7 @@ import copy
 import functools
 import math
 
+from vyper.ir.optimizer import COMMUTATIVE_OPS
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
@@ -1006,6 +1007,9 @@ def _stack_peephole_opts(assembly):
         if assembly[i : i + 2] == ["SWAP1", "SWAP1"]:
             changed = True
             del assembly[i : i + 2]
+        if assembly[i] == "SWAP1" and assembly[i + 1] is COMMUTATIVE_OPS:
+            changed = True
+            del assembly[i]
         i += 1
 
     return changed
