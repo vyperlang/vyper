@@ -301,6 +301,28 @@ def test_raw_call(_target: address) -> bool:
     assert output1 == output2
 
 
+# test functionality of max_outsize=0
+def test_max_outsize_0_call(get_contract):
+    target_source = """
+@external
+@payable
+def bar() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+@external
+@payable
+def foo(_addr: address) -> bool:
+    success: bool = raw_call(_addr, method_id("bar()"), max_outsize=0, revert_on_failure=False)
+    return success
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+    assert caller.foo(target.address) is True
+
+
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
     target_source = """
 baz: int128
@@ -402,32 +424,6 @@ def baz(_addr: address, should_raise: bool) -> uint256:
     assert caller.bar(target.address, False) == 2
     assert caller.baz(target.address, True) == 3
     assert caller.baz(target.address, False) == 3
-
-
-def test_max_outsize_zero(get_contract, w3, keccak):
-    target_source = """
-@external
-@payable
-def foo() -> uint256:
-    return 123
-    """
-
-    caller_source = """
-@external
-@payable
-def foo(_addr: address) -> bool:
-    success: bool = raw_call(
-        _addr,
-        method_id("foo()"),
-        max_outsize=0,
-        revert_on_failure=False,
-    )
-    return success
-    """
-
-    target = get_contract(target_source)
-    caller = get_contract(caller_source)
-    assert caller.foo(target.address) is True
 
 
 uncompilable_code = [
