@@ -104,36 +104,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
             block_a.phi_vars[ret_op.value] = inst.operands[3]
             block_b.phi_vars[ret_op.value] = inst.operands[1]
 
-    _generate_evm_for_basicblock(ctx, asm, ctx.basic_blocks[0], stack_map)
-
-    # for i, bb in enumerate(ctx.basic_blocks):
-    #     if i != 0:
-    #         asm.append(f"_sym_{bb.label}")
-    #         asm.append("JUMPDEST")
-
-    #     # values to pop from stack
-    #     in_vars = set()
-    #     for in_bb in bb.in_set:
-    #         in_vars |= in_bb.out_vars.difference(bb.in_vars_for(in_bb))
-    #     print(f"IN_VARS: {in_vars}")
-
-    #     # for var in in_vars:
-    #     #     depth = stack_map.get_depth_in(var)
-    #     #     assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-    #     #     if depth != 0:
-    #     #         stack_map.swap(asm, depth)
-    #     #     stack_map.pop()
-    #     #     asm.append("POP")
-
-    #     fen = 0
-    #     for inst in bb.instructions:
-    #         inst.fen = fen
-    #         if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
-    #             fen += 1
-
-    #     # for inst in bb.instructions:
-    #     #     asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
-    #     asm = _generate_evm_for_instruction_r(ctx, asm, bb.instructions[-1], stack_map)
+    _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], stack_map)
 
     # Append postambles
     asm.extend(["_sym___revert__contract", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
@@ -144,7 +115,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def _generate_evm_for_basicblock(
+def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
 ):
     if basicblock in visited_basicblocks:
@@ -177,7 +148,7 @@ def _generate_evm_for_basicblock(
         asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
 
     for bb in basicblock.out_set:
-        _generate_evm_for_basicblock(ctx, asm, bb, stack_map.copy())
+        _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
 
     return asm
 
