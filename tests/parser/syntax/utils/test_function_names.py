@@ -23,6 +23,7 @@ def wei(i: int128) -> int128:
     temp_var : int128 = i
     return temp_var1
     """,
+    # collision between getter and external function
     """
 foo: public(uint256)
 
@@ -30,6 +31,7 @@ foo: public(uint256)
 def foo():
     pass
     """,
+    # collision between getter and external function, reverse order
     """
 @external
 def foo():
