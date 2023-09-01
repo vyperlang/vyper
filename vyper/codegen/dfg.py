@@ -158,15 +158,14 @@ def _generate_evm_for_basicblock(
     in_vars = set()
     for in_bb in basicblock.in_set:
         in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
-    # print(f"IN_VARS: {in_vars}")
 
-    # for var in in_vars:
-    #     depth = stack_map.get_depth_in(var)
-    #     assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-    #     if depth != 0:
-    #         stack_map.swap(asm, depth)
-    #     stack_map.pop()
-    #     asm.append("POP")
+    for var in in_vars:
+        depth = stack_map.get_depth_in(var)
+        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        if depth != 0:
+            stack_map.swap(asm, depth)
+        stack_map.pop()
+        asm.append("POP")
 
     fen = 0
     for inst in basicblock.instructions:
