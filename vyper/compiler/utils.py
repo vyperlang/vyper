@@ -55,6 +55,11 @@ class StackMap:
     def __init__(self):
         self.stack_map = []
 
+    def copy(self):
+        new = StackMap()
+        new.stack_map = self.stack_map.copy()
+        return new
+
     def get_height(self) -> int:
         """
         Returns the height of the stack map.
