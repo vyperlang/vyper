@@ -91,6 +91,7 @@ def append():
 def foo():
     self.append()
     """,
+    # "method id" collisions between internal functions are allowed
     """
 @internal
 @view
@@ -102,6 +103,7 @@ def gfah():
 def eexo():
     pass
     """,
+    # "method id" collisions between internal+external functions are allowed
     """
 @internal
 @view
