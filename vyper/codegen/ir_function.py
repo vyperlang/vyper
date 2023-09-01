@@ -30,6 +30,7 @@ class IRFunction(IRFunctionBase):
     """
 
     basic_blocks: list["IRBasicBlock"]
+    data_segment: list["IRInstruction"]
     last_label: int
     last_variable: int
 
@@ -117,6 +118,12 @@ class IRFunction(IRFunctionBase):
         inst = IRInstruction(opcode, args, ret)
         self.get_basic_block().append_instruction(inst)
         return ret
+
+    def append_data(self, opcode: str, args: list[IROperand | IRValueBase]):
+        """
+        Append data
+        """
+        self.data_segment.append(IRInstruction(opcode, args))
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"

@@ -673,7 +673,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
     elif code.value == "data":
-        data_node = [_DataHeader("_sym_" + code.args[0].value)]
+        data_node = [DataHeader("_sym_" + code.args[0].value)]
 
         for c in code.args[1:]:
             if isinstance(c.value, int):
@@ -961,7 +961,7 @@ def _prune_unused_jumpdests(assembly):
             used_jumpdests.add(assembly[i])
 
     for item in assembly:
-        if isinstance(item, list) and isinstance(item[0], _DataHeader):
+        if isinstance(item, list) and isinstance(item[0], DataHeader):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             for t in item:
@@ -1057,7 +1057,7 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 def _data_to_evm(assembly, symbol_map):
     ret = bytearray()
-    assert isinstance(assembly[0], _DataHeader)
+    assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
         if is_symbol(item):
             symbol = symbol_map[item].to_bytes(SYMBOL_SIZE, "big")
@@ -1075,7 +1075,7 @@ def _data_to_evm(assembly, symbol_map):
 # predict what length of an assembly [data] node will be in bytecode
 def _length_of_data(assembly):
     ret = 0
-    assert isinstance(assembly[0], _DataHeader)
+    assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
         if is_symbol(item):
             ret += SYMBOL_SIZE
@@ -1099,7 +1099,7 @@ class RuntimeHeader:
         return f"<RUNTIME {self.label} mem @{self.ctor_mem_size}>"
 
 
-class _DataHeader:
+class DataHeader:
     def __init__(self, label):
         self.label = label
 
@@ -1116,7 +1116,7 @@ def _relocate_segments(assembly):
     code_segments = []
     for t in assembly:
         if isinstance(t, list):
-            if isinstance(t[0], _DataHeader):
+            if isinstance(t[0], DataHeader):
                 data_segments.append(t)
             else:
                 _relocate_segments(t)  # recurse
@@ -1244,7 +1244,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             for key in line_number_map:
                 line_number_map[key].update(t[key])
             pc += len(runtime_code)
-        elif isinstance(item, list) and isinstance(item[0], _DataHeader):
+        elif isinstance(item, list) and isinstance(item[0], DataHeader):
             symbol_map[item[0].label] = pc
             pc += _length_of_data(item)
         else:
@@ -1303,7 +1303,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             ret.append(SWAP_OFFSET + int(item[4:]))
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             ret.extend(runtime_code)
-        elif isinstance(item, list) and isinstance(item[0], _DataHeader):
+        elif isinstance(item, list) and isinstance(item[0], DataHeader):
             ret.extend(_data_to_evm(item, symbol_map))
         else:  # pragma: no cover
             # unreachable
