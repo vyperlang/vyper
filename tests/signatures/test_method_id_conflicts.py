@@ -48,26 +48,6 @@ def OwnerTransferV7b711143(a: uint256):
     pass
     """,
     """
-# check collision between private method IDs
-@internal
-@view
-def gfah(): pass
-
-@internal
-@view
-def eexo(): pass
-    """,
-    """
-# check collision between private and public IDs
-@internal
-@view
-def gfah(): pass
-
-@external
-@view
-def eexo(): pass
-    """,
-    """
 # check collision with ID = 0x00000000
 wycpnbqcyf:public(uint256)
 
