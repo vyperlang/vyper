@@ -173,8 +173,7 @@ def approve(_spender : address, _value : uint256) -> bool:
         InterfaceViolation,
     ),
     (
-        # `receiver` of `Transfer` event should be indexed
-        # instead of `value`
+        # `value` of `Transfer` event should not be indexed
         """
 from vyper.interfaces import ERC20
 
