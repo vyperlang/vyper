@@ -182,7 +182,7 @@ implements: ERC20
 
 event Transfer:
     sender: indexed(address)
-    receiver: address
+    receiver: indexed(address)
     value: indexed(uint256)
 
 event Approval:
