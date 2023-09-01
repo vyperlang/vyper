@@ -103,8 +103,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_node._metadata["namespace"] = _ns
 
         # check for collisions between 4byte function selectors
-        # internal functions are intentionally included in this check, to prevent breaking
-        # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
 
         # get list of internal function calls made by each function
