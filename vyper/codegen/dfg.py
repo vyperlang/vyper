@@ -107,7 +107,8 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], stack_map)
 
     # Append postambles
-    asm.extend(["_sym___revert__contract", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+    extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
+    extent_point.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
 
     if no_optimize is False:
         optimize_assembly(asm)
@@ -283,7 +284,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "ceil32":
         assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
     elif opcode == "assert":
-        assembly.extend(["ISZERO", "_sym___revert__contract", "JUMPI"])
+        assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
     elif opcode == "deploy":
         memsize = inst.operands[0].value
         padding = inst.operands[2].value
