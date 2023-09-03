@@ -37,6 +37,7 @@ class IRFunction(IRFunctionBase):
     def __init__(self, name: IRLabel) -> None:
         super().__init__(name)
         self.basic_blocks = []
+        self.data_segment = []
         self.last_label = 0
         self.last_variable = 0
 
@@ -110,11 +111,13 @@ class IRFunction(IRFunctionBase):
         self.basic_blocks = new_basic_blocks
         return removed
 
-    def append_instruction(self, opcode: str, args: list[IROperand | IRValueBase]):
+    def append_instruction(
+        self, opcode: str, args: list[IROperand | IRValueBase], do_ret: bool = True
+    ):
         """
         Append instruction to last basic block.
         """
-        ret = self.get_next_variable()
+        ret = self.get_next_variable() if do_ret else None
         inst = IRInstruction(opcode, args, ret)
         self.get_basic_block().append_instruction(inst)
         return ret
@@ -129,6 +132,9 @@ class IRFunction(IRFunctionBase):
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"
+        str += f"Data segment:\n"
+        for inst in self.data_segment:
+            str += f"{inst}\n"
         return str
 
 

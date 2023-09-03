@@ -1,7 +1,7 @@
 from vyper.codegen.ir_basicblock import IRInstruction, IROperand, IRVariable, IRBasicBlock
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
-from vyper.ir.compile_ir import PUSH, RuntimeHeader, optimize_assembly
+from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions
 
 ONE_TO_ONE_INSTRUCTIONS = [
@@ -107,6 +107,18 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     # Append postambles
     extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
     extent_point.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+
+    # Append data segment
+    data_segments = {}
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            if inst.opcode == "dbname":
+                label = inst.operands[0].value
+                data_segments[label] = [DataHeader(f"_sym_{label}")]
+            elif inst.opcode == "db":
+                data_segments[label].append(inst.operands[0].value)
+
+    asm.extend([data_segments[label] for label in data_segments])
 
     if no_optimize is False:
         optimize_assembly(asm)
@@ -229,6 +241,8 @@ def _generate_evm_for_instruction_r(
     elif opcode == "alloca":
         pass
     elif opcode == "store":
+        pass
+    elif opcode == "dbname":
         pass
     elif opcode == "jnz":
         assembly.append(f"_sym_{inst.operands[1].value}")
