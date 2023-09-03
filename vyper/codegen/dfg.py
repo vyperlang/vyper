@@ -9,6 +9,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "calldatasize",
     "calldatacopy",
     "calldataload",
+    "codecopy",
     "gas",
     "returndatasize",
     "returndatacopy",
@@ -27,6 +28,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "sub",
     "mul",
     "div",
+    "mod",
     "eq",
     "iszero",
     "lg",
@@ -116,9 +118,10 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
                 label = inst.operands[0].value
                 data_segments[label] = [DataHeader(f"_sym_{label}")]
             elif inst.opcode == "db":
-                data_segments[label].append(inst.operands[0].value)
+                data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
-    asm.extend([data_segments[label] for label in data_segments])
+    extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
+    extent_point.extend([data_segments[label] for label in data_segments])
 
     if no_optimize is False:
         optimize_assembly(asm)
@@ -327,6 +330,10 @@ def _emit_input_operands(
 ) -> None:
     ops = inst.get_input_operands()
     for op in ops:
+        if op.is_label:
+            assembly.append(f"_sym_{op.value}")
+            stack_map.push(op.target)
+            continue
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op.target)

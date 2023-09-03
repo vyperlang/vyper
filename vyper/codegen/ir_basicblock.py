@@ -184,7 +184,8 @@ class IRInstruction:
         """
         Get all input operands in instruction.
         """
-        return [op for op in self.operands if not op.is_label]
+        return self.operands
+        # return [op for op in self.operands if not op.is_label]
 
     def get_input_variables(self) -> list[IRVariable]:
         """
