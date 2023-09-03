@@ -84,7 +84,6 @@ visited_basicblocks = {IRBasicBlock}
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     global visited_instructions, visited_basicblocks
-    stack_map = StackMap()
     asm = []
     visited_instructions = set()
     visited_basicblocks = set()
@@ -104,7 +103,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
             block_a.phi_vars[ret_op.value] = inst.operands[3]
             block_b.phi_vars[ret_op.value] = inst.operands[1]
 
-    _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], stack_map)
+    _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
 
     # Append postambles
     extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
@@ -146,7 +145,8 @@ def _generate_evm_for_basicblock_r(
 
     for var in in_vars:
         depth = stack_map.get_depth_in(var)
-        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        if depth == StackMap.NOT_IN_STACK:
+            continue
         if depth != 0:
             stack_map.swap(asm, depth)
         stack_map.pop()

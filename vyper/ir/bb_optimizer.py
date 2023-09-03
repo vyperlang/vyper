@@ -34,7 +34,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
     removeList = []
     for bb in ctx.basic_blocks:
         for i, inst in enumerate(bb.instructions[:-1]):
-            if inst.opcode in ["call", "invoke", "sload", "sstore"]:
+            if inst.opcode in ["call", "invoke", "sload", "sstore", "dbname"]:
                 continue
             if inst.ret and inst.ret.target not in bb.instructions[i + 1].liveness:
                 removeList.append(inst)
@@ -89,6 +89,15 @@ def _calculate_in_set(ctx: IRFunction) -> None:
         bb.out_set = set()
         bb.out_vars = set()
         bb.phi_vars = {}
+
+    entry_block = (
+        ctx.basic_blocks[0]
+        if ctx.basic_blocks[0].instructions[0].opcode != "deploy"
+        else ctx.basic_blocks[1]
+    )
+    for bb in ctx.basic_blocks:
+        if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
+            bb.add_in(entry_block)
 
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
