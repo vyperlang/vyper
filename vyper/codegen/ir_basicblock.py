@@ -96,7 +96,9 @@ class IROperand:
     IROperand represents an operand of an IR instuction. An operand can be a variable, label, or a constant.
     """
 
+    Direction = Enum("Direction", ["IN", "OUT"])
     target: IRValueBase
+    direction: Direction = Direction.IN
     address_access: bool = False
     address_offset: int = 0
     use_count: int = 0
@@ -112,6 +114,7 @@ class IROperand:
             self.address_access = address_access
             self.address_offset = address_offset
         self.target = target
+        self.direction = IROperand.Direction.IN
 
     def is_targeting(self, target: IRValueBase) -> bool:
         return self.target.value == target.value
@@ -186,14 +189,22 @@ class IRInstruction:
         """
         return [op for op in self.operands if not op.is_label]
 
-    def get_input_variables(self) -> list[IRVariable]:
+    def get_input_operands(self) -> list[IROperand]:
         """
-        Get all input variables in instruction.
+        Get all input operands for instruction.
         """
-        return [op.target for op in self.operands if op.is_variable]
+        return [
+            op.target
+            for op in self.operands
+            if op.is_variable  # and op.direction == IROperand.Direction.IN
+        ]
 
     def get_output_operands(self) -> list[IROperand]:
-        return [self.ret] if self.ret else []
+        output_operands = [self.ret] if self.ret else []
+        for op in self.operands:
+            if op.direction == IROperand.Direction.OUT:
+                output_operands.append(op)
+        return output_operands
 
     def get_use_count_correction(self, op: IROperand) -> int:
         use_count_correction = 0
@@ -328,7 +339,7 @@ class IRBasicBlock:
         """
         liveness = self.out_vars.copy()
         for instruction in self.instructions[::-1]:
-            liveness = liveness.union(instruction.get_input_variables())
+            liveness = liveness.union(instruction.get_input_operands())
             out = (
                 instruction.get_output_operands()[0].target
                 if len(instruction.get_output_operands()) > 0
