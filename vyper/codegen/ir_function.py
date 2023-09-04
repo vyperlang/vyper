@@ -132,9 +132,10 @@ class IRFunction(IRFunctionBase):
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"
-        str += f"Data segment:\n"
-        for inst in self.data_segment:
-            str += f"{inst}\n"
+        if len(self.data_segment) > 0:
+            str += f"Data segment:\n"
+            for inst in self.data_segment:
+                str += f"{inst}\n"
         return str
 
 
