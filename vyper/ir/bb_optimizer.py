@@ -89,11 +89,22 @@ def _calculate_in_set(ctx: IRFunction) -> None:
         bb.out_vars = set()
         bb.phi_vars = {}
 
-    entry_block = (
-        ctx.basic_blocks[0]
-        if ctx.basic_blocks[0].instructions[0].opcode != "deploy"
-        else ctx.basic_blocks[1]
-    )
+    deploy_bb = None
+    for i, bb in enumerate(ctx.basic_blocks):
+        if bb.instructions[0].opcode == "deploy":
+            deploy_bb = bb
+            after_deploy_bb = ctx.basic_blocks[i + 1]
+            break
+
+    if deploy_bb:
+        entry_block = after_deploy_bb
+        has_constructor = True if ctx.basic_blocks[0].instructions[0].opcode != "deploy" else False
+        if has_constructor:
+            deploy_bb.add_in(ctx.basic_blocks[0])
+            entry_block.add_in(deploy_bb)
+    else:
+        entry_block = ctx.basic_blocks[0]
+
     for bb in ctx.basic_blocks:
         if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
             bb.add_in(entry_block)
