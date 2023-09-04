@@ -320,14 +320,17 @@ def _convert_ir_basicblock(
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         if arg_0.is_literal and arg_0.value == 30:
-            arg_0_var = IRVariable("%ccd")
+            arg_0_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
             symbols[f"&0"] = arg_0_var
+            arg_0_op = IROperand(arg_0_var, True, 30)
         else:
             arg_0_var = ctx.get_next_variable()
             symbols[f"&{arg_0.value}"] = arg_0_var
+            arg_0_op = IROperand(arg_0_var, True, 0)
+
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        inst = IRInstruction("codecopy", [arg_1, size], arg_0_var)
+        inst = IRInstruction("codecopy", [arg_1, size], arg_0_op)
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)

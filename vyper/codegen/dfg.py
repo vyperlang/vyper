@@ -9,7 +9,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "calldatasize",
     "calldatacopy",
     "calldataload",
-    "codecopy",
+    # "codecopy",
     "gas",
     "returndatasize",
     "returndatacopy",
@@ -247,6 +247,8 @@ def _generate_evm_for_instruction_r(
         pass
     elif opcode == "dbname":
         pass
+    elif opcode == "codecopy":
+        assembly.append("CODECOPY")
     elif opcode == "jnz":
         assembly.append(f"_sym_{inst.operands[1].value}")
         assembly.append("JUMPI")
