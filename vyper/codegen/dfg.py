@@ -26,6 +26,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "timestamp",
     "caller",
     "selfdestruct",
+    "stop",
     "shr",
     "shl",
     "and",

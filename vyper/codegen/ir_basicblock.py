@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Optional
 from enum import Enum
 
 TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
-TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "return", "revert", "deploy"]
+TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
 if TYPE_CHECKING:
     from vyper.codegen.ir_function import IRFunction

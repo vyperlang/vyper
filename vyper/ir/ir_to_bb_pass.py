@@ -371,6 +371,15 @@ def _convert_ir_basicblock(
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2], symbols)
     elif ir.value == "exit_to":
+        func_t = ir.passthrough_metadata.get("func_t", None)
+        assert func_t is not None, "exit_to without func_t"
+
+        if func_t.is_external:
+            if func_t.return_type == None:
+                inst = IRInstruction("stop", [])
+                ctx.get_basic_block().append_instruction(inst)
+                return
+
         if len(ir.args) == 1:
             inst = IRInstruction("ret", [])
             ctx.get_basic_block().append_instruction(inst)
