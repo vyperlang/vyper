@@ -216,8 +216,8 @@ class IRInstruction:
         if self.dbg:
             return s + f" {self.dbg}"
 
-        if self.liveness:
-            return f"{s: <30} # {self.liveness}"
+        # if self.liveness:
+        #     return f"{s: <30} # {self.liveness}"
 
         return s
 
