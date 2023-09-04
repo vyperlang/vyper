@@ -144,9 +144,9 @@ def _generate_evm_for_basicblock_r(
 
     for var in in_vars:
         depth = stack_map.get_depth_in(var)
-        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-        # if depth == StackMap.NOT_IN_STACK:
-        #     continue
+        # assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        if depth == StackMap.NOT_IN_STACK:
+            continue
         if depth != 0:
             stack_map.swap(asm, depth)
         stack_map.pop()
@@ -328,7 +328,7 @@ def _generate_evm_for_instruction_r(
 def _emit_input_operands(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> None:
-    ops = inst.get_input_operands()
+    ops = inst.operands
     for op in ops:
         if op.is_label:
             assembly.append(f"_sym_{op.value}")
