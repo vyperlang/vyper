@@ -1,4 +1,10 @@
-from vyper.codegen.ir_basicblock import IRInstruction, IROperand, IRVariable, IRBasicBlock
+from vyper.codegen.ir_basicblock import (
+    IRInstruction,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+    IRBasicBlock,
+)
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
@@ -69,13 +75,15 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             res = inst.get_output_operands()
 
             for v in variables:
-                v.use_count += 1
+                v.target.use_count += 1
                 dfg_inputs[v.value] = (
-                    [inst] if dfg_inputs.get(v.value) is None else dfg_inputs[v.value] + [inst]
+                    [inst]
+                    if dfg_inputs.get(v.target.value) is None
+                    else dfg_inputs[v.target.value] + [inst]
                 )
 
             for op in res:
-                dfg_outputs[op.value] = inst
+                dfg_outputs[op.target.value] = inst
 
 
 visited_instructions = {IRInstruction}
@@ -143,7 +151,7 @@ def _generate_evm_for_basicblock_r(
         in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
 
     for var in in_vars:
-        depth = stack_map.get_depth_in(var)
+        depth = stack_map.get_depth_in(IROperand(var))
         # assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         if depth == StackMap.NOT_IN_STACK:
             continue
@@ -155,7 +163,7 @@ def _generate_evm_for_basicblock_r(
     fen = 0
     for inst in basicblock.instructions:
         inst.fen = fen
-        if inst.opcode in ["alloca", "call", "invoke", "sload", "sstore", "assert"]:
+        if inst.opcode in ["param", "call", "invoke", "sload", "sstore", "assert"]:
             fen += 1
 
     for inst in basicblock.instructions:
@@ -190,7 +198,10 @@ def _generate_evm_for_instruction_r(
 
     # generate EVM for op
     opcode = inst.opcode
-    operands = inst.get_input_operands()
+    if opcode in ["jmp", "jnz"]:
+        operands = inst.get_non_label_operands()
+    else:
+        operands = inst.operands
 
     if opcode == "select":
         ret = inst.get_output_operands()[0]
@@ -205,13 +216,13 @@ def _generate_evm_for_instruction_r(
             stack_map.poke(depth, ret.target)
         return assembly
 
-    _emit_input_operands(ctx, assembly, inst, stack_map)
+    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     for op in operands:
         # final_stack_depth = -(len(operands) - i - 1)
         ucc = inst.get_use_count_correction(op)
         assert op.target.use_count >= ucc, "Operand used up"
-        depth = stack_map.get_depth_in(op.target)
+        depth = stack_map.get_depth_in(op)
         assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         needs_copy = op.target.use_count - ucc > 1
         if needs_copy:
@@ -221,7 +232,7 @@ def _generate_evm_for_instruction_r(
     for i in range(len(operands)):
         op = operands[i]
         final_stack_depth = -(len(operands) - i - 1)
-        depth = stack_map.get_depth_in(op.target)
+        depth = stack_map.get_depth_in(op)
         assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         in_place_var = stack_map.peek(-final_stack_depth)
         is_in_place = in_place_var.value == op.target.value
@@ -242,6 +253,8 @@ def _generate_evm_for_instruction_r(
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
     elif opcode == "alloca":
+        pass
+    elif opcode == "param":
         pass
     elif opcode == "store":
         pass
@@ -321,16 +334,22 @@ def _generate_evm_for_instruction_r(
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
-            assembly.extend([*PUSH(inst.ret.addr)])
-            assembly.append("MSTORE")
+            if inst.ret.address_access:
+                if inst.opcode != "alloca":  # FIXMEEEE
+                    if inst.opcode != "codecopy":
+                        assembly.extend([*PUSH(inst.ret.addr)])
+                else:
+                    assembly.extend([*PUSH(inst.ret.addr + 30)])
+            else:
+                assembly.extend([*PUSH(inst.ret.addr)])
+                assembly.append("MSTORE")
 
     return assembly
 
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
+    ctx: IRFunction, assembly: list, inst: IRInstruction, ops: list[IROperand], stack_map: StackMap
 ) -> None:
-    ops = inst.operands
     for op in ops:
         if op.is_label:
             assembly.append(f"_sym_{op.value}")
@@ -343,7 +362,8 @@ def _emit_input_operands(
         assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
             if op.address_access:
-                assembly.extend([*PUSH(op.addr)])
+                if inst.opcode != "codecopy":
+                    assembly.extend([*PUSH(op.addr)])
             else:
                 assembly.extend([*PUSH(op.addr)])
                 assembly.append("MLOAD")

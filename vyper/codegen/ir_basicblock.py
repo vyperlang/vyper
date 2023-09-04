@@ -183,7 +183,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if op.is_label]
 
-    def get_input_operands(self) -> list[IROperand]:
+    def get_non_label_operands(self) -> list[IROperand]:
         """
         Get all input operands in instruction.
         """
@@ -194,7 +194,7 @@ class IRInstruction:
         Get all input operands for instruction.
         """
         return [
-            op.target
+            op
             for op in self.operands
             if op.is_variable  # and op.direction == IROperand.Direction.IN
         ]
@@ -339,7 +339,8 @@ class IRBasicBlock:
         """
         liveness = self.out_vars.copy()
         for instruction in self.instructions[::-1]:
-            liveness = liveness.union(instruction.get_input_operands())
+            ops = instruction.get_input_operands()
+            liveness = liveness.union([op.target for op in ops])
             out = (
                 instruction.get_output_operands()[0].target
                 if len(instruction.get_output_operands()) > 0

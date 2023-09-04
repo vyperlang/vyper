@@ -126,14 +126,14 @@ def _handle_internal_func(
     for _ in func_t.arguments:
         new_var = ctx.get_next_variable()
 
-        alloca_inst = IRInstruction("alloca", [], new_var)
+        alloca_inst = IRInstruction("param", [], new_var)
         bb.append_instruction(alloca_inst)
         symbols[f"&{old_ir_mempos}"] = new_var
         old_ir_mempos += 32
 
     # return address
     new_var = ctx.get_next_variable()
-    alloca_inst = IRInstruction("alloca", [], new_var)
+    alloca_inst = IRInstruction("param", [], new_var)
     bb.append_instruction(alloca_inst)
     symbols[f"return_pc"] = new_var
 
@@ -315,7 +315,7 @@ def _convert_ir_basicblock(
 
         arg_0_var = ctx.get_next_variable()
         arg_0_op = IROperand(arg_0, True, arg_0.value)
-        arg_0_op.direction = IROperand.Direction.OUT
+        # arg_0_op.direction = IROperand.Direction.OUT
         ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
 
         symbols[f"&{arg_0.value}"] = arg_0_var
@@ -323,18 +323,25 @@ def _convert_ir_basicblock(
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         if arg_0.is_literal and arg_0.value == 30:
-            arg_0_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
-            symbols[f"&0"] = arg_0_var
+            arg_0_var = ctx.get_next_variable()
+            arg_0_var.mem_type = IRVariable.MemType.MEMORY
+            arg_0_var.mem_addr = 0
+            alloca_op = IROperand(arg_0_var, True, 0)
+            ctx.get_basic_block().append_instruction(IRInstruction("alloca", [], alloca_op))
             arg_0_op = IROperand(arg_0_var, True, 30)
         else:
-            arg_0_var = ctx.get_next_variable()
-            symbols[f"&{arg_0.value}"] = arg_0_var
-            arg_0_op = IROperand(arg_0_var, True, 0)
-        arg_0_op.direction = IROperand.Direction.OUT
+            arg_0_op = IROperand(arg_0, True, 0)
 
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        inst = IRInstruction("codecopy", [arg_0_op, arg_1, size])
+        ret_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
+        ret_op = IROperand(ret_var, True)
+        symbols[f"&0"] = ret_var
+        inst = IRInstruction(
+            "codecopy",
+            [size, arg_1, arg_0_op],
+            ret_op,
+        )
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
