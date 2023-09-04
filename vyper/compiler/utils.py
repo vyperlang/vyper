@@ -1,6 +1,6 @@
 from typing import Dict
 
-from vyper.codegen.ir_basicblock import IRValueBase
+from vyper.codegen.ir_basicblock import IROperand, IRValueBase
 from vyper.semantics.types.function import ContractFunctionT
 
 
@@ -76,19 +76,19 @@ class StackMap:
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IRValueBase | list[IRValueBase]) -> int:
+    def get_depth_in(self, op: IROperand | list[IROperand]) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
-        assert isinstance(op, IRValueBase) or isinstance(
+        assert isinstance(op, IROperand) or isinstance(
             op, list
-        ), f"get_depth_in takes IRValueBase or list, got '{op}'"
+        ), f"get_depth_in takes IROperand or list, got '{op}'"
         for i, stack_op in enumerate(self.stack_map[::-1]):
             if isinstance(stack_op, IRValueBase):
-                if isinstance(op, IRValueBase) and stack_op.value == op.value:
+                if isinstance(op, IROperand) and stack_op.value == op.target.value:
                     return -i
-                elif isinstance(op, list) and stack_op in op:
+                elif isinstance(op, list) and stack_op in [v.target for v in op]:
                     return -i
 
         return StackMap.NOT_IN_STACK
