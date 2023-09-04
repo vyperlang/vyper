@@ -111,13 +111,12 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     # Append data segment
     data_segments = {}
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            if inst.opcode == "dbname":
-                label = inst.operands[0].value
-                data_segments[label] = [DataHeader(f"_sym_{label}")]
-            elif inst.opcode == "db":
-                data_segments[label].append(f"_sym_{inst.operands[0].value}")
+    for inst in ctx.data_segment:
+        if inst.opcode == "dbname":
+            label = inst.operands[0].value
+            data_segments[label] = [DataHeader(f"_sym_{label}")]
+        elif inst.opcode == "db":
+            data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
     extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
     extent_point.extend([data_segments[label] for label in data_segments])

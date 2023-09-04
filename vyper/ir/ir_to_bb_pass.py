@@ -333,16 +333,16 @@ def _convert_ir_basicblock(
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
         label = IRLabel(ir.args[0].value)
-        ctx.append_instruction("dbname", [label], False)
+        ctx.append_data("dbname", [label])
         for c in ir.args[1:]:
             if isinstance(c, int):
                 assert 0 <= c <= 255, "data with invalid size"
-                ctx.append_instruction("db", [c], False)
+                ctx.append_data("db", [c])
             elif isinstance(c, bytes):
-                ctx.append_instruction("db", [c], False)
+                ctx.append_data("db", [c])
             elif isinstance(c, IRnode):
                 data = _convert_ir_basicblock(ctx, c, symbols)
-                ctx.append_instruction("db", [data], False)
+                ctx.append_data("db", [data])
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         current_bb = ctx.get_basic_block()
