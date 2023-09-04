@@ -313,9 +313,12 @@ def _convert_ir_basicblock(
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
 
-        new_var = ctx.append_instruction("calldatacopy", [arg_1, size])
+        arg_0_var = ctx.get_next_variable()
+        arg_0_op = IROperand(arg_0, True, arg_0.value)
+        arg_0_op.direction = IROperand.Direction.OUT
+        ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
 
-        symbols[f"&{arg_0.value}"] = new_var
+        symbols[f"&{arg_0.value}"] = arg_0_var
         return new_var
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
@@ -327,10 +330,11 @@ def _convert_ir_basicblock(
             arg_0_var = ctx.get_next_variable()
             symbols[f"&{arg_0.value}"] = arg_0_var
             arg_0_op = IROperand(arg_0_var, True, 0)
+        arg_0_op.direction = IROperand.Direction.OUT
 
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
-        inst = IRInstruction("codecopy", [arg_1, size], arg_0_op)
+        inst = IRInstruction("codecopy", [arg_0_op, arg_1, size])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)

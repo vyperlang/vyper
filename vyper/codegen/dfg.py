@@ -65,7 +65,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     dfg_outputs = {}
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            variables = inst.get_input_variables()
+            variables = inst.get_input_operands()
             res = inst.get_output_operands()
 
             for v in variables:
@@ -194,7 +194,7 @@ def _generate_evm_for_instruction_r(
 
     if opcode == "select":
         ret = inst.get_output_operands()[0]
-        inputs = inst.get_input_variables()
+        inputs = inst.get_input_operands()
         depth = stack_map.get_depth_in(inputs)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)

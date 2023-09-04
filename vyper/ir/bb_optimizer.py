@@ -2,7 +2,6 @@ from vyper.codegen.ir_basicblock import (
     TERMINATOR_IR_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
-    IRLabel,
 )
 from vyper.codegen.ir_function import IRFunction
 
