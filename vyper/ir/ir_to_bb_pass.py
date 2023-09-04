@@ -219,11 +219,11 @@ def _convert_ir_basicblock(
         retSize = _convert_ir_basicblock(ctx, ir.args[6], symbols)
 
         if argsOffset.is_literal:
-            addr = argsOffset.value - 32 + 4
+            addr = argsOffset.value - 32 + 4 if argsOffset.value > 0 else 0
             argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
             argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
             argsOffsetVar.mem_addr = addr
-            argsOffsetOp = IROperand(argsOffsetVar, True, 32 - 4)
+            argsOffsetOp = IROperand(argsOffsetVar, True, 32 - 4 if argsOffset.value > 0 else 0)
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
@@ -544,6 +544,9 @@ def _convert_ir_basicblock(
 
         symbols[f"&{arg_0.value}"] = new_var
         return new_var
+    elif ir.value == "selfdestruct":
+        arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        ctx.append_instruction("selfdestruct", [arg_0], False)
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         # count = int(ir.value[3:])
         args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
@@ -563,8 +566,9 @@ def _convert_ir_basicblock(
 
 def _convert_ir_opcode(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None:
     opcode = str(ir.value).upper()
+    inst_args = []
     for arg in ir.args:
         if isinstance(arg, IRnode):
-            _convert_ir_basicblock(ctx, arg, symbols)
-    instruction = IRInstruction(opcode, ir.args)
+            inst_args.append(_convert_ir_basicblock(ctx, arg, symbols))
+    instruction = IRInstruction(opcode, inst_args)
     ctx.get_basic_block().append_instruction(instruction)

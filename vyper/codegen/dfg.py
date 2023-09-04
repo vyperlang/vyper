@@ -25,6 +25,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "sstore",
     "timestamp",
     "caller",
+    "selfdestruct",
     "shr",
     "shl",
     "and",
@@ -202,6 +203,8 @@ def _generate_evm_for_instruction_r(
         operands = inst.get_non_label_operands()
     else:
         operands = inst.operands
+
+    operands = operands[::-1]
 
     if opcode == "select":
         ret = inst.get_output_operands()[0]
