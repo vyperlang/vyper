@@ -144,8 +144,9 @@ def _generate_evm_for_basicblock_r(
 
     for var in in_vars:
         depth = stack_map.get_depth_in(var)
-        if depth == StackMap.NOT_IN_STACK:
-            continue
+        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        # if depth == StackMap.NOT_IN_STACK:
+        #     continue
         if depth != 0:
             stack_map.swap(asm, depth)
         stack_map.pop()
