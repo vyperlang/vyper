@@ -205,7 +205,7 @@ def _generate_evm_for_instruction_r(
     else:
         operands = inst.operands
 
-    operands = operands[::-1]
+    # operands = operands[::-1]
 
     if opcode == "select":
         ret = inst.get_output_operands()[0]
@@ -220,7 +220,7 @@ def _generate_evm_for_instruction_r(
             stack_map.poke(depth, ret.target)
         return assembly
 
-    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
+    _emit_input_operands(ctx, assembly, inst, operands[::-1], stack_map)
 
     for op in operands:
         # final_stack_depth = -(len(operands) - i - 1)
