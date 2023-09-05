@@ -782,54 +782,50 @@ class ECRecover(BuiltinFunction):
         )
 
 
-class ECAdd(BuiltinFunction):
+class _ECArith(BuiltinFunction):
+    @process_inputs
+    def build_IR(self, expr, _args, kwargs, context):
+        args_tuple = ir_tuple_from_args(_args)
+
+        args_t = args_tuple.typ
+        input_buf = IRnode.from_list(
+            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
+        )
+        ret_t = self._return_type
+
+        ret = ["seq"]
+        ret.append(make_setter(input_buf, args_tuple))
+
+        output_buf = context.new_internal_variable(ret_t)
+
+        args_ofst = input_buf
+        args_len = args_t.memory_bytes_required
+        out_ofst = output_buf
+        out_len = ret_t.memory_bytes_required
+
+        ret.append(
+            [
+                "assert",
+                ["staticcall", ["gas"], self._precompile, args_ofst, args_len, out_ofst, out_len],
+            ]
+        )
+        ret.append(output_buf)
+
+        return IRnode.from_list(ret, typ=ret_t, location=MEMORY)
+
+
+class ECAdd(_ECArith):
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        buf_t = get_type_for_exact_size(128)
-
-        buf = context.new_internal_variable(buf_t)
-
-        ret = ["seq"]
-
-        dst0 = IRnode.from_list(buf, typ=SArrayT(UINT256_T, 2), location=MEMORY)
-        ret.append(make_setter(dst0, args[0]))
-
-        dst1 = IRnode.from_list(buf + 64, typ=SArrayT(UINT256_T, 2), location=MEMORY)
-        ret.append(make_setter(dst1, args[1]))
-
-        ret.append(["assert", ["staticcall", ["gas"], 6, buf, 128, buf, 64]])
-        ret.append(buf)
-
-        return IRnode.from_list(ret, typ=SArrayT(UINT256_T, 2), location=MEMORY)
+    _precompile = 0x6
 
 
-class ECMul(BuiltinFunction):
+class ECMul(_ECArith):
     _id = "ecmul"
     _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        buf_t = get_type_for_exact_size(96)
-
-        buf = context.new_internal_variable(buf_t)
-
-        ret = ["seq"]
-
-        dst0 = IRnode.from_list(buf, typ=SArrayT(UINT256_T, 2), location=MEMORY)
-        ret.append(make_setter(dst0, args[0]))
-
-        dst1 = IRnode.from_list(buf + 64, typ=UINT256_T, location=MEMORY)
-        ret.append(make_setter(dst1, args[1]))
-
-        ret.append(["assert", ["staticcall", ["gas"], 7, buf, 96, buf, 64]])
-        ret.append(buf)
-
-        return IRnode.from_list(ret, typ=SArrayT(UINT256_T, 2), location=MEMORY)
+    _precompile = 0x7
 
 
 def _generic_element_getter(op):
