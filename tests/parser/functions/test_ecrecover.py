@@ -59,6 +59,7 @@ def test_ecrecover(hash: bytes32, v: uint8, r: uint256) -> address:
     # note web3.py decoding of 0x000..00 address is None.
     assert c.test_ecrecover(hash_, v, r) is None
 
+
 # slightly more subtle example: get_v() stomps memory location 0,
 # so this tests that the output buffer stays clean during ecrecover()
 # builtin execution.
