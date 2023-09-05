@@ -20,8 +20,27 @@ class OrderedSet(dict):
     functionality as needed.
     """
 
+    def __repr__(self):
+        keys = ", ".join(repr(k) for k in self.keys())
+        return f"OrderedSet({{{keys}}})"
+
     def add(self, item):
         self[item] = None
+
+    def remove(self, item):
+        del self[item]
+
+    def difference(self, other):
+        ret = self.copy()
+        for k in other.keys():
+            ret.pop(k, None)
+        return ret
+
+    def union(self, other):
+        return self.__class__(self | other)
+
+    def copy(self):
+        return self.__class__(super().copy())
 
 
 class DecimalContextOverride(decimal.Context):

@@ -140,11 +140,7 @@ def _handle_internal_func(
     return ir.args[0].args[2]
 
 
-def _convert_ir_simple_node(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
-) -> IRVariable:
+def _convert_ir_simple_node(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> IRVariable:
     args = [_convert_ir_basicblock(ctx, arg, symbols) for arg in ir.args]
     return ctx.append_instruction(ir.value, args)
 
@@ -154,9 +150,7 @@ _continue_target: IRBasicBlock = None
 
 
 def _convert_ir_basicblock(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
 ) -> Optional[IRVariable]:
     global _break_target, _continue_target
     # symbols = symbols.copy()
@@ -337,11 +331,7 @@ def _convert_ir_basicblock(
         ret_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
         ret_op = IROperand(ret_var, True)
         symbols[f"&0"] = ret_var
-        inst = IRInstruction(
-            "codecopy",
-            [size, arg_1, arg_0_op],
-            ret_op,
-        )
+        inst = IRInstruction("codecopy", [size, arg_1, arg_0_op], ret_op)
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)

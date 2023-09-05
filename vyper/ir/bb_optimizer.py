@@ -1,9 +1,6 @@
-from vyper.codegen.ir_basicblock import (
-    TERMINATOR_IR_INSTRUCTIONS,
-    IRBasicBlock,
-    IRInstruction,
-)
+from vyper.codegen.ir_basicblock import TERMINATOR_IR_INSTRUCTIONS, IRBasicBlock, IRInstruction
 from vyper.codegen.ir_function import IRFunction
+from vyper.utils import OrderedSet
 
 
 def optimize_function(ctx: IRFunction):
@@ -84,9 +81,9 @@ def _calculate_in_set(ctx: IRFunction) -> None:
     Calculate in set for each basic block.
     """
     for bb in ctx.basic_blocks:
-        bb.in_set = set()
-        bb.out_set = set()
-        bb.out_vars = set()
+        bb.in_set = OrderedSet()
+        bb.out_set = OrderedSet()
+        bb.out_vars = OrderedSet()
         bb.phi_vars = {}
 
     deploy_bb = None

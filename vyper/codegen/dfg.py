@@ -8,7 +8,7 @@ from vyper.codegen.ir_basicblock import (
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
-from vyper.utils import MemoryPositions
+from vyper.utils import MemoryPositions, OrderedSet
 
 ONE_TO_ONE_INSTRUCTIONS = [
     "revert",
@@ -148,14 +148,14 @@ def _generate_evm_for_basicblock_r(
     asm.append("JUMPDEST")
 
     # values to pop from stack
-    in_vars = set()
+    in_vars = OrderedSet()
     for in_bb in basicblock.in_set:
         in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
 
     for var in in_vars:
         depth = stack_map.get_depth_in(IROperand(var))
         # assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
-        if depth == StackMap.NOT_IN_STACK:
+        if depth is StackMap.NOT_IN_STACK:
             continue
         if depth != 0:
             stack_map.swap(asm, depth)
@@ -227,7 +227,7 @@ def _generate_evm_for_instruction_r(
         ucc = inst.get_use_count_correction(op)
         assert op.target.use_count >= ucc, "Operand used up"
         depth = stack_map.get_depth_in(op)
-        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         needs_copy = op.target.use_count - ucc > 1
         if needs_copy:
             stack_map.dup(assembly, depth)
@@ -237,7 +237,7 @@ def _generate_evm_for_instruction_r(
         op = operands[i]
         final_stack_depth = -(len(operands) - i - 1)
         depth = stack_map.get_depth_in(op)
-        assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         in_place_var = stack_map.peek(-final_stack_depth)
         is_in_place = in_place_var.value == op.target.value
 

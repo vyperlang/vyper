@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 from enum import Enum
+from vyper.utils import OrderedSet
 
 TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
@@ -258,9 +259,9 @@ class IRBasicBlock:
     label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
-    in_set: set["IRBasicBlock"]
-    out_set: set["IRBasicBlock"]
-    out_vars: set[IRVariable]
+    in_set: OrderedSet["IRBasicBlock"]
+    out_set: OrderedSet["IRBasicBlock"]
+    out_vars: OrderedSet[IRVariable]
     phi_vars: dict[str, IRVariable]
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -268,15 +269,15 @@ class IRBasicBlock:
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.in_set = set()
-        self.out_set = set()
-        self.out_vars = set()
+        self.in_set = OrderedSet()
+        self.out_set = OrderedSet()
+        self.out_vars = OrderedSet()
         self.phi_vars = {}
 
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
 
-    def union_in(self, bb_set: set["IRBasicBlock"]) -> None:
+    def union_in(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
         self.in_set = self.in_set.union(bb_set)
 
     def remove_in(self, bb: "IRBasicBlock") -> None:
@@ -285,7 +286,7 @@ class IRBasicBlock:
     def add_out(self, bb: "IRBasicBlock") -> None:
         self.out_set.add(bb)
 
-    def union_out(self, bb_set: set["IRBasicBlock"]) -> None:
+    def union_out(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
         self.out_set = self.out_set.union(bb_set)
 
     def remove_out(self, bb: "IRBasicBlock") -> None:
@@ -340,7 +341,7 @@ class IRBasicBlock:
         liveness = self.out_vars.copy()
         for instruction in self.instructions[::-1]:
             ops = instruction.get_input_operands()
-            liveness = liveness.union([op.target for op in ops])
+            liveness = liveness.union(OrderedSet.fromkeys([op.target for op in ops]))
             out = (
                 instruction.get_output_operands()[0].target
                 if len(instruction.get_output_operands()) > 0

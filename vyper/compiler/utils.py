@@ -49,7 +49,7 @@ def _expand_row(row):
 
 
 class StackMap:
-    NOT_IN_STACK = 1
+    NOT_IN_STACK = object()
     stack_map: list[IRValueBase]
 
     def __init__(self):
