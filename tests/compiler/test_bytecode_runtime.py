@@ -42,7 +42,7 @@ def __init__():
 
 
 def _parse_cbor_metadata(initcode):
-    metadata_ofst = int.from_bytes(initcode[-2:])
+    metadata_ofst = int.from_bytes(initcode[-2:], "big")
     metadata = cbor2.loads(initcode[-metadata_ofst:-2])
     return metadata
 
