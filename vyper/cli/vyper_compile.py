@@ -41,6 +41,7 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
+asm                - Output the EVM assembly of the deployable bytecode
 hex-ir             - Output IR and assembly constants in hex instead of decimal
 """
 
