@@ -826,7 +826,7 @@ class ECMul(BuiltinFunction):
         dst1 = IRnode.from_list(buf + 64, typ=UINT256_T, location=MEMORY)
         ret.append(make_setter(dst1, args[1]))
 
-        ret.append(["assert", ["staticcall", ["gas"], 7, buf, 128, buf, 64]])
+        ret.append(["assert", ["staticcall", ["gas"], 7, buf, 96, buf, 64]])
         ret.append(buf)
 
         return IRnode.from_list(ret, typ=SArrayT(UINT256_T, 2), location=MEMORY)
