@@ -72,7 +72,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "interface", "struct" and "event" keywords into python "class" keyword
+    * Translates "interface", "struct", "enum, and "event" keywords into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
