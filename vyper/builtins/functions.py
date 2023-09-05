@@ -765,7 +765,7 @@ class ECRecover(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         input_buf = context.new_internal_variable(get_type_for_exact_size(128))
-        output_buf = MemoryPositions.FREE_VAR_SPACE
+        output_buf = context.new_internal_variable(get_type_for_exact_size(32))
         return IRnode.from_list(
             [
                 "seq",
