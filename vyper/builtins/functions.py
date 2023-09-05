@@ -25,9 +25,9 @@ from vyper.codegen.core import (
     eval_once_check,
     eval_seq,
     get_bytearray_length,
-    get_element_ptr,
     get_type_for_exact_size,
     ir_tuple_from_args,
+    make_setter,
     needs_external_call_wrap,
     promote_signed_int,
     sar,
@@ -782,10 +782,6 @@ class ECRecover(BuiltinFunction):
         )
 
 
-def _getelem(arg, ind):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, typ=INT128_T)))
-
-
 class ECAdd(BuiltinFunction):
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
@@ -793,28 +789,22 @@ class ECAdd(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
+        buf_t = get_type_for_exact_size(128)
 
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], _getelem(b, 0)],
-                    ["mstore", ["add", placeholder_node, 96], _getelem(b, 1)],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b1.resolve(b2.resolve(o))
+        buf = context.new_internal_variable(buf_t)
+
+        ret = ["seq"]
+
+        dst0 = IRnode.from_list(buf, typ=SArrayT(UINT256_T, 2), location=MEMORY)
+        ret.append(make_setter(dst0, args[0]))
+
+        dst1 = IRnode.from_list(buf + 64, typ=SArrayT(UINT256_T, 2), location=MEMORY)
+        ret.append(make_setter(dst1, args[1]))
+
+        ret.append(["assert", ["staticcall", ["gas"], 6, buf, 128, buf, 64]])
+        ret.append(buf)
+
+        return IRnode.from_list(ret, typ=SArrayT(UINT256_T, 2), location=MEMORY)
 
 
 class ECMul(BuiltinFunction):
@@ -824,27 +814,22 @@ class ECMul(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
+        buf_t = get_type_for_exact_size(96)
 
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], b],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b1.resolve(b2.resolve(o))
+        buf = context.new_internal_variable(buf_t)
+
+        ret = ["seq"]
+
+        dst0 = IRnode.from_list(buf, typ=SArrayT(UINT256_T, 2), location=MEMORY)
+        ret.append(make_setter(dst0, args[0]))
+
+        dst1 = IRnode.from_list(buf + 64, typ=UINT256_T, location=MEMORY)
+        ret.append(make_setter(dst1, args[1]))
+
+        ret.append(["assert", ["staticcall", ["gas"], 7, buf, 128, buf, 64]])
+        ret.append(buf)
+
+        return IRnode.from_list(ret, typ=SArrayT(UINT256_T, 2), location=MEMORY)
 
 
 def _generic_element_getter(op):
