@@ -9,7 +9,7 @@ on:
     branches:
       - master
   release:
-    types: [released]
+    types: [published]  # releases and pre-releases (release candidates)
 
 defaults:
   run:
