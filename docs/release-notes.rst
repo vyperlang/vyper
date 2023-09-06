@@ -18,16 +18,19 @@ v0.3.10 ("Black Adder")
 ***********************
 
 Date released: 2023-09-18
+=========================
 
 v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode, adds new vyper-specific ``#pragma`` directives, uses Cancun's ``MCOPY`` opcode for some compiler generated code, and generates selector tables which now feature O(1) performance.
 
 Breaking changes:
+-----------------
 
 - add runtime code layout to initcode (`#3584 <https://github.com/vyperlang/vyper/pull/3584>`_)
 - drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
 - remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
 
 Non-breaking changes and improvements:
+--------------------------------------
 
 - O(1) selector tables (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_)
 - implement bound= in ranges (`#3537 <https://github.com/vyperlang/vyper/pull/3537>`_, `#3551 <https://github.com/vyperlang/vyper/pull/3551>`_)
@@ -35,6 +38,7 @@ Non-breaking changes and improvements:
 - improve batch copy performance (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_, `#3499 <https://github.com/vyperlang/vyper/pull/3499>`_, `#3525 <https://github.com/vyperlang/vyper/pull/3525>`_)
 
 Notable fixes:
+--------------
 
 - fix ``ecrecover()`` behavior when signature is invalid (`GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_, `#3586 <https://github.com/vyperlang/vyper/pull/3586>`_)
 - fix: order of evaluation for some builtins (`#3583 <https://github.com/vyperlang/vyper/pull/3583>`_, `#3587 <https://github.com/vyperlang/vyper/pull/3587>`_)
@@ -46,6 +50,7 @@ Notable fixes:
 - fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
 
 Other docs updates, chores and fixes:
+-------------------------------------
 
 - relax restrictions on internal function signatures (`#3573 <https://github.com/vyperlang/vyper/pull/3573>`_)
 - note on security advisory in release notes for versions ``0.2.15``, ``0.2.16``, and ``0.3.0`` (`#3553 <https://github.com/vyperlang/vyper/pull/3553>`_)
