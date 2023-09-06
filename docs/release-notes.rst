@@ -17,7 +17,7 @@ Release Notes
 v0.3.10 ("Black Adder")
 ***********************
 
-Date released: 2023-09-06
+Date released: 2023-09-18
 
 v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode, adds new vyper-specific ``#pragma`` directives, uses Cancun's ``MCOPY`` opcode for some compiler generated code, and generates selector tables which now feature O(1) performance.
 
