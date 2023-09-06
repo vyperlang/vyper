@@ -14,12 +14,15 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-v0.3.10 ("Black Adder")
-***********************
-
 ..
-    Date released: 2023-09-18
-    =========================
+    v0.3.10 ("Black Adder")
+    ***********************
+
+v0.3.10rc1
+**********
+
+Date released: 2023-09-06
+=========================
 
 v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
 
