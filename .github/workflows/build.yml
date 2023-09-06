@@ -108,5 +108,6 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     needs: [windows-build, unix-build]
-    run: |
-      exit 0
+    steps:
+      run: |
+        exit 0
