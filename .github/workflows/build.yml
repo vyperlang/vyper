@@ -1,4 +1,4 @@
-name: Build and release artifacts
+name: Build artifacts
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - master
+  pull_request:
   release:
     types: [published]  # releases and pre-releases (release candidates)
 
@@ -41,6 +42,7 @@ jobs:
           pip install --no-binary pycryptodome --no-binary cbor2 . &&
           pip install pyinstaller &&
           make freeze
+
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -101,3 +103,13 @@ jobs:
               "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
               --data-binary "@${BIN_NAME}"
           done
+
+  # check build success for pull requests
+  build-success:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [windows-build, unix-build]
+    steps:
+      - name: check that all builds succeeded
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
