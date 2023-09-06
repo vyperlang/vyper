@@ -23,7 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -242,10 +242,6 @@ class Expr:
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not version_check(begin="constantinople"):
-                raise EvmVersionException(
-                    "address.codehash is unavailable prior to constantinople ruleset", self.expr
-                )
             if addr.typ == AddressT():
                 return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
         # x.code: codecopy/extcodecopy of address x
@@ -259,10 +255,12 @@ class Expr:
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             varinfo = self.context.globals[self.expr.attr]
+            location = TRANSIENT if varinfo.is_transient else STORAGE
+
             ret = IRnode.from_list(
                 varinfo.position.position,
                 typ=varinfo.typ,
-                location=STORAGE,
+                location=location,
                 annotation="self." + self.expr.attr,
             )
             ret._referenced_variables = {varinfo}
@@ -370,13 +368,17 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        if not isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift)):
+        is_shift_op = isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift))
+
+        if is_shift_op:
+            assert is_numeric_type(left.typ)
+            assert is_numeric_type(right.typ)
+        else:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
-
-        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
+            assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         out_typ = left.typ
 
@@ -399,7 +401,6 @@ class Expr:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
                 return
             op = shr if not left.typ.is_signed else sar
-            # note: sar NotImplementedError for pre-constantinople
             return IRnode.from_list(op(right, left), typ=new_typ)
 
         # enums can only do bit ops, not arithmetic.
@@ -665,7 +666,7 @@ class Expr:
             elif isinstance(self.expr._metadata["type"], StructT):
                 args = self.expr.args
                 if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], function_name, self.context)
+                    return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
             # Interface assignment. Bar(<address>).
             elif isinstance(self.expr._metadata["type"], InterfaceT):
@@ -734,7 +735,7 @@ class Expr:
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
     @staticmethod
-    def struct_literals(expr, name, context):
+    def struct_literals(expr, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
@@ -745,10 +746,8 @@ class Expr:
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructT(name, member_typs),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
         )
 
     # Parse an expression that results in a value

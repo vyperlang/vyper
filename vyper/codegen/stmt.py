@@ -60,7 +60,7 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        ltyp = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
         alloced = self.context.new_variable(varname, ltyp)
 
@@ -258,11 +258,17 @@ class Stmt:
         arg0 = self.stmt.iter.args[0]
         num_of_args = len(self.stmt.iter.args)
 
+        kwargs = {
+            s.arg: Expr.parse_value_expr(s.value, self.context)
+            for s in self.stmt.iter.keywords or []
+        }
+
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
-            arg0_val = self._get_range_const_value(arg0)
+            n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
-            rounds = arg0_val
+            rounds = n
+            rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
@@ -270,6 +276,7 @@ class Stmt:
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
             rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
+            rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
@@ -278,9 +285,10 @@ class Stmt:
             start = Expr.parse_value_expr(arg0, self.context)
             _, hi = start.typ.int_bounds
             start = clamp("le", start, hi + 1 - rounds)
+            rounds_bound = rounds
 
-        r = rounds if isinstance(rounds, int) else rounds.value
-        if r < 1:
+        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
+        if bound < 1:
             return
 
         varname = self.stmt.target.id
@@ -294,7 +302,12 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
+        # NOTE: codegen for `repeat` inserts an assertion that rounds <= rounds_bound.
+        # if we ever want to remove that, we need to manually add the assertion
+        # where it makes sense.
+        ir_node = IRnode.from_list(
+            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
+        )
         del self.context.forvars[varname]
 
         return ir_node
@@ -303,10 +316,8 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.value_type = target_type
+        assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id

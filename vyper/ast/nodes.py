@@ -1,4 +1,5 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
@@ -338,7 +339,7 @@ class VyperNode:
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        if other.node_id != self.node_id:
+        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
             return False
         for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
@@ -663,6 +664,19 @@ class Module(TopLevel):
         """
         self.body.remove(node)
         self._children.remove(node)
+
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
 
 
 class FunctionDef(TopLevel):
@@ -1330,7 +1344,15 @@ class VariableDecl(VyperNode):
         If true, indicates that the variable is an immutable variable.
     """
 
-    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+    __slots__ = (
+        "target",
+        "annotation",
+        "value",
+        "is_constant",
+        "is_public",
+        "is_immutable",
+        "is_transient",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1338,6 +1360,7 @@ class VariableDecl(VyperNode):
         self.is_constant = False
         self.is_public = False
         self.is_immutable = False
+        self.is_transient = False
 
         def _check_args(annotation, call_name):
             # do the same thing as `validate_call_args`
@@ -1355,9 +1378,10 @@ class VariableDecl(VyperNode):
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
-        if self.annotation.get("func.id") in ("immutable", "constant"):
-            _check_args(self.annotation, self.annotation.func.id)
-            setattr(self, f"is_{self.annotation.func.id}", True)
+        func_id = self.annotation.get("func.id")
+        if func_id in ("immutable", "constant", "transient"):
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 

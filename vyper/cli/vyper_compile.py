@@ -5,13 +5,18 @@ import sys
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Set, TypeVar
+from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
 from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
-from vyper.compiler.settings import VYPER_TRACEBACK_LIMIT
+from vyper.compiler.settings import (
+    VYPER_TRACEBACK_LIMIT,
+    OptimizationLevel,
+    Settings,
+    _set_debug_mode,
+)
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
@@ -36,9 +41,8 @@ opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
 ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
+asm                - Output the EVM assembly of the deployable bytecode
 hex-ir             - Output IR and assembly constants in hex instead of decimal
-no-optimize        - Do not optimize (don't use this for production code)
-no-bytecode-metadata - Do not add metadata to bytecode
 """
 
 combined_json_outputs = [
@@ -101,12 +105,18 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION})",
+        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION}). "
+        "note: cancun support is EXPERIMENTAL",
         choices=list(EVM_VERSIONS),
-        default=DEFAULT_EVM_VERSION,
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
+    parser.add_argument(
+        "--optimize",
+        help="Optimization flag (defaults to 'gas')",
+        choices=["gas", "codesize", "none"],
+    )
+    parser.add_argument("--debug", help="Compile in debug mode", action="store_true")
     parser.add_argument(
         "--no-bytecode-metadata", help="Do not add metadata to bytecode", action="store_true"
     )
@@ -152,13 +162,31 @@ def _parse_args(argv):
 
     output_formats = tuple(uniq(args.format.split(",")))
 
+    if args.debug:
+        _set_debug_mode(True)
+
+    if args.no_optimize and args.optimize:
+        raise ValueError("Cannot use `--no-optimize` and `--optimize` at the same time!")
+
+    settings = Settings()
+
+    if args.no_optimize:
+        settings.optimize = OptimizationLevel.NONE
+    elif args.optimize is not None:
+        settings.optimize = OptimizationLevel.from_string(args.optimize)
+
+    if args.evm_version:
+        settings.evm_version = args.evm_version
+
+    if args.verbose:
+        print(f"cli specified: `{settings}`", file=sys.stderr)
+
     compiled = compile_files(
         args.input_files,
         output_formats,
         args.root_folder,
         args.show_gas_estimates,
-        args.evm_version,
-        args.no_optimize,
+        settings,
         args.storage_layout,
         args.no_bytecode_metadata,
     )
@@ -252,9 +280,8 @@ def compile_files(
     output_formats: OutputFormats,
     root_folder: str = ".",
     show_gas_estimates: bool = False,
-    evm_version: str = DEFAULT_EVM_VERSION,
-    no_optimize: bool = False,
-    storage_layout: Iterable[str] = None,
+    settings: Optional[Settings] = None,
+    storage_layout: Optional[Iterable[str]] = None,
     no_bytecode_metadata: bool = False,
 ) -> OrderedDict:
     root_path = Path(root_folder).resolve()
@@ -295,8 +322,7 @@ def compile_files(
         final_formats,
         exc_handler=exc_handler,
         interface_codes=get_interface_codes(root_path, contract_sources),
-        evm_version=evm_version,
-        no_optimize=no_optimize,
+        settings=settings,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
         no_bytecode_metadata=no_bytecode_metadata,

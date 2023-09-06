@@ -173,8 +173,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["type"]
         self.annotation_visitor = StatementAnnotationVisitor(fn_node, namespace)
         self.expr_visitor = _LocalExpressionVisitor()
-        for argname, argtype in self.func.arguments.items():
-            namespace[argname] = VarInfo(argtype, location=DataLocation.CALLDATA, is_immutable=True)
+
+        # allow internal function params to be mutable
+        location, is_immutable = (
+            (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
+        )
+        for arg in self.func.arguments:
+            namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable)
 
         for node in fn_node.body:
             self.visit(node)
@@ -341,18 +346,39 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            validate_call_args(node.iter, (1, 2))
+            range_ = node.iter
+            validate_call_args(range_, (1, 2), kwargs=["bound"])
 
-            args = node.iter.args
+            args = range_.args
+            kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
                 # range(CONSTANT)
-                if not isinstance(args[0], vy_ast.Num):
-                    raise StateAccessViolation("Value must be a literal", node)
-                if args[0].value <= 0:
-                    raise StructureException("For loop must have at least 1 iteration", args[0])
-                validate_expected_type(args[0], IntegerT.any())
-                type_list = get_possible_types_from_node(args[0])
+                n = args[0]
+                bound = kwargs.pop("bound", None)
+                validate_expected_type(n, IntegerT.any())
+
+                if bound is None:
+                    if not isinstance(n, vy_ast.Num):
+                        raise StateAccessViolation("Value must be a literal", n)
+                    if n.value <= 0:
+                        raise StructureException("For loop must have at least 1 iteration", args[0])
+                    type_list = get_possible_types_from_node(n)
+
+                else:
+                    if not isinstance(bound, vy_ast.Num):
+                        raise StateAccessViolation("bound must be a literal", bound)
+                    if bound.value <= 0:
+                        raise StructureException("bound must be at least 1", args[0])
+                    type_list = get_common_types(n, bound)
+
             else:
+                if range_.keywords:
+                    raise StructureException(
+                        "Keyword arguments are not supported for `range(N, M)` and"
+                        "`range(x, x + N)` expressions",
+                        range_.keywords[0],
+                    )
+
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):
@@ -541,6 +567,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
+        if self.func.mutability <= StateMutability.VIEW:
+            raise StructureException(
+                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+            )
         f.fetch_call_return(node.value)
         self.expr_visitor.visit(node.value)
 

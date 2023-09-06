@@ -1,4 +1,4 @@
-name: Artifacts
+name: Build and release artifacts
 
 on:
   workflow_dispatch:
@@ -6,10 +6,10 @@ on:
       tag:
         default: ''
   push:
-    tags:
-      - '*'
     branches:
       - master
+  release:
+    types: [released]
 
 defaults:
   run:
@@ -20,10 +20,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-20.04, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -34,10 +34,11 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Generate Binary
         run: >-
-          pip install . &&
+          pip install --no-binary pycryptodome . &&
           pip install pyinstaller &&
           make freeze
 
@@ -50,7 +51,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -61,6 +62,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Generate Binary
         run: >-
@@ -72,3 +74,30 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
+
+  publish-release-assets:
+    needs: [windows-build, unix-build]
+    if: ${{ github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Upload assets
+        # fun - artifacts are downloaded into "artifact/".
+        working-directory: artifacts/artifact
+        run: |
+          set -Eeuxo pipefail
+          for BIN_NAME in $(ls)
+          do
+            curl -L \
+              --no-progress-meter \
+              -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+              -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
+              --data-binary "@${BIN_NAME}"
+          done

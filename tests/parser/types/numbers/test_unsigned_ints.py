@@ -195,49 +195,6 @@ def foo(x: {typ}, y: {typ}) -> bool:
         assert c.foo(x, y) is expected
 
 
-# TODO move to tests/parser/functions/test_mulmod.py and test_addmod.py
-def test_uint256_mod(assert_tx_failed, get_contract_with_gas_estimation):
-    uint256_code = """
-@external
-def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
-    return uint256_addmod(x, y, z)
-
-@external
-def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
-    return uint256_mulmod(x, y, z)
-    """
-
-    c = get_contract_with_gas_estimation(uint256_code)
-
-    assert c._uint256_addmod(1, 2, 2) == 1
-    assert c._uint256_addmod(32, 2, 32) == 2
-    assert c._uint256_addmod((2**256) - 1, 0, 2) == 1
-    assert c._uint256_addmod(2**255, 2**255, 6) == 4
-    assert_tx_failed(lambda: c._uint256_addmod(1, 2, 0))
-    assert c._uint256_mulmod(3, 1, 2) == 1
-    assert c._uint256_mulmod(200, 3, 601) == 600
-    assert c._uint256_mulmod(2**255, 1, 3) == 2
-    assert c._uint256_mulmod(2**255, 2, 6) == 4
-    assert_tx_failed(lambda: c._uint256_mulmod(2, 2, 0))
-
-
-def test_uint256_modmul(get_contract_with_gas_estimation):
-    modexper = """
-@external
-def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
-    o: uint256 = 1
-    for i in range(256):
-        o = uint256_mulmod(o, o, modulus)
-        if exponent & (1 << (255 - i)) != 0:
-            o = uint256_mulmod(o, base, modulus)
-    return o
-    """
-
-    c = get_contract_with_gas_estimation(modexper)
-    assert c.exponential(3, 5, 100) == 43
-    assert c.exponential(2, 997, 997) == 2
-
-
 @pytest.mark.parametrize("typ", types)
 def test_uint_literal(get_contract, assert_compile_failed, typ):
     lo, hi = typ.ast_bounds

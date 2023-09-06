@@ -20,9 +20,13 @@ class Namespace(dict):
         List of sets containing the key names for each scope
     """
 
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls, *args, **kwargs)
+        self._scopes = []
+        return self
+
     def __init__(self):
         super().__init__()
-        self._scopes = []
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
@@ -126,14 +130,57 @@ def validate_identifier(attr):
         raise StructureException(f"'{attr}' is a reserved keyword")
 
 
+# https://docs.python.org/3/reference/lexical_analysis.html#keywords
+# note we don't technically need to block all python reserved keywords,
+# but do it for hygiene
+_PYTHON_RESERVED_KEYWORDS = {
+    "False",
+    "None",
+    "True",
+    "and",
+    "as",
+    "assert",
+    "async",
+    "await",
+    "break",
+    "class",
+    "continue",
+    "def",
+    "del",
+    "elif",
+    "else",
+    "except",
+    "finally",
+    "for",
+    "from",
+    "global",
+    "if",
+    "import",
+    "in",
+    "is",
+    "lambda",
+    "nonlocal",
+    "not",
+    "or",
+    "pass",
+    "raise",
+    "return",
+    "try",
+    "while",
+    "with",
+    "yield",
+}
+_PYTHON_RESERVED_KEYWORDS = {s.lower() for s in _PYTHON_RESERVED_KEYWORDS}
+
 # Cannot be used for variable or member naming
-RESERVED_KEYWORDS = {
+RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     # decorators
     "public",
     "external",
     "nonpayable",
     "constant",
     "immutable",
+    "transient",
     "internal",
     "payable",
     "nonreentrant",
@@ -153,14 +200,8 @@ RESERVED_KEYWORDS = {
     "_default_",
     "___default___",
     "____default____",
-    # boolean literals
-    "true",
-    "false",
     # more control flow and special operations
-    "this",
     "range",
-    # None sentinal value
-    "none",
     # more special operations
     "indexed",
     # denominations

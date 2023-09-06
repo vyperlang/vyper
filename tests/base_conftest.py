@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import web3.exceptions
 from eth_tester import EthereumTester, PyEVMBackend
@@ -10,6 +12,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
+from vyper.compiler.settings import Settings
 
 
 class VyperMethod:
@@ -109,17 +112,20 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
+def _get_contract(w3, source_code, optimize, *args, override_opt_level=None, **kwargs):
+    settings = Settings()
+    settings.evm_version = kwargs.pop("evm_version", None)
+    settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
         # test that metadata gets generated
         ["abi", "bytecode", "metadata"],
+        settings=settings,
         interface_codes=kwargs.pop("interface_codes", None),
-        no_optimize=no_optimize,
-        evm_version=kwargs.pop("evm_version", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
+    json.dumps(out["metadata"])  # test metadata is json serializable
     abi = out["abi"]
     bytecode = out["bytecode"]
     value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
@@ -132,13 +138,15 @@ def _get_contract(w3, source_code, no_optimize, *args, **kwargs):
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
-def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **kwargs):
+def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwargs):
+    settings = Settings()
+    settings.evm_version = kwargs.pop("evm_version", None)
+    settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
         interface_codes=kwargs.pop("interface_codes", None),
-        no_optimize=no_optimize,
-        evm_version=kwargs.pop("evm_version", None),
+        settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
@@ -170,17 +178,17 @@ def _deploy_blueprint_for(w3, source_code, no_optimize, initcode_prefix=b"", **k
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, no_optimize):
+def deploy_blueprint_for(w3, optimize):
     def deploy_blueprint_for(source_code, *args, **kwargs):
-        return _deploy_blueprint_for(w3, source_code, no_optimize, *args, **kwargs)
+        return _deploy_blueprint_for(w3, source_code, optimize, *args, **kwargs)
 
     return deploy_blueprint_for
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, no_optimize):
+def get_contract(w3, optimize):
     def get_contract(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
     return get_contract
 

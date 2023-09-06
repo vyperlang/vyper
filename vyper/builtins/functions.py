@@ -25,9 +25,9 @@ from vyper.codegen.core import (
     eval_once_check,
     eval_seq,
     get_bytearray_length,
-    get_element_ptr,
     get_type_for_exact_size,
     ir_tuple_from_args,
+    make_setter,
     needs_external_call_wrap,
     promote_signed_int,
     sar,
@@ -148,15 +148,18 @@ class Floor(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            [
-                "if",
-                ["slt", args[0], 0],
-                ["sdiv", ["sub", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-                ["sdiv", args[0], DECIMAL_DIVISOR],
-            ],
-            typ=INT256_T,
-        )
+        arg = args[0]
+        with arg.cache_when_complex("arg") as (b1, arg):
+            ret = IRnode.from_list(
+                [
+                    "if",
+                    ["slt", arg, 0],
+                    ["sdiv", ["sub", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                ],
+                typ=INT256_T,
+            )
+            return b1.resolve(ret)
 
 
 class Ceil(BuiltinFunction):
@@ -175,15 +178,18 @@ class Ceil(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            [
-                "if",
-                ["slt", args[0], 0],
-                ["sdiv", args[0], DECIMAL_DIVISOR],
-                ["sdiv", ["add", args[0], DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
-            ],
-            typ=INT256_T,
-        )
+        arg = args[0]
+        with arg.cache_when_complex("arg") as (b1, arg):
+            ret = IRnode.from_list(
+                [
+                    "if",
+                    ["slt", arg, 0],
+                    ["sdiv", arg, DECIMAL_DIVISOR],
+                    ["sdiv", ["add", arg, DECIMAL_DIVISOR - 1], DECIMAL_DIVISOR],
+                ],
+                typ=INT256_T,
+            )
+            return b1.resolve(ret)
 
 
 class Convert(BuiltinFunction):
@@ -758,87 +764,68 @@ class ECRecover(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
+        input_buf = context.new_internal_variable(get_type_for_exact_size(128))
+        output_buf = context.new_internal_variable(get_type_for_exact_size(32))
         return IRnode.from_list(
             [
                 "seq",
-                ["mstore", placeholder_node, args[0]],
-                ["mstore", ["add", placeholder_node, 32], args[1]],
-                ["mstore", ["add", placeholder_node, 64], args[2]],
-                ["mstore", ["add", placeholder_node, 96], args[3]],
-                [
-                    "pop",
-                    [
-                        "staticcall",
-                        ["gas"],
-                        1,
-                        placeholder_node,
-                        128,
-                        MemoryPositions.FREE_VAR_SPACE,
-                        32,
-                    ],
-                ],
-                ["mload", MemoryPositions.FREE_VAR_SPACE],
+                # clear output memory first, ecrecover can return 0 bytes
+                ["mstore", output_buf, 0],
+                ["mstore", input_buf, args[0]],
+                ["mstore", input_buf + 32, args[1]],
+                ["mstore", input_buf + 64, args[2]],
+                ["mstore", input_buf + 96, args[3]],
+                ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
+                ["mload", output_buf],
             ],
             typ=AddressT(),
         )
 
 
-def _getelem(arg, ind):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, typ=INT128_T)))
+class _ECArith(BuiltinFunction):
+    @process_inputs
+    def build_IR(self, expr, _args, kwargs, context):
+        args_tuple = ir_tuple_from_args(_args)
+
+        args_t = args_tuple.typ
+        input_buf = IRnode.from_list(
+            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
+        )
+        ret_t = self._return_type
+
+        ret = ["seq"]
+        ret.append(make_setter(input_buf, args_tuple))
+
+        output_buf = context.new_internal_variable(ret_t)
+
+        args_ofst = input_buf
+        args_len = args_t.memory_bytes_required
+        out_ofst = output_buf
+        out_len = ret_t.memory_bytes_required
+
+        ret.append(
+            [
+                "assert",
+                ["staticcall", ["gas"], self._precompile, args_ofst, args_len, out_ofst, out_len],
+            ]
+        )
+        ret.append(output_buf)
+
+        return IRnode.from_list(ret, typ=ret_t, location=MEMORY)
 
 
-class ECAdd(BuiltinFunction):
+class ECAdd(_ECArith):
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], _getelem(args[1], 0)],
-                ["mstore", ["add", placeholder_node, 96], _getelem(args[1], 1)],
-                ["assert", ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+    _precompile = 0x6
 
 
-class ECMul(BuiltinFunction):
+class ECMul(_ECArith):
     _id = "ecmul"
     _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-        o = IRnode.from_list(
-            [
-                "seq",
-                ["mstore", placeholder_node, _getelem(args[0], 0)],
-                ["mstore", ["add", placeholder_node, 32], _getelem(args[0], 1)],
-                ["mstore", ["add", placeholder_node, 64], args[1]],
-                ["assert", ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64]],
-                placeholder_node,
-            ],
-            typ=SArrayT(UINT256_T, 2),
-            location=MEMORY,
-        )
-        return o
+    _precompile = 0x7
 
 
 def _generic_element_getter(op):
@@ -1030,34 +1017,35 @@ class AsWeiValue(BuiltinFunction):
         value = args[0]
 
         denom_divisor = self.get_denomination(expr)
-        if value.typ in (UINT256_T, UINT8_T):
-            sub = [
-                "with",
-                "ans",
-                ["mul", value, denom_divisor],
-                [
-                    "seq",
-                    [
-                        "assert",
-                        ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                    ],
+        with value.cache_when_complex("value") as (b1, value):
+            if value.typ in (UINT256_T, UINT8_T):
+                sub = [
+                    "with",
                     "ans",
-                ],
-            ]
-        elif value.typ == INT128_T:
-            # signed types do not require bounds checks because the
-            # largest possible converted value will not overflow 2**256
-            sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
-        elif value.typ == DecimalT():
-            sub = [
-                "seq",
-                ["assert", ["sgt", value, -1]],
-                ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
-            ]
-        else:
-            raise CompilerPanic(f"Unexpected type: {value.typ}")
+                    ["mul", value, denom_divisor],
+                    [
+                        "seq",
+                        [
+                            "assert",
+                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
+                        ],
+                        "ans",
+                    ],
+                ]
+            elif value.typ == INT128_T:
+                # signed types do not require bounds checks because the
+                # largest possible converted value will not overflow 2**256
+                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+            elif value.typ == DecimalT():
+                sub = [
+                    "seq",
+                    ["assert", ["sgt", value, -1]],
+                    ["div", ["mul", value, denom_divisor], DECIMAL_DIVISOR],
+                ]
+            else:
+                raise CompilerPanic(f"Unexpected type: {value.typ}")
 
-        return IRnode.from_list(sub, typ=UINT256_T)
+            return IRnode.from_list(b1.resolve(sub), typ=UINT256_T)
 
 
 zero_value = IRnode.from_list(0, typ=UINT256_T)
@@ -1086,7 +1074,7 @@ class RawCall(BuiltinFunction):
         revert_on_failure = kwargz.get("revert_on_failure")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
-        if outsize is None:
+        if outsize is None or outsize.value == 0:
             if revert_on_failure:
                 return None
             return BoolT()
@@ -1230,7 +1218,9 @@ class Send(BuiltinFunction):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(["assert", ["call", gas, to, value, 0, 0, 0, 0]])
+        return IRnode.from_list(
+            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
+        )
 
 
 class SelfDestruct(BuiltinFunction):
@@ -1351,7 +1341,7 @@ class BitwiseAnd(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1377,7 +1367,7 @@ class BitwiseOr(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1403,7 +1393,7 @@ class BitwiseXor(BuiltinFunction):
 
         validate_call_args(node, 2)
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1428,7 +1418,7 @@ class BitwiseNot(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Num):
+        if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
 
         value = node.args[0].value
@@ -1455,7 +1445,7 @@ class Shift(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        if [i for i in node.args if not isinstance(i, vy_ast.Num)]:
+        if [i for i in node.args if not isinstance(i, vy_ast.Int)]:
             raise UnfoldableNode
         value, shift = [i.value for i in node.args]
         if value < 0 or value >= 2**256:
@@ -1503,10 +1493,10 @@ class _AddMulMod(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 3)
-        if isinstance(node.args[2], vy_ast.Num) and node.args[2].value == 0:
+        if isinstance(node.args[2], vy_ast.Int) and node.args[2].value == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
         for arg in node.args:
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
             if arg.value < 0 or arg.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1516,9 +1506,14 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        return IRnode.from_list(
-            ["seq", ["assert", args[2]], [self._opcode, args[0], args[1], args[2]]], typ=UINT256_T
-        )
+        x, y, z = args
+        with x.cache_when_complex("x") as (b1, x):
+            with y.cache_when_complex("y") as (b2, y):
+                with z.cache_when_complex("z") as (b3, z):
+                    ret = IRnode.from_list(
+                        ["seq", ["assert", z], [self._opcode, x, y, z]], typ=UINT256_T
+                    )
+                    return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class AddMod(_AddMulMod):
@@ -1611,7 +1606,9 @@ def _create_ir(value, buf, length, salt=None, checked=True):
     if not checked:
         return ret
 
-    return clamp_nonzero(ret)
+    ret = clamp_nonzero(ret)
+    ret.set_error_msg(f"{create_op} failed")
+    return ret
 
 
 # calculate the gas used by create for a given number of bytes
@@ -1807,7 +1804,10 @@ class CreateCopyOf(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
-                ir.append(["assert", codesize])
+                check_codesize = ["assert", codesize]
+                ir.append(
+                    IRnode.from_list(check_codesize, error_msg="empty target (create_copy_of)")
+                )
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1897,7 +1897,12 @@ class CreateFromBlueprint(_CreateBase):
                 # (code_ofst == (extcodesize target) would be empty
                 # initcode, which we disallow for hygiene reasons -
                 # same as `create_copy_of` on an empty target).
-                ir.append(["assert", ["sgt", codesize, 0]])
+                check_codesize = ["assert", ["sgt", codesize, 0]]
+                ir.append(
+                    IRnode.from_list(
+                        check_codesize, error_msg="empty target (create_from_blueprint)"
+                    )
+                )
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:

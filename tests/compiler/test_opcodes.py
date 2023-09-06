@@ -8,9 +8,11 @@ from vyper.exceptions import CompilerPanic
 @pytest.fixture(params=list(opcodes.EVM_VERSIONS))
 def evm_version(request):
     default = opcodes.active_evm_version
-    opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
-    yield request.param
-    opcodes.active_evm_version = default
+    try:
+        opcodes.active_evm_version = opcodes.EVM_VERSIONS[request.param]
+        yield request.param
+    finally:
+        opcodes.active_evm_version = default
 
 
 def test_opcodes():
@@ -35,24 +37,30 @@ def test_version_check(evm_version):
     assert opcodes.version_check(begin=evm_version)
     assert opcodes.version_check(end=evm_version)
     assert opcodes.version_check(begin=evm_version, end=evm_version)
-    if evm_version not in ("byzantium", "atlantis"):
-        assert not opcodes.version_check(end="byzantium")
+    if evm_version not in ("istanbul"):
+        assert not opcodes.version_check(end="istanbul")
     istanbul_check = opcodes.version_check(begin="istanbul")
     assert istanbul_check == (opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["istanbul"])
 
 
 def test_get_opcodes(evm_version):
-    op = opcodes.get_opcodes()
-    if evm_version in ("paris", "berlin"):
-        assert "CHAINID" in op
-        assert op["SLOAD"][-1] == 2100
-    elif evm_version == "istanbul":
-        assert "CHAINID" in op
-        assert op["SLOAD"][-1] == 800
+    ops = opcodes.get_opcodes()
+
+    assert "CHAINID" in ops
+    assert ops["CREATE2"][-1] == 32000
+
+    if evm_version in ("london", "berlin", "paris", "shanghai", "cancun"):
+        assert ops["SLOAD"][-1] == 2100
     else:
-        assert "CHAINID" not in op
-        assert op["SLOAD"][-1] == 200
-    if evm_version in ("byzantium", "atlantis"):
-        assert "CREATE2" not in op
+        assert evm_version == "istanbul"
+        assert ops["SLOAD"][-1] == 800
+
+    if evm_version in ("shanghai", "cancun"):
+        assert "PUSH0" in ops
+
+    if evm_version in ("cancun",):
+        for op in ("TLOAD", "TSTORE", "MCOPY"):
+            assert op in ops
     else:
-        assert op["CREATE2"][-1] == 32000
+        for op in ("TLOAD", "TSTORE", "MCOPY"):
+            assert op not in ops

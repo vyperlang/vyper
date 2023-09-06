@@ -43,9 +43,9 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
-        assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
-        for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
-            self.expr_visitor.visit(val, self.func.arguments[kw])
+        assert self.func.n_keyword_args == len(fn_node.args.defaults)
+        for kwarg in self.func.keyword_args:
+            self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
     def visit(self, node):
         super().visit(node)
@@ -85,16 +85,19 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
-        # typecheck list literal as static array
+
+        iter_type = node.target._metadata["type"]
         if isinstance(node.iter, vy_ast.List):
-            value_type = get_common_types(*node.iter.elements).pop()
+            # typecheck list literal as static array
             len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
+            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
 
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
+            for a in node.iter.keywords:
+                if a.arg == "bound":
+                    self.expr_visitor.visit(a.value, iter_type)
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
@@ -136,7 +139,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
-            for arg, typ in zip(node.args, list(call_type.arguments.values())):
+            for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -271,7 +274,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
     def visit_IfExp(self, node, type_):
         if type_ is None:
             ts = get_common_types(node.body, node.orelse)
-            if len(type_) == 1:
+            if len(ts) == 1:
                 type_ = ts.pop()
 
         node._metadata["type"] = type_

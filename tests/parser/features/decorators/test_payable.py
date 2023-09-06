@@ -372,3 +372,24 @@ def __default__():
     assert_tx_failed(
         lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
     )
+
+
+def test_batch_nonpayable(get_contract, w3, assert_tx_failed):
+    code = """
+@external
+def foo() -> bool:
+    return True
+
+@external
+def __default__():
+    pass
+    """
+
+    c = get_contract(code)
+    w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    data = bytes([1, 2, 3, 4])
+    for i in range(5):
+        calldata = "0x" + data[:i].hex()
+        assert_tx_failed(
+            lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})
+        )

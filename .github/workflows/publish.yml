@@ -1,7 +1,7 @@
-# This workflows will upload a Python Package using Twine when a release is created
+# This workflow will upload a Python Package using Twine when a release is created
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
 
-name: Publish
+name: Publish to PyPI
 
 on:
   release:
@@ -18,7 +18,7 @@ jobs:
     - name: Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.x'
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |

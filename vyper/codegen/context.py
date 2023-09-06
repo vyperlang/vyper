@@ -28,6 +28,7 @@ class VariableRecord:
     defined_at: Any = None
     is_internal: bool = False
     is_immutable: bool = False
+    is_transient: bool = False
     data_offset: Optional[int] = None
 
     def __hash__(self):
@@ -50,10 +51,9 @@ class Context:
         global_ctx,
         memory_allocator,
         vars_=None,
-        sigs=None,
         forvars=None,
         constancy=Constancy.Mutable,
-        sig=None,
+        func_t=None,
         is_ctor_context=False,
     ):
         # In-memory variables, in the form (name, memory location, type)
@@ -62,9 +62,6 @@ class Context:
         # Global variables, in the form (name, storage location, type)
         self.globals = global_ctx.variables
 
-        # ABI objects, in the form {classname: ABI JSON}
-        self.sigs = sigs or {"self": {}}
-
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
 
@@ -72,6 +69,7 @@ class Context:
         self.constancy = constancy
 
         # Whether body is currently in an assert statement
+        # XXX: dead, never set to True
         self.in_assertion = False
 
         # Whether we are currently parsing a range expression
@@ -80,8 +78,8 @@ class Context:
         # store global context
         self.global_ctx = global_ctx
 
-        # full function signature
-        self.sig = sig
+        # full function type
+        self.func_t = func_t
         # Active scopes
         self._scopes = set()
 
@@ -106,15 +104,15 @@ class Context:
     # convenience propreties
     @property
     def is_payable(self):
-        return self.sig.mutability == "payable"
+        return self.func_t.is_payable
 
     @property
     def is_internal(self):
-        return self.sig.internal
+        return self.func_t.is_internal
 
     @property
     def return_type(self):
-        return self.sig.return_type
+        return self.func_t.return_type
 
     #
     # Context Managers
@@ -247,37 +245,8 @@ class Context:
         var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
-    def parse_type(self, ast_node):
-        return self.global_ctx.parse_type(ast_node)
-
     def lookup_var(self, varname):
         return self.vars[varname]
-
-    def lookup_internal_function(self, method_name, args_ir, ast_source):
-        # TODO is this the right module for me?
-        """
-        Using a list of args, find the internal method to use, and
-        the kwargs which need to be filled in by the compiler
-        """
-
-        sig = self.sigs["self"].get(method_name, None)
-
-        def _check(cond, s="Unreachable"):
-            if not cond:
-                raise CompilerPanic(s)
-
-        # these should have been caught during type checking; sanity check
-        _check(sig is not None)
-        _check(sig.internal)
-        _check(len(sig.base_args) <= len(args_ir) <= len(sig.args))
-        # more sanity check, that the types match
-        # _check(all(l.typ == r.typ for (l, r) in zip(args_ir, sig.args))
-
-        num_provided_kwargs = len(args_ir) - len(sig.base_args)
-
-        kw_vals = list(sig.default_values.values())[num_provided_kwargs:]
-
-        return sig, kw_vals
 
     # Pretty print constancy for error messages
     def pp_constancy(self):

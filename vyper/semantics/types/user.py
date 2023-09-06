@@ -32,6 +32,10 @@ class _UserType(VyperType):
     def __eq__(self, other):
         return self is other
 
+    # TODO: revisit this once user types can be imported via modules
+    def compare_type(self, other):
+        return super().compare_type(other) and self._id == other._id
+
     def __hash__(self):
         return hash(id(self))
 
@@ -160,6 +164,7 @@ class EventT(_UserType):
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
+        assert len(self.indexed) == len(self.arguments)
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
     # backward compatible
@@ -168,8 +173,13 @@ class EventT(_UserType):
         return self.members
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.arguments.values())
-        return f"event {self.name}({arg_types})"
+        args = []
+        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items()):
+            argtype_str = repr(argtype)
+            if is_indexed:
+                argtype_str = f"indexed({argtype_str})"
+            args.append(f"{argtype_str}")
+        return f"event {self.name}({','.join(args)})"
 
     # TODO rename to abi_signature
     @property
@@ -309,18 +319,18 @@ class InterfaceT(_UserType):
 
         def _is_function_implemented(fn_name, fn_type):
             vyper_self = namespace["self"].typ
-            if name not in vyper_self.members:
+            if fn_name not in vyper_self.members:
                 return False
-            s = vyper_self.members[name]
+            s = vyper_self.members[fn_name]
             if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.members[name]
+                to_compare = vyper_self.members[fn_name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
                 to_compare = s.decl_node._metadata["func_type"]
             else:
                 return False
 
-            return to_compare.compare_signature(fn_type)
+            return to_compare.implements(fn_type)
 
         # check for missing functions
         for name, type_ in self.members.items():
@@ -333,14 +343,22 @@ class InterfaceT(_UserType):
 
         # check for missing events
         for name, event in self.events.items():
-            if (
-                name not in namespace
-                or not isinstance(namespace[name], EventT)
-                or namespace[name].event_id != event.event_id
-            ):
+            if name not in namespace:
                 unimplemented.append(name)
+                continue
+
+            if not isinstance(namespace[name], EventT):
+                unimplemented.append(f"{name} is not an event!")
+            if (
+                namespace[name].event_id != event.event_id
+                or namespace[name].indexed != event.indexed
+            ):
+                unimplemented.append(f"{name} is not implemented! (should be {event})")
 
         if len(unimplemented) > 0:
+            # TODO: improve the error message for cases where the
+            # mismatch is small (like mutability, or just one argument
+            # is off, etc).
             missing_str = ", ".join(sorted(unimplemented))
             raise InterfaceViolation(
                 f"Contract does not implement all interface functions or events: {missing_str}",
@@ -536,10 +554,6 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):

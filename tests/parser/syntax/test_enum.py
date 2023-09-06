@@ -110,6 +110,20 @@ def foo() -> Roles:
     """,
         UnknownAttribute,
     ),
+    (
+        """
+enum A:
+    a
+enum B:
+    a
+    b
+
+@internal
+def foo():
+    a: A = B.b
+    """,
+        TypeMismatch,
+    ),
 ]
 
 

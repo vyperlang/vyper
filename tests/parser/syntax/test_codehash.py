@@ -1,13 +1,13 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import EvmVersionException
 from vyper.utils import keccak256
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-def test_get_extcodehash(get_contract, evm_version, no_optimize):
+def test_get_extcodehash(get_contract, evm_version, optimize):
     code = """
 a: address
 
@@ -32,15 +32,8 @@ def foo3() -> bytes32:
 def foo4() -> bytes32:
     return self.a.codehash
     """
-
-    if evm_version in ("byzantium", "atlantis"):
-        with pytest.raises(EvmVersionException):
-            compile_code(code, evm_version=evm_version)
-        return
-
-    compiled = compile_code(
-        code, ["bytecode_runtime"], evm_version=evm_version, no_optimize=no_optimize
-    )
+    settings = Settings(evm_version=evm_version, optimize=optimize)
+    compiled = compile_code(code, ["bytecode_runtime"], settings=settings)
     bytecode = bytes.fromhex(compiled["bytecode_runtime"][2:])
     hash_ = keccak256(bytecode)
 

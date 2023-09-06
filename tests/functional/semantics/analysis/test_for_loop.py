@@ -1,7 +1,12 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import ImmutableViolation, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    ImmutableViolation,
+    StateAccessViolation,
+    TypeMismatch,
+)
 from vyper.semantics.analysis import validate_semantics
 
 
@@ -56,6 +61,34 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
+        validate_semantics(vyper_module, {})
+
+
+def test_bad_keywords(namespace):
+    code = """
+
+@internal
+def bar(n: uint256):
+    x: uint256 = 0
+    for i in range(n, boundddd=10):
+        x += i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ArgumentException):
+        validate_semantics(vyper_module, {})
+
+
+def test_bad_bound(namespace):
+    code = """
+
+@internal
+def bar(n: uint256):
+    x: uint256 = 0
+    for i in range(n, bound=n):
+        x += i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(StateAccessViolation):
         validate_semantics(vyper_module, {})
 
 
