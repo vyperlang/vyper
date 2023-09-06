@@ -38,7 +38,7 @@ jobs:
 
       - name: Generate Binary
         run: >-
-          pip install --no-binary pycryptodome . &&
+          pip install --no-binary pycryptodome --no-binary cbor2 . &&
           pip install pyinstaller &&
           make freeze
 
