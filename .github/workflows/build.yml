@@ -1,4 +1,4 @@
-name: Build and release artifacts
+name: Build artifacts
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - master
+  pull_request:
   release:
     types: [released]
 
