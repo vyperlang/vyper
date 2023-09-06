@@ -1,8 +1,8 @@
 import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
-from packaging.specifiers import Specifier, SpecifierSet, InvalidSpecifier
-from packaging.version import Version
+
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from vyper.compiler.settings import OptimizationLevel, Settings
 
@@ -25,13 +25,14 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
     if re.match("[v0-9]", version_str):
         version_str = "==" + version_str
+    # convert npm to pep440
+    version_str = re.sub("^\\^", "~=", version_str)
 
     try:
         spec = SpecifierSet(version_str)
     except InvalidSpecifier:
         raise VersionException(
-            f'Version specification "{version_str}" is not a valid PEP440 specifier',
-            start,
+            f'Version specification "{version_str}" is not a valid PEP440 specifier', start
         )
 
     if not spec.contains(__version__, prereleases=True):
