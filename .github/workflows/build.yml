@@ -41,7 +41,8 @@ jobs:
         run: >-
           pip install --no-binary pycryptodome --no-binary cbor2 . &&
           pip install pyinstaller &&
-          make freeze
+          make freeze && exit 1
+
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
