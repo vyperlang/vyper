@@ -17,7 +17,7 @@ Vyper supports several source code directives to control compiler modes and help
 Version Pragma
 --------------
 
-The version pragma ensures that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax.
+The version pragma ensures that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax. Starting from v0.4.0 and up, version strings will use `PEP440 version specifiers <https://peps.python.org/pep-0440/#version-specifiers>_`.
 
 As of 0.3.10, the recommended way to specify the version pragma is as follows:
 

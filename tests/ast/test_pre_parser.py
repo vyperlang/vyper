@@ -21,16 +21,9 @@ valid_versions = [
     "0.1.1",
     ">0.0.1",
     "^0.1.0",
-    "<=1.0.0 >=0.1.0",
-    "0.1.0 - 1.0.0",
-    "~0.1.0",
-    "0.1",
-    "0",
-    "*",
-    "x",
-    "0.x",
-    "0.1.x",
-    "0.2.0 || 0.1.1",
+    "<=1.0.0,>=0.1.0",
+    # "0.1.0 - 1.0.0",
+    "~=0.1.0",
 ]
 invalid_versions = [
     "0.1.0",
@@ -44,7 +37,6 @@ invalid_versions = [
     "1.x",
     "0.2.x",
     "0.2.0 || 0.1.3",
-    "==0.1.1",
     "abc",
 ]
 
@@ -70,9 +62,10 @@ prerelease_valid_versions = [
     "<0.1.1-rc.1",
     ">0.1.1a1",
     ">0.1.1-alpha.1",
-    "0.1.1a9 - 0.1.1-rc.10",
+    ">=0.1.1a9,<=0.1.1-rc.10",
     "<0.1.1b8",
     "<0.1.1rc1",
+    "<0.2.0",
 ]
 prerelease_invalid_versions = [
     ">0.1.1-beta.9",
@@ -80,19 +73,8 @@ prerelease_invalid_versions = [
     "0.1.1b8",
     "0.1.1rc2",
     "0.1.1-rc.9 - 0.1.1-rc.10",
-    "<0.2.0",
-    pytest.param(
-        "<0.1.1b1",
-        marks=pytest.mark.xfail(
-            reason="https://github.com/rbarrois/python-semanticversion/issues/100"
-        ),
-    ),
-    pytest.param(
-        "<0.1.1a9",
-        marks=pytest.mark.xfail(
-            reason="https://github.com/rbarrois/python-semanticversion/issues/100"
-        ),
-    ),
+    "<0.1.1b1",
+    "<0.1.1a9",
 ]
 
 
