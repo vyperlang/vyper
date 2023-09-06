@@ -111,4 +111,5 @@ jobs:
     needs: [windows-build, unix-build]
     steps:
       - name: check that all builds succeeded
-        run: exit 0
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
