@@ -102,3 +102,9 @@ jobs:
               "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
               --data-binary "@${BIN_NAME}"
           done
+
+  # check build success for pull requests
+  build-success:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [windows-build, unix-build]
