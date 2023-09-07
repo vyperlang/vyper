@@ -15,6 +15,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.bb_optimizer import optimize_function
+from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
 
 BINARY_IR_INSTRUCTIONS = [
@@ -33,6 +34,7 @@ BINARY_IR_INSTRUCTIONS = [
     "mul",
     "div",
     "mod",
+    "exp",
     "sha3",
     "sha3_64",
 ]
@@ -304,16 +306,20 @@ def _convert_ir_basicblock(
 
     elif ir.value == "calldatacopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        arg_0.mem_type = IRVariable.MemType.MEMORY
+        arg_0.mem_addr = int(arg_0.value[1:])
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
 
         arg_0_var = ctx.get_next_variable()
-        arg_0_op = IROperand(arg_0, True, arg_0.value)
+        arg_0_var.mem_type = IRVariable.MemType.MEMORY
+        arg_0_var.mem_addr = arg_0.mem_addr
+        arg_0_op = IROperand(arg_0, True)
         # arg_0_op.direction = IROperand.Direction.OUT
         ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
 
-        symbols[f"&{arg_0.value}"] = arg_0_var
-        return new_var
+        symbols[f"&{arg_0_var.mem_addr}"] = arg_0_var
+        return arg_0_var
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         if arg_0.is_literal and arg_0.value == 30:
@@ -369,32 +375,31 @@ def _convert_ir_basicblock(
                 inst = IRInstruction("stop", [])
                 ctx.get_basic_block().append_instruction(inst)
                 return
+            else:
+                last_ir = None
+                ret_var = ir.args[1]
+                for arg in ir.args[2:]:
+                    last_ir = _convert_ir_basicblock(ctx, arg, symbols)
 
-        if len(ir.args) == 1:
-            inst = IRInstruction("ret", [])
-            ctx.get_basic_block().append_instruction(inst)
-        elif len(ir.args) >= 2:
-            ret_var = ir.args[1]
-            if ret_var.value == "return_pc":
-                inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
+                ret_ir = _convert_ir_basicblock(ctx, ret_var, symbols)
+                new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
+                new_var.mem_type = IRVariable.MemType.MEMORY
+                new_var.mem_addr = ret_ir.value
+                new_op = IROperand(new_var, True)
+                inst = IRInstruction("return", [last_ir, new_op])
                 ctx.get_basic_block().append_instruction(inst)
-                return None
-            # else:
-            #     new_var = ctx.get_next_variable()
-            #     symbols[f"&{ret_var.value}"] = new_var
+                ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
-            last_ir = None
-            for arg in ir.args[2:]:
-                last_ir = _convert_ir_basicblock(ctx, arg, symbols)
+        if func_t.is_internal:
+            assert ir.args[1].value == "return_pc", "return_pc not found"
+            if func_t.return_type == None:
+                inst = IRInstruction("ret", [symbols["return_pc"]])
+            else:
+                ret_var = ir.args[1]
+                inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
 
-            ret_ir = _convert_ir_basicblock(ctx, ret_var, symbols)
-            new_var = symbols.get(f"&{ret_ir.value}", ret_ir)
-            new_var.mem_type = IRVariable.MemType.MEMORY
-            new_var.mem_addr = ret_ir.value
-            new_op = IROperand(new_var, True)
-            inst = IRInstruction("return", [last_ir, new_op])
             ctx.get_basic_block().append_instruction(inst)
-            ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
@@ -404,7 +409,15 @@ def _convert_ir_basicblock(
     elif ir.value == "dload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         return ctx.append_instruction("calldataload", [arg_0])
+    elif ir.value == "dloadbytes":
+        src = _convert_ir_basicblock(ctx, ir.args[0], symbols)
+        dst = _convert_ir_basicblock(ctx, ir.args[1], symbols)
+        len_ = _convert_ir_basicblock(ctx, ir.args[2], symbols)
 
+        ret = ctx.get_next_variable()
+        inst = IRInstruction("codecopy", [len_, src, dst], ret)
+        ctx.get_basic_block().append_instruction(inst)
+        return ret
     elif ir.value == "mload":
         sym = ir.args[0]
         if sym.is_literal:
@@ -571,3 +584,15 @@ def _convert_ir_opcode(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Non
             inst_args.append(_convert_ir_basicblock(ctx, arg, symbols))
     instruction = IRInstruction(opcode, inst_args)
     ctx.get_basic_block().append_instruction(instruction)
+
+
+def _data_ofst_of(sym, ofst, height_):
+    # e.g. _OFST _sym_foo 32
+    assert is_symbol(sym) or is_mem_sym(sym)
+    if isinstance(ofst.value, int):
+        # resolve at compile time using magic _OFST op
+        return ["_OFST", sym, ofst.value]
+    else:
+        # if we can't resolve at compile time, resolve at runtime
+        # ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
+        return ofst + [sym, "ADD"]

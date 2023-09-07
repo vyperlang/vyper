@@ -72,6 +72,8 @@ class IRVariable(IRValueBase):
     def __init__(
         self, value: IRValueBaseValue, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
     ) -> None:
+        if isinstance(value, IRLiteral):
+            value = value.value
         super().__init__(value)
         self.mem_type = mem_type
         self.mem_addr = mem_addr
@@ -108,6 +110,8 @@ class IROperand:
         self, target: IRValueBase, address_access: bool = False, address_offset: int = 0
     ) -> None:
         assert isinstance(target, IRValueBase), "value must be an IRValueBase"
+        assert isinstance(address_access, bool), "address_access must be a bool"
+        assert isinstance(address_offset, int), "address_offset must be an int"
         if address_access:
             assert (
                 isinstance(target, IRVariable) and target.mem_type == IRVariable.MemType.MEMORY
