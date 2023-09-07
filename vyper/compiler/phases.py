@@ -1,7 +1,7 @@
 import copy
 import warnings
 from functools import cached_property
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
@@ -90,7 +90,7 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
-        settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+        settings, ast, loop_var_annotations = generate_ast(self.source_code, self.source_id, self.contract_name)
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
         if settings.evm_version is not None:
@@ -117,7 +117,7 @@ class CompilerData:
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
 
-        return ast
+        return ast, loop_var_annotations
 
     @cached_property
     def vyper_module(self):
@@ -128,12 +128,12 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
+        return generate_unfolded_ast(self.vyper_module[0], self.interface_codes)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.vyper_module, self.interface_codes, self.storage_layout_override
+            self.vyper_module[0], self.vyper_module[1], self.interface_codes, self.storage_layout_override
         )
 
     @property
@@ -240,6 +240,7 @@ def generate_unfolded_ast(
 
 def generate_folded_ast(
     vyper_module: vy_ast.Module,
+    loop_var_annotations: dict[int, dict[str, Any]],
     interface_codes: Optional[InterfaceImports],
     storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
@@ -262,7 +263,7 @@ def generate_folded_ast(
 
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
-    validate_semantics(vyper_module_folded, interface_codes)
+    validate_semantics(vyper_module_folded, loop_var_annotations, interface_codes)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables

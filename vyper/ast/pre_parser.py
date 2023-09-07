@@ -78,10 +78,15 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     result = []
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
+    loop_var_annotations = {}
 
     try:
         code_bytes = code.encode("utf-8")
         token_list = list(tokenize(io.BytesIO(code_bytes).readline))
+
+        is_for_loop = False
+        after_loop_var = False
+        loop_var_annotation = []
 
         for i in range(len(token_list)):
             token = token_list[i]
@@ -142,8 +147,44 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
+
+            if typ == NAME and string == "for":
+                is_for_loop = True
+                #print("for loop!")
+                #print(token)
+            
+            if is_for_loop:
+                if typ == NAME and string == "in":
+                    loop_var_annotations[start[0]] = loop_var_annotation
+
+                    is_for_loop = False
+                    after_loop_var = False
+                    loop_var_annotation = []
+
+                elif (typ, string) == (OP, ":"):
+                    after_loop_var = True
+                    continue
+
+                elif after_loop_var and not (typ == NAME and string == "for"):
+                    #print("adding to loop var: ", toks)
+                    loop_var_annotation.extend(toks)
+                    continue
+
             result.extend(toks)
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    return settings, modification_offsets, untokenize(result).decode("utf-8")
+    for k, v in loop_var_annotations.items():
+        
+        
+        updated_v = untokenize(v)
+        #print("untokenized v: ", updated_v)
+        updated_v = updated_v.replace("\\", "")
+        updated_v = updated_v.replace("\n", "")
+        import textwrap
+        #print("updated v: ", textwrap.dedent(updated_v))
+        loop_var_annotations[k] = {"source_code": textwrap.dedent(updated_v)}
+        
+    #print("untokenized result: ", type(untokenize(result)))
+    #print("untokenized result decoded: ", untokenize(result).decode("utf-8"))
+    return settings, modification_offsets, loop_var_annotations, untokenize(result).decode("utf-8")

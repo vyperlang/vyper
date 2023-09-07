@@ -17,7 +17,7 @@ def parse_to_ast_with_settings(
     source_id: int = 0,
     contract_name: Optional[str] = None,
     add_fn_node: Optional[str] = None,
-) -> tuple[Settings, vy_ast.Module]:
+) -> tuple[Settings, vy_ast.Module, dict[int, dict[str, Any]]]:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
 
@@ -39,9 +39,16 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, reformatted_code = pre_parse(source_code)
+    settings, class_types, loop_var_annotations, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
+
+        print("loop vars: ", loop_var_annotations)
+        for k, v in loop_var_annotations.items():
+            print("v: ", v)
+            parsed_v = python_ast.parse(v["source_code"])
+            print("parsed v: ", parsed_v.body[0].value)
+            loop_var_annotations[k]["parsed_ast"] = parsed_v
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
@@ -53,12 +60,16 @@ def parse_to_ast_with_settings(
         fn_node.body = py_ast.body
         fn_node.args = python_ast.arguments(defaults=[])
         py_ast.body = [fn_node]
-    annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
+    annotate_python_ast(py_ast, source_code, class_types, loop_var_annotations, source_id, contract_name)
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
+
+    for k, v in loop_var_annotations.items():
+        loop_var_annotations[k]["vy_ast"] = vy_ast.get_node(v["parsed_ast"])
+
     assert isinstance(module, vy_ast.Module)  # mypy hint
-    return settings, module
+    return settings, module, loop_var_annotations
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:

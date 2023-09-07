@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
@@ -50,7 +50,7 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_functions(vy_module: vy_ast.Module) -> None:
+def validate_functions(vy_module: vy_ast.Module, loop_var_annotations: dict[int, dict[str, Any]]) -> None:
     """Analyzes a vyper ast and validates the function-level namespaces."""
 
     err_list = ExceptionList()
@@ -58,7 +58,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(vy_module, node, namespace)
+                FunctionNodeVisitor(vy_module, loop_var_annotations, node, namespace)
             except VyperException as e:
                 err_list.append(e)
 
@@ -165,9 +165,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
     def __init__(
-        self, vyper_module: vy_ast.Module, fn_node: vy_ast.FunctionDef, namespace: dict
+        self, vyper_module: vy_ast.Module, loop_var_annotations: dict[int, dict[str, Any]], fn_node: vy_ast.FunctionDef, namespace: dict
     ) -> None:
         self.vyper_module = vyper_module
+        self.loop_var_annotations = loop_var_annotations
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
@@ -340,6 +341,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
+        print("visit_For: ", node.lineno)
+        iter_type = type_from_annotation(self.loop_var_annotations[node.lineno]["vy_ast"].body[0].value)
+        print("iter type: ", iter_type)
+        node.target._metadata["type"] = iter_type        
+
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
             if node.iter.get("func.id") != "range":
@@ -468,6 +474,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
+        """
         for_loop_exceptions = []
         iter_name = node.target.id
         for type_ in type_list:
@@ -514,6 +521,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for type_, exc in zip(type_list, for_loop_exceptions)
             ),
         )
+        """
 
     def visit_Expr(self, node):
         if not isinstance(node.value, vy_ast.Call):
