@@ -22,7 +22,7 @@ class OrderedSet(dict):
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self.keys())
-        return f"OrderedSet({{{keys}}})"
+        return f"{{{keys}}}"
 
     def add(self, item):
         self[item] = None
