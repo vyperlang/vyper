@@ -100,7 +100,7 @@ jobs:
               -X POST \
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
               -H "Content-Type: application/octet-stream" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME/+/%2B}" \
               --data-binary "@${BIN_NAME}"
           done
 
