@@ -37,6 +37,7 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "mul",
     "div",
     "mod",
+    "exp",
     "eq",
     "iszero",
     "lg",
@@ -88,18 +89,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
                 dfg_outputs[op.target.value] = inst
 
 
-visited_instructions = {IRInstruction}
-visited_basicblocks = {IRBasicBlock}
-
-
-def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
-    global visited_instructions, visited_basicblocks
-    asm = []
-    visited_instructions = set()
-    visited_basicblocks = set()
-
-    convert_ir_to_dfg(ctx)
-
+def compute_phi_vars(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             if inst.opcode != "select":
@@ -112,6 +102,20 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
             block_a.phi_vars[ret_op.value] = inst.operands[3]
             block_b.phi_vars[ret_op.value] = inst.operands[1]
+
+
+visited_instructions = {IRInstruction}
+visited_basicblocks = {IRBasicBlock}
+
+
+def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
+    global visited_instructions, visited_basicblocks
+    asm = []
+    visited_instructions = set()
+    visited_basicblocks = set()
+
+    convert_ir_to_dfg(ctx)
+    compute_phi_vars(ctx)
 
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
 
@@ -204,8 +208,6 @@ def _generate_evm_for_instruction_r(
         operands = inst.get_non_label_operands()
     else:
         operands = inst.operands
-
-    # operands = operands[::-1]
 
     if opcode == "select":
         ret = inst.get_output_operands()[0]
