@@ -78,11 +78,12 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             res = inst.get_output_operands()
 
             for v in variables:
-                v.target.use_count += 1
-                dfg_inputs[v.value] = (
+                target = v.target
+                target.use_count += 1
+                dfg_inputs[target.value] = (
                     [inst]
-                    if dfg_inputs.get(v.target.value) is None
-                    else dfg_inputs[v.target.value] + [inst]
+                    if dfg_inputs.get(target.value) is None
+                    else dfg_inputs[target.value] + [inst]
                 )
 
             for op in res:
@@ -215,8 +216,8 @@ def _generate_evm_for_instruction_r(
         depth = stack_map.get_depth_in(inputs)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)
+        to_be_replaced.use_count -= 1
         if to_be_replaced.use_count > 1:
-            to_be_replaced.use_count -= 1
             stack_map.push(ret.target)
         else:
             stack_map.poke(depth, ret.target)
@@ -224,7 +225,9 @@ def _generate_evm_for_instruction_r(
 
     _emit_input_operands(ctx, assembly, inst, operands[::-1], stack_map)
 
-    for op in operands:
+    stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
+
+    for op in stack_ops:
         # final_stack_depth = -(len(operands) - i - 1)
         ucc = inst.get_use_count_correction(op)
         assert op.target.use_count >= ucc, "Operand used up"
@@ -235,9 +238,9 @@ def _generate_evm_for_instruction_r(
             stack_map.dup(assembly, depth)
             op.target.use_count -= 1
 
-    for i in range(len(operands)):
-        op = operands[i]
-        final_stack_depth = -(len(operands) - i - 1)
+    for i in range(len(stack_ops)):
+        op = stack_ops[i]
+        final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         in_place_var = stack_map.peek(-final_stack_depth)
@@ -252,7 +255,7 @@ def _generate_evm_for_instruction_r(
                 stack_map.swap(assembly, depth)
                 stack_map.swap(assembly, final_stack_depth)
 
-    stack_map.pop(len(operands))
+    stack_map.pop(len(stack_ops))
     if inst.ret is not None:
         stack_map.push(inst.ret.target)
 
@@ -300,6 +303,9 @@ def _generate_evm_for_instruction_r(
         assert len(inst.operands) == 2, "ret instruction takes one operand"
         assembly.append("JUMP")
     elif opcode == "return":
+        assert (
+            inst.operands[1].target.mem_type == IRVariable.MemType.MEMORY
+        ), "return value must be a variable"
         assembly.append("RETURN")
     elif opcode == "select":
         pass
@@ -358,8 +364,9 @@ def _emit_input_operands(
 ) -> None:
     for op in ops:
         if op.is_label:
-            assembly.append(f"_sym_{op.value}")
-            stack_map.push(op.target)
+            if inst.opcode == "jmp":
+                assembly.append(f"_sym_{op.value}")
+                stack_map.push(op.target)
             continue
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
