@@ -37,6 +37,7 @@ class IRValueBase:
     def __init__(self, value: IRValueBaseValue) -> None:
         assert isinstance(value, IRValueBaseValue), "value must be an IRValueBaseValue"
         self.value = value
+        self.use_count = 0
 
     @property
     def is_literal(self) -> bool:
@@ -53,7 +54,7 @@ class IRLiteral(IRValueBase):
 
     def __init__(self, value: IRValueBaseValue) -> None:
         super().__init__(value)
-        self.use_count = 1
+        self.use_count = 0
 
     @property
     def is_literal(self) -> bool:
@@ -104,7 +105,6 @@ class IROperand:
     direction: Direction = Direction.IN
     address_access: bool = False
     address_offset: int = 0
-    use_count: int = 0
 
     def __init__(
         self, target: IRValueBase, address_access: bool = False, address_offset: int = 0
