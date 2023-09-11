@@ -179,8 +179,6 @@ def _stack_reorder(
         final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack_map.get_depth_in(op, phi_vars)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        in_place_var = stack_map.peek(-final_stack_depth)
-        # is_in_place = in_place_var.value == op.value
         is_in_place = depth == final_stack_depth
 
         if not is_in_place:
@@ -276,14 +274,9 @@ def _generate_evm_for_instruction_r(
 
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
         for _, b in enumerate(inst.parent.out_set):
-            target_stack = [*b.get_liveness().keys()]
-            # target_stack = [b.phi_vars.get(v.value, v) for v in target_stack]
-            print(target_stack)
+            target_stack = b.get_liveness()
             _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
-            # op1 = b.phi_vars.get(stack_map.peek(0).value, stack_map.peek(0))
-            # op2 = b.phi_vars.get(stack_map.peek(1).value, stack_map.peek(1))
-            # if op2.value in ["%15", "%21"] and op1.value == "%14":
-            #     stack_map.swap(assembly, -1)
+            break  # FIXME
 
     stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
     _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
