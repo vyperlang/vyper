@@ -89,6 +89,15 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             for op in res:
                 dfg_outputs[op.target.value] = inst
 
+    ## DEBUGING REMOVE
+    for bb in ctx.basic_blocks:
+        in_set = bb.in_set
+        if len(in_set) <= 1:
+            continue
+        print("IN", bb.label)
+        for inbb in in_set:
+            print(inbb.label, inbb.get_liveness())
+
 
 def compute_phi_vars(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
@@ -218,18 +227,24 @@ def _generate_evm_for_instruction_r(
         to_be_replaced = stack_map.peek(depth)
         to_be_replaced.use_count -= 1
         if to_be_replaced.use_count > 1:
-            stack_map.push(ret.target)
-        else:
-            stack_map.poke(depth, ret.target)
+            stack_map.dup(assembly, depth)
+            # stack_map.push(ret.target)
+
+        stack_map.poke(0, ret.target)
         return assembly
 
-    _emit_input_operands(ctx, assembly, inst, operands[::-1], stack_map)
+    if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
+        op1 = stack_map.peek(0)
+        op2 = stack_map.peek(1)
+        if op2.value in ["%15", "%21"] and op1.value == "%14":
+            stack_map.swap(assembly, -1)
 
     stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
+    _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
 
     for op in stack_ops:
         # final_stack_depth = -(len(operands) - i - 1)
-        ucc = inst.get_use_count_correction(op)
+        ucc = 0  # inst.get_use_count_correction(op)
         assert op.target.use_count >= ucc, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
