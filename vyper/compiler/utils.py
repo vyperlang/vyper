@@ -76,19 +76,35 @@ class StackMap:
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IROperand | list[IROperand]) -> int:
+    def get_depth_in(self, op: IROperand | list[IROperand], phi_vars: dict = {}) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
-        assert isinstance(op, IROperand) or isinstance(
-            op, list
+        assert (
+            isinstance(op, str)
+            or isinstance(op, int)
+            or isinstance(op, IRValueBase)
+            or isinstance(op, IROperand)
+            or isinstance(op, list)
         ), f"get_depth_in takes IROperand or list, got '{op}'"
+
+        def f(x):
+            return str(phi_vars.get(str(x), x))
+
+        print(type(op))
         for i, stack_op in enumerate(self.stack_map[::-1]):
+            stack_op = stack_op.target if isinstance(stack_op, IROperand) else stack_op
             if isinstance(stack_op, IRValueBase):
-                if isinstance(op, IROperand) and stack_op.value == op.target.value:
+                if isinstance(op, str) and f(stack_op.value) == f(op):
                     return -i
-                elif isinstance(op, list) and stack_op in [v.target for v in op]:
+                if isinstance(op, int) and f(stack_op.value) == f(op):
+                    return -i
+                if isinstance(op, IRValueBase) and f(stack_op.value) == f(op.value):
+                    return -i
+                if isinstance(op, IROperand) and f(stack_op.value) == f(op.target.value):
+                    return -i
+                elif isinstance(op, list) and f(stack_op) in [f(v.target) for v in op]:
                     return -i
 
         return StackMap.NOT_IN_STACK

@@ -169,6 +169,11 @@ def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IRO
 def _stack_reorder(
     assembly: list, stack_map: StackMap, stack_ops: list[IROperand], phi_vars: dict = {}
 ) -> None:
+    def f(x):
+        return phi_vars.get(str(x), x)
+
+    stack_ops = [f(x.value) for x in stack_ops]
+    stack_ops = list(dict.fromkeys(stack_ops))
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
@@ -274,7 +279,7 @@ def _generate_evm_for_instruction_r(
             target_stack = [*b.get_liveness().keys()]
             # target_stack = [b.phi_vars.get(v.value, v) for v in target_stack]
             print(target_stack)
-            _stack_reorder(assembly, stack_map, target_stack, b.phi_vars)
+            _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
             # op1 = b.phi_vars.get(stack_map.peek(0).value, stack_map.peek(0))
             # op2 = b.phi_vars.get(stack_map.peek(1).value, stack_map.peek(1))
             # if op2.value in ["%15", "%21"] and op1.value == "%14":
