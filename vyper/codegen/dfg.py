@@ -110,8 +110,10 @@ def compute_phi_vars(ctx: IRFunction) -> None:
             block_a = ctx.get_basic_block(inst.operands[0].value)
             block_b = ctx.get_basic_block(inst.operands[2].value)
 
-            block_a.phi_vars[ret_op.value] = inst.operands[3]
-            block_b.phi_vars[ret_op.value] = inst.operands[1]
+            block_a.phi_vars[inst.operands[1].value] = ret_op
+            block_a.phi_vars[inst.operands[3].value] = ret_op
+            block_b.phi_vars[inst.operands[1].value] = ret_op
+            block_b.phi_vars[inst.operands[3].value] = ret_op
 
 
 visited_instructions = {IRInstruction}
@@ -149,6 +151,25 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
         optimize_assembly(asm)
 
     return asm
+
+
+def _reorder_stack(assembly: list, stack_map: StackMap, stack_ops: list[IROperand]) -> None:
+    for i in range(len(stack_ops)):
+        op = stack_ops[i]
+        final_stack_depth = -(len(stack_ops) - i - 1)
+        depth = stack_map.get_depth_in(op)
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        in_place_var = stack_map.peek(-final_stack_depth)
+        is_in_place = in_place_var.value == op.target.value
+
+        if not is_in_place:
+            if final_stack_depth == 0 and depth != 0:
+                stack_map.swap(assembly, depth)
+            elif final_stack_depth != 0 and depth == 0:
+                stack_map.swap(assembly, final_stack_depth)
+            else:
+                stack_map.swap(assembly, depth)
+                stack_map.swap(assembly, final_stack_depth)
 
 
 def _generate_evm_for_basicblock_r(
@@ -228,16 +249,19 @@ def _generate_evm_for_instruction_r(
         to_be_replaced.use_count -= 1
         if to_be_replaced.use_count > 1:
             stack_map.dup(assembly, depth)
-            # stack_map.push(ret.target)
 
         stack_map.poke(0, ret.target)
         return assembly
 
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
-        op1 = stack_map.peek(0)
-        op2 = stack_map.peek(1)
-        if op2.value in ["%15", "%21"] and op1.value == "%14":
-            stack_map.swap(assembly, -1)
+        for _, b in enumerate(inst.parent.out_set):
+            target_stack = b.get_liveness().keys()
+            target_stack = [b.phi_vars.get(v.value, v) for v in target_stack]
+            print(target_stack)
+            op1 = b.phi_vars.get(stack_map.peek(0).value, stack_map.peek(0))
+            op2 = b.phi_vars.get(stack_map.peek(1).value, stack_map.peek(1))
+            if op2.value in ["%15", "%21"] and op1.value == "%14":
+                stack_map.swap(assembly, -1)
 
     stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
     _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
@@ -253,22 +277,7 @@ def _generate_evm_for_instruction_r(
             stack_map.dup(assembly, depth)
             op.target.use_count -= 1
 
-    for i in range(len(stack_ops)):
-        op = stack_ops[i]
-        final_stack_depth = -(len(stack_ops) - i - 1)
-        depth = stack_map.get_depth_in(op)
-        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        in_place_var = stack_map.peek(-final_stack_depth)
-        is_in_place = in_place_var.value == op.target.value
-
-        if not is_in_place:
-            if final_stack_depth == 0 and depth != 0:
-                stack_map.swap(assembly, depth)
-            elif final_stack_depth != 0 and depth == 0:
-                stack_map.swap(assembly, final_stack_depth)
-            else:
-                stack_map.swap(assembly, depth)
-                stack_map.swap(assembly, final_stack_depth)
+    _reorder_stack(assembly, stack_map, stack_ops)
 
     stack_map.pop(len(stack_ops))
     if inst.ret is not None:
