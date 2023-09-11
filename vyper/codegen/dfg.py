@@ -153,14 +153,30 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def _reorder_stack(assembly: list, stack_map: StackMap, stack_ops: list[IROperand]) -> None:
+def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IROperand]) -> None:
+    for op in stack_ops:
+        # final_stack_depth = -(len(operands) - i - 1)
+        ucc = 0  # inst.get_use_count_correction(op)
+        assert op.target.use_count >= ucc, "Operand used up"
+        depth = stack_map.get_depth_in(op)
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        needs_copy = op.target.use_count - ucc > 1
+        if needs_copy:
+            stack_map.dup(assembly, depth)
+            op.target.use_count -= 1
+
+
+def _stack_reorder(
+    assembly: list, stack_map: StackMap, stack_ops: list[IROperand], phi_vars: dict = {}
+) -> None:
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
-        depth = stack_map.get_depth_in(op)
+        depth = stack_map.get_depth_in(op, phi_vars)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         in_place_var = stack_map.peek(-final_stack_depth)
-        is_in_place = in_place_var.value == op.target.value
+        # is_in_place = in_place_var.value == op.value
+        is_in_place = depth == final_stack_depth
 
         if not is_in_place:
             if final_stack_depth == 0 and depth != 0:
@@ -255,29 +271,20 @@ def _generate_evm_for_instruction_r(
 
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
         for _, b in enumerate(inst.parent.out_set):
-            target_stack = b.get_liveness().keys()
-            target_stack = [b.phi_vars.get(v.value, v) for v in target_stack]
+            target_stack = [*b.get_liveness().keys()]
+            # target_stack = [b.phi_vars.get(v.value, v) for v in target_stack]
             print(target_stack)
-            op1 = b.phi_vars.get(stack_map.peek(0).value, stack_map.peek(0))
-            op2 = b.phi_vars.get(stack_map.peek(1).value, stack_map.peek(1))
-            if op2.value in ["%15", "%21"] and op1.value == "%14":
-                stack_map.swap(assembly, -1)
+            _stack_reorder(assembly, stack_map, target_stack, b.phi_vars)
+            # op1 = b.phi_vars.get(stack_map.peek(0).value, stack_map.peek(0))
+            # op2 = b.phi_vars.get(stack_map.peek(1).value, stack_map.peek(1))
+            # if op2.value in ["%15", "%21"] and op1.value == "%14":
+            #     stack_map.swap(assembly, -1)
 
     stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
     _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
 
-    for op in stack_ops:
-        # final_stack_depth = -(len(operands) - i - 1)
-        ucc = 0  # inst.get_use_count_correction(op)
-        assert op.target.use_count >= ucc, "Operand used up"
-        depth = stack_map.get_depth_in(op)
-        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        needs_copy = op.target.use_count - ucc > 1
-        if needs_copy:
-            stack_map.dup(assembly, depth)
-            op.target.use_count -= 1
-
-    _reorder_stack(assembly, stack_map, stack_ops)
+    _stack_duplications(assembly, stack_map, stack_ops)
+    _stack_reorder(assembly, stack_map, stack_ops)
 
     stack_map.pop(len(stack_ops))
     if inst.ret is not None:

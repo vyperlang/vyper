@@ -359,7 +359,7 @@ class IRBasicBlock:
         """
         Get liveness of basic block.
         """
-        return self.instructions[-1].liveness
+        return self.instructions[0].liveness
 
     def __repr__(self) -> str:
         s = (
