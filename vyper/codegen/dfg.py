@@ -253,6 +253,8 @@ def _generate_evm_for_instruction_r(
     visited_instructions.add(inst)
 
     # generate EVM for op
+
+    # Step 1: Manipulate stack
     opcode = inst.opcode
     if opcode in ["jmp", "jnz"]:
         operands = inst.get_non_label_operands()
@@ -278,16 +280,19 @@ def _generate_evm_for_instruction_r(
             _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
             break  # FIXME
 
+    # Step 2: Emit instructions input operands
     stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
     _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
 
     _stack_duplications(assembly, stack_map, stack_ops)
     _stack_reorder(assembly, stack_map, stack_ops)
 
+    # Step 3: Push instruction's return value to stack
     stack_map.pop(len(stack_ops))
     if inst.ret is not None:
         stack_map.push(inst.ret.target)
 
+    # Step 4: Emit the EVM instruction(s)
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
     elif opcode == "alloca":
@@ -372,6 +377,7 @@ def _generate_evm_for_instruction_r(
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
+    # Step 5: Emit instructions output operands (if any)
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
