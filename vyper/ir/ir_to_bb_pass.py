@@ -458,7 +458,7 @@ def _convert_ir_basicblock(
     elif ir.value == "sstore":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
-        inst = IRInstruction("sstore", [arg_0, arg_1])
+        inst = IRInstruction("sstore", [arg_1, arg_0])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "unique_symbol":
         sym = ir.args[0]
