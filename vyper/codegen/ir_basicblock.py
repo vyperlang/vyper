@@ -211,13 +211,6 @@ class IRInstruction:
                 output_operands.append(op)
         return output_operands
 
-    def get_use_count_correction(self, op: IROperand) -> int:
-        use_count_correction = 0
-        for _, phi in self.parent.phi_vars.items():
-            if phi.value == op.target.value:
-                use_count_correction += 1
-        return use_count_correction
-
     def __repr__(self) -> str:
         s = ""
         if self.ret:

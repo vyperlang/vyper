@@ -146,13 +146,11 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IROperand]) -> None:
     for op in stack_ops:
-        # final_stack_depth = -(len(operands) - i - 1)
-        ucc = 0  # inst.get_use_count_correction(op)
-        assert op.target.use_count >= ucc, "Operand used up"
+        assert op.target.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        needs_copy = op.target.use_count - ucc > 1
-        if needs_copy:
+        if op.target.use_count > 1:
+            # Operand need duplication
             stack_map.dup(assembly, depth)
             op.target.use_count -= 1
 
