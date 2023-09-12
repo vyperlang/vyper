@@ -123,8 +123,14 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
 
     # Append postambles
-    extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
-    extent_point.extend(["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"])
+    revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+    if isinstance(asm[-1], list) and isinstance(asm[-1][0], RuntimeHeader):
+        runtime = asm.pop()
+
+    asm.extend(revert_postamble)
+    if runtime:
+        runtime.extend(revert_postamble)
+        asm.append(runtime)
 
     # Append data segment
     data_segments = {}
@@ -356,7 +362,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "deploy":
         memsize = inst.operands[0].value
         padding = inst.operands[2].value
-        assembly.clear()
+
         assembly.extend(
             ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
         )

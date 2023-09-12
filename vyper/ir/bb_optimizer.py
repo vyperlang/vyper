@@ -9,7 +9,6 @@ def optimize_function(ctx: IRFunction):
             pass
 
         _calculate_in_set(ctx)
-
         while ctx.remove_unreachable_blocks():
             pass
 

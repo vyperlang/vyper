@@ -155,7 +155,6 @@ def _convert_ir_basicblock(
     ctx: IRFunction, ir: IRnode, symbols: SymbolTable
 ) -> Optional[IRVariable]:
     global _break_target, _continue_target
-    # symbols = symbols.copy()
 
     if ir.value in BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3", "sha3_64"])
@@ -371,6 +370,12 @@ def _convert_ir_basicblock(
         assert func_t is not None, "exit_to without func_t"
 
         if func_t.is_external:
+            # Hardcoded contructor special case
+            if func_t.name == "__init__":
+                label = IRLabel(ir.args[0].value, True)
+                inst = IRInstruction("jmp", [label])
+                ctx.get_basic_block().append_instruction(inst)
+                return
             if func_t.return_type == None:
                 inst = IRInstruction("stop", [])
                 ctx.get_basic_block().append_instruction(inst)
