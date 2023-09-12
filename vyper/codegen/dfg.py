@@ -124,6 +124,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
     # Append postambles
     revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+    runtime = None
     if isinstance(asm[-1], list) and isinstance(asm[-1][0], RuntimeHeader):
         runtime = asm.pop()
 
@@ -190,7 +191,7 @@ def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
 ):
     if basicblock in visited_basicblocks:
-        return asm
+        return
     visited_basicblocks.add(basicblock)
 
     asm.append(f"_sym_{basicblock.label}")
@@ -362,7 +363,9 @@ def _generate_evm_for_instruction_r(
     elif opcode == "deploy":
         memsize = inst.operands[0].value
         padding = inst.operands[2].value
-
+        # TODO: fix this by removing deploy opcode altogether me move emition to ir translation
+        while assembly[-1] != "JUMPDEST":
+            assembly.pop()
         assembly.extend(
             ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
         )
