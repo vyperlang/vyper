@@ -257,7 +257,7 @@ def _generate_evm_for_instruction_r(
         inputs = inst.get_input_operands()
         depth = stack_map.get_depth_in(inputs)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        to_be_replaced = stack_map.peek(-depth)
+        to_be_replaced = stack_map.peek(depth)
         if to_be_replaced.use_count > 1:
             stack_map.dup(assembly, depth)
             to_be_replaced.use_count -= 1
@@ -322,7 +322,7 @@ def _generate_evm_for_instruction_r(
             ]
         )
         label_counter += 1
-        if stack_map.peek(-1).use_count == 0:
+        if stack_map.peek(0).use_count == 0:
             stack_map.pop()
             assembly.append("POP")
     elif opcode == "call":

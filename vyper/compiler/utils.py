@@ -112,7 +112,7 @@ class StackMap:
         """
         Returns the top of the stack map.
         """
-        return self.stack_map[-depth - 1]
+        return self.stack_map[depth - 1]
 
     def poke(self, depth: int, op: IRValueBase) -> None:
         """
@@ -120,15 +120,15 @@ class StackMap:
         """
         assert depth <= 0, "Bad depth"
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
-        self.stack_map[-depth - 1] = op
+        self.stack_map[depth - 1] = op
 
     def dup(self, assembly: list[str], depth: int) -> None:
         """
         Duplicates the operand at the given depth in the stack map.
         """
         assert depth <= 0, "Cannot dup positive depth"
-        assembly.append(f"DUP{-depth+1}")
-        self.stack_map.append(self.peek(-depth))
+        assembly.append(f"DUP{-(depth-1)}")
+        self.stack_map.append(self.peek(depth))
 
     def swap(self, assembly: list[str], depth: int) -> None:
         """
