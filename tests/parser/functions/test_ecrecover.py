@@ -58,3 +58,30 @@ def test_ecrecover(hash: bytes32, v: uint8, r: uint256) -> address:
     r = 0
     # note web3.py decoding of 0x000..00 address is None.
     assert c.test_ecrecover(hash_, v, r) is None
+
+
+# slightly more subtle example: get_v() stomps memory location 0,
+# so this tests that the output buffer stays clean during ecrecover()
+# builtin execution.
+def test_invalid_signature2(get_contract):
+    code = """
+
+owner: immutable(address)
+
+@external
+def __init__():
+    owner = 0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf
+
+@internal
+def get_v() -> uint256:
+    assert owner == owner # force a dload to write at index 0 of memory
+    return 21
+
+@payable
+@external
+def test_ecrecover() -> bool:
+    assert ecrecover(empty(bytes32), self.get_v(), 0, 0) == empty(address)
+    return True
+    """
+    c = get_contract(code)
+    assert c.test_ecrecover() is True

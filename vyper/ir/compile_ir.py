@@ -1,6 +1,9 @@
 import copy
 import functools
 import math
+from dataclasses import dataclass
+
+import cbor2
 
 from vyper.ir.optimizer import COMMUTATIVE_OPS
 from vyper.codegen.ir_node import IRnode
@@ -508,9 +511,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "deploy":
         memsize = code.args[0].value  # used later to calculate _mem_deploy_start
         ir = code.args[1]
-        padding = code.args[2].value
+        immutables_len = code.args[2].value
         assert isinstance(memsize, int), "non-int memsize"
-        assert isinstance(padding, int), "non-int padding"
+        assert isinstance(immutables_len, int), "non-int immutables_len"
 
         runtime_begin = mksymbol("runtime_begin")
 
@@ -522,14 +525,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_subcode_size", runtime_begin, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
+        o.extend(["_OFST", "_sym_subcode_size", immutables_len])  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
         # since the asm data structures are very primitive, to make sure
         # assembly_to_evm is able to calculate data offsets correctly,
         # we pass the memsize via magic opcodes to the subcode
-        subcode = [RuntimeHeader(runtime_begin, memsize)] + subcode
+        subcode = [RuntimeHeader(runtime_begin, memsize, immutables_len)] + subcode
 
         # append the runtime code after the ctor code
         # `append(...)` call here is intentional.
@@ -1090,18 +1093,19 @@ def _length_of_data(assembly):
     return ret
 
 
+@dataclass
 class RuntimeHeader:
-    def __init__(self, label, ctor_mem_size):
-        self.label = label
-        self.ctor_mem_size = ctor_mem_size
+    label: str
+    ctor_mem_size: int
+    immutables_len: int
 
     def __repr__(self):
-        return f"<RUNTIME {self.label} mem @{self.ctor_mem_size}>"
+        return f"<RUNTIME {self.label} mem @{self.ctor_mem_size} imms @{self.immutables_len}>"
 
 
+@dataclass
 class DataHeader:
-    def __init__(self, label):
-        self.label = label
+    label: str
 
     def __repr__(self):
         return f"DATA {self.label}"
@@ -1131,21 +1135,21 @@ def _relocate_segments(assembly):
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
+def assembly_to_evm(assembly, pc_ofst=0, insert_compiler_metadata=False):
     bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, insert_vyper_signature=insert_vyper_signature
+        assembly, pc_ofst=pc_ofst, insert_compiler_metadata=insert_compiler_metadata
     )
     return bytecode, source_maps
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=False):
+def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadata=False):
     """
     Assembles assembly into EVM
 
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    insert_vyper_signature: whether to append vyper metadata to output
+    insert_compiler_metadata: whether to append vyper metadata to output
                             (should be true for runtime code)
     """
     line_number_map = {
@@ -1160,12 +1164,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
     symbol_map = {}
 
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
-
-    bytecode_suffix = b""
-    if insert_vyper_signature:
-        # CBOR encoded: {"vyper": [major,minor,patch]}
-        bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
-        bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
 
     # to optimize the size of deploy code - we want to use the smallest
     # PUSH instruction possible which can support all memory symbols
@@ -1193,6 +1191,9 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
 
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
+
+    data_section_lengths = []
+    immutables_len = None
 
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
@@ -1238,17 +1239,40 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
         elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
+            # we are in initcode
             symbol_map[item[0].label] = pc
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
                 line_number_map[key].update(t[key])
+            immutables_len = item[0].immutables_len
             pc += len(runtime_code)
+            # grab lengths of data sections from the runtime
+            for t in item:
+                if isinstance(t, list) and isinstance(t[0], DataHeader):
+                    data_section_lengths.append(_length_of_data(t))
+
         elif isinstance(item, list) and isinstance(item[0], DataHeader):
             symbol_map[item[0].label] = pc
             pc += _length_of_data(item)
         else:
             pc += 1
+
+    bytecode_suffix = b""
+    if insert_compiler_metadata:
+        # this will hold true when we are in initcode
+        assert immutables_len is not None
+        metadata = (
+            len(runtime_code),
+            data_section_lengths,
+            immutables_len,
+            {"vyper": version_tuple},
+        )
+        bytecode_suffix += cbor2.dumps(metadata)
+        # append the length of the footer, *including* the length
+        # of the length bytes themselves.
+        suffix_len = len(bytecode_suffix) + 2
+        bytecode_suffix += suffix_len.to_bytes(2, "big")
 
     pc += len(bytecode_suffix)
 
