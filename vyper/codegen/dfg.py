@@ -89,15 +89,6 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             for op in res:
                 dfg_outputs[op.target.value] = inst
 
-    ## DEBUGING REMOVE
-    for bb in ctx.basic_blocks:
-        in_set = bb.in_set
-        if len(in_set) <= 1:
-            continue
-        print("IN", bb.label)
-        for inbb in in_set:
-            print(inbb.label, inbb.get_liveness())
-
 
 def compute_phi_vars(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:

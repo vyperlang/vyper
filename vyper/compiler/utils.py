@@ -92,7 +92,6 @@ class StackMap:
         def f(x):
             return str(phi_vars.get(str(x), x))
 
-        print(type(op))
         for i, stack_op in enumerate(self.stack_map[::-1]):
             stack_op = stack_op.target if isinstance(stack_op, IROperand) else stack_op
             if isinstance(stack_op, IRValueBase):
