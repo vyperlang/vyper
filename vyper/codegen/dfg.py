@@ -372,7 +372,7 @@ def _generate_evm_for_instruction_r(
         assembly.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
         assembly.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         assembly.extend(["RETURN"])
-        assembly.append([RuntimeHeader("_sym_runtime_begin", memsize)])
+        assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])
         assembly = assembly[-1]
         pass
     else:
