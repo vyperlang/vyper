@@ -272,19 +272,18 @@ def _generate_evm_for_instruction_r(
         return assembly
 
     # Step 2: Emit instructions input operands
-    stack_ops = [op for op in operands if op.is_label == False or inst.opcode == "jmp"]
-    _emit_input_operands(ctx, assembly, inst, stack_ops, stack_map)
+    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
         _, b = next(enumerate(inst.parent.out_set))
         target_stack = b.get_liveness()
         _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
 
-    _stack_duplications(assembly, stack_map, stack_ops)
-    _stack_reorder(assembly, stack_map, stack_ops)
+    _stack_duplications(assembly, stack_map, operands)
+    _stack_reorder(assembly, stack_map, operands)
 
     # Step 3: Push instruction's return value to stack
-    stack_map.pop(len(stack_ops))
+    stack_map.pop(len(operands))
     if inst.ret is not None:
         stack_map.push(inst.ret.target)
 
@@ -400,9 +399,8 @@ def _emit_input_operands(
 ) -> None:
     for op in ops:
         if op.is_label:
-            if inst.opcode == "jmp":
-                assembly.append(f"_sym_{op.value}")
-                stack_map.push(op.target)
+            assembly.append(f"_sym_{op.value}")
+            stack_map.push(op.target)
             continue
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
