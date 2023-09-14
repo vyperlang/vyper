@@ -13,7 +13,7 @@ from vyper.codegen.ir_basicblock import (
 
 class IRFunctionBase:
     """
-    Base class for IRFunction and IRFunctionIntrinsic
+    Base class for IRFunction
     """
 
     name: IRLabel  # symbol name
@@ -137,14 +137,3 @@ class IRFunction(IRFunctionBase):
             for inst in self.data_segment:
                 str += f"{inst}\n"
         return str
-
-
-class IRFunctionIntrinsic(IRFunctionBase):
-    """
-    Intrinsic function, to represent sertain instructions of EVM that
-    are directly emmitted by the compiler frontend to the s-expression IR
-    """
-
-    def __repr__(self) -> str:
-        args = ", ".join([str(arg) for arg in self.args])
-        return f"{self.name}({args})"
