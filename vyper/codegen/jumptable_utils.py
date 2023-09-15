@@ -43,7 +43,11 @@ def _image_of(xs, magic):
     return [((x * magic) >> bits_shift) % len(xs) for x in xs]
 
 
-class _Failure(Exception):
+class _FindMagicFailure(Exception):
+    pass
+
+
+class _HasEmptyBuckets(Exception):
     pass
 
 
@@ -53,7 +57,7 @@ def find_magic_for(xs):
         if len(test) == len(set(test)):
             return m
 
-    raise _Failure(f"Could not find hash for {xs}")
+    raise _FindMagicFailure(f"Could not find hash for {xs}")
 
 
 def _mk_buckets(method_ids, n_buckets):
@@ -71,6 +75,12 @@ def _mk_buckets(method_ids, n_buckets):
 # second, get the magic for the bucket.
 def _dense_jumptable_info(method_ids, n_buckets):
     buckets = _mk_buckets(method_ids, n_buckets)
+    # print("BUCKETS", buckets)
+
+    # if there are somehow empty buckets, bail out as that can mess up
+    # the bucket header layout
+    if len(buckets) != n_buckets:
+        raise _HasEmptyBuckets()
 
     ret = {}
     for bucket_id, method_ids in buckets.items():
@@ -99,7 +109,11 @@ def generate_dense_jumptable_info(signatures):
         try:
             # print(f"trying {n_buckets} (bucket size {n // n_buckets})")
             ret = _dense_jumptable_info(method_ids, n_buckets)
-        except _Failure:
+            assert len(ret) == n_buckets
+
+        except _HasEmptyBuckets:
+            pass
+        except _FindMagicFailure:
             if ret is not None:
                 break
 
