@@ -7,7 +7,7 @@ from hypothesis import given, settings
 
 import vyper.ast as vy_ast
 from vyper.compiler.phases import CompilerData
-from vyper.semantics.namespace import RESERVED_KEYWORDS
+from vyper.ast.identifiers import RESERVED_KEYWORDS
 
 
 def _valid_identifier(attr):
