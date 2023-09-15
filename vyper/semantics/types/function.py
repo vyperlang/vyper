@@ -5,6 +5,7 @@ from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
+from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
@@ -220,7 +221,10 @@ class ContractFunctionT(VyperType):
                         msg = "Nonreentrant decorator disallowed on `__init__`"
                         raise FunctionDeclarationException(msg, decorator)
 
-                    kwargs["nonreentrant"] = decorator.args[0].value
+                    nonreentrant_key = decorator.args[0].value
+                    validate_identifier(nonreentrant_key, decorator.args[0])
+
+                    kwargs["nonreentrant"] = nonreentrant_key
 
                 elif isinstance(decorator, vy_ast.Name):
                     if FunctionVisibility.is_valid_value(decorator.id):
