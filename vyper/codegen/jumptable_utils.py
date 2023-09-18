@@ -75,7 +75,6 @@ def _mk_buckets(method_ids, n_buckets):
 # second, get the magic for the bucket.
 def _dense_jumptable_info(method_ids, n_buckets):
     buckets = _mk_buckets(method_ids, n_buckets)
-    # print("BUCKETS", buckets)
 
     # if there are somehow empty buckets, bail out as that can mess up
     # the bucket header layout
