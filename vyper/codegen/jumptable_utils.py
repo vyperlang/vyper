@@ -107,11 +107,15 @@ def generate_dense_jumptable_info(signatures):
     while n_buckets > 0:
         try:
             # print(f"trying {n_buckets} (bucket size {n // n_buckets})")
-            ret = _dense_jumptable_info(method_ids, n_buckets)
-            assert len(ret) == n_buckets
+            solution = _dense_jumptable_info(method_ids, n_buckets)
+            assert len(solution) == n_buckets
+            ret = n_buckets, solution
 
         except _HasEmptyBuckets:
+            # found a solution which has empty buckets; skip it since
+            # it will break the bucket layout.
             pass
+
         except _FindMagicFailure:
             if ret is not None:
                 break
