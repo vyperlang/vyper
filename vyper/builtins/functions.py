@@ -1155,14 +1155,20 @@ class RawCall(BuiltinFunction):
             outsize,
         ]
 
-        if delegate_call:
-            call_op = ["delegatecall", gas, to, *common_call_args]
-        elif static_call:
-            call_op = ["staticcall", gas, to, *common_call_args]
-        else:
-            call_op = ["call", gas, to, value, *common_call_args]
+        gas, value = IRnode.from_list(gas), IRnode.from_list(value)
+        with value.cache_when_complex("_value") as (b1, value), gas.cache_when_complex("_gas") as (
+            b2,
+            gas,
+        ), to.cache_when_complex("_to") as (b3, to):
+            if delegate_call:
+                call_op = ["delegatecall", gas, to, *common_call_args]
+            elif static_call:
+                call_op = ["staticcall", gas, to, *common_call_args]
+            else:
+                call_op = ["call", gas, to, value, *common_call_args]
 
-        call_ir += [call_op]
+            call_ir += [call_op]
+            call_ir = b1.resolve(b2.resolve(b3.resolve(call_ir)))
 
         # build sequence IR
         if outsize:

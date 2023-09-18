@@ -333,7 +333,8 @@ class IRnode:
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
-        do_not_cache = {"~empty", "calldatasize"}
+        do_not_cache = {"~empty", "calldatasize", "callvalue"}
+
         return (
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
