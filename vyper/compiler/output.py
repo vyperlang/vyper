@@ -2,6 +2,7 @@ import warnings
 from collections import OrderedDict, deque
 from pathlib import Path
 
+import lark
 import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
@@ -22,6 +23,26 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     }
     return ast_dict
 
+
+def build_ast_v2(compiler_data: CompilerData) -> dict:
+    def _to_dict(node):
+        if isinstance(node, (str, int)):
+            return node
+        if isinstance(node, list):
+            return [_to_dict(t) for t in node]
+        if node is None:
+            return None
+        assert isinstance(node, lark.tree.Tree)
+        ret = {node.data: [_to_dict(t) for t in node.children]}
+        if node._meta is not None:
+            ret["_meta"] = node._meta
+        return ret
+
+    ast_dict = {
+        "contract_name": compiler_data.contract_name,
+        "ast": _to_dict(compiler_data.lark_ast),
+    }
+    return ast_dict
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)

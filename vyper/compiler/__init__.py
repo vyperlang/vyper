@@ -20,6 +20,7 @@ from vyper.typing import (
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    "ast_v2": output.build_ast_v2,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,

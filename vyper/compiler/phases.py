@@ -3,6 +3,9 @@ import warnings
 from functools import cached_property
 from typing import Optional, Tuple
 
+import lark
+
+from vyper.ast import grammar as vy_grammar
 from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
@@ -122,6 +125,10 @@ class CompilerData:
     @cached_property
     def vyper_module(self):
         return self._generate_ast
+
+    @cached_property
+    def lark_ast(self) -> lark.tree.Tree:
+        return vy_grammar.parse_vyper_source(self.source_code)
 
     @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
