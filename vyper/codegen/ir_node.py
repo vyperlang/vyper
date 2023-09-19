@@ -47,13 +47,42 @@ class Encoding(Enum):
     # future: packed
 
 
-# create multiple with scopes if any of the items are complex, to force
-# ordering of side effects.
-# CMC 2023-08-10 this is horrible! remove this _as soon as_ we have
+# shortcut for chaining multiple cache_when_complex calls
+# CMC 2023-08-10 remove this and scope_together _as soon as_ we have
 # real variables in IR (that we can declare without explicit scoping -
 # needs liveness analysis).
 @contextlib.contextmanager
 def scope_multi(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    builders = []
+    scoped_ir_nodes = []
+
+    class _MultiBuilder:
+        def resolve(self, body):
+            # sanity check that it's initialized properly
+            assert len(builders) == len(ir_nodes)
+            ret = body
+            for b in builders:
+                ret = b.resolve(ret)
+            return ret
+
+    mb = _MultiBuilder()
+
+    with contextlib.ExitStack() as stack:
+        for arg, name in zip(ir_nodes, names):
+            b, ir_node = stack.enter_context(arg.cache_when_complex(name))
+
+            builders.append(b)
+            scoped_ir_nodes.append(ir_node)
+
+        yield mb, scoped_ir_nodes
+
+
+# create multiple with scopes if any of the items are complex, to force
+# ordering of side effects.
+@contextlib.contextmanager
+def scope_together(ir_nodes, names):
     assert len(ir_nodes) == len(names)
 
     should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
@@ -77,6 +106,7 @@ def scope_multi(ir_nodes, names):
                 return ret
 
     b = _Builder()
+
     if should_scope:
         ir_vars = tuple(
             IRnode.from_list(name, typ=arg.typ, location=arg.location, encoding=arg.encoding)

@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
@@ -1592,13 +1593,15 @@ class Abs(BuiltinFunction):
 
 # CREATE* functions
 
+CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
+
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
-def _create_ir(value, buf, length, salt=None, checked=True):
+def _create_ir(value, buf, length, salt, checked=True):
     args = [value, buf, length]
     create_op = "create"
-    if salt is not None:
+    if salt is not CREATE2_SENTINEL:
         create_op = "create2"
         args.append(salt)
 
@@ -1716,8 +1719,9 @@ class _CreateBase(BuiltinFunction):
         context.check_is_not_constant("use {self._id}", expr)
 
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
         if not should_use_create2:
-            kwargs["salt"] = None
+            kwargs["salt"] = CREATE2_SENTINEL
 
         ir_builder = self._build_create_IR(expr, args, context, **kwargs)
 
@@ -1797,13 +1801,17 @@ class CreateCopyOf(_CreateBase):
     def _build_create_IR(self, expr, args, context, value, salt):
         target = args[0]
 
-        with target.cache_when_complex("create_target") as (b1, target):
+        # something we can pass to scope_multi
+        with scope_multi((target, value), ("create_target", "create_value")) as (
+            b1,
+            (target, value),
+        ), salt.cache_when_complex("create_salt") as (b2, salt):
             codesize = IRnode.from_list(["extcodesize", target])
             msize = IRnode.from_list(["msize"])
-            with codesize.cache_when_complex("target_codesize") as (
-                b2,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
+                b3,
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
@@ -1880,17 +1888,23 @@ class CreateFromBlueprint(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
-            "encoded_args_len"
-        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
-            codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
+        with scope_multi(
+            (target, value, argslen, code_offset),
+            ("create_target", "create_value", "encoded_args_len", "code_ofst"),
+        ) as (b1, (target, value, encoded_args_len, code_offset)), salt.cache_when_complex(
+            "create_salt"
+        ) as (
+            b2,
+            salt,
+        ):
+            codesize = IRnode.from_list(["sub", ["extcodesize", target], code_offset])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
-            with codesize.cache_when_complex("target_codesize") as (
-                b4,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
+                b3,
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is code at the target, and that
@@ -1910,7 +1924,7 @@ class CreateFromBlueprint(_CreateBase):
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
                 # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
+                ir.append(["extcodecopy", target, mem_ofst, code_offset, codesize])
 
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
@@ -1925,7 +1939,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(b5.resolve(ir)))))
+                return b1.resolve(b2.resolve(b3.resolve(ir)))
 
 
 class _UnsafeMath(BuiltinFunction):
