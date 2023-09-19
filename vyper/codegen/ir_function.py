@@ -1,13 +1,12 @@
-from symtable import SymbolTable
 from typing import Optional
 
 from vyper.codegen.ir_basicblock import (
     IRBasicBlock,
     IRInstruction,
-    IRValueBase,
     IRLabel,
-    IRVariable,
     IROperand,
+    IRValueBase,
+    IRVariable,
 )
 
 
@@ -133,7 +132,7 @@ class IRFunction(IRFunctionBase):
         for bb in self.basic_blocks:
             str += f"{bb}\n"
         if len(self.data_segment) > 0:
-            str += f"Data segment:\n"
+            str += "Data segment:\n"
             for inst in self.data_segment:
                 str += f"{inst}\n"
         return str

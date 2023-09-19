@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING, Optional
 from enum import Enum
+from typing import TYPE_CHECKING, Optional
+
 from vyper.utils import OrderedSet
 
 TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
@@ -97,7 +98,8 @@ IROperandTarget = IRLiteral | IRVariable | IRLabel
 
 class IROperand:
     """
-    IROperand represents an operand of an IR instuction. An operand can be a variable, label, or a constant.
+    IROperand represents an operand of an IR instuction. An operand can be a variable,
+    label, or a constant.
     """
 
     Direction = Enum("Direction", ["IN", "OUT"])

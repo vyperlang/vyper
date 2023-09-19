@@ -5,11 +5,11 @@ from dataclasses import dataclass
 
 import cbor2
 
-from vyper.ir.optimizer import COMMUTATIVE_OPS
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
+from vyper.ir.optimizer import COMMUTATIVE_OPS
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
 

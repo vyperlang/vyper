@@ -6,9 +6,9 @@ from vyper.codegen.ir_basicblock import (
     IRInstruction,
     IRLabel,
     IRLiteral,
+    IROperand,
     IRValueBase,
     IRVariable,
-    IROperand,
 )
 from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
@@ -137,7 +137,7 @@ def _handle_internal_func(
     new_var = ctx.get_next_variable()
     alloca_inst = IRInstruction("param", [], new_var)
     bb.append_instruction(alloca_inst)
-    symbols[f"return_pc"] = new_var
+    symbols["return_pc"] = new_var
 
     return ir.args[0].args[2]
 
@@ -400,7 +400,7 @@ def _convert_ir_basicblock(
 
         if func_t.is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
-            if func_t.return_type == None:
+            if func_t.return_type is None:
                 inst = IRInstruction("ret", [symbols["return_pc"]])
             else:
                 ret_var = ir.args[1]

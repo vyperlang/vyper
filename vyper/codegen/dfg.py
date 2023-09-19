@@ -1,10 +1,4 @@
-from vyper.codegen.ir_basicblock import (
-    IRInstruction,
-    IRLiteral,
-    IROperand,
-    IRVariable,
-    IRBasicBlock,
-)
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
