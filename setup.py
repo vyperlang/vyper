@@ -95,7 +95,7 @@ setup(
         "cbor2>=5.4.6,<6",
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
-        "semantic-version>=2.10,<3",
+        "packaging>=23.1,<24",
         "importlib-metadata",
         "wheel",
     ],

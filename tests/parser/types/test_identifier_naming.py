@@ -1,10 +1,10 @@
 import pytest
 
 from vyper.ast.folding import BUILTIN_CONSTANTS
+from vyper.ast.identifiers import RESERVED_KEYWORDS
 from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.codegen.expr import ENVIRONMENT_VARIABLES
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
-from vyper.semantics.namespace import RESERVED_KEYWORDS
 from vyper.semantics.types.primitives import AddressT
 
 BUILTIN_CONSTANTS = set(BUILTIN_CONSTANTS.keys())
