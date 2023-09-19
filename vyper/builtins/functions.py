@@ -36,7 +36,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.codegen.ir_node import Encoding
+from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import (
@@ -1156,10 +1156,7 @@ class RawCall(BuiltinFunction):
         ]
 
         gas, value = IRnode.from_list(gas), IRnode.from_list(value)
-        with value.cache_when_complex("_value") as (b1, value), gas.cache_when_complex("_gas") as (
-            b2,
-            gas,
-        ), to.cache_when_complex("_to") as (b3, to):
+        with scope_multi((to, value, gas), ("_to", "_value", "_gas")) as (b1, (to, value, gas)):
             if delegate_call:
                 call_op = ["delegatecall", gas, to, *common_call_args]
             elif static_call:
@@ -1168,7 +1165,7 @@ class RawCall(BuiltinFunction):
                 call_op = ["call", gas, to, value, *common_call_args]
 
             call_ir += [call_op]
-            call_ir = b1.resolve(b2.resolve(b3.resolve(call_ir)))
+            call_ir = b1.resolve(call_ir)
 
         # build sequence IR
         if outsize:

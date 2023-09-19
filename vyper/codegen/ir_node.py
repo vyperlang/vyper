@@ -1,8 +1,8 @@
+import contextlib
 import re
 from enum import Enum, auto
 from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
-import contextlib
 
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.address_space import AddrSpace
@@ -76,12 +76,12 @@ def scope_multi(ir_nodes, names):
             else:
                 return ret
 
-
     b = _Builder()
     if should_scope:
-        ir_vars = tuple(IRnode.from_list(
-            name, typ=arg.typ, location=arg.location, encoding=arg.encoding
-        ) for (arg, name) in zip(ir_nodes, names))
+        ir_vars = tuple(
+            IRnode.from_list(name, typ=arg.typ, location=arg.location, encoding=arg.encoding)
+            for (arg, name) in zip(ir_nodes, names)
+        )
         yield b, ir_vars
     else:
         # inline them
