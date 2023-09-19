@@ -16,6 +16,7 @@ def optimize_function(ctx: IRFunction):
             return ctx
 
         _calculate_liveness(ctx.basic_blocks[0], {})
+
         removed = _optimize_unused_variables(ctx)
         if len(removed) == 0:
             break

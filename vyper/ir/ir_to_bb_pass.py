@@ -306,14 +306,17 @@ def _convert_ir_basicblock(
     elif ir.value == "calldatacopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols)
         arg_0.mem_type = IRVariable.MemType.MEMORY
-        arg_0.mem_addr = int(arg_0.value[1:])
+        if arg_0.is_literal:
+            arg_0.mem_addr = arg_0.value
+        else:
+            arg_0.mem_addr = int(arg_0.value[1:])
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
 
         arg_0_var = ctx.get_next_variable()
         arg_0_var.mem_type = IRVariable.MemType.MEMORY
         arg_0_var.mem_addr = arg_0.mem_addr
-        arg_0_op = IROperand(arg_0, True)
+        arg_0_op = IROperand(arg_0_var, True)
         # arg_0_op.direction = IROperand.Direction.OUT
         ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
 
