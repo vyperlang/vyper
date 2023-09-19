@@ -427,7 +427,8 @@ def baz(_addr: address, should_raise: bool) -> uint256:
 
 
 # XXX: these test_raw_call_clean_mem* tests depend on variables and
-# calling convention writing to memory
+# calling convention writing to memory. think of ways to make more
+# robust to changes to calling convention and memory layout.
 
 
 def test_raw_call_msg_data_clean_mem(get_contract):

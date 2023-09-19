@@ -433,10 +433,15 @@ def test2(target: address, salt: bytes32) -> address:
     # assert_tx_failed(lambda: c.test2(bytecode, salt))
 
 
+# XXX: these various tests to check the msize allocator for
+# create_copy_of and create_from_blueprint depend on calling convention
+# and variables writing to memory. think of ways to make more robust to
+# changes in calling convention and memory layout
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint_complex_value(
     get_contract, deploy_blueprint_for, w3, blueprint_prefix
 ):
+    # check msize allocator does not get trampled by value= kwarg
     code = """
 var: uint256
 
@@ -493,6 +498,7 @@ def test(target: address):
 def test_create_from_blueprint_complex_salt_raw_args(
     get_contract, deploy_blueprint_for, w3, blueprint_prefix
 ):
+    # test msize allocator does not get trampled by salt= kwarg
     code = """
 var: uint256
 
@@ -550,6 +556,7 @@ def test(target: address):
 def test_create_from_blueprint_complex_salt_no_constructor_args(
     get_contract, deploy_blueprint_for, w3, blueprint_prefix
 ):
+    # test msize allocator does not get trampled by salt= kwarg
     code = """
 var: uint256
 
@@ -594,6 +601,7 @@ def test(target: address):
 
 
 def test_create_copy_of_complex_kwargs(get_contract, w3):
+    # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
 created_address: public(address)
 
@@ -613,6 +621,7 @@ def test(target: address) -> address:
     test1 = c.created_address()
     assert w3.eth.get_code(test1) == bytecode
 
+    # test msize allocator does not get trampled by value= kwarg
     complex_value = """
 created_address: public(address)
 
