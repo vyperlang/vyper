@@ -316,7 +316,7 @@ def _convert_ir_basicblock(
         arg_0_var = ctx.get_next_variable()
         arg_0_var.mem_type = IRVariable.MemType.MEMORY
         arg_0_var.mem_addr = arg_0.mem_addr
-        arg_0_op = IROperand(arg_0_var, True)
+        arg_0_op = IROperand(arg_0_var)
         # arg_0_op.direction = IROperand.Direction.OUT
         ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
 
@@ -328,16 +328,16 @@ def _convert_ir_basicblock(
             arg_0_var = ctx.get_next_variable()
             arg_0_var.mem_type = IRVariable.MemType.MEMORY
             arg_0_var.mem_addr = 0
-            alloca_op = IROperand(arg_0_var, True, 0)
+            alloca_op = IROperand(arg_0_var)
             ctx.get_basic_block().append_instruction(IRInstruction("alloca", [], alloca_op))
-            arg_0_op = IROperand(arg_0_var, True, 30)
+            arg_0_op = IROperand(arg_0_var)  # THis had offset
         else:
-            arg_0_op = IROperand(arg_0, True, 0)
+            arg_0_op = IROperand(arg_0)
 
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols)
         ret_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
-        ret_op = IROperand(ret_var, True)
+        ret_op = IROperand(ret_var)
         symbols[f"&0"] = ret_var
         inst = IRInstruction("codecopy", [size, arg_1, arg_0_op], ret_op)
         ctx.get_basic_block().append_instruction(inst)
@@ -393,7 +393,7 @@ def _convert_ir_basicblock(
                 new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
                 new_var.mem_type = IRVariable.MemType.MEMORY
                 new_var.mem_addr = ret_ir.value
-                new_op = IROperand(new_var, True)
+                new_op = IROperand(new_var)
                 inst = IRInstruction("return", [last_ir, new_op])
                 ctx.get_basic_block().append_instruction(inst)
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))

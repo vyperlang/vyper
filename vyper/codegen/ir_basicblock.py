@@ -95,6 +95,9 @@ class IRLabel(IRValueBase):
 
 IROperandTarget = IRLiteral | IRVariable | IRLabel
 
+DataType = Enum("Type", ["VALUE", "PTR"])
+DataType_to_str = {DataType.VALUE: "", DataType.PTR: "ptr"}
+
 
 class IROperand:
     """
@@ -103,24 +106,18 @@ class IROperand:
     """
 
     Direction = Enum("Direction", ["IN", "OUT"])
+    type: DataType = DataType.VALUE
     target: IRValueBase
     direction: Direction = Direction.IN
-    address_access: bool = False
-    address_offset: int = 0
 
     def __init__(
-        self, target: IRValueBase, address_access: bool = False, address_offset: int = 0
+        self,
+        target: IRValueBase,
+        type: DataType = DataType.VALUE,
     ) -> None:
         assert isinstance(target, IRValueBase), "value must be an IRValueBase"
-        assert isinstance(address_access, bool), "address_access must be a bool"
-        assert isinstance(address_offset, int), "address_offset must be an int"
-        if address_access:
-            assert (
-                isinstance(target, IRVariable) and target.mem_type == IRVariable.MemType.MEMORY
-            ), "address access can only be used for memory variables"
-            self.address_access = address_access
-            self.address_offset = address_offset
         self.target = target
+        self.type = type
         self.direction = IROperand.Direction.IN
 
     def is_targeting(self, target: IRValueBase) -> bool:
@@ -129,12 +126,6 @@ class IROperand:
     @property
     def value(self) -> IRValueBaseValue:
         return self.target.value
-
-    @property
-    def addr(self) -> int:
-        assert self.is_variable, "address can only be accessed for variables"
-        target: IRVariable = self.target
-        return target.mem_addr + self.address_offset
 
     @property
     def is_literal(self) -> bool:
@@ -149,8 +140,9 @@ class IROperand:
         return isinstance(self.target, IRLabel)
 
     def __repr__(self) -> str:
-        offsetStr = f"{self.address_offset:+}" if self.address_offset else ""
-        return f"{'ptr ' if self.address_access else ''}{self.target}{offsetStr}"
+        if self.type == DataType.VALUE:
+            return f"{self.target}"
+        return f"{DataType_to_str[self.type]} '{self.target}"
 
 
 class IRInstruction:

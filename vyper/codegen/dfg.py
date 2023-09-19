@@ -372,18 +372,19 @@ def _generate_evm_for_instruction_r(
         raise Exception(f"Unknown opcode: {opcode}")
 
     # Step 5: Emit instructions output operands (if any)
+    # FIXME: WHOLE THING NEEDS REFACTOR
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
-            if inst.ret.address_access:
-                if inst.opcode != "alloca":  # FIXMEEEE
-                    if inst.opcode != "codecopy":
-                        assembly.extend([*PUSH(inst.ret.addr)])
-                else:
-                    assembly.extend([*PUSH(inst.ret.addr + 30)])
-            else:
-                assembly.extend([*PUSH(inst.ret.addr)])
-                assembly.append("MSTORE")
+            # if inst.ret.address_access:                           FIXME: MEMORY REFACTOR
+            #     if inst.opcode != "alloca":  # FIXMEEEE
+            #         if inst.opcode != "codecopy":
+            #             assembly.extend([*PUSH(inst.ret.addr)])
+            #     else:
+            assembly.extend([*PUSH(inst.ret.target.mem_addr + 30)])
+        else:
+            assembly.extend([*PUSH(inst.ret.target.mem_addr)])
+            assembly.append("MSTORE")
 
     return assembly
 
@@ -402,11 +403,12 @@ def _emit_input_operands(
             continue
         assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
-            if op.address_access:
-                if inst.opcode != "codecopy":
-                    assembly.extend([*PUSH(op.addr)])
-            else:
-                assembly.extend([*PUSH(op.addr)])
-                assembly.append("MLOAD")
+            # FIXME: MEMORY REFACTOR
+            # if op.address_access:
+            #     if inst.opcode != "codecopy":
+            #         assembly.extend([*PUSH(op.addr)])
+            # else:
+            assembly.extend([*PUSH(op.target.mem_addr)])
+            assembly.append("MLOAD")
 
     return assembly
