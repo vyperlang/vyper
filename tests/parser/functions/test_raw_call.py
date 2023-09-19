@@ -492,6 +492,11 @@ def test_raw_call_clean_mem_kwargs_value(get_contract):
     code = """
 buf: Bytes[100]
 
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
+
 @internal
 def _value() -> uint256:
     x: uint256 = 1
@@ -521,6 +526,11 @@ def test_raw_call_clean_mem_kwargs_gas(get_contract):
     # any raw_call() kwargs
     code = """
 buf: Bytes[100]
+
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
 
 @internal
 def _gas() -> uint256:
