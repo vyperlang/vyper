@@ -433,7 +433,6 @@ def test2(target: address, salt: bytes32) -> address:
     # assert_tx_failed(lambda: c.test2(bytecode, salt))
 
 
-
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint_complex_value(
     get_contract, deploy_blueprint_for, w3, blueprint_prefix
@@ -453,9 +452,11 @@ def foo()-> uint256:
 
     prefix_len = len(blueprint_prefix)
 
+    some_constant = b"\00" * 31 + b"\x0c"
+
     deployer_code = f"""
 created_address: public(address)
-x: constant(Bytes[32]) = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0c"
+x: constant(Bytes[32]) = {some_constant}
 
 @internal
 def foo() -> uint256:
@@ -465,7 +466,13 @@ def foo() -> uint256:
 @external
 @payable
 def test(target: address):
-    self.created_address = create_from_blueprint(target, x, code_offset={prefix_len}, value=self.foo(), raw_args=True)
+    self.created_address = create_from_blueprint(
+        target,
+        x,
+        code_offset={prefix_len},
+        value=self.foo(),
+        raw_args=True
+    )
     """
 
     foo_contract = get_contract(code, 12)
@@ -499,13 +506,15 @@ def foo()-> uint256:
     return self.var
     """
 
+    some_constant = b"\00" * 31 + b"\x0c"
     prefix_len = len(blueprint_prefix)
+
     deployer_code = f"""
 created_address: public(address)
 
-x: constant(Bytes[32]) = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0c"
+x: constant(Bytes[32]) = {some_constant}
 salt: constant(bytes32) = keccak256("kebab")
-    
+
 @internal
 def foo() -> bytes32:
     g:uint256 = 42
@@ -514,7 +523,13 @@ def foo() -> bytes32:
 @external
 @payable
 def test(target: address):
-    self.created_address = create_from_blueprint(target, x, code_offset={prefix_len}, salt=self.foo(), raw_args= True)
+    self.created_address = create_from_blueprint(
+        target,
+        x,
+        code_offset={prefix_len},
+        salt=self.foo(),
+        raw_args= True
+    )
     """
 
     foo_contract = get_contract(code, 12)
@@ -557,7 +572,11 @@ salt: constant(bytes32) = keccak256("kebab")
 @external
 @payable
 def test(target: address):
-    self.created_address = create_from_blueprint(target, code_offset={prefix_len}, salt=keccak256(_abi_encode(target)))
+    self.created_address = create_from_blueprint(
+        target,
+        code_offset={prefix_len},
+        salt=keccak256(_abi_encode(target))
+    )
     """
 
     foo_contract = get_contract(code)
@@ -573,13 +592,17 @@ def test(target: address):
     assert w3.eth.get_code(test.address) == expected_runtime_code
     assert test.foo() == 12
 
+
 def test_create_copy_of_complex_kwargs(get_contract, w3):
     complex_salt = """
 created_address: public(address)
 
 @external
 def test(target: address) -> address:
-    self.created_address = create_copy_of(target, salt = keccak256(_abi_encode(target)))
+    self.created_address = create_copy_of(
+        target,
+        salt=keccak256(_abi_encode(target))
+    )
     return self.created_address
 
     """
