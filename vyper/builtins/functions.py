@@ -1890,7 +1890,7 @@ class CreateFromBlueprint(_CreateBase):
         # to evaluate memory safety.
         with scope_multi(
             (target, value, argslen, code_offset),
-            ("create_target", "create_value", "encoded_args_len", "code_ofst"),
+            ("create_target", "create_value", "encoded_args_len", "code_offset"),
         ) as (b1, (target, value, encoded_args_len, code_offset)), salt.cache_when_complex(
             "create_salt"
         ) as (
