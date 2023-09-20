@@ -461,7 +461,7 @@ def _convert_ir_basicblock(
         if var.size > 32:
             return ctx.append_instruction("mstore", [arg_1, sym_ir], False)
 
-        sym = symbols.get(f"&{arg_1.value}", var)
+        sym = symbols.get(f"&{arg_1.value}", None)
 
         if sym_ir.is_literal:
             new_var = ctx.append_instruction("store", [arg_1])
