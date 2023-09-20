@@ -487,6 +487,33 @@ def bar(f: uint256, g: uint256, h: uint256) -> Bytes[100]:
     )
 
 
+def test_raw_call_clean_mem3(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments, and also test order of evaluation for
+    # scope_multi
+    code = """
+buf: Bytes[100]
+canary: String[32]
+
+@internal
+def bar() -> address:
+    self.canary = "bar"
+    return 0x0000000000000000000000000000000000000004
+
+@internal
+def goo() -> uint256:
+    self.canary = "goo"
+    return 0
+
+@external
+def foo() -> String[32]:
+    self.buf = raw_call(self.bar(), msg.data, value = self.goo(), max_outsize=100)
+    return self.canary
+    """
+    c = get_contract(code)
+    assert c.foo() == "goo"
+
+
 def test_raw_call_clean_mem_kwargs_value(get_contract):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs

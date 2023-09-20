@@ -63,7 +63,7 @@ def scope_multi(ir_nodes, names):
             # sanity check that it's initialized properly
             assert len(builders) == len(ir_nodes)
             ret = body
-            for b in builders:
+            for b in reversed(builders):
                 ret = b.resolve(ret)
             return ret
 
