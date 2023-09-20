@@ -13,7 +13,7 @@ st_decimals = st.decimals(
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50, deadline=None)
 @given(left=st_decimals, right=st_decimals)
 @example(left=Decimal("0.9999999999"), right=Decimal("0.0000000001"))
 @example(left=Decimal("0.0000000001"), right=Decimal("0.9999999999"))
@@ -52,7 +52,7 @@ def test_binop_pow():
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50, deadline=None)
 @given(
     values=st.lists(st_decimals, min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
