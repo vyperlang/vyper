@@ -1802,14 +1802,13 @@ class CreateCopyOf(_CreateBase):
         target = args[0]
 
         # something we can pass to scope_multi
-        with scope_multi((target, value), ("create_target", "create_value")) as (
-            b1,
-            (target, value),
-        ), salt.cache_when_complex("create_salt") as (b2, salt):
+        with scope_multi(
+            (target, value, salt), ("create_target", "create_value", "create_salt")
+        ) as (b1, (target, value, salt)):
             codesize = IRnode.from_list(["extcodesize", target])
             msize = IRnode.from_list(["msize"])
             with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
-                b3,
+                b2,
                 (codesize, mem_ofst),
             ):
                 ir = ["seq"]
@@ -1835,7 +1834,7 @@ class CreateCopyOf(_CreateBase):
 
                 ir.append(_create_ir(value, buf, buf_len, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(ir)))
+                return b1.resolve(b2.resolve(ir))
 
 
 class CreateFromBlueprint(_CreateBase):
@@ -1889,20 +1888,15 @@ class CreateFromBlueprint(_CreateBase):
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
         with scope_multi(
-            (target, value, argslen, code_offset),
-            ("create_target", "create_value", "encoded_args_len", "code_offset"),
-        ) as (b1, (target, value, encoded_args_len, code_offset)), salt.cache_when_complex(
-            "create_salt"
-        ) as (
-            b2,
-            salt,
-        ):
+            (target, value, salt, argslen, code_offset),
+            ("create_target", "create_value", "create_salt", "encoded_args_len", "code_offset"),
+        ) as (b1, (target, value, salt, encoded_args_len, code_offset)):
             codesize = IRnode.from_list(["sub", ["extcodesize", target], code_offset])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
             with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
-                b3,
+                b2,
                 (codesize, mem_ofst),
             ):
                 ir = ["seq"]
@@ -1939,7 +1933,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(ir)))
+                return b1.resolve(b2.resolve(ir))
 
 
 class _UnsafeMath(BuiltinFunction):
