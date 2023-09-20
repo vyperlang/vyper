@@ -25,9 +25,9 @@ from vyper.codegen.core import (
     eval_once_check,
     eval_seq,
     get_bytearray_length,
-    get_element_ptr,
     get_type_for_exact_size,
     ir_tuple_from_args,
+    make_setter,
     needs_external_call_wrap,
     promote_signed_int,
     sar,
@@ -765,7 +765,7 @@ class ECRecover(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         input_buf = context.new_internal_variable(get_type_for_exact_size(128))
-        output_buf = MemoryPositions.FREE_VAR_SPACE
+        output_buf = context.new_internal_variable(get_type_for_exact_size(32))
         return IRnode.from_list(
             [
                 "seq",
@@ -782,69 +782,50 @@ class ECRecover(BuiltinFunction):
         )
 
 
-def _getelem(arg, ind):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, typ=INT128_T)))
+class _ECArith(BuiltinFunction):
+    @process_inputs
+    def build_IR(self, expr, _args, kwargs, context):
+        args_tuple = ir_tuple_from_args(_args)
+
+        args_t = args_tuple.typ
+        input_buf = IRnode.from_list(
+            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
+        )
+        ret_t = self._return_type
+
+        ret = ["seq"]
+        ret.append(make_setter(input_buf, args_tuple))
+
+        output_buf = context.new_internal_variable(ret_t)
+
+        args_ofst = input_buf
+        args_len = args_t.memory_bytes_required
+        out_ofst = output_buf
+        out_len = ret_t.memory_bytes_required
+
+        ret.append(
+            [
+                "assert",
+                ["staticcall", ["gas"], self._precompile, args_ofst, args_len, out_ofst, out_len],
+            ]
+        )
+        ret.append(output_buf)
+
+        return IRnode.from_list(ret, typ=ret_t, location=MEMORY)
 
 
-class ECAdd(BuiltinFunction):
+class ECAdd(_ECArith):
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], _getelem(b, 0)],
-                    ["mstore", ["add", placeholder_node, 96], _getelem(b, 1)],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b2.resolve(b1.resolve(o))
+    _precompile = 0x6
 
 
-class ECMul(BuiltinFunction):
+class ECMul(_ECArith):
     _id = "ecmul"
     _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], b],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b2.resolve(b1.resolve(o))
+    _precompile = 0x7
 
 
 def _generic_element_getter(op):
@@ -1093,7 +1074,7 @@ class RawCall(BuiltinFunction):
         revert_on_failure = kwargz.get("revert_on_failure")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
-        if outsize is None:
+        if outsize is None or outsize.value == 0:
             if revert_on_failure:
                 return None
             return BoolT()
@@ -1525,13 +1506,14 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        c = args[2]
-
-        with c.cache_when_complex("c") as (b1, c):
-            ret = IRnode.from_list(
-                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]], typ=UINT256_T
-            )
-            return b1.resolve(ret)
+        x, y, z = args
+        with x.cache_when_complex("x") as (b1, x):
+            with y.cache_when_complex("y") as (b2, y):
+                with z.cache_when_complex("z") as (b3, z):
+                    ret = IRnode.from_list(
+                        ["seq", ["assert", z], [self._opcode, x, y, z]], typ=UINT256_T
+                    )
+                    return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class AddMod(_AddMulMod):

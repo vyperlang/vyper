@@ -69,6 +69,7 @@ class Context:
         self.constancy = constancy
 
         # Whether body is currently in an assert statement
+        # XXX: dead, never set to True
         self.in_assertion = False
 
         # Whether we are currently parsing a range expression

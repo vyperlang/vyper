@@ -142,7 +142,7 @@ def set_callback(c: address):
 
 @external
 @payable
-@nonreentrant('default')
+@nonreentrant("lock")
 def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     _amount: uint256 = msg.value
@@ -166,7 +166,7 @@ def unprotected_function(val: String[100], do_callback: bool):
 
 @external
 @payable
-@nonreentrant('default')
+@nonreentrant("lock")
 def __default__():
     pass
     """

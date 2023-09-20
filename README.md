@@ -1,3 +1,4 @@
+**Vyper compiler security audit competition starts 14th September with $150k worth of bounties.** [See the competition on CodeHawks](https://www.codehawks.com/contests/cll5rujmw0001js08menkj7hc) and find [more details in this blog post](https://mirror.xyz/0xBA41A04A14aeaEec79e2D694B21ba5Ab610982f1/WTZ3l3MLhTz9P4avq6JqipN5d4HJNiUY-d8zT0pfmXg).
 
 <img src="https://raw.githubusercontent.com/vyperlang/vyper/master/logo/vyper-logo-transparent.svg?sanitize=true" alt="" width="110">
 

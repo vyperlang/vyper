@@ -1,6 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
+from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
@@ -258,6 +259,68 @@ def __default__():
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]
     w3.eth.send_transaction({"to": caller.address, "data": sig})
+
+
+# check max_outsize=0 does same thing as not setting max_outsize.
+# compile to bytecode and compare bytecode directly.
+def test_max_outsize_0():
+    code1 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"))
+    """
+    code2 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"), max_outsize=0)
+    """
+    output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, ["bytecode", "bytecode_runtime"])
+    assert output1 == output2
+
+
+# check max_outsize=0 does same thing as not setting max_outsize,
+# this time with revert_on_failure set to False
+def test_max_outsize_0_no_revert_on_failure():
+    code1 = """
+@external
+def test_raw_call(_target: address) -> bool:
+    # compile raw_call both ways, with revert_on_failure
+    a: bool = raw_call(_target, method_id("foo()"), revert_on_failure=False)
+    return a
+    """
+    # same code, but with max_outsize=0
+    code2 = """
+@external
+def test_raw_call(_target: address) -> bool:
+    a: bool = raw_call(_target, method_id("foo()"), max_outsize=0, revert_on_failure=False)
+    return a
+    """
+    output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, ["bytecode", "bytecode_runtime"])
+    assert output1 == output2
+
+
+# test functionality of max_outsize=0
+def test_max_outsize_0_call(get_contract):
+    target_source = """
+@external
+@payable
+def bar() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+@external
+@payable
+def foo(_addr: address) -> bool:
+    success: bool = raw_call(_addr, method_id("bar()"), max_outsize=0, revert_on_failure=False)
+    return success
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+    assert caller.foo(target.address) is True
 
 
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):

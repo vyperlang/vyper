@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -12,7 +13,6 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS

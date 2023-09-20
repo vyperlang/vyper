@@ -307,7 +307,9 @@ class Stmt:
         # rounds < 0.
         # if we ever want to remove that, we need to manually add the assertion
         # where it makes sense.
-        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds_bound, loop_body])
+        ir_node = IRnode.from_list(
+            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
+        )
         del self.context.forvars[varname]
 
         return ir_node
@@ -316,10 +318,8 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.value_type = target_type
+        assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
