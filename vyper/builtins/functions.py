@@ -16,7 +16,6 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     calculate_type_for_external_return,
     check_external_call,
-    needs_clamp,
     clamp,
     clamp2,
     clamp_basetype,
@@ -29,7 +28,6 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     ir_tuple_from_args,
     make_setter,
-    needs_external_call_wrap,
     promote_signed_int,
     sar,
     shl,
@@ -2540,10 +2538,8 @@ class ABIDecode(BuiltinFunction):
             )
             to_decode.encoding = Encoding.ABI
 
-            # optimization: skip make_setter when we don't need input validation
-            #if not needs_clamp(to_decode.typ, to_decode.encoding):
-            #    ret.append(to_decode)
-            #    return b1.resolve(IRnode.from_list(ret, typ=to_decode.typ, location=to_decode.location, encoding=to_decode.encoding))
+            # TODO optimization: skip make_setter when we don't need
+            # input validation
 
             output_buf = context.new_internal_variable(wrapped_typ)
             output = IRnode.from_list(output_buf, typ=wrapped_typ, location=MEMORY)
