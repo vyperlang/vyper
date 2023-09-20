@@ -17,6 +17,8 @@ ONE_TO_ONE_INSTRUCTIONS = [
     "selfbalance",
     "sload",
     "sstore",
+    "mload",
+    "mstore",
     "timestamp",
     "caller",
     "selfdestruct",
@@ -209,7 +211,7 @@ def _generate_evm_for_basicblock_r(
     fen = 0
     for inst in basicblock.instructions:
         inst.fen = fen
-        if inst.opcode in ["param", "call", "invoke", "sload", "sstore", "assert"]:
+        if inst.volatile:
             fen += 1
 
     for inst in basicblock.instructions:
@@ -376,15 +378,15 @@ def _generate_evm_for_instruction_r(
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
         if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
-            # if inst.ret.address_access:                           FIXME: MEMORY REFACTOR
-            #     if inst.opcode != "alloca":  # FIXMEEEE
-            #         if inst.opcode != "codecopy":
-            #             assembly.extend([*PUSH(inst.ret.addr)])
-            #     else:
-            assembly.extend([*PUSH(inst.ret.target.mem_addr + 30)])
-        else:
+            #     # if inst.ret.address_access:                           FIXME: MEMORY REFACTOR
+            #     #     if inst.opcode != "alloca":  # FIXMEEEE
+            #     #         if inst.opcode != "codecopy":
+            #     #             assembly.extend([*PUSH(inst.ret.addr)])
+            #     #     else:
+            #     assembly.extend([*PUSH(inst.ret.target.mem_addr + 30)])
+            # else:
             assembly.extend([*PUSH(inst.ret.target.mem_addr)])
-            assembly.append("MSTORE")
+        # assembly.append("MSTORE")
 
     return assembly
 

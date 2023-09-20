@@ -154,6 +154,7 @@ class IRInstruction:
     """
 
     opcode: str
+    volatile: bool
     operands: list[IROperand]
     ret: Optional[IROperand]
     dbg: Optional[IRDebugInfo]
@@ -169,6 +170,16 @@ class IRInstruction:
         dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
+        self.volatile = opcode in [
+            "param",
+            "call",
+            "invoke",
+            "sload",
+            "sstore",
+            "assert",
+            "mstore",
+            "mload",
+        ]
         self.operands = [op if isinstance(op, IROperand) else IROperand(op) for op in operands]
         self.ret = ret if isinstance(ret, IROperand) else IROperand(ret) if ret else None
         self.dbg = dbg

@@ -153,6 +153,13 @@ _break_target: IRBasicBlock = None
 _continue_target: IRBasicBlock = None
 
 
+def get_variable_from_address(variables: set, addr: int) -> IRVariable:
+    for var in variables:
+        if addr >= var.pos and addr < var.pos + var.size:
+            return var
+    return None
+
+
 def _convert_ir_basicblock(
     ctx: IRFunction, ir: IRnode, symbols: SymbolTable, variables: set = set()
 ) -> Optional[IRVariable]:
@@ -449,6 +456,11 @@ def _convert_ir_basicblock(
     elif ir.value == "mstore":
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables)
+
+        var = get_variable_from_address(variables, sym_ir.value)
+        if var.size > 32:
+            return ctx.append_instruction("mstore", [arg_1, sym_ir], False)
+
         sym = symbols.get(f"&{arg_1.value}", None)
 
         if sym_ir.is_literal:
