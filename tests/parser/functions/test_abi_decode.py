@@ -372,7 +372,6 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
     assert_tx_failed(lambda: c.abi_decode(abi.encode("(bytes)", (b"a" * 22,))))
 
 
-
 @pytest.mark.parametrize(
     "output_typ,input_",
     [
