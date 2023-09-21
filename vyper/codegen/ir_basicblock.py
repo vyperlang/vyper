@@ -180,6 +180,7 @@ class IRInstruction:
             "assert",
             "mstore",
             "mload",
+            "calldatacopy",
         ]
         self.operands = [op if isinstance(op, IROperand) else IROperand(op) for op in operands]
         self.ret = ret if isinstance(ret, IROperand) else IROperand(ret) if ret else None

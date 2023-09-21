@@ -334,6 +334,7 @@ def _convert_ir_basicblock(
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables)
 
+        new_var = arg_0
         var = _get_variable_from_address(variables, arg_0.value)
         if var is not None:
             if _allocated_variables.get(var.name, None) is None:
@@ -341,10 +342,9 @@ def _convert_ir_basicblock(
                     "alloca", [IRLiteral(var.size), IRLiteral(var.pos)]
                 )
                 _allocated_variables[var.name] = new_var
-            ctx.append_instruction("calldatacopy", [new_var, arg_1, size], False)
+            ctx.append_instruction("calldatacopy", [size, arg_1, new_var], False)
         else:
-            new_var = arg_0
-            ctx.append_instruction("calldatacopy", [new_var, arg_1, size], False)
+            ctx.append_instruction("calldatacopy", [size, arg_1, new_var], False)
 
         symbols[f"&{var.pos}"] = new_var
         return new_var
