@@ -159,11 +159,20 @@ _break_target: IRBasicBlock = None
 _continue_target: IRBasicBlock = None
 
 
-def get_variable_from_address(variables: set, addr: int) -> IRVariable:
+def _get_variable_from_address(variables: set, addr: int) -> IRVariable:
     for var in variables:
         if addr >= var.pos and addr < var.pos + var.size:
             return var
     return None
+
+
+def _get_return_for_stack_operand(
+    ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
+):
+    sym = symbols.get(f"&{ret_ir.value}", None)
+    new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
+    ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
+    return IRInstruction("return", [last_ir, IROperand(new_var, DataType.PTR)])
 
 
 def _convert_ir_basicblock(
@@ -322,23 +331,23 @@ def _convert_ir_basicblock(
 
     elif ir.value == "calldatacopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables)
-        arg_0.mem_type = IRVariable.MemType.MEMORY
-        if arg_0.is_literal:
-            arg_0.mem_addr = arg_0.value
-        else:
-            arg_0.mem_addr = int(arg_0.value[1:])
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables)
 
-        arg_0_var = ctx.get_next_variable()
-        arg_0_var.mem_type = IRVariable.MemType.MEMORY
-        arg_0_var.mem_addr = arg_0.mem_addr
-        arg_0_op = IROperand(arg_0_var)
-        # arg_0_op.direction = IROperand.Direction.OUT
-        ctx.append_instruction("calldatacopy", [arg_0_op, arg_1, size], False)
+        var = _get_variable_from_address(variables, arg_0.value)
+        if var is not None:
+            if _allocated_variables.get(var.name, None) is None:
+                new_var = ctx.append_instruction(
+                    "alloca", [IRLiteral(var.size), IRLiteral(var.pos)]
+                )
+                _allocated_variables[var.name] = new_var
+            ctx.append_instruction("calldatacopy", [new_var, arg_1, size], False)
+        else:
+            new_var = arg_0
+            ctx.append_instruction("calldatacopy", [new_var, arg_1, size], False)
 
-        symbols[f"&{arg_0_var.mem_addr}"] = arg_0_var
-        return arg_0_var
+        symbols[f"&{var.pos}"] = new_var
+        return new_var
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables)
         if arg_0.is_literal and arg_0.value == 30:
@@ -408,22 +417,19 @@ def _convert_ir_basicblock(
 
                 ret_ir = _convert_ir_basicblock(ctx, ret_var, symbols, variables)
 
-                var = get_variable_from_address(variables, ret_ir.value)
+                var = _get_variable_from_address(variables, ret_ir.value)
                 if var is not None:
                     allocated_var = _allocated_variables.get(var.name, None)
                     assert allocated_var is not None, "unallocated variable"
-                    if var.size == 32:
-                        inst = IRInstruction("return", [last_ir, allocated_var])
-                    else:
-                        new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
-                        new_op = IROperand(allocated_var, DataType.PTR)
+                    new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
 
+                    if var.size > 32:
+                        new_op = IROperand(allocated_var, DataType.PTR)
                         inst = IRInstruction("return", [last_ir, new_op])
+                    else:
+                        inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
                 else:
-                    sym = symbols.get(f"&{ret_ir.value}", None)
-                    new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-                    ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
-                    inst = IRInstruction("return", [last_ir, IROperand(new_var, DataType.PTR)])
+                    inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
 
                 ctx.get_basic_block().append_instruction(inst)
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
@@ -478,22 +484,31 @@ def _convert_ir_basicblock(
 
         assert sym_ir.is_literal, "mstore with non-literal address"  # TEMP
 
-        var = get_variable_from_address(variables, sym_ir.value)
-        if var is not None and var.size > 32:
-            if _allocated_variables.get(var.name, None) is None:
-                _allocated_variables[var.name] = ctx.append_instruction(
-                    "alloca", [IRLiteral(var.size), IRLiteral(var.pos)]
+        var = _get_variable_from_address(variables, sym_ir.value)
+        if var is not None:
+            if var.size > 32:
+                if _allocated_variables.get(var.name, None) is None:
+                    _allocated_variables[var.name] = ctx.append_instruction(
+                        "alloca", [IRLiteral(var.size), IRLiteral(var.pos)]
+                    )
+
+                offset = sym_ir.value - var.pos
+                if offset > 0:
+                    ptr_var = ctx.append_instruction("add", [IRLiteral(var.pos), IRLiteral(offset)])
+                else:
+                    ptr_var = _allocated_variables[var.name]
+
+                return ctx.append_instruction(
+                    "mstore", [arg_1, IROperand(ptr_var, DataType.PTR)], False
                 )
-
-            offset = sym_ir.value - var.pos
-            if offset > 0:
-                ptr_var = ctx.append_instruction("add", [IRLiteral(var.pos), IRLiteral(offset)])
             else:
-                ptr_var = _allocated_variables[var.name]
-
-            return ctx.append_instruction(
-                "mstore", [arg_1, IROperand(ptr_var, DataType.PTR)], False
-            )
+                if sym_ir.is_literal:
+                    new_var = ctx.append_instruction("store", [arg_1], sym_ir)
+                    symbols[f"&{sym_ir.value}"] = new_var
+                    if _allocated_variables.get(var.name, None) is None:
+                        _allocated_variables[var.name] = new_var
+                        return new_var
+                return arg_1
         else:
             sym = symbols.get(f"&{sym_ir.value}", None)
             if sym is None:

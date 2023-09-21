@@ -155,7 +155,8 @@ def generate_ir_for_function(
         # (note: internal functions do not need to adjust gas estimate since
         mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
         ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
-
-    ret.common_ir.passthrough_metadata["frame_info"] = frame_info
+        ret.common_ir.passthrough_metadata["frame_info"] = frame_info
+    else:
+        ret.func_ir.passthrough_metadata["frame_info"] = frame_info
 
     return ret
