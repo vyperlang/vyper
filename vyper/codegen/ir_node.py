@@ -405,6 +405,8 @@ class IRnode:
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
+        # reads (from memory or storage) should not be cached because
+        # they can have side effects.
         do_not_cache = {"~empty", "calldatasize", "callvalue"}
 
         return (
