@@ -254,7 +254,7 @@ def _generate_evm_for_instruction_r(
 
     if opcode in ["jmp", "jnz"]:
         operands = inst.get_non_label_operands()
-    if opcode == "alloca":
+    elif opcode == "alloca":
         operands = inst.operands[1:2]
     else:
         operands = inst.operands
@@ -399,7 +399,10 @@ def _emit_input_operands(
 ) -> None:
     for op in ops:
         if op.is_label:
-            assembly.append(f"_sym_{op.value}")
+            # invoke emits the actual instruction itself so we don't need to emit it here
+            # but we need to add it to the stack map
+            if inst.opcode != "invoke":
+                assembly.append(f"_sym_{op.value}")
             stack_map.push(op.target)
             continue
         if op.is_literal:
