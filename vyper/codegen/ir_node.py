@@ -188,12 +188,14 @@ class IRnode:
         error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
-        encoding: Encoding = Encoding.VYPER,
+        encoding: Encoding = None,
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
     ):
         if args is None:
             args = []
+        if encoding is None:
+            encoding = Encoding.VYPER
 
         self.value = value
         self.args = args
@@ -610,26 +612,30 @@ class IRnode:
         add_gas_estimate: int = 0,
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
-        encoding: Encoding = Encoding.VYPER,
+        encoding: Encoding = None,
     ) -> "IRnode":
         if isinstance(typ, str):
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
+            ret = copy.copy(obj)
             # note: this modify-and-returnclause is a little weird since
             # the input gets modified. CC 20191121.
             if typ is not None:
-                obj.typ = typ
-            if obj.source_pos is None:
-                obj.source_pos = source_pos
-            if obj.location is None:
-                obj.location = location
-            if obj.encoding is None:
-                obj.encoding = encoding
-            if obj.error_msg is None:
-                obj.error_msg = error_msg
+                ret.typ = typ
+            if source_pos is not None:
+                ret.source_pos = source_pos
+            if location is not None:
+                ret.location = location
+            if encoding is not None:
+                ret.encoding = encoding
+            if error_msg is not None:
+                ret.error_msg = error_msg
+            if add_gas_estimate != 0:
+                ret.add_gas_estimate = add_gas_estimate
 
-            return obj
+            return ret
+
         elif not isinstance(obj, list):
             return cls(
                 obj,
