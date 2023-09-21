@@ -244,12 +244,18 @@ def _generate_evm_for_instruction_r(
         return assembly
     visited_instructions.add(inst)
 
+    opcode = inst.opcode
+
+    #
     # generate EVM for op
+    #
 
     # Step 1: Manipulate stack
-    opcode = inst.opcode
+
     if opcode in ["jmp", "jnz"]:
         operands = inst.get_non_label_operands()
+    if opcode == "alloca":
+        operands = inst.operands[1:2]
     else:
         operands = inst.operands
 
@@ -331,9 +337,6 @@ def _generate_evm_for_instruction_r(
         assert len(inst.operands) == 2, "ret instruction takes one operand"
         assembly.append("JUMP")
     elif opcode == "return":
-        assert (
-            inst.operands[1].target.mem_type == IRVariable.MemType.MEMORY
-        ), "return value must be a variable"
         assembly.append("RETURN")
     elif opcode == "select":
         pass

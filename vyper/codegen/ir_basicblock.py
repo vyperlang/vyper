@@ -142,7 +142,7 @@ class IROperand:
     def __repr__(self) -> str:
         if self.type == DataType.VALUE:
             return f"{self.target}"
-        return f"{DataType_to_str[self.type]} '{self.target}"
+        return f"{DataType_to_str[self.type]} {self.target}"
 
 
 class IRInstruction:
@@ -172,6 +172,7 @@ class IRInstruction:
         self.opcode = opcode
         self.volatile = opcode in [
             "param",
+            "alloca",
             "call",
             "invoke",
             "sload",
