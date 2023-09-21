@@ -398,15 +398,13 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
-    # the IR should be cached.
-    # TODO make this private. turns out usages are all for the caching
-    # idiom that cache_when_complex addresses
+    # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
         # reads (from memory or storage) should not be cached because
-        # they can have side effects.
+        # they can have or be affected by side effects.
         do_not_cache = {"~empty", "calldatasize", "callvalue"}
 
         return (
