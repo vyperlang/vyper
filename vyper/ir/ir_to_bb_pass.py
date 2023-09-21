@@ -482,7 +482,14 @@ def _convert_ir_basicblock(
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables)
 
-        assert sym_ir.is_literal, "mstore with non-literal address"  # TEMP
+        if sym_ir.is_literal is False:
+            if sym_ir.value == "return_buffer":
+                sym = symbols.get(f"{sym_ir.value}", None)
+                if sym is None:
+                    new_var = ctx.append_instruction("store", [arg_1], sym_ir)
+                    symbols[f"{sym_ir.value}"] = new_var
+                    return new_var
+            return
 
         var = _get_variable_from_address(variables, sym_ir.value)
         if var is not None:
