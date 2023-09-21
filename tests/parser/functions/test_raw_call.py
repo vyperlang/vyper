@@ -426,6 +426,164 @@ def baz(_addr: address, should_raise: bool) -> uint256:
     assert caller.baz(target.address, False) == 3
 
 
+# XXX: these test_raw_call_clean_mem* tests depend on variables and
+# calling convention writing to memory. think of ways to make more
+# robust to changes to calling convention and memory layout.
+
+
+def test_raw_call_msg_data_clean_mem(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments
+    code = """
+identity: constant(address) = 0x0000000000000000000000000000000000000004
+
+@external
+def foo():
+    pass
+
+@internal
+@view
+def get_address()->address:
+    a:uint256 = 121 # 0x79
+    return identity
+@external
+def bar(f: uint256, u: uint256) -> Bytes[100]:
+    # embed an internal call in the calculation of address
+    a: Bytes[100] = raw_call(self.get_address(), msg.data, max_outsize=100)
+    return a
+    """
+
+    c = get_contract(code)
+    assert (
+        c.bar(1, 2).hex() == "ae42e951"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000002"
+    )
+
+
+def test_raw_call_clean_mem2(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments, another way
+    code = """
+buf: Bytes[100]
+
+@external
+def bar(f: uint256, g: uint256, h: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        [0x0000000000000000000000000000000000000004,][f-1],
+        msg.data,
+        max_outsize=100
+    )
+    return self.buf
+    """
+    c = get_contract(code)
+
+    assert (
+        c.bar(1, 2, 3).hex() == "9309b76e"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000002"
+        "0000000000000000000000000000000000000000000000000000000000000003"
+    )
+
+
+def test_raw_call_clean_mem3(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments, and also test order of evaluation for
+    # scope_multi
+    code = """
+buf: Bytes[100]
+canary: String[32]
+
+@internal
+def bar() -> address:
+    self.canary = "bar"
+    return 0x0000000000000000000000000000000000000004
+
+@internal
+def goo() -> uint256:
+    self.canary = "goo"
+    return 0
+
+@external
+def foo() -> String[32]:
+    self.buf = raw_call(self.bar(), msg.data, value = self.goo(), max_outsize=100)
+    return self.canary
+    """
+    c = get_contract(code)
+    assert c.foo() == "goo"
+
+
+def test_raw_call_clean_mem_kwargs_value(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() kwargs
+    code = """
+buf: Bytes[100]
+
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
+
+@internal
+def _value() -> uint256:
+    x: uint256 = 1
+    return x
+
+@external
+def bar(f: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        0x0000000000000000000000000000000000000004,
+        msg.data,
+        max_outsize=100,
+        value=self._value()
+    )
+    return self.buf
+    """
+    c = get_contract(code, value=1)
+
+    assert (
+        c.bar(13).hex() == "0423a132"
+        "000000000000000000000000000000000000000000000000000000000000000d"
+    )
+
+
+def test_raw_call_clean_mem_kwargs_gas(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() kwargs
+    code = """
+buf: Bytes[100]
+
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
+
+@internal
+def _gas() -> uint256:
+    x: uint256 = msg.gas
+    return x
+
+@external
+def bar(f: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        0x0000000000000000000000000000000000000004,
+        msg.data,
+        max_outsize=100,
+        gas=self._gas()
+    )
+    return self.buf
+    """
+    c = get_contract(code, value=1)
+
+    assert (
+        c.bar(15).hex() == "0423a132"
+        "000000000000000000000000000000000000000000000000000000000000000f"
+    )
+
+
 uncompilable_code = [
     (
         """

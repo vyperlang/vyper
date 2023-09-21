@@ -143,7 +143,9 @@ optimize_list = [
     (["sub", "x", 0], ["x"]),
     (["sub", "x", "x"], [0]),
     (["sub", ["sload", 0], ["sload", 0]], None),
-    (["sub", ["callvalue"], ["callvalue"]], None),
+    (["sub", ["callvalue"], ["callvalue"]], [0]),
+    (["sub", ["msize"], ["msize"]], None),
+    (["sub", ["gas"], ["gas"]], None),
     (["sub", -1, ["sload", 0]], ["not", ["sload", 0]]),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
@@ -210,7 +212,9 @@ optimize_list = [
     (["eq", -1, ["add", -(2**255), 2**255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -2, ["add", 2**256 - 1, 2**256 - 1]], [1]),  # test compile-time wrapping
     (["eq", "x", "x"], [1]),
-    (["eq", "callvalue", "callvalue"], None),
+    (["eq", "gas", "gas"], None),
+    (["eq", "msize", "msize"], None),
+    (["eq", "callvalue", "callvalue"], [1]),
     (["ne", "x", "x"], [0]),
 ]
 
