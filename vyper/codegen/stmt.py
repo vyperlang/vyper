@@ -265,6 +265,7 @@ class Stmt:
 
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
+            print("arg0: ", arg0)
             n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
             rounds = n

@@ -373,6 +373,9 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
+    def derive(self, constants: dict):
+        return None
+
     def evaluate(self) -> "VyperNode":
         """
         Attempt to evaluate the content of a node and generate a new node from it.
@@ -751,6 +754,9 @@ class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
+    def derive(self, constants: dict):
+        return self.value
+
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -908,9 +914,25 @@ class NameConstant(Constant):
 class Name(ExprNode):
     __slots__ = ("id",)
 
+    def derive(self, constants: dict):
+        print("deriving name")
+        try:
+            val = constants[self.id]
+            print("derived name: ", val)
+            return val
+        except:
+            print("cannot derive name")
+            return None
+
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
+
+    def derive(self, constants: dict):
+        try:
+            return self.op._op(self.operand.derive(constants))
+        except:
+            return None
 
     def evaluate(self) -> ExprNode:
         """
@@ -959,6 +981,13 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
+
+    def derive(self, constants: dict):
+        try:
+            left, right = self.left, self.right
+            return self.op._op(left.derive(constants), right.derive(constants))
+        except:
+            return None
 
     def evaluate(self) -> ExprNode:
         """
@@ -1110,6 +1139,13 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
+    def derive(self, constants: dict):
+        try:
+            values = [i.derive(constants) for i in self.values]
+            return self.op._op(values)
+        except:
+            return None
+
     def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
@@ -1165,6 +1201,17 @@ class Compare(ExprNode):
         kwargs["op"] = kwargs.pop("ops")[0]
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
+
+    def derive(self, constants: dict):
+        try:
+            left, right = self.left, self.right
+            if isinstance(self.op, (In, NotIn)):
+                value = self.op._op(left.derive(constants), [i.derive(constants) for i in right.elements])
+                return value
+
+            return self.op._op(left.derive(constants), right.derive(constants))
+        except:
+            return None
 
     def evaluate(self) -> ExprNode:
         """

@@ -168,9 +168,11 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     int
         Number of nodes that were replaced.
     """
+    print("replace user defined constants")
     changed_nodes = 0
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
+        print("node: ", node)
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue

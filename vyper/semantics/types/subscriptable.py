@@ -68,7 +68,7 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
+    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript], constants: dict) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -197,19 +197,19 @@ class SArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "SArrayT":
         if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
 
-        value_type = type_from_annotation(node.value)
+        value_type = type_from_annotation(node.value, constants)
 
         if not value_type._as_array:
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
         # note: validates index is a vy_ast.Int.
-        length = get_index_value(node.slice)
+        length = get_index_value(node.slice, constants)
         return cls(value_type, length)
 
 
@@ -273,12 +273,14 @@ class DArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "DArrayT":
+        max_length = node.slice.value.elements[1].derive(constants)
+        print("max length: ", max_length)
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not isinstance(node.slice.value.elements[1], vy_ast.Int)
+            or not max_length
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
@@ -290,7 +292,6 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", node)
 
-        max_length = node.slice.value.elements[1].value
         return cls(value_type, max_length)
 
 
@@ -333,9 +334,9 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
+    def from_annotation(cls, node: vy_ast.Tuple, constants: dict) -> VyperType:
         values = node.elements
-        types = tuple(type_from_annotation(v) for v in values)
+        types = tuple(type_from_annotation(v, constants) for v in values)
         return cls(types)
 
     @property

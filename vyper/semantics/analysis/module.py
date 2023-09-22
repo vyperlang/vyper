@@ -66,6 +66,34 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
+        const_var_decls = [n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant]
+        print("const var decls: ", const_var_decls)
+
+        while const_var_decls:
+            derived_nodes = 0
+
+            for c in const_var_decls:
+                print("c")
+                try:
+                    print("trying")
+                    name = c.get("target.id")
+                    print("deriving const val for: ", name)
+                    val = c.value.derive(self.namespace._constants)
+                    
+                    print("derived val: ", val)
+                    self.namespace.add_constant(name, val)
+
+                    if val:
+                        derived_nodes += 1
+                        const_var_decls.remove(c)
+                except:
+                    pass
+            
+            if not derived_nodes:
+                print("remaining len: ", len(const_var_decls))
+                break
+        print("completed")
+
         while module_nodes:
             count = len(module_nodes)
             err_list = ExceptionList()
@@ -96,6 +124,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # note that we don't just copy the namespace because
         # there are constructor issues.
         _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
+        _ns._constants = self.namespace._constants
         module_node._metadata["namespace"] = _ns
 
         # check for collisions between 4byte function selectors
@@ -237,11 +266,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
-            if not check_constant(node.value):
+            # TODO: move to check_constant
+            if not node.value.derive(self.namespace._constants) and not check_constant(node.value):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
             _validate_self_namespace()
+
+            #self.namespace.add_constant(name, node.value.derive(self.namespace._constants))
+            print("added to namespace")
 
             return _finalize()
 

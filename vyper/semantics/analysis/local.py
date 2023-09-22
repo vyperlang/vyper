@@ -358,11 +358,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(n, IntegerT.any())
 
                 if bound is None:
-                    if not isinstance(n, vy_ast.Num):
+                    n_val = n.derive(self.namespace._constants)
+                    if not n_val:
                         raise StateAccessViolation("Value must be a literal", n)
-                    if n.value <= 0:
+                    if n_val <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
                     type_list = get_possible_types_from_node(n)
+                    print("Type list: ", type_list)
 
                 else:
                     if not isinstance(bound, vy_ast.Num):

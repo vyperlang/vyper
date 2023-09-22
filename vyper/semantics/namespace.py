@@ -11,13 +11,16 @@ class Namespace(dict):
 
     Attributes
     ----------
-    _scopes : List[Set]
+    _scopes : list[set]
         List of sets containing the key names for each scope
+    _constants: dict
+        Set containing user-defined constants and their values
     """
 
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
+        self._constants = {}
         return self
 
     def __init__(self):
@@ -92,6 +95,8 @@ class Namespace(dict):
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
 
+    def add_constant(self, name, value):
+        self._constants[name] = value
 
 def get_namespace():
     """

@@ -114,7 +114,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
 
-        return type_ctor.from_annotation(node)
+        return type_ctor.from_annotation(node, namespace._constants)
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
@@ -132,7 +132,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.Index) -> int:
+def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     """
     Return the literal value for a `Subscript` index.
 
@@ -150,6 +150,12 @@ def get_index_value(node: vy_ast.Index) -> int:
     # this is imported to improve error messages
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
+
+    val = node.value.derive(constants)
+    print("get_index_value - val: ", val)
+    print("constants: ", constants)
+    if val:
+        return val
 
     if not isinstance(node.get("value"), vy_ast.Int):
         if hasattr(node, "value"):
