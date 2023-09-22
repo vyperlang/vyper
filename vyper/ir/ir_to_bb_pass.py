@@ -58,7 +58,7 @@ def generate_assembly_experimental(
 
 def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
-    _convert_ir_basicblock(global_function, ir, {}, {})
+    _convert_ir_basicblock(global_function, ir, {}, {}, {})
 
     revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
     revert_bb = global_function.append_basic_block(revert_bb)
@@ -245,16 +245,17 @@ def _convert_ir_basicblock(
 
         _convert_ir_basicblock(ctx, ir_runtime, symbols, variables, allocated_variables)
     elif ir.value == "seq":
+        func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols, variables, allocated_variables)
-        elif ir.passthrough_metadata.get("func_t", None) is not None:
+        elif func_t is not None:
             symbols = {}
+            allocated_variables = {}
             variables = OrderedSet(
                 {v: True for v in ir.passthrough_metadata["frame_info"].frame_vars.values()}
             )
-            # variables = OrderedSet()
-            func_t = ir.passthrough_metadata["func_t"]
-            ir = _handle_internal_func(ctx, ir, func_t, symbols)
+            if func_t.is_internal:
+                ir = _handle_internal_func(ctx, ir, func_t, symbols)
             # fallthrough
 
         ret = None
@@ -349,7 +350,9 @@ def _convert_ir_basicblock(
         else:
             with_symbols[sym.value] = ret
 
-        return _convert_ir_basicblock(ctx, ir.args[2], with_symbols)  # body
+        return _convert_ir_basicblock(
+            ctx, ir.args[2], with_symbols, variables, allocated_variables
+        )  # body
     elif ir.value == "goto":
         return _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "jump":
@@ -547,7 +550,7 @@ def _convert_ir_basicblock(
                 new_var = _convert_ir_basicblock(
                     ctx, sym_ir, symbols, variables, allocated_variables
                 )
-                return new_var
+                return ctx.append_instruction("mload", [new_var])
 
     elif ir.value == "mstore":
         if ir.args[0].value == "return_buffer":
