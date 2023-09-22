@@ -21,13 +21,14 @@ from vyper.codegen.core import (
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
     get_bytearray_length,
-    get_element_ptr,
     get_type_for_exact_size,
     ir_tuple_from_args,
+    make_setter,
     needs_external_call_wrap,
     promote_signed_int,
     sar,
@@ -36,7 +37,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.codegen.ir_node import Encoding
+from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import (
@@ -771,7 +772,7 @@ class ECRecover(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         input_buf = context.new_internal_variable(get_type_for_exact_size(128))
-        output_buf = MemoryPositions.FREE_VAR_SPACE
+        output_buf = context.new_internal_variable(get_type_for_exact_size(32))
         return IRnode.from_list(
             [
                 "seq",
@@ -788,69 +789,50 @@ class ECRecover(BuiltinFunction):
         )
 
 
-def _getelem(arg, ind):
-    return unwrap_location(get_element_ptr(arg, IRnode.from_list(ind, typ=INT128_T)))
+class _ECArith(BuiltinFunction):
+    @process_inputs
+    def build_IR(self, expr, _args, kwargs, context):
+        args_tuple = ir_tuple_from_args(_args)
+
+        args_t = args_tuple.typ
+        input_buf = IRnode.from_list(
+            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
+        )
+        ret_t = self._return_type
+
+        ret = ["seq"]
+        ret.append(make_setter(input_buf, args_tuple))
+
+        output_buf = context.new_internal_variable(ret_t)
+
+        args_ofst = input_buf
+        args_len = args_t.memory_bytes_required
+        out_ofst = output_buf
+        out_len = ret_t.memory_bytes_required
+
+        ret.append(
+            [
+                "assert",
+                ["staticcall", ["gas"], self._precompile, args_ofst, args_len, out_ofst, out_len],
+            ]
+        )
+        ret.append(output_buf)
+
+        return IRnode.from_list(ret, typ=ret_t, location=MEMORY)
 
 
-class ECAdd(BuiltinFunction):
+class ECAdd(_ECArith):
     _id = "ecadd"
     _inputs = [("a", SArrayT(UINT256_T, 2)), ("b", SArrayT(UINT256_T, 2))]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], _getelem(b, 0)],
-                    ["mstore", ["add", placeholder_node, 96], _getelem(b, 1)],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 6, placeholder_node, 128, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b2.resolve(b1.resolve(o))
+    _precompile = 0x6
 
 
-class ECMul(BuiltinFunction):
+class ECMul(_ECArith):
     _id = "ecmul"
     _inputs = [("point", SArrayT(UINT256_T, 2)), ("scalar", UINT256_T)]
     _return_type = SArrayT(UINT256_T, 2)
-
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        placeholder_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(128)), typ=BytesT(128), location=MEMORY
-        )
-
-        with args[0].cache_when_complex("a") as (b1, a), args[1].cache_when_complex("b") as (b2, b):
-            o = IRnode.from_list(
-                [
-                    "seq",
-                    ["mstore", placeholder_node, _getelem(a, 0)],
-                    ["mstore", ["add", placeholder_node, 32], _getelem(a, 1)],
-                    ["mstore", ["add", placeholder_node, 64], b],
-                    [
-                        "assert",
-                        ["staticcall", ["gas"], 7, placeholder_node, 96, placeholder_node, 64],
-                    ],
-                    placeholder_node,
-                ],
-                typ=SArrayT(UINT256_T, 2),
-                location=MEMORY,
-            )
-            return b2.resolve(b1.resolve(o))
+    _precompile = 0x7
 
 
 def _generic_element_getter(op):
@@ -1099,7 +1081,7 @@ class RawCall(BuiltinFunction):
         revert_on_failure = kwargz.get("revert_on_failure")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
-        if outsize is None:
+        if outsize is None or outsize.value == 0:
             if revert_on_failure:
                 return None
             return BoolT()
@@ -1180,14 +1162,17 @@ class RawCall(BuiltinFunction):
             outsize,
         ]
 
-        if delegate_call:
-            call_op = ["delegatecall", gas, to, *common_call_args]
-        elif static_call:
-            call_op = ["staticcall", gas, to, *common_call_args]
-        else:
-            call_op = ["call", gas, to, value, *common_call_args]
+        gas, value = IRnode.from_list(gas), IRnode.from_list(value)
+        with scope_multi((to, value, gas), ("_to", "_value", "_gas")) as (b1, (to, value, gas)):
+            if delegate_call:
+                call_op = ["delegatecall", gas, to, *common_call_args]
+            elif static_call:
+                call_op = ["staticcall", gas, to, *common_call_args]
+            else:
+                call_op = ["call", gas, to, value, *common_call_args]
 
-        call_ir += [call_op]
+            call_ir += [call_op]
+            call_ir = b1.resolve(call_ir)
 
         # build sequence IR
         if outsize:
@@ -1531,13 +1516,14 @@ class _AddMulMod(BuiltinFunction):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        c = args[2]
-
-        with c.cache_when_complex("c") as (b1, c):
-            ret = IRnode.from_list(
-                ["seq", ["assert", c], [self._opcode, args[0], args[1], c]], typ=UINT256_T
-            )
-            return b1.resolve(ret)
+        x, y, z = args
+        with x.cache_when_complex("x") as (b1, x):
+            with y.cache_when_complex("y") as (b2, y):
+                with z.cache_when_complex("z") as (b3, z):
+                    ret = IRnode.from_list(
+                        ["seq", ["assert", z], [self._opcode, x, y, z]], typ=UINT256_T
+                    )
+                    return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
 class AddMod(_AddMulMod):
@@ -1613,13 +1599,15 @@ class Abs(BuiltinFunction):
 
 # CREATE* functions
 
+CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
+
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
-def _create_ir(value, buf, length, salt=None, checked=True):
+def _create_ir(value, buf, length, salt, checked=True):
     args = [value, buf, length]
     create_op = "create"
-    if salt is not None:
+    if salt is not CREATE2_SENTINEL:
         create_op = "create2"
         args.append(salt)
 
@@ -1737,8 +1725,9 @@ class _CreateBase(BuiltinFunction):
         context.check_is_not_constant("use {self._id}", expr)
 
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
         if not should_use_create2:
-            kwargs["salt"] = None
+            kwargs["salt"] = CREATE2_SENTINEL
 
         ir_builder = self._build_create_IR(expr, args, context, **kwargs)
 
@@ -1818,13 +1807,16 @@ class CreateCopyOf(_CreateBase):
     def _build_create_IR(self, expr, args, context, value, salt):
         target = args[0]
 
-        with target.cache_when_complex("create_target") as (b1, target):
+        # something we can pass to scope_multi
+        with scope_multi(
+            (target, value, salt), ("create_target", "create_value", "create_salt")
+        ) as (b1, (target, value, salt)):
             codesize = IRnode.from_list(["extcodesize", target])
             msize = IRnode.from_list(["msize"])
-            with codesize.cache_when_complex("target_codesize") as (
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
                 b2,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
@@ -1848,7 +1840,7 @@ class CreateCopyOf(_CreateBase):
 
                 ir.append(_create_ir(value, buf, buf_len, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(ir)))
+                return b1.resolve(b2.resolve(ir))
 
 
 class CreateFromBlueprint(_CreateBase):
@@ -1901,17 +1893,18 @@ class CreateFromBlueprint(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
-            "encoded_args_len"
-        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
-            codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
+        with scope_multi(
+            (target, value, salt, argslen, code_offset),
+            ("create_target", "create_value", "create_salt", "encoded_args_len", "code_offset"),
+        ) as (b1, (target, value, salt, encoded_args_len, code_offset)):
+            codesize = IRnode.from_list(["sub", ["extcodesize", target], code_offset])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
-            with codesize.cache_when_complex("target_codesize") as (
-                b4,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
+                b2,
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is code at the target, and that
@@ -1931,7 +1924,7 @@ class CreateFromBlueprint(_CreateBase):
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
                 # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
+                ir.append(["extcodecopy", target, mem_ofst, code_offset, codesize])
 
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
@@ -1946,7 +1939,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(b5.resolve(ir)))))
+                return b1.resolve(b2.resolve(ir))
 
 
 class _UnsafeMath(BuiltinFunction):

@@ -1,3 +1,4 @@
+import contextlib
 import re
 from enum import Enum, auto
 from functools import cached_property
@@ -44,6 +45,77 @@ class Encoding(Enum):
     # abi encoded, default for args/return values from external funcs
     ABI = auto()
     # future: packed
+
+
+# shortcut for chaining multiple cache_when_complex calls
+# CMC 2023-08-10 remove this and scope_together _as soon as_ we have
+# real variables in IR (that we can declare without explicit scoping -
+# needs liveness analysis).
+@contextlib.contextmanager
+def scope_multi(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    builders = []
+    scoped_ir_nodes = []
+
+    class _MultiBuilder:
+        def resolve(self, body):
+            # sanity check that it's initialized properly
+            assert len(builders) == len(ir_nodes)
+            ret = body
+            for b in reversed(builders):
+                ret = b.resolve(ret)
+            return ret
+
+    mb = _MultiBuilder()
+
+    with contextlib.ExitStack() as stack:
+        for arg, name in zip(ir_nodes, names):
+            b, ir_node = stack.enter_context(arg.cache_when_complex(name))
+
+            builders.append(b)
+            scoped_ir_nodes.append(ir_node)
+
+        yield mb, scoped_ir_nodes
+
+
+# create multiple with scopes if any of the items are complex, to force
+# ordering of side effects.
+@contextlib.contextmanager
+def scope_together(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
+
+    class _Builder:
+        def resolve(self, body):
+            if not should_scope:
+                # uses of the variable have already been inlined
+                return body
+
+            ret = body
+            # build with scopes from inside-out (hence reversed)
+            for arg, name in reversed(list(zip(ir_nodes, names))):
+                ret = ["with", name, arg, ret]
+
+            if isinstance(body, IRnode):
+                return IRnode.from_list(
+                    ret, typ=body.typ, location=body.location, encoding=body.encoding
+                )
+            else:
+                return ret
+
+    b = _Builder()
+
+    if should_scope:
+        ir_vars = tuple(
+            IRnode.from_list(name, typ=arg.typ, location=arg.location, encoding=arg.encoding)
+            for (arg, name) in zip(ir_nodes, names)
+        )
+        yield b, ir_vars
+    else:
+        # inline them
+        yield b, ir_nodes
 
 
 # this creates a magical block which maps to IR `with`
@@ -326,14 +398,15 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
-    # the IR should be cached.
-    # TODO make this private. turns out usages are all for the caching
-    # idiom that cache_when_complex addresses
+    # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
-        do_not_cache = {"~empty", "calldatasize"}
+        # reads (from memory or storage) should not be cached because
+        # they can have or be affected by side effects.
+        do_not_cache = {"~empty", "calldatasize", "callvalue"}
+
         return (
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())

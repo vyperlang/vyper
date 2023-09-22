@@ -124,8 +124,12 @@ def _selector_section_dense(external_functions, global_ctx):
         ir_node = ["label", label, ["var_list"], entry_point.ir_node]
         function_irs.append(IRnode.from_list(ir_node))
 
-    jumptable_info = jumptable_utils.generate_dense_jumptable_info(entry_points.keys())
-    n_buckets = len(jumptable_info)
+    n_buckets, jumptable_info = jumptable_utils.generate_dense_jumptable_info(entry_points.keys())
+    # note: we are guaranteed by jumptable_utils that there are no buckets
+    # which are empty. sanity check that the bucket ids are well-behaved:
+    assert n_buckets == len(jumptable_info)
+    for i, (bucket_id, _) in enumerate(sorted(jumptable_info.items())):
+        assert i == bucket_id
 
     #  bucket magic <2 bytes> | bucket location <2 bytes> | bucket size <1 byte>
     # TODO: can make it smaller if the largest bucket magic <= 255
@@ -442,6 +446,20 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
     deploy_code: List[Any] = ["seq"]
     immutables_len = global_ctx.immutable_section_bytes
     if init_function:
+        # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
+        ctor_internal_func_irs = []
+        internal_functions = [f for f in runtime_functions if _is_internal(f)]
+        for f in internal_functions:
+            init_func_t = init_function._metadata["type"]
+            if f.name not in init_func_t.recursive_calls:
+                # unreachable code, delete it
+                continue
+
+            func_ir = _ir_for_internal_function(f, global_ctx, is_ctor_context=True)
+            ctor_internal_func_irs.append(func_ir)
+
+        # generate init_func_ir after callees to ensure they have analyzed
+        # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
         init_func_ir = _ir_for_fallback_or_ctor(init_function, global_ctx, is_ctor_context=True)
 
@@ -468,19 +486,9 @@ def generate_ir_for_module(global_ctx: GlobalContext) -> tuple[IRnode, IRnode]:
             deploy_code.append(["iload", max(0, immutables_len - 32)])
 
         deploy_code.append(init_func_ir)
-
         deploy_code.append(["deploy", init_mem_used, runtime, immutables_len])
-
-        # internal functions come after everything else
-        internal_functions = [f for f in runtime_functions if _is_internal(f)]
-        for f in internal_functions:
-            init_func_t = init_function._metadata["type"]
-            if f.name not in init_func_t.recursive_calls:
-                # unreachable code, delete it
-                continue
-
-            func_ir = _ir_for_internal_function(f, global_ctx, is_ctor_context=True)
-            deploy_code.append(func_ir)
+        # internal functions come at end of initcode
+        deploy_code.extend(ctor_internal_func_irs)
 
     else:
         if immutables_len != 0:
