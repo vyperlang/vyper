@@ -116,6 +116,7 @@ class IROperand:
         type: DataType = DataType.VALUE,
     ) -> None:
         assert isinstance(target, IRValueBase), "value must be an IRValueBase"
+        assert isinstance(type, DataType), "type must be a DataType"
         self.target = target
         self.type = type
         self.direction = IROperand.Direction.IN
