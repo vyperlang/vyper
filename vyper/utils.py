@@ -11,6 +11,19 @@ from typing import List, Union
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
+class OrderedSet(dict):
+    """
+    a minimal "ordered set" class. this is needed in some places
+    because, while dict guarantees you can recover insertion order
+    vanilla sets do not.
+    no attempt is made to fully implement the set API, will add
+    functionality as needed.
+    """
+
+    def add(self, item):
+        self[item] = None
+
+
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
         if name == "prec":
@@ -183,8 +196,7 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
-GAS_CODECOPY_WORD = 3
-GAS_CALLDATACOPY_WORD = 3
+GAS_COPY_WORD = 3  # i.e., W_copy from YP
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10

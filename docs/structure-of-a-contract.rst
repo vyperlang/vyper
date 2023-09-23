@@ -9,16 +9,47 @@ This section provides a quick overview of the types of data present within a con
 
 .. _structure-versions:
 
-Version Pragma
+Pragmas
 ==============
 
-Vyper supports a version pragma to ensure that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax.
+Vyper supports several source code directives to control compiler modes and help with build reproducibility.
+
+Version Pragma
+--------------
+
+The version pragma ensures that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax. Starting from v0.4.0 and up, version strings will use `PEP440 version specifiers <https://peps.python.org/pep-0440/#version-specifiers>_`.
+
+As of 0.3.10, the recommended way to specify the version pragma is as follows:
 
 .. code-block:: python
 
-    # @version ^0.2.0
+    #pragma version ^0.3.0
 
-In the above example, the contract only compiles with Vyper versions ``0.2.x``.
+The following declaration is equivalent, and, prior to 0.3.10, was the only supported method to specify the compiler version:
+
+.. code-block:: python
+
+    # @version ^0.3.0
+
+
+In the above examples, the contract will only compile with Vyper versions ``0.3.x``.
+
+Optimization Mode
+-----------------
+
+The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a contract will cause it to try to optimize for codesize:
+
+.. code-block:: python
+
+   #pragma optimize codesize
+
+The optimization mode can also be set as a compiler option, which is documented in :ref:`optimization-mode`. If the compiler option conflicts with the source code pragma, an exception will be raised and compilation will not continue.
+
+EVM Version
+-----------------
+
+The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
+
 
 .. _structure-state-variables:
 

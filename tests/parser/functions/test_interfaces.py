@@ -67,7 +67,6 @@ from vyper.interfaces import ERC20
 
 implements: ERC20
 
-
 @external
 def test() -> bool:
     return True
@@ -146,6 +145,7 @@ def bar() -> uint256:
     )
 
 
+# check that event types match
 def test_malformed_event(assert_compile_failed):
     interface_code = """
 event Foo:
@@ -161,6 +161,64 @@ implements: FooBarInterface
 
 event Foo:
     a: int128
+
+@external
+def bar() -> uint256:
+    return 1
+    """
+
+    assert_compile_failed(
+        lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
+        InterfaceViolation,
+    )
+
+
+# check that event non-indexed arg needs to match interface
+def test_malformed_events_indexed(assert_compile_failed):
+    interface_code = """
+event Foo:
+    a: uint256
+    """
+
+    interface_codes = {"FooBarInterface": {"type": "vyper", "code": interface_code}}
+
+    not_implemented_code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+# a should not be indexed
+event Foo:
+    a: indexed(uint256)
+
+@external
+def bar() -> uint256:
+    return 1
+    """
+
+    assert_compile_failed(
+        lambda: compile_code(not_implemented_code, interface_codes=interface_codes),
+        InterfaceViolation,
+    )
+
+
+# check that event indexed arg needs to match interface
+def test_malformed_events_indexed2(assert_compile_failed):
+    interface_code = """
+event Foo:
+    a: indexed(uint256)
+    """
+
+    interface_codes = {"FooBarInterface": {"type": "vyper", "code": interface_code}}
+
+    not_implemented_code = """
+import a as FooBarInterface
+
+implements: FooBarInterface
+
+# a should be indexed
+event Foo:
+    a: uint256
 
 @external
 def bar() -> uint256:
@@ -319,6 +377,23 @@ def test():
 
     test_c.test(transact={})
     assert erc20.balanceOf(sender) == 1000
+
+
+def test_address_member(w3, get_contract):
+    code = """
+interface Foo:
+    def foo(): payable
+
+f: Foo
+
+@external
+def test(addr: address):
+    self.f = Foo(addr)
+    assert self.f.address == addr
+    """
+    c = get_contract(code)
+    for address in w3.eth.accounts:
+        c.test(address)
 
 
 # test data returned from external interface gets clamped

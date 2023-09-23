@@ -8,6 +8,10 @@ def get_nonreentrant_lock(func_type):
 
     nkey = func_type.reentrancy_key_position.position
 
+    LOAD, STORE = "sload", "sstore"
+    if version_check(begin="cancun"):
+        LOAD, STORE = "tload", "tstore"
+
     if version_check(begin="berlin"):
         # any nonzero values would work here (see pricing as of net gas
         # metering); these values are chosen so that downgrading to the
@@ -16,12 +20,12 @@ def get_nonreentrant_lock(func_type):
     else:
         final_value, temp_value = 0, 1
 
-    check_notset = ["assert", ["ne", temp_value, ["sload", nkey]]]
+    check_notset = ["assert", ["ne", temp_value, [LOAD, nkey]]]
 
     if func_type.mutability == StateMutability.VIEW:
         return [check_notset], [["seq"]]
 
     else:
-        pre = ["seq", check_notset, ["sstore", nkey, temp_value]]
-        post = ["sstore", nkey, final_value]
+        pre = ["seq", check_notset, [STORE, nkey, temp_value]]
+        post = [STORE, nkey, final_value]
         return [pre], [post]

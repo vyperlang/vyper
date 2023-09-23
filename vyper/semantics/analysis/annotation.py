@@ -1,11 +1,11 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeCheckFailure
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
 )
-from vyper.semantics.types import TYPE_T, EnumT, EventT, SArrayT, StructT, is_type_t
+from vyper.semantics.types import TYPE_T, BoolT, EnumT, EventT, SArrayT, StructT, is_type_t
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 
 
@@ -43,9 +43,9 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
         self.namespace = namespace
         self.expr_visitor = ExpressionAnnotationVisitor(self.func)
 
-        assert len(self.func.kwarg_keys) == len(fn_node.args.defaults)
-        for kw, val in zip(self.func.kwarg_keys, fn_node.args.defaults):
-            self.expr_visitor.visit(val, self.func.arguments[kw])
+        assert self.func.n_keyword_args == len(fn_node.args.defaults)
+        for kwarg in self.func.keyword_args:
+            self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
     def visit(self, node):
         super().visit(node)
@@ -85,16 +85,19 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
-        # typecheck list literal as static array
+
+        iter_type = node.target._metadata["type"]
         if isinstance(node.iter, vy_ast.List):
-            value_type = get_common_types(*node.iter.elements).pop()
+            # typecheck list literal as static array
             len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
+            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
 
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
+            for a in node.iter.keywords:
+                if a.arg == "bound":
+                    self.expr_visitor.visit(a.value, iter_type)
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
@@ -136,7 +139,7 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)
-            for arg, typ in zip(node.args, list(call_type.arguments.values())):
+            for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -231,14 +234,23 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
 
             elif type_ is not None and len(possible_base_types) > 1:
                 for possible_type in possible_base_types:
-                    if isinstance(possible_type.value_type, type(type_)):
+                    if type_.compare_type(possible_type.value_type):
                         base_type = possible_type
                         break
+                else:
+                    # this should have been caught in
+                    # `get_possible_types_from_node` but wasn't.
+                    raise TypeCheckFailure(f"Expected {type_} but it is not a possible type", node)
 
         else:
             base_type = get_exact_type_from_node(node.value)
 
-        self.visit(node.slice, base_type.key_type)
+        # get the correct type for the index, it might
+        # not be base_type.key_type
+        index_types = get_possible_types_from_node(node.slice.value)
+        index_type = index_types.pop()
+
+        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node, type_):
@@ -258,3 +270,14 @@ class ExpressionAnnotationVisitor(_AnnotationVisitorBase):
                 type_ = type_.pop()
         node._metadata["type"] = type_
         self.visit(node.operand, type_)
+
+    def visit_IfExp(self, node, type_):
+        if type_ is None:
+            ts = get_common_types(node.body, node.orelse)
+            if len(ts) == 1:
+                type_ = ts.pop()
+
+        node._metadata["type"] = type_
+        self.visit(node.test, BoolT())
+        self.visit(node.body, type_)
+        self.visit(node.orelse, type_)

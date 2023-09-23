@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InstantiationException, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -711,4 +711,4 @@ def test():
     ],
 )
 def test_invalid_types(contract, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(contract), InstantiationException)

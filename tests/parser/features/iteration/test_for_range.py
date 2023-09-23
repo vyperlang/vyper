@@ -14,6 +14,23 @@ def repeat(z: int128) -> int128:
     assert c.repeat(9) == 54
 
 
+def test_range_bound(get_contract, assert_tx_failed):
+    code = """
+@external
+def repeat(n: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(n, bound=6):
+        x += i
+    return x
+    """
+    c = get_contract(code)
+    for n in range(7):
+        assert c.repeat(n) == sum(range(n))
+
+    # check codegen inserts assertion for n greater than bound
+    assert_tx_failed(lambda: c.repeat(7))
+
+
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @external
@@ -126,6 +143,45 @@ def foo(a: {typ}) -> {typ}:
     c = get_contract(code)
     assert c.foo(6) == 7
     assert c.foo(100) == 31337
+
+
+# test that we can get to the upper range of an integer
+@pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
+def test_for_range_edge(get_contract, typ):
+    code = f"""
+@external
+def test():
+    found: bool = False
+    x: {typ} = max_value({typ})
+    for i in range(x, x + 1):
+        if i == max_value({typ}):
+            found = True
+
+    assert found
+
+    found = False
+    x = max_value({typ}) - 1
+    for i in range(x, x + 2):
+        if i == max_value({typ}):
+            found = True
+
+    assert found
+    """
+    c = get_contract(code)
+    c.test()
+
+
+@pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
+def test_for_range_oob_check(get_contract, assert_tx_failed, typ):
+    code = f"""
+@external
+def test():
+    x: {typ} = max_value({typ})
+    for i in range(x, x+2):
+        pass
+    """
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.test())
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])

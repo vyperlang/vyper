@@ -10,6 +10,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
@@ -36,12 +37,26 @@ def set_evm_verbose_logging():
 
 
 def pytest_addoption(parser):
-    parser.addoption("--no-optimize", action="store_true", help="disable asm and IR optimizations")
+    parser.addoption(
+        "--optimize",
+        choices=["codesize", "gas", "none"],
+        default="gas",
+        help="change optimization mode",
+    )
+    parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
 
 @pytest.fixture(scope="module")
-def no_optimize(pytestconfig):
-    return pytestconfig.getoption("no_optimize")
+def optimize(pytestconfig):
+    flag = pytestconfig.getoption("optimize")
+    return OptimizationLevel.from_string(flag)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(pytestconfig):
+    debug = pytestconfig.getoption("enable_compiler_debug_mode")
+    assert isinstance(debug, bool)
+    _set_debug_mode(debug)
 
 
 @pytest.fixture
@@ -58,13 +73,13 @@ def bytes_helper():
 
 
 @pytest.fixture
-def get_contract_from_ir(w3, no_optimize):
+def get_contract_from_ir(w3, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if not no_optimize:
+        if optimize != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
         bytecode, _ = compile_ir.assembly_to_evm(
-            compile_ir.compile_to_assembly(ir, no_optimize=no_optimize)
+            compile_ir.compile_to_assembly(ir, optimize=optimize)
         )
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -80,7 +95,7 @@ def get_contract_from_ir(w3, no_optimize):
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(no_optimize):
+def get_contract_module(optimize):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -93,7 +108,7 @@ def get_contract_module(no_optimize):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
     return get_contract_module
 
@@ -138,9 +153,9 @@ def set_decorator_to_contract_function(w3, tester, contract, source_code, func):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, no_optimize):
+def get_contract_with_gas_estimation(tester, w3, optimize):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        contract = _get_contract(w3, source_code, optimize, *args, **kwargs)
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -150,9 +165,9 @@ def get_contract_with_gas_estimation(tester, w3, no_optimize):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, no_optimize):
+def get_contract_with_gas_estimation_for_constants(w3, optimize):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, no_optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 
@@ -192,3 +207,38 @@ def create2_address_of(keccak):
         return keccak(prefix + addr + salt + keccak(initcode))[12:]
 
     return _f
+
+
+@pytest.fixture
+def side_effects_contract(get_contract):
+    def generate(ret_type):
+        """
+        Generates a Vyper contract with an external `foo()` function, which
+        returns the specified return value of the specified return type, for
+        testing side effects using the `assert_side_effects_invoked` fixture.
+        """
+        code = f"""
+counter: public(uint256)
+
+@external
+def foo(s: {ret_type}) -> {ret_type}:
+    self.counter += 1
+    return s
+    """
+        contract = get_contract(code)
+        return contract
+
+    return generate
+
+
+@pytest.fixture
+def assert_side_effects_invoked():
+    def assert_side_effects_invoked(side_effects_contract, side_effects_trigger, n=1):
+        start_value = side_effects_contract.counter()
+
+        side_effects_trigger()
+
+        end_value = side_effects_contract.counter()
+        assert end_value == start_value + n
+
+    return assert_side_effects_invoked

@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
     CompilerPanic,
@@ -18,14 +19,11 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import DataLocation, VarInfo
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import (
-    check_constant,
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.analysis.utils import check_constant, validate_expected_type
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
@@ -87,7 +85,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
-        # generate an `InterfacePrimitive` from the top-level node - used for building the ABI
+        # generate an `InterfaceT` from the top-level node - used for building the ABI
+        # note: also validates unique method ids
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
@@ -96,15 +95,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         _ns = Namespace()
         # note that we don't just copy the namespace because
         # there are constructor issues.
-        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})
+        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
         module_node._metadata["namespace"] = _ns
 
         # check for collisions between 4byte function selectors
-        # internal functions are intentionally included in this check, to prevent breaking
-        # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
-        functions = [i for i in self_members.values() if isinstance(i, ContractFunctionT)]
-        validate_unique_method_ids(functions)
 
         # get list of internal function calls made by each function
         function_defs = self.ast.get_children(vy_ast.FunctionDef)
@@ -116,11 +111,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # anything that is not a function call will get semantically checked later
             calls_to_self = calls_to_self.intersection(function_names)
             self_members[node.name].internal_calls = calls_to_self
-            if node.name in self_members[node.name].internal_calls:
-                self_node = node.get_descendants(
-                    vy_ast.Attribute, {"value.id": "self", "attr": node.name}
-                )[0]
-                raise CallViolation(f"Function '{node.name}' calls into itself", self_node)
 
         for fn_name in sorted(function_names):
             if fn_name not in self_members:
@@ -193,10 +183,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if node.is_immutable
             else DataLocation.UNSET
             if node.is_constant
+            # XXX: needed if we want separate transient allocator
+            # else DataLocation.TRANSIENT
+            # if node.is_transient
             else DataLocation.STORAGE
         )
 
-        type_ = type_from_annotation(node.annotation)
+        type_ = type_from_annotation(node.annotation, data_loc)
+
+        if node.is_transient and not version_check(begin="cancun"):
+            raise StructureException("`transient` is not available pre-cancun", node.annotation)
+
         var_info = VarInfo(
             type_,
             decl_node=node,
@@ -204,6 +201,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             is_constant=node.is_constant,
             is_public=node.is_public,
             is_immutable=node.is_immutable,
+            is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
@@ -225,6 +223,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             except VyperException as exc:
                 raise exc.with_annotation(node) from None
 
+        def _validate_self_namespace():
+            # block globals if storage variable already exists
+            try:
+                if name in self.namespace["self"].typ.members:
+                    raise NamespaceCollision(
+                        f"Value '{name}' has already been declared", node
+                    ) from None
+                self.namespace[name] = var_info
+            except VyperException as exc:
+                raise exc.with_annotation(node) from None
+
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
@@ -232,10 +241,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
-            try:
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
+            _validate_self_namespace()
 
             return _finalize()
 
@@ -246,16 +252,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             )
 
         if node.is_immutable:
-            try:
-                # block immutable if storage variable already exists
-                if name in self.namespace["self"].typ.members:
-                    raise NamespaceCollision(
-                        f"Value '{name}' has already been declared", node
-                    ) from None
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
-
+            _validate_self_namespace()
             return _finalize()
 
         try:

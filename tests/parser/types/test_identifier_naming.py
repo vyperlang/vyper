@@ -1,9 +1,9 @@
 import pytest
 
+from vyper.ast.identifiers import RESERVED_KEYWORDS
 from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.codegen.expr import ENVIRONMENT_VARIABLES
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
-from vyper.semantics.namespace import RESERVED_KEYWORDS
 from vyper.semantics.types.primitives import AddressT
 
 ALL_RESERVED_KEYWORDS = BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
@@ -41,10 +41,8 @@ def test({constant}: int128):
     )
 
 
-PYTHON_KEYWORDS = {"if", "for", "while", "pass", "def", "assert", "continue", "raise"}
-
 SELF_NAMESPACE_MEMBERS = set(AddressT._type_members.keys())
-DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | PYTHON_KEYWORDS | RESERVED_KEYWORDS
+DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | RESERVED_KEYWORDS
 ALLOWED_FN_NAMES = ALL_RESERVED_KEYWORDS - DISALLOWED_FN_NAMES
 
 

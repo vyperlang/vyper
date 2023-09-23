@@ -1,7 +1,12 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import ImmutableViolation
+from vyper.exceptions import (
+    ArgumentException,
+    ImmutableViolation,
+    StateAccessViolation,
+    TypeMismatch,
+)
 from vyper.semantics.analysis import validate_semantics
 
 
@@ -59,6 +64,34 @@ def bar():
         validate_semantics(vyper_module, {})
 
 
+def test_bad_keywords(namespace):
+    code = """
+
+@internal
+def bar(n: uint256):
+    x: uint256 = 0
+    for i in range(n, boundddd=10):
+        x += i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ArgumentException):
+        validate_semantics(vyper_module, {})
+
+
+def test_bad_bound(namespace):
+    code = """
+
+@internal
+def bar(n: uint256):
+    x: uint256 = 0
+    for i in range(n, bound=n):
+        x += i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(StateAccessViolation):
+        validate_semantics(vyper_module, {})
+
+
 def test_modify_iterator_function_call(namespace):
     code = """
 
@@ -98,4 +131,45 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
+        validate_semantics(vyper_module, {})
+
+
+iterator_inference_codes = [
+    """
+@external
+def main():
+    for j in range(3):
+        x: uint256 = j
+        y: uint16 = j
+    """,  # GH issue 3212
+    """
+@external
+def foo():
+    for i in [1]:
+        a:uint256 = i
+        b:uint16 = i
+    """,  # GH issue 3374
+    """
+@external
+def foo():
+    for i in [1]:
+        for j in [1]:
+            a:uint256 = i
+        b:uint16 = i
+    """,  # GH issue 3374
+    """
+@external
+def foo():
+    for i in [1,2,3]:
+        for j in [1,2,3]:
+            b:uint256 = j + i
+        c:uint16 = i
+    """,  # GH issue 3374
+]
+
+
+@pytest.mark.parametrize("code", iterator_inference_codes)
+def test_iterator_type_inference_checker(namespace, code):
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(TypeMismatch):
         validate_semantics(vyper_module, {})

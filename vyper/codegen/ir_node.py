@@ -1,10 +1,11 @@
+import contextlib
 import re
 from enum import Enum, auto
 from functools import cached_property
 from typing import Any, List, Optional, Tuple, Union
 
-from vyper.address_space import AddrSpace
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
+from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.semantics.types import VyperType
@@ -38,11 +39,6 @@ class NullAttractor(int):
     __mul__ = __add__
 
 
-def push_label_to_stack(labelname: str) -> str:
-    #  items prefixed with `_sym_` are ignored until asm phase
-    return "_sym_" + labelname
-
-
 class Encoding(Enum):
     # vyper encoding, default for memory variables
     VYPER = auto()
@@ -51,13 +47,81 @@ class Encoding(Enum):
     # future: packed
 
 
+# shortcut for chaining multiple cache_when_complex calls
+# CMC 2023-08-10 remove this and scope_together _as soon as_ we have
+# real variables in IR (that we can declare without explicit scoping -
+# needs liveness analysis).
+@contextlib.contextmanager
+def scope_multi(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    builders = []
+    scoped_ir_nodes = []
+
+    class _MultiBuilder:
+        def resolve(self, body):
+            # sanity check that it's initialized properly
+            assert len(builders) == len(ir_nodes)
+            ret = body
+            for b in reversed(builders):
+                ret = b.resolve(ret)
+            return ret
+
+    mb = _MultiBuilder()
+
+    with contextlib.ExitStack() as stack:
+        for arg, name in zip(ir_nodes, names):
+            b, ir_node = stack.enter_context(arg.cache_when_complex(name))
+
+            builders.append(b)
+            scoped_ir_nodes.append(ir_node)
+
+        yield mb, scoped_ir_nodes
+
+
+# create multiple with scopes if any of the items are complex, to force
+# ordering of side effects.
+@contextlib.contextmanager
+def scope_together(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
+
+    class _Builder:
+        def resolve(self, body):
+            if not should_scope:
+                # uses of the variable have already been inlined
+                return body
+
+            ret = body
+            # build with scopes from inside-out (hence reversed)
+            for arg, name in reversed(list(zip(ir_nodes, names))):
+                ret = ["with", name, arg, ret]
+
+            if isinstance(body, IRnode):
+                return IRnode.from_list(
+                    ret, typ=body.typ, location=body.location, encoding=body.encoding
+                )
+            else:
+                return ret
+
+    b = _Builder()
+
+    if should_scope:
+        ir_vars = tuple(
+            IRnode.from_list(name, typ=arg.typ, location=arg.location, encoding=arg.encoding)
+            for (arg, name) in zip(ir_nodes, names)
+        )
+        yield b, ir_vars
+    else:
+        # inline them
+        yield b, ir_nodes
+
+
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        # TODO figure out how to fix this circular import
-        from vyper.ir.optimizer import optimize
-
-        if should_inline and optimize(ir_node).is_complex_ir:
+        if should_inline and ir_node._optimized.is_complex_ir:
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -156,6 +220,13 @@ class IRnode:
 
             self.valency = 1
             self._gas = 5
+        elif isinstance(self.value, bytes):
+            # a literal bytes value, probably inside a "data" node.
+            _check(len(self.args) == 0, "bytes can't have arguments")
+
+            self.valency = 0
+            self._gas = 0
+
         elif isinstance(self.value, str):
             # Opcodes and pseudo-opcodes (e.g. clamp)
             if self.value.upper() in get_ir_opcodes():
@@ -272,8 +343,11 @@ class IRnode:
                 self.valency = 0
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "label":
-                if not self.args[1].value == "var_list":
-                    raise CodegenPanic(f"2nd argument to label must be var_list, {self}")
+                _check(
+                    self.args[1].value == "var_list",
+                    f"2nd argument to label must be var_list, {self}",
+                )
+                _check(len(args) == 3, f"label should have 3 args but has {len(args)}, {self}")
                 self.valency = 0
                 self._gas = 1 + sum(t.gas for t in self.args)
             elif self.value == "unique_symbol":
@@ -324,19 +398,28 @@ class IRnode:
     def gas(self):
         return self._gas + self.add_gas_estimate
 
-    # the IR should be cached.
-    # TODO make this private. turns out usages are all for the caching
-    # idiom that cache_when_complex addresses
+    # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
-        do_not_cache = {"~empty", "calldatasize"}
+        # reads (from memory or storage) should not be cached because
+        # they can have or be affected by side effects.
+        do_not_cache = {"~empty", "calldatasize", "callvalue"}
+
         return (
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
             and self.value.lower() not in do_not_cache
         )
+
+    # set an error message and push down into all children.
+    # useful for overriding an error message generated by a helper
+    # function with a more specific error message.
+    def set_error_msg(self, error_msg: str) -> None:
+        self.error_msg = error_msg
+        for arg in self.args:
+            arg.set_error_msg(error_msg)
 
     # get the unique symbols contained in this node, which provides
     # sanity check invariants for the optimizer.
@@ -371,6 +454,13 @@ class IRnode:
         # eventually
         return self.location is not None
 
+    @property  # probably could be cached_property but be paranoid
+    def _optimized(self):
+        # TODO figure out how to fix this circular import
+        from vyper.ir.optimizer import optimize
+
+        return optimize(self)
+
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
     # IR value (if it is expensive, or more importantly if its computation
@@ -387,15 +477,23 @@ class IRnode:
     #   return builder.resolve(ret)
     # ```
     def cache_when_complex(self, name):
-        from vyper.ir.optimizer import optimize
-
         # for caching purposes, see if the ir_node will be optimized
         # because a non-literal expr could turn into a literal,
         # (e.g. `(add 1 2)`)
         # TODO this could really be moved into optimizer.py
-        should_inline = not optimize(self).is_complex_ir
+        should_inline = not self._optimized.is_complex_ir
 
         return _WithBuilder(self, name, should_inline)
+
+    @cached_property
+    def referenced_variables(self):
+        ret = set()
+        for arg in self.args:
+            ret |= arg.referenced_variables
+
+        ret |= getattr(self, "_referenced_variables", set())
+
+        return ret
 
     @cached_property
     def contains_self_call(self):

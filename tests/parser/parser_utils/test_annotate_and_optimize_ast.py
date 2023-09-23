@@ -29,7 +29,7 @@ def foo() -> int128:
 
 
 def get_contract_info(source_code):
-    class_types, reformatted_code = pre_parse(source_code)
+    _, class_types, reformatted_code = pre_parse(source_code)
     py_ast = python_ast.parse(reformatted_code)
 
     annotate_python_ast(py_ast, reformatted_code, class_types)

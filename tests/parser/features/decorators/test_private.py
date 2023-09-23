@@ -433,7 +433,7 @@ def i_am_me() -> bool:
     return msg.sender == self._whoami()
 
 @external
-@view
+@nonpayable
 def whoami() -> address:
     log Addr(self._whoami())
     return self._whoami()

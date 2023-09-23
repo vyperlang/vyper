@@ -72,8 +72,8 @@ function_def: [decorators] function_sig ":" body
 _EVENT_DECL: "event"
 event_member: NAME ":" type
 indexed_event_arg: NAME ":" "indexed" "(" type ")"
-event_body: _NEWLINE _INDENT ((event_member | indexed_event_arg) _NEWLINE)+ _DEDENT
 // Events which use no args use a pass statement instead
+event_body: _NEWLINE _INDENT (((event_member | indexed_event_arg ) _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
 // Enums
@@ -174,12 +174,15 @@ loop_variable: NAME [":" NAME]
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
+// ternary operator
+ternary: _expr "if" _expr "else" _expr
 
 // Expressions
 _expr: operation
      | dict
+     | ternary
 
-get_item: variable_access "[" _expr "]"
+get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
 ?variable_access: NAME -> get_var

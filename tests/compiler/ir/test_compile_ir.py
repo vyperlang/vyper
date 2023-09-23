@@ -68,4 +68,4 @@ def test_pc_debugger():
     debugger_ir = ["seq", ["mstore", 0, 32], ["pc_debugger"]]
     ir_nodes = IRnode.from_list(debugger_ir)
     _, line_number_map = compile_ir.assembly_to_evm(compile_ir.compile_to_assembly(ir_nodes))
-    assert line_number_map["pc_breakpoints"][0] == 5
+    assert line_number_map["pc_breakpoints"][0] == 4

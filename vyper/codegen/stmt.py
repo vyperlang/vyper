@@ -1,7 +1,6 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.address_space import MEMORY, STORAGE
 from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
@@ -11,6 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
+    clamp,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,6 +23,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
@@ -59,7 +60,7 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        ltyp = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
         alloced = self.context.new_variable(varname, ltyp)
 
@@ -72,11 +73,22 @@ class Stmt:
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        sub = Expr(self.stmt.value, self.context).ir_node
-        target = self._get_target(self.stmt.target)
+        src = Expr(self.stmt.value, self.context).ir_node
+        dst = self._get_target(self.stmt.target)
 
-        ir_node = make_setter(target, sub)
-        return ir_node
+        ret = ["seq"]
+        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        if overlap and not dst.typ._is_prim_word:
+            # there is overlap between the lhs and rhs, and the type is
+            # complex - i.e., it spans multiple words. for safety, we
+            # copy to a temporary buffer before copying to the destination.
+            tmp = self.context.new_internal_variable(src.typ)
+            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
+            ret.append(make_setter(tmp, src))
+            src = tmp
+
+        ret.append(make_setter(dst, src))
+        return IRnode.from_list(ret)
 
     def parse_If(self):
         if self.stmt.orelse:
@@ -246,11 +258,17 @@ class Stmt:
         arg0 = self.stmt.iter.args[0]
         num_of_args = len(self.stmt.iter.args)
 
+        kwargs = {
+            s.arg: Expr.parse_value_expr(s.value, self.context)
+            for s in self.stmt.iter.keywords or []
+        }
+
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
-            arg0_val = self._get_range_const_value(arg0)
+            n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
-            rounds = arg0_val
+            rounds = n
+            rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
@@ -258,15 +276,19 @@ class Stmt:
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
             rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
+            rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
+            rounds_bound = rounds
 
-        r = rounds if isinstance(rounds, int) else rounds.value
-        if r < 1:
+        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
+        if bound < 1:
             return
 
         varname = self.stmt.target.id
@@ -280,7 +302,12 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
+        # NOTE: codegen for `repeat` inserts an assertion that rounds <= rounds_bound.
+        # if we ever want to remove that, we need to manually add the assertion
+        # where it makes sense.
+        ir_node = IRnode.from_list(
+            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
+        )
         del self.context.forvars[varname]
 
         return ir_node
@@ -289,10 +316,8 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.value_type = target_type
+        assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
@@ -333,8 +358,12 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not target.typ._is_prim_word:
+            # because of this check, we do not need to check for
+            # make_setter references lhs<->rhs as in parse_Assign -
+            # single word load/stores are atomic.
             return
 
         with target.cache_when_complex("_loc") as (b, target):

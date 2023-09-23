@@ -57,6 +57,14 @@ optimize_list = [
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
     (["ge", "x", 0], [1]),
+    (["le", "x", "x"], [1]),
+    (["ge", "x", "x"], [1]),
+    (["sle", "x", "x"], [1]),
+    (["sge", "x", "x"], [1]),
+    (["lt", "x", "x"], [0]),
+    (["gt", "x", "x"], [0]),
+    (["slt", "x", "x"], [0]),
+    (["sgt", "x", "x"], [0]),
     # boundary conditions
     (["slt", "x", -(2**255)], [0]),
     (["sle", "x", -(2**255)], ["eq", "x", -(2**255)]),
@@ -135,7 +143,9 @@ optimize_list = [
     (["sub", "x", 0], ["x"]),
     (["sub", "x", "x"], [0]),
     (["sub", ["sload", 0], ["sload", 0]], None),
-    (["sub", ["callvalue"], ["callvalue"]], None),
+    (["sub", ["callvalue"], ["callvalue"]], [0]),
+    (["sub", ["msize"], ["msize"]], None),
+    (["sub", ["gas"], ["gas"]], None),
     (["sub", -1, ["sload", 0]], ["not", ["sload", 0]]),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
@@ -202,7 +212,9 @@ optimize_list = [
     (["eq", -1, ["add", -(2**255), 2**255 - 1]], [1]),  # test compile-time wrapping
     (["eq", -2, ["add", 2**256 - 1, 2**256 - 1]], [1]),  # test compile-time wrapping
     (["eq", "x", "x"], [1]),
-    (["eq", "callvalue", "callvalue"], None),
+    (["eq", "gas", "gas"], None),
+    (["eq", "msize", "msize"], None),
+    (["eq", "callvalue", "callvalue"], [1]),
     (["ne", "x", "x"], [0]),
 ]
 
@@ -253,3 +265,10 @@ static_assertions_list = [
 def test_static_assertions(ir, assert_compile_failed):
     ir = IRnode.from_list(ir)
     assert_compile_failed(lambda: optimizer.optimize(ir), StaticAssertionException)
+
+
+def test_operator_set_values():
+    # some sanity checks
+    assert optimizer.COMPARISON_OPS == {"lt", "gt", "le", "ge", "slt", "sgt", "sle", "sge"}
+    assert optimizer.STRICT_COMPARISON_OPS == {"lt", "gt", "slt", "sgt"}
+    assert optimizer.UNSTRICT_COMPARISON_OPS == {"le", "ge", "sle", "sge"}
