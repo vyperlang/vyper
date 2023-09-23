@@ -25,7 +25,7 @@ def fold(vyper_module: vy_ast.Module) -> None:
         changed_nodes += replace_builtin_functions(vyper_module)
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
-        vyper_module.remove_from_body(node)    
+        vyper_module.remove_from_body(node)
 
 
 def replace_literal_ops(vyper_module: vy_ast.Module) -> int:

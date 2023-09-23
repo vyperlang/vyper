@@ -2,7 +2,7 @@ import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):

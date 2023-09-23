@@ -3,7 +3,7 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, InvalidOperation, TypeMismatch
+from vyper.exceptions import DecimalOverrideException, InvalidOperation
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 

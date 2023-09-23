@@ -1,8 +1,7 @@
 import pytest
 
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import OverflowException
 from vyper.semantics.types import DecimalT, IntegerT
-from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
 @pytest.mark.parametrize("typ", sorted(IntegerT.all() + (DecimalT(),)))
