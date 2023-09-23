@@ -103,7 +103,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-        return tuple_t.from_annotation(node)
+        return tuple_t.from_annotation(node, namespace._constants)
 
     if isinstance(node, vy_ast.Subscript):
         # ex. HashMap, DynArray, Bytes, static arrays
@@ -127,7 +127,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # cases where the object in the namespace is an uninstantiated
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
-        typ_.from_annotation(node)
+        typ_.from_annotation(node, namespace._constants)
 
     return typ_
 
