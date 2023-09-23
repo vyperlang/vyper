@@ -36,15 +36,8 @@ def foo():
     a: {typ} = min_value({typ}) - 1
     """
 
-    if typ == UINT256_T:
-        assert_compile_failed(lambda: get_contract(upper), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract(upper), InvalidType)
-
-    if typ == INT256_T:
-        assert_compile_failed(lambda: get_contract(lower), OverflowException)
-    else:
-        assert_compile_failed(lambda: get_contract(lower), InvalidType)
+    assert_compile_failed(lambda: get_contract(upper), OverflowException)
+    assert_compile_failed(lambda: get_contract(lower), OverflowException)
 
 
 @pytest.mark.parametrize("typ", [DecimalT()])

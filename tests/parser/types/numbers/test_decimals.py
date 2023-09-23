@@ -261,4 +261,4 @@ def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
