@@ -398,7 +398,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
 
                     right_val = args[1].right.derive(self.namespace._constants)
-                    if not isinstance(args[1].right, vy_ast.Int) and not (isinstance(args[1].right, vy_ast.Name) and right_val):
+                    if not isinstance(args[1].right, vy_ast.Int) and not (
+                        isinstance(args[1].right, vy_ast.Name) and right_val
+                    ):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
                     if right_val < 1:
                         raise StructureException(
@@ -669,7 +671,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # Skip annotation of builtin functions that are always folded 
+            # Skip annotation of builtin functions that are always folded
             # because they will be annotated during folding.
             if getattr(call_type, "_is_folded", False):
                 return

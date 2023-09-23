@@ -66,23 +66,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
-        const_var_decls = [n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant]
+        const_var_decls = [
+            n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
+        ]
 
         while const_var_decls:
             derived_nodes = 0
 
             for c in const_var_decls:
-                try:
-                    name = c.get("target.id")
-                    val = c.value.derive(self.namespace._constants)                    
-                    self.namespace.add_constant(name, val)
+                name = c.get("target.id")
+                val = c.value.derive(self.namespace._constants)
+                self.namespace.add_constant(name, val)
 
-                    if val:
-                        derived_nodes += 1
-                        const_var_decls.remove(c)
-                except:
-                    pass
-            
+                if val is not None:
+                    derived_nodes += 1
+                    const_var_decls.remove(c)
+
             if not derived_nodes:
                 break
 

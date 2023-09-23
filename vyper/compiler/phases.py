@@ -263,7 +263,7 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
-    #for node in vyper_module_folded.get_children(vy_ast.VariableDecl, {"is_constant": True}):
+    # for node in vyper_module_folded.get_children(vy_ast.VariableDecl, {"is_constant": True}):
     #    vyper_module.remove_from_body(node)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 

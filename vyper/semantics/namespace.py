@@ -98,6 +98,7 @@ class Namespace(dict):
     def add_constant(self, name, value):
         self._constants[name] = value
 
+
 def get_namespace():
     """
     Get the active namespace object.

@@ -68,7 +68,9 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript], constants: dict) -> "HashMapT":
+    def from_annotation(
+        cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript], constants: dict
+    ) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -275,7 +277,6 @@ class DArrayT(_SequenceT):
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "DArrayT":
         max_length = node.slice.value.elements[1].derive(constants)
-        print("max length: ", max_length)
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)

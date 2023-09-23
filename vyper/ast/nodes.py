@@ -921,21 +921,17 @@ class Name(ExprNode):
     __slots__ = ("id",)
 
     def derive(self, constants: dict):
-        try:
-            val = constants[self.id]
-            return val
-        except:
-            return None
+        return constants.get(self.id, None)
 
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
     def derive(self, constants: dict):
-        try:
-            return self.op._op(self.operand.derive(constants))
-        except:
+        operand = self.operand.derive(constants)
+        if operand is None:
             return None
+        return self.op._op(operand)
 
     def evaluate(self) -> ExprNode:
         """
@@ -986,11 +982,11 @@ class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
 
     def derive(self, constants: dict):
-        try:
-            left, right = self.left, self.right
-            return self.op._op(left.derive(constants), right.derive(constants))
-        except:
+        left = self.left.derive(constants)
+        right = self.right.derive(constants)
+        if left is None or right is None:
             return None
+        return self.op._op(left, right)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1143,11 +1139,10 @@ class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
     def derive(self, constants: dict):
-        try:
-            values = [i.derive(constants) for i in self.values]
-            return self.op._op(values)
-        except:
+        values = [i.derive(constants) for i in self.values]
+        if any(v is None for v in values):
             return None
+        return self.op._op(values)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1206,15 +1201,18 @@ class Compare(ExprNode):
         super().__init__(*args, **kwargs)
 
     def derive(self, constants: dict):
-        try:
-            left, right = self.left, self.right
-            if isinstance(self.op, (In, NotIn)):
-                value = self.op._op(left.derive(constants), [i.derive(constants) for i in right.elements])
-                return value
+        left = self.left.derive(constants)
 
-            return self.op._op(left.derive(constants), right.derive(constants))
-        except:
+        if isinstance(self.op, (In, NotIn)):
+            right = [i.derive(constants) for i in self.right.elements]
+            if left is None or any(v is None for v in right):
+                return None
+            return self.op._op(left, right)
+
+        right = self.right.derive(constants)
+        if left is None or right is None:
             return None
+        return self.op._op(left, right)
 
     def evaluate(self) -> ExprNode:
         """

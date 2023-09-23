@@ -47,8 +47,9 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
         try:
             new_node = node.evaluate()
             typ = node._metadata.get("type")
-            typ.validate_literal(new_node)
-            new_node._metadata["type"] = typ
+            if typ:
+                typ.validate_literal(new_node)
+                new_node._metadata["type"] = typ
         except UnfoldableNode:
             continue
 
@@ -115,7 +116,6 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
         try:
             new_node = func.evaluate(node)  # type: ignore
             new_node._metadata["type"] = func.fetch_call_return(node)
-            print("replaced builtin fn: ", node.func.id)
         except UnfoldableNode:
             continue
 
@@ -140,11 +140,9 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     int
         Number of nodes that were replaced.
     """
-    print("replace user defined constants")
     changed_nodes = 0
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-        print("node: ", node)
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
