@@ -893,6 +893,12 @@ class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
+    def derive(self, constants: dict):
+        val = [e.derive(constants) for e in self.elements]
+        if None in val:
+            return None
+        return val
+
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)

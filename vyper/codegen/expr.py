@@ -501,6 +501,7 @@ class Expr:
 
     def parse_Compare(self):
         left = Expr.parse_value_expr(self.expr.left, self.context)
+        print("parse_Compare - right: ", self.expr.right)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if right.value is None:
