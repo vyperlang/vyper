@@ -1,11 +1,12 @@
 import functools
 from typing import Dict
 
+from vyper.semantics.namespace import get_namespace
 from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode, VyperException
 from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
@@ -102,9 +103,20 @@ class BuiltinFunction(VyperType):
         for arg, (_, expected) in zip(node.args, self._inputs):
             self._validate_single(arg, expected)
 
+        ns = get_namespace()
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+            is_literal_value = kwarg.value.derive(ns._constants) is not None
+            if isinstance(kwarg.value, vy_ast.Call):
+                call_type = get_exact_type_from_node(kwarg.value.func)
+                if hasattr(call_type, "evaluate"):
+                    try:
+                        call_type.evaluate(kwarg.value)
+                        is_literal_value = True
+                    except (UnfoldableNode, VyperException):
+                        pass
+
+            if kwarg_settings.require_literal and not is_literal_value:
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 

@@ -282,6 +282,7 @@ class DArrayT(_SequenceT):
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
             or not max_length
+            or not isinstance(max_length, int)
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(

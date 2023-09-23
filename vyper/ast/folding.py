@@ -24,6 +24,9 @@ def fold(vyper_module: vy_ast.Module) -> None:
         changed_nodes += replace_subscripts(vyper_module)
         changed_nodes += replace_builtin_functions(vyper_module)
 
+    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
+        vyper_module.remove_from_body(node)    
+
 
 def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     """
@@ -47,7 +50,8 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
         try:
             new_node = node.evaluate()
             typ = node._metadata.get("type")
-            if typ:
+            # defer literal validation until folding is no longer possible
+            if typ and not isinstance(node.get_ancestor(), node_types):
                 typ.validate_literal(new_node)
                 new_node._metadata["type"] = typ
         except UnfoldableNode:
@@ -143,7 +147,6 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     changed_nodes = 0
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-        print("node: ", node)
         if not isinstance(node.target, vy_ast.Name):
             # left-hand-side of assignment is not a variable
             continue
@@ -164,7 +167,6 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
-        vyper_module.remove_from_body(node)
 
     return changed_nodes
 

@@ -12,6 +12,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnfoldableNode,
     UnknownAttribute,
     VyperException,
     ZeroDivisionException,
@@ -633,6 +634,13 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
         if getattr(call_type, "_kwargable", False):
             return True
 
+        if getattr(call_type, "evaluate", False):
+            try:
+                call_type.evaluate(node)
+                return True
+            except (UnfoldableNode, VyperException):
+                return False
+
     value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed
     return value_type.is_constant
@@ -665,5 +673,12 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
+
+        if getattr(call_type, "evaluate", False):
+            try:
+                call_type.evaluate(node)
+                return True
+            except (UnfoldableNode, VyperException):
+                return False
 
     return False

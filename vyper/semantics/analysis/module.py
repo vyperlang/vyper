@@ -84,6 +84,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             if not derived_nodes:
                 break
+        
+        # attach temporary namespace with constants to the module for 
+        # typechecking
+        _ns = Namespace()
+        _ns._constants = self.namespace._constants
+        module_node._metadata["namespace"] = _ns
 
         while module_nodes:
             count = len(module_nodes)

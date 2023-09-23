@@ -152,10 +152,8 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     val = node.value.derive(constants)
-    if val:
-        return val
 
-    if not isinstance(node.get("value"), vy_ast.Int):
+    if not val and not isinstance(node.get("value"), vy_ast.Int):
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_
             # this gives a more accurate error in case of e.g. a typo in a constant variable name
@@ -167,7 +165,7 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
 
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value.value <= 0:
+    if val <= 0:
         raise ArrayIndexException("Subscript must be greater than 0", node)
 
-    return node.value.value
+    return val
