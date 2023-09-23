@@ -152,8 +152,6 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     val = node.value.derive(constants)
-    print("get_index_value - val: ", val)
-    print("constants: ", constants)
     if val:
         return val
 

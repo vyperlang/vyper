@@ -921,13 +921,10 @@ class Name(ExprNode):
     __slots__ = ("id",)
 
     def derive(self, constants: dict):
-        print("deriving name")
         try:
             val = constants[self.id]
-            print("derived name: ", val)
             return val
         except:
-            print("cannot derive name")
             return None
 
 

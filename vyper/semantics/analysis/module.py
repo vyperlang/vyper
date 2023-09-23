@@ -67,20 +67,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
         const_var_decls = [n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant]
-        print("const var decls: ", const_var_decls)
 
         while const_var_decls:
             derived_nodes = 0
 
             for c in const_var_decls:
-                print("c")
                 try:
-                    print("trying")
                     name = c.get("target.id")
-                    print("deriving const val for: ", name)
-                    val = c.value.derive(self.namespace._constants)
-                    
-                    print("derived val: ", val)
+                    val = c.value.derive(self.namespace._constants)                    
                     self.namespace.add_constant(name, val)
 
                     if val:
@@ -90,9 +84,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     pass
             
             if not derived_nodes:
-                print("remaining len: ", len(const_var_decls))
                 break
-        print("completed")
 
         while module_nodes:
             count = len(module_nodes)
@@ -272,9 +264,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             validate_expected_type(node.value, type_)
             _validate_self_namespace()
-
-            #self.namespace.add_constant(name, node.value.derive(self.namespace._constants))
-            print("added to namespace")
 
             return _finalize()
 

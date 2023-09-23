@@ -364,12 +364,12 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     if n_val <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
                     type_list = get_possible_types_from_node(n)
-                    print("Type list: ", type_list)
 
                 else:
-                    if not isinstance(bound, vy_ast.Num):
+                    bound_val = bound.derive(self.namespace._constants)
+                    if not bound_val:
                         raise StateAccessViolation("bound must be a literal", bound)
-                    if bound.value <= 0:
+                    if bound_val <= 0:
                         raise StructureException("bound must be at least 1", args[0])
                     type_list = get_common_types(n, bound)
 
@@ -395,20 +395,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         raise StructureException(
                             "First and second variable must be the same", args[1].left
                         )
-                    if not isinstance(args[1].right, vy_ast.Int):
+
+                    right_val = args[1].right.derive(self.namespace._constants)
+                    if not isinstance(args[1].right, vy_ast.Int) and not (isinstance(args[1].right, vy_ast.Name) and right_val):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
-                    if args[1].right.value < 1:
+                    if right_val < 1:
                         raise StructureException(
-                            f"For loop has invalid number of iterations ({args[1].right.value}),"
+                            f"For loop has invalid number of iterations ({right_val}),"
                             " the value must be greater than zero",
                             args[1].right,
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    if not isinstance(args[1], vy_ast.Int):
+                    arg0_val = args[0].derive(self.namespace._constants)
+                    arg1_val = args[1].derive(self.namespace._constants)
+                    if not isinstance(args[1], vy_ast.Int) and not (isinstance(args[1], vy_ast.Name) and right_val):
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
-                    if args[0].value >= args[1].value:
+                    if args0_val >= arg1_val:
                         raise StructureException("Second value must be > first value", args[1])
 
                 if not type_list:
@@ -664,7 +668,8 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            print("is folded: ", getattr(call_type, "_is_folded", False))
+            # Skip annotation of builtin functions that are always folded 
+            # because they will be annotated during folding.
             if getattr(call_type, "_is_folded", False):
                 return
 
