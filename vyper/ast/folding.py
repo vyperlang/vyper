@@ -46,6 +46,9 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
+            typ = node._metadata.get("type")
+            typ.validate_literal(new_node)
+            new_node._metadata["type"] = typ
         except UnfoldableNode:
             continue
 

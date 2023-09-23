@@ -359,7 +359,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 if bound is None:
                     n_val = n.derive(self.namespace._constants)
-                    if not n_val:
+                    if n_val is None:
                         raise StateAccessViolation("Value must be a literal", n)
                     if n_val <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
@@ -367,7 +367,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 else:
                     bound_val = bound.derive(self.namespace._constants)
-                    if not bound_val:
+                    if bound_val is None:
                         raise StateAccessViolation("bound must be a literal", bound)
                     if bound_val <= 0:
                         raise StructureException("bound must be at least 1", args[0])
@@ -383,7 +383,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
-                if not isinstance(args[0], vy_ast.Constant):
+                arg0_val = args[0].derive(self.namespace._constants)
+                if arg0_val is None:
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -407,12 +408,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    arg0_val = args[0].derive(self.namespace._constants)
                     arg1_val = args[1].derive(self.namespace._constants)
-                    if not isinstance(args[1], vy_ast.Int) and not (isinstance(args[1], vy_ast.Name) and right_val):
+                    if not arg1_val:
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
-                    if args0_val >= arg1_val:
+                    if arg0_val >= arg1_val:
                         raise StructureException("Second value must be > first value", args[1])
 
                 if not type_list:
@@ -420,7 +420,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
+            iter_ = node.iter.derive(self.namespace._constants)
+            if isinstance(iter_, list) and len(iter_) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
             type_list = [
