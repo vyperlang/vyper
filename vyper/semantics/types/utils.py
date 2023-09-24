@@ -153,7 +153,7 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
 
     val = node.value.derive(constants)
 
-    if not val and not isinstance(node.get("value"), vy_ast.Int):
+    if not isinstance(val, int):
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_
             # this gives a more accurate error in case of e.g. a typo in a constant variable name
