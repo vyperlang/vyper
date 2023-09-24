@@ -128,7 +128,7 @@ class TypenameFoldedFunction(FoldedFunction):
         type_ = self.infer_arg_types(node)[0].typedef
         return type_
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         validate_call_args(node, 1)
         input_typedef = TYPE_T(type_from_annotation(node.args[0]))
         return [input_typedef]
@@ -204,7 +204,7 @@ class Convert(BuiltinFunction):
         return target_typedef.typedef
 
     # TODO: push this down into convert.py for more consistency
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         validate_call_args(node, 2)
 
         target_type = type_from_annotation(node.args[1])
@@ -340,7 +340,7 @@ class Slice(BuiltinFunction):
 
         return return_type
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type for `b`
         b_type = get_possible_types_from_node(node.args[0]).pop()
@@ -477,7 +477,7 @@ class Len(BuiltinFunction):
 
         return vy_ast.Int.from_node(node, value=length)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type
         typ = get_possible_types_from_node(node.args[0]).pop()
@@ -507,7 +507,7 @@ class Concat(BuiltinFunction):
         return_type.set_length(length)
         return return_type
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         if len(node.args) < 2:
             raise ArgumentException("Invalid argument count: expected at least 2", node)
 
@@ -616,7 +616,7 @@ class Keccak256(BuiltinFunction):
         hash_ = f"0x{keccak256(value).hex()}"
         return vy_ast.Hex.from_node(node, value=hash_)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type for `value`
         value_type = get_possible_types_from_node(node.args[0]).pop()
@@ -663,7 +663,7 @@ class Sha256(BuiltinFunction):
         hash_ = f"0x{hashlib.sha256(value).hexdigest()}"
         return vy_ast.Hex.from_node(node, value=hash_)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type for `value`
         value_type = get_possible_types_from_node(node.args[0]).pop()
@@ -765,7 +765,7 @@ class ECRecover(BuiltinFunction):
     ]
     _return_type = AddressT()
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         v_t, r_t, s_t = [get_possible_types_from_node(arg).pop() for arg in node.args[1:]]
         return [BYTES32_T, v_t, r_t, s_t]
@@ -863,7 +863,7 @@ class Extract32(BuiltinFunction):
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
         return return_type
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         input_type = get_possible_types_from_node(node.args[0]).pop()
         return [input_type, UINT256_T]
@@ -1013,7 +1013,7 @@ class AsWeiValue(BuiltinFunction):
         self.infer_arg_types(node)
         return self._return_type
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type instead of abstract type
         value_type = get_possible_types_from_node(node.args[0]).pop()
@@ -1098,7 +1098,7 @@ class RawCall(BuiltinFunction):
                 return return_type
             return TupleT([BoolT(), return_type])
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type for `data`
         data_type = get_possible_types_from_node(node.args[1]).pop()
@@ -1275,7 +1275,7 @@ class RawRevert(BuiltinFunction):
     def fetch_call_return(self, node):
         return None
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         data_type = get_possible_types_from_node(node.args[0]).pop()
         return [data_type]
@@ -1295,7 +1295,7 @@ class RawLog(BuiltinFunction):
     def fetch_call_return(self, node):
         self.infer_arg_types(node)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
 
         if not isinstance(node.args[0], vy_ast.List) or len(node.args[0].elements) > 4:
@@ -1477,7 +1477,7 @@ class Shift(BuiltinFunction):
         # return type is the type of the first argument
         return self.infer_arg_types(node)[0]
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         # return a concrete type instead of SignedIntegerAbstractType
         arg_ty = get_possible_types_from_node(node.args[0])[0]
@@ -1954,7 +1954,7 @@ class _UnsafeMath(BuiltinFunction):
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
 
         types_list = get_common_types(*node.args, filter_fn=lambda x: isinstance(x, IntegerT))
@@ -2039,16 +2039,22 @@ class _MinMax(BuiltinFunction):
         return_type = self.infer_arg_types(node).pop()
         return return_type
 
-    def infer_arg_types(self, node):
+    def get_possible_types_from_node(self, node):
         self._validate_arg_types(node)
-
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
         )
         if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+        return types_list
 
-        type_ = types_list.pop()
+    def infer_arg_types(self, node, propagated_typ=None):
+        types_list = self.get_possible_types_from_node(node)
+
+        if propagated_typ and propagated_typ in types_list:
+            type_ = propagated_typ
+        else:
+            type_ = types_list.pop()
         return [type_, type_]
 
     @process_inputs
@@ -2101,7 +2107,7 @@ class Uint2Str(BuiltinFunction):
         value = str(node.args[0].value)
         return vy_ast.Str.from_node(node, value=value)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
         input_type = get_possible_types_from_node(node.args[0]).pop()
         return [input_type]
@@ -2503,7 +2509,7 @@ class ABIDecode(BuiltinFunction):
         _, output_type = self.infer_arg_types(node)
         return output_type.typedef
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, *args, **kwargs):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])

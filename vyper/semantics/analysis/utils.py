@@ -273,6 +273,9 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
+        if hasattr(var, "get_possible_types_from_node"):
+            return var.get_possible_types_from_node(node)
+
         return_value = var.fetch_call_return(node)
         if return_value:
             return [return_value]
