@@ -154,7 +154,6 @@ def generate_ir_for_external_function(code, func_t, context):
     enter the function (nonpayable and reentrancy checks), handle kwargs and exit
     the function (clean up reentrancy storage variables)
     """
-    print("generate_ir_for_external funciton - code: ", code)
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
     # generate handlers for base args and register the variable records
