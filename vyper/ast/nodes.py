@@ -373,9 +373,6 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def derive(self, constants: dict):
-        return None
-
     def evaluate(self) -> "VyperNode":
         """
         Attempt to evaluate the content of a node and generate a new node from it.
@@ -754,9 +751,6 @@ class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
-    def derive(self, constants: dict):
-        return self.value
-
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -893,22 +887,10 @@ class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
-    def derive(self, constants: dict):
-        val = [e.derive(constants) for e in self.elements]
-        if None in val:
-            return None
-        return val
-
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
-
-    def derive(self, constants: dict):
-        val = [e.derive(constants) for e in self.elements]
-        if None in val:
-            return None
-        return val
 
     def validate(self):
         if not self.elements:
@@ -918,12 +900,6 @@ class Tuple(ExprNode):
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
 
-    def derive(self, constants: dict):
-        values = [v.derive(constants) for v in self.args[0].values]
-        if any(v is None for v in values):
-            return None
-        return {k: v for (k, v) in zip(self.args[0].keys, values)}
-
 
 class NameConstant(Constant):
     __slots__ = ("value",)
@@ -932,18 +908,9 @@ class NameConstant(Constant):
 class Name(ExprNode):
     __slots__ = ("id",)
 
-    def derive(self, constants: dict):
-        return constants.get(self.id, None)
-
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
-
-    def derive(self, constants: dict):
-        operand = self.operand.derive(constants)
-        if operand is None:
-            return None
-        return self.op._op(operand)
 
     def evaluate(self) -> ExprNode:
         """
@@ -992,13 +959,6 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
-
-    def derive(self, constants: dict):
-        left = self.left.derive(constants)
-        right = self.right.derive(constants)
-        if left is None or right is None:
-            return None
-        return self.op._op(left, right)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1150,12 +1110,6 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
-    def derive(self, constants: dict):
-        values = [i.derive(constants) for i in self.values]
-        if any(v is None for v in values):
-            return None
-        return self.op._op(values)
-
     def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
@@ -1211,20 +1165,6 @@ class Compare(ExprNode):
         kwargs["op"] = kwargs.pop("ops")[0]
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
-
-    def derive(self, constants: dict):
-        left = self.left.derive(constants)
-
-        if isinstance(self.op, (In, NotIn)):
-            right = [i.derive(constants) for i in self.right.elements]
-            if left is None or any(v is None for v in right):
-                return None
-            return self.op._op(left, right)
-
-        right = self.right.derive(constants)
-        if left is None or right is None:
-            return None
-        return self.op._op(left, right)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1315,12 +1255,6 @@ class NotIn(Operator):
 
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords", "keyword")
-
-    def derive(self, constants: dict):
-        # only return constant struct values
-        if len(self.args) == 1 and isinstance(self.args[0], Dict):
-            return self.args[0].derive(constants)
-        return None
 
 
 class keyword(VyperNode):

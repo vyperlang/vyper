@@ -134,29 +134,64 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def derive_literal_value(node: vy_ast.VyperNode):
-    ns = get_namespace()
-    val = node.derive(ns._constants)
-    return val
-
-
 def derive_folded_value(node: vy_ast.VyperNode):
-    if node is None:
-        return None
+    if isinstance(node, vy_ast.BinOp):
+        left = derive_folded_value(node.left)
+        right = derive_folded_value(node.right)
+        if left is None or right is None:
+            return None
+        return node.op._op(left, right)
+    elif isinstance(node, vy_ast.BoolOp):
+        values = [derive_folded_value(i) for i in node.values]
+        if any(v is None for v in values):
+            return None
+        return node.op._op(values)
+    elif isinstance(node, vy_ast.Call):
+        if len(node.args) == 1 and isinstance(node.args[0], Dict):
+            return derive_folded_value(node.args[0])
 
-    val = derive_literal_value(node)
-    if val is not None:
-        return val
-
-    if isinstance(node, vy_ast.Call):
         from vyper.semantics.analysis.utils import get_exact_type_from_node
 
         call_type = get_exact_type_from_node(node.func)
-        try:
-            evaluated = call_type.evaluate(node)
-            return evaluated.value
-        except (UnfoldableNode, VyperException):
-            pass
+        if hasattr(call_type, "evaluate"):
+            try:
+                evaluated = call_type.evaluate(node)
+                return evaluated.value
+            except (UnfoldableNode, VyperException):
+                pass
+    elif isinstance(node, vy_ast.Compare):
+        left = derive_folded_value(node.left)
+
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
+            right = [derive_folded_value(i) for i in node.right.elements]
+            if left is None or any(v is None for v in right):
+                return None
+            return node.op._op(left, right)
+
+        right = derive_folded_value(node.right)
+        if left is None or right is None:
+            return None
+        return node.op._op(left, right)
+    elif isinstance(node, vy_ast.Constant):
+        return node.value
+    elif isinstance(node, vy_ast.Dict):
+        values = [derive_folded_value(v) for v in node.values]
+        if any(v is None for v in values):
+            return None
+        return {k: v for (k, v) in zip(node.keys, values)}
+    elif isinstance(node, (vy_ast.List, vy_ast.Tuple)):
+        val = [derive_folded_value(e) for e in node.elements]
+        if None in val:
+            return None
+        return val
+    elif isinstance(node, vy_ast.Name):
+        ns = get_namespace()
+        return ns._constants.get(node.id, None)
+    elif isinstance(node, vy_ast.UnaryOp):
+        operand = derive_folded_value(node.operand)
+        if operand is None:
+            return None
+        return node.op._op(operand)
 
     return None
 

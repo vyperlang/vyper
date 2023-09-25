@@ -411,6 +411,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 else:
                     # range(CONSTANT, CONSTANT)
                     arg1_val = derive_folded_value(args[1])
+                    print("arg0 val: ", arg0_val)
+                    print("arg1 val: ", arg1_val)
                     if not arg1_val:
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
