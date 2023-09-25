@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict
+from typing import Any
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -19,13 +19,13 @@ from vyper.semantics.types.base import VyperType
 # TODO maybe this should be merged with .types/base.py
 
 
-def type_from_abi(abi_type: Dict) -> VyperType:
+def type_from_abi(abi_type: dict) -> VyperType:
     """
     Return a type object from an ABI type definition.
 
     Arguments
     ---------
-    abi_type : Dict
+    abi_type : dict
        A type definition taken from the `input` or `output` field of an ABI.
 
     Returns
@@ -135,7 +135,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def derive_folded_value(node: vy_ast.VyperNode):
+def derive_folded_value(node: vy_ast.VyperNode) -> Any:
     if isinstance(node, vy_ast.Attribute):
         val = derive_folded_value(node.value)
         # constant struct members
@@ -143,6 +143,7 @@ def derive_folded_value(node: vy_ast.VyperNode):
             return val[node.attr]
         return None
     elif isinstance(node, vy_ast.BinOp):
+        assert isinstance(node, vy_ast.BinOp)
         left = derive_folded_value(node.left)
         right = derive_folded_value(node.right)
         if not (isinstance(left, type(right)) and isinstance(left, (int, Decimal))):
