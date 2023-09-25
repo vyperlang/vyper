@@ -155,7 +155,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        type_ = node._metadata["type"]
+        type_ = node._metadata.get("type", None)
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
