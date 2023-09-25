@@ -93,9 +93,12 @@ def _generate_external_entry_points(external_functions, global_ctx):
     for code in external_functions:
         func_ir = generate_ir_for_function(code, global_ctx)
         for abi_sig, entry_point in func_ir.entry_points.items():
+            method_id = method_id_int(abi_sig)
             assert abi_sig not in entry_points
+            assert method_id not in sig_of
+
             entry_points[abi_sig] = entry_point
-            sig_of[method_id_int(abi_sig)] = abi_sig
+            sig_of[method_id] = abi_sig
 
         # stick function common body into final entry point to save a jump
         ir_node = IRnode.from_list(["seq", entry_point.ir_node, func_ir.common_ir])
