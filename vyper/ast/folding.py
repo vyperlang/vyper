@@ -154,16 +154,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        # Extract type definition from propagated annotation
-        type_ = None
-        try:
-            type_ = type_from_annotation(node.annotation)
-        except UnknownType:
-            # handle user-defined types e.g. structs - it's OK to not
-            # propagate the type annotation here because user-defined
-            # types can be unambiguously inferred at typechecking time
-            pass
-
+        type_ = node._metadata["type"]
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
@@ -197,6 +188,8 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(
             old_node, func=new_node.func, args=new_node.args, keyword=keyword, keywords=keywords
         )
+        if type_:
+            new_node._metadata["type"] = type_
         return new_node
     else:
         raise UnfoldableNode

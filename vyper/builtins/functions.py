@@ -59,6 +59,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
     AddressT,
@@ -1060,6 +1061,25 @@ zero_value = IRnode.from_list(0, typ=UINT256_T)
 empty_value = IRnode.from_list(0, typ=BYTES32_T)
 
 
+def derive_kwarg_value(kwarg, call_type):
+    if kwarg is None:
+        return None
+    
+    ns = get_namespace()
+    kwarg_val = kwarg.derive(ns._constants)
+    if kwarg_val is not None:
+        return kwarg_val
+
+    if isinstance(kwarg, vy_ast.Call):
+        try:
+            evaluated = call_type.evaluate(kwarg)
+            return evaluated.value
+        except (UnfoldableNode, VyperException):
+            pass
+
+    return 
+
+
 class RawCall(BuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
@@ -1082,17 +1102,18 @@ class RawCall(BuiltinFunction):
         revert_on_failure = kwargz.get("revert_on_failure")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
-        if outsize is None or outsize.value == 0:
+        outsize_val = derive_kwarg_value(outsize, self)
+        if outsize is None or outsize_val == 0:
             if revert_on_failure:
                 return None
             return BoolT()
 
-        if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
+        if outsize_val < 0:
             raise
 
-        if outsize.value:
+        if outsize_val:
             return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type.set_min_length(outsize_val)
 
             if revert_on_failure:
                 return return_type

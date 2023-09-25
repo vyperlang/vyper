@@ -1304,6 +1304,13 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords", "keyword")
 
+    def derive(self, constants: dict):
+        if len(self.args) == 1 and isinstance(self.args[0], Dict):
+            values = [v.derive(constants) for v in self.args[0].values]
+            if any(v is None for v in values):
+                return None
+            return {k: v for (k, v) in zip(self.args[0].keys, values)}
+        return None
 
 class keyword(VyperNode):
     __slots__ = ("arg", "value")

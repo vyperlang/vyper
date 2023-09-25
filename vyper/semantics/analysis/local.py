@@ -197,7 +197,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["type"]
-        self.expr_visitor = _ExprVisitor(self.func)
+        self.expr_visitor = ExprVisitor(self.func)
 
         # allow internal function params to be mutable
         location, is_immutable = (
@@ -585,10 +585,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
-class _ExprVisitor(VyperNodeVisitorBase):
+class ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
-    def __init__(self, fn_node: ContractFunctionT):
+    def __init__(self, fn_node: Optional[ContractFunctionT] = None):
         self.func = fn_node
 
     def visit(self, node, typ):
@@ -647,6 +647,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
+                assert self.func is not None
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
@@ -742,7 +743,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func.mutability == StateMutability.PURE:
+        if self.func is not None and self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
         if not isinstance(typ, TYPE_T):
