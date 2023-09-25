@@ -1312,6 +1312,7 @@ class Call(ExprNode):
             return {k: v for (k, v) in zip(self.args[0].keys, values)}
         return None
 
+
 class keyword(VyperNode):
     __slots__ = ("arg", "value")
 

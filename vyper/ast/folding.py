@@ -2,10 +2,8 @@ from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
-from vyper.exceptions import UnfoldableNode, UnknownType
+from vyper.exceptions import UnfoldableNode
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.utils import type_from_annotation
 
 
 def fold(vyper_module: vy_ast.Module) -> None:
@@ -56,7 +54,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
                 # defer literal validation until folding is no longer possible
                 if not isinstance(node.get_ancestor(), node_types):
                     typ.validate_literal(new_node)
-                
+
         except UnfoldableNode:
             continue
 

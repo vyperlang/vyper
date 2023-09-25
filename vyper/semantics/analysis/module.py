@@ -21,8 +21,8 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.utils import check_constant, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
@@ -79,7 +79,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 # Handle syntax errors downstream
                 if c.value is None:
                     continue
-                
+
                 val = c.value.derive(self.namespace._constants)
                 self.namespace.add_constant(name, val)
 

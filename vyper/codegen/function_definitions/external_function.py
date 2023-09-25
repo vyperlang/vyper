@@ -98,7 +98,6 @@ def _generate_kwarg_handlers(
             copy_arg.source_pos = getpos(arg_meta.ast_source)
             ret.append(copy_arg)
 
-
         for x, y in zip(default_kwargs, default_kwargs_code):
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
@@ -129,7 +128,9 @@ def _generate_kwarg_handlers(
         default_kwargs = keyword_args[i:]
         default_kwargs_code = keyword_args_code[i:]
 
-        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs, default_kwargs_code)
+        sig, calldata_min_size, ir_node = handler_for(
+            calldata_kwargs, default_kwargs, default_kwargs_code
+        )
         ret[sig] = calldata_min_size, ir_node
 
     sig, calldata_min_size, ir_node = handler_for(keyword_args, [], [])

@@ -657,7 +657,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     val = node.derive(ns._constants)
     if val is not None:
         return True
-    
+
     return False
 
 

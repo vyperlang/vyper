@@ -288,13 +288,9 @@ class DArrayT(_SequenceT):
             )
 
         max_length = node.slice.value.elements[1].derive(constants)
-        if (
-            not max_length
-            or not isinstance(max_length, int)  
-        ):
+        if not max_length or not isinstance(max_length, int):
             raise StructureException(
-                "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]",
-                node,
+                "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
             )
 
         value_type = type_from_annotation(node.slice.value.elements[0])

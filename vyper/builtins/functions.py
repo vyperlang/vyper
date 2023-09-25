@@ -50,6 +50,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
+    VyperException,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import VarInfo
@@ -1064,7 +1065,7 @@ empty_value = IRnode.from_list(0, typ=BYTES32_T)
 def derive_kwarg_value(kwarg, call_type):
     if kwarg is None:
         return None
-    
+
     ns = get_namespace()
     kwarg_val = kwarg.derive(ns._constants)
     if kwarg_val is not None:
@@ -1077,7 +1078,7 @@ def derive_kwarg_value(kwarg, call_type):
         except (UnfoldableNode, VyperException):
             pass
 
-    return 
+    return None
 
 
 class RawCall(BuiltinFunction):
@@ -1098,22 +1099,21 @@ class RawCall(BuiltinFunction):
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
-        outsize = kwargz.get("max_outsize")
-        revert_on_failure = kwargz.get("revert_on_failure")
-        revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
+        outsize = derive_kwarg_value(kwargz.get("max_outsize"), self)
+        revert_on_failure = derive_kwarg_value(kwargz.get("revert_on_failure"), self)
+        revert_on_failure = revert_on_failure if revert_on_failure is not None else True
 
-        outsize_val = derive_kwarg_value(outsize, self)
-        if outsize is None or outsize_val == 0:
+        if outsize is None or outsize == 0:
             if revert_on_failure:
                 return None
             return BoolT()
 
-        if outsize_val < 0:
+        if outsize < 0:
             raise
 
-        if outsize_val:
+        if outsize:
             return_type = BytesT()
-            return_type.set_min_length(outsize_val)
+            return_type.set_min_length(outsize)
 
             if revert_on_failure:
                 return return_type
