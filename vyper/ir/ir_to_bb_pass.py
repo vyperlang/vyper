@@ -557,6 +557,8 @@ def _convert_ir_basicblock(
                 new_var = _convert_ir_basicblock(
                     ctx, sym_ir, symbols, variables, allocated_variables
                 )
+                if sym_ir.is_self_call:
+                    return new_var
                 return ctx.append_instruction("mload", [new_var])
 
     elif ir.value == "mstore":
