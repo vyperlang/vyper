@@ -147,12 +147,14 @@ def derive_folded_value(node: vy_ast.VyperNode):
             return None
         return node.op._op(values)
     elif isinstance(node, vy_ast.Call):
-        if len(node.args) == 1 and isinstance(node.args[0], Dict):
+        # constant structs
+        if len(node.args) == 1 and isinstance(node.args[0], vy_ast.Dict):
             return derive_folded_value(node.args[0])
 
         from vyper.semantics.analysis.utils import get_exact_type_from_node
 
         call_type = get_exact_type_from_node(node.func)
+        # builtins
         if hasattr(call_type, "evaluate"):
             try:
                 evaluated = call_type.evaluate(node)
