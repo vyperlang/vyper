@@ -231,7 +231,7 @@ def iterate_return_second() -> address:
         count += 1
         if count == 2:
             return i
-    return ZERO_ADDRESS
+    return empty(address)
     """
 
     c = get_contract_with_gas_estimation(code)
