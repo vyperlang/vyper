@@ -12,7 +12,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
-    UnfoldableNode,
     UnknownAttribute,
     VyperException,
     ZeroDivisionException,
@@ -25,6 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
+from vyper.semantics.types.utils import derive_folded_value
 from vyper.utils import checksum_encode, int_to_fourbytes
 
 
@@ -624,65 +624,27 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node can be used as a default arg
     """
-    if _check_literal(node):
+    if derive_folded_value(node) is not None:
         return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_kwargable(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_kwargable(v) for v in args[0].values)
-
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
-
-        if getattr(call_type, "evaluate", False):
-            try:
-                call_type.evaluate(node)
-                return True
-            except (UnfoldableNode, VyperException):
-                return False
 
     value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed
     return value_type.is_constant
 
 
-def _check_literal(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal value.
-    """
-    ns = get_namespace()
-    val = node.derive(ns._constants)
-    if val is not None:
-        return True
-
-    return False
-
-
 def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if _check_literal(node):
+    if derive_folded_value(node) is not None:
         return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_constant(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_constant(v) for v in args[0].values)
-
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
-
-        if getattr(call_type, "evaluate", False):
-            try:
-                call_type.evaluate(node)
-                return True
-            except (UnfoldableNode, VyperException):
-                return False
 
     return False

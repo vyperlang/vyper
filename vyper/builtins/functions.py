@@ -50,7 +50,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import VarInfo
@@ -60,7 +59,6 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
     AddressT,
@@ -85,7 +83,7 @@ from vyper.semantics.types.shortcuts import (
     UINT8_T,
     UINT256_T,
 )
-from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.types.utils import derive_folded_value, type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
@@ -1062,25 +1060,6 @@ zero_value = IRnode.from_list(0, typ=UINT256_T)
 empty_value = IRnode.from_list(0, typ=BYTES32_T)
 
 
-def derive_kwarg_value(kwarg, call_type):
-    if kwarg is None:
-        return None
-
-    ns = get_namespace()
-    kwarg_val = kwarg.derive(ns._constants)
-    if kwarg_val is not None:
-        return kwarg_val
-
-    if isinstance(kwarg, vy_ast.Call):
-        try:
-            evaluated = call_type.evaluate(kwarg)
-            return evaluated.value
-        except (UnfoldableNode, VyperException):
-            pass
-
-    return None
-
-
 class RawCall(BuiltinFunction):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
@@ -1099,8 +1078,8 @@ class RawCall(BuiltinFunction):
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
-        outsize = derive_kwarg_value(kwargz.get("max_outsize"), self)
-        revert_on_failure = derive_kwarg_value(kwargz.get("revert_on_failure"), self)
+        outsize = derive_folded_value(kwargz.get("max_outsize"))
+        revert_on_failure = derive_folded_value(kwargz.get("revert_on_failure"))
         revert_on_failure = revert_on_failure if revert_on_failure is not None else True
 
         if outsize is None or outsize == 0:

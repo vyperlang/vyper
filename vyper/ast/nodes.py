@@ -904,6 +904,12 @@ class Tuple(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
+    def derive(self, constants: dict):
+        val = [e.derive(constants) for e in self.elements]
+        if None in val:
+            return None
+        return val
+
     def validate(self):
         if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
@@ -911,6 +917,12 @@ class Tuple(ExprNode):
 
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
+
+    def derive(self, constants: dict):
+        values = [v.derive(constants) for v in self.args[0].values]
+        if any(v is None for v in values):
+            return None
+        return {k: v for (k, v) in zip(self.args[0].keys, values)}
 
 
 class NameConstant(Constant):
@@ -1305,11 +1317,9 @@ class Call(ExprNode):
     __slots__ = ("func", "args", "keywords", "keyword")
 
     def derive(self, constants: dict):
+        # only return constant struct values
         if len(self.args) == 1 and isinstance(self.args[0], Dict):
-            values = [v.derive(constants) for v in self.args[0].values]
-            if any(v is None for v in values):
-                return None
-            return {k: v for (k, v) in zip(self.args[0].keys, values)}
+            return self.args[0].derive(constants)
         return None
 
 

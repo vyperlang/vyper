@@ -28,7 +28,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.types.utils import derive_folded_value, type_from_annotation
 from vyper.typing import InterfaceDict
 
 
@@ -80,7 +80,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if c.value is None:
                     continue
 
-                val = c.value.derive(self.namespace._constants)
+                val = derive_folded_value(c.value)
                 self.namespace.add_constant(name, val)
 
                 if val is not None:
@@ -269,7 +269,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             # TODO: move to check_constant
-            if not node.value.derive(self.namespace._constants) and not check_constant(node.value):
+            if not check_constant(node.value):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

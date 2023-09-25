@@ -6,7 +6,9 @@ from vyper.exceptions import (
     InstantiationException,
     InvalidType,
     StructureException,
+    UnfoldableNode,
     UnknownType,
+    VyperException,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
@@ -132,6 +134,33 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
+def derive_literal_value(node: vy_ast.VyperNode):
+    ns = get_namespace()
+    val = node.derive(ns._constants)
+    return val
+
+
+def derive_folded_value(node: vy_ast.VyperNode):
+    if node is None:
+        return None
+
+    val = derive_literal_value(node)
+    if val is not None:
+        return val
+
+    if isinstance(node, vy_ast.Call):
+        from vyper.semantics.analysis.utils import get_exact_type_from_node
+
+        call_type = get_exact_type_from_node(node.func)
+        try:
+            evaluated = call_type.evaluate(node)
+            return evaluated.value
+        except (UnfoldableNode, VyperException):
+            pass
+
+    return None
+
+
 def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     """
     Return the literal value for a `Subscript` index.
@@ -151,7 +180,7 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    val = node.value.derive(constants)
+    val = derive_folded_value(node.value)
 
     if not isinstance(val, int):
         if hasattr(node, "value"):

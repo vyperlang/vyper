@@ -51,7 +51,7 @@ from vyper.semantics.types import (
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.types.utils import derive_folded_value, type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
@@ -358,7 +358,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(n, IntegerT.any())
 
                 if bound is None:
-                    n_val = n.derive(self.namespace._constants)
+                    n_val = derive_folded_value(n)
                     if n_val is None:
                         raise StateAccessViolation("Value must be a literal", n)
                     if n_val <= 0:
@@ -366,7 +366,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_possible_types_from_node(n)
 
                 else:
-                    bound_val = bound.derive(self.namespace._constants)
+                    bound_val = derive_folded_value(bound)
                     if bound_val is None:
                         raise StateAccessViolation("bound must be a literal", bound)
                     if bound_val <= 0:
@@ -383,7 +383,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
-                arg0_val = args[0].derive(self.namespace._constants)
+                arg0_val = derive_folded_value(args[0])
                 if arg0_val is None:
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
@@ -397,7 +397,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             "First and second variable must be the same", args[1].left
                         )
 
-                    right_val = args[1].right.derive(self.namespace._constants)
+                    right_val = derive_folded_value(args[1].right)
                     if not isinstance(args[1].right, vy_ast.Int) and not (
                         isinstance(args[1].right, vy_ast.Name) and right_val
                     ):
@@ -410,7 +410,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    arg1_val = args[1].derive(self.namespace._constants)
+                    arg1_val = derive_folded_value(args[1])
                     if not arg1_val:
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
@@ -422,7 +422,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            iter_ = node.iter.derive(self.namespace._constants)
+            iter_ = derive_folded_value(node.iter)
             if isinstance(iter_, list) and len(iter_) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
