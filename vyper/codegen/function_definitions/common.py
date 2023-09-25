@@ -75,11 +75,10 @@ class EntryPointInfo:
 
     def __post_init__(self):
         # ABI v2 property guaranteed by the spec.
-        # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:
+        # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:  # noqa: E501
         # > Note that for any X, len(enc(X)) is a multiple of 32.
         assert self.min_calldatasize >= 4
         assert (self.min_calldatasize - 4) % 32 == 0
-
 
 
 @dataclass
