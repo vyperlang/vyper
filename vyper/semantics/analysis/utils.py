@@ -624,12 +624,16 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node can be used as a default arg
     """
-    if derive_folded_value(node) is not None:
+    if check_constant(node) is True:
         return True
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        # check for environment constants
+        return all(check_kwargable(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
-        call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
+        args = node.args
+        # check for environment constants
+        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+            return all(check_kwargable(v) for v in args[0].values)
 
     value_type = get_expr_info(node)
     # is_constant here actually means not_assignable, and is to be renamed

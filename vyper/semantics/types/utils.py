@@ -151,16 +151,17 @@ def derive_folded_value(node: vy_ast.VyperNode):
         if len(node.args) == 1 and isinstance(node.args[0], vy_ast.Dict):
             return derive_folded_value(node.args[0])
 
-        from vyper.semantics.analysis.utils import get_exact_type_from_node
+        from vyper.builtins.functions import DISPATCH_TABLE
 
-        call_type = get_exact_type_from_node(node.func)
         # builtins
-        if hasattr(call_type, "evaluate"):
-            try:
-                evaluated = call_type.evaluate(node)
-                return evaluated.value
-            except (UnfoldableNode, VyperException):
-                pass
+        if isinstance(node.func, vy_ast.Name):
+            call_type = DISPATCH_TABLE.get(node.func.id)
+            if hasattr(call_type, "evaluate"):
+                try:
+                    evaluated = call_type.evaluate(node)
+                    return evaluated.value
+                except (UnfoldableNode, VyperException):
+                    pass
     elif isinstance(node, vy_ast.Compare):
         left = derive_folded_value(node.left)
 
