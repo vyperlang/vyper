@@ -135,7 +135,13 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
 
 def derive_folded_value(node: vy_ast.VyperNode):
-    if isinstance(node, vy_ast.BinOp):
+    if isinstance(node, vy_ast.Attribute):
+        val = derive_folded_value(node.value)
+        # constant struct members
+        if isinstance(val, dict):
+            return val[node.attr]
+        return None
+    elif isinstance(node, vy_ast.BinOp):
         left = derive_folded_value(node.left)
         right = derive_folded_value(node.right)
         if left is None or right is None:
@@ -181,7 +187,7 @@ def derive_folded_value(node: vy_ast.VyperNode):
         values = [derive_folded_value(v) for v in node.values]
         if any(v is None for v in values):
             return None
-        return {k: v for (k, v) in zip(node.keys, values)}
+        return {k.id: v for (k, v) in zip(node.keys, values)}
     elif isinstance(node, (vy_ast.List, vy_ast.Tuple)):
         val = [derive_folded_value(e) for e in node.elements]
         if None in val:
