@@ -276,17 +276,24 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "DArrayT":
-        max_length = node.slice.value.elements[1].derive(constants)
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not max_length
-            or not isinstance(max_length, int)
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
                 "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]",
+                node,
+            )
+
+        max_length = node.slice.value.elements[1].derive(constants)
+        if (
+            not max_length
+            or not isinstance(max_length, int)  
+        ):
+            raise StructureException(
+                "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]",
                 node,
             )
 
