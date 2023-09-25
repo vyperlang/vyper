@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidOperation, InvalidType, TypeMismatch
 from vyper.utils import unsigned_to_signed
 
 code = """
@@ -153,16 +153,7 @@ def foo() -> uint256:
 def foo() -> uint256:
     return 2 << -1
     """,
-        InvalidLiteral,
-    ),
-    (
-        # cannot shift by negative amount
-        """
-@external
-def foo() -> uint256:
-    return 2 << -1
-    """,
-        InvalidLiteral,
+        InvalidType,
     ),
 ]
 

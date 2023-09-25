@@ -7,7 +7,7 @@ fail_list = [
         """
 @external
 def foo():
-    x: int128 = as_wei_value(5, szabo)
+    x: uint256 = as_wei_value(5, "szaboo")
     """,
         ArgumentException,
     ),
