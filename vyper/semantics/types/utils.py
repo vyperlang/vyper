@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Dict
 
 from vyper import ast as vy_ast
@@ -144,12 +145,12 @@ def derive_folded_value(node: vy_ast.VyperNode):
     elif isinstance(node, vy_ast.BinOp):
         left = derive_folded_value(node.left)
         right = derive_folded_value(node.right)
-        if left is None or right is None:
+        if not (isinstance(left, type(right)) and isinstance(left, (int, Decimal))):
             return None
         return node.op._op(left, right)
     elif isinstance(node, vy_ast.BoolOp):
         values = [derive_folded_value(i) for i in node.values]
-        if any(v is None for v in values):
+        if not all(isinstance(v, bool) for v in values):
             return None
         return node.op._op(values)
     elif isinstance(node, vy_ast.Call):
@@ -173,12 +174,12 @@ def derive_folded_value(node: vy_ast.VyperNode):
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             right = [derive_folded_value(i) for i in node.right.elements]
-            if left is None or any(v is None for v in right):
+            if left is None or len(set([type(i) for i in right])) > 1:
                 return None
             return node.op._op(left, right)
 
         right = derive_folded_value(node.right)
-        if left is None or right is None:
+        if not (isinstance(left, type(right)) and isinstance(left, (int, Decimal))):
             return None
         return node.op._op(left, right)
     elif isinstance(node, vy_ast.Constant):
@@ -198,7 +199,7 @@ def derive_folded_value(node: vy_ast.VyperNode):
         return ns._constants.get(node.id, None)
     elif isinstance(node, vy_ast.UnaryOp):
         operand = derive_folded_value(node.operand)
-        if operand is None:
+        if not isinstance(operand, int):
             return None
         return node.op._op(operand)
 

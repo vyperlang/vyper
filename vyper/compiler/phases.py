@@ -130,9 +130,7 @@ class CompilerData:
     @cached_property
     def _folded_module(self):
         module = self.vyper_module_unfolded
-        return generate_folded_ast(
-            module, self.interface_codes, self.storage_layout_override
-        )
+        return generate_folded_ast(module, self.interface_codes, self.storage_layout_override)
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:

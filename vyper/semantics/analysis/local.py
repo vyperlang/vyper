@@ -359,7 +359,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 if bound is None:
                     n_val = derive_folded_value(n)
-                    if n_val is None:
+                    if not isinstance(n_val, int):
                         raise StateAccessViolation("Value must be a literal", n)
                     if n_val <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
