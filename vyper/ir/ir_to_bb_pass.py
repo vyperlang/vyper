@@ -187,9 +187,12 @@ def _get_variable_from_address(variables: OrderedSet, addr: int) -> IRVariable:
 def _get_return_for_stack_operand(
     ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ):
-    sym = symbols.get(f"&{ret_ir.value}", None)
-    new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-    ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
+    if ret_ir.is_literal:
+        sym = symbols.get(f"&{ret_ir.value}", None)
+        new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
+        ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
+    else:
+        new_var = ret_ir
     return IRInstruction("return", [last_ir, IROperand(new_var, DataType.PTR)])
 
 
@@ -458,7 +461,11 @@ def _convert_ir_basicblock(
                     ctx, ret_var, symbols, variables, allocated_variables
                 )
 
-                var = _get_variable_from_address(variables, ret_ir.value)
+                var = (
+                    _get_variable_from_address(variables, ret_ir.value)
+                    if ret_ir.is_literal
+                    else None
+                )
                 if var is not None:
                     allocated_var = allocated_variables.get(var.name, None)
                     assert allocated_var is not None, "unallocated variable"
