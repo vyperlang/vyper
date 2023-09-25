@@ -4,7 +4,6 @@ from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.utils import type_from_annotation
 
 
 def fold(vyper_module: vy_ast.Module) -> None:
