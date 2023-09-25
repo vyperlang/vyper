@@ -304,7 +304,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
     d: int128 = 123
-    f: bytes32 = empty(bytes32)
+    f: bytes32 = EMPTY_BYTES32
     f, b, c = self._test(a)
     assert d == 123
     return f, b, c

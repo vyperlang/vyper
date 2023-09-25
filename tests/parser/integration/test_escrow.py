@@ -9,7 +9,7 @@ arbitrator: address
 
 @external
 def setup(_seller: address, _arbitrator: address):
-    if self.buyer == empty(address):
+    if self.buyer == ZERO_ADDRESS:
         self.buyer = msg.sender
         self.seller = _seller
         self.arbitrator = _arbitrator
@@ -43,7 +43,7 @@ arbitrator: address
 @external
 @payable
 def __init__(_seller: address, _arbitrator: address):
-    if self.buyer == empty(address):
+    if self.buyer == ZERO_ADDRESS:
         self.buyer = msg.sender
         self.seller = _seller
         self.arbitrator = _arbitrator

@@ -56,7 +56,7 @@ def valid_address(sender: address) -> bool:
         """
 @internal
 def valid_address(sender: address) -> bool:
-    if sender == empty(address):
+    if sender == ZERO_ADDRESS:
         selfdestruct(sender)
         _sender: address = sender
     else:
@@ -144,7 +144,7 @@ def test() -> int128:
     """
 @external
 def test() -> int128:
-    x: bytes32 = empty(bytes32)
+    x: bytes32 = EMPTY_BYTES32
     if False:
         if False:
             return 0

@@ -12,12 +12,12 @@ def test_builtin_constants(get_contract_with_gas_estimation):
     code = """
 @external
 def test_zaddress(a: address) -> bool:
-    return a == empty(address)
+    return a == ZERO_ADDRESS
 
 
 @external
 def test_empty_bytes32(a: bytes32) -> bool:
-    return a == empty(bytes32)
+    return a == EMPTY_BYTES32
 
 
 @external
@@ -81,12 +81,12 @@ def goo() -> int128:
 
 @external
 def hoo() -> bytes32:
-    bar: bytes32 = empty(bytes32)
+    bar: bytes32 = EMPTY_BYTES32
     return bar
 
 @external
 def joo() -> address:
-    bar: address = empty(address)
+    bar: address = ZERO_ADDRESS
     return bar
 
 @external

@@ -52,7 +52,7 @@ def foo() -> bool:
     """
 @external
 def foo() -> bool:
-    a: address = empty(address)
+    a: address = ZERO_ADDRESS
     return a == 1
     """,
     (
@@ -137,7 +137,7 @@ def foo() -> bool:
     """
 @external
 def foo2(a: address) -> bool:
-    return a != empty(address)
+    return a != ZERO_ADDRESS
     """,
 ]
 

@@ -534,6 +534,24 @@ def foo(a: {typ}) -> Status:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
 
 
+# TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
+@pytest.mark.parametrize(
+    "builtin_constant,out_type,out_value",
+    [("ZERO_ADDRESS", "bool", False), ("msg.sender", "bool", True)],
+)
+def test_convert_builtin_constant(
+    get_contract_with_gas_estimation, builtin_constant, out_type, out_value
+):
+    contract = f"""
+@external
+def convert_builtin_constant() -> {out_type}:
+    return convert({builtin_constant}, {out_type})
+    """
+
+    c = get_contract_with_gas_estimation(contract)
+    assert c.convert_builtin_constant() == out_value
+
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
 same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})

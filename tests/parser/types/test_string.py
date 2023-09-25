@@ -139,7 +139,7 @@ interface Test:
 @external
 def test(addr: address) -> (int128, address, String[10]):
     a: int128 = 0
-    b: address = empty(address)
+    b: address = ZERO_ADDRESS
     c: String[10] = ""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c

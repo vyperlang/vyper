@@ -99,7 +99,7 @@ def out_literals() -> (int128, address, Bytes[10]):
 @external
 def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
-    b: address = empty(address)
+    b: address = ZERO_ADDRESS
     c: Bytes[10] = b""
     (a, b, c) = self._out_literals()
     return a, b, c
@@ -138,7 +138,7 @@ def test2() -> (int128, address):
 
 @external
 def test3() -> (address, int128):
-    x: address = empty(address)
+    x: address = ZERO_ADDRESS
     self.a, self.c, x, self.d = self._out_literals()
     return x, self.a
     """

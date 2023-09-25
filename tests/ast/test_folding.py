@@ -132,6 +132,49 @@ def test_replace_constant_no(source):
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
 
+builtins_modified = [
+    "ZERO_ADDRESS",
+    "foo = ZERO_ADDRESS",
+    "foo: int128[ZERO_ADDRESS] = 42",
+    "foo = [ZERO_ADDRESS]",
+    "def foo(bar: address = ZERO_ADDRESS): pass",
+    "def foo(): bar = ZERO_ADDRESS",
+    "def foo(): return ZERO_ADDRESS",
+    "log foo(ZERO_ADDRESS)",
+    "log foo(42, ZERO_ADDRESS)",
+]
+
+
+@pytest.mark.parametrize("source", builtins_modified)
+def test_replace_builtin_constant(source):
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_builtin_constants(folded_ast)
+
+    assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
+builtins_unmodified = [
+    "ZERO_ADDRESS = 2",
+    "ZERO_ADDRESS()",
+    "def foo(ZERO_ADDRESS: int128 = 42): pass",
+    "def foo(): ZERO_ADDRESS = 42",
+    "def ZERO_ADDRESS(): pass",
+    "log ZERO_ADDRESS(42)",
+]
+
+
+@pytest.mark.parametrize("source", builtins_unmodified)
+def test_replace_builtin_constant_no(source):
+    unmodified_ast = vy_ast.parse_to_ast(source)
+    folded_ast = vy_ast.parse_to_ast(source)
+
+    folding.replace_builtin_constants(folded_ast)
+
+    assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
+
+
 userdefined_modified = [
     "FOO",
     "foo = FOO",
