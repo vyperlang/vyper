@@ -330,6 +330,7 @@ FOO: constant(Y) = Y({x: BAR, y: 256})
 @external
 def out_literals(a: int128 = FOO.x.x + 1) -> Y:
     return FOO
+    """,
 ]
 
 
