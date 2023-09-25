@@ -653,10 +653,11 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal value.
     """
-    if isinstance(node, vy_ast.Constant):
+    ns = get_namespace()
+    val = node.derive(ns._constants)
+    if val is not None:
         return True
-    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(_check_literal(item) for item in node.elements)
+    
     return False
 
 
