@@ -26,10 +26,10 @@ class CompilerData:
 
     Attributes
     ----------
-    vyper_module : vy_ast.Module
+    vyper_module: vy_ast.Module
         Top-level Vyper AST node
-    vyper_module_folded : vy_ast.Module
-        Folded Vyper AST
+    vyper_module_unfolded : vy_ast.Module
+        Unfolded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
@@ -125,15 +125,13 @@ class CompilerData:
 
     @cached_property
     def vyper_module_unfolded(self) -> vy_ast.Module:
-        # This phase is intended to generate an AST for tooling use, and is not
-        # used in the compilation process.
-
         return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
     @cached_property
     def _folded_module(self):
+        module = self.vyper_module_unfolded
         return generate_folded_ast(
-            self.vyper_module, self.interface_codes, self.storage_layout_override
+            module, self.interface_codes, self.storage_layout_override
         )
 
     @property
@@ -230,7 +228,7 @@ def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
+
     # note: validate_semantics does type inference on the AST
     validate_semantics(vyper_module, interface_codes)
 
@@ -257,9 +255,6 @@ def generate_folded_ast(
     StorageLayout
         Layout of variables in storage
     """
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
-    validate_semantics(vyper_module, interface_codes)
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
