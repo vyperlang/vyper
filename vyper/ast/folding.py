@@ -4,6 +4,7 @@ from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.utils import type_from_annotation
 
 
