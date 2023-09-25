@@ -115,7 +115,9 @@ def _handle_self_call(
     args_ir = ir.passthrough_metadata["args_ir"]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
+    return_buf = goto_ir.args[1]  # return buffer
     ret_values = [IRLabel(target_label)]
+
     for arg in args_ir:
         if arg.is_literal:
             ret = _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
@@ -192,7 +194,13 @@ def _get_return_for_stack_operand(
         new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
         ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
     else:
-        new_var = ret_ir
+        sym = symbols.get(ret_ir.value, None)
+        if sym is None:
+            # FIXME: needs real allocations
+            new_var = ctx.append_instruction("alloca", [IRLiteral(32), IRLiteral(0)])
+            ctx.append_instruction("mstore", [ret_ir, IROperand(new_var, DataType.PTR)], False)
+        else:
+            new_var = ret_ir
     return IRInstruction("return", [last_ir, IROperand(new_var, DataType.PTR)])
 
 
@@ -557,6 +565,12 @@ def _convert_ir_basicblock(
                 new_var = _convert_ir_basicblock(
                     ctx, sym_ir, symbols, variables, allocated_variables
                 )
+                #
+                # Old IR gets it's return value as a reference in the stack
+                # New IR gets it's return value in stack in case of 32 bytes or less
+                # So here we detect ahead of time if this mload leads a self call and
+                # and we skip the mload
+                #
                 if sym_ir.is_self_call:
                     return new_var
                 return ctx.append_instruction("mload", [new_var])
