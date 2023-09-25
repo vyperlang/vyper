@@ -205,7 +205,7 @@ class SArrayT(_SequenceT):
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
 
-        value_type = type_from_annotation(node.value, constants)
+        value_type = type_from_annotation(node.value)
 
         if not value_type._as_array:
             raise StructureException(f"arrays of {value_type} are not allowed!")
@@ -338,7 +338,7 @@ class TupleT(VyperType):
     @classmethod
     def from_annotation(cls, node: vy_ast.Tuple, constants: dict) -> VyperType:
         values = node.elements
-        types = tuple(type_from_annotation(v, constants) for v in values)
+        types = tuple(type_from_annotation(v) for v in values)
         return cls(types)
 
     @property
