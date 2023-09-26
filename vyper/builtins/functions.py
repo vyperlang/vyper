@@ -1418,7 +1418,7 @@ class BitwiseNot(BuiltinFunction):
 
     def evaluate(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 1)
@@ -1917,9 +1917,8 @@ class CreateFromBlueprint(_CreateBase):
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
-                # 00...00 (22 0's) | preamble | bytecode
+                # <target initcode> | <abi-encoded args OR arg buffer if raw_arg=True>
                 ir.append(["extcodecopy", target, mem_ofst, code_offset, codesize])
-
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
                 # theoretically, dst = "msize", but just be safe.
@@ -2586,7 +2585,6 @@ class _MinMaxValue(TypenameFoldedFunction):
         if isinstance(input_type, IntegerT):
             ret = vy_ast.Int.from_node(node, value=val)
 
-        # TODO: to change to known_type once #3213 is merged
         ret._metadata["type"] = input_type
         return ret
 
