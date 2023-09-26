@@ -2586,7 +2586,6 @@ class _MinMaxValue(TypenameFoldedFunction):
         if isinstance(input_type, IntegerT):
             ret = vy_ast.Int.from_node(node, value=val)
 
-        # TODO: to change to known_type once #3213 is merged
         ret._metadata["type"] = input_type
         return ret
 
