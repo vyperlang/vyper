@@ -496,7 +496,14 @@ def _convert_ir_basicblock(
                     new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
 
                     if var.size > 32:
-                        new_op = IROperand(allocated_var, DataType.PTR)
+                        offset = ret_ir.value - var.pos
+                        if offset > 0:
+                            ptr_var = ctx.append_instruction(
+                                "add", [IRLiteral(var.pos), IRLiteral(offset)]
+                            )
+                        else:
+                            ptr_var = allocated_var
+                        new_op = IROperand(ptr_var, DataType.PTR)
                         inst = IRInstruction("return", [last_ir, new_op])
                     else:
                         inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
