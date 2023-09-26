@@ -250,7 +250,7 @@ def _generate_evm_for_instruction_r(
     # generate EVM for op
     #
 
-    # Step 1: Manipulate stack
+    # Step 1: Apply instruction special stack manipulations
 
     if opcode in ["jmp", "jnz"]:
         operands = inst.get_non_label_operands()
@@ -276,6 +276,7 @@ def _generate_evm_for_instruction_r(
     # Step 2: Emit instructions input operands
     _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
+    # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
         _, b = next(enumerate(inst.parent.out_set))
         target_stack = b.get_liveness()
@@ -284,12 +285,12 @@ def _generate_evm_for_instruction_r(
     _stack_duplications(assembly, stack_map, operands)
     _stack_reorder(assembly, stack_map, operands)
 
-    # Step 3: Push instruction's return value to stack
+    # Step 4: Push instruction's return value to stack
     stack_map.pop(len(operands))
     if inst.ret is not None:
         stack_map.push(inst.ret.target)
 
-    # Step 4: Emit the EVM instruction(s)
+    # Step 5: Emit the EVM instruction(s)
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
         assembly.append(opcode.upper())
     elif opcode == "alloca":
@@ -334,7 +335,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "call":
         assembly.append("CALL")
     elif opcode == "ret":
-        assert len(inst.operands) == 2, "ret instruction takes one operand"
+        assert len(inst.operands) == 2, "ret instruction takes two operands"
         assembly.append("JUMP")
     elif opcode == "return":
         assembly.append("RETURN")
@@ -376,7 +377,7 @@ def _generate_evm_for_instruction_r(
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
-    # Step 5: Emit instructions output operands (if any)
+    # Step 6: Emit instructions output operands (if any)
     # FIXME: WHOLE THING NEEDS REFACTOR
     if inst.ret is not None:
         assert inst.ret.is_variable, "Return value must be a variable"
