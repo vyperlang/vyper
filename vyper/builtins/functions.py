@@ -2494,6 +2494,8 @@ class ABIDecode(BuiltinFunction):
         return output_type.typedef
 
     def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
