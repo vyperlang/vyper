@@ -489,7 +489,6 @@ def test_dense_jumptable_bucket_size(n_methods, seed):
 @pytest.mark.fuzzing
 def test_selector_table_fuzz(
     max_calldata_bytes,
-    seed,
     max_default_args,
     opt_level,
     default_fn_mutability,
