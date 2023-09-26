@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -307,6 +308,13 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
+        if isinstance(node, vy_ast.Hex) and len(node.value) == 42:
+            raise BadChecksumAddress(
+                "If this is an address, the correct checksummed form is: "
+                f"{checksum_encode(node.value)}",
+                node,
+            )
+
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_List(self, node):
