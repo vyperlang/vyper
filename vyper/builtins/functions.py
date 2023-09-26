@@ -1917,9 +1917,8 @@ class CreateFromBlueprint(_CreateBase):
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
-                # 00...00 (22 0's) | preamble | bytecode
+                # <target initcode> | <abi-encoded args OR arg buffer if raw_arg=True>
                 ir.append(["extcodecopy", target, mem_ofst, code_offset, codesize])
-
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
                 # theoretically, dst = "msize", but just be safe.
