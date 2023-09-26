@@ -116,21 +116,21 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_values = [IRLabel(target_label)]
+    ret_args = [IRLabel(target_label), IRLiteral(return_buf.value)]
 
     for arg in args_ir:
         if arg.is_literal:
             ret = _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
-            ret_values.append(ret)
+            ret_args.append(ret)
         else:
             ret = _convert_ir_basicblock(
                 ctx, arg._optimized, symbols, variables, allocated_variables
             )
             if arg.location and arg.location.load_op == "calldataload":
                 ret = ctx.append_instruction(arg.location.load_op, [ret])
-            ret_values.append(ret)
+            ret_args.append(ret)
 
-    return ctx.append_instruction("invoke", ret_values)
+    return ctx.append_instruction("invoke", ret_args)
 
 
 def _handle_internal_func(
@@ -155,6 +155,12 @@ def _handle_internal_func(
     alloca_inst = IRInstruction("param", [], new_var)
     bb.append_instruction(alloca_inst)
     symbols["return_pc"] = new_var
+
+    # return buffer
+    new_var = ctx.get_next_variable()
+    alloca_inst = IRInstruction("param", [], new_var)
+    bb.append_instruction(alloca_inst)
+    symbols["return_buffer"] = new_var
 
     return ir.args[0].args[2]
 
@@ -496,7 +502,13 @@ def _convert_ir_basicblock(
                 inst = IRInstruction("ret", [symbols["return_pc"]])
             else:
                 ret_var = ir.args[1]
-                inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
+                inst = IRInstruction(
+                    "ret",
+                    [
+                        symbols["return_pc"],
+                        symbols["return_buffer"],
+                    ],
+                )
 
             ctx.get_basic_block().append_instruction(inst)
 
@@ -576,12 +588,6 @@ def _convert_ir_basicblock(
                 return ctx.append_instruction("mload", [new_var])
 
     elif ir.value == "mstore":
-        if ir.args[0].value == "return_buffer":
-            sym = symbols.get("return_buffer", None)
-            if sym is None:
-                # return_buffer_var = ctx.append_instruction("alloca", [IRLiteral(32), IRLiteral(0)])
-                symbols["return_buffer"] = ctx.get_next_variable()
-
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
 
@@ -621,7 +627,7 @@ def _convert_ir_basicblock(
                 return arg_1
         else:
             if sym_ir.is_literal is False:
-                inst = IRInstruction("store", [arg_1], sym_ir)
+                inst = IRInstruction("mstore", [arg_1, sym_ir])
                 ctx.get_basic_block().append_instruction(inst)
                 return sym_ir
 
