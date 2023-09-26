@@ -199,6 +199,10 @@ class InvalidLiteral(VyperException):
     """Invalid literal value."""
 
 
+class BadChecksumAddress(InvalidLiteral):
+    """Invalid literal address value."""
+
+
 class InvalidAttribute(VyperException):
     """Reference to an attribute that does not exist."""
 
