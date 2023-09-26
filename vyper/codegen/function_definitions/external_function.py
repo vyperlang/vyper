@@ -141,7 +141,6 @@ def generate_ir_for_external_function(code, func_t, context):
     #    code: vy_ast.FunctionDef,
     #    func_t: ContractFunctionT,
     #    context: Context,
-    #    check_nonpayable: bool,
     # ) -> IRnode:
     """
     Return the IR for an external function. Returns IR for the body
