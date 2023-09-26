@@ -483,7 +483,6 @@ def test_dense_jumptable_bucket_size(n_methods, seed):
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @settings(max_examples=5, deadline=None)
 @given(
-    seed=st.integers(min_value=0, max_value=2**64 - 1),
     max_default_args=st.integers(min_value=0, max_value=4),
     default_fn_mutability=st.sampled_from(["", "@pure", "@view", "@nonpayable", "@payable"]),
 )
@@ -499,13 +498,13 @@ def test_selector_table_fuzz(
     assert_tx_failed,
     get_logs,
 ):
-    def abi_sig(calldata_words, i, n_default_args):
+    def abi_sig(seed, calldata_words, i, n_default_args):
         args = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         args.extend(["uint256"] * n_default_args)
         argstr = ",".join(args)
         return f"foo{seed + i}({argstr})"
 
-    def generate_func_def(mutability, calldata_words, i, n_default_args):
+    def generate_func_def(seed, mutability, calldata_words, i, n_default_args):
         arglist = [] if not calldata_words else [f"x: uint256[{calldata_words}]"]
         for j in range(n_default_args):
             arglist.append(f"x{j}: uint256 = 0")
@@ -523,7 +522,11 @@ def foo{seed + i}({args}) -> uint256:
     @given(
         methods=st.lists(
             st.tuples(
+                # seed:
+                st.integers(min_value=0, max_value=2**64 - 1),
+                # mutability:
                 st.sampled_from(["@pure", "@view", "@nonpayable", "@payable"]),
+                # n calldata words:
                 st.integers(min_value=0, max_value=max_calldata_bytes // 32),
                 # n bytes to strip from calldata
                 st.integers(min_value=1, max_value=4),
@@ -537,7 +540,8 @@ def foo{seed + i}({args}) -> uint256:
     @settings(max_examples=25)
     def _test(methods):
         func_defs = "\n".join(
-            generate_func_def(m, s, i, d) for i, (m, s, _, d) in enumerate(methods)
+            generate_func_def(seed, mutability, calldata_words, i, n_default_args)
+            for i, (seed, mutability, calldata_words, _, n_default_args) in enumerate(methods)
         )
 
         if default_fn_mutability == "":
@@ -571,7 +575,9 @@ event _Return:
 
         c = get_contract(code, override_opt_level=opt_level)
 
-        for i, (mutability, n_calldata_words, n_strip_bytes, n_default_args) in enumerate(methods):
+        for i, (seed, mutability, n_calldata_words, n_strip_bytes, n_default_args) in enumerate(
+            methods
+        ):
             funcname = f"foo{seed + i}"
             func = getattr(c, funcname)
 
@@ -582,7 +588,7 @@ event _Return:
                 # check the function returns as expected
                 assert func(*args) == i
 
-                method_id = utils.method_id(abi_sig(n_calldata_words, i, j))
+                method_id = utils.method_id(abi_sig(seed, n_calldata_words, i, j))
 
                 argsdata = b"\x00" * (n_calldata_words * 32 + j * 32)
 
