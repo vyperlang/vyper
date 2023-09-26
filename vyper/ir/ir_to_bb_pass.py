@@ -519,13 +519,23 @@ def _convert_ir_basicblock(
                 inst = IRInstruction("ret", [symbols["return_pc"]])
             else:
                 ret_var = ir.args[1]
-                inst = IRInstruction(
-                    "ret",
-                    [
-                        symbols["return_buffer"],
-                        symbols["return_pc"],
-                    ],
-                )
+                if func_t.return_type.memory_bytes_required > 32:
+                    inst = IRInstruction(
+                        "ret",
+                        [
+                            symbols["return_buffer"],
+                            symbols["return_pc"],
+                        ],
+                    )
+                else:
+                    ret_by_value = ctx.append_instruction("mload", [symbols["return_buffer"]])
+                    inst = IRInstruction(
+                        "ret",
+                        [
+                            ret_by_value,
+                            symbols["return_pc"],
+                        ],
+                    )
 
             ctx.get_basic_block().append_instruction(inst)
 

@@ -335,7 +335,7 @@ def _generate_evm_for_instruction_r(
     elif opcode == "call":
         assembly.append("CALL")
     elif opcode == "ret":
-        assert len(inst.operands) == 2, "ret instruction takes two operands"
+        # assert len(inst.operands) == 2, "ret instruction takes two operands"
         assembly.append("JUMP")
     elif opcode == "return":
         assembly.append("RETURN")
