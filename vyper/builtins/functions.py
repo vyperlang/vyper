@@ -1418,7 +1418,7 @@ class BitwiseNot(BuiltinFunction):
 
     def evaluate(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 1)
