@@ -802,7 +802,7 @@ def _convert_ir_basicblock(
 
 
 def _convert_ir_opcode(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, variables: OrderedSet
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, variables: OrderedSet, allocated_variables: dict[str, IRVariable]
 ) -> None:
     opcode = str(ir.value).upper()
     inst_args = []
