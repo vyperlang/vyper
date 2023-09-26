@@ -29,7 +29,6 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     ir_tuple_from_args,
     make_setter,
-    needs_external_call_wrap,
     promote_signed_int,
     sar,
     shl,
@@ -2367,8 +2366,6 @@ class Print(BuiltinFunction):
 class ABIEncode(BuiltinFunction):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
-    # (check the signature manually since we have no utility methods
-    # to handle varargs.)
     # explanation of ensure_tuple:
     # default is to force even a single value into a tuple,
     # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
@@ -2529,23 +2526,10 @@ class ABIDecode(BuiltinFunction):
             )
 
         data = ensure_in_memory(data, context)
+
         with data.cache_when_complex("to_decode") as (b1, data):
             data_ptr = bytes_data_ptr(data)
             data_len = get_bytearray_length(data)
-
-            # Normally, ABI-encoded data assumes the argument is a tuple
-            # (See comments for `wrap_value_for_external_return`)
-            # However, we do not want to use `wrap_value_for_external_return`
-            # technique as used in external call codegen because in order to be
-            # type-safe we would need an extra memory copy. To avoid a copy,
-            # we manually add the ABI-dynamic offset so that it is
-            # re-interpreted in-place.
-            if (
-                unwrap_tuple is True
-                and needs_external_call_wrap(output_typ)
-                and output_typ.abi_type.is_dynamic()
-            ):
-                data_ptr = add_ofst(data_ptr, 32)
 
             ret = ["seq"]
 
@@ -2555,18 +2539,30 @@ class ABIDecode(BuiltinFunction):
                 # runtime assert: abi_min_size <= data_len <= abi_size_bound
                 ret.append(clamp2(abi_min_size, data_len, abi_size_bound, signed=False))
 
-            # return pointer to the buffer
-            ret.append(data_ptr)
-
-            return b1.resolve(
-                IRnode.from_list(
-                    ret,
-                    typ=output_typ,
-                    location=data.location,
-                    encoding=Encoding.ABI,
-                    annotation=f"abi_decode({output_typ})",
-                )
+            to_decode = IRnode.from_list(
+                data_ptr,
+                typ=wrapped_typ,
+                location=data.location,
+                encoding=Encoding.ABI,
+                annotation=f"abi_decode({output_typ})",
             )
+            to_decode.encoding = Encoding.ABI
+
+            # TODO optimization: skip make_setter when we don't need
+            # input validation
+
+            output_buf = context.new_internal_variable(wrapped_typ)
+            output = IRnode.from_list(output_buf, typ=wrapped_typ, location=MEMORY)
+
+            # sanity check buffer size for wrapped output type will not buffer overflow
+            assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
+            ret.append(make_setter(output, to_decode))
+
+            ret.append(output)
+            # finalize. set the type and location for the return buffer.
+            # (note: unwraps the tuple type if necessary)
+            ret = IRnode.from_list(ret, typ=output_typ, location=MEMORY)
+            return b1.resolve(ret)
 
 
 class _MinMaxValue(TypenameFoldedFunction):

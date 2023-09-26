@@ -344,6 +344,34 @@ def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     assert_tx_failed(lambda: c.abi_decode(input_))
 
 
+def test_clamper_nested_uint8(get_contract, assert_tx_failed):
+    # check that _abi_decode clamps on word-types even when it is in a nested expression
+    # decode -> validate uint8 -> revert if input >= 256 -> cast back to uint256
+    contract = """
+@external
+def abi_decode(x: uint256) -> uint256:
+    a: uint256 = convert(_abi_decode(slice(msg.data, 4, 32), (uint8)), uint256)
+    return a
+    """
+    c = get_contract(contract)
+    assert c.abi_decode(255) == 255
+    assert_tx_failed(lambda: c.abi_decode(256))
+
+
+def test_clamper_nested_bytes(get_contract, assert_tx_failed):
+    # check that _abi_decode clamps dynamic even when it is in a nested expression
+    # decode -> validate Bytes[20] -> revert if len(input) > 20 -> convert back to -> add 1
+    contract = """
+@external
+def abi_decode(x: Bytes[96]) -> Bytes[21]:
+    a: Bytes[21] = concat(b"a", _abi_decode(x, Bytes[20]))
+    return a
+    """
+    c = get_contract(contract)
+    assert c.abi_decode(abi.encode("(bytes)", (b"bc",))) == b"abc"
+    assert_tx_failed(lambda: c.abi_decode(abi.encode("(bytes)", (b"a" * 22,))))
+
+
 @pytest.mark.parametrize(
     "output_typ,input_",
     [
