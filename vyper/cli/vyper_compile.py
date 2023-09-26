@@ -219,7 +219,8 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
+# dead code
+def DEAD_get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
     interface_codes: Dict = {}
     interfaces: Dict = {}
 
@@ -322,7 +323,6 @@ def compile_files(
         contract_sources,
         final_formats,
         exc_handler=exc_handler,
-        interface_codes=get_interface_codes(root_path, contract_sources),
         settings=settings,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
