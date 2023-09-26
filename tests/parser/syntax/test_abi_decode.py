@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -36,7 +36,7 @@ valid_list = [
 @external
 def foo(x: Bytes[32]) -> uint256:
     return _abi_decode(x, uint256)
-    """,
+    """
 ]
 
 
