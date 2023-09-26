@@ -162,6 +162,7 @@ class IRInstruction:
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
     fen: int
+    annotation: Optional[str]
 
     def __init__(
         self,
@@ -189,6 +190,7 @@ class IRInstruction:
         self.liveness = set()
         self.parent = None
         self.fen = -1
+        self.annotation = None
 
     def get_label_operands(self) -> list[IRLabel]:
         """
@@ -231,6 +233,9 @@ class IRInstruction:
 
         if self.dbg:
             return s + f" {self.dbg}"
+
+        if self.annotation:
+            s += f" <{self.annotation}>"
 
         if self.liveness:
             return f"{s: <30} # {self.liveness}"

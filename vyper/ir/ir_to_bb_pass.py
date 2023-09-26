@@ -116,7 +116,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = [IRLabel(target_label), IRLiteral(return_buf.value)]
+    ret_args = [IRLabel(target_label)]
 
     for arg in args_ir:
         if arg.is_literal:
@@ -130,7 +130,12 @@ def _handle_self_call(
                 ret = ctx.append_instruction(arg.location.load_op, [ret])
             ret_args.append(ret)
 
-    return ctx.append_instruction("invoke", ret_args)
+    if return_buf.is_literal:
+        ret_args.append(IRLiteral(return_buf.value))
+
+    invoke_ret = ctx.append_instruction("invoke", ret_args)
+    allocated_variables["return_buffer"] = invoke_ret
+    return invoke_ret
 
 
 def _handle_internal_func(
@@ -142,10 +147,11 @@ def _handle_internal_func(
     old_ir_mempos = 0
     old_ir_mempos += 64
 
-    for _ in func_t.arguments:
+    for arg in func_t.arguments:
         new_var = ctx.get_next_variable()
 
         alloca_inst = IRInstruction("param", [], new_var)
+        alloca_inst.annotation = arg.name
         bb.append_instruction(alloca_inst)
         symbols[f"&{old_ir_mempos}"] = new_var
         old_ir_mempos += 32  # arg.typ.memory_bytes_required
@@ -154,12 +160,14 @@ def _handle_internal_func(
     new_var = ctx.get_next_variable()
     alloca_inst = IRInstruction("param", [], new_var)
     bb.append_instruction(alloca_inst)
+    alloca_inst.annotation = "return_pc"
     symbols["return_pc"] = new_var
 
     # return buffer
     new_var = ctx.get_next_variable()
     alloca_inst = IRInstruction("param", [], new_var)
     bb.append_instruction(alloca_inst)
+    alloca_inst.annotation = "return_buffer"
     symbols["return_buffer"] = new_var
 
     return ir.args[0].args[2]
