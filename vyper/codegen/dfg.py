@@ -329,7 +329,7 @@ def _generate_evm_for_instruction_r(
             ]
         )
         label_counter += 1
-        if stack_map.peek(0).use_count == 0:
+        if stack_map.get_height() > 0 and stack_map.peek(0).use_count == 0:
             stack_map.pop()
             assembly.append("POP")
     elif opcode == "call":

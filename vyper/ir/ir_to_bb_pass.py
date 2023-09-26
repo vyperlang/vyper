@@ -112,6 +112,7 @@ def _handle_self_call(
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
 ) -> None:
+    func_t = ir.passthrough_metadata.get("func_t", None)
     args_ir = ir.passthrough_metadata["args_ir"]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -135,7 +136,7 @@ def _handle_self_call(
     if return_buf.is_literal:
         ret_args.append(IRLiteral(return_buf.value))
 
-    invoke_ret = ctx.append_instruction("invoke", ret_args)
+    invoke_ret = ctx.append_instruction("invoke", ret_args, func_t.return_type is not None)
     allocated_variables["return_buffer"] = invoke_ret
     return invoke_ret
 
@@ -159,11 +160,12 @@ def _handle_internal_func(
         old_ir_mempos += 32  # arg.typ.memory_bytes_required
 
     # return buffer
-    new_var = ctx.get_next_variable()
-    alloca_inst = IRInstruction("param", [], new_var)
-    bb.append_instruction(alloca_inst)
-    alloca_inst.annotation = "return_buffer"
-    symbols["return_buffer"] = new_var
+    if func_t.return_type is not None:
+        new_var = ctx.get_next_variable()
+        alloca_inst = IRInstruction("param", [], new_var)
+        bb.append_instruction(alloca_inst)
+        alloca_inst.annotation = "return_buffer"
+        symbols["return_buffer"] = new_var
 
     # return address
     new_var = ctx.get_next_variable()
@@ -658,11 +660,10 @@ def _convert_ir_basicblock(
                 ctx.get_basic_block().append_instruction(inst)
                 return sym_ir
 
-            sym = symbols.get(f"&{sym_ir.value}", sym_ir)
+            sym = symbols.get(f"&{sym_ir.value}", None)
             if sym is None:
-                new_var = ctx.append_instruction("store", [arg_1])
-                symbols[f"&{sym_ir.value}"] = new_var
-                return new_var
+                symbols[f"&{sym_ir.value}"] = arg_1
+                return arg_1
 
             if sym_ir.is_literal:
                 return arg_1
