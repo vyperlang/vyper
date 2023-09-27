@@ -403,7 +403,7 @@ def _convert_ir_basicblock(
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
 
         new_var = arg_0
-        var = _get_variable_from_address(variables, arg_0.value)
+        var = _get_variable_from_address(variables, arg_0.value) if arg_0.is_literal else None
         if var is not None:
             if allocated_variables.get(var.name, None) is None:
                 new_var = ctx.append_instruction(
@@ -411,10 +411,10 @@ def _convert_ir_basicblock(
                 )
                 allocated_variables[var.name] = new_var
             ctx.append_instruction("calldatacopy", [size, arg_1, new_var], False)
+            symbols[f"&{var.pos}"] = new_var
         else:
             ctx.append_instruction("calldatacopy", [size, arg_1, new_var], False)
 
-        symbols[f"&{var.pos}"] = new_var
         return new_var
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
