@@ -2,7 +2,8 @@ import pytest
 
 from tests.utils import analyze_module_single
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidLiteral
+from vyper import semantics
+from vyper.exceptions import BadChecksumAddress, InvalidLiteral
 
 code_invalid_checksum = [
     """
@@ -27,6 +28,17 @@ def foo():
     for i: address in [0x6b175474e89094c44da98b954eedeac495271d0F]:
         pass
     """,
+]
+
+
+@pytest.mark.parametrize("code", code_invalid_checksum)
+def test_bad_checksum_address(code):
+    with pytest.raises(BadChecksumAddress):
+        vyper_module = vy_ast.parse_to_ast(code)
+        analyze_module_single(vyper_module)
+
+
+code_invalid_literal = [
     """
 foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
@@ -36,8 +48,8 @@ foo: constant(bytes4) = 0X12345678
 ]
 
 
-@pytest.mark.parametrize("code", code_invalid_checksum)
-def test_invalid_checksum(code):
+@pytest.mark.parametrize("code", code_invalid_literal)
+def test_invalid_literal(code):
     with pytest.raises(InvalidLiteral):
         vyper_module = vy_ast.parse_to_ast(code)
         analyze_module_single(vyper_module)
