@@ -292,7 +292,7 @@ def _convert_ir_basicblock(
             ret = _convert_ir_basicblock(ctx, ir_node, symbols, variables, allocated_variables)
 
         return ret
-    elif ir.value == "call":  # external call
+    elif ir.value in ["staticcall", "call"]:  # external call
         gas = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         address = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         value = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
@@ -314,7 +314,9 @@ def _convert_ir_basicblock(
         symbols[f"&{retOffset.value}"] = retVar
 
         inst = IRInstruction(
-            "call", [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize][::-1], retVar
+            ir.value,
+            [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize][::-1],
+            retVar,
         )
         ctx.get_basic_block().append_instruction(inst)
         return retVar

@@ -176,6 +176,7 @@ class IRInstruction:
             "param",
             "alloca",
             "call",
+            "staticcall",
             "invoke",
             "sload",
             "sstore",
