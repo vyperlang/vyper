@@ -21,6 +21,7 @@ from vyper.codegen.core import (
     clamp_basetype,
     clamp_nonzero,
     copy_bytes,
+    dummy_node_for_type,
     ensure_in_memory,
     eval_once_check,
     eval_seq,
@@ -28,7 +29,6 @@ from vyper.codegen.core import (
     get_type_for_exact_size,
     ir_tuple_from_args,
     make_setter,
-    needs_external_call_wrap,
     promote_signed_int,
     sar,
     shl,
@@ -36,7 +36,7 @@ from vyper.codegen.core import (
     unwrap_location,
 )
 from vyper.codegen.expr import Expr
-from vyper.codegen.ir_node import Encoding
+from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import (
@@ -1155,14 +1155,17 @@ class RawCall(BuiltinFunction):
             outsize,
         ]
 
-        if delegate_call:
-            call_op = ["delegatecall", gas, to, *common_call_args]
-        elif static_call:
-            call_op = ["staticcall", gas, to, *common_call_args]
-        else:
-            call_op = ["call", gas, to, value, *common_call_args]
+        gas, value = IRnode.from_list(gas), IRnode.from_list(value)
+        with scope_multi((to, value, gas), ("_to", "_value", "_gas")) as (b1, (to, value, gas)):
+            if delegate_call:
+                call_op = ["delegatecall", gas, to, *common_call_args]
+            elif static_call:
+                call_op = ["staticcall", gas, to, *common_call_args]
+            else:
+                call_op = ["call", gas, to, value, *common_call_args]
 
-        call_ir += [call_op]
+            call_ir += [call_op]
+            call_ir = b1.resolve(call_ir)
 
         # build sequence IR
         if outsize:
@@ -1414,7 +1417,7 @@ class BitwiseNot(BuiltinFunction):
 
     def evaluate(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 1)
@@ -1589,13 +1592,15 @@ class Abs(BuiltinFunction):
 
 # CREATE* functions
 
+CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
+
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
-def _create_ir(value, buf, length, salt=None, checked=True):
+def _create_ir(value, buf, length, salt, checked=True):
     args = [value, buf, length]
     create_op = "create"
-    if salt is not None:
+    if salt is not CREATE2_SENTINEL:
         create_op = "create2"
         args.append(salt)
 
@@ -1713,8 +1718,9 @@ class _CreateBase(BuiltinFunction):
         context.check_is_not_constant("use {self._id}", expr)
 
         should_use_create2 = "salt" in [kwarg.arg for kwarg in expr.keywords]
+
         if not should_use_create2:
-            kwargs["salt"] = None
+            kwargs["salt"] = CREATE2_SENTINEL
 
         ir_builder = self._build_create_IR(expr, args, context, **kwargs)
 
@@ -1794,13 +1800,16 @@ class CreateCopyOf(_CreateBase):
     def _build_create_IR(self, expr, args, context, value, salt):
         target = args[0]
 
-        with target.cache_when_complex("create_target") as (b1, target):
+        # something we can pass to scope_multi
+        with scope_multi(
+            (target, value, salt), ("create_target", "create_value", "create_salt")
+        ) as (b1, (target, value, salt)):
             codesize = IRnode.from_list(["extcodesize", target])
             msize = IRnode.from_list(["msize"])
-            with codesize.cache_when_complex("target_codesize") as (
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
                 b2,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b3, mem_ofst):
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
@@ -1824,7 +1833,7 @@ class CreateCopyOf(_CreateBase):
 
                 ir.append(_create_ir(value, buf, buf_len, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(ir)))
+                return b1.resolve(b2.resolve(ir))
 
 
 class CreateFromBlueprint(_CreateBase):
@@ -1877,17 +1886,18 @@ class CreateFromBlueprint(_CreateBase):
         # (since the abi encoder could write to fresh memory).
         # it would be good to not require the memory copy, but need
         # to evaluate memory safety.
-        with target.cache_when_complex("create_target") as (b1, target), argslen.cache_when_complex(
-            "encoded_args_len"
-        ) as (b2, encoded_args_len), code_offset.cache_when_complex("code_ofst") as (b3, codeofst):
-            codesize = IRnode.from_list(["sub", ["extcodesize", target], codeofst])
+        with scope_multi(
+            (target, value, salt, argslen, code_offset),
+            ("create_target", "create_value", "create_salt", "encoded_args_len", "code_offset"),
+        ) as (b1, (target, value, salt, encoded_args_len, code_offset)):
+            codesize = IRnode.from_list(["sub", ["extcodesize", target], code_offset])
             # copy code to memory starting from msize. we are clobbering
             # unused memory so it's safe.
             msize = IRnode.from_list(["msize"], location=MEMORY)
-            with codesize.cache_when_complex("target_codesize") as (
-                b4,
-                codesize,
-            ), msize.cache_when_complex("mem_ofst") as (b5, mem_ofst):
+            with scope_multi((codesize, msize), ("target_codesize", "mem_ofst")) as (
+                b2,
+                (codesize, mem_ofst),
+            ):
                 ir = ["seq"]
 
                 # make sure there is code at the target, and that
@@ -1906,9 +1916,8 @@ class CreateFromBlueprint(_CreateBase):
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
-                # 00...00 (22 0's) | preamble | bytecode
-                ir.append(["extcodecopy", target, mem_ofst, codeofst, codesize])
-
+                # <target initcode> | <abi-encoded args OR arg buffer if raw_arg=True>
+                ir.append(["extcodecopy", target, mem_ofst, code_offset, codesize])
                 ir.append(copy_bytes(add_ofst(mem_ofst, codesize), argbuf, encoded_args_len, bufsz))
 
                 # theoretically, dst = "msize", but just be safe.
@@ -1922,7 +1931,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 ir.append(_create_ir(value, mem_ofst, length, salt))
 
-                return b1.resolve(b2.resolve(b3.resolve(b4.resolve(b5.resolve(ir)))))
+                return b1.resolve(b2.resolve(ir))
 
 
 class _UnsafeMath(BuiltinFunction):
@@ -2357,8 +2366,6 @@ class Print(BuiltinFunction):
 class ABIEncode(BuiltinFunction):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
-    # (check the signature manually since we have no utility methods
-    # to handle varargs.)
     # explanation of ensure_tuple:
     # default is to force even a single value into a tuple,
     # e.g. _abi_encode(bytes) -> _abi_encode((bytes,))
@@ -2483,6 +2490,8 @@ class ABIDecode(BuiltinFunction):
         return output_type.typedef
 
     def infer_arg_types(self, node):
+        self._validate_arg_types(node)
+
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
@@ -2519,23 +2528,10 @@ class ABIDecode(BuiltinFunction):
             )
 
         data = ensure_in_memory(data, context)
+
         with data.cache_when_complex("to_decode") as (b1, data):
             data_ptr = bytes_data_ptr(data)
             data_len = get_bytearray_length(data)
-
-            # Normally, ABI-encoded data assumes the argument is a tuple
-            # (See comments for `wrap_value_for_external_return`)
-            # However, we do not want to use `wrap_value_for_external_return`
-            # technique as used in external call codegen because in order to be
-            # type-safe we would need an extra memory copy. To avoid a copy,
-            # we manually add the ABI-dynamic offset so that it is
-            # re-interpreted in-place.
-            if (
-                unwrap_tuple is True
-                and needs_external_call_wrap(output_typ)
-                and output_typ.abi_type.is_dynamic()
-            ):
-                data_ptr = add_ofst(data_ptr, 32)
 
             ret = ["seq"]
 
@@ -2545,18 +2541,30 @@ class ABIDecode(BuiltinFunction):
                 # runtime assert: abi_min_size <= data_len <= abi_size_bound
                 ret.append(clamp2(abi_min_size, data_len, abi_size_bound, signed=False))
 
-            # return pointer to the buffer
-            ret.append(data_ptr)
-
-            return b1.resolve(
-                IRnode.from_list(
-                    ret,
-                    typ=output_typ,
-                    location=data.location,
-                    encoding=Encoding.ABI,
-                    annotation=f"abi_decode({output_typ})",
-                )
+            to_decode = IRnode.from_list(
+                data_ptr,
+                typ=wrapped_typ,
+                location=data.location,
+                encoding=Encoding.ABI,
+                annotation=f"abi_decode({output_typ})",
             )
+            to_decode.encoding = Encoding.ABI
+
+            # TODO optimization: skip make_setter when we don't need
+            # input validation
+
+            output_buf = context.new_internal_variable(wrapped_typ)
+            output = IRnode.from_list(output_buf, typ=wrapped_typ, location=MEMORY)
+
+            # sanity check buffer size for wrapped output type will not buffer overflow
+            assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
+            ret.append(make_setter(output, to_decode))
+
+            ret.append(output)
+            # finalize. set the type and location for the return buffer.
+            # (note: unwraps the tuple type if necessary)
+            ret = IRnode.from_list(ret, typ=output_typ, location=MEMORY)
+            return b1.resolve(ret)
 
 
 class _MinMaxValue(TypenameFoldedFunction):
@@ -2575,7 +2583,6 @@ class _MinMaxValue(TypenameFoldedFunction):
         if isinstance(input_type, IntegerT):
             ret = vy_ast.Int.from_node(node, value=val)
 
-        # TODO: to change to known_type once #3213 is merged
         ret._metadata["type"] = input_type
         return ret
 
