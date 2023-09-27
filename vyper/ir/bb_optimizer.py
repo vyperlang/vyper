@@ -1,4 +1,9 @@
-from vyper.codegen.ir_basicblock import TERMINATOR_IR_INSTRUCTIONS, IRBasicBlock, IRInstruction
+from vyper.codegen.ir_basicblock import (
+    TERMINATOR_IR_INSTRUCTIONS,
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+)
 from vyper.codegen.ir_function import IRFunction
 from vyper.utils import OrderedSet
 
@@ -32,7 +37,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
         for i, inst in enumerate(bb.instructions[:-1]):
             if inst.volatile:
                 continue
-            if inst.ret and inst.ret.target not in bb.instructions[i + 1].liveness:
+            if inst.ret and inst.ret not in bb.instructions[i + 1].liveness:
                 removeList.append(inst)
                 count += 1
 
@@ -66,8 +71,8 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
         for bb2 in ctx.basic_blocks:
             for inst in bb2.instructions:
                 for op in inst.operands:
-                    if op.is_label and op.value == replaced_label.value:
-                        op.target = replacement_label
+                    if isinstance(op, IRLabel) and op.value == replaced_label.value:
+                        op.value = replacement_label.value
 
         ctx.basic_blocks.remove(bb)
         i -= 1

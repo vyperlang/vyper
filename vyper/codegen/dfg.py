@@ -1,4 +1,10 @@
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IRVariable, IRValueBase
+from vyper.codegen.ir_basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRVariable,
+    IRValueBase,
+    IRLabel,
+)
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
@@ -70,20 +76,17 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     dfg_outputs = {}
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            variables = inst.get_input_operands()
+            operands = inst.get_input_operands()
             res = inst.get_output_operands()
 
-            for v in variables:
-                target = v.target
-                target.use_count += 1
-                dfg_inputs[target.value] = (
-                    [inst]
-                    if dfg_inputs.get(target.value) is None
-                    else dfg_inputs[target.value] + [inst]
+            for op in operands:
+                op.use_count += 1
+                dfg_inputs[op.value] = (
+                    [inst] if dfg_inputs.get(op.value) is None else dfg_inputs[op.value] + [inst]
                 )
 
             for op in res:
-                dfg_outputs[op.target.value] = inst
+                dfg_outputs[op.value] = inst
 
 
 def compute_phi_vars(ctx: IRFunction) -> None:
@@ -149,13 +152,13 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     for op in stack_ops:
-        assert op.target.use_count >= 0, "Operand used up"
+        assert op.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        if op.target.use_count > 1:
+        if op.use_count > 1:
             # Operand need duplication
             stack_map.dup(assembly, depth)
-            op.target.use_count -= 1
+            op.use_count -= 1
 
 
 def _stack_reorder(
@@ -199,8 +202,7 @@ def _generate_evm_for_basicblock_r(
         in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
 
     for var in in_vars:
-        depth = stack_map.get_depth_in(IRValueBase(var))
-        # assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
+        depth = stack_map.get_depth_in(IRValueBase(var.value))
         if depth is StackMap.NOT_IN_STACK:
             continue
         if depth != 0:
@@ -268,9 +270,9 @@ def _generate_evm_for_instruction_r(
         if to_be_replaced.use_count > 1:
             stack_map.dup(assembly, depth)
             to_be_replaced.use_count -= 1
-            stack_map.poke(0, ret.target)
+            stack_map.poke(0, ret)
         else:
-            stack_map.poke(depth, ret.target)
+            stack_map.poke(depth, ret)
         return assembly
 
     # Step 2: Emit instructions input operands
@@ -288,7 +290,7 @@ def _generate_evm_for_instruction_r(
     # Step 4: Push instruction's return value to stack
     stack_map.pop(len(operands))
     if inst.ret is not None:
-        stack_map.push(inst.ret.target)
+        stack_map.push(inst.ret)
 
     # Step 5: Emit the EVM instruction(s)
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
@@ -307,7 +309,7 @@ def _generate_evm_for_instruction_r(
         assembly.append(f"_sym_{inst.operands[1].value}")
         assembly.append("JUMPI")
     elif opcode == "jmp":
-        if inst.operands[0].is_label:
+        if isinstance(inst.operands[0], IRLabel):
             assembly.append(f"_sym_{inst.operands[0].value}")
             assembly.append("JUMP")
         else:
@@ -318,7 +320,7 @@ def _generate_evm_for_instruction_r(
         assembly.append("LT")
     elif opcode == "invoke":
         target = inst.operands[0]
-        assert target.is_label, "invoke target must be a label"
+        assert isinstance(target, IRLabel), "invoke target must be a label"
         assembly.extend(
             [
                 f"_sym_label_ret_{label_counter}",
@@ -380,16 +382,16 @@ def _generate_evm_for_instruction_r(
     # Step 6: Emit instructions output operands (if any)
     # FIXME: WHOLE THING NEEDS REFACTOR
     if inst.ret is not None:
-        assert inst.ret.is_variable, "Return value must be a variable"
-        if inst.ret.target.mem_type == IRVariable.MemType.MEMORY:
+        assert isinstance(inst.ret, IRVariable), "Return value must be a variable"
+        if inst.ret.mem_type == IRVariable.MemType.MEMORY:
             #     # if inst.ret.address_access:                           FIXME: MEMORY REFACTOR
             #     #     if inst.opcode != "alloca":  # FIXMEEEE
             #     #         if inst.opcode != "codecopy":
             #     #             assembly.extend([*PUSH(inst.ret.addr)])
             #     #     else:
-            #     assembly.extend([*PUSH(inst.ret.target.mem_addr + 30)])
+            #     assembly.extend([*PUSH(inst.ret.mem_addr + 30)])
             # else:
-            assembly.extend([*PUSH(inst.ret.target.mem_addr)])
+            assembly.extend([*PUSH(inst.ret.mem_addr)])
         # assembly.append("MSTORE")
 
     return assembly
@@ -403,25 +405,25 @@ def _emit_input_operands(
     stack_map: StackMap,
 ) -> None:
     for op in ops:
-        if op.is_label:
+        if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
             # but we need to add it to the stack map
             if inst.opcode != "invoke":
                 assembly.append(f"_sym_{op.value}")
-            stack_map.push(op.target)
+            stack_map.push(op)
             continue
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
-            stack_map.push(op.target)
+            stack_map.push(op)
             continue
         assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
-        if op.is_variable and op.target.mem_type == IRVariable.MemType.MEMORY:
+        if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             # FIXME: MEMORY REFACTOR
             # if op.address_access:
             #     if inst.opcode != "codecopy":
             #         assembly.extend([*PUSH(op.addr)])
             # else:
-            assembly.extend([*PUSH(op.target.mem_addr)])
+            assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
 
     return assembly

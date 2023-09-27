@@ -92,7 +92,6 @@ class StackMap:
             return str(phi_vars.get(str(x), x))
 
         for i, stack_op in enumerate(self.stack_map[::-1]):
-            stack_op = stack_op.target if isinstance(stack_op, IRValueBase) else stack_op
             if isinstance(stack_op, IRValueBase):
                 if isinstance(op, str) and f(stack_op.value) == f(op):
                     return -i
@@ -100,7 +99,7 @@ class StackMap:
                     return -i
                 if isinstance(op, IRValueBase) and f(stack_op.value) == f(op.value):
                     return -i
-                elif isinstance(op, list) and f(stack_op) in [f(v.target) for v in op]:
+                elif isinstance(op, list) and f(stack_op) in [f(v) for v in op]:
                     return -i
 
         return StackMap.NOT_IN_STACK

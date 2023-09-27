@@ -146,30 +146,22 @@ class IRInstruction:
         """
         Get all labels in instruction.
         """
-        return [op for op in self.operands if op.is_label]
+        return [op for op in self.operands if isinstance(op, IRLabel)]
 
     def get_non_label_operands(self) -> list[IRValueBase]:
         """
         Get all input operands in instruction.
         """
-        return [op for op in self.operands if not op.is_label]
+        return [op for op in self.operands if not isinstance(op, IRLabel)]
 
     def get_input_operands(self) -> list[IRValueBase]:
         """
         Get all input operands for instruction.
         """
-        return [
-            op
-            for op in self.operands
-            if op.is_variable  # and op.direction == IRValueBase.Direction.IN
-        ]
+        return [op for op in self.operands if isinstance(op, IRVariable)]
 
     def get_output_operands(self) -> list[IRValueBase]:
-        output_operands = [self.ret] if self.ret else []
-        for op in self.operands:
-            if op.direction == IRValueBase.Direction.OUT:
-                output_operands.append(op)
-        return output_operands
+        return [self.ret] if self.ret else []
 
     def __repr__(self) -> str:
         s = ""
@@ -177,7 +169,7 @@ class IRInstruction:
             s += f"{self.ret} = "
         s += f"{self.opcode} "
         operands = ", ".join(
-            [(f"label %{op}" if op.is_label else str(op)) for op in self.operands[::-1]]
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands[::-1]]
         )
         s += operands
 
@@ -301,9 +293,9 @@ class IRBasicBlock:
         liveness = self.out_vars.copy()
         for instruction in self.instructions[::-1]:
             ops = instruction.get_input_operands()
-            liveness = liveness.union(OrderedSet.fromkeys([op.target for op in ops]))
+            liveness = liveness.union(OrderedSet.fromkeys(ops))
             out = (
-                instruction.get_output_operands()[0].target
+                instruction.get_output_operands()[0]
                 if len(instruction.get_output_operands()) > 0
                 else None
             )
