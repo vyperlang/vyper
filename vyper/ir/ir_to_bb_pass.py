@@ -510,7 +510,18 @@ def _convert_ir_basicblock(
                     else:
                         inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
                 else:
-                    inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
+                    if ret_ir.is_literal:
+                        sym = symbols.get(f"&{ret_ir.value}", None)
+                        if sym is None:
+                            inst = IRInstruction("return", [last_ir, ret_ir])
+                        else:
+                            new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
+                            ctx.append_instruction(
+                                "mstore", [sym, IROperand(new_var, DataType.PTR)], False
+                            )
+                            inst = IRInstruction("return", [last_ir, new_var])
+                    else:
+                        inst = IRInstruction("return", [last_ir, ret_ir])
 
                 ctx.get_basic_block().append_instruction(inst)
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
@@ -802,7 +813,11 @@ def _convert_ir_basicblock(
 
 
 def _convert_ir_opcode(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, variables: OrderedSet, allocated_variables: dict[str, IRVariable]
+    ctx: IRFunction,
+    ir: IRnode,
+    symbols: SymbolTable,
+    variables: OrderedSet,
+    allocated_variables: dict[str, IRVariable],
 ) -> None:
     opcode = str(ir.value).upper()
     inst_args = []
