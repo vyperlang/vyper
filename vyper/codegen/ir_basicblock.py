@@ -67,6 +67,7 @@ class IRVariable(IRValueBase):
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
+    offset: int = 0
     MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
     mem_type: MemType = MemType.OPERAND_STACK
     mem_addr: int = -1
@@ -77,6 +78,7 @@ class IRVariable(IRValueBase):
         if isinstance(value, IRLiteral):
             value = value.value
         super().__init__(value)
+        self.offset = 0
         self.mem_type = mem_type
         self.mem_addr = mem_addr
 
@@ -93,59 +95,6 @@ class IRLabel(IRValueBase):
         self.is_symbol = is_symbol
 
 
-IROperandTarget = IRLiteral | IRVariable | IRLabel
-
-DataType = Enum("Type", ["VALUE", "PTR"])
-DataType_to_str = {DataType.VALUE: "", DataType.PTR: "ptr"}
-
-
-class IROperand:
-    """
-    IROperand represents an operand of an IR instuction. An operand can be a variable,
-    label, or a constant.
-    """
-
-    Direction = Enum("Direction", ["IN", "OUT"])
-    type: DataType = DataType.VALUE
-    target: IRValueBase
-    direction: Direction = Direction.IN
-
-    def __init__(
-        self,
-        target: IRValueBase,
-        type: DataType = DataType.VALUE,
-    ) -> None:
-        assert isinstance(target, IRValueBase), "value must be an IRValueBase"
-        assert isinstance(type, DataType), "type must be a DataType"
-        self.target = target
-        self.type = type
-        self.direction = IROperand.Direction.IN
-
-    def is_targeting(self, target: IRValueBase) -> bool:
-        return self.target.value == target.value
-
-    @property
-    def value(self) -> IRValueBaseValue:
-        return self.target.value
-
-    @property
-    def is_literal(self) -> bool:
-        return isinstance(self.target, IRLiteral)
-
-    @property
-    def is_variable(self) -> bool:
-        return isinstance(self.target, IRVariable)
-
-    @property
-    def is_label(self) -> bool:
-        return isinstance(self.target, IRLabel)
-
-    def __repr__(self) -> str:
-        if self.type == DataType.VALUE:
-            return f"{self.target}"
-        return f"{DataType_to_str[self.type]} {self.target}"
-
-
 class IRInstruction:
     """
     IRInstruction represents an instruction in IR. Each instruction has an opcode,
@@ -156,8 +105,8 @@ class IRInstruction:
 
     opcode: str
     volatile: bool
-    operands: list[IROperand]
-    ret: Optional[IROperand]
+    operands: list[IRValueBase]
+    ret: Optional[IRValueBase]
     dbg: Optional[IRDebugInfo]
     liveness: set[IRVariable]
     parent: Optional["IRBasicBlock"]
@@ -167,8 +116,8 @@ class IRInstruction:
     def __init__(
         self,
         opcode: str,
-        operands: list[IROperand | IRValueBase],
-        ret: IROperand = None,
+        operands: list[IRValueBase],
+        ret: IRValueBase = None,
         dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
@@ -185,8 +134,8 @@ class IRInstruction:
             "mload",
             "calldatacopy",
         ]
-        self.operands = [op if isinstance(op, IROperand) else IROperand(op) for op in operands]
-        self.ret = ret if isinstance(ret, IROperand) else IROperand(ret) if ret else None
+        self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
+        self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
         self.dbg = dbg
         self.liveness = set()
         self.parent = None
@@ -199,26 +148,26 @@ class IRInstruction:
         """
         return [op for op in self.operands if op.is_label]
 
-    def get_non_label_operands(self) -> list[IROperand]:
+    def get_non_label_operands(self) -> list[IRValueBase]:
         """
         Get all input operands in instruction.
         """
         return [op for op in self.operands if not op.is_label]
 
-    def get_input_operands(self) -> list[IROperand]:
+    def get_input_operands(self) -> list[IRValueBase]:
         """
         Get all input operands for instruction.
         """
         return [
             op
             for op in self.operands
-            if op.is_variable  # and op.direction == IROperand.Direction.IN
+            if op.is_variable  # and op.direction == IRValueBase.Direction.IN
         ]
 
-    def get_output_operands(self) -> list[IROperand]:
+    def get_output_operands(self) -> list[IRValueBase]:
         output_operands = [self.ret] if self.ret else []
         for op in self.operands:
-            if op.direction == IROperand.Direction.OUT:
+            if op.direction == IRValueBase.Direction.OUT:
                 output_operands.append(op)
         return output_operands
 

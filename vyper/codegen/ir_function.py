@@ -4,7 +4,6 @@ from vyper.codegen.ir_basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
-    IROperand,
     IRValueBase,
     IRVariable,
 )
@@ -110,9 +109,7 @@ class IRFunction(IRFunctionBase):
         self.basic_blocks = new_basic_blocks
         return removed
 
-    def append_instruction(
-        self, opcode: str, args: list[IROperand | IRValueBase], do_ret: bool = True
-    ):
+    def append_instruction(self, opcode: str, args: list[IRValueBase], do_ret: bool = True):
         """
         Append instruction to last basic block.
         """
@@ -121,7 +118,7 @@ class IRFunction(IRFunctionBase):
         self.get_basic_block().append_instruction(inst)
         return ret
 
-    def append_data(self, opcode: str, args: list[IROperand | IRValueBase]):
+    def append_data(self, opcode: str, args: list[IRValueBase]):
         """
         Append data
         """

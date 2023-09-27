@@ -1,4 +1,4 @@
-from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction, IRVariable, IRValueBase
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
@@ -49,11 +49,11 @@ ONE_TO_ONE_INSTRUCTIONS = [
 
 
 class DFGNode:
-    value: IRInstruction | IROperand
+    value: IRInstruction | IRValueBase
     predecessors: list["DFGNode"]
     successors: list["DFGNode"]
 
-    def __init__(self, value: IRInstruction | IROperand):
+    def __init__(self, value: IRInstruction | IRValueBase):
         self.value = value
         self.predecessors = []
         self.successors = []
@@ -147,7 +147,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IROperand]) -> None:
+def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     for op in stack_ops:
         assert op.target.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
@@ -159,7 +159,7 @@ def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IRO
 
 
 def _stack_reorder(
-    assembly: list, stack_map: StackMap, stack_ops: list[IROperand], phi_vars: dict = {}
+    assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase], phi_vars: dict = {}
 ) -> None:
     def f(x):
         return phi_vars.get(str(x), x)
@@ -199,7 +199,7 @@ def _generate_evm_for_basicblock_r(
         in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
 
     for var in in_vars:
-        depth = stack_map.get_depth_in(IROperand(var))
+        depth = stack_map.get_depth_in(IRValueBase(var))
         # assert depth != StackMap.NOT_IN_STACK, "Operand not in stack"
         if depth is StackMap.NOT_IN_STACK:
             continue
@@ -396,7 +396,11 @@ def _generate_evm_for_instruction_r(
 
 
 def _emit_input_operands(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, ops: list[IROperand], stack_map: StackMap
+    ctx: IRFunction,
+    assembly: list,
+    inst: IRInstruction,
+    ops: list[IRValueBase],
+    stack_map: StackMap,
 ) -> None:
     for op in ops:
         if op.is_label:

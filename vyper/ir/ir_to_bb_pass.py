@@ -2,12 +2,10 @@ from typing import Optional, Union
 
 from vyper.codegen.dfg import generate_evm
 from vyper.codegen.ir_basicblock import (
-    DataType,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
     IRLiteral,
-    IROperand,
     IRValueBase,
     IRVariable,
 )
@@ -210,16 +208,16 @@ def _get_return_for_stack_operand(
     if ret_ir.is_literal:
         sym = symbols.get(f"&{ret_ir.value}", None)
         new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-        ctx.append_instruction("mstore", [sym, IROperand(new_var, DataType.PTR)], False)
+        ctx.append_instruction("mstore", [sym, new_var], False)
     else:
         sym = symbols.get(ret_ir.value, None)
         if sym is None:
             # FIXME: needs real allocations
             new_var = ctx.append_instruction("alloca", [IRLiteral(32), IRLiteral(0)])
-            ctx.append_instruction("mstore", [ret_ir, IROperand(new_var, DataType.PTR)], False)
+            ctx.append_instruction("mstore", [ret_ir, new_var], False)
         else:
             new_var = ret_ir
-    return IRInstruction("return", [last_ir, IROperand(new_var, DataType.PTR)])
+    return IRInstruction("return", [last_ir, new_var])
 
 
 def _convert_ir_basicblock(
@@ -308,14 +306,14 @@ def _convert_ir_basicblock(
             argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
             argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
             argsOffsetVar.mem_addr = addr
-            argsOffsetOp = IROperand(argsOffsetVar, True, 32 - 4 if argsOffset.value > 0 else 0)
+            argsOffsetVar.offset = 32 - 4 if argsOffset.value > 0 else 0
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
 
         inst = IRInstruction(
             ir.value,
-            [gas, address, value, argsOffsetOp, argsSize, retOffset, retSize][::-1],
+            [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1],
             retVar,
         )
         ctx.get_basic_block().append_instruction(inst)
@@ -422,18 +420,15 @@ def _convert_ir_basicblock(
             arg_0_var = ctx.get_next_variable()
             arg_0_var.mem_type = IRVariable.MemType.MEMORY
             arg_0_var.mem_addr = 0
-            alloca_op = IROperand(arg_0_var)
-            ctx.get_basic_block().append_instruction(IRInstruction("alloca", [], alloca_op))
-            arg_0_op = IROperand(arg_0_var)  # THis had offset
+            ctx.get_basic_block().append_instruction(IRInstruction("alloca", [], arg_0_var))
         else:
-            arg_0_op = IROperand(arg_0)
+            arg_0_var = arg_0
 
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
         ret_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
-        ret_op = IROperand(ret_var)
         symbols[f"&0"] = ret_var
-        inst = IRInstruction("codecopy", [size, arg_1, arg_0_op], ret_op)
+        inst = IRInstruction("codecopy", [size, arg_1, arg_0_var], ret_var)
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
@@ -507,8 +502,7 @@ def _convert_ir_basicblock(
                             )
                         else:
                             ptr_var = allocated_var
-                        new_op = IROperand(ptr_var, DataType.PTR)
-                        inst = IRInstruction("return", [last_ir, new_op])
+                        inst = IRInstruction("return", [last_ir, ptr_var])
                     else:
                         inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
                 else:
@@ -518,9 +512,7 @@ def _convert_ir_basicblock(
                             inst = IRInstruction("return", [last_ir, ret_ir])
                         else:
                             new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-                            ctx.append_instruction(
-                                "mstore", [sym, IROperand(new_var, DataType.PTR)], False
-                            )
+                            ctx.append_instruction("mstore", [sym, new_var], False)
                             inst = IRInstruction("return", [last_ir, new_var])
                     else:
                         inst = IRInstruction("return", [last_ir, ret_ir])
@@ -588,7 +580,7 @@ def _convert_ir_basicblock(
                 else:
                     ptr_var = allocated_variables[var.name]
 
-                return ctx.append_instruction("mload", [IROperand(ptr_var, DataType.PTR)])
+                return ctx.append_instruction("mload", [ptr_var])
             else:
                 if sym_ir.is_literal:
                     sym = symbols.get(f"&{sym_ir.value}", None)
@@ -611,8 +603,7 @@ def _convert_ir_basicblock(
                     new_var = ctx.get_next_variable()
                     symbols[f"&{sym_ir.value}"] = new_var
                     v = _convert_ir_basicblock(ctx, sym_ir, symbols, variables, allocated_variables)
-                    op = IROperand(v)
-                    inst = IRInstruction("store", [op], new_var)
+                    inst = IRInstruction("store", [v], new_var)
                     ctx.get_basic_block().append_instruction(inst)
                 return new_var
             else:
@@ -656,9 +647,7 @@ def _convert_ir_basicblock(
                 else:
                     ptr_var = allocated_variables[var.name]
 
-                return ctx.append_instruction(
-                    "mstore", [arg_1, IROperand(ptr_var, DataType.PTR)], False
-                )
+                return ctx.append_instruction("mstore", [arg_1, ptr_var], False)
             else:
                 if sym_ir.is_literal:
                     new_var = ctx.append_instruction("store", [arg_1], sym_ir)
