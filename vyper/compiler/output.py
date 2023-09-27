@@ -104,7 +104,6 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    warnings.warn("metadata output format is unstable!")
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):

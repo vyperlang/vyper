@@ -140,20 +140,17 @@ def _generate_kwarg_handlers(
     return ret
 
 
-# TODO it would be nice if this returned a data structure which were
-# amenable to generating a jump table instead of the linear search for
-# method_id we have now.
 def generate_ir_for_external_function(code, func_t, context):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef,
     #    func_t: ContractFunctionT,
     #    context: Context,
-    #    check_nonpayable: bool,
     # ) -> IRnode:
-    """Return the IR for an external function. Includes code to inspect the method_id,
-    enter the function (nonpayable and reentrancy checks), handle kwargs and exit
-    the function (clean up reentrancy storage variables)
+    """
+    Return the IR for an external function. Returns IR for the body
+    of the function, handle kwargs and exit the function. Also returns
+    metadata required for `module.py` to construct the selector table.
     """
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
