@@ -6,7 +6,13 @@ from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
-from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
+from vyper.exceptions import (
+    BadChecksumAddress,
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidOperation,
+    OverflowException,
+)
 from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
@@ -335,7 +341,7 @@ class AddressT(_PrimT):
 
         addr = node.value
         if not is_checksum_encoded(addr):
-            raise InvalidLiteral(
+            raise BadChecksumAddress(
                 "Address checksum mismatch. If you are sure this is the right "
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
