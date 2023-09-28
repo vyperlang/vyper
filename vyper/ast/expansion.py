@@ -18,7 +18,6 @@ def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node that has been type-checked and annotated.
     """
     generate_public_variable_getters(vyper_module)
-    remove_unused_statements(vyper_module)
 
 
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:

@@ -68,12 +68,14 @@ a: int128
             "lineno": 2,
             "node_id": 2,
             "src": "1:1:0",
+            "type": "int128",
         },
         "value": None,
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
         "is_transient": False,
+        "type": "int128",
     }
 
 
