@@ -390,7 +390,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         args[1].op, vy_ast.Add
                     ):
                         raise StructureException(
-                            "Second element must be the first element plus a literal value", args[0]
+                            "Second element must be the first element plus a literal value", args[1]
                         )
                     if not vy_ast.compare_nodes(args[0], args[1].left):
                         raise StructureException(
