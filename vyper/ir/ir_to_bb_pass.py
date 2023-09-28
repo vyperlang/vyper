@@ -416,20 +416,10 @@ def _convert_ir_basicblock(
         return new_var
     elif ir.value == "codecopy":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        if arg_0.is_literal and arg_0.value == 30:
-            arg_0_var = ctx.get_next_variable()
-            arg_0_var.mem_type = IRVariable.MemType.MEMORY
-            arg_0_var.mem_addr = 0
-            ctx.get_basic_block().append_instruction(IRInstruction("alloca", [], arg_0_var))
-        else:
-            arg_0_var = arg_0
-
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
-        ret_var = IRVariable("%ccd", IRVariable.MemType.MEMORY, 0)
-        symbols[f"&0"] = ret_var
-        inst = IRInstruction("codecopy", [size, arg_1, arg_0_var], ret_var)
-        ctx.get_basic_block().append_instruction(inst)
+
+        ctx.append_instruction("codecopy", [size, arg_1, arg_0], False)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
@@ -599,13 +589,10 @@ def _convert_ir_basicblock(
         else:
             if sym_ir.is_literal:
                 new_var = symbols.get(f"&{sym_ir.value}", None)
-                if new_var is None:
-                    new_var = ctx.get_next_variable()
-                    symbols[f"&{sym_ir.value}"] = new_var
-                    v = _convert_ir_basicblock(ctx, sym_ir, symbols, variables, allocated_variables)
-                    inst = IRInstruction("store", [v], new_var)
-                    ctx.get_basic_block().append_instruction(inst)
-                return new_var
+                if new_var is not None:
+                    return ctx.append_instruction("mload", [new_var])
+                else:
+                    return ctx.append_instruction("mload", [IRLiteral(sym_ir.value)])
             else:
                 new_var = _convert_ir_basicblock(
                     ctx, sym_ir, symbols, variables, allocated_variables
