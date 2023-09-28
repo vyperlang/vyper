@@ -117,7 +117,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         return ret
 
     def _to_dict(func_t):
-        ret = vars(func_t)
+        ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = func_t._ir_info.ir_identifier
 
