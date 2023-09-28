@@ -107,7 +107,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):
-        ret = vars(variable_record)
+        ret = vars(variable_record).copy()
         ret["typ"] = str(ret["typ"])
         if ret["data_offset"] is None:
             del ret["data_offset"]
@@ -133,7 +133,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info)
+        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         keep_keys = {
