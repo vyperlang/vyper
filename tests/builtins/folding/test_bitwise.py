@@ -14,7 +14,7 @@ st_sint256 = st.integers(min_value=-(2**255), max_value=2**255 - 1)
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("op", ["&", "|", "^"])
 @given(a=st_uint256, b=st_uint256)
 def test_bitwise_ops(get_contract, a, b, op):
@@ -34,7 +34,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("op", ["<<", ">>"])
 @given(a=st_uint256, b=st.integers(min_value=0, max_value=256))
 def test_bitwise_shift_unsigned(get_contract, a, b, op):
@@ -64,7 +64,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("op", ["<<", ">>"])
 @given(a=st_sint256, b=st.integers(min_value=0, max_value=256))
 def test_bitwise_shift_signed(get_contract, a, b, op):
@@ -92,7 +92,7 @@ def foo(a: int256, b: uint256) -> int256:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(value=st_uint256)
 def test_bitwise_not(get_contract, value):
     source = """

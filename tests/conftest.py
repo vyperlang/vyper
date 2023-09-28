@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+import hypothesis
 import pytest
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
@@ -44,6 +45,9 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
+
+
+hypothesis.settings.default.deadline = None
 
 
 @pytest.fixture(scope="module")

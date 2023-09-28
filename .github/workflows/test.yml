@@ -104,7 +104,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
@@ -148,12 +148,12 @@ jobs:
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
-    # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
+    # `TOXENV=fuzzing tox -r -- --store-durations -r aR tests/`
     - name: Fetch test-durations
       run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run Tox
-      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
