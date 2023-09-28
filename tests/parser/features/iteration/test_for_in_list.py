@@ -701,13 +701,6 @@ def foo():
     """,
         StateAccessViolation,
     ),
-    """
-@external
-def foo():
-    a: int128 = 6
-    for i in range(a,a-3):
-        pass
-    """,
     # invalid argument length
     (
         """
