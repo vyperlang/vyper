@@ -226,7 +226,6 @@ def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
     # note: validate_semantics does type inference on the AST
     validate_semantics(vyper_module, interface_codes)
 
