@@ -651,8 +651,10 @@ def _convert_ir_basicblock(
 
             sym = symbols.get(f"&{sym_ir.value}", None)
             if sym is None:
+                inst = IRInstruction("mstore", [arg_1, sym_ir])
+                ctx.get_basic_block().append_instruction(inst)
                 symbols[f"&{sym_ir.value}"] = arg_1
-                return arg_1
+                return None
 
             if sym_ir.is_literal:
                 return arg_1
