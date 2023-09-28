@@ -14,14 +14,10 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-..
-    v0.3.10 ("Black Adder")
-    ***********************
+v0.3.10 ("Black Adder")
+***********************
 
-v0.3.10rc1
-**********
-
-Date released: 2023-09-06
+Date released: 2023-10-02
 =========================
 
 v0.3.10 is a performance focused release. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
@@ -32,6 +28,7 @@ Breaking changes:
 - add runtime code layout to initcode (`#3584 <https://github.com/vyperlang/vyper/pull/3584>`_)
 - drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
 - remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
+- only allow valid identifiers to be nonreentrant keys (`#3605 <https://github.com/vyperlang/vyper/pull/3605>`_)
 
 Non-breaking changes and improvements:
 --------------------------------------
@@ -46,12 +43,15 @@ Notable fixes:
 
 - fix ``ecrecover()`` behavior when signature is invalid (`GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_, `#3586 <https://github.com/vyperlang/vyper/pull/3586>`_)
 - fix: order of evaluation for some builtins (`#3583 <https://github.com/vyperlang/vyper/pull/3583>`_, `#3587 <https://github.com/vyperlang/vyper/pull/3587>`_)
+- fix: memory allocation in certain builtins using ``msize`` (`#3610 <https://github.com/vyperlang/vyper/pull/3610>`_)
+- fix: ``_abi_decode()`` input validation in certain complex expressions (`#3626 <https://github.com/vyperlang/vyper/pull/3626>`_)
 - fix: pycryptodome for arm builds (`#3485 <https://github.com/vyperlang/vyper/pull/3485>`_)
 - let params of internal functions be mutable (`#3473 <https://github.com/vyperlang/vyper/pull/3473>`_)
 - typechecking of folded builtins in (`#3490 <https://github.com/vyperlang/vyper/pull/3490>`_)
 - update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
 - fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
 - fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`_)
 
 Other docs updates, chores and fixes:
 -------------------------------------
