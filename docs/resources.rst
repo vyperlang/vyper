@@ -30,6 +30,15 @@ Security
 - `VyperPunk - learn to secure and hack Vyper smart contracts <https://github.com/SupremacyTeam/VyperPunk>`__
 - `VyperExamples - Vyper vulnerability examples <https://www.vyperexamples.com/reentrancy>`__
 
+Projects using Vyper
+--------------------
+
+- `Curve <https://github.com/curvefi/curve-stablecoin>`__
+- `Yearn <https://github.com/yearn/yearn-vaults>`__
+- `Lido <https://github.com/lidofinance/gate-seals>`__
+- `Ethereum <https://github.com/ethereum/sharding>`__
+- `Uniswao <https://github.com/Uniswap/v1-contracts> (v1)`__
+
 Conference presentations
 ------------------------
 
