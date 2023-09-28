@@ -606,10 +606,10 @@ class ExprVisitor(VyperNodeVisitorBase):
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
 
-        if self.func.mutability is not StateMutability.PAYABLE:
+        if self.func and self.func.mutability is not StateMutability.PAYABLE:
             _validate_msg_value_access(node)
 
-        if self.func.mutability == StateMutability.PURE:
+        if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)

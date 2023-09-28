@@ -120,7 +120,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # note that we don't just copy the namespace because
         # there are constructor issues.
         _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
-        _ns._constants = self.namespace._constants
+        _ns._constants = self.namespace._constants  # type: ignore
         module_node._metadata["namespace"] = _ns
 
         self_members = namespace["self"].typ.members

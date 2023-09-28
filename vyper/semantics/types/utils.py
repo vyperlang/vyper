@@ -164,16 +164,18 @@ def derive_folded_value(node: vy_ast.VyperNode) -> Any:
         # builtins
         if isinstance(node.func, vy_ast.Name):
             call_type = DISPATCH_TABLE.get(node.func.id)
-            if hasattr(call_type, "evaluate"):
+            if call_type and hasattr(call_type, "evaluate"):
                 try:
-                    evaluated = call_type.evaluate(node)
-                    return evaluated.value
+                    return call_type.evaluate(node).value  # type: ignore
                 except (UnfoldableNode, VyperException):
                     pass
     elif isinstance(node, vy_ast.Compare):
         left = derive_folded_value(node.left)
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
+            if not isinstance(node.right, (vy_ast.List, vy_ast.Tuple)):
+                return None
+
             right = [derive_folded_value(i) for i in node.right.elements]
             if left is None or len(set([type(i) for i in right])) > 1:
                 return None
