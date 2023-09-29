@@ -124,7 +124,6 @@ def compile_codes(
             compiler_data = CompilerData(
                 source_code,
                 contract_name,
-                interfaces,
                 source_id,
                 settings,
                 storage_layout_override,
@@ -152,8 +151,8 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
+    search_paths: list[str]
     output_formats: Optional[OutputFormats] = None,
-    interface_codes: Optional[InterfaceImports] = None,
     settings: Settings = None,
     storage_layout_override: Optional[StorageLayout] = None,
     show_gas_estimates: bool = False,

@@ -19,39 +19,56 @@ class ABIInput(CompilerInput):
 
 @dataclass
 class InputBundle:
-    base_path: str
+    search_paths: list[Path]
+    compilation_targets: list[Path]
 
-    contract_sources: dict[Path, str]
-
-    def _resolve_path(self, filename) -> Path:
-        filepath = Path(filename)
-        return filepath.resolve().relative_to(self.base_path)
-
-    def load_file(self, filename: str) -> str:
-        filepath = self._resolve_path(filename)
-        return self._load_file(filename)
-
-    def _load_file(self, ) -> CompilerInput:
+    def load_file(self, relative_path: str) -> str:
         raise NotImplementedError(f"not implemented! {self.__class__}.load_file()")
 
 
-# regular input. takes a base path, and `load_file()` does what you think,
-# it reads a file from the filesystem
+# regular input. takes a search path(s), and `load_file()` will search all
+# search paths for the file and read it from the filesystem
 @dataclass
 class FilesystemInputBundle(InputBundle):
-    def _load_file(self, path: Path) -> CompilerInput:
-        with path.open() as f:
-            code = f.read()
+    def load_file(self, path: Path) -> CompilerInput:
+
+        assert len(search_paths) > 0  # at least, should contain pwd
+
+        for p in search_paths:
+            try:
+                # note from pathlib docs:
+                # > If the argument is an absolute path, the previous path is ignored.
+                # Path("/a") / Path("/b") => Path("/b")
+                to_try = p / path
+                with to_try.open() as f:
+                    code = f.read()
+                    break
+            except FileNotFoundError:
+                continue
+        else:
+            formatted_search_paths = "\n".join(["  " + str(sp) for sp in search_paths])
+            raise FileNotFoundError(
+                    f"could not find {path} within any of the following search "
+                    f"paths: {formatted_search_paths}"
+            )
+
+        return VyInput(code)
+
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
 # "reads" the file from the JSON input
 @dataclass
 class JSONInputBundle(InputBundle):
-    input_json: Any
+    input_json: dict[Path, Any]
 
     # pseudocode
     def _load_file(self, path: Path) -> CompilerInput:
-        contents = self.input_json[path]
+        try:
+            contents = self.input_json[path]
+        except KeyError:
+            # TODO double check that this is what is expected
+            raise FileNotFoundError(path)
+
         if "abi" in contents:
             return ABIInput(contents["abi"])
 

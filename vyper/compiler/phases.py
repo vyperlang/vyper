@@ -50,7 +50,6 @@ class CompilerData:
         self,
         source_code: str,
         contract_name: str = "VyperContract",
-        interface_codes: Optional[InterfaceImports] = None,
         source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -66,10 +65,6 @@ class CompilerData:
             Vyper source code.
         contract_name : str, optional
             The name of the contract being compiled.
-        interface_codes: Dict, optional
-            Interfaces that may be imported by the contracts during compilation.
-            * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-            * JSON interfaces are given as lists, vyper interfaces as strings
         source_id : int, optional
             ID number used to identify this contract in the source map.
         settings: Settings
@@ -81,7 +76,6 @@ class CompilerData:
         """
         self.contract_name = contract_name
         self.source_code = source_code
-        self.interface_codes = interface_codes
         self.source_id = source_id
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
@@ -128,12 +122,12 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
+        return generate_unfolded_ast(self.vyper_module)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.vyper_module, self.interface_codes, self.storage_layout_override
+            self.vyper_module, self.storage_layout_override
         )
 
     @property
@@ -226,21 +220,19 @@ def generate_ast(
     return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
 
 
-def generate_unfolded_ast(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
-) -> vy_ast.Module:
+# destructive -- mutates module in place!
+def generate_unfolded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
     # note: validate_semantics does type inference on the AST
-    validate_semantics(vyper_module, interface_codes)
+    validate_semantics(vyper_module)
 
     return vyper_module
 
 
 def generate_folded_ast(
     vyper_module: vy_ast.Module,
-    interface_codes: Optional[InterfaceImports],
     storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
@@ -262,7 +254,7 @@ def generate_folded_ast(
 
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
-    validate_semantics(vyper_module_folded, interface_codes)
+    validate_semantics(vyper_module_folded)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables

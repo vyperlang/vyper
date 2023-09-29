@@ -169,6 +169,9 @@ def get_evm_version(input_dict: Dict) -> Optional[str]:
 
 
 def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
+    if "compilation_targets" in input_dict:
+        pass
+
     contract_sources: ContractCodes = {}
     for path, value in input_dict["sources"].items():
         if "urls" in value:
@@ -271,7 +274,8 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
     return output_formats
 
 
-def get_interface_codes(
+# dead code
+def DEAD_get_interface_codes(
     root_path: Union[Path, None],
     contract_path: ContractPath,
     contract_sources: ContractCodes,
