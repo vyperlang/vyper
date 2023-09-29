@@ -446,7 +446,7 @@ def aILR4U1Z()->uint256:
     seed=st.integers(min_value=0, max_value=2**64 - 1),
 )
 @pytest.mark.fuzzing
-@settings(max_examples=10, deadline=None)
+@settings(max_examples=10)
 def test_sparse_jumptable_probe_depth(n_methods, seed):
     sigs = [f"foo{i + seed}()" for i in range(n_methods)]
     _, buckets = generate_sparse_jumptable_buckets(sigs)
@@ -466,7 +466,7 @@ def test_sparse_jumptable_probe_depth(n_methods, seed):
     seed=st.integers(min_value=0, max_value=2**64 - 1),
 )
 @pytest.mark.fuzzing
-@settings(max_examples=10, deadline=None)
+@settings(max_examples=10)
 def test_dense_jumptable_bucket_size(n_methods, seed):
     sigs = [f"foo{i + seed}()" for i in range(n_methods)]
     n = len(sigs)
@@ -537,7 +537,7 @@ def foo{func_id}({args}) -> uint256:
     """
 
     @given(_input=generate_methods(max_calldata_bytes))
-    @settings(max_examples=125, deadline=None)
+    @settings(max_examples=125)
     def _test(_input):
         max_default_args, default_fn_mutability, methods = _input
 

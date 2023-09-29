@@ -669,7 +669,7 @@ def test_internal_call_kwargs(get_contract, typ1, strategy1, typ2, strategy2):
     # GHSA-ph9x-4vc9-m39g
 
     @given(kwarg1=strategy1, default1=strategy1, kwarg2=strategy2, default2=strategy2)
-    @settings(deadline=None, max_examples=5)  # len(cases) * len(cases) * 5 * 5
+    @settings(max_examples=5)  # len(cases) * len(cases) * 5 * 5
     def fuzz(kwarg1, kwarg2, default1, default2):
         code = f"""
 @internal
