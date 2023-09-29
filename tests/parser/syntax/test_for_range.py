@@ -55,6 +55,13 @@ def foo():
         pass
     """,
     """
+@external
+def foo():
+    x: int128 = 5
+    for i in range(x, x + 10):
+        pass
+    """,
+    """
 interface Foo:
     def kick(): nonpayable
 foos: Foo[3]
