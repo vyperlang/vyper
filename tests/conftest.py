@@ -24,6 +24,11 @@ pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 ############
 
 
+# disable hypothesis deadline globally
+hypothesis.settings.register_profile("ci", deadline=None)
+hypothesis.settings.load_profile("ci")
+
+
 def set_evm_verbose_logging():
     logger = logging.getLogger("eth.vm.computation.Computation")
     setup_DEBUG2_logging()
@@ -45,9 +50,6 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-
-
-hypothesis.settings.default.deadline = None
 
 
 @pytest.fixture(scope="module")
