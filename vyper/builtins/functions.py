@@ -2034,26 +2034,20 @@ class _MinMax(BuiltinFunction):
         return type(node.args[0]).from_node(node, value=value)
 
     def fetch_call_return(self, node):
-        return_type = self.infer_arg_types(node).pop()
-        return return_type
-
-    def get_possible_types_from_node(self, node):
         self._validate_arg_types(node)
         types_list = get_common_types(
             *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
         )
         if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
-        return types_list
+        return types_list        
 
-    def infer_arg_types(self, node, propagated_typ=None):
-        types_list = self.get_possible_types_from_node(node)
+    def infer_arg_types(self, node, typ=None):
+        assert typ is not None
+        types_list = self.fetch_call_return(node)
 
-        if propagated_typ and propagated_typ in types_list:
-            type_ = propagated_typ
-        else:
-            type_ = types_list.pop()
-        return [type_, type_]
+        assert typ in types_list
+        return [typ, typ]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
