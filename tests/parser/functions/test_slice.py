@@ -146,12 +146,11 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     if (
         (start + length > data_length and literal_start and literal_length)
         or (literal_length and length > data_length)
-        or (location == "literal" and len(bytesdata) > length_bound)
         or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
         assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
-    elif len(bytesdata) > data_length:
+    elif len(bytesdata) > data_length or (location == "literal" and len(bytesdata) > length_bound):
         # deploy fail
         assert_tx_failed(lambda: _get_contract())
     elif start + length > len(bytesdata):
