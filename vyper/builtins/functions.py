@@ -82,7 +82,7 @@ from vyper.semantics.types.shortcuts import (
     UINT8_T,
     UINT256_T,
 )
-from vyper.semantics.types.utils import derive_folded_value, type_from_annotation
+from vyper.semantics.types.utils import prefold, type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
@@ -1077,8 +1077,8 @@ class RawCall(BuiltinFunction):
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
-        outsize = derive_folded_value(kwargz.get("max_outsize"))
-        revert_on_failure = derive_folded_value(kwargz.get("revert_on_failure"))
+        outsize = prefold(kwargz.get("max_outsize"))
+        revert_on_failure = prefold(kwargz.get("revert_on_failure"))
         revert_on_failure = revert_on_failure if revert_on_failure is not None else True
 
         if outsize is None or outsize == 0:
@@ -2040,7 +2040,7 @@ class _MinMax(BuiltinFunction):
         )
         if not types_list:
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
-        return types_list        
+        return types_list
 
     def infer_arg_types(self, node, typ=None):
         assert typ is not None

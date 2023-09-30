@@ -135,29 +135,29 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def derive_folded_value(node: vy_ast.VyperNode) -> Any:
+def prefold(node: vy_ast.VyperNode) -> Any:
     if isinstance(node, vy_ast.Attribute):
-        val = derive_folded_value(node.value)
+        val = prefold(node.value)
         # constant struct members
         if isinstance(val, dict):
             return val[node.attr]
         return None
     elif isinstance(node, vy_ast.BinOp):
         assert isinstance(node, vy_ast.BinOp)
-        left = derive_folded_value(node.left)
-        right = derive_folded_value(node.right)
+        left = prefold(node.left)
+        right = prefold(node.right)
         if not (isinstance(left, type(right)) and isinstance(left, (int, Decimal))):
             return None
         return node.op._op(left, right)
     elif isinstance(node, vy_ast.BoolOp):
-        values = [derive_folded_value(i) for i in node.values]
+        values = [prefold(i) for i in node.values]
         if not all(isinstance(v, bool) for v in values):
             return None
         return node.op._op(values)
     elif isinstance(node, vy_ast.Call):
         # constant structs
         if len(node.args) == 1 and isinstance(node.args[0], vy_ast.Dict):
-            return derive_folded_value(node.args[0])
+            return prefold(node.args[0])
 
         from vyper.builtins.functions import DISPATCH_TABLE
 
@@ -170,30 +170,30 @@ def derive_folded_value(node: vy_ast.VyperNode) -> Any:
                 except (UnfoldableNode, VyperException):
                     pass
     elif isinstance(node, vy_ast.Compare):
-        left = derive_folded_value(node.left)
+        left = prefold(node.left)
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if not isinstance(node.right, (vy_ast.List, vy_ast.Tuple)):
                 return None
 
-            right = [derive_folded_value(i) for i in node.right.elements]
+            right = [prefold(i) for i in node.right.elements]
             if left is None or len(set([type(i) for i in right])) > 1:
                 return None
             return node.op._op(left, right)
 
-        right = derive_folded_value(node.right)
+        right = prefold(node.right)
         if not (isinstance(left, type(right)) and isinstance(left, (int, Decimal))):
             return None
         return node.op._op(left, right)
     elif isinstance(node, vy_ast.Constant):
         return node.value
     elif isinstance(node, vy_ast.Dict):
-        values = [derive_folded_value(v) for v in node.values]
+        values = [prefold(v) for v in node.values]
         if any(v is None for v in values):
             return None
         return {k.id: v for (k, v) in zip(node.keys, values)}
     elif isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        val = [derive_folded_value(e) for e in node.elements]
+        val = [prefold(e) for e in node.elements]
         if None in val:
             return None
         return val
@@ -201,7 +201,7 @@ def derive_folded_value(node: vy_ast.VyperNode) -> Any:
         ns = get_namespace()
         return ns._constants.get(node.id, None)
     elif isinstance(node, vy_ast.UnaryOp):
-        operand = derive_folded_value(node.operand)
+        operand = prefold(node.operand)
         if not isinstance(operand, int):
             return None
         return node.op._op(operand)
@@ -228,7 +228,7 @@ def get_index_value(node: vy_ast.Index, constants: dict) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    val = derive_folded_value(node.value)
+    val = prefold(node.value)
 
     if not isinstance(val, int):
         if hasattr(node, "value"):

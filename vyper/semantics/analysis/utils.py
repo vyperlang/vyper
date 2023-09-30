@@ -24,7 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.semantics.types.utils import derive_folded_value
+from vyper.semantics.types.utils import prefold
 from vyper.utils import checksum_encode, int_to_fourbytes
 
 
@@ -644,7 +644,7 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if derive_folded_value(node) is not None:
+    if prefold(node) is not None:
         return True
     if isinstance(node, vy_ast.Call):
         call_type = get_exact_type_from_node(node.func)

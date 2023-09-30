@@ -28,7 +28,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.utils import derive_folded_value, type_from_annotation
+from vyper.semantics.types.utils import prefold, type_from_annotation
 from vyper.typing import InterfaceDict
 
 
@@ -80,7 +80,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if c.value is None:
                     continue
 
-                val = derive_folded_value(c.value)
+                val = prefold(c.value)
                 self.namespace.add_constant(name, val)
 
                 if val is not None:

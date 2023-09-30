@@ -8,7 +8,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.utils import derive_folded_value, get_index_value, type_from_annotation
+from vyper.semantics.types.utils import get_index_value, prefold, type_from_annotation
 
 
 class _SubscriptableT(VyperType):
@@ -287,7 +287,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        max_length = derive_folded_value(node.slice.value.elements[1])
+        max_length = prefold(node.slice.value.elements[1])
         if not max_length or not isinstance(max_length, int):
             raise StructureException(
                 "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
