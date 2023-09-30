@@ -377,7 +377,11 @@ class Slice(BuiltinFunction):
 
             # Get returntype string or bytes
             dst_typ = expr._metadata.get("type")
-            assert isinstance(dst_typ, _BytestringT) or is_bytes32
+            assert isinstance(dst_typ, _BytestringT)
+
+            # set the length of the return type if it was not defined in annotation
+            if dst_typ.length == 0:
+                dst_typ.set_length(dst_maxlen)
 
             # allocate a buffer for the return value
             buf = context.new_internal_variable(BytesT(buflen))
