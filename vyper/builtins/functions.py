@@ -1062,6 +1062,7 @@ class RawCall(BuiltinFunction):
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
+        "revert_on_excess": KwargSettings(BoolT(), False, require_literal=True),
     }
     _return_type = None
 
@@ -1100,13 +1101,14 @@ class RawCall(BuiltinFunction):
     def build_IR(self, expr, args, kwargs, context):
         to, data = args
         # TODO: must compile in source code order, left-to-right
-        gas, value, outsize, delegate_call, static_call, revert_on_failure = (
+        gas, value, outsize, delegate_call, static_call, revert_on_failure, revert_on_excess = (
             kwargs["gas"],
             kwargs["value"],
             kwargs["max_outsize"],
             kwargs["is_delegate_call"],
             kwargs["is_static_call"],
             kwargs["revert_on_failure"],
+            kwargs["revert_on_excess"],
         )
 
         if delegate_call and static_call:
@@ -1169,11 +1171,23 @@ class RawCall(BuiltinFunction):
 
         # build sequence IR
         if outsize:
+
             # return minimum of outsize and returndatasize
             size = ["select", ["lt", outsize, "returndatasize"], outsize, "returndatasize"]
 
             # store output size and return output location
-            store_output_size = ["seq", ["mstore", output_node, size], output_node]
+            store_output_size = ["seq"]
+            # assert that returndatasize doesn't exceed allocated space in receiving var
+            if revert_on_excess:
+                store_output_size.append(
+                    IRnode.from_list(
+                        ["assert", ["le", "returndatasize", outsize]],
+                        error_msg="returndatasize larger than receiving variable",
+                    )
+                )
+                size = "returndatasize"
+            store_output_size.append(["mstore", output_node, size])
+            store_output_size.append(output_node)
 
             bytes_ty = BytesT(outsize)
 
