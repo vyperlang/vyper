@@ -409,7 +409,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 else:
                     # range(CONSTANT, CONSTANT)
                     arg1_val = prefold(args[1])
-                    if not arg1_val:
+                    if arg1_val is None:
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
                     if arg0_val >= arg1_val:
