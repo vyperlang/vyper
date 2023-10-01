@@ -690,13 +690,13 @@ def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
                 initial_src_offset = src_offset
                 idx = i
 
-            if not allow_overlap and initial_dst_offset <= initial_src_offset <= dst_offset:
-                # dst and src overlap, discontinue the optimization
-                continue
+            # dst and src overlap, discontinue the optimization
+            has_overlap = initial_src_offset <= initial_dst_offset <= src_offset
 
             if (
                 initial_dst_offset + total_length == dst_offset
                 and initial_src_offset + total_length == src_offset
+                and (allow_overlap or not has_overlap)
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
