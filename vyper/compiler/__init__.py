@@ -130,20 +130,18 @@ def compile_codes(
             show_gas_estimates,
             no_bytecode_metadata,
         )
-        _ = compiler_data._generate_ast
-        with anchor_evm_version(compiler_data.settings.evm_version):
-            for output_format in output_formats[contract_name]:
-                if output_format not in OUTPUT_FORMATS:
-                    raise ValueError(f"Unsupported format type {repr(output_format)}")
-                try:
-                    out.setdefault(contract_name, {})
-                    formatter = OUTPUT_FORMATS[output_format]
-                    out[contract_name][output_format] = formatter(compiler_data)
-                except Exception as exc:
-                    if exc_handler is not None:
-                        exc_handler(contract_name, exc)
-                    else:
-                        raise exc
+        for output_format in output_formats[contract_name]:
+            if output_format not in OUTPUT_FORMATS:
+                raise ValueError(f"Unsupported format type {repr(output_format)}")
+            try:
+                out.setdefault(contract_name, {})
+                formatter = OUTPUT_FORMATS[output_format]
+                out[contract_name][output_format] = formatter(compiler_data)
+            except Exception as exc:
+                if exc_handler is not None:
+                    exc_handler(contract_name, exc)
+                else:
+                    raise exc
 
     return out
 
