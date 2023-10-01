@@ -134,6 +134,8 @@ class IRInstruction:
             "mload",
             "calldatacopy",
             "codecopy",
+            "dloadbytes",
+            "dload",
         ]
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
         self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None

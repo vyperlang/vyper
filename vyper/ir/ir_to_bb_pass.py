@@ -16,7 +16,7 @@ from vyper.evm.opcodes import get_opcodes
 from vyper.ir.bb_optimizer import optimize_function
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, MemoryPositions
 
 BINARY_IR_INSTRUCTIONS = [
     "eq",
@@ -544,16 +544,23 @@ def _convert_ir_basicblock(
 
     elif ir.value == "dload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        return ctx.append_instruction("calldataload", [arg_0])
+        src = ctx.append_instruction("add", [arg_0, IRLabel("code_end")])
+
+        ctx.append_instruction(
+            "dloadbytes", [IRLiteral(32), src, IRLiteral(MemoryPositions.FREE_VAR_SPACE)], False
+        )
+        return ctx.append_instruction("mload", [IRLiteral(MemoryPositions.FREE_VAR_SPACE)])
     elif ir.value == "dloadbytes":
-        src = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        dst = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
+        dst = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
+        src_offset = _convert_ir_basicblock(
+            ctx, ir.args[1], symbols, variables, allocated_variables
+        )
         len_ = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
 
-        ret = ctx.get_next_variable()
-        inst = IRInstruction("codecopy", [len_, src, dst], ret)
-        ctx.get_basic_block().append_instruction(inst)
-        return ret
+        src = ctx.append_instruction("add", [src_offset, IRLabel("code_end")])
+
+        inst = IRInstruction("dloadbytes", [len_, src, dst])
+        return ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "mload":
         sym_ir = ir.args[0]
         var = _get_variable_from_address(variables, sym_ir.value) if sym_ir.is_literal else None

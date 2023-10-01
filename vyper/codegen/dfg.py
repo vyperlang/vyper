@@ -303,7 +303,7 @@ def _generate_evm_for_instruction_r(
         pass
     elif opcode == "dbname":
         pass
-    elif opcode == "codecopy":
+    elif opcode in ["codecopy", "dloadbytes"]:
         assembly.append("CODECOPY")
     elif opcode == "jnz":
         assembly.append(f"_sym_{inst.operands[1].value}")
