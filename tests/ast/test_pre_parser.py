@@ -132,7 +132,7 @@ pragma_examples = [
     #pragma optimize codesize
     #pragma evm-version shanghai
     """,
-        Settings(evm_version="shanghai", optimize=OptimizationLevel.GAS),
+        Settings(evm_version="shanghai", optimize=OptimizationLevel.CODESIZE),
     ),
     (
         """
@@ -160,6 +160,7 @@ pragma_examples = [
 
 
 @pytest.mark.parametrize("code, expected_pragmas", pragma_examples)
-def parse_pragmas(code, expected_pragmas):
+def test_parse_pragmas(code, expected_pragmas, mock_version):
+    mock_version("0.3.10")
     pragmas, _, _ = pre_parse(code)
     assert pragmas == expected_pragmas

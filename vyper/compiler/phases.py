@@ -91,6 +91,7 @@ class CompilerData:
     @cached_property
     def _generate_ast(self):
         settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
         if settings.evm_version is not None:
