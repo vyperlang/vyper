@@ -691,8 +691,8 @@ def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
                 idx = i
 
             if not allow_overlap and initial_dst_offset <= initial_src_offset <= dst_offset:
-                # dst and src overlap, block the optimization
-                break
+                # dst and src overlap, discontinue the optimization
+                continue
 
             if (
                 initial_dst_offset + total_length == dst_offset
