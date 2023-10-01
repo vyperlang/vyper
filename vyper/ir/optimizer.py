@@ -662,10 +662,10 @@ def _rewrite_mstore_dload(argz):
 def _merge_mload(argz):
     if not version_check(begin="cancun"):
         return False
-    return _merge_load(argz, "mload", "mcopy")
+    return _merge_load(argz, "mload", "mcopy", allow_overlap=False)
 
 
-def _merge_load(argz, _LOAD, _COPY):
+def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
     # look for sequential operations copying from X to Y
     # and merge them into a single copy operation
     changed = False
@@ -689,6 +689,11 @@ def _merge_load(argz, _LOAD, _COPY):
                 initial_dst_offset = dst_offset
                 initial_src_offset = src_offset
                 idx = i
+
+            if not allow_overlap and initial_dst_offset <= initial_src_offset <= dst_offset:
+                # dst and src overlap, block the optimization
+                break
+
             if (
                 initial_dst_offset + total_length == dst_offset
                 and initial_src_offset + total_length == src_offset
