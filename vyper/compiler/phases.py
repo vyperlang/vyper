@@ -1,5 +1,4 @@
 import copy
-import functools
 import warnings
 from functools import cached_property
 from typing import Optional, Tuple
@@ -10,21 +9,11 @@ from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.opcodes import anchor_evm_version
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
-
-
-def _evm_wrapper(fn):
-    @functools.wraps(fn)
-    def inner(self, *args, **kwargs):
-        with anchor_evm_version(self.settings.evm_version):
-            return fn(self, *args, **kwargs)
-
-    return inner
 
 
 class CompilerData:
@@ -138,7 +127,6 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
-    @_evm_wrapper
     def vyper_module_unfolded(self) -> vy_ast.Module:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
@@ -146,49 +134,41 @@ class CompilerData:
         return generate_unfolded_ast(self.vyper_module, self.interface_codes)
 
     @cached_property
-    @_evm_wrapper
     def _folded_module(self):
         return generate_folded_ast(
             self.vyper_module, self.interface_codes, self.storage_layout_override
         )
 
     @property
-    @_evm_wrapper
     def vyper_module_folded(self) -> vy_ast.Module:
         module, storage_layout = self._folded_module
         return module
 
     @property
-    @_evm_wrapper
     def storage_layout(self) -> StorageLayout:
         module, storage_layout = self._folded_module
         return storage_layout
 
     @property
-    @_evm_wrapper
     def global_ctx(self) -> GlobalContext:
         return GlobalContext(self.vyper_module_folded)
 
     @cached_property
-    @_evm_wrapper
     def _ir_output(self):
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
-    @_evm_wrapper
     def ir_nodes(self) -> IRnode:
         ir, ir_runtime = self._ir_output
         return ir
 
     @property
-    @_evm_wrapper
     def ir_runtime(self) -> IRnode:
         ir, ir_runtime = self._ir_output
         return ir_runtime
 
     @property
-    @_evm_wrapper
     def function_signatures(self) -> dict[str, ContractFunctionT]:
         # some metadata gets calculated during codegen, so
         # ensure codegen is run:
@@ -198,28 +178,23 @@ class CompilerData:
         return {f.name: f._metadata["type"] for f in fs}
 
     @cached_property
-    @_evm_wrapper
     def assembly(self) -> list:
         return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
-    @_evm_wrapper
     def assembly_runtime(self) -> list:
         return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
-    @_evm_wrapper
     def bytecode(self) -> bytes:
         insert_compiler_metadata = not self.no_bytecode_metadata
         return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
 
     @cached_property
-    @_evm_wrapper
     def bytecode_runtime(self) -> bytes:
         return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
 
     @cached_property
-    @_evm_wrapper
     def blueprint_bytecode(self) -> bytes:
         blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
         blueprint_bytecode = blueprint_preamble + self.bytecode
