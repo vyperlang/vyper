@@ -3,7 +3,7 @@ import pytest
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import VersionException
+from vyper.exceptions import StructureException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
 COMPILER_VERSION = "0.1.1"
@@ -185,3 +185,39 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
         compiler_data_settings = pre_parse_settings
 
     assert compiler_data.settings == compiler_data_settings
+
+
+invalid_pragmas = [
+    # evm-versionnn
+    """
+# pragma evm-versionnn cancun
+    """,
+    # bad fork name
+    """
+# pragma evm-version cancunn
+    """,
+    # oppptimize
+    """
+# pragma oppptimize codesize
+    """,
+    # ggas
+    """
+# pragma optimize ggas
+    """,
+    # double specified
+    """
+# pragma optimize gas
+# pragma optimize codesize
+    """,
+    # double specified
+    """
+# pragma evm-version cancun
+# pragma evm-version shanghai
+    """,
+]
+
+
+@pytest.mark.parametrize("code", invalid_pragmas)
+def test_invalid_pragma(code):
+    with pytest.raises(StructureException):
+        pre_parse(code)
