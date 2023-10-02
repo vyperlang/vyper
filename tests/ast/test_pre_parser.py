@@ -1,8 +1,8 @@
 import pytest
 
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
-from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
