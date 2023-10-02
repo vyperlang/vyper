@@ -1,8 +1,12 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.opcodes import EVM_VERSIONS, anchor_evm_version
 from vyper.exceptions import StaticAssertionException
 from vyper.ir import optimizer
+
+POST_CANCUN = {k: v for k, v in EVM_VERSIONS.items() if v >= EVM_VERSIONS["cancun"]}
+
 
 optimize_list = [
     (["eq", 1, 2], [0]),
@@ -272,3 +276,56 @@ def test_operator_set_values():
     assert optimizer.COMPARISON_OPS == {"lt", "gt", "le", "ge", "slt", "sgt", "sle", "sge"}
     assert optimizer.STRICT_COMPARISON_OPS == {"lt", "gt", "slt", "sgt"}
     assert optimizer.UNSTRICT_COMPARISON_OPS == {"le", "ge", "sle", "sge"}
+
+
+mload_merge_list = [
+    # no overlap between src and dst buffers, must become mcopy
+    (
+        ["seq", ["mstore", 32, ["mload", 128]], ["mstore", 64, ["mload", 160]]],
+        ["mcopy", 32, 128, 64],
+    ),
+    # full overlap (i.e. a no-op mcopy)
+    (["seq", ["mstore", 32, ["mload", 32]], ["mstore", 64, ["mload", 64]]], ["mcopy", 32, 32, 64]),
+    # copy "forwards", must NOT become mcopy
+    (["seq", ["mstore", 64, ["mload", 32]], ["mstore", 96, ["mload", 64]]], None),
+    # copy with overlap "backwards", OK to become mcopy
+    (["seq", ["mstore", 32, ["mload", 64]], ["mstore", 64, ["mload", 96]]], ["mcopy", 32, 64, 64]),
+    # copy 3 words with partial overlap "forwards", partially becomes mcopy
+    # (2 words are mcopied and 1 word is mload/mstored
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 32]],
+            ["mstore", 128, ["mload", 64]],
+            ["mstore", 160, ["mload", 96]],
+        ],
+        ["seq", ["mcopy", 96, 32, 64], ["mstore", 160, ["mload", 96]]],
+    ),
+    # copy 4 words with partial overlap "forwards", becomes 2 mcopies of 2 words each
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 32]],
+            ["mstore", 128, ["mload", 64]],
+            ["mstore", 160, ["mload", 96]],
+            ["mstore", 192, ["mload", 128]],
+        ],
+        ["seq", ["mcopy", 96, 32, 64], ["mcopy", 160, 96, 64]],
+    ),
+    # check overlap by one byte, should NOT become mcopy
+    (["seq", ["mstore", 63, ["mload", 0]], ["mstore", 95, ["mload", 32]]], None),
+]
+
+
+@pytest.mark.parametrize("ir", mload_merge_list)
+@pytest.mark.parametrize("evm_version", list(POST_CANCUN.keys()))
+def test_mload_merge(ir, evm_version):
+    with anchor_evm_version(evm_version):
+        optimized = optimizer.optimize(IRnode.from_list(ir[0]))
+        if ir[1] is None:
+            # no-op, assert optimizer does nothing
+            expected = IRnode.from_list(ir[0])
+        else:
+            expected = IRnode.from_list(ir[1])
+
+        assert optimized == expected
