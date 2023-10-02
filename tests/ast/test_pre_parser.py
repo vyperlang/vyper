@@ -2,6 +2,7 @@ import pytest
 
 from vyper.ast.pre_parser import pre_parse, validate_version_pragma
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.phases import CompilerData
 from vyper.exceptions import VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
@@ -96,36 +97,42 @@ pragma_examples = [
         """
     """,
         Settings(),
+        Settings(optimize=OptimizationLevel.GAS),
     ),
     (
         """
     #pragma optimize codesize
     """,
         Settings(optimize=OptimizationLevel.CODESIZE),
+        None,
     ),
     (
         """
     #pragma optimize none
     """,
         Settings(optimize=OptimizationLevel.NONE),
+        None,
     ),
     (
         """
     #pragma optimize gas
     """,
         Settings(optimize=OptimizationLevel.GAS),
+        None,
     ),
     (
         """
     #pragma version 0.3.10
     """,
         Settings(compiler_version="0.3.10"),
+        Settings(optimize=OptimizationLevel.GAS),
     ),
     (
         """
     #pragma evm-version shanghai
     """,
         Settings(evm_version="shanghai"),
+        Settings(evm_version="shanghai", optimize=OptimizationLevel.GAS),
     ),
     (
         """
@@ -133,6 +140,7 @@ pragma_examples = [
     #pragma evm-version shanghai
     """,
         Settings(evm_version="shanghai", optimize=OptimizationLevel.CODESIZE),
+        None,
     ),
     (
         """
@@ -140,6 +148,7 @@ pragma_examples = [
     #pragma evm-version shanghai
     """,
         Settings(evm_version="shanghai", compiler_version="0.3.10"),
+        Settings(evm_version="shanghai", optimize=OptimizationLevel.GAS),
     ),
     (
         """
@@ -147,6 +156,7 @@ pragma_examples = [
     #pragma optimize gas
     """,
         Settings(compiler_version="0.3.10", optimize=OptimizationLevel.GAS),
+        Settings(optimize=OptimizationLevel.GAS),
     ),
     (
         """
@@ -155,12 +165,23 @@ pragma_examples = [
     #pragma optimize gas
     """,
         Settings(compiler_version="0.3.10", optimize=OptimizationLevel.GAS, evm_version="shanghai"),
+        Settings(optimize=OptimizationLevel.GAS, evm_version="shanghai"),
     ),
 ]
 
 
-@pytest.mark.parametrize("code, expected_pragmas", pragma_examples)
-def test_parse_pragmas(code, expected_pragmas, mock_version):
+@pytest.mark.parametrize("code, pre_parse_settings, compiler_data_settings", pragma_examples)
+def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_version):
     mock_version("0.3.10")
-    pragmas, _, _ = pre_parse(code)
-    assert pragmas == expected_pragmas
+    settings, _, _ = pre_parse(code)
+
+    assert settings == pre_parse_settings
+
+    compiler_data = CompilerData(code)
+
+    # check what happens after CompilerData constructor
+    if compiler_data_settings is None:
+        # None is sentinel here meaning that nothing changed
+        compiler_data_settings = pre_parse_settings
+
+    assert compiler_data.settings == compiler_data_settings
