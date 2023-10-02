@@ -279,17 +279,24 @@ def test_operator_set_values():
 
 
 mload_merge_list = [
-    # no overlap between src and dst buffers, must become mcopy
+    # copy "backward" with no overlap between src and dst buffers,
+    # OK to become mcopy
     (
         ["seq", ["mstore", 32, ["mload", 128]], ["mstore", 64, ["mload", 160]]],
         ["mcopy", 32, 128, 64],
     ),
-    # full overlap (i.e. a no-op mcopy)
-    (["seq", ["mstore", 32, ["mload", 32]], ["mstore", 64, ["mload", 64]]], ["mcopy", 32, 32, 64]),
-    # copy "forwards", must NOT become mcopy
-    (["seq", ["mstore", 64, ["mload", 32]], ["mstore", 96, ["mload", 64]]], None),
     # copy with overlap "backwards", OK to become mcopy
     (["seq", ["mstore", 32, ["mload", 64]], ["mstore", 64, ["mload", 96]]], ["mcopy", 32, 64, 64]),
+    # "stationary" overlap (i.e. a no-op mcopy), OK to become mcopy
+    (["seq", ["mstore", 32, ["mload", 32]], ["mstore", 64, ["mload", 64]]], ["mcopy", 32, 32, 64]),
+    # copy "forward" with no overlap, OK to become mcopy
+    (["seq", ["mstore", 64, ["mload", 0]], ["mstore", 96, ["mload", 32]]], ["mcopy", 64, 0, 64]),
+    # copy "forwards" with overlap by one word, must NOT become mcopy
+    (["seq", ["mstore", 64, ["mload", 32]], ["mstore", 96, ["mload", 64]]], None),
+    # check "forward" overlap by one byte, must NOT become mcopy
+    (["seq", ["mstore", 64, ["mload", 1]], ["mstore", 96, ["mload", 33]]], None),
+    # check "forward" overlap by one byte again, must NOT become mcopy
+    (["seq", ["mstore", 63, ["mload", 0]], ["mstore", 95, ["mload", 32]]], None),
     # copy 3 words with partial overlap "forwards", partially becomes mcopy
     # (2 words are mcopied and 1 word is mload/mstored
     (
@@ -312,8 +319,17 @@ mload_merge_list = [
         ],
         ["seq", ["mcopy", 96, 32, 64], ["mcopy", 160, 96, 64]],
     ),
-    # check overlap by one byte, should NOT become mcopy
-    (["seq", ["mstore", 63, ["mload", 0]], ["mstore", 95, ["mload", 32]]], None),
+    # copy 4 words with 1 byte of overlap, must NOT become mcopy
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 33]],
+            ["mstore", 128, ["mload", 65]],
+            ["mstore", 160, ["mload", 97]],
+            ["mstore", 192, ["mload", 129]],
+        ],
+        None,
+    ),
 ]
 
 
