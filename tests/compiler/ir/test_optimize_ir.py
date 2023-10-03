@@ -330,6 +330,59 @@ mload_merge_list = [
         ],
         None,
     ),
+    # Ensure only sequential mstore + mload sequences are optimized
+    (
+        [
+            "seq",
+            ["mstore", 0, ["mload", 32]],
+            ["shr", 224, ["calldataload", 0]],
+            ["mstore", 32, ["mload", 64]]
+        ],
+        None
+    ),
+    # not-word aligned optimizations (not overlap)
+    (
+        [
+            "seq",
+            ["mstore", 0, ["mload", 1]],
+            ["mstore", 32, ["mload", 33]]
+        ],
+        ["mcopy", 0, 1, 64]
+    ),
+    # not-word aligned optimizations (overlap)
+    (
+        [
+            "seq",
+            ["mstore", 1, ["mload", 0]],
+            ["mstore", 33, ["mload", 32]]
+        ],
+        None
+    ),
+    # not-word aligned optimizations (overlap and not-overlap)
+    (
+        [
+            "seq",
+            ["mstore", 0, ["mload", 1]],
+            ["mstore", 32, ["mload", 33]],
+            ["mstore", 1, ["mload", 0]],
+            ["mstore", 33, ["mload", 32]]
+        ],
+        [
+            "seq",
+            ["mcopy", 0, 1, 64],
+            ["mstore", 1, ["mload", 0]],
+            ["mstore", 33, ["mload", 32]]
+        ]
+    ),
+    # overflow test
+    (
+        [
+            "seq",
+            ["mstore", 115792089237316195423570985008687907853269984665640564039457584007913129639872, ["mload", 0]], # 2**256-1-31-32
+            ["mstore", 115792089237316195423570985008687907853269984665640564039457584007913129639904, ["mload", 32]] # 2**256-1-31
+        ],
+        ["mcopy", 115792089237316195423570985008687907853269984665640564039457584007913129639872, 0, 64]
+    )
 ]
 
 
