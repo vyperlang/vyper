@@ -785,7 +785,7 @@ def _convert_ir_basicblock(
             _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
             for arg in ir.args
         ]
-        inst = IRInstruction(ir.value, args)
+        inst = IRInstruction(ir.value, args[::-1])
         ctx.get_basic_block().append_instruction(inst)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols, variables, allocated_variables)
