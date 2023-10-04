@@ -1,6 +1,6 @@
 from typing import List
 
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, MemoryAllocationException
 from vyper.utils import MemoryPositions
 
 
@@ -110,6 +110,13 @@ class MemoryAllocator:
         before_value = self.next_mem
         self.next_mem += size
         self.size_of_mem = max(self.size_of_mem, self.next_mem)
+
+        if self.size_of_mem >= 2**64:
+            # this should not be caught
+            raise MemoryAllocationException(
+                "Tried to allocate {self.size_of_mem} bytes! (limit is 2**32 bytes)"
+            )
+
         return before_value
 
     def deallocate_memory(self, pos: int, size: int) -> None:
