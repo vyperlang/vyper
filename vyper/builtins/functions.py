@@ -333,6 +333,8 @@ class Slice(BuiltinFunction):
         # we know the length statically
         if length_literal is not None:
             return_type.set_length(length_literal)
+        else:
+            return_type.set_min_length(arg_type.length)
 
         return return_type
 
@@ -376,8 +378,12 @@ class Slice(BuiltinFunction):
                 buflen += 32
 
             # Get returntype string or bytes
-            dst_typ = expr._metadata.get("type")
-            assert isinstance(dst_typ, _BytestringT) or is_bytes32
+            assert isinstance(src.typ, _BytestringT) or is_bytes32
+            # TODO: try to get dst_typ from semantic analysis
+            if isinstance(src.typ, StringT):
+                dst_typ = StringT(dst_maxlen)
+            else:
+                dst_typ = BytesT(dst_maxlen)
 
             # allocate a buffer for the return value
             buf = context.new_internal_variable(BytesT(buflen))
