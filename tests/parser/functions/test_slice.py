@@ -152,7 +152,11 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     if (
         (start + length > data_length and literal_start and literal_length)
         or (literal_length and length > data_length)
-        or (location == "literal" and len(bytesdata) > length_bound and not literal_length)
+        or (
+            location == "literal"
+            and len(bytesdata) > length_bound
+            and ((literal_length and length > length_bound) or (not literal_length))
+        )
         or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
