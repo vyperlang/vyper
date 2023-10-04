@@ -117,7 +117,7 @@ class MemoryAllocator:
             # this should not be caught
             raise MemoryAllocationException(
                 f"Tried to allocate {self.size_of_mem} bytes! "
-                f"(limit is 2**64 bytes)"
+                f"(limit is {self._ALLOCATION_LIMIT} (2**64) bytes)"
             )
 
         return before_value
