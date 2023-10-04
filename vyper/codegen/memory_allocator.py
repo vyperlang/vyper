@@ -46,6 +46,8 @@ class MemoryAllocator:
 
     next_mem: int
 
+    _ALLOCATION_LIMIT: int = 2**64
+
     def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
         """
         Initializer.
@@ -111,10 +113,11 @@ class MemoryAllocator:
         self.next_mem += size
         self.size_of_mem = max(self.size_of_mem, self.next_mem)
 
-        if self.size_of_mem >= 2**64:
+        if self.size_of_mem >= self._ALLOCATION_LIMIT:
             # this should not be caught
             raise MemoryAllocationException(
-                "Tried to allocate {self.size_of_mem} bytes! (limit is 2**32 bytes)"
+                f"Tried to allocate {self.size_of_mem} bytes! "
+                f"(limit is 2**64 bytes)"
             )
 
         return before_value
