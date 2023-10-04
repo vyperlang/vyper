@@ -105,13 +105,23 @@ def test_slice_bytes(
     literal_length,
     length_bound,
 ):
+    preamble = ""
     if location == "memory":
         spliced_code = f"foo: Bytes[{length_bound}] = inp"
         foo = "foo"
     elif location == "storage":
+        preamble = f"""
+foo: Bytes[{length_bound}]
+        """
         spliced_code = "self.foo = inp"
         foo = "self.foo"
     elif location == "code":
+        preamble = f"""
+IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
+@external
+def __init__(foo: Bytes[{length_bound}]):
+    IMMUTABLE_BYTES = foo
+    """
         spliced_code = ""
         foo = "IMMUTABLE_BYTES"
     elif location == "literal":
@@ -127,11 +137,7 @@ def test_slice_bytes(
     _length = length if literal_length else "length"
 
     code = f"""
-foo: Bytes[{length_bound}]
-IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
-@external
-def __init__(foo: Bytes[{length_bound}]):
-    IMMUTABLE_BYTES = foo
+{preamble}
 
 @external
 def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Bytes[{length_bound}]:
@@ -146,15 +152,15 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     if (
         (start + length > data_length and literal_start and literal_length)
         or (literal_length and length > data_length)
-        or (location == "literal" and len(bytesdata) > length_bound)
+        or (location == "literal" and len(bytesdata) > length_bound and not literal_length)
         or (literal_start and start > data_length)
         or (literal_length and length < 1)
     ):
         assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
-    elif len(bytesdata) > data_length:
+    elif location in "code" and len(bytesdata) > data_length:
         # deploy fail
         assert_tx_failed(lambda: _get_contract())
-    elif start + length > len(bytesdata):
+    elif start + length > len(bytesdata) or len(bytesdata) > length_bound:
         c = _get_contract()
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
     else:
