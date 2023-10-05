@@ -25,6 +25,10 @@ As of 0.3.10, the recommended way to specify the version pragma is as follows:
 
     #pragma version ^0.3.0
 
+.. note::
+
+    Both pragma directive versions ``#pragma`` and ``# pragma`` are supported.
+
 The following declaration is equivalent, and, prior to 0.3.10, was the only supported method to specify the compiler version:
 
 .. code-block:: python
