@@ -37,7 +37,8 @@ Projects using Vyper
 - `Yearn <https://github.com/yearn/yearn-vaults>`__
 - `Lido <https://github.com/lidofinance/gate-seals>`__
 - `Ethereum <https://github.com/ethereum/sharding>`__
-- `Uniswao <https://github.com/Uniswap/v1-contracts> (v1)`__
+- `Uniswap <https://github.com/Uniswap/v1-contracts> (v1)`__
+- `Cog Finance <https://github.com/CogFinance/Cog-Isolated-Lending>`
 
 Conference presentations
 ------------------------
