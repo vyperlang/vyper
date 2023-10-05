@@ -214,7 +214,6 @@ def mint(receiver: address, id: uint256, amount:uint256):
     @param receiver the account that will receive the minted token
     @param id the ID of the token
     @param amount of tokens for this ID
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
@@ -232,7 +231,6 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     @param receiver the account that will receive the minted token
     @param ids array of ids for the tokens
     @param amounts amounts of tokens for each ID in the ids array
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"

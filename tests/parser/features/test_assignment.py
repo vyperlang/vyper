@@ -442,3 +442,63 @@ def bug(p: Point) -> Point:
     """
     c = get_contract(code)
     assert c.bug((1, 2)) == (2, 1)
+
+
+mload_merge_codes = [
+    (
+        """
+@external
+def foo() -> uint256[4]:
+    # copy "backwards"
+    xs: uint256[4] = [1, 2, 3, 4]
+
+# dst < src
+    xs[0] = xs[1]
+    xs[1] = xs[2]
+    xs[2] = xs[3]
+
+    return xs
+    """,
+        [2, 3, 4, 4],
+    ),
+    (
+        """
+@external
+def foo() -> uint256[4]:
+    # copy "forwards"
+    xs: uint256[4] = [1, 2, 3, 4]
+
+# src < dst
+    xs[1] = xs[0]
+    xs[2] = xs[1]
+    xs[3] = xs[2]
+
+    return xs
+    """,
+        [1, 1, 1, 1],
+    ),
+    (
+        """
+@external
+def foo() -> uint256[5]:
+    # partial "forward" copy
+    xs: uint256[5] = [1, 2, 3, 4, 5]
+
+# src < dst
+    xs[2] = xs[0]
+    xs[3] = xs[1]
+    xs[4] = xs[2]
+
+    return xs
+    """,
+        [1, 2, 1, 2, 1],
+    ),
+]
+
+
+# functional test that mload merging does not occur when source and dest
+# buffers overlap. (note: mload merging only applies after cancun)
+@pytest.mark.parametrize("code,expected_result", mload_merge_codes)
+def test_mcopy_overlap(get_contract, code, expected_result):
+    c = get_contract(code)
+    assert c.foo() == expected_result

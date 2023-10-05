@@ -15,7 +15,7 @@ def _valid_identifier(attr):
 
 
 # random names for functions
-@settings(max_examples=20, deadline=None)
+@settings(max_examples=20)
 @given(
     st.lists(
         st.tuples(
