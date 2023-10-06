@@ -662,7 +662,9 @@ def _convert_ir_basicblock(
                 return None
 
             if sym_ir.is_literal:
-                return arg_1
+                inst = IRInstruction("mstore", [arg_1, sym])
+                ctx.get_basic_block().append_instruction(inst)
+                return None
             else:
                 symbols[sym_ir.value] = arg_1
                 return arg_1
@@ -778,7 +780,6 @@ def _convert_ir_basicblock(
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         ctx.append_instruction("selfdestruct", [arg_0], False)
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
-        # count = int(ir.value[3:])
         args = [
             _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
             for arg in ir.args
