@@ -37,9 +37,10 @@ BINARY_IR_INSTRUCTIONS = [
     "exp",
     "sha3",
     "sha3_64",
+    "signextend",
 ]
 
-MAPPED_IR_INSTRUCTIONS = {"le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
+MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
 
 SymbolTable = dict[str, IRValueBase]
 
