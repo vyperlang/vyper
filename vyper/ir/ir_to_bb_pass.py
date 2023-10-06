@@ -499,9 +499,12 @@ def _convert_ir_basicblock(
                         if sym is None:
                             inst = IRInstruction("return", [last_ir, ret_ir])
                         else:
-                            new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-                            ctx.append_instruction("mstore", [sym, new_var], False)
-                            inst = IRInstruction("return", [last_ir, new_var])
+                            if func_t.return_type.memory_bytes_required > 32:
+                                new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
+                                ctx.append_instruction("mstore", [sym, new_var], False)
+                                inst = IRInstruction("return", [last_ir, new_var])
+                            else:
+                                inst = IRInstruction("return", [last_ir, sym])
                     else:
                         inst = IRInstruction("return", [last_ir, ret_ir])
 
