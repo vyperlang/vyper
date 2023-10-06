@@ -254,7 +254,7 @@ def _generate_evm_for_instruction_r(
 
     # Step 1: Apply instruction special stack manipulations
 
-    if opcode in ["jmp", "jnz"]:
+    if opcode in ["jmp", "jnz", "invoke"]:
         operands = inst.get_non_label_operands()
     elif opcode == "alloca":
         operands = inst.operands[1:2]
