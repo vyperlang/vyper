@@ -168,7 +168,6 @@ def _stack_reorder(
         return phi_vars.get(str(x), x)
 
     stack_ops = [f(x.value) for x in stack_ops]
-    stack_ops = list(dict.fromkeys(stack_ops))
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)

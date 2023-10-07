@@ -308,10 +308,13 @@ def _convert_ir_basicblock(
 
         if argsOffset.is_literal:
             addr = argsOffset.value - 32 + 4 if argsOffset.value > 0 else 0
-            argsOffsetVar = symbols.get(f"&{addr}", argsOffset.value)
-            argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
-            argsOffsetVar.mem_addr = addr
-            argsOffsetVar.offset = 32 - 4 if argsOffset.value > 0 else 0
+            argsOffsetVar = symbols.get(f"&{addr}", None)
+            if argsOffsetVar is None:
+                argsOffsetVar = argsOffset
+            else:
+                argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
+                argsOffsetVar.mem_addr = addr
+                argsOffsetVar.offset = 32 - 4 if argsOffset.value > 0 else 0
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
