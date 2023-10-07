@@ -492,7 +492,7 @@ def _convert_ir_basicblock(
                 if var is not None:
                     allocated_var = allocated_variables.get(var.name, None)
                     assert allocated_var is not None, "unallocated variable"
-                    new_var = symbols.get(f"&{ret_ir.value}", IRVariable(ret_ir))
+                    new_var = symbols.get(f"&{ret_ir.value}", allocated_var)
 
                     if var.size > 32:
                         offset = ret_ir.value - var.pos
@@ -504,7 +504,7 @@ def _convert_ir_basicblock(
                             ptr_var = allocated_var
                         inst = IRInstruction("return", [last_ir, ptr_var])
                     else:
-                        inst = _get_return_for_stack_operand(ctx, symbols, ret_ir, last_ir)
+                        inst = _get_return_for_stack_operand(ctx, symbols, new_var, last_ir)
                 else:
                     if ret_ir.is_literal:
                         sym = symbols.get(f"&{ret_ir.value}", None)
@@ -518,7 +518,13 @@ def _convert_ir_basicblock(
                             else:
                                 inst = IRInstruction("return", [last_ir, ret_ir])
                     else:
-                        inst = IRInstruction("return", [last_ir, ret_ir])
+                        if last_ir.value > 32:
+                            inst = IRInstruction("return", [last_ir, ret_ir])
+                        else:
+                            ret_buf = IRLiteral(128)  ## TODO: need allocator
+                            new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_buf])
+                            ctx.append_instruction("mstore", [ret_ir, new_var], False)
+                            inst = IRInstruction("return", [last_ir, new_var])
 
                 ctx.get_basic_block().append_instruction(inst)
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))

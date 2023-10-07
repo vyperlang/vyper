@@ -253,14 +253,14 @@ class IRBasicBlock:
         if bb:
             for inst in self.instructions:
                 if inst.opcode == "select":
-                    if inst.operands[0].target == bb.label:
-                        liveness.add(inst.operands[1].target)
-                        if inst.operands[3].target in liveness:
-                            liveness.remove(inst.operands[3].target)
-                    if inst.operands[2].target == bb.label:
-                        liveness.add(inst.operands[3].target)
-                        if inst.operands[1].target in liveness:
-                            liveness.remove(inst.operands[1].target)
+                    if inst.operands[0] == bb.label:
+                        liveness.add(inst.operands[1])
+                        if inst.operands[3] in liveness:
+                            liveness.remove(inst.operands[3])
+                    if inst.operands[2] == bb.label:
+                        liveness.add(inst.operands[3])
+                        if inst.operands[1] in liveness:
+                            liveness.remove(inst.operands[1])
 
         return liveness
 
