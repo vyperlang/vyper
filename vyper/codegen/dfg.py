@@ -12,11 +12,18 @@ from vyper.utils import MemoryPositions, OrderedSet
 
 ONE_TO_ONE_INSTRUCTIONS = [
     "revert",
+    "coinbase",
     "calldatasize",
     "calldatacopy",
     "calldataload",
-    # "codecopy",
     "gas",
+    "gasprice",
+    "gaslimit",
+    "address",
+    "origin",
+    "number",
+    "extcodesize",
+    "extcodehash",
     "returndatasize",
     "returndatacopy",
     "callvalue",
@@ -336,6 +343,8 @@ def _generate_evm_for_instruction_r(
             assembly.append("POP")
     elif opcode == "call":
         assembly.append("CALL")
+    elif opcode == "staticcall":
+        assembly.append("STATICCALL")
     elif opcode == "ret":
         # assert len(inst.operands) == 2, "ret instruction takes two operands"
         assembly.append("JUMP")

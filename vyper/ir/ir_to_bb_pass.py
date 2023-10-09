@@ -251,10 +251,27 @@ def _convert_ir_basicblock(
         ir.value = org_value
         return ctx.append_instruction("iszero", [new_var])
 
-    elif ir.value in ["iszero", "ceil32", "calldataload"]:
+    elif ir.value in ["iszero", "ceil32", "calldataload", "extcodesize", "extcodehash", "balance"]:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
 
-    elif ir.value in ["timestamp", "caller", "selfbalance", "calldatasize", "callvalue"]:
+    elif ir.value in [
+        "chainid",
+        "basefee",
+        "timestamp",
+        "caller",
+        "selfbalance",
+        "calldatasize",
+        "callvalue",
+        "address",
+        "origin",
+        "codesize",
+        "gas",
+        "gasprice",
+        "gaslimit",
+        "returndatasize",
+        "coinbase",
+        "number",
+    ]:
         return ctx.append_instruction(ir.value, [])
 
     elif ir.value in ["pass", "stop", "return"]:
@@ -296,15 +313,31 @@ def _convert_ir_basicblock(
 
         return ret
     elif ir.value in ["staticcall", "call"]:  # external call
-        gas = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        address = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        value = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
-        argsOffset = _convert_ir_basicblock(
-            ctx, ir.args[3], symbols, variables, allocated_variables
+        idx = 0
+        gas = _convert_ir_basicblock(ctx, ir.args[idx], symbols, variables, allocated_variables)
+        address = _convert_ir_basicblock(
+            ctx, ir.args[idx + 1], symbols, variables, allocated_variables
         )
-        argsSize = _convert_ir_basicblock(ctx, ir.args[4], symbols, variables, allocated_variables)
-        retOffset = _convert_ir_basicblock(ctx, ir.args[5], symbols, variables, allocated_variables)
-        retSize = _convert_ir_basicblock(ctx, ir.args[6], symbols, variables, allocated_variables)
+
+        if ir.value == "call":
+            value = _convert_ir_basicblock(
+                ctx, ir.args[idx + 2], symbols, variables, allocated_variables
+            )
+        else:
+            idx -= 1
+
+        argsOffset = _convert_ir_basicblock(
+            ctx, ir.args[idx + 3], symbols, variables, allocated_variables
+        )
+        argsSize = _convert_ir_basicblock(
+            ctx, ir.args[idx + 4], symbols, variables, allocated_variables
+        )
+        retOffset = _convert_ir_basicblock(
+            ctx, ir.args[idx + 5], symbols, variables, allocated_variables
+        )
+        retSize = _convert_ir_basicblock(
+            ctx, ir.args[idx + 6], symbols, variables, allocated_variables
+        )
 
         if argsOffset.is_literal:
             addr = argsOffset.value - 32 + 4 if argsOffset.value > 0 else 0
@@ -319,11 +352,18 @@ def _convert_ir_basicblock(
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
 
-        inst = IRInstruction(
-            ir.value,
-            [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1],
-            retVar,
-        )
+        if ir.value == "call":
+            inst = IRInstruction(
+                ir.value,
+                [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1],
+                retVar,
+            )
+        else:
+            inst = IRInstruction(
+                ir.value,
+                [gas, address, argsOffsetVar, argsSize, retOffset, retSize][::-1],
+                retVar,
+            )
         ctx.get_basic_block().append_instruction(inst)
         return retVar
     elif ir.value == "if":
