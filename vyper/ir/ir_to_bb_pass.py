@@ -473,12 +473,16 @@ def _convert_ir_basicblock(
             else:
                 last_ir = None
                 ret_var = ir.args[1]
+                deleted = None
                 if ret_var.is_literal and symbols.get(f"&{ret_var.value}", None) is not None:
+                    deleted = symbols[f"&{ret_var.value}"]
                     del symbols[f"&{ret_var.value}"]
                 for arg in ir.args[2:]:
                     last_ir = _convert_ir_basicblock(
                         ctx, arg, symbols, variables, allocated_variables
                     )
+                if deleted is not None:
+                    symbols[f"&{ret_var.value}"] = deleted
 
                 ret_ir = _convert_ir_basicblock(
                     ctx, ret_var, symbols, variables, allocated_variables
@@ -558,7 +562,7 @@ def _convert_ir_basicblock(
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        inst = IRInstruction("revert", [arg_0, arg_1])
+        inst = IRInstruction("revert", [arg_1, arg_0])
         ctx.get_basic_block().append_instruction(inst)
 
     elif ir.value == "dload":
@@ -677,7 +681,8 @@ def _convert_ir_basicblock(
             if sym is None:
                 inst = IRInstruction("mstore", [arg_1, sym_ir])
                 ctx.get_basic_block().append_instruction(inst)
-                symbols[f"&{sym_ir.value}"] = arg_1
+                if not arg_1.is_literal:
+                    symbols[f"&{sym_ir.value}"] = arg_1
                 return None
 
             if sym_ir.is_literal:
