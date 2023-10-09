@@ -150,7 +150,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
         allowed_builtins = ("slice", "len", "raw_call")
         if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
             raise StructureException(
-                "msg.data is only allowed inside of the slice or len functions", node
+                "msg.data is only allowed inside of the slice, len or raw_call functions", node
             )
         if parent.get("func.id") == "slice":
             ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)

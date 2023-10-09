@@ -6,7 +6,7 @@ from vyper import ast as vy_ast
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(
     idx=st.integers(min_value=0, max_value=9),
     array=st.lists(st.integers(), min_size=10, max_size=10),

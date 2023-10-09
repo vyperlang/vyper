@@ -119,7 +119,6 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 @hypothesis.example(2704)
 @hypothesis.example(110889)
 @hypothesis.example(32239684)
-@hypothesis.settings(deadline=1000)
 def test_isqrt_valid_range(isqrt_contract, value):
     vyper_isqrt = isqrt_contract.test(value)
     actual_isqrt = math.isqrt(value)

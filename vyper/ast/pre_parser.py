@@ -111,7 +111,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                         validate_version_pragma(compiler_version, start)
                         settings.compiler_version = compiler_version
 
-                    if pragma.startswith("optimize "):
+                    elif pragma.startswith("optimize "):
                         if settings.optimize is not None:
                             raise StructureException("pragma optimize specified twice!", start)
                         try:
@@ -119,13 +119,16 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                             settings.optimize = OptimizationLevel.from_string(mode)
                         except ValueError:
                             raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    if pragma.startswith("evm-version "):
+                    elif pragma.startswith("evm-version "):
                         if settings.evm_version is not None:
                             raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException("Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
+
+                    else:
+                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
