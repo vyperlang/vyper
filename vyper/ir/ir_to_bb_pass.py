@@ -377,15 +377,24 @@ def _convert_ir_basicblock(
         ctx.append_basic_block(else_block)
 
         # convert "else"
+        else_ret_val = None
         if len(ir.args) == 3:
-            _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
+            else_ret_val = _convert_ir_basicblock(
+                ctx, ir.args[2], symbols, variables, allocated_variables
+            )
+            if else_ret_val.is_literal:
+                else_ret_val = ctx.append_instruction("store", [IRLiteral(else_ret_val.value)])
         after_else_syms = symbols.copy()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label(), ctx)
         ctx.append_basic_block(then_block)
 
-        _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
+        then_ret_val = _convert_ir_basicblock(
+            ctx, ir.args[1], symbols, variables, allocated_variables
+        )
+        if then_ret_val is not None and then_ret_val.is_literal:
+            then_ret_val = ctx.append_instruction("store", [IRLiteral(then_ret_val.value)])
 
         inst = IRInstruction("jnz", [cont_ret, then_block.label, else_block.label])
         current_bb.append_instruction(inst)
@@ -396,6 +405,17 @@ def _convert_ir_basicblock(
         exit_label = ctx.get_next_label()
         bb = IRBasicBlock(exit_label, ctx)
         bb = ctx.append_basic_block(bb)
+
+        if_ret = None
+        if then_ret_val is not None and else_ret_val is not None:
+            if_ret = ctx.get_next_variable()
+            bb.append_instruction(
+                IRInstruction(
+                    "select",
+                    [then_block.label, then_ret_val, else_block.label, else_ret_val],
+                    if_ret,
+                )
+            )
 
         for sym, val in _get_symbols_common(after_then_syms, after_else_syms).items():
             ret = ctx.get_next_variable()
@@ -411,6 +431,8 @@ def _convert_ir_basicblock(
         if then_block.is_terminated is False:
             exit_inst = IRInstruction("jmp", [bb.label])
             then_block.append_instruction(exit_inst)
+
+        return if_ret
 
     elif ir.value == "with":
         ret = _convert_ir_basicblock(
