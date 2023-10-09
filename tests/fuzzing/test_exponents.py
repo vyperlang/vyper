@@ -92,7 +92,7 @@ def foo(a: int16) -> int16:
 @example(a=2**127 - 1)
 # 256 bits
 @example(a=2**256 - 1)
-@settings(max_examples=200, deadline=1000)
+@settings(max_examples=200)
 def test_max_exp(get_contract, assert_tx_failed, a):
     code = f"""
 @external
@@ -127,7 +127,7 @@ def foo(b: uint256) -> uint256:
 @example(a=2**63 - 1)
 # 128 bits
 @example(a=2**127 - 1)
-@settings(max_examples=200, deadline=1000)
+@settings(max_examples=200)
 def test_max_exp_int128(get_contract, assert_tx_failed, a):
     code = f"""
 @external

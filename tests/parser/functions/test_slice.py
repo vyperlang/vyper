@@ -36,7 +36,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 @pytest.mark.parametrize("literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
 @given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=100)
 @pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
@@ -90,7 +90,7 @@ def do_splice() -> Bytes[{length_bound}]:
 @pytest.mark.parametrize("literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
 @given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=100)
 @pytest.mark.fuzzing
 def test_slice_bytes(
     get_contract,
