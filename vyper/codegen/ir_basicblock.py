@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper.utils import OrderedSet
 
-TERMINAL_IR_INSTRUCTIONS = ["ret", "revert", "assert"]
+TERMINAL_IR_INSTRUCTIONS = ["ret", "revert"]
 TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
 if TYPE_CHECKING:
