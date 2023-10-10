@@ -788,6 +788,13 @@ def _convert_ir_basicblock(
         counter_var = ctx.get_next_variable()
         counter_inc_var = ctx.get_next_variable()
         ret = ctx.get_next_variable()
+
+        inst = IRInstruction("store", [start], counter_var)
+        ctx.get_basic_block().append_instruction(inst)
+        symbols[sym.value] = counter_var
+        inst = IRInstruction("jmp", [cond_block.label])
+        ctx.get_basic_block().append_instruction(inst)
+
         symbols[sym.value] = ret
         cond_block.append_instruction(
             IRInstruction(
@@ -796,12 +803,6 @@ def _convert_ir_basicblock(
                 ret,
             )
         )
-
-        inst = IRInstruction("store", [start], counter_var)
-        ctx.get_basic_block().append_instruction(inst)
-        symbols[sym.value] = counter_var
-        inst = IRInstruction("jmp", [cond_block.label])
-        ctx.get_basic_block().append_instruction(inst)
 
         cont_ret = ctx.get_next_variable()
         inst = IRInstruction("xor", [ret, end], cont_ret)
@@ -822,7 +823,7 @@ def _convert_ir_basicblock(
         ctx.append_basic_block(jump_up_block)
 
         increment_block.append_instruction(
-            IRInstruction("add", [counter_var, IRLiteral(1)], counter_inc_var)
+            IRInstruction("add", [ret, IRLiteral(1)], counter_inc_var)
         )
         increment_block.append_instruction(IRInstruction("jmp", [cond_block.label]))
         ctx.append_basic_block(increment_block)

@@ -288,7 +288,8 @@ def _generate_evm_for_instruction_r(
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
         _, b = next(enumerate(inst.parent.out_set))
-        target_stack = b.get_liveness()
+        t_liveness = b.in_vars_for(inst.parent)
+        target_stack = [inst.parent.phi_vars.get(v.value, v) for v in t_liveness]
         _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
 
     _stack_duplications(assembly, stack_map, operands)

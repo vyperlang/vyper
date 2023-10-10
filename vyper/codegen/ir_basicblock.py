@@ -170,7 +170,8 @@ class IRInstruction:
         s = ""
         if self.ret:
             s += f"{self.ret} = "
-        s += f"{self.opcode} "
+        opcode = f"{self.opcode} " if self.opcode != "store" else ""
+        s += opcode
         operands = ", ".join(
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands[::-1]]
         )
