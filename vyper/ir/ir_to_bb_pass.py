@@ -353,19 +353,13 @@ def _convert_ir_basicblock(
         symbols[f"&{retOffset.value}"] = retVar
 
         if ir.value == "call":
-            inst = IRInstruction(
-                ir.value,
-                [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1],
-                retVar,
+            return ctx.append_instruction(
+                ir.value, [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1]
             )
         else:
-            inst = IRInstruction(
-                ir.value,
-                [gas, address, argsOffsetVar, argsSize, retOffset, retSize][::-1],
-                retVar,
+            return ctx.append_instruction(
+                ir.value, [gas, address, argsOffsetVar, argsSize, retOffset, retSize][::-1]
             )
-        ctx.get_basic_block().append_instruction(inst)
-        return retVar
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
