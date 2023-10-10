@@ -382,7 +382,7 @@ def _convert_ir_basicblock(
             else_ret_val = _convert_ir_basicblock(
                 ctx, ir.args[2], symbols, variables, allocated_variables
             )
-            if else_ret_val.is_literal:
+            if else_ret_val is not None and else_ret_val.is_literal:
                 else_ret_val = ctx.append_instruction("store", [IRLiteral(else_ret_val.value)])
         after_else_syms = symbols.copy()
 

@@ -427,11 +427,6 @@ def _emit_input_operands(
             continue
         assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
-            # FIXME: MEMORY REFACTOR
-            # if op.address_access:
-            #     if inst.opcode != "codecopy":
-            #         assembly.extend([*PUSH(op.addr)])
-            # else:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
 
