@@ -723,10 +723,11 @@ def _convert_ir_basicblock(
                 return ctx.append_instruction("mstore", [arg_1, ptr_var], False)
             else:
                 if sym_ir.is_literal:
-                    symbols[f"&{sym_ir.value}"] = arg_1
+                    new_var = ctx.append_instruction("store", [arg_1])
+                    symbols[f"&{sym_ir.value}"] = new_var
                     if allocated_variables.get(var.name, None) is None:
-                        allocated_variables[var.name] = arg_1
-                return arg_1
+                        allocated_variables[var.name] = new_var
+                return new_var
         else:
             if sym_ir.is_literal is False:
                 inst = IRInstruction("mstore", [arg_1, sym_ir])
@@ -812,7 +813,9 @@ def _convert_ir_basicblock(
         ctx.append_basic_block(body_block)
         old_targets = _break_target, _continue_target
         _break_target, _continue_target = exit_block, increment_block
+
         _convert_ir_basicblock(ctx, body, symbols, variables, allocated_variables)
+
         _break_target, _continue_target = old_targets
         body_end = ctx.get_basic_block()
         if body_end.is_terminal() is False:
