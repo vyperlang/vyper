@@ -149,27 +149,41 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         return get_contract(code, bytesdata, override_opt_level=opt_level)
 
     data_length = len(bytesdata) if location == "literal" else length_bound
+    end = start + length
+
+    is_zero_literal_length = literal_length and length < 1
+    literal_start_exceeds_data_length = literal_start and start > data_length
+    literal_length_exceeds_data = (literal_length and length > data_length) or (
+        end > data_length and literal_start and literal_length
+    )
+
+    data_longer_than_length_bound = len(bytesdata) > length_bound
+    # `not literal_length` condition catches this contract:
+    # @external
+    # def do_slice(inp: Bytes[1], start: uint256, length: uint256) -> Bytes[1]:
+    #    return slice(b'\x00\x00', 0, length)
+    invalid_slice_literal = (
+        location == "literal"
+        and data_longer_than_length_bound
+        and ((literal_length and length > length_bound) or not literal_length)
+    )
+
     if (
-        (start + length > data_length and literal_start and literal_length)
-        or (literal_length and length > data_length)
-        or (
-            location == "literal"
-            and len(bytesdata) > length_bound
-            and ((literal_length and length > length_bound) or (not literal_length))
-        )
-        or (literal_start and start > data_length)
-        or (literal_length and length < 1)
+        is_zero_literal_length
+        or literal_start_exceeds_data_length
+        or literal_length_exceeds_data
+        or invalid_slice_literal
     ):
         assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
-    elif location == "code" and len(bytesdata) > data_length:
+    elif location == "code" and data_longer_than_length_bound:
         # deploy fail
         assert_tx_failed(lambda: _get_contract())
-    elif start + length > len(bytesdata) or len(bytesdata) > length_bound:
+    elif end > len(bytesdata) or data_longer_than_length_bound:
         c = _get_contract()
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
     else:
         c = _get_contract()
-        assert c.do_slice(bytesdata, start, length) == bytesdata[start : start + length], code
+        assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
 
 
 def test_slice_private(get_contract):
