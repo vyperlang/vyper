@@ -245,11 +245,6 @@ class ExprInfo:
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
-            # TODO: we probably want to remove this restriction.
-            if self.var_info._modification_count:  # type: ignore
-                raise ImmutableViolation(
-                    "Immutable value cannot be modified after assignment", node
-                )
             self.var_info._modification_count += 1  # type: ignore
 
         if isinstance(node, vy_ast.AugAssign):
