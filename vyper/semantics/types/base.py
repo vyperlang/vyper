@@ -300,6 +300,9 @@ class VyperType:
     def __repr__(self):
         return self._id
 
+    def to_json(self):
+        return repr(self)  # very simple implementation
+
 
 class KwargSettings:
     # convenience class which holds metadata about how to process kwargs.
@@ -313,6 +316,9 @@ class KwargSettings:
         self.default = default
         self.require_literal = require_literal
 
+    def to_json(self):
+        return repr(self)  # very simple implementation
+
 
 # A type type. Used internally for types which can live in expression
 # position, ex. constructors (events, interfaces and structs), and also
@@ -323,6 +329,9 @@ class TYPE_T:
 
     def __repr__(self):
         return f"type({self.typedef})"
+
+    def to_json(self):
+        return {"type_t": self.typedef.to_json()}
 
     # dispatch into ctor if it's called
     def fetch_call_return(self, node):

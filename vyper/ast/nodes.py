@@ -409,7 +409,7 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
 
         if "type" in self._metadata:
-            ast_dict["type"] = str(self._metadata["type"])
+            ast_dict["type"] = self._metadata["type"].to_json()
 
         return ast_dict
 

@@ -18,7 +18,7 @@ from vyper.warnings import ContractSizeLimitWarning
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
         "contract_name": compiler_data.contract_name,
-        "ast": ast_to_dict(compiler_data.vyper_module),
+        "ast": ast_to_dict(compiler_data.vyper_module_folded),
     }
     return ast_dict
 
