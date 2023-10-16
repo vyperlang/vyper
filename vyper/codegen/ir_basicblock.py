@@ -256,6 +256,19 @@ class IRBasicBlock:
     def remove_out(self, bb: "IRBasicBlock") -> None:
         self.out_set.remove(bb)
 
+    def get_phi_mappings(self) -> dict[str, IRVariable]:
+        """
+        Get phi mappings for basic block.
+        """
+        phi_mappings = {}
+
+        for inst in self.instructions:
+            if inst.opcode == "select":
+                phi_mappings[inst.operands[1].value] = inst.ret
+                phi_mappings[inst.operands[3].value] = inst.ret
+
+        return phi_mappings
+
     def in_vars_for(self, bb: "IRBasicBlock" = None) -> set[IRVariable]:
         liveness = self.instructions[0].liveness.copy()
 
