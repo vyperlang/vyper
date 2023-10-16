@@ -275,8 +275,9 @@ def _generate_evm_for_instruction_r(
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)
         if to_be_replaced.use_count > 1:
-            stack_map.dup(assembly, depth)
             to_be_replaced.use_count -= 1
+            if to_be_replaced.use_count > 1:
+                stack_map.dup(assembly, depth)
             stack_map.poke(0, ret)
         else:
             stack_map.poke(depth, ret)
@@ -286,11 +287,14 @@ def _generate_evm_for_instruction_r(
     _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     # Step 3: Reorder stack
-    if opcode in ["jnz", "jmp"] and stack_map.get_height() >= 2:
+    if opcode in ["jnz", "jmp"]:  # and stack_map.get_height() >= 2:
         _, b = next(enumerate(inst.parent.out_set))
         t_liveness = b.in_vars_for(inst.parent)
-        target_stack = [inst.parent.phi_vars.get(v.value, v) for v in t_liveness]
-        _stack_reorder(assembly, stack_map, target_stack, inst.parent.phi_vars)
+        target_stack = OrderedSet(t_liveness)  # [b.phi_vars.get(v.value, v) for v in t_liveness]
+        current_stack = OrderedSet(stack_map.stack_map)
+        need_pop = current_stack.difference(target_stack)
+        phi_mappings = inst.parent.get_phi_mappings()
+        _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 
     _stack_duplications(assembly, stack_map, operands)
     _stack_reorder(assembly, stack_map, operands)
