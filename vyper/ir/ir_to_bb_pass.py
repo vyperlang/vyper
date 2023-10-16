@@ -818,9 +818,11 @@ def _convert_ir_basicblock(
             )
         )
 
+        xor_ret = ctx.get_next_variable()
         cont_ret = ctx.get_next_variable()
-        inst = IRInstruction("xor", [ret, end], cont_ret)
+        inst = IRInstruction("xor", [ret, end], xor_ret)
         cond_block.append_instruction(inst)
+        cond_block.append_instruction(IRInstruction("iszero", [xor_ret], cont_ret))
         ctx.append_basic_block(cond_block)
 
         # Do a dry run to get the symbols needing phi nodes
