@@ -166,6 +166,14 @@ class IRInstruction:
     def get_output_operands(self) -> list[IRValueBase]:
         return [self.ret] if self.ret else []
 
+    def update_operands(self, replacements: dict) -> None:
+        """
+        Update operands with replacements.
+        """
+        for i, operand in enumerate(self.operands):
+            if operand in replacements.keys():
+                self.operands[i] = replacements[operand]
+
     def __repr__(self) -> str:
         s = ""
         if self.ret:
@@ -273,6 +281,21 @@ class IRBasicBlock:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         instruction.parent = self
         self.instructions.append(instruction)
+
+    def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        instruction.parent = self
+        self.instructions.insert(index, instruction)
+
+    def clear_instructions(self) -> None:
+        self.instructions = []
+
+    def update_operands(self, replacements: dict) -> None:
+        """
+        Update operands with replacements.
+        """
+        for instruction in self.instructions:
+            instruction.update_operands(replacements)
 
     def is_terminal(self) -> bool:
         """
