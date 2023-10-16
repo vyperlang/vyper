@@ -372,13 +372,14 @@ def _convert_ir_basicblock(
 
         # convert "else"
         else_ret_val = None
+        else_syms = symbols.copy()
         if len(ir.args) == 3:
             else_ret_val = _convert_ir_basicblock(
-                ctx, ir.args[2], symbols, variables, allocated_variables
+                ctx, ir.args[2], else_syms, variables, allocated_variables.copy()
             )
             if else_ret_val is not None and else_ret_val.is_literal:
                 else_ret_val = ctx.append_instruction("store", [IRLiteral(else_ret_val.value)])
-        after_else_syms = symbols.copy()
+        after_else_syms = else_syms.copy()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label(), ctx)
@@ -413,7 +414,12 @@ def _convert_ir_basicblock(
 
         for sym, val in _get_symbols_common(after_then_syms, after_else_syms).items():
             ret = ctx.get_next_variable()
+            old_var = symbols.get(sym, None)
             symbols[sym] = ret
+            if old_var is not None:
+                for idx, var in allocated_variables.items():
+                    if var.value == old_var.value:
+                        allocated_variables[idx] = ret
             bb.append_instruction(
                 IRInstruction("select", [then_block.label, val[0], else_block.label, val[1]], ret)
             )
@@ -725,8 +731,8 @@ def _convert_ir_basicblock(
                 if sym_ir.is_literal:
                     new_var = ctx.append_instruction("store", [arg_1])
                     symbols[f"&{sym_ir.value}"] = new_var
-                    if allocated_variables.get(var.name, None) is None:
-                        allocated_variables[var.name] = new_var
+                    # if allocated_variables.get(var.name, None) is None:
+                    allocated_variables[var.name] = new_var
                 return new_var
         else:
             if sym_ir.is_literal is False:
@@ -773,6 +779,13 @@ def _convert_ir_basicblock(
         # 5) increment block
         # 6) exit block
         # TODO: Add the extra bounds check after clarify
+        def emit_body_block():
+            global _break_target, _continue_target
+            old_targets = _break_target, _continue_target
+            _break_target, _continue_target = exit_block, increment_block
+            _convert_ir_basicblock(ctx, body, symbols, variables, allocated_variables)
+            _break_target, _continue_target = old_targets
+
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         end = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
@@ -810,13 +823,33 @@ def _convert_ir_basicblock(
         cond_block.append_instruction(inst)
         ctx.append_basic_block(cond_block)
 
+        # Do a dry run to get the symbols needing phi nodes
+        start_syms = symbols.copy()
         ctx.append_basic_block(body_block)
-        old_targets = _break_target, _continue_target
-        _break_target, _continue_target = exit_block, increment_block
+        old_counters = ctx.last_variable, ctx.last_label
+        emit_body_block()
+        # ctx.last_variable, ctx.last_label = old_counters
+        end_syms = symbols.copy()
+        diff_syms = _get_symbols_common(start_syms, end_syms)
 
-        _convert_ir_basicblock(ctx, body, symbols, variables, allocated_variables)
+        replacements = {}
+        for sym, val in diff_syms.items():
+            new_var = ctx.get_next_variable()
+            symbols[sym] = new_var
+            replacements[val[0]] = new_var
+            replacements[val[1]] = new_var
+            cond_block.insert_instruction(
+                IRInstruction(
+                    "select", [entry_block.label, val[0], increment_block.label, val[1]], new_var
+                ),
+                1,
+            )
 
-        _break_target, _continue_target = old_targets
+        body_block.update_operands(replacements)
+
+        # body_block.clear_instructions()
+        # emit_body_block()
+
         body_end = ctx.get_basic_block()
         if body_end.is_terminal() is False:
             body_end.append_instruction(IRInstruction("jmp", [jump_up_block.label]))
