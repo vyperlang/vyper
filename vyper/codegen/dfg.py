@@ -226,7 +226,10 @@ def _stack_reorder(
 
 
 def _generate_evm_for_basicblock_r(
-    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
+    ctx: IRFunction,
+    asm: list,
+    basicblock: IRBasicBlock,
+    stack_map: StackMap,
 ):
     if basicblock in visited_basicblocks:
         return
@@ -256,12 +259,10 @@ def _generate_evm_for_basicblock_r(
             fen += 1
 
     for idx, inst in enumerate(basicblock.instructions):
-        dep_liveness = (
-            basicblock.instructions[idx + 1].liveness
-            if idx + 1 < len(basicblock.instructions)
-            else OrderedSet()
+        orig_inst = (
+            basicblock.instructions[idx + 1] if idx + 1 < len(basicblock.instructions) else None
         )
-        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map, dep_liveness)
+        asm = _generate_evm_for_instruction_r(ctx, asm, inst, orig_inst, stack_map)
 
     for bb in basicblock.out_set:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
@@ -277,8 +278,8 @@ def _generate_evm_for_instruction_r(
     ctx: IRFunction,
     assembly: list,
     inst: IRInstruction,
+    origin_inst: IRInstruction,
     stack_map: StackMap,
-    dep_inst: OrderedSet[IRValueBase],
 ) -> list[str]:
     global label_counter
 
@@ -288,9 +289,7 @@ def _generate_evm_for_instruction_r(
                 continue
             if target.fen != inst.fen:
                 continue
-            assembly = _generate_evm_for_instruction_r(
-                ctx, assembly, target, stack_map, inst.liveness
-            )
+            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, inst, stack_map)
 
     if inst in visited_instructions:
         return assembly
@@ -327,7 +326,7 @@ def _generate_evm_for_instruction_r(
         return assembly
 
     # Step 2: Emit instructions input operands
-    _emit_input_operands(ctx, assembly, inst, operands, stack_map, dep_inst)
+    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:  # and stack_map.get_height() >= 2:
@@ -350,7 +349,8 @@ def _generate_evm_for_instruction_r(
         phi_mappings = inst.parent.get_phi_mappings()
         _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 
-    _stack_duplications(assembly, dep_inst, inst, stack_map, operands)
+    liveness = origin_inst.liveness if origin_inst else OrderedSet()
+    _stack_duplications(assembly, liveness, inst, stack_map, operands)
     _stack_reorder(assembly, stack_map, operands)
 
     # Step 4: Push instruction's return value to stack
@@ -471,8 +471,7 @@ def _emit_input_operands(
     inst: IRInstruction,
     ops: list[IRValueBase],
     stack_map: StackMap,
-    dep_liveness: OrderedSet[IRValueBase],
-) -> None:
+) -> OrderedSet[IRValueBase]:
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -486,10 +485,10 @@ def _emit_input_operands(
             stack_map.push(op)
             continue
         assembly = _generate_evm_for_instruction_r(
-            ctx, assembly, dfg_outputs[op.value], stack_map, dep_liveness
+            ctx, assembly, dfg_outputs[op.value], inst, stack_map
         )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
 
-    return assembly
+    return
