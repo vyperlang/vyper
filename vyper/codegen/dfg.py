@@ -158,13 +158,45 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def _stack_duplications(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
+def __stack_duplications(
+    assembly: list,
+    dep_liveness: OrderedSet[IRValueBase],
+    inst: IRInstruction,
+    stack_map: StackMap,
+    stack_ops: list[IRValueBase],
+) -> None:
+    last_used = inst.parent.get_last_used_operands(inst)
     for op in stack_ops:
+        if op.is_literal or isinstance(op, IRLabel):
+            continue
         assert op.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         if op.use_count > 1:
-            # Operand need duplication
+            print(inst, op)
+            # Operand needs duplication
+            stack_map.dup(assembly, depth)
+            op.use_count -= 1
+
+
+def _stack_duplications(
+    assembly: list,
+    dep_liveness: OrderedSet[IRValueBase],
+    inst: IRInstruction,
+    stack_map: StackMap,
+    stack_ops: list[IRValueBase],
+) -> None:
+    last_used2 = inst.parent.get_last_used_operands(inst)
+    last_used = inst.liveness.difference(dep_liveness)
+    for op in stack_ops:
+        if op.is_literal or isinstance(op, IRLabel):
+            continue
+        assert op.use_count >= 0, "Operand used up"
+        depth = stack_map.get_depth_in(op)
+        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        if op not in last_used:
+            print(inst, op)
+            # Operand needs duplication
             stack_map.dup(assembly, depth)
             op.use_count -= 1
 
@@ -223,8 +255,13 @@ def _generate_evm_for_basicblock_r(
         if inst.volatile:
             fen += 1
 
-    for inst in basicblock.instructions:
-        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
+    for idx, inst in enumerate(basicblock.instructions):
+        dep_liveness = (
+            basicblock.instructions[idx + 1].liveness
+            if idx + 1 < len(basicblock.instructions)
+            else OrderedSet()
+        )
+        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map, dep_liveness)
 
     for bb in basicblock.out_set:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
@@ -237,7 +274,11 @@ label_counter = 0
 
 
 def _generate_evm_for_instruction_r(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
+    ctx: IRFunction,
+    assembly: list,
+    inst: IRInstruction,
+    stack_map: StackMap,
+    dep_inst: OrderedSet[IRValueBase],
 ) -> list[str]:
     global label_counter
 
@@ -247,7 +288,9 @@ def _generate_evm_for_instruction_r(
                 continue
             if target.fen != inst.fen:
                 continue
-            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
+            assembly = _generate_evm_for_instruction_r(
+                ctx, assembly, target, stack_map, inst.liveness
+            )
 
     if inst in visited_instructions:
         return assembly
@@ -284,7 +327,7 @@ def _generate_evm_for_instruction_r(
         return assembly
 
     # Step 2: Emit instructions input operands
-    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
+    _emit_input_operands(ctx, assembly, inst, operands, stack_map, dep_inst)
 
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:  # and stack_map.get_height() >= 2:
@@ -292,22 +335,22 @@ def _generate_evm_for_instruction_r(
         t_liveness = b.in_vars_for(inst.parent)
         target_stack = OrderedSet(t_liveness)  # [b.phi_vars.get(v.value, v) for v in t_liveness]
         current_stack = OrderedSet(stack_map.stack_map)
-        if opcode == "jmp":
-            need_pop = current_stack.difference(target_stack)
-            for op in need_pop:
-                if op.use_count > 0:
-                    continue
-                depth = stack_map.get_depth_in(op)
-                if depth is StackMap.NOT_IN_STACK:
-                    continue
-                if depth != 0:
-                    stack_map.swap(assembly, depth)
-                stack_map.pop()
-                assembly.append("POP")
+        # if opcode == "jmp":
+        #     need_pop = current_stack.difference(target_stack)
+        #     for op in need_pop:
+        #         if op.use_count > 0:
+        #             continue
+        #         depth = stack_map.get_depth_in(op)
+        #         if depth is StackMap.NOT_IN_STACK:
+        #             continue
+        #         if depth != 0:
+        #             stack_map.swap(assembly, depth)
+        #         stack_map.pop()
+        #         assembly.append("POP")
         phi_mappings = inst.parent.get_phi_mappings()
         _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 
-    _stack_duplications(assembly, stack_map, operands)
+    _stack_duplications(assembly, dep_inst, inst, stack_map, operands)
     _stack_reorder(assembly, stack_map, operands)
 
     # Step 4: Push instruction's return value to stack
@@ -428,6 +471,7 @@ def _emit_input_operands(
     inst: IRInstruction,
     ops: list[IRValueBase],
     stack_map: StackMap,
+    dep_liveness: OrderedSet[IRValueBase],
 ) -> None:
     for op in ops:
         if isinstance(op, IRLabel):
@@ -441,7 +485,9 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op)
             continue
-        assembly = _generate_evm_for_instruction_r(ctx, assembly, dfg_outputs[op.value], stack_map)
+        assembly = _generate_evm_for_instruction_r(
+            ctx, assembly, dfg_outputs[op.value], stack_map, dep_liveness
+        )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
