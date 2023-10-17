@@ -13,7 +13,12 @@ from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.bb_optimizer import optimize_function
+from vyper.ir.bb_optimizer import (
+    calculate_in_set,
+    calculate_liveness,
+    optimize_empty_blocks,
+    optimize_function,
+)
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import OrderedSet, MemoryPositions
@@ -66,12 +71,19 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
 
-    if optimize is not OptimizationLevel.NONE:
-        optimize_function(global_function)
-
+    optimize_empty_blocks(global_function)
+    calculate_in_set(global_function)
+    calculate_liveness(global_function)
     convert_ir_to_dfg(global_function)
 
-    global_function = ir_pass_dft(global_function)
+    ir_pass_dft(global_function)
+
+    optimize_empty_blocks(global_function)
+    calculate_in_set(global_function)
+    calculate_liveness(global_function)
+    # if optimize is not OptimizationLevel.NONE:
+    #     optimize_function(global_function)
+
     convert_ir_to_dfg(global_function)
 
     return global_function

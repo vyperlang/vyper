@@ -13,14 +13,14 @@ def optimize_function(ctx: IRFunction):
         while _optimize_empty_basicblocks(ctx):
             pass
 
-        _calculate_in_set(ctx)
+        calculate_in_set(ctx)
         while ctx.remove_unreachable_blocks():
             pass
 
         if len(ctx.basic_blocks) == 0:
             return ctx
 
-        _calculate_liveness(ctx.basic_blocks[0], {})
+        calculate_liveness(ctx)
 
         removed = _optimize_unused_variables(ctx)
         if len(removed) == 0:
@@ -81,7 +81,7 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
     return count
 
 
-def _calculate_in_set(ctx: IRFunction) -> None:
+def calculate_in_set(ctx: IRFunction) -> None:
     """
     Calculate in set for each basic block.
     """
@@ -130,6 +130,12 @@ def _calculate_in_set(ctx: IRFunction) -> None:
             in_bb.add_out(bb)
 
 
+def _reset_liveness(ctx: IRFunction) -> None:
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            inst.liveness = OrderedSet()
+
+
 def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
     for out_bb in bb.out_set:
         if liveness_visited.get(bb, None) == out_bb:
@@ -140,3 +146,13 @@ def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
         bb.out_vars = bb.out_vars.union(in_vars)
 
     bb.calculate_liveness()
+
+
+def calculate_liveness(ctx: IRFunction) -> None:
+    _reset_liveness(ctx)
+    _calculate_liveness(ctx.basic_blocks[0], {})
+
+
+def optimize_empty_blocks(ctx: IRFunction) -> None:
+    while _optimize_empty_basicblocks(ctx):
+        pass
