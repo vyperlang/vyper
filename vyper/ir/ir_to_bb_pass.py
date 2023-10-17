@@ -24,6 +24,7 @@ from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import OrderedSet, MemoryPositions
 from vyper.codegen.dfg import convert_ir_to_dfg
 from vyper.codegen.ir_pass_dft import ir_pass_dft
+from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
 
 
 BINARY_IR_INSTRUCTIONS = [
@@ -71,18 +72,19 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
 
+    if optimize is not OptimizationLevel.NONE:
+        optimize_function(global_function)
+
     optimize_empty_blocks(global_function)
     calculate_in_set(global_function)
     calculate_liveness(global_function)
     convert_ir_to_dfg(global_function)
 
+    ir_pass_constant_propagation(global_function)
     ir_pass_dft(global_function)
 
-    optimize_empty_blocks(global_function)
     calculate_in_set(global_function)
     calculate_liveness(global_function)
-    # if optimize is not OptimizationLevel.NONE:
-    #     optimize_function(global_function)
 
     convert_ir_to_dfg(global_function)
 
