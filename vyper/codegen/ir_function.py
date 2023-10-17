@@ -29,6 +29,8 @@ class IRFunction(IRFunctionBase):
 
     basic_blocks: list["IRBasicBlock"]
     data_segment: list["IRInstruction"]
+    dfg_inputs = {str: [IRInstruction]}
+    dfg_outputs = {str: IRInstruction}
     last_label: int
     last_variable: int
 
@@ -38,6 +40,8 @@ class IRFunction(IRFunctionBase):
         self.data_segment = []
         self.last_label = 0
         self.last_variable = 0
+        self.dfg_inputs = {}
+        self.dfg_outputs = {}
 
         self.append_basic_block(IRBasicBlock(name, self))
 
@@ -123,6 +127,16 @@ class IRFunction(IRFunctionBase):
         Append data
         """
         self.data_segment.append(IRInstruction(opcode, args))
+
+    def copy(self):
+        new = IRFunction(self.name)
+        new.basic_blocks = self.basic_blocks.copy()
+        new.data_segment = self.data_segment.copy()
+        new.last_label = self.last_label
+        new.last_variable = self.last_variable
+        new.dfg_inputs = self.dfg_inputs.copy()
+        new.dfg_outputs = self.dfg_outputs.copy()
+        return new
 
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"

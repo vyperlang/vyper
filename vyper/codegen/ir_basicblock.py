@@ -136,6 +136,7 @@ class IRInstruction:
             "codecopy",
             "dloadbytes",
             "dload",
+            "return",
         ]
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
         self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
@@ -384,6 +385,15 @@ class IRBasicBlock:
             if instruction == inst:
                 return self.instructions[i + 1]
         return None
+
+    def copy(self):
+        bb = IRBasicBlock(self.label, self.parent)
+        bb.instructions = self.instructions.copy()
+        bb.in_set = self.in_set.copy()
+        bb.out_set = self.out_set.copy()
+        bb.out_vars = self.out_vars.copy()
+        bb.phi_vars = self.phi_vars.copy()
+        return bb
 
     def __repr__(self) -> str:
         s = (

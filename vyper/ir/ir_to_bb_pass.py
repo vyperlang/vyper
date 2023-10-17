@@ -17,6 +17,9 @@ from vyper.ir.bb_optimizer import optimize_function
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import OrderedSet, MemoryPositions
+from vyper.codegen.dfg import convert_ir_to_dfg
+from vyper.codegen.ir_pass_dft import ir_pass_dft
+
 
 BINARY_IR_INSTRUCTIONS = [
     "eq",
@@ -65,6 +68,11 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
 
     if optimize is not OptimizationLevel.NONE:
         optimize_function(global_function)
+
+    convert_ir_to_dfg(global_function)
+
+    global_function = ir_pass_dft(global_function)
+    convert_ir_to_dfg(global_function)
 
     return global_function
 

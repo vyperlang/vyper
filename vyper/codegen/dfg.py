@@ -73,15 +73,18 @@ class DFGNode:
         self.successors = []
 
 
-dfg_inputs = {str: [IRInstruction]}
-dfg_outputs = {str: IRInstruction}
-
-
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
-    global dfg_inputs
-    global dfg_outputs
-    dfg_inputs = {}
-    dfg_outputs = {}
+    # Reset DFG
+    ctx.dfg_inputs = {}
+    ctx.dfg_outputs = {}
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            operands = inst.get_input_operands()
+            operands.extend(inst.get_output_operands())
+            for op in operands:
+                op.use_count = 0
+
+    # Build DFG
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             operands = inst.get_input_operands()
@@ -89,12 +92,14 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
             for op in operands:
                 op.use_count += 1
-                dfg_inputs[op.value] = (
-                    [inst] if dfg_inputs.get(op.value) is None else dfg_inputs[op.value] + [inst]
+                ctx.dfg_inputs[op.value] = (
+                    [inst]
+                    if ctx.dfg_inputs.get(op.value) is None
+                    else ctx.dfg_inputs[op.value] + [inst]
                 )
 
             for op in res:
-                dfg_outputs[op.value] = inst
+                ctx.dfg_outputs[op.value] = inst
 
 
 def compute_phi_vars(ctx: IRFunction) -> None:
@@ -124,7 +129,6 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     visited_instructions = set()
     visited_basicblocks = set()
 
-    convert_ir_to_dfg(ctx)
     compute_phi_vars(ctx)
 
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
@@ -283,15 +287,15 @@ def _generate_evm_for_instruction_r(
     global label_counter
 
     origin_inst = None
-    for op in inst.get_output_operands():
-        for target in dfg_inputs.get(op.value, []):
-            if target.parent != inst.parent:
-                continue
-            if target.fen != inst.fen:
-                continue
-            assembly, origin_inst = _generate_evm_for_instruction_r(
-                ctx, assembly, target, stack_map
-            )
+    # for op in inst.get_output_operands():
+    #     for target in ctx.dfg_inputs.get(op.value, []):
+    #         if target.parent != inst.parent:
+    #             continue
+    #         if target.fen != inst.fen:
+    #             continue
+    #         assembly, origin_inst = _generate_evm_for_instruction_r(
+    #             ctx, assembly, target, stack_map
+    #         )
 
     if origin_inst is None:
         if inst.opcode in ["jmp", "jnz"]:
@@ -337,7 +341,7 @@ def _generate_evm_for_instruction_r(
             stack_map.poke(depth, ret)
         return assembly, inst
 
-    # Step 2: Emit instructions input operands
+    # Step 2: Emit instruction's input operands
     _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     # Step 3: Reorder stack
@@ -497,7 +501,7 @@ def _emit_input_operands(
             stack_map.push(op)
             continue
         assembly, origin_inst = _generate_evm_for_instruction_r(
-            ctx, assembly, dfg_outputs[op.value], stack_map
+            ctx, assembly, ctx.dfg_outputs[op.value], stack_map
         )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
