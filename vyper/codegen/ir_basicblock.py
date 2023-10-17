@@ -357,6 +357,25 @@ class IRBasicBlock:
             self.use_counts[var.value] = 0 if var.value not in self.instructions[-1].liveness else 1
         return self.use_counts[var.value]
 
+    def get_last_used_operands(self, _inst: IRInstruction) -> OrderedSet[IRVariable]:
+        """
+        Get last used operands of instruction.
+        """
+        for i, inst in enumerate(self.instructions[:-1]):
+            if inst == _inst:
+                next_liveness = (
+                    self.instructions[i + 1].liveness
+                    if i + 1 < len(self.instructions)
+                    else OrderedSet()
+                )
+                last_used = inst.liveness.difference(next_liveness)
+                return last_used
+        # Last instruction looksup into branch out basic blocks
+        if self.instructions[-1] == _inst:
+            last_used = _inst.liveness.difference(self.out_vars)
+            return last_used
+        return OrderedSet()
+
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
