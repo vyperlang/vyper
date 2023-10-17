@@ -20,6 +20,12 @@ class OrderedSet(dict):
     functionality as needed.
     """
 
+    def __init__(self, iterable=None):
+        super().__init__()
+        if iterable is not None:
+            for item in iterable:
+                self.add(item)
+
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self.keys())
         return f"{{{keys}}}"
@@ -33,7 +39,8 @@ class OrderedSet(dict):
     def difference(self, other):
         ret = self.copy()
         for k in other.keys():
-            ret.pop(k, None)
+            if k in ret.keys():
+                ret.remove(k)
         return ret
 
     def union(self, other):

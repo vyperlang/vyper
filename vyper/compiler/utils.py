@@ -2,6 +2,7 @@ from typing import Dict
 
 from vyper.codegen.ir_basicblock import IRValueBase
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.utils import OrderedSet
 
 
 def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
@@ -51,9 +52,11 @@ def _expand_row(row):
 class StackMap:
     NOT_IN_STACK = object()
     stack_map: list[IRValueBase]
+    dependant_liveness: OrderedSet[IRValueBase]
 
     def __init__(self):
         self.stack_map = []
+        self.dependant_liveness = OrderedSet()
 
     def copy(self):
         new = StackMap()
