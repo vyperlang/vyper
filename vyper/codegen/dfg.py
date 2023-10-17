@@ -158,7 +158,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def __stack_duplications(
+def _stack_duplications(
     assembly: list,
     dep_liveness: OrderedSet[IRValueBase],
     inst: IRInstruction,
@@ -173,13 +173,13 @@ def __stack_duplications(
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         if op.use_count > 1:
-            print(inst, op)
+            # print(inst, op)
             # Operand needs duplication
             stack_map.dup(assembly, depth)
             op.use_count -= 1
 
 
-def _stack_duplications(
+def __stack_duplications(
     assembly: list,
     dep_liveness: OrderedSet[IRValueBase],
     inst: IRInstruction,
@@ -195,7 +195,7 @@ def _stack_duplications(
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         if op not in last_used:
-            print(inst, op)
+            # print(inst, op)
             # Operand needs duplication
             stack_map.dup(assembly, depth)
             op.use_count -= 1
@@ -259,10 +259,10 @@ def _generate_evm_for_basicblock_r(
             fen += 1
 
     for idx, inst in enumerate(basicblock.instructions):
-        orig_inst = (
-            basicblock.instructions[idx + 1] if idx + 1 < len(basicblock.instructions) else None
-        )
-        asm = _generate_evm_for_instruction_r(ctx, asm, inst, orig_inst, stack_map)
+        # orig_inst = (
+        #     basicblock.instructions[idx + 1] if idx + 1 < len(basicblock.instructions) else None
+        # )
+        asm, _ = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
 
     for bb in basicblock.out_set:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
@@ -278,21 +278,33 @@ def _generate_evm_for_instruction_r(
     ctx: IRFunction,
     assembly: list,
     inst: IRInstruction,
-    origin_inst: IRInstruction,
     stack_map: StackMap,
-) -> list[str]:
+) -> (list[str], IRInstruction):
     global label_counter
 
+    origin_inst = None
     for op in inst.get_output_operands():
         for target in dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
                 continue
             if target.fen != inst.fen:
                 continue
-            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, inst, stack_map)
+            assembly, origin_inst = _generate_evm_for_instruction_r(
+                ctx, assembly, target, stack_map
+            )
+
+    if origin_inst is None:
+        if inst.opcode in ["jmp", "jnz"]:
+            origin_inst = OrderedSet()
+            for bb in inst.parent.out_set:
+                l = bb.in_vars_for(inst.parent)
+                origin_inst |= l
+        else:
+            next_inst = inst.parent.get_next_instruction(inst)
+            origin_inst = next_inst.liveness if next_inst else OrderedSet()
 
     if inst in visited_instructions:
-        return assembly
+        return assembly, inst.liveness
     visited_instructions.add(inst)
 
     opcode = inst.opcode
@@ -323,7 +335,7 @@ def _generate_evm_for_instruction_r(
             stack_map.poke(0, ret)
         else:
             stack_map.poke(depth, ret)
-        return assembly
+        return assembly, inst
 
     # Step 2: Emit instructions input operands
     _emit_input_operands(ctx, assembly, inst, operands, stack_map)
@@ -349,7 +361,7 @@ def _generate_evm_for_instruction_r(
         phi_mappings = inst.parent.get_phi_mappings()
         _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 
-    liveness = origin_inst.liveness if origin_inst else OrderedSet()
+    liveness = origin_inst if origin_inst else OrderedSet()
     _stack_duplications(assembly, liveness, inst, stack_map, operands)
     _stack_reorder(assembly, stack_map, operands)
 
@@ -462,7 +474,7 @@ def _generate_evm_for_instruction_r(
             assembly.extend([*PUSH(inst.ret.mem_addr)])
         # assembly.append("MSTORE")
 
-    return assembly
+    return assembly, inst.liveness
 
 
 def _emit_input_operands(
@@ -484,8 +496,8 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op)
             continue
-        assembly = _generate_evm_for_instruction_r(
-            ctx, assembly, dfg_outputs[op.value], inst, stack_map
+        assembly, origin_inst = _generate_evm_for_instruction_r(
+            ctx, assembly, dfg_outputs[op.value], stack_map
         )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
