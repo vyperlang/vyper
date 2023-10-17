@@ -376,6 +376,15 @@ class IRBasicBlock:
             return last_used
         return OrderedSet()
 
+    def get_next_instruction(self, inst: IRInstruction) -> IRInstruction:
+        """
+        Get next instruction after inst.
+        """
+        for i, instruction in enumerate(self.instructions[:-1]):
+            if instruction == inst:
+                return self.instructions[i + 1]
+        return None
+
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
