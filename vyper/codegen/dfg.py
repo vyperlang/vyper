@@ -292,7 +292,18 @@ def _generate_evm_for_instruction_r(
         t_liveness = b.in_vars_for(inst.parent)
         target_stack = OrderedSet(t_liveness)  # [b.phi_vars.get(v.value, v) for v in t_liveness]
         current_stack = OrderedSet(stack_map.stack_map)
-        need_pop = current_stack.difference(target_stack)
+        if opcode == "jmp":
+            need_pop = current_stack.difference(target_stack)
+            for op in need_pop:
+                if op.use_count > 0:
+                    continue
+                depth = stack_map.get_depth_in(op)
+                if depth is StackMap.NOT_IN_STACK:
+                    continue
+                if depth != 0:
+                    stack_map.swap(assembly, depth)
+                stack_map.pop()
+                assembly.append("POP")
         phi_mappings = inst.parent.get_phi_mappings()
         _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 

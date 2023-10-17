@@ -349,6 +349,14 @@ class IRBasicBlock:
         """
         return self.instructions[0].liveness
 
+    def get_use_count(self, var: IRVariable) -> int:
+        """
+        Get use count of variable in basic block.
+        """
+        if var.value not in self.use_counts.keys():
+            self.use_counts[var.value] = 0 if var.value not in self.instructions[-1].liveness else 1
+        return self.use_counts[var.value]
+
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
