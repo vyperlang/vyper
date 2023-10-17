@@ -287,15 +287,15 @@ def _generate_evm_for_instruction_r(
     global label_counter
 
     origin_inst = None
-    # for op in inst.get_output_operands():
-    #     for target in ctx.dfg_inputs.get(op.value, []):
-    #         if target.parent != inst.parent:
-    #             continue
-    #         if target.fen != inst.fen:
-    #             continue
-    #         assembly, origin_inst = _generate_evm_for_instruction_r(
-    #             ctx, assembly, target, stack_map
-    #         )
+    for op in inst.get_output_operands():
+        for target in ctx.dfg_inputs.get(op.value, []):
+            if target.parent != inst.parent:
+                continue
+            if target.fen != inst.fen:
+                continue
+            assembly, origin_inst = _generate_evm_for_instruction_r(
+                ctx, assembly, target, stack_map
+            )
 
     if origin_inst is None:
         if inst.opcode in ["jmp", "jnz"]:

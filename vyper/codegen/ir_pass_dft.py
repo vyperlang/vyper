@@ -14,18 +14,10 @@ def _emit_operands_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstru
 
 
 def _process_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction):
-    for op in inst.get_output_operands():
-        for target in ctx.dfg_inputs.get(op.value, []):
-            if target.parent.label != bb.label:
-                continue
-            if target.volatile:
-                continue
-            _process_instruction(ctx, bb, target)
-
+    global visited_instructions
     if inst in visited_instructions:
         return
     visited_instructions.add(inst)
-
     _emit_operands_instruction(ctx, bb, inst)
     bb.append_instruction(inst)
 
