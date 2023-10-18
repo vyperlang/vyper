@@ -72,22 +72,6 @@ def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = No
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
 
-    if optimize is not OptimizationLevel.NONE:
-        optimize_function(global_function)
-
-    optimize_empty_blocks(global_function)
-    calculate_in_set(global_function)
-    calculate_liveness(global_function)
-    convert_ir_to_dfg(global_function)
-
-    ir_pass_constant_propagation(global_function)
-    ir_pass_dft(global_function)
-
-    calculate_in_set(global_function)
-    calculate_liveness(global_function)
-
-    convert_ir_to_dfg(global_function)
-
     return global_function
 
 

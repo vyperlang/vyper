@@ -11,7 +11,8 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.ir.ir_to_bb_pass import convert_ir_basicblock, generate_assembly_experimental
+from vyper.ir.ir_to_bb_pass import generate_assembly_experimental
+from vyper.codegen.ir import generate_ir
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
@@ -165,7 +166,7 @@ class CompilerData:
         # fetch both deployment and runtime IR
         nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
         if self.experimental_codegen:
-            return [convert_ir_basicblock(nodes[0]), convert_ir_basicblock(nodes[1])]
+            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
         else:
             return nodes
 
