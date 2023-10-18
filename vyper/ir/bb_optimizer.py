@@ -6,25 +6,7 @@ from vyper.codegen.ir_basicblock import (
 )
 from vyper.codegen.ir_function import IRFunction
 from vyper.utils import OrderedSet
-
-
-def optimize_function(ctx: IRFunction):
-    while True:
-        while _optimize_empty_basicblocks(ctx):
-            pass
-
-        calculate_in_set(ctx)
-        while ctx.remove_unreachable_blocks():
-            pass
-
-        if len(ctx.basic_blocks) == 0:
-            return ctx
-
-        calculate_liveness(ctx)
-
-        removed = _optimize_unused_variables(ctx)
-        if len(removed) == 0:
-            break
+from vyper.utils import ir_pass
 
 
 def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
@@ -46,7 +28,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
     return removeList
 
 
-def _optimize_empty_basicblocks(ctx: IRFunction) -> None:
+def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
     """
     Remove empty basic blocks.
     """
@@ -153,6 +135,18 @@ def calculate_liveness(ctx: IRFunction) -> None:
     _calculate_liveness(ctx.basic_blocks[0], {})
 
 
-def optimize_empty_blocks(ctx: IRFunction) -> None:
-    while _optimize_empty_basicblocks(ctx):
-        pass
+@ir_pass
+def ir_pass_optimize_empty_blocks(ctx: IRFunction) -> int:
+    changes = _optimize_empty_basicblocks(ctx)
+    calculate_in_set(ctx)
+    return changes
+
+
+@ir_pass
+def ir_pass_remove_unreachable_blocks(ctx: IRFunction) -> int:
+    return ctx.remove_unreachable_blocks()
+
+
+@ir_pass
+def ir_pass_optimize_unused_variables(ctx: IRFunction) -> int:
+    return _optimize_unused_variables(ctx)
