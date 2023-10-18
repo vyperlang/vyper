@@ -13,12 +13,6 @@ from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
-from vyper.ir.bb_optimizer import (
-    calculate_in_set,
-    calculate_liveness,
-    optimize_empty_blocks,
-    optimize_function,
-)
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import OrderedSet, MemoryPositions
@@ -64,7 +58,7 @@ def generate_assembly_experimental(
     return generate_evm(ir, optimize is OptimizationLevel.NONE)
 
 
-def convert_ir_basicblock(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
+def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir, {}, {}, {})
 
