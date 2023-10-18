@@ -91,17 +91,15 @@ class Stmt:
         return IRnode.from_list(ret)
 
     def parse_If(self):
-        if self.stmt.orelse:
-            with self.context.block_scope():
-                add_on = [parse_body(self.stmt.orelse, self.context)]
-        else:
-            add_on = []
-
         with self.context.block_scope():
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-            body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
-            ir_node = IRnode.from_list(body)
-        return ir_node
+            body = ["if", test_expr, parse_body(self.stmt.body, self.context)]
+
+        if self.stmt.orelse:
+            with self.context.block_scope():
+                body.extend([parse_body(self.stmt.orelse, self.context)])
+
+        return IRnode.from_list(body)
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]

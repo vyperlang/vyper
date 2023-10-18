@@ -1,4 +1,3 @@
-import warnings
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
@@ -6,21 +5,6 @@ from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode, UnknownType
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import SizeLimits
-
-BUILTIN_CONSTANTS = {
-    "EMPTY_BYTES32": (
-        vy_ast.Hex,
-        "0x0000000000000000000000000000000000000000000000000000000000000000",
-        "empty(bytes32)",
-    ),  # NOQA: E501
-    "ZERO_ADDRESS": (vy_ast.Hex, "0x0000000000000000000000000000000000000000", "empty(address)"),
-    "MAX_INT128": (vy_ast.Int, 2**127 - 1, "max_value(int128)"),
-    "MIN_INT128": (vy_ast.Int, -(2**127), "min_value(int128)"),
-    "MAX_DECIMAL": (vy_ast.Decimal, SizeLimits.MAX_AST_DECIMAL, "max_value(decimal)"),
-    "MIN_DECIMAL": (vy_ast.Decimal, SizeLimits.MIN_AST_DECIMAL, "min_value(decimal)"),
-    "MAX_UINT256": (vy_ast.Int, 2**256 - 1, "max_value(uint256)"),
-}
 
 
 def fold(vyper_module: vy_ast.Module) -> None:
@@ -32,8 +16,6 @@ def fold(vyper_module: vy_ast.Module) -> None:
     vyper_module : Module
         Top-level Vyper AST node.
     """
-    replace_builtin_constants(vyper_module)
-
     changed_nodes = 1
     while changed_nodes:
         changed_nodes = 0
@@ -136,21 +118,6 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
         vyper_module.replace_in_tree(node, new_node)
 
     return changed_nodes
-
-
-def replace_builtin_constants(vyper_module: vy_ast.Module) -> None:
-    """
-    Replace references to builtin constants with their literal values.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node.
-    """
-    for name, (node, value, replacement) in BUILTIN_CONSTANTS.items():
-        found = replace_constant(vyper_module, name, node(value=value), True)
-        if found > 0:
-            warnings.warn(f"{name} is deprecated. Please use `{replacement}` instead.")
 
 
 def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:

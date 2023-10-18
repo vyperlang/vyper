@@ -331,7 +331,7 @@ def foo():
 @external
 def foo():
     y: int128 = 1
-    z: bytes32 = EMPTY_BYTES32
+    z: bytes32 = empty(bytes32)
     z = y
     """,
         """
@@ -344,7 +344,7 @@ def foo():
 @external
 def foo():
     y: uint256 = 1
-    z: bytes32 = EMPTY_BYTES32
+    z: bytes32 = empty(bytes32)
     z = y
     """,
     ],
