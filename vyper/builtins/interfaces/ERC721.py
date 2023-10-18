@@ -2,18 +2,18 @@ interface_code = """
 # Events
 
 event Transfer:
-    _from: address
-    _to: address
-    _tokenId: uint256
+    _from: indexed(address)
+    _to: indexed(address)
+    _tokenId: indexed(uint256)
 
 event Approval:
-    _owner: address
-    _approved: address
-    _tokenId: uint256
+    _owner: indexed(address)
+    _approved: indexed(address)
+    _tokenId: indexed(uint256)
 
 event ApprovalForAll:
-    _owner: address
-    _operator: address
+    _owner: indexed(address)
+    _operator: indexed(address)
     _approved: bool
 
 # Functions

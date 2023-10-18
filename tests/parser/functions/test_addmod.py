@@ -55,3 +55,35 @@ def c() -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.foo() == 2
+
+
+def test_uint256_addmod_evaluation_order(get_contract_with_gas_estimation):
+    code = """
+a: uint256
+
+@external
+def foo1() -> uint256:
+    self.a = 0
+    return uint256_addmod(self.a, 1, self.bar())
+
+@external
+def foo2() -> uint256:
+    self.a = 0
+    return uint256_addmod(self.a, self.bar(), 3)
+
+@external
+def foo3() -> uint256:
+    self.a = 0
+    return uint256_addmod(1, self.a, self.bar())
+
+@internal
+def bar() -> uint256:
+    self.a = 1
+    return 2
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo1() == 1
+    assert c.foo2() == 2
+    assert c.foo3() == 1

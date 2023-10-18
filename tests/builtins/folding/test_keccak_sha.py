@@ -10,7 +10,7 @@ alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&
 
 @pytest.mark.fuzzing
 @given(value=st.text(alphabet=alphabet, min_size=0, max_size=100))
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_string(get_contract, value, fn_name):
     source = f"""
@@ -29,7 +29,7 @@ def foo(a: String[100]) -> bytes32:
 
 @pytest.mark.fuzzing
 @given(value=st.binary(min_size=0, max_size=100))
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_bytes(get_contract, value, fn_name):
     source = f"""
@@ -48,7 +48,7 @@ def foo(a: Bytes[100]) -> bytes32:
 
 @pytest.mark.fuzzing
 @given(value=st.binary(min_size=1, max_size=100))
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_hex(get_contract, value, fn_name):
     source = f"""

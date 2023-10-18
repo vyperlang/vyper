@@ -2,7 +2,7 @@ import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 
-from semantic_version import NpmSpec, Version
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from vyper.compiler.settings import OptimizationLevel, Settings
 
@@ -12,21 +12,6 @@ from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import StructureException, SyntaxException, VersionException
 from vyper.typing import ModificationOffsets, ParserPosition
 
-VERSION_ALPHA_RE = re.compile(r"(?<=\d)a(?=\d)")  # 0.1.0a17
-VERSION_BETA_RE = re.compile(r"(?<=\d)b(?=\d)")  # 0.1.0b17
-VERSION_RC_RE = re.compile(r"(?<=\d)rc(?=\d)")  # 0.1.0rc17
-
-
-def _convert_version_str(version_str: str) -> str:
-    """
-    Convert loose version (0.1.0b17) to strict version (0.1.0-beta.17)
-    """
-    version_str = re.sub(VERSION_ALPHA_RE, "-alpha.", version_str)  # 0.1.0-alpha.17
-    version_str = re.sub(VERSION_BETA_RE, "-beta.", version_str)  # 0.1.0-beta.17
-    version_str = re.sub(VERSION_RC_RE, "-rc.", version_str)  # 0.1.0-rc.17
-
-    return version_str
-
 
 def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     """
@@ -34,28 +19,26 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
     """
     from vyper import __version__
 
-    # NOTE: should be `x.y.z.*`
-    installed_version = ".".join(__version__.split(".")[:3])
-
-    strict_file_version = _convert_version_str(version_str)
-    strict_compiler_version = Version(_convert_version_str(installed_version))
-
-    if len(strict_file_version) == 0:
+    if len(version_str) == 0:
         raise VersionException("Version specification cannot be empty", start)
 
+    # X.Y.Z or vX.Y.Z => ==X.Y.Z, ==vX.Y.Z
+    if re.match("[v0-9]", version_str):
+        version_str = "==" + version_str
+    # convert npm to pep440
+    version_str = re.sub("^\\^", "~=", version_str)
+
     try:
-        npm_spec = NpmSpec(strict_file_version)
-    except ValueError:
+        spec = SpecifierSet(version_str)
+    except InvalidSpecifier:
         raise VersionException(
-            f'Version specification "{version_str}" is not a valid NPM semantic '
-            f"version specification",
-            start,
+            f'Version specification "{version_str}" is not a valid PEP440 specifier', start
         )
 
-    if not npm_spec.match(strict_compiler_version):
+    if not spec.contains(__version__, prereleases=True):
         raise VersionException(
             f'Version specification "{version_str}" is not compatible '
-            f'with compiler version "{installed_version}"',
+            f'with compiler version "{__version__}"',
             start,
         )
 
@@ -72,7 +55,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "interface", "struct" and "event" keywords into python "class" keyword
+    * Translates "interface", "struct", "enum, and "event" keywords into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
@@ -128,7 +111,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                         validate_version_pragma(compiler_version, start)
                         settings.compiler_version = compiler_version
 
-                    if pragma.startswith("optimize "):
+                    elif pragma.startswith("optimize "):
                         if settings.optimize is not None:
                             raise StructureException("pragma optimize specified twice!", start)
                         try:
@@ -136,13 +119,16 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                             settings.optimize = OptimizationLevel.from_string(mode)
                         except ValueError:
                             raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    if pragma.startswith("evm-version "):
+                    elif pragma.startswith("evm-version "):
                         if settings.evm_version is not None:
                             raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException("Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
+
+                    else:
+                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(

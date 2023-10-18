@@ -91,17 +91,15 @@ class Stmt:
         return IRnode.from_list(ret)
 
     def parse_If(self):
-        if self.stmt.orelse:
-            with self.context.block_scope():
-                add_on = [parse_body(self.stmt.orelse, self.context)]
-        else:
-            add_on = []
-
         with self.context.block_scope():
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-            body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
-            ir_node = IRnode.from_list(body)
-        return ir_node
+            body = ["if", test_expr, parse_body(self.stmt.body, self.context)]
+
+        if self.stmt.orelse:
+            with self.context.block_scope():
+                body.extend([parse_body(self.stmt.orelse, self.context)])
+
+        return IRnode.from_list(body)
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]
@@ -302,7 +300,9 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        # NOTE: codegen for `repeat` inserts an assertion that rounds <= rounds_bound.
+        # NOTE: codegen for `repeat` inserts an assertion that
+        # (gt rounds_bound rounds). note this also covers the case where
+        # rounds < 0.
         # if we ever want to remove that, we need to manually add the assertion
         # where it makes sense.
         ir_node = IRnode.from_list(
@@ -316,10 +316,8 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.value_type = target_type
+        assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id

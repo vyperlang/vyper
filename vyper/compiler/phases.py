@@ -88,9 +88,12 @@ class CompilerData:
         self.no_bytecode_metadata = no_bytecode_metadata
         self.settings = settings or Settings()
 
+        _ = self._generate_ast  # force settings to be calculated
+
     @cached_property
     def _generate_ast(self):
         settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
         if settings.evm_version is not None:
@@ -117,6 +120,8 @@ class CompilerData:
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
 
+        # note self.settings.compiler_version is erased here as it is
+        # not used after pre-parsing
         return ast
 
     @cached_property
@@ -184,12 +189,12 @@ class CompilerData:
 
     @cached_property
     def bytecode(self) -> bytes:
-        insert_vyper_signature = not self.no_bytecode_metadata
-        return generate_bytecode(self.assembly, insert_vyper_signature=insert_vyper_signature)
+        insert_compiler_metadata = not self.no_bytecode_metadata
+        return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
 
     @cached_property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, insert_vyper_signature=False)
+        return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -230,7 +235,6 @@ def generate_unfolded_ast(
     vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_constants(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
     # note: validate_semantics does type inference on the AST
     validate_semantics(vyper_module, interface_codes)
@@ -331,7 +335,7 @@ def _find_nested_opcode(assembly, key):
         return any(_find_nested_opcode(x, key) for x in sublists)
 
 
-def generate_bytecode(assembly: list, insert_vyper_signature: bool) -> bytes:
+def generate_bytecode(assembly: list, insert_compiler_metadata: bool) -> bytes:
     """
     Generate bytecode from assembly instructions.
 
@@ -345,4 +349,6 @@ def generate_bytecode(assembly: list, insert_vyper_signature: bool) -> bytes:
     bytes
         Final compiled bytecode.
     """
-    return compile_ir.assembly_to_evm(assembly, insert_vyper_signature=insert_vyper_signature)[0]
+    return compile_ir.assembly_to_evm(assembly, insert_compiler_metadata=insert_compiler_metadata)[
+        0
+    ]

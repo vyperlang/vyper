@@ -22,11 +22,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import (
-    check_constant,
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.analysis.utils import check_constant, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
@@ -90,6 +86,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 err_list.raise_if_not_empty()
 
         # generate an `InterfaceT` from the top-level node - used for building the ABI
+        # note: also validates unique method ids
         interface = InterfaceT.from_ast(module_node)
         module_node._metadata["type"] = interface
         self.interface = interface  # this is useful downstream
@@ -101,12 +98,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
         module_node._metadata["namespace"] = _ns
 
-        # check for collisions between 4byte function selectors
-        # internal functions are intentionally included in this check, to prevent breaking
-        # changes in in case of a future change to their calling convention
         self_members = namespace["self"].typ.members
-        functions = [i for i in self_members.values() if isinstance(i, ContractFunctionT)]
-        validate_unique_method_ids(functions)
 
         # get list of internal function calls made by each function
         function_defs = self.ast.get_children(vy_ast.FunctionDef)

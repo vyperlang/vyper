@@ -19,7 +19,7 @@ st_decimals = st.decimals(
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=10, deadline=1000)
+@settings(max_examples=10)
 @given(value=st_decimals)
 @pytest.mark.parametrize("denom", denoms)
 def test_decimal(get_contract, value, denom):
@@ -38,7 +38,7 @@ def foo(a: decimal) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=10, deadline=1000)
+@settings(max_examples=10)
 @given(value=st.integers(min_value=0, max_value=2**128))
 @pytest.mark.parametrize("denom", denoms)
 def test_integer(get_contract, value, denom):

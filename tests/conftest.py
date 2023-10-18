@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+import hypothesis
 import pytest
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
@@ -21,6 +22,11 @@ pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 ############
 # PATCHING #
 ############
+
+
+# disable hypothesis deadline globally
+hypothesis.settings.register_profile("ci", deadline=None)
+hypothesis.settings.load_profile("ci")
 
 
 def set_evm_verbose_logging():
