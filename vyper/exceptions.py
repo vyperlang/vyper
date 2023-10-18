@@ -54,7 +54,9 @@ class _BaseVyperException(Exception):
             # support older exceptions that don't annotate - remove this in the future!
             self.lineno, self.col_offset = items[0][:2]
         else:
-            self.annotations = items
+            # strip out None sources so that None can be passed as a valid
+            # annotation (in case it is only available optionally)
+            self.annotations = [k for k in items if k is not None]
 
     def with_annotation(self, *annotations):
         """
@@ -265,6 +267,10 @@ class EvmVersionException(VyperException):
 
 class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
+
+
+class MemoryAllocationException(VyperException):
+    """Tried to allocate too much memory"""
 
 
 class JSONError(Exception):

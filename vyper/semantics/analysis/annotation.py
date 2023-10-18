@@ -85,16 +85,19 @@ class StatementAnnotationVisitor(_AnnotationVisitorBase):
     def visit_For(self, node):
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             self.expr_visitor.visit(node.iter)
-        # typecheck list literal as static array
+
+        iter_type = node.target._metadata["type"]
         if isinstance(node.iter, vy_ast.List):
-            value_type = get_common_types(*node.iter.elements).pop()
+            # typecheck list literal as static array
             len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(value_type, len_))
+            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
 
         if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            iter_type = node.target._metadata["type"]
             for a in node.iter.args:
                 self.expr_visitor.visit(a, iter_type)
+            for a in node.iter.keywords:
+                if a.arg == "bound":
+                    self.expr_visitor.visit(a.value, iter_type)
 
 
 class ExpressionAnnotationVisitor(_AnnotationVisitorBase):

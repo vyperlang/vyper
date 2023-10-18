@@ -4,7 +4,7 @@ from typing import Optional
 
 import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import check_single_exit, getpos
+from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.global_context import GlobalContext
@@ -63,12 +63,39 @@ class _FuncIRInfo:
         return self.ir_identifier + suffix
 
 
+class FuncIR:
+    pass
+
+
+@dataclass
+class EntryPointInfo:
+    func_t: ContractFunctionT
+    min_calldatasize: int  # the min calldata required for this entry point
+    ir_node: IRnode  # the ir for this entry point
+
+    def __post_init__(self):
+        # ABI v2 property guaranteed by the spec.
+        # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:  # noqa: E501
+        # > Note that for any X, len(enc(X)) is a multiple of 32.
+        assert self.min_calldatasize >= 4
+        assert (self.min_calldatasize - 4) % 32 == 0
+
+
+@dataclass
+class ExternalFuncIR(FuncIR):
+    entry_points: dict[str, EntryPointInfo]  # map from abi sigs to entry points
+    common_ir: IRnode  # the "common" code for the function
+
+
+@dataclass
+class InternalFuncIR(FuncIR):
+    func_ir: IRnode  # the code for the function
+
+
+# TODO: should split this into external and internal ir generation?
 def generate_ir_for_function(
-    code: vy_ast.FunctionDef,
-    global_ctx: GlobalContext,
-    skip_nonpayable_check: bool,
-    is_ctor_context: bool = False,
-) -> IRnode:
+    code: vy_ast.FunctionDef, global_ctx: GlobalContext, is_ctor_context: bool = False
+) -> FuncIR:
     """
     Parse a function and produce IR code for the function, includes:
         - Signature method if statement
@@ -82,6 +109,7 @@ def generate_ir_for_function(
     func_t._ir_info = _FuncIRInfo(func_t)
 
     # Validate return statements.
+    # XXX: This should really be in semantics pass.
     check_single_exit(code)
 
     callees = func_t.called_functions
@@ -106,19 +134,23 @@ def generate_ir_for_function(
     )
 
     if func_t.is_internal:
-        assert skip_nonpayable_check is False
-        o = generate_ir_for_internal_function(code, func_t, context)
+        ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
+        func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
     else:
-        if func_t.is_payable:
-            assert skip_nonpayable_check is False  # nonsense
-        o = generate_ir_for_external_function(code, func_t, context, skip_nonpayable_check)
-
-    o.source_pos = getpos(code)
+        kwarg_handlers, common = generate_ir_for_external_function(code, func_t, context)
+        entry_points = {
+            k: EntryPointInfo(func_t, mincalldatasize, ir_node)
+            for k, (mincalldatasize, ir_node) in kwarg_handlers.items()
+        }
+        ret = ExternalFuncIR(entry_points, common)
+        # note: this ignores the cost of traversing selector table
+        func_t._ir_info.gas_estimate = ret.common_ir.gas
 
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
 
     frame_info = FrameInfo(allocate_start, frame_size, context.vars)
 
+    # XXX: when can this happen?
     if func_t._ir_info.frame_info is None:
         func_t._ir_info.set_frame_info(frame_info)
     else:
@@ -128,9 +160,7 @@ def generate_ir_for_function(
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
-        # it is already accounted for by the caller.)
-        o.add_gas_estimate += calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
+        mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
+        ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
 
-    func_t._ir_info.gas_estimate = o.gas
-
-    return o
+    return ret

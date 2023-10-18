@@ -13,7 +13,7 @@ st_decimals = st.decimals(
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(value=st_decimals)
 @example(value=Decimal("0.9999999999"))
 @example(value=Decimal("0.0000000001"))

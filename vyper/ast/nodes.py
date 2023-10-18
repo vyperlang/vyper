@@ -339,7 +339,7 @@ class VyperNode:
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        if other.node_id != self.node_id:
+        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
             return False
         for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):

@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+import hypothesis
 import pytest
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_utils import setup_DEBUG2_logging
@@ -10,7 +11,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy
@@ -21,6 +22,11 @@ pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
 ############
 # PATCHING #
 ############
+
+
+# disable hypothesis deadline globally
+hypothesis.settings.register_profile("ci", deadline=None)
+hypothesis.settings.load_profile("ci")
 
 
 def set_evm_verbose_logging():
@@ -43,12 +49,20 @@ def pytest_addoption(parser):
         default="gas",
         help="change optimization mode",
     )
+    parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
 
 @pytest.fixture(scope="module")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(pytestconfig):
+    debug = pytestconfig.getoption("enable_compiler_debug_mode")
+    assert isinstance(debug, bool)
+    _set_debug_mode(debug)
 
 
 @pytest.fixture

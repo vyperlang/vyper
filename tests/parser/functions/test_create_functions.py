@@ -431,3 +431,212 @@ def test2(target: address, salt: bytes32) -> address:
     # test2 = c.test2(b"\x01", salt)
     # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
     # assert_tx_failed(lambda: c.test2(bytecode, salt))
+
+
+# XXX: these various tests to check the msize allocator for
+# create_copy_of and create_from_blueprint depend on calling convention
+# and variables writing to memory. think of ways to make more robust to
+# changes in calling convention and memory layout
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+def test_create_from_blueprint_complex_value(
+    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+):
+    # check msize allocator does not get trampled by value= kwarg
+    code = """
+var: uint256
+
+@external
+@payable
+def __init__(x: uint256):
+    self.var = x
+
+@external
+def foo()-> uint256:
+    return self.var
+    """
+
+    prefix_len = len(blueprint_prefix)
+
+    some_constant = b"\00" * 31 + b"\x0c"
+
+    deployer_code = f"""
+created_address: public(address)
+x: constant(Bytes[32]) = {some_constant}
+
+@internal
+def foo() -> uint256:
+    g:uint256 = 42
+    return 3
+
+@external
+@payable
+def test(target: address):
+    self.created_address = create_from_blueprint(
+        target,
+        x,
+        code_offset={prefix_len},
+        value=self.foo(),
+        raw_args=True
+    )
+    """
+
+    foo_contract = get_contract(code, 12)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
+
+    d = get_contract(deployer_code)
+
+    d.test(f.address, transact={"value": 3})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 12
+
+
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+def test_create_from_blueprint_complex_salt_raw_args(
+    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+):
+    # test msize allocator does not get trampled by salt= kwarg
+    code = """
+var: uint256
+
+@external
+@payable
+def __init__(x: uint256):
+    self.var = x
+
+@external
+def foo()-> uint256:
+    return self.var
+    """
+
+    some_constant = b"\00" * 31 + b"\x0c"
+    prefix_len = len(blueprint_prefix)
+
+    deployer_code = f"""
+created_address: public(address)
+
+x: constant(Bytes[32]) = {some_constant}
+salt: constant(bytes32) = keccak256("kebab")
+
+@internal
+def foo() -> bytes32:
+    g:uint256 = 42
+    return salt
+
+@external
+@payable
+def test(target: address):
+    self.created_address = create_from_blueprint(
+        target,
+        x,
+        code_offset={prefix_len},
+        salt=self.foo(),
+        raw_args= True
+    )
+    """
+
+    foo_contract = get_contract(code, 12)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
+
+    d = get_contract(deployer_code)
+
+    d.test(f.address, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 12
+
+
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+def test_create_from_blueprint_complex_salt_no_constructor_args(
+    get_contract, deploy_blueprint_for, w3, blueprint_prefix
+):
+    # test msize allocator does not get trampled by salt= kwarg
+    code = """
+var: uint256
+
+@external
+@payable
+def __init__():
+    self.var = 12
+
+@external
+def foo()-> uint256:
+    return self.var
+    """
+
+    prefix_len = len(blueprint_prefix)
+    deployer_code = f"""
+created_address: public(address)
+
+salt: constant(bytes32) = keccak256("kebab")
+
+@external
+@payable
+def test(target: address):
+    self.created_address = create_from_blueprint(
+        target,
+        code_offset={prefix_len},
+        salt=keccak256(_abi_encode(target))
+    )
+    """
+
+    foo_contract = get_contract(code)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
+
+    d = get_contract(deployer_code)
+
+    d.test(f.address, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 12
+
+
+def test_create_copy_of_complex_kwargs(get_contract, w3):
+    # test msize allocator does not get trampled by salt= kwarg
+    complex_salt = """
+created_address: public(address)
+
+@external
+def test(target: address) -> address:
+    self.created_address = create_copy_of(
+        target,
+        salt=keccak256(_abi_encode(target))
+    )
+    return self.created_address
+
+    """
+
+    c = get_contract(complex_salt)
+    bytecode = w3.eth.get_code(c.address)
+    c.test(c.address, transact={})
+    test1 = c.created_address()
+    assert w3.eth.get_code(test1) == bytecode
+
+    # test msize allocator does not get trampled by value= kwarg
+    complex_value = """
+created_address: public(address)
+
+@external
+@payable
+def test(target: address) -> address:
+    value: uint256 = 2
+    self.created_address = create_copy_of(target, value = [2,2,2][value])
+    return self.created_address
+
+    """
+
+    c = get_contract(complex_value)
+    bytecode = w3.eth.get_code(c.address)
+
+    c.test(c.address, transact={"value": 2})
+    test1 = c.created_address()
+    assert w3.eth.get_code(test1) == bytecode

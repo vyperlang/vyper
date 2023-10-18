@@ -104,11 +104,10 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    warnings.warn("metadata output format is unstable!")
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):
-        ret = vars(variable_record)
+        ret = vars(variable_record).copy()
         ret["typ"] = str(ret["typ"])
         if ret["data_offset"] is None:
             del ret["data_offset"]
@@ -118,7 +117,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         return ret
 
     def _to_dict(func_t):
-        ret = vars(func_t)
+        ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = func_t._ir_info.ir_identifier
 
@@ -134,7 +133,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info)
+        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         keep_keys = {
@@ -218,7 +217,7 @@ def _build_asm(asm_list):
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime, insert_vyper_signature=False
+        compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
     # Sort line_number_map
     out = OrderedDict()
@@ -300,9 +299,13 @@ def _build_opcodes(bytecode: bytes) -> str:
 
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
-        opcode_output.append(opcode_map[op])
+        opcode_output.append(opcode_map.get(op, f"VERBATIM_{hex(op)}"))
         if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(opcode_map[op][4:])
+            # we can have push_len > len(bytecode_sequence) when there is data
+            # (instead of code) at end of contract
+            # CMC 2023-07-13 maybe just strip known data segments?
+            push_len = min(push_len, len(bytecode_sequence))
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
 

@@ -76,6 +76,26 @@ def foo(a: Foo) -> uint256[2]:
     assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
 
 
+def test_ecadd_evaluation_order(get_contract_with_gas_estimation):
+    code = """
+x: uint256[2]
+
+@internal
+def bar() -> uint256[2]:
+    self.x = ecadd([1, 2], [1, 2])
+    return [1, 2]
+
+@external
+def foo() -> bool:
+    self.x = [1, 2]
+    a: uint256[2] = ecadd([1, 2], [1, 2])
+    b: uint256[2] = ecadd(self.x, self.bar())
+    return a[0] == b[0] and a[1] == b[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is True
+
+
 def test_ecmul(get_contract_with_gas_estimation):
     ecmuller = """
 x3: uint256[2]
@@ -136,3 +156,23 @@ def foo(a: Foo) -> uint256[2]:
     assert c2.foo(c1.address) == G1_times_three
 
     assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+
+
+def test_ecmul_evaluation_order(get_contract_with_gas_estimation):
+    code = """
+x: uint256[2]
+
+@internal
+def bar() -> uint256:
+    self.x = ecmul([1, 2], 3)
+    return 3
+
+@external
+def foo() -> bool:
+    self.x = [1, 2]
+    a: uint256[2] = ecmul([1, 2], 3)
+    b: uint256[2] = ecmul(self.x, self.bar())
+    return a[0] == b[0] and a[1] == b[1]
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert c.foo() is True

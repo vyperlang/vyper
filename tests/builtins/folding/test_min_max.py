@@ -18,7 +18,7 @@ st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st_decimals, right=st_decimals)
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_decimal(get_contract, left, right, fn_name):
@@ -37,7 +37,7 @@ def foo(a: decimal, b: decimal) -> decimal:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st_int128, right=st_int128)
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_int128(get_contract, left, right, fn_name):
@@ -56,7 +56,7 @@ def foo(a: int128, b: int128) -> int128:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st_uint256, right=st_uint256)
 @pytest.mark.parametrize("fn_name", ["min", "max"])
 def test_min_uint256(get_contract, left, right, fn_name):

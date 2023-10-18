@@ -112,14 +112,14 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, optimize, *args, **kwargs):
+def _get_contract(w3, source_code, optimize, *args, override_opt_level=None, **kwargs):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
-    settings.optimize = optimize
+    settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
-        # test that metadata gets generated
-        ["abi", "bytecode", "metadata"],
+        # test that metadata and natspecs get generated
+        ["abi", "bytecode", "metadata", "userdoc", "devdoc"],
         settings=settings,
         interface_codes=kwargs.pop("interface_codes", None),
         show_gas_estimates=True,  # Enable gas estimates for testing

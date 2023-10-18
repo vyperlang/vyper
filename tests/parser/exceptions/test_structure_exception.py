@@ -56,9 +56,26 @@ struct X:
     """,
     """
 @external
-@nonreentrant("B")
-@nonreentrant("C")
-def double_nonreentrant():
+@nonreentrant(" ")
+def invalid_nonreentrant_key():
+    pass
+    """,
+    """
+@external
+@nonreentrant("")
+def invalid_nonreentrant_key():
+    pass
+    """,
+    """
+@external
+@nonreentrant("123")
+def invalid_nonreentrant_key():
+    pass
+    """,
+    """
+@external
+@nonreentrant("!123abcd")
+def invalid_nonreentrant_key():
     pass
     """,
     """
