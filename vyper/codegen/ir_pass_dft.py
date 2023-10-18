@@ -1,6 +1,6 @@
 from vyper.codegen.ir_basicblock import IRBasicBlock, IRInstruction
 from vyper.codegen.ir_function import IRFunction
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, ir_pass
 
 visited_instructions = OrderedSet()
 
@@ -30,6 +30,7 @@ def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock):
         _process_instruction(ctx, bb, inst)
 
 
+@ir_pass
 def ir_pass_dft(ctx: IRFunction):
     global visited_instructions
     visited_instructions = OrderedSet()
