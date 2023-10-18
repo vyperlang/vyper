@@ -20,9 +20,7 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
     ctx = convert_ir_basicblock(ir)
 
     # Run passes on "new" IR
-    # if optimize is not OptimizationLevel.NONE:
-    #     optimize_function(ctx)
-
+    # TODO: Add support for optimization levels
     while True:
         changes = 0
 

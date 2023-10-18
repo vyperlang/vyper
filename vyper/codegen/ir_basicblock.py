@@ -129,6 +129,8 @@ class IRInstruction:
             "invoke",
             "sload",
             "sstore",
+            "iload",
+            "istore",
             "assert",
             "mstore",
             "mload",

@@ -323,6 +323,10 @@ def _generate_evm_for_instruction_r(
         operands = inst.get_non_label_operands()
     elif opcode == "alloca":
         operands = inst.operands[1:2]
+    elif opcode == "iload":
+        operands = []
+    elif opcode == "istore":
+        operands = inst.operands[0:1]
     else:
         operands = inst.operands
 
@@ -459,24 +463,20 @@ def _generate_evm_for_instruction_r(
         assembly.extend(["RETURN"])
         assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])
         assembly = assembly[-1]
-        pass
+    elif opcode == "iload":
+        loc = inst.operands[0].value
+        assembly.extend(["_OFST", "_mem_deploy_end", loc, "MLOAD"])
+    elif opcode == "istore":
+        loc = inst.operands[1].value
+        assembly.extend(["_OFST", "_mem_deploy_end", loc, "MSTORE"])
     else:
         raise Exception(f"Unknown opcode: {opcode}")
 
     # Step 6: Emit instructions output operands (if any)
-    # FIXME: WHOLE THING NEEDS REFACTOR
     if inst.ret is not None:
         assert isinstance(inst.ret, IRVariable), "Return value must be a variable"
         if inst.ret.mem_type == IRVariable.MemType.MEMORY:
-            #     # if inst.ret.address_access:                           FIXME: MEMORY REFACTOR
-            #     #     if inst.opcode != "alloca":  # FIXMEEEE
-            #     #         if inst.opcode != "codecopy":
-            #     #             assembly.extend([*PUSH(inst.ret.addr)])
-            #     #     else:
-            #     assembly.extend([*PUSH(inst.ret.mem_addr + 30)])
-            # else:
             assembly.extend([*PUSH(inst.ret.mem_addr)])
-        # assembly.append("MSTORE")
 
     return assembly, inst.liveness
 

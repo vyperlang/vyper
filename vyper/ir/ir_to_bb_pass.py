@@ -756,13 +756,13 @@ def _convert_ir_basicblock(
                 symbols[sym_ir.value] = arg_1
                 return arg_1
 
-    elif ir.value == "sload":
+    elif ir.value in ["sload", "iload"]:
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        return ctx.append_instruction("sload", [arg_0])
-    elif ir.value == "sstore":
+        return ctx.append_instruction(ir.value, [arg_0])
+    elif ir.value in ["sstore", "istore"]:
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        inst = IRInstruction("sstore", [arg_1, arg_0])
+        inst = IRInstruction(ir.value, [arg_1, arg_0])
         ctx.get_basic_block().append_instruction(inst)
     elif ir.value == "unique_symbol":
         sym = ir.args[0]
