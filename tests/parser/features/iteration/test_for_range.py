@@ -20,12 +20,12 @@ def test_range_bound(get_contract, assert_tx_failed):
 def repeat(n: uint256) -> uint256:
     x: uint256 = 0
     for i in range(n, bound=6):
-        x += i
+        x += i + 1
     return x
     """
     c = get_contract(code)
     for n in range(7):
-        assert c.repeat(n) == sum(range(n))
+        assert c.repeat(n) == sum(i + 1 for i in range(n))
 
     # check codegen inserts assertion for n greater than bound
     assert_tx_failed(lambda: c.repeat(7))

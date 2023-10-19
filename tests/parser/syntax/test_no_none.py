@@ -30,13 +30,13 @@ def foo():
         """
 @external
 def foo():
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     bar = None
     """,
         """
 @external
 def foo():
-    bar: address = ZERO_ADDRESS
+    bar: address = empty(address)
     bar = None
     """,
         """
@@ -104,13 +104,13 @@ def foo():
         """
 @external
 def foo():
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     assert bar is None
     """,
         """
 @external
 def foo():
-    bar: address = ZERO_ADDRESS
+    bar: address = empty(address)
     assert bar is None
     """,
     ]
@@ -148,13 +148,13 @@ def foo():
         """
 @external
 def foo():
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     assert bar == None
     """,
         """
 @external
 def foo():
-    bar: address = ZERO_ADDRESS
+    bar: address = empty(address)
     assert bar == None
     """,
     ]

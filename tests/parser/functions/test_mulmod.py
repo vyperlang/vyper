@@ -73,3 +73,35 @@ def c() -> uint256:
     c = get_contract_with_gas_estimation(code)
 
     assert c.foo() == 600
+
+
+def test_uint256_mulmod_evaluation_order(get_contract_with_gas_estimation):
+    code = """
+a: uint256
+
+@external
+def foo1() -> uint256:
+    self.a = 1
+    return uint256_mulmod(self.a, 2, self.bar())
+
+@external
+def foo2() -> uint256:
+    self.a = 1
+    return uint256_mulmod(self.bar(), self.a, 2)
+
+@external
+def foo3() -> uint256:
+    self.a = 1
+    return uint256_mulmod(2, self.a, self.bar())
+
+@internal
+def bar() -> uint256:
+    self.a = 7
+    return 5
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo1() == 2
+    assert c.foo2() == 1
+    assert c.foo3() == 2

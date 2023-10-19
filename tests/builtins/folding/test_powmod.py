@@ -9,7 +9,7 @@ st_uint256 = st.integers(min_value=0, max_value=2**256)
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=100, deadline=1000)
+@settings(max_examples=100)
 @given(a=st_uint256, b=st_uint256)
 def test_powmod_uint256(get_contract, a, b):
     source = """

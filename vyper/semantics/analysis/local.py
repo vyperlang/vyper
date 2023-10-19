@@ -169,7 +169,7 @@ def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
         allowed_builtins = ("slice", "len", "raw_call")
         if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
             raise StructureException(
-                "msg.data is only allowed inside of the slice or len functions", node
+                "msg.data is only allowed inside of the slice, len or raw_call functions", node
             )
         if parent.get("func.id") == "slice":
             ok_args = len(parent.args) == 3 and isinstance(parent.args[2], vy_ast.Int)
@@ -365,10 +365,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            validate_call_args(node.iter, (1, 2), kwargs=["bound"])
+            range_ = node.iter
+            validate_call_args(range_, (1, 2), kwargs=["bound"])
 
-            args = node.iter.args
-            kwargs = {s.arg: s.value for s in node.iter.keywords or []}
+            args = range_.args
+            kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
                 # range(CONSTANT)
                 n = args[0]
@@ -390,6 +391,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_common_types(n, bound)
 
             else:
+                if range_.keywords:
+                    raise StructureException(
+                        "Keyword arguments are not supported for `range(N, M)` and"
+                        "`range(x, x + N)` expressions",
+                        range_.keywords[0],
+                    )
+
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
                 if not isinstance(args[0], vy_ast.Constant):

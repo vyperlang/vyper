@@ -6,8 +6,8 @@ import pytest
 from hypothesis import given, settings
 
 import vyper.ast as vy_ast
+from vyper.ast.identifiers import RESERVED_KEYWORDS
 from vyper.compiler.phases import CompilerData
-from vyper.semantics.namespace import RESERVED_KEYWORDS
 
 
 def _valid_identifier(attr):
@@ -15,7 +15,7 @@ def _valid_identifier(attr):
 
 
 # random names for functions
-@settings(max_examples=20, deadline=None)
+@settings(max_examples=20)
 @given(
     st.lists(
         st.tuples(

@@ -92,13 +92,14 @@ setup(
     python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
+        "cbor2>=5.4.6,<6",
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
-        "semantic-version>=2.10,<3",
+        "packaging>=23.1,<24",
         "importlib-metadata",
         "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={

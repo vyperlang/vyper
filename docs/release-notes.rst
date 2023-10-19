@@ -14,8 +14,64 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
+v0.3.10 ("Black Adder")
+***********************
+
+Date released: 2023-10-04
+=========================
+
+v0.3.10 is a performance focused release that additionally ships numerous bugfixes. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
+
+Breaking changes:
+-----------------
+
+- add runtime code layout to initcode (`#3584 <https://github.com/vyperlang/vyper/pull/3584>`_)
+- drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
+- remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
+- only allow valid identifiers to be nonreentrant keys (`#3605 <https://github.com/vyperlang/vyper/pull/3605>`_)
+
+Non-breaking changes and improvements:
+--------------------------------------
+
+- O(1) selector tables (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_)
+- implement bound= in ranges (`#3537 <https://github.com/vyperlang/vyper/pull/3537>`_, `#3551 <https://github.com/vyperlang/vyper/pull/3551>`_)
+- add optimization mode to vyper compiler (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_)
+- improve batch copy performance (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_, `#3499 <https://github.com/vyperlang/vyper/pull/3499>`_, `#3525 <https://github.com/vyperlang/vyper/pull/3525>`_)
+
+Notable fixes:
+--------------
+
+- fix ``ecrecover()`` behavior when signature is invalid (`GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_, `#3586 <https://github.com/vyperlang/vyper/pull/3586>`_)
+- fix: order of evaluation for some builtins (`#3583 <https://github.com/vyperlang/vyper/pull/3583>`_, `#3587 <https://github.com/vyperlang/vyper/pull/3587>`_)
+- fix: memory allocation in certain builtins using ``msize`` (`#3610 <https://github.com/vyperlang/vyper/pull/3610>`_)
+- fix: ``_abi_decode()`` input validation in certain complex expressions (`#3626 <https://github.com/vyperlang/vyper/pull/3626>`_)
+- fix: pycryptodome for arm builds (`#3485 <https://github.com/vyperlang/vyper/pull/3485>`_)
+- let params of internal functions be mutable (`#3473 <https://github.com/vyperlang/vyper/pull/3473>`_)
+- typechecking of folded builtins in (`#3490 <https://github.com/vyperlang/vyper/pull/3490>`_)
+- update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
+- fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
+- fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`_)
+
+Other docs updates, chores and fixes:
+-------------------------------------
+
+- relax restrictions on internal function signatures (`#3573 <https://github.com/vyperlang/vyper/pull/3573>`_)
+- note on security advisory in release notes for versions ``0.2.15``, ``0.2.16``, and ``0.3.0`` (`#3553 <https://github.com/vyperlang/vyper/pull/3553>`_)
+- fix: yanked version in release notes (`#3545 <https://github.com/vyperlang/vyper/pull/3545>`_)
+- update release notes on yanked versions (`#3547 <https://github.com/vyperlang/vyper/pull/3547>`_)
+- improve error message for conflicting methods IDs (`#3491 <https://github.com/vyperlang/vyper/pull/3491>`_)
+- document epsilon builtin (`#3552 <https://github.com/vyperlang/vyper/pull/3552>`_)
+- relax version pragma parsing (`#3511 <https://github.com/vyperlang/vyper/pull/3511>`_)
+- fix: issue with finding installed packages in editable mode (`#3510 <https://github.com/vyperlang/vyper/pull/3510>`_)
+- add note on security advisory for ``ecrecover`` in docs (`#3539 <https://github.com/vyperlang/vyper/pull/3539>`_)
+- add ``asm`` option to cli help (`#3585 <https://github.com/vyperlang/vyper/pull/3585>`_)
+- add message to error map for repeat range check (`#3542 <https://github.com/vyperlang/vyper/pull/3542>`_)
+- fix: public constant arrays (`#3536 <https://github.com/vyperlang/vyper/pull/3536>`_)
+
+
 v0.3.9 ("Common Adder")
-******
+***********************
 
 Date released: 2023-05-29
 
@@ -187,6 +243,7 @@ Bugfixes:
 
 v0.3.5
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 2022-08-05
 
@@ -335,6 +392,7 @@ Special thanks to @skellet0r for some major features in this release!
 
 v0.3.0
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-10-04
 
@@ -367,6 +425,7 @@ Special thanks to contributions from @skellet0r and @benjyz for this release!
 
 v0.2.16
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-08-27
 
@@ -391,6 +450,7 @@ Special thanks to contributions from @skellet0r, @sambacha and @milancermak for 
 
 v0.2.15
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 23-07-2021
 
@@ -403,6 +463,7 @@ Fixes:
 
 v0.2.14
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 20-07-2021
 
@@ -521,6 +582,7 @@ Fixes:
 
 v0.2.6
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 10-10-2020
 
