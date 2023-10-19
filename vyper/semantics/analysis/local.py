@@ -26,6 +26,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    is_terminus_node,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -63,16 +64,6 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
                 err_list.append(e)
 
     err_list.raise_if_not_empty()
-
-
-def is_terminus_node(node: vy_ast.VyperNode) -> bool:
-    if getattr(node, "_is_terminus", None):
-        return True
-    if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
-        func = get_exact_type_from_node(node.value.func)
-        if getattr(func, "_is_terminus", None):
-            return True
-    return False
 
 
 def check_for_terminus(node_list: list) -> bool:

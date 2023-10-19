@@ -498,6 +498,16 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     return common_types
 
 
+def is_terminus_node(node: vy_ast.VyperNode) -> bool:
+    if getattr(node, "_is_terminus", None):
+        return True
+    if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
+        func = get_exact_type_from_node(node.value.func)
+        if getattr(func, "_is_terminus", None):
+            return True
+    return False
+
+
 # TODO push this into `ArrayT.validate_literal()`
 def _validate_literal_array(node, expected):
     # validate that every item within an array has the same type
