@@ -1,7 +1,9 @@
 import importlib
 import pkgutil
 from typing import Optional, Union
+from pathlib import Path, PurePath
 
+from vyper.compiler.input_bundle import CompilerInput, InputBundle
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -31,14 +33,14 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.typing import InterfaceDict
 
 
-def add_module_namespace(vy_module: vy_ast.Module, interface_codes: InterfaceDict) -> None:
+def add_module_namespace(vy_module: vy_ast.Module, input_bundle: InputBundle) -> None:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace and validate top-level correctness
     """
 
     namespace = get_namespace()
-    ModuleAnalyzer(vy_module, interface_codes, namespace)
+    ModuleAnalyzer(vy_module, input_bundle, namespace)
 
 
 def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
@@ -58,10 +60,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, interface_codes: InterfaceDict, namespace: Namespace
+        self, module_node: vy_ast.Module, input_bundle: InputBundle, namespace: Namespace
     ) -> None:
         self.ast = module_node
-        self.interface_codes = interface_codes or {}
+        self.input_bundle = input_bundle
         self.namespace = namespace
 
         # TODO: Move computation out of constructor
@@ -287,10 +289,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_Import(self, node):
         if not node.alias:
             raise StructureException("Import requires an accompanying `as` statement", node)
-        self._add_import(node, ".", node.name, node.alias)
+        # import x.y[name] as y[alias]
+        file = self._resolve_import(0, node.name)
+
 
     def visit_ImportFrom(self, node):
-        self._add_import(node, node.module, node.name, node.alias or node.name)
+        # from m.n[module] import x[name] as y[alias]
+        file = self._resolve_import(node.level, node.module or "" + "." + node.name)
 
     def visit_InterfaceDef(self, node):
         obj = InterfaceT.from_ast(node)
@@ -307,7 +312,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def _add_import(
-        self, node: Union[vy_ast.Import, vy_ast.ImportFrom], module: str, name: str, alias: str
+        self, level: int, module: str, name: str, alias: str
     ) -> None:
         if module == "vyper.interfaces":
             interface_codes = _get_builtin_interfaces()
@@ -334,6 +339,23 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.namespace[alias] = type_
         except VyperException as exc:
             raise exc.with_annotation(node) from None
+
+    def _resolve_import(self, level: int, module: str) -> CompilerInput:
+        path = _import_to_path(level, module)
+        try:
+            return self.input_bundle.load_file(path.with_suffix(".vy"))
+        except FileNotFoundError:
+            return self.input_bundle.load_file(path.with_suffix(".json"))
+
+
+# convert an import to a path (without suffix)
+def _import_to_path(level: int, module: str) -> PurePath:
+    base_path = ""
+    if level > 1:
+        base_path = "../" * (level - 1)
+    elif level == 1:
+        base_path = "./"
+    return PurePath(f"{base_path}{module.replace('.','/')}/")
 
 
 def _get_builtin_interfaces():

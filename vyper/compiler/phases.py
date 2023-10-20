@@ -50,6 +50,7 @@ class CompilerData:
     def __init__(
         self,
         source_code: str,
+        input_bundle: InputBundle,
         contract_name: str = "VyperContract",
         source_id: int = 0,
         settings: Settings = None,
@@ -76,6 +77,7 @@ class CompilerData:
             Do not add metadata to bytecode. Defaults to False
         """
         self.contract_name = contract_name
+        self.input_bundle = input_bundle
         self.source_code = source_code
         self.source_id = source_id
         self.storage_layout_override = storage_layout
@@ -128,11 +130,11 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.vyper_module)
+        return generate_unfolded_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
-        return generate_folded_ast(self.vyper_module, self.storage_layout_override)
+        return generate_folded_ast(self.vyper_module, self.input_bundle, self.storage_layout_override)
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
