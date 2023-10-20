@@ -89,9 +89,12 @@ class CompilerData:
         self.no_bytecode_metadata = no_bytecode_metadata
         self.settings = settings or Settings()
 
+        _ = self._generate_ast  # force settings to be calculated
+
     @cached_property
     def _generate_ast(self):
         settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
         if settings.evm_version is not None:
@@ -118,6 +121,8 @@ class CompilerData:
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
 
+        # note self.settings.compiler_version is erased here as it is
+        # not used after pre-parsing
         return ast
 
     @cached_property

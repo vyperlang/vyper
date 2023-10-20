@@ -269,6 +269,10 @@ class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
 
 
+class MemoryAllocationException(VyperException):
+    """Tried to allocate too much memory"""
+
+
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
