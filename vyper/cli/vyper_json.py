@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
 
 import vyper
-from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError

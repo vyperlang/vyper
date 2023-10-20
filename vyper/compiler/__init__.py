@@ -151,7 +151,7 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
-    search_paths: list[str]
+    search_paths: list[str],
     output_formats: Optional[OutputFormats] = None,
     settings: Settings = None,
     storage_layout_override: Optional[StorageLayout] = None,
