@@ -612,10 +612,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         # if self.func.mutability < expr_info.mutability:
         #    raise ...
 
-        if self.func.mutability != StateMutability.PAYABLE:
+        if self.func and self.func.mutability != StateMutability.PAYABLE:
             _validate_msg_value_access(node)
 
-        if self.func.mutability == StateMutability.PURE:
+        if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
@@ -651,6 +651,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
+                assert self.func is not None # make mypy happy
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
