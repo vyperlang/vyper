@@ -11,7 +11,7 @@ import vyper
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.typing import ContractCodes, ContractPath
+from vyper.typing import ContractCodes
 from vyper.utils import keccak256
 
 TRANSLATE_MAP = {
@@ -306,7 +306,6 @@ def compile_from_input_dict(
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
-    interface_sources = get_input_dict_interfaces(input_dict)
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
 
     compiler_data, warning_data = {}, {}

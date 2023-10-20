@@ -1,14 +1,20 @@
+from dataclasses import dataclass
 from typing import Any
+
+from pathlib import Path, PurePath
+
 
 # stub
 class CompilerInput:
     # an input to the compiler.
     pass
 
+
 # stub
 @dataclass
 class VyFile(CompilerInput):
     source_code: str
+
 
 # stub
 @dataclass
@@ -31,7 +37,6 @@ class InputBundle:
 @dataclass
 class FilesystemInputBundle(InputBundle):
     def load_file(self, path: Path) -> CompilerInput:
-
         assert len(search_paths) > 0  # at least, should contain pwd
 
         for p in search_paths:
@@ -48,11 +53,12 @@ class FilesystemInputBundle(InputBundle):
         else:
             formatted_search_paths = "\n".join(["  " + str(sp) for sp in search_paths])
             raise FileNotFoundError(
-                    f"could not find {path} within any of the following search "
-                    f"paths: {formatted_search_paths}"
+                f"could not find {path} within any of the following search "
+                f"paths: {formatted_search_paths}"
             )
 
         raise CompilerPanic("unreachable")  # pragma: nocover
+
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
 # "reads" the file from the JSON input
@@ -76,7 +82,7 @@ class JSONInputBundle(InputBundle):
             return ABIInput(contents)
 
         # TODO: ethPM support
-        #if isinstance(contents, dict) and "contractTypes" in contents:
+        # if isinstance(contents, dict) and "contractTypes" in contents:
 
         # TODO: raise JSONError instead of ValueError?
         raise ValueError(f"Unexpected type in file: '{path}'")

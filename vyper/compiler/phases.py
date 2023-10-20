@@ -3,6 +3,7 @@ import warnings
 from functools import cached_property
 from typing import Optional, Tuple
 
+from vyper.compiler.input_bundle import InputBundle
 from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
@@ -131,9 +132,7 @@ class CompilerData:
 
     @cached_property
     def _folded_module(self):
-        return generate_folded_ast(
-            self.vyper_module, self.storage_layout_override
-        )
+        return generate_folded_ast(self.vyper_module, self.storage_layout_override)
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
@@ -226,17 +225,18 @@ def generate_ast(
 
 
 # destructive -- mutates module in place!
-def generate_unfolded_ast(vyper_module: vy_ast.Module) -> vy_ast.Module:
+def generate_unfolded_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
     # note: validate_semantics does type inference on the AST
-    validate_semantics(vyper_module)
+    validate_semantics(vyper_module, input_bundle)
 
     return vyper_module
 
 
 def generate_folded_ast(
     vyper_module: vy_ast.Module,
+    input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
@@ -258,7 +258,7 @@ def generate_folded_ast(
 
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
-    validate_semantics(vyper_module_folded)
+    validate_semantics(vyper_module_folded, input_bundle)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables

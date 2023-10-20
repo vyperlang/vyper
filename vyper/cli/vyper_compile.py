@@ -5,7 +5,7 @@ import sys
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
