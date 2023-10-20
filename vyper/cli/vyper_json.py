@@ -274,86 +274,6 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
     return output_formats
 
 
-# dead code
-def DEAD_get_interface_codes(
-    root_path: Union[Path, None],
-    contract_path: ContractPath,
-    contract_sources: ContractCodes,
-    interface_sources: Dict,
-) -> Dict:
-    interface_codes: Dict = {}
-    interfaces: Dict = {}
-
-    code = contract_sources[contract_path]
-    interface_codes = extract_file_interface_imports(code)
-    for interface_name, interface_path in interface_codes.items():
-        # If we know the interfaces already (e.g. EthPM Manifest file)
-        if interface_name in interface_sources:
-            interfaces[interface_name] = interface_sources[interface_name]
-            continue
-
-        path = Path(contract_path).parent.joinpath(interface_path).as_posix()
-        keys = [_standardize_path(path)]
-        if not interface_path.startswith("."):
-            keys.append(interface_path)
-
-        key = next((i for i in keys if i in interface_sources), None)
-        if key:
-            interfaces[interface_name] = interface_sources[key]
-            continue
-
-        key = next((i + ".vy" for i in keys if i + ".vy" in contract_sources), None)
-        if key:
-            interfaces[interface_name] = {"type": "vyper", "code": contract_sources[key]}
-            continue
-
-        if root_path is None:
-            raise FileNotFoundError(f"Cannot locate interface '{interface_path}{{.vy,.json}}'")
-
-        parent_path = root_path.joinpath(contract_path).parent
-        base_paths = [parent_path]
-        if not interface_path.startswith("."):
-            base_paths.append(root_path)
-        elif interface_path.startswith("../") and len(Path(contract_path).parent.parts) < Path(
-            interface_path
-        ).parts.count(".."):
-            raise FileNotFoundError(
-                f"{contract_path} - Cannot perform relative import outside of base folder"
-            )
-
-        valid_path = get_interface_file_path(base_paths, interface_path)
-        with valid_path.open() as fh:
-            code = fh.read()
-        if valid_path.suffix == ".json":
-            code_dict = json.loads(code.encode())
-            # EthPM Manifest v3 (EIP-2678)
-            if "contractTypes" in code_dict:
-                if interface_name not in code_dict["contractTypes"]:
-                    raise JSONError(f"'{interface_name}' not found in '{valid_path}'")
-
-                if "abi" not in code_dict["contractTypes"][interface_name]:
-                    raise JSONError(f"Missing abi for '{interface_name}' in '{valid_path}'")
-
-                abi = code_dict["contractTypes"][interface_name]["abi"]
-                interfaces[interface_name] = {"type": "json", "code": abi}
-
-            # ABI JSON (`{"abi": List[ABI]}`)
-            elif "abi" in code_dict:
-                interfaces[interface_name] = {"type": "json", "code": code_dict["abi"]}
-
-            # ABI JSON (`List[ABI]`)
-            elif isinstance(code_dict, list):
-                interfaces[interface_name] = {"type": "json", "code": code_dict}
-
-            else:
-                raise JSONError(f"Unexpected type in file: '{valid_path}'")
-
-        else:
-            interfaces[interface_name] = {"type": "vyper", "code": code}
-
-    return interfaces
-
-
 def compile_from_input_dict(
     input_dict: Dict,
     exc_handler: Callable = exc_handler_raises,
@@ -395,16 +315,9 @@ def compile_from_input_dict(
     for id_, contract_path in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
-                interface_codes = get_interface_codes(
-                    root_path, contract_path, contract_sources, interface_sources
-                )
-            except Exception as exc:
-                return exc_handler(contract_path, exc, "parser"), {}
-            try:
                 data = vyper.compile_codes(
                     {contract_path: contract_sources[contract_path]},
                     output_formats[contract_path],
-                    interface_codes=interface_codes,
                     initial_id=id_,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,

@@ -10,7 +10,6 @@ from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
-from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
 from vyper.compiler.settings import (
     VYPER_TRACEBACK_LIMIT,
     OptimizationLevel,
@@ -217,64 +216,6 @@ def uniq(seq: Iterable[T]) -> Iterator[T]:
 def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     print(f"Error compiling: {contract_path}")
     raise exception
-
-
-# dead code
-def DEAD_get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
-    interface_codes: Dict = {}
-    interfaces: Dict = {}
-
-    for file_path, code in contract_sources.items():
-        interfaces[file_path] = {}
-        parent_path = root_path.joinpath(file_path).parent
-
-        interface_codes = extract_file_interface_imports(code)
-        for interface_name, interface_path in interface_codes.items():
-            base_paths = [parent_path]
-            if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
-                base_paths.append(root_path)
-            elif interface_path.startswith("../") and len(Path(file_path).parent.parts) < Path(
-                interface_path
-            ).parts.count(".."):
-                raise FileNotFoundError(
-                    f"{file_path} - Cannot perform relative import outside of base folder"
-                )
-
-            valid_path = get_interface_file_path(base_paths, interface_path)
-            with valid_path.open() as fh:
-                code = fh.read()
-                if valid_path.suffix == ".json":
-                    contents = json.loads(code.encode())
-
-                    # EthPM Manifest (EIP-2678)
-                    if "contractTypes" in contents:
-                        if (
-                            interface_name not in contents["contractTypes"]
-                            or "abi" not in contents["contractTypes"][interface_name]
-                        ):
-                            raise ValueError(
-                                f"Could not find interface '{interface_name}'"
-                                f" in manifest '{valid_path}'."
-                            )
-
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents["contractTypes"][interface_name]["abi"],
-                        }
-
-                    # ABI JSON file (either `List[ABI]` or `{"abi": List[ABI]}`)
-                    elif isinstance(contents, list) or (
-                        "abi" in contents and isinstance(contents["abi"], list)
-                    ):
-                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
-
-                    else:
-                        raise ValueError(f"Corrupted file: '{valid_path}'")
-
-                else:
-                    interfaces[file_path][interface_name] = {"type": "vyper", "code": code}
-
-    return interfaces
 
 
 def compile_files(

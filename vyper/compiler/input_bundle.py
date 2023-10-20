@@ -42,7 +42,7 @@ class FilesystemInputBundle(InputBundle):
                 to_try = p / path
                 with to_try.open() as f:
                     code = f.read()
-                    break
+                    return VyInput(code)
             except FileNotFoundError:
                 continue
         else:
@@ -52,17 +52,17 @@ class FilesystemInputBundle(InputBundle):
                     f"paths: {formatted_search_paths}"
             )
 
-        return VyInput(code)
-
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
 # "reads" the file from the JSON input
 @dataclass
 class JSONInputBundle(InputBundle):
-    input_json: dict[Path, Any]
+    input_json: dict[PurePath, Any]
 
     # pseudocode
-    def _load_file(self, path: Path) -> CompilerInput:
+    def _load_file(self, path: PurePath) -> CompilerInput:
+        path = PurePath(path)
         try:
             contents = self.input_json[path]
         except KeyError:
