@@ -23,9 +23,6 @@ def fold(vyper_module: vy_ast.Module) -> None:
         changed_nodes += replace_subscripts(vyper_module)
         changed_nodes += replace_builtin_functions(vyper_module)
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
-        vyper_module.remove_from_body(node)
-
 
 def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     """
@@ -120,7 +117,7 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
             continue
         try:
             new_node = func.evaluate(node)  # type: ignore
-            new_node._metadata["type"] = node._metadata.get("type")
+            new_node._metadata["type"] = node._metadata["type"]
         except UnfoldableNode:
             continue
 
@@ -155,7 +152,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        type_ = node._metadata.get("type", None)
+        type_ = node._metadata.get("type")
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
@@ -169,14 +166,14 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 def _replace(old_node, new_node, type_=None):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if type_:
+        if type_ is not None:
             new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type = type_.value_type if type_ else None
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if type_:
+        if type_ is not None:
             new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.Call):
@@ -189,7 +186,7 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(
             old_node, func=new_node.func, args=new_node.args, keyword=keyword, keywords=keywords
         )
-        if type_:
+        if type_ is not None:
             new_node._metadata["type"] = type_
         return new_node
     else:
