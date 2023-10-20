@@ -25,7 +25,7 @@ struct Human:
 
 @external
 def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: int128 = 0
     c: bool = False
     d: decimal = 0.0
@@ -39,7 +39,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
         name: "",
         pet: Animal({
             name: "",
-            address_: ZERO_ADDRESS,
+            address_: empty(address),
             id_: 0,
             is_furry: False,
             price: 0.0,
@@ -342,6 +342,34 @@ def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     """
     c = get_contract(contract)
     assert_tx_failed(lambda: c.abi_decode(input_))
+
+
+def test_clamper_nested_uint8(get_contract, assert_tx_failed):
+    # check that _abi_decode clamps on word-types even when it is in a nested expression
+    # decode -> validate uint8 -> revert if input >= 256 -> cast back to uint256
+    contract = """
+@external
+def abi_decode(x: uint256) -> uint256:
+    a: uint256 = convert(_abi_decode(slice(msg.data, 4, 32), (uint8)), uint256)
+    return a
+    """
+    c = get_contract(contract)
+    assert c.abi_decode(255) == 255
+    assert_tx_failed(lambda: c.abi_decode(256))
+
+
+def test_clamper_nested_bytes(get_contract, assert_tx_failed):
+    # check that _abi_decode clamps dynamic even when it is in a nested expression
+    # decode -> validate Bytes[20] -> revert if len(input) > 20 -> convert back to -> add 1
+    contract = """
+@external
+def abi_decode(x: Bytes[96]) -> Bytes[21]:
+    a: Bytes[21] = concat(b"a", _abi_decode(x, Bytes[20]))
+    return a
+    """
+    c = get_contract(contract)
+    assert c.abi_decode(abi.encode("(bytes)", (b"bc",))) == b"abc"
+    assert_tx_failed(lambda: c.abi_decode(abi.encode("(bytes)", (b"a" * 22,))))
 
 
 @pytest.mark.parametrize(

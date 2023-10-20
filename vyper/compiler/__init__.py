@@ -120,16 +120,16 @@ def compile_codes(
         # make IR output the same between runs
         codegen.reset_names()
 
-        with anchor_evm_version(settings.evm_version):
-            compiler_data = CompilerData(
-                source_code,
-                contract_name,
-                source_id,
-                settings,
-                storage_layout_override,
-                show_gas_estimates,
-                no_bytecode_metadata,
-            )
+        compiler_data = CompilerData(
+            source_code,
+            contract_name,
+            source_id,
+            settings,
+            storage_layout_override,
+            show_gas_estimates,
+            no_bytecode_metadata,
+        )
+        with anchor_evm_version(compiler_data.settings.evm_version):
             for output_format in output_formats[contract_name]:
                 if output_format not in OUTPUT_FORMATS:
                     raise ValueError(f"Unsupported format type {repr(output_format)}")

@@ -52,3 +52,9 @@ def test_solc_style():
     input_json = {"settings": {"outputSelection": {"foo.vy": {"": ["abi"], "foo.vy": ["ir"]}}}}
     sources = {"foo.vy": ""}
     assert get_input_dict_output_formats(input_json, sources) == {"foo.vy": ["abi", "ir_dict"]}
+
+
+def test_metadata():
+    input_json = {"settings": {"outputSelection": {"*": ["metadata"]}}}
+    sources = {"foo.vy": ""}
+    assert get_input_dict_output_formats(input_json, sources) == {"foo.vy": ["metadata"]}

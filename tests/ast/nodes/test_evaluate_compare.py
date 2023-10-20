@@ -8,7 +8,7 @@ from vyper.exceptions import UnfoldableNode
 
 # TODO expand to all signed types
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st.integers(), right=st.integers())
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
 def test_compare_eq_signed(get_contract, op, left, right):
@@ -28,7 +28,7 @@ def foo(a: int128, b: int128) -> bool:
 
 # TODO expand to all unsigned types
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st.integers(min_value=0), right=st.integers(min_value=0))
 @pytest.mark.parametrize("op", ["==", "!=", "<", "<=", ">=", ">"])
 def test_compare_eq_unsigned(get_contract, op, left, right):
@@ -47,7 +47,7 @@ def foo(a: uint128, b: uint128) -> bool:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=20, deadline=1000)
+@settings(max_examples=20)
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))
 def test_compare_in(left, right, get_contract):
     source = f"""
@@ -76,7 +76,7 @@ def bar(a: int128) -> bool:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=20, deadline=1000)
+@settings(max_examples=20)
 @given(left=st.integers(), right=st.lists(st.integers(), min_size=1, max_size=16))
 def test_compare_not_in(left, right, get_contract):
     source = f"""

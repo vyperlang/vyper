@@ -273,14 +273,23 @@ Ranges are created using the ``range`` function. The following examples are vali
 
 .. code-block:: python
 
+    for i in range(stop, bound=N):
+        ...
+
+Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` must be a compile-time constant. ``i`` begins as zero and increments by one until it is equal to ``stop``. If ``stop`` is larger than ``N``, execution will revert at runtime. In certain cases, you may not have a guarantee that ``stop`` is less than ``N``, but still want to avoid the possibility of runtime reversion. To accomplish this, use the ``bound=`` keyword in combination with ``min(stop, N)`` as the argument to ``range``, like ``range(min(stop, N), bound=N)``. This is helpful for use cases like chunking up operations on larger arrays across multiple transactions.
+
+Another use of range can be with ``START`` and ``STOP`` bounds.
+
+.. code-block:: python
+
     for i in range(START, STOP):
         ...
 
-``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
+Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
 
 .. code-block:: python
 
     for i in range(a, a + N):
         ...
 
-``a`` is a variable with an integer type and ``N`` is a literal integer greater than zero.  ``i`` begins as ``a`` and increments by one until it is equal to ``a + N``.
+``a`` is a variable with an integer type and ``N`` is a literal integer greater than zero.  ``i`` begins as ``a`` and increments by one until it is equal to ``a + N``. If ``a + N`` would overflow, execution will revert.

@@ -1,16 +1,12 @@
 import pytest
 
-from vyper.ast.folding import BUILTIN_CONSTANTS
 from vyper.ast.identifiers import RESERVED_KEYWORDS
 from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.codegen.expr import ENVIRONMENT_VARIABLES
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
 from vyper.semantics.types.primitives import AddressT
 
-BUILTIN_CONSTANTS = set(BUILTIN_CONSTANTS.keys())
-ALL_RESERVED_KEYWORDS = (
-    BUILTIN_CONSTANTS | BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
-)
+ALL_RESERVED_KEYWORDS = BUILTIN_FUNCTIONS | RESERVED_KEYWORDS | ENVIRONMENT_VARIABLES
 
 
 @pytest.mark.parametrize("constant", sorted(ALL_RESERVED_KEYWORDS))
@@ -46,7 +42,7 @@ def test({constant}: int128):
 
 
 SELF_NAMESPACE_MEMBERS = set(AddressT._type_members.keys())
-DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | RESERVED_KEYWORDS | BUILTIN_CONSTANTS
+DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | RESERVED_KEYWORDS
 ALLOWED_FN_NAMES = ALL_RESERVED_KEYWORDS - DISALLOWED_FN_NAMES
 
 
