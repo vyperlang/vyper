@@ -145,8 +145,7 @@ class UnaryOp(ExprNode):
     operand: VyperNode = ...
 
 class Operator(VyperNode):
-    @property
-    def _op(self) -> Callable: ...
+    _op: Callable = ...
 
 class USub(Operator):
     pass

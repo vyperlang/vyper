@@ -934,9 +934,7 @@ class UnaryOp(ExprNode):
 
 
 class Operator(VyperNode):
-    @property
-    def _op(self):
-        return self._op
+    pass
 
 
 class USub(Operator):
