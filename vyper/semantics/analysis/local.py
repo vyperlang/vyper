@@ -651,7 +651,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(call_type, ContractFunctionT):
             # function calls
             if call_type.is_internal:
-                assert self.func is not None # make mypy happy
+                assert self.func is not None  # make mypy happy
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
