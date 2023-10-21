@@ -16,6 +16,7 @@ from vyper.compiler.settings import (
     Settings,
     _set_debug_mode,
 )
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 
@@ -231,17 +232,13 @@ def compile_files(
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
+    input_bundle = FilesystemInputBundle([root_path])
+
     contract_sources: ContractCodes = OrderedDict()
     for file_name in input_files:
         file_path = Path(file_name)
-        try:
-            file_str = file_path.resolve().relative_to(root_path).as_posix()
-        except ValueError:
-            file_str = file_path.as_posix()
         with file_path.open() as fh:
-            # trailing newline fixes python parsing bug when source ends in a comment
-            # https://bugs.python.org/issue35107
-            contract_sources[file_str] = fh.read() + "\n"
+            contract_sources[file_path] = fh.read()
 
     storage_layouts = OrderedDict()
     if storage_layout:
@@ -262,6 +259,7 @@ def compile_files(
 
     compiler_data = vyper.compile_codes(
         contract_sources,
+        input_bundle,
         final_formats,
         exc_handler=exc_handler,
         settings=settings,

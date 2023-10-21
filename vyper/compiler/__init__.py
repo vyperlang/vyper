@@ -5,6 +5,7 @@ import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.input_bundle import InputBundle
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
 from vyper.typing import (
@@ -49,6 +50,7 @@ OUTPUT_FORMATS = {
 
 def compile_codes(
     contract_sources: ContractCodes,
+    input_bundle: InputBundle,
     output_formats: Union[OutputDict, OutputFormats, None] = None,
     exc_handler: Union[Callable, None] = None,
     interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
@@ -99,6 +101,7 @@ def compile_codes(
 
     if output_formats is None:
         output_formats = ("bytecode",)
+
     if isinstance(output_formats, Sequence):
         output_formats = dict((k, output_formats) for k in contract_sources.keys())
 
@@ -120,28 +123,30 @@ def compile_codes(
         # make IR output the same between runs
         codegen.reset_names()
 
-        compiler_data = CompilerData(
-            source_code,
-            contract_name,
-            source_id,
-            settings,
-            storage_layout_override,
-            show_gas_estimates,
-            no_bytecode_metadata,
-        )
-        with anchor_evm_version(compiler_data.settings.evm_version):
-            for output_format in output_formats[contract_name]:
-                if output_format not in OUTPUT_FORMATS:
-                    raise ValueError(f"Unsupported format type {repr(output_format)}")
-                try:
-                    out.setdefault(contract_name, {})
-                    formatter = OUTPUT_FORMATS[output_format]
-                    out[contract_name][output_format] = formatter(compiler_data)
-                except Exception as exc:
-                    if exc_handler is not None:
-                        exc_handler(contract_name, exc)
-                    else:
-                        raise exc
+        with input_bundle.search_path(contract_name.parent):
+            compiler_data = CompilerData(
+                source_code,
+                input_bundle,
+                contract_name,
+                source_id,
+                settings,
+                storage_layout_override,
+                show_gas_estimates,
+                no_bytecode_metadata,
+            )
+            with anchor_evm_version(compiler_data.settings.evm_version):
+                for output_format in output_formats[contract_name]:
+                    if output_format not in OUTPUT_FORMATS:
+                        raise ValueError(f"Unsupported format type {repr(output_format)}")
+                    try:
+                        out.setdefault(contract_name, {})
+                        formatter = OUTPUT_FORMATS[output_format]
+                        out[contract_name][output_format] = formatter(compiler_data)
+                    except Exception as exc:
+                        if exc_handler is not None:
+                            exc_handler(contract_name, exc)
+                        else:
+                            raise exc
 
     return out
 
@@ -153,6 +158,7 @@ def compile_code(
     contract_source: str,
     search_paths: list[str],
     output_formats: Optional[OutputFormats] = None,
+    contract_name: str = UNKNOWN_CONTRACT_NAME,
     settings: Settings = None,
     storage_layout_override: Optional[StorageLayout] = None,
     show_gas_estimates: bool = False,
@@ -186,14 +192,16 @@ def compile_code(
         Compiler output as `{'output key': "output data"}`
     """
 
-    contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
-    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
+    input_bundle = InputBundle(search_paths)
+    storage_layouts = {contract_name: storage_layout_override}
+    contract_sources = {contract_name: contract_source}
 
     return compile_codes(
         contract_sources,
+        input_bundle,
         output_formats,
         interface_codes=interface_codes,
         settings=settings,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,
-    )[UNKNOWN_CONTRACT_NAME]
+    )[contract_name]

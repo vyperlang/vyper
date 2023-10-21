@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
-
+import contextlib
 from pathlib import Path, PurePath
 
 
@@ -26,10 +26,21 @@ class ABIInput(CompilerInput):
 @dataclass
 class InputBundle:
     search_paths: list[Path]
-    compilation_targets: list[Path]
+    #compilation_targets: dict[str, str]  # contract names => contract sources
 
     def load_file(self, relative_path: str) -> str:
         raise NotImplementedError(f"not implemented! {self.__class__}.load_file()")
+
+    def add_search_path(self, path) -> None:
+        self.search_paths.append(path)
+
+    @contextlib.contextmanager
+    def search_path(self, path) -> None:
+        self.search_paths.append(path)
+        try:
+            yield
+        finally:
+            self.search_paths.pop()
 
 
 # regular input. takes a search path(s), and `load_file()` will search all
@@ -37,9 +48,9 @@ class InputBundle:
 @dataclass
 class FilesystemInputBundle(InputBundle):
     def load_file(self, path: Path) -> CompilerInput:
-        assert len(search_paths) > 0  # at least, should contain pwd
+        assert len(self.search_paths) > 0  # at least, should contain pwd
 
-        for p in search_paths:
+        for p in self.search_paths:
             try:
                 # note from pathlib docs:
                 # > If the argument is an absolute path, the previous path is ignored.
@@ -47,11 +58,11 @@ class FilesystemInputBundle(InputBundle):
                 to_try = p / path
                 with to_try.open() as f:
                     code = f.read()
-                    return VyInput(code)
+                    return VyFile(code)
             except FileNotFoundError:
                 continue
         else:
-            formatted_search_paths = "\n".join(["  " + str(sp) for sp in search_paths])
+            formatted_search_paths = "\n".join(["  " + str(sp) for sp in self.search_paths])
             raise FileNotFoundError(
                 f"could not find {path} within any of the following search "
                 f"paths: {formatted_search_paths}"
