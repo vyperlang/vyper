@@ -3,7 +3,7 @@ import pkgutil
 from typing import Optional, Union
 from pathlib import Path, PurePath
 
-from vyper.compiler.input_bundle import CompilerInput, InputBundle
+from vyper.compiler.input_bundle import CompilerInput, InputBundle, VyFile
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -290,12 +290,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if not node.alias:
             raise StructureException("Import requires an accompanying `as` statement", node)
         # import x.y[name] as y[alias]
-        file = self._resolve_import(0, node.name)
+        self._add_import(0, node.name, node.alias)
 
 
     def visit_ImportFrom(self, node):
         # from m.n[module] import x[name] as y[alias]
-        file = self._resolve_import(node.level, node.module or "" + "." + node.name)
+        alias = node.alias or node.name
+        qualified_module_name = node.module or "" + "." + node.name
+        self._add_import(node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
         obj = InterfaceT.from_ast(node)
@@ -312,26 +314,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     def _add_import(
-        self, level: int, module: str, name: str, alias: str
+        self, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        if module == "vyper.interfaces":
-            interface_codes = _get_builtin_interfaces()
 
-        if name not in interface_codes:
-            suggestions_str = get_levenshtein_error_suggestions(
-                name, _get_builtin_interfaces(), 1.0
-            )
-            raise UndeclaredDefinition(f"Unknown interface: {name}. {suggestions_str}", node)
+        builtins_path = None
+        if qualified_module_name == "vyper.interfaces":
+            # remap builtins directory
+            qualified_module_name = vyper.builtins.interfaces.__package__
 
-        path = (PurePath(module) / PurePath(name)).with_suffix(".vy")
+            builtins_path = vyper.builtins.interfaces.__path__
 
-        code = self.input_bundle.load_file(path)
+        with self.input_bundle.search_path(builtins_path):
+            file = self._resolve_import(level, qualified_module_name)
 
-        if interface_codes[name]["type"] == "vyper":
-            interface_ast = vy_ast.parse_to_ast(interface_codes[name]["code"], contract_name=name)
+        if isinstance(file, VyFile):
+            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
             type_ = InterfaceT.from_ast(interface_ast)
-        elif interface_codes[name]["type"] == "json":
-            type_ = InterfaceT.from_json_abi(name, interface_codes[name]["code"])  # type: ignore
+        elif isinstance(file, ABIInput):
+            type_ = InterfaceT.from_json_abi(file.path, file.abi)
         else:
             raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
 

@@ -13,6 +13,7 @@ class CompilerInput:
 # stub
 @dataclass
 class VyFile(CompilerInput):
+    path: Path
     source_code: str
 
 
@@ -20,6 +21,7 @@ class VyFile(CompilerInput):
 @dataclass
 class ABIInput(CompilerInput):
     # some json file, either regular ABI or ethPM manifest v3 (EIP-2687)
+    path: Path
     abi: Any
 
 
@@ -34,13 +36,19 @@ class InputBundle:
     def add_search_path(self, path) -> None:
         self.search_paths.append(path)
 
+    # temporarily add something to the search path (within the
+    # scope of the context manager). if `path` is None, do nothing
     @contextlib.contextmanager
-    def search_path(self, path) -> None:
-        self.search_paths.append(path)
-        try:
+    def search_path(self, path: Optional[Path]) -> None:
+        if path is None:
             yield
-        finally:
-            self.search_paths.pop()
+
+        else:
+            self.search_paths.append(path)
+            try:
+                yield
+            finally:
+                self.search_paths.pop()
 
 
 # regular input. takes a search path(s), and `load_file()` will search all
@@ -58,7 +66,7 @@ class FilesystemInputBundle(InputBundle):
                 to_try = p / path
                 with to_try.open() as f:
                     code = f.read()
-                    return VyFile(code)
+                    return VyFile(to_try, code)
             except FileNotFoundError:
                 continue
         else:
