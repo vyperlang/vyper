@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
 
 import vyper
+from vyper.compiler.input_bundle import JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
@@ -128,22 +129,6 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
     return output_json
 
 
-def _standardize_path(path_str: str) -> str:
-    try:
-        path = Path(path_str)
-
-        if path.is_absolute():
-            path = path.resolve()
-        else:
-            pwd = Path(".").resolve()
-            path = path.resolve().relative_to(pwd)
-
-    except ValueError:
-        raise JSONError(f"{path_str} - path exists outside base folder")
-
-    return path.as_posix()
-
-
 def get_evm_version(input_dict: Dict) -> Optional[str]:
     if "settings" not in input_dict:
         return None
@@ -167,11 +152,11 @@ def get_evm_version(input_dict: Dict) -> Optional[str]:
     return evm_version
 
 
-def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
+def get_compilation_targets(input_dict: dict) -> ContractCodes:
     if "compilation_targets" in input_dict:
         pass
 
-    contract_sources: ContractCodes = {}
+    ret: ContractCodes = {}
     for path, value in input_dict["sources"].items():
         if "urls" in value:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
@@ -185,55 +170,20 @@ def get_input_dict_contracts(input_dict: Dict) -> ContractCodes:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        key = _standardize_path(path)
-        if key in contract_sources:
+        if path in ret:
             raise JSONError(f"Contract namespace collision: {key}")
-        contract_sources[key] = value["content"]
-    return contract_sources
+        ret[path] = value["content"]
+    return ret
 
 
-def get_input_dict_interfaces(input_dict: Dict) -> Dict:
-    interface_sources: Dict = {}
+def get_input_dict_files(input_dict: dict) -> dict[str, str]:
+    ret: dict = {}
 
     for path, value in input_dict.get("interfaces", {}).items():
-        key = _standardize_path(path)
-
-        if key.endswith(".json"):
-            # EthPM Manifest v3 (EIP-2678)
-            if "contractTypes" in value:
-                for name, ct in value["contractTypes"].items():
-                    if name in interface_sources:
-                        raise JSONError(f"Interface namespace collision: {name}")
-
-                    interface_sources[name] = {"type": "json", "code": ct["abi"]}
-
-                continue  # Skip to next interface
-
-            # ABI JSON file (`{"abi": List[ABI]}`)
-            elif "abi" in value:
-                interface = {"type": "json", "code": value["abi"]}
-
-            # ABI JSON file (`List[ABI]`)
-            elif isinstance(value, list):
-                interface = {"type": "json", "code": value}
-
-            else:
-                raise JSONError(f"Interface '{path}' must have 'abi' field")
-
-        elif key.endswith(".vy"):
-            if "content" not in value:
-                raise JSONError(f"Interface '{path}' must have 'content' field")
-
-            interface = {"type": "vyper", "code": value["content"]}
-
-        else:
-            raise JSONError(f"Interface '{path}' must have suffix '.vy' or '.json'")
-
-        key = key.rsplit(".", maxsplit=1)[0]
         if key in interface_sources:
             raise JSONError(f"Interface namespace collision: {key}")
 
-        interface_sources[key] = interface
+        ret[path] = value
 
     return interface_sources
 
@@ -310,11 +260,13 @@ def compile_from_input_dict(
 
     compiler_data, warning_data = {}, {}
     warnings.simplefilter("always")
+    input_bundle = JSONInputBundle(["."], contract_sources)
     for id_, contract_path in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 data = vyper.compile_codes(
                     {contract_path: contract_sources[contract_path]},
+                    input_bundle,
                     output_formats[contract_path],
                     initial_id=id_,
                     settings=settings,
