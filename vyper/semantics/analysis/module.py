@@ -56,6 +56,33 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
+def _add_constants_to_namespace(module_nodes: list["VyperNode"], ns: Namespace):
+    const_var_decls = [
+        n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
+    ]
+
+    while const_var_decls:
+        derived_nodes = 0
+
+        for c in const_var_decls:
+            name = c.get("target.id")
+            # Handle syntax errors downstream
+            if c.value is None:
+                continue
+
+            val = prefold(c.value)
+            ns.add_constant(name, val)
+
+            if val is not None:
+                derived_nodes += 1
+                const_var_decls.remove(c)
+
+        if not derived_nodes:
+            break
+
+    return
+
+
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
@@ -68,28 +95,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
-        const_var_decls = [
-            n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
-        ]
 
-        while const_var_decls:
-            derived_nodes = 0
-
-            for c in const_var_decls:
-                name = c.get("target.id")
-                # Handle syntax errors downstream
-                if c.value is None:
-                    continue
-
-                val = prefold(c.value)
-                self.namespace.add_constant(name, val)
-
-                if val is not None:
-                    derived_nodes += 1
-                    const_var_decls.remove(c)
-
-            if not derived_nodes:
-                break
+        _add_constants_to_namespace(module_nodes, namespace)
 
         while module_nodes:
             count = len(module_nodes)
