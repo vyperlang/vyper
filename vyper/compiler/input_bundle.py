@@ -34,6 +34,9 @@ class InputBundle:
     search_paths: list[Path]
     # compilation_targets: dict[str, str]  # contract names => contract sources
 
+    def _load_from_path(self, path):
+        raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
+
     def load_file(self, path: Path) -> str:
         for p in self.search_paths:
             # note from pathlib docs:
