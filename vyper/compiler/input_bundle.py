@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 import contextlib
 from pathlib import Path, PurePath
+
+from vyper.exceptions import JSONError
 
 
 # stub
@@ -24,14 +26,32 @@ class ABIInput(CompilerInput):
     path: Path
     abi: Any
 
+class _NotFound(Exception):
+    pass
 
 @dataclass
 class InputBundle:
     search_paths: list[Path]
-    #compilation_targets: dict[str, str]  # contract names => contract sources
+    # compilation_targets: dict[str, str]  # contract names => contract sources
 
-    def load_file(self, relative_path: str) -> str:
-        raise NotImplementedError(f"not implemented! {self.__class__}.load_file()")
+    def load_file(self, path: Path) -> str:
+        for p in self.search_paths:
+            # note from pathlib docs:
+            # > If the argument is an absolute path, the previous path is ignored.
+            # Path("/a") / Path("/b") => Path("/b")
+            to_try = p / path
+            try:
+                return self._load_from_path(to_try)
+            except _NotFound:
+                pass
+        else:
+            formatted_search_paths = "\n".join(["  " + str(sp) for sp in self.search_paths])
+            raise FileNotFoundError(
+                f"could not find {path} within any of the following search "
+                f"paths: {formatted_search_paths}"
+            )
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     def add_search_path(self, path) -> None:
         self.search_paths.append(path)
@@ -55,28 +75,13 @@ class InputBundle:
 # search paths for the file and read it from the filesystem
 @dataclass
 class FilesystemInputBundle(InputBundle):
-    def load_file(self, path: Path) -> CompilerInput:
-        assert len(self.search_paths) > 0  # at least, should contain pwd
-
-        for p in self.search_paths:
-            try:
-                # note from pathlib docs:
-                # > If the argument is an absolute path, the previous path is ignored.
-                # Path("/a") / Path("/b") => Path("/b")
-                to_try = p / path
-                with to_try.open() as f:
-                    code = f.read()
-                    return VyFile(to_try, code)
-            except FileNotFoundError:
-                continue
-        else:
-            formatted_search_paths = "\n".join(["  " + str(sp) for sp in self.search_paths])
-            raise FileNotFoundError(
-                f"could not find {path} within any of the following search "
-                f"paths: {formatted_search_paths}"
-            )
-
-        raise CompilerPanic("unreachable")  # pragma: nocover
+    def _load_from_path(self, path: Path) -> CompilerInput:
+        try:
+            with path.open() as f:
+                code = f.read()
+                return VyFile(path, code)
+        except FileNotFoundError:
+            raise _NotFound(path)
 
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
@@ -85,17 +90,14 @@ class FilesystemInputBundle(InputBundle):
 class JSONInputBundle(InputBundle):
     input_json: dict[PurePath, Any]
 
-    # pseudocode
-    def _load_file(self, path: PurePath) -> CompilerInput:
-        path = PurePath(path)
+    def _load_from_path(self, path: PurePath) -> CompilerInput:
         try:
             contents = self.input_json[path]
         except KeyError:
-            # TODO double check that this is what is expected
-            raise FileNotFoundError(path)
+            raise _NotFound(path)
 
         if "abi" in contents:
-            return ABIInput(contents["abi"])
+            return ABIInput(path, contents["abi"])
 
         if isinstance(contents, list):
             return ABIInput(contents)
@@ -103,5 +105,4 @@ class JSONInputBundle(InputBundle):
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
 
-        # TODO: raise JSONError instead of ValueError?
-        raise ValueError(f"Unexpected type in file: '{path}'")
+        raise JSONError(f"Unexpected type in file: '{path}'")

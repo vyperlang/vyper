@@ -292,7 +292,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # import x.y[name] as y[alias]
         self._add_import(0, node.name, node.alias)
 
-
     def visit_ImportFrom(self, node):
         # from m.n[module] import x[name] as y[alias]
         alias = node.alias or node.name
@@ -313,10 +312,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    def _add_import(
-        self, level: int, qualified_module_name: str, alias: str
-    ) -> None:
-
+    def _add_import(self, level: int, qualified_module_name: str, alias: str) -> None:
         builtins_path = None
         if qualified_module_name == "vyper.interfaces":
             # remap builtins directory

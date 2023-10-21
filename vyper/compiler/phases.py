@@ -135,7 +135,9 @@ class CompilerData:
 
     @cached_property
     def _folded_module(self):
-        return generate_folded_ast(self.contract_path, self.vyper_module, self.input_bundle, self.storage_layout_override)
+        return generate_folded_ast(
+            self.contract_path, self.vyper_module, self.input_bundle, self.storage_layout_override
+        )
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
@@ -228,7 +230,9 @@ def generate_ast(
 
 
 # destructive -- mutates module in place!
-def generate_unfolded_ast(contract_path: Path, vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
+def generate_unfolded_ast(
+    contract_path: Path, vyper_module: vy_ast.Module, input_bundle: InputBundle
+) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
 
