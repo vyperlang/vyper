@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
+from vyper.ast.pre_typecheck import prefold
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Context, VariableRecord
@@ -82,7 +83,7 @@ from vyper.semantics.types.shortcuts import (
     UINT8_T,
     UINT256_T,
 )
-from vyper.semantics.types.utils import prefold, type_from_annotation
+from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,

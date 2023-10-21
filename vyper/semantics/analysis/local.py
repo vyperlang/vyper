@@ -2,6 +2,7 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
+from vyper.ast.pre_typecheck import prefold
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -51,7 +52,7 @@ from vyper.semantics.types import (
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.utils import prefold, type_from_annotation
+from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
