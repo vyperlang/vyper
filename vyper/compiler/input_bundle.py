@@ -22,7 +22,7 @@ class VyFile(CompilerInput):
 # stub
 @dataclass
 class ABIInput(CompilerInput):
-    # some json file, either regular ABI or ethPM manifest v3 (EIP-2687)
+    # some json file, either regular ABI or ethPM manifest v3 (EIP-2678)
     path: Path
     abi: Any
 
