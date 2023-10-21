@@ -1,11 +1,11 @@
 import importlib
 import pkgutil
-from typing import Optional, Union
 from pathlib import Path, PurePath
+from typing import Optional
 
-from vyper.compiler.input_bundle import CompilerInput, InputBundle, VyFile
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import ABIInput, CompilerInput, InputBundle, VyFile
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
@@ -17,20 +17,17 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     SyntaxException,
-    UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
 )
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.utils import check_constant, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.typing import InterfaceDict
 
 
 def add_module_namespace(vy_module: vy_ast.Module, input_bundle: InputBundle) -> None:
@@ -290,13 +287,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if not node.alias:
             raise StructureException("Import requires an accompanying `as` statement", node)
         # import x.y[name] as y[alias]
-        self._add_import(0, node.name, node.alias)
+        self._add_import(node, 0, node.name, node.alias)
 
     def visit_ImportFrom(self, node):
         # from m.n[module] import x[name] as y[alias]
         alias = node.alias or node.name
-        qualified_module_name = node.module or "" + "." + node.name
-        self._add_import(node.level, qualified_module_name, alias)
+
+        module = node.module or ""
+        if module:
+            module += "."
+
+        qualified_module_name = module + node.name
+        self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
         obj = InterfaceT.from_ast(node)
@@ -312,13 +314,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    def _add_import(self, level: int, qualified_module_name: str, alias: str) -> None:
-        builtins_path = None
-        if qualified_module_name == "vyper.interfaces":
-            # remap builtins directory
-            qualified_module_name = vyper.builtins.interfaces.__package__
+    def _add_import(
+        self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
+    ) -> None:
+        builtins_path = Path(vyper.builtins.interfaces.__path__[0]).parent.parent.parent
 
-            builtins_path = vyper.builtins.interfaces.__path__
+        INTERFACES_PATH = "vyper.interfaces"
+        if qualified_module_name.startswith(INTERFACES_PATH):
+            # remap builtins directory
+            qualified_module_name = (
+                vyper.builtins.interfaces.__package__
+                + qualified_module_name.removeprefix(INTERFACES_PATH)
+            )
 
         with self.input_bundle.search_path(builtins_path):
             file = self._resolve_import(level, qualified_module_name)
@@ -328,8 +335,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             type_ = InterfaceT.from_ast(interface_ast)
         elif isinstance(file, ABIInput):
             type_ = InterfaceT.from_json_abi(file.path, file.abi)
-        else:
-            raise CompilerPanic(f"Unknown interface format: {interface_codes[name]['type']}")
+        else:  # pragma: nocover
+            raise CompilerPanic(f"Unknown interface format: {type(file)}")
 
         try:
             self.namespace[alias] = type_

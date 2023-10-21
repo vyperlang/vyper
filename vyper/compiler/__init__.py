@@ -4,15 +4,14 @@ from typing import Any, Callable, Dict, Optional, Sequence, Union
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.phases import CompilerData
 from vyper.compiler.input_bundle import InputBundle
+from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
 from vyper.typing import (
     ContractCodes,
     ContractPath,
     InterfaceDict,
-    InterfaceImports,
     OutputDict,
     OutputFormats,
     StorageLayout,
@@ -53,7 +52,6 @@ def compile_codes(
     input_bundle: InputBundle,
     output_formats: Union[OutputDict, OutputFormats, None] = None,
     exc_handler: Union[Callable, None] = None,
-    interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
     initial_id: int = 0,
     settings: Settings = None,
     storage_layouts: Optional[dict[ContractPath, Optional[StorageLayout]]] = None,
@@ -79,16 +77,6 @@ def compile_codes(
         Compiler settings
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * May be a singular dictionary shared across all sources to be compiled,
-          i.e. `{'interface name': "definition"}`
-        * or may be organized according to contracts that are being compiled, i.e.
-          `{'contract name': {'interface name': "definition"}`
-
-        * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
 
@@ -108,17 +96,9 @@ def compile_codes(
     out: OrderedDict = OrderedDict()
     for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
         source_code = contract_sources[contract_name]
-        interfaces: Any = interface_codes
         storage_layout_override = None
         if storage_layouts and contract_name in storage_layouts:
             storage_layout_override = storage_layouts[contract_name]
-
-        if (
-            isinstance(interfaces, dict)
-            and contract_name in interfaces
-            and isinstance(interfaces[contract_name], dict)
-        ):
-            interfaces = interfaces[contract_name]
 
         # make IR output the same between runs
         codegen.reset_names()
@@ -179,11 +159,6 @@ def compile_code(
         Compiler settings.
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
 
     Returns
     -------
@@ -199,7 +174,6 @@ def compile_code(
         contract_sources,
         input_bundle,
         output_formats,
-        interface_codes=interface_codes,
         settings=settings,
         storage_layouts=storage_layouts,
         show_gas_estimates=show_gas_estimates,

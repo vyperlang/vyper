@@ -10,13 +10,13 @@ from typing import Iterable, Iterator, Optional, Set, TypeVar
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import (
     VYPER_TRACEBACK_LIMIT,
     OptimizationLevel,
     Settings,
     _set_debug_mode,
 )
-from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractCodes, ContractPath, OutputFormats
 

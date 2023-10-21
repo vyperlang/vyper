@@ -1,4 +1,3 @@
-interface_code = """
 # Events
 event Deposit:
     sender: indexed(address)
@@ -89,4 +88,3 @@ def previewRedeem(shares: uint256) -> uint256:
 @external
 def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sender) -> uint256:
     pass
-"""

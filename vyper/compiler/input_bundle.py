@@ -1,9 +1,9 @@
-from dataclasses import dataclass
-from typing import Any, Optional
 import contextlib
+from dataclasses import dataclass
 from pathlib import Path, PurePath
+from typing import Any, Optional
 
-from vyper.exceptions import JSONError
+from vyper.exceptions import CompilerPanic, JSONError
 
 
 # stub
@@ -26,8 +26,10 @@ class ABIInput(CompilerInput):
     path: Path
     abi: Any
 
+
 class _NotFound(Exception):
     pass
+
 
 @dataclass
 class InputBundle:
@@ -51,7 +53,7 @@ class InputBundle:
             formatted_search_paths = "\n".join(["  " + str(sp) for sp in self.search_paths])
             raise FileNotFoundError(
                 f"could not find {path} within any of the following search "
-                f"paths: {formatted_search_paths}"
+                f"paths:\n{formatted_search_paths}"
             )
 
         raise CompilerPanic("unreachable")  # pragma: nocover

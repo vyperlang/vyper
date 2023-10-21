@@ -12,12 +12,6 @@ OutputFormats = Sequence[str]
 OutputDict = Dict[ContractPath, OutputFormats]
 StorageLayout = Dict
 
-# Interfaces
-InterfaceAsName = str
-InterfaceImportPath = str
-InterfaceImports = Dict[InterfaceAsName, InterfaceImportPath]
-InterfaceDict = Dict[ContractPath, InterfaceImports]
-
 # Opcodes
 OpcodeGasCost = Union[int, Tuple]
 OpcodeValue = Tuple[Optional[int], int, int, OpcodeGasCost]
