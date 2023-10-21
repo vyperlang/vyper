@@ -105,7 +105,7 @@ class JSONInputBundle(InputBundle):
             return ABIInput(path, contents["abi"])
 
         if isinstance(contents, list):
-            return ABIInput(contents)
+            return ABIInput(path, contents)
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
