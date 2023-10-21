@@ -8,14 +8,7 @@ from vyper.compiler.input_bundle import InputBundle
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
-from vyper.typing import (
-    ContractCodes,
-    ContractPath,
-    InterfaceDict,
-    OutputDict,
-    OutputFormats,
-    StorageLayout,
-)
+from vyper.typing import ContractCodes, ContractPath, OutputDict, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module

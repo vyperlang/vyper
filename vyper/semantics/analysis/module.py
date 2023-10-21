@@ -1,4 +1,5 @@
 import importlib
+import json
 import pkgutil
 from pathlib import Path, PurePath
 from typing import Optional
@@ -348,7 +349,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             return self.input_bundle.load_file(path.with_suffix(".vy"))
         except FileNotFoundError:
-            return self.input_bundle.load_file(path.with_suffix(".json"))
+            file = self.input_bundle.load_file(path.with_suffix(".json"))
+            abi = json.loads(file.source_code)
+            return ABIInput(file.path, abi)
 
 
 # convert an import to a path (without suffix)
