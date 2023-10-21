@@ -56,7 +56,7 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
-def _add_constants_to_namespace(module_nodes: list["VyperNode"], ns: Namespace):
+def _add_constants_to_namespace(module_nodes: list[vy_ast.VyperNode], ns: Namespace):
     const_var_decls = [
         n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
     ]
