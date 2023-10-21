@@ -123,30 +123,29 @@ def compile_codes(
         # make IR output the same between runs
         codegen.reset_names()
 
-        with input_bundle.search_path(contract_name.parent):
-            compiler_data = CompilerData(
-                source_code,
-                input_bundle,
-                contract_name,
-                source_id,
-                settings,
-                storage_layout_override,
-                show_gas_estimates,
-                no_bytecode_metadata,
-            )
-            with anchor_evm_version(compiler_data.settings.evm_version):
-                for output_format in output_formats[contract_name]:
-                    if output_format not in OUTPUT_FORMATS:
-                        raise ValueError(f"Unsupported format type {repr(output_format)}")
-                    try:
-                        out.setdefault(contract_name, {})
-                        formatter = OUTPUT_FORMATS[output_format]
-                        out[contract_name][output_format] = formatter(compiler_data)
-                    except Exception as exc:
-                        if exc_handler is not None:
-                            exc_handler(contract_name, exc)
-                        else:
-                            raise exc
+        compiler_data = CompilerData(
+            source_code,
+            input_bundle,
+            contract_name,
+            source_id,
+            settings,
+            storage_layout_override,
+            show_gas_estimates,
+            no_bytecode_metadata,
+        )
+        with anchor_evm_version(compiler_data.settings.evm_version):
+            for output_format in output_formats[contract_name]:
+                if output_format not in OUTPUT_FORMATS:
+                    raise ValueError(f"Unsupported format type {repr(output_format)}")
+                try:
+                    out.setdefault(contract_name, {})
+                    formatter = OUTPUT_FORMATS[output_format]
+                    out[contract_name][output_format] = formatter(compiler_data)
+                except Exception as exc:
+                    if exc_handler is not None:
+                        exc_handler(contract_name, exc)
+                    else:
+                        raise exc
 
     return out
 

@@ -51,7 +51,7 @@ class CompilerData:
         self,
         source_code: str,
         input_bundle: InputBundle,
-        contract_name: str = "VyperContract",
+        contract_name: str = "VyperContract.vy",
         source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -130,11 +130,13 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.vyper_module, self.input_bundle)
+        with self.input_bundle.search_path(self.contract_name.parent):
+            return generate_unfolded_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
-        return generate_folded_ast(self.vyper_module, self.input_bundle, self.storage_layout_override)
+        with self.input_bundle.search_path(self.contract_name.parent):
+            return generate_folded_ast(self.vyper_module, self.input_bundle, self.storage_layout_override)
 
     @property
     def vyper_module_folded(self) -> vy_ast.Module:
