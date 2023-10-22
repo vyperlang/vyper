@@ -43,7 +43,6 @@ ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
 asm                - Output the EVM assembly of the deployable bytecode
-hex-ir             - Output IR and assembly constants in hex instead of decimal
 """
 
 combined_json_outputs = [
