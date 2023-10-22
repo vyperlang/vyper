@@ -8,7 +8,7 @@ Vyper has an active community. You can find third-party tutorials, examples, cou
 General
 -------
 
-- `Ape Academy - Learn how to build Vyper projects <https://academy.apeworx.io/>`_ by ApeWorX
+- `Ape Academy – Learn how to build Vyper projects <https://academy.apeworx.io/>`_ by ApeWorX
 - `More Vyper by Example <https://vyper-by-example.org/>`_ by Smart Contract Engineer
 - `Vyper cheat Sheet <https://reference.auditless.com/cheatsheet>`_
 - `Vyper Hub for development <https://github.com/zcor/vyper-dev>`_
@@ -44,4 +44,4 @@ Unmaintained
 These resources have not been updated for a while, but may still offer interesting content.
 
 - `Awesome Vyper curated resources <https://github.com/spadebuilders/awesome-vyper>`_
-- `Brownie - Python framework for developing smart contracts (deprecated) <https://eth-brownie.readthedocs.io/en/stable/>`_
+- `Brownie – Python framework for developing smart contracts (deprecated) <https://eth-brownie.readthedocs.io/en/stable/>`_
