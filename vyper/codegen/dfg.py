@@ -101,6 +101,28 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             for op in res:
                 ctx.dfg_outputs[op.value] = inst
 
+    # Build DUP requirements
+    _compute_dup_requirements(ctx, OrderedSet(), {}, ctx.basic_blocks[0])
+
+
+def _compute_dup_requirements(
+    ctx: IRFunction, visited: OrderedSet, last_seen: dict, bb: IRBasicBlock
+) -> None:
+    if bb in visited:
+        return
+    visited.add(bb)
+
+    for inst in bb.instructions:
+        operands = inst.get_input_operands()
+        for op in operands:
+            l = last_seen.get(op.value, None)
+            if l:
+                l.dup_requirements.add(op)
+            last_seen[op.value] = inst
+
+    for out_bb in bb.out_set:
+        _compute_dup_requirements(ctx, visited, last_seen.copy(), out_bb)
+
 
 def compute_phi_vars(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
@@ -176,7 +198,8 @@ def _stack_duplications(
         assert op.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
-        if op.use_count > 1:
+        if op in inst.dup_requirements:
+            # if op.use_count > 1:
             # print(inst, op)
             # Operand needs duplication
             stack_map.dup(assembly, depth)
