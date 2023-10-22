@@ -108,7 +108,8 @@ class IRInstruction:
     operands: list[IRValueBase]
     ret: Optional[IRValueBase]
     dbg: Optional[IRDebugInfo]
-    liveness: set[IRVariable]
+    liveness: OrderedSet[IRVariable]
+    dup_requirements: OrderedSet[IRVariable]
     parent: Optional["IRBasicBlock"]
     fen: int
     annotation: Optional[str]
@@ -146,7 +147,8 @@ class IRInstruction:
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
         self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
         self.dbg = dbg
-        self.liveness = set()
+        self.liveness = OrderedSet()
+        self.dup_requirements = OrderedSet()
         self.parent = None
         self.fen = -1
         self.annotation = None
