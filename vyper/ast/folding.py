@@ -45,12 +45,12 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-            typ = node._metadata.get("type")
-            if typ:
-                new_node._metadata["type"] = typ
-                # defer literal validation until folding is no longer possible
-                if not isinstance(node.get_ancestor(), node_types):
-                    typ.validate_literal(new_node)
+            typ = node._metadata["type"]
+            new_node._metadata["type"] = typ
+
+            # defer literal validation until folding is no longer possible
+            if not isinstance(node.get_ancestor(), node_types):
+                typ.validate_literal(new_node)
 
         except UnfoldableNode:
             continue
@@ -152,7 +152,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             # annotation is not wrapped in `constant(...)`
             continue
 
-        type_ = node._metadata.get("type")
+        type_ = node._metadata["type"]
         changed_nodes += replace_constant(
             vyper_module, node.target.id, node.value, False, type_=type_
         )
