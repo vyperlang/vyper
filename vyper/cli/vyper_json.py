@@ -158,6 +158,7 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
 
     ret: ContractCodes = {}
     for path, value in input_dict["sources"].items():
+        path = Path(path)
         if "urls" in value:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if "content" not in value:
@@ -255,7 +256,7 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
-    contract_sources: ContractCodes = get_input_dict_contracts(input_dict)
+    contract_sources: ContractCodes = get_compilation_targets(input_dict)
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
 
     compiler_data, warning_data = {}, {}
@@ -284,6 +285,7 @@ def compile_from_input_dict(
 def format_to_output_dict(compiler_data: Dict) -> Dict:
     output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
+        path = str(path)  # Path is not json serializable
         output_dict["sources"][path] = {"id": id_}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
