@@ -20,7 +20,7 @@ Frameworks and tooling
 
 - `ApeWorX – The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`_
 - `VyperDeployer – A helper smart contract to compile and test Vyper contracts in Foundry <https://github.com/pcaversaccio/snekmate/blob/main/lib/utils/VyperDeployer.sol>`_
-- `Snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_
+- `🐍 snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_
 - `Serpentor – A set of smart contracts tools for governance <https://github.com/yearn/serpentor>`_
 - `Smart contract development frameworks and tools for Vyper on Ethreum.org <https://ethereum.org/en/developers/docs/programming-languages/python/>`_
 
