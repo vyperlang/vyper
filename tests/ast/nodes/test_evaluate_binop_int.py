@@ -4,6 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper.exceptions import ZeroDivisionException
+from vyper.semantics import validate_semantics
 
 st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
 
@@ -110,11 +111,17 @@ def foo({input_value}) -> int128:
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
 
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
+    expected = f"""
+@external
+def foo() -> int128:
+    return {literal_op}
+    """
+    vyper_ast = vy_ast.parse_to_ast(expected)
 
     try:
+        validate_semantics(vyper_ast, {})
         vy_ast.folding.replace_literal_ops(vyper_ast)
-        expected = vyper_ast.body[0].value.value
+        expected = vyper_ast.body[0].body[0].value.value
         is_valid = True
     except ZeroDivisionException:
         is_valid = False

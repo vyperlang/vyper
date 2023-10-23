@@ -3,6 +3,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
+from vyper.semantics import validate_semantics
 
 variables = "abcdefghij"
 
@@ -52,8 +53,15 @@ def foo({input_value}) -> bool:
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, comparators))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
 
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
+    expected = f"""
+@external
+def foo() -> bool:
+    return {literal_op}
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, {})
     vy_ast.folding.replace_literal_ops(vyper_ast)
-    expected = vyper_ast.body[0].value.value
+    expected = vyper_ast.body[0].body[0].value.value
 
     assert contract.foo(*values) == expected

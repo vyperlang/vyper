@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
+from vyper.semantics import validate_semantics
 
 
 @pytest.mark.parametrize("bool_cond", [True, False])
@@ -30,8 +31,15 @@ def foo(a: bool) -> bool:
     contract = get_contract(source)
 
     literal_op = f"{'not ' * count}{bool_cond}"
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
+    expected = f"""
+@external
+def foo() -> bool:
+    return {literal_op}
+    """
+
+    vyper_ast = vy_ast.parse_to_ast(expected)
+    validate_semantics(vyper_ast, {})
     vy_ast.folding.replace_literal_ops(vyper_ast)
-    expected = vyper_ast.body[0].value.value
+    expected = vyper_ast.body[0].body[0].value.value
 
     assert contract.foo(bool_cond) == expected
