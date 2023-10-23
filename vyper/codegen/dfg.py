@@ -394,23 +394,10 @@ def _generate_evm_for_instruction_r(
     _emit_input_operands(ctx, assembly, inst, operands, stack_map)
 
     # Step 3: Reorder stack
-    if opcode in ["jnz", "jmp"]:  # and stack_map.get_height() >= 2:
+    if opcode in ["jnz", "jmp"]:
         _, b = next(enumerate(inst.parent.out_set))
         t_liveness = b.in_vars_for(inst.parent)
-        target_stack = OrderedSet(t_liveness)  # [b.phi_vars.get(v.value, v) for v in t_liveness]
-        current_stack = OrderedSet(stack_map.stack_map)
-        # if opcode == "jmp":
-        #     need_pop = current_stack.difference(target_stack)
-        #     for op in need_pop:
-        #         if op.use_count > 0:
-        #             continue
-        #         depth = stack_map.get_depth_in(op)
-        #         if depth is StackMap.NOT_IN_STACK:
-        #             continue
-        #         if depth != 0:
-        #             stack_map.swap(assembly, depth)
-        #         stack_map.pop()
-        #         assembly.append("POP")
+        target_stack = OrderedSet(t_liveness)
         phi_mappings = inst.parent.get_phi_mappings()
         _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
 
