@@ -287,7 +287,7 @@ class DArrayT(_SequenceT):
             )
 
         max_length = prefold(node.slice.value.elements[1])
-        if not max_length or not isinstance(max_length, int):
+        if not isinstance(max_length, int):
             raise StructureException(
                 "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
             )

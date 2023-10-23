@@ -384,7 +384,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
                 arg0_val = prefold(args[0])
-                if arg0_val is None:
+                if not isinstance(arg0_val, int):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -398,7 +398,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
 
                     right_val = prefold(args[1].right)
-                    if right_val is None:
+                    if not isinstance(right_val, int):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
                     if right_val < 1:
                         raise StructureException(
@@ -409,7 +409,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 else:
                     # range(CONSTANT, CONSTANT)
                     arg1_val = prefold(args[1])
-                    if arg1_val is None:
+                    if not isinstance(arg1_val, int):
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
                     if arg0_val >= arg1_val:
