@@ -79,7 +79,7 @@ class StackMap:
     def pop(self, num: int = 1) -> None:
         del self.stack_map[len(self.stack_map) - num :]
 
-    def get_depth_in(self, op: IRValueBase | list[IRValueBase], phi_vars: dict = {}) -> int:
+    def get_depth_in(self, op: IRValueBase | list[IRValueBase]) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
@@ -91,18 +91,15 @@ class StackMap:
             or isinstance(op, list)
         ), f"get_depth_in takes IRValueBase or list, got '{op}'"
 
-        def f(x):
-            return str(phi_vars.get(str(x), x))
-
         for i, stack_op in enumerate(self.stack_map[::-1]):
             if isinstance(stack_op, IRValueBase):
-                if isinstance(op, str) and f(stack_op.value) == f(op):
+                if isinstance(op, str) and stack_op.value == op:
                     return -i
-                if isinstance(op, int) and f(stack_op.value) == f(op):
+                if isinstance(op, int) and stack_op.value == op:
                     return -i
-                if isinstance(op, IRValueBase) and f(stack_op.value) == f(op.value):
+                if isinstance(op, IRValueBase) and stack_op.value == op.value:
                     return -i
-                elif isinstance(op, list) and f(stack_op) in [f(v) for v in op]:
+                elif isinstance(op, list) and stack_op in op:
                     return -i
 
         return StackMap.NOT_IN_STACK

@@ -158,23 +158,6 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
                     inst.dup_requirements.add(op)
 
 
-def compute_phi_vars(ctx: IRFunction) -> None:
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            if inst.opcode != "select":
-                continue
-
-            ret_op = inst.get_output_operands()[0]
-
-            block_a = ctx.get_basic_block(inst.operands[0].value)
-            block_b = ctx.get_basic_block(inst.operands[2].value)
-
-            block_a.phi_vars[inst.operands[1].value] = ret_op
-            block_a.phi_vars[inst.operands[3].value] = ret_op
-            block_b.phi_vars[inst.operands[1].value] = ret_op
-            block_b.phi_vars[inst.operands[3].value] = ret_op
-
-
 visited_instructions = {IRInstruction}
 visited_basicblocks = {IRBasicBlock}
 
@@ -184,8 +167,6 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     asm = []
     visited_instructions = set()
     visited_basicblocks = set()
-
-    compute_phi_vars(ctx)
 
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
 
@@ -252,17 +233,12 @@ def __stack_duplications(
             stack_map.dup(assembly, depth)
 
 
-def _stack_reorder(
-    assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase], phi_vars: dict = {}
-) -> None:
-    def f(x):
-        return phi_vars.get(str(x), x)
-
-    stack_ops = [f(x.value) for x in stack_ops]
+def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
+    stack_ops = [x.value for x in stack_ops]
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
-        depth = stack_map.get_depth_in(op, phi_vars)
+        depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         is_in_place = depth == final_stack_depth
 
@@ -393,10 +369,8 @@ def _generate_evm_for_instruction_r(
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:
         _, b = next(enumerate(inst.parent.out_set))
-        t_liveness = b.in_vars_for(inst.parent)
-        target_stack = OrderedSet(t_liveness)
-        phi_mappings = inst.parent.get_phi_mappings()
-        _stack_reorder(assembly, stack_map, target_stack, phi_mappings)
+        target_stack = OrderedSet(b.in_vars_for(inst.parent))
+        _stack_reorder(assembly, stack_map, target_stack)
 
     liveness = origin_inst if origin_inst else OrderedSet()
     _stack_duplications(assembly, liveness, inst, stack_map, operands)

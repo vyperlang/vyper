@@ -71,7 +71,6 @@ def calculate_in_set(ctx: IRFunction) -> None:
         bb.in_set = OrderedSet()
         bb.out_set = OrderedSet()
         bb.out_vars = OrderedSet()
-        bb.phi_vars = {}
 
     deploy_bb = None
     for i, bb in enumerate(ctx.basic_blocks):

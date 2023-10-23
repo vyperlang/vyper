@@ -234,7 +234,6 @@ class IRBasicBlock:
     in_set: OrderedSet["IRBasicBlock"]
     out_set: OrderedSet["IRBasicBlock"]
     out_vars: OrderedSet[IRVariable]
-    phi_vars: dict[str, IRVariable]
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -244,7 +243,6 @@ class IRBasicBlock:
         self.in_set = OrderedSet()
         self.out_set = OrderedSet()
         self.out_vars = OrderedSet()
-        self.phi_vars = {}
 
     def add_in(self, bb: "IRBasicBlock") -> None:
         self.in_set.add(bb)
@@ -263,19 +261,6 @@ class IRBasicBlock:
 
     def remove_out(self, bb: "IRBasicBlock") -> None:
         self.out_set.remove(bb)
-
-    def get_phi_mappings(self) -> dict[str, IRVariable]:
-        """
-        Get phi mappings for basic block.
-        """
-        phi_mappings = {}
-
-        for inst in self.instructions:
-            if inst.opcode == "select":
-                phi_mappings[inst.operands[1].value] = inst.ret
-                phi_mappings[inst.operands[3].value] = inst.ret
-
-        return phi_mappings
 
     def in_vars_for(self, bb: "IRBasicBlock" = None) -> set[IRVariable]:
         liveness = self.instructions[0].liveness.copy()
@@ -391,7 +376,6 @@ class IRBasicBlock:
         bb.in_set = self.in_set.copy()
         bb.out_set = self.out_set.copy()
         bb.out_vars = self.out_vars.copy()
-        bb.phi_vars = self.phi_vars.copy()
         return bb
 
     def __repr__(self) -> str:
