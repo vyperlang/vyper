@@ -45,12 +45,16 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-            typ = node._metadata["type"]
-            new_node._metadata["type"] = typ
+            typ = node._metadata.get("type")
 
-            # defer literal validation until folding is no longer possible
-            if not isinstance(node.get_ancestor(), node_types):
-                typ.validate_literal(new_node)
+            # type metadata may not be present
+            # e.g. type annotations (`DynArray[uint256, 2**8]`)
+            if typ is not None:
+                new_node._metadata["type"] = typ
+
+                # defer literal validation until folding is no longer possible
+                if not isinstance(node.get_ancestor(), node_types):
+                    typ.validate_literal(new_node)
 
         except UnfoldableNode:
             continue
