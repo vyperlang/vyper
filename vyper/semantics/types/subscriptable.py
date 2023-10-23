@@ -69,9 +69,7 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(
-        cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript], constants: dict
-    ) -> "HashMapT":
+    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -200,7 +198,7 @@ class SArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "SArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
         if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
@@ -212,7 +210,7 @@ class SArrayT(_SequenceT):
             raise StructureException(f"arrays of {value_type} are not allowed!")
 
         # note: validates index is a vy_ast.Int.
-        length = get_index_value(node.slice, constants)
+        length = get_index_value(node.slice)
         return cls(value_type, length)
 
 
@@ -276,7 +274,7 @@ class DArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript, constants: dict) -> "DArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -340,7 +338,7 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple, constants: dict) -> VyperType:
+    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

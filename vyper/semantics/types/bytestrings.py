@@ -122,7 +122,7 @@ class _BytestringT(VyperType):
         return other.compare_type(self)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.VyperNode, constants: dict) -> "_BytestringT":
+    def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
         if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
@@ -131,7 +131,7 @@ class _BytestringT(VyperType):
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
-        length = get_index_value(node.slice, constants)  # type: ignore
+        length = get_index_value(node.slice)  # type: ignore
         # return cls._type(length, location, is_constant, is_public, is_immutable)
         return cls(length)
 
