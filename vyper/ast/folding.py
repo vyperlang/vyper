@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.builtins.functions import DISPATCH_TABLE
@@ -161,9 +161,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         type_ = node._metadata["type"]
-        changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, type_=type_
-        )
+        changed_nodes += replace_constant(vyper_module, node.target.id, node.value, type_, False)
 
     return changed_nodes
 
@@ -171,18 +169,16 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, type_=None):
+def _replace(old_node, new_node, type_):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if type_ is not None:
-            new_node._metadata["type"] = type_
+        new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type = type_.value_type if type_ else None
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if type_ is not None:
-            new_node._metadata["type"] = type_
+        new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
@@ -194,8 +190,7 @@ def _replace(old_node, new_node, type_=None):
         new_node = new_node.from_node(
             old_node, func=new_node.func, args=new_node.args, keyword=keyword, keywords=keywords
         )
-        if type_ is not None:
-            new_node._metadata["type"] = type_
+        new_node._metadata["type"] = type_
         return new_node
     else:
         raise UnfoldableNode
@@ -205,8 +200,8 @@ def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
+    type_: VyperType,
     raise_on_error: bool,
-    type_: Optional[VyperType] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.
@@ -259,7 +254,7 @@ def replace_constant(
 
         try:
             # note: _replace creates a copy of the replacement_node
-            new_node = _replace(node, replacement_node, type_=type_)
+            new_node = _replace(node, replacement_node, type_)
         except UnfoldableNode:
             if raise_on_error:
                 raise
