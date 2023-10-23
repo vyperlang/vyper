@@ -5,15 +5,15 @@ from vyper.utils import OrderedSet, ir_pass
 visited_instructions = OrderedSet()
 
 
-def _emit_operands_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction):
+def _emit_operands_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction) -> None:
     for op in inst.get_input_operands():
-        target = ctx.dfg_outputs.get(op.value, None)
+        target = ctx.dfg_outputs.get(op.value)
         if target is None:
             continue
         _process_instruction(ctx, bb, target)
 
 
-def _process_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction):
+def _process_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction) -> None:
     global visited_instructions
     if inst in visited_instructions:
         return
@@ -22,7 +22,7 @@ def _process_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction)
     bb.append_instruction(inst)
 
 
-def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock):
+def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock) -> None:
     ctx.append_basic_block(bb)
     instructions = bb.instructions
     bb.instructions = []
@@ -31,7 +31,7 @@ def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock):
 
 
 @ir_pass
-def ir_pass_dft(ctx: IRFunction):
+def ir_pass_dft(ctx: IRFunction) -> None:
     global visited_instructions
     visited_instructions = OrderedSet()
 

@@ -173,6 +173,8 @@ class IRnode:
     value: Union[str, int]
     is_self_call: bool
     passthrough_metadata: dict[str, Any]
+    func_ir: Any
+    common_ir: Any
 
     def __init__(
         self,
@@ -207,6 +209,8 @@ class IRnode:
         self.as_hex = AS_HEX_DEFAULT
         self.is_self_call = is_self_call
         self.passthrough_metadata = passthrough_metadata or {}
+        self.func_ir = None
+        self.common_ir = None
 
         def _check(condition, err):
             if not condition:

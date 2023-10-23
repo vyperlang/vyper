@@ -30,7 +30,7 @@ class IRFunction(IRFunctionBase):
     basic_blocks: list["IRBasicBlock"]
     data_segment: list["IRInstruction"]
     dfg_inputs = {str: [IRInstruction]}
-    dfg_outputs = {str: IRInstruction}
+    dfg_outputs = dict[str, IRInstruction]
     last_label: int
     last_variable: int
 
