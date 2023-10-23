@@ -87,6 +87,7 @@ class Namespace(dict):
     def clear(self):
         super().clear()
         self.__init__()
+        self._constants = {}
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
