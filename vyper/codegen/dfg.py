@@ -200,10 +200,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 
 def _stack_duplications(
-    assembly: list,
-    inst: IRInstruction,
-    stack_map: StackMap,
-    stack_ops: list[IRValueBase],
+    assembly: list, inst: IRInstruction, stack_map: StackMap, stack_ops: list[IRValueBase]
 ) -> None:
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
@@ -234,10 +231,7 @@ def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueB
 
 
 def _generate_evm_for_basicblock_r(
-    ctx: IRFunction,
-    asm: list,
-    basicblock: IRBasicBlock,
-    stack_map: StackMap,
+    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
 ):
     if basicblock in visited_basicblocks:
         return
@@ -280,10 +274,7 @@ label_counter = 0
 
 
 def _generate_evm_for_instruction_r(
-    ctx: IRFunction,
-    assembly: list,
-    inst: IRInstruction,
-    stack_map: StackMap,
+    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> list[str]:
     global label_counter
 

@@ -116,9 +116,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = [
-        IRLabel(target_label),
-    ]
+    ret_args = [IRLabel(target_label)]
 
     for arg in args_ir:
         if arg.is_literal:
@@ -602,22 +600,10 @@ def _convert_ir_basicblock(
             else:
                 ret_var = ir.args[1]
                 if func_t.return_type.memory_bytes_required > 32:
-                    inst = IRInstruction(
-                        "ret",
-                        [
-                            symbols["return_buffer"],
-                            symbols["return_pc"],
-                        ],
-                    )
+                    inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
                 else:
                     ret_by_value = ctx.append_instruction("mload", [symbols["return_buffer"]])
-                    inst = IRInstruction(
-                        "ret",
-                        [
-                            ret_by_value,
-                            symbols["return_pc"],
-                        ],
-                    )
+                    inst = IRInstruction("ret", [ret_by_value, symbols["return_pc"]])
 
             ctx.get_basic_block().append_instruction(inst)
 
