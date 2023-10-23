@@ -105,6 +105,29 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     _compute_dup_requirements(ctx, OrderedSet(), {}, ctx.basic_blocks[0])
 
 
+def _compute_inst_dup_requirements_r(
+    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict
+):
+    for op in inst.get_output_operands():
+        for target in ctx.dfg_inputs.get(op.value, []):
+            if target.parent != inst.parent:
+                continue
+            if target.fen != inst.fen:
+                continue
+            _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
+
+    if inst in visited:
+        return
+    visited.add(inst)
+
+    operands = inst.get_input_operands()
+    for op in operands:
+        l = last_seen.get(op.value, None)
+        if l:
+            l.dup_requirements.add(op)
+        last_seen[op.value] = inst
+
+
 def _compute_dup_requirements(
     ctx: IRFunction, visited: OrderedSet, last_seen: dict, bb: IRBasicBlock
 ) -> None:
@@ -113,12 +136,7 @@ def _compute_dup_requirements(
     visited.add(bb)
 
     for inst in bb.instructions:
-        operands = inst.get_input_operands()
-        for op in operands:
-            l = last_seen.get(op.value, None)
-            if l:
-                l.dup_requirements.add(op)
-            last_seen[op.value] = inst
+        _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
 
     for out_bb in bb.out_set:
         _compute_dup_requirements(ctx, visited, last_seen.copy(), out_bb)
@@ -359,10 +377,8 @@ def _generate_evm_for_instruction_r(
         depth = stack_map.get_depth_in(inputs)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)
-        if to_be_replaced.use_count > 1:
-            to_be_replaced.use_count -= 1
-            if to_be_replaced.use_count > 1:
-                stack_map.dup(assembly, depth)
+        if to_be_replaced in inst.dup_requirements:
+            stack_map.dup(assembly, depth)
             stack_map.poke(0, ret)
         else:
             stack_map.poke(depth, ret)
