@@ -79,6 +79,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     ctx.dfg_outputs = {}
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
+            inst.dup_requirements = OrderedSet()
             operands = inst.get_input_operands()
             operands.extend(inst.get_output_operands())
             for op in operands:
@@ -102,44 +103,54 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
                 ctx.dfg_outputs[op.value] = inst
 
     # Build DUP requirements
+    print("Building DUP requirements")
     _compute_dup_requirements(ctx, OrderedSet(), {}, ctx.basic_blocks[0])
 
 
 def _compute_inst_dup_requirements_r(
-    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict
+    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, accessed: OrderedSet, last_seen: dict
 ):
+    if inst in visited:
+        return accessed
+
+    print(inst)
+
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
                 continue
+            if inst.opcode in ["jmp", "jnz"]:
+                labels = inst.get_label_operands()
+                for l in labels:
+                    _compute_dup_requirements(ctx, l, visited, accessed, last_seen.copy())
+                continue
             if target.fen != inst.fen:
                 continue
-            _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
-    if inst in visited:
-        return
+            accessed = _compute_inst_dup_requirements_r(ctx, target, visited, accessed, last_seen)
+
     visited.add(inst)
 
-    operands = inst.get_input_operands()
-    for op in operands:
+    for op in inst.get_input_operands():
         l = last_seen.get(op.value, None)
         if l:
             l.dup_requirements.add(op)
         last_seen[op.value] = inst
+        accessed.add(op)
+        # if op in accessed:
+        #     inst.dup_requirements.add(op)
+        # else:
+        #     accessed.add(op)
+
+    return accessed
 
 
 def _compute_dup_requirements(
     ctx: IRFunction, visited: OrderedSet, last_seen: dict, bb: IRBasicBlock
 ) -> None:
-    if bb in visited:
-        return
-    visited.add(bb)
-
     for inst in bb.instructions:
-        _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
-
-    for out_bb in bb.out_set:
-        _compute_dup_requirements(ctx, visited, last_seen.copy(), out_bb)
+        accessed = OrderedSet()
+        _compute_inst_dup_requirements_r(ctx, inst, visited, accessed, last_seen)
 
 
 def compute_phi_vars(ctx: IRFunction) -> None:
@@ -210,6 +221,7 @@ def _stack_duplications(
     stack_ops: list[IRValueBase],
 ) -> None:
     last_used = inst.parent.get_last_used_operands(inst)
+    print(inst)
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
