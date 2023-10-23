@@ -309,10 +309,7 @@ def _generate_evm_for_basicblock_r(
         if inst.volatile:
             fen += 1
 
-    for idx, inst in enumerate(basicblock.instructions):
-        # orig_inst = (
-        #     basicblock.instructions[idx + 1] if idx + 1 < len(basicblock.instructions) else None
-        # )
+    for inst in basicblock.instructions:
         asm, _ = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
 
     for bb in basicblock.out_set:
