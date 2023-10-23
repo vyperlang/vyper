@@ -1,12 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.ast.pre_typecheck import prefold
-from vyper.exceptions import (
-    ArrayIndexException,
-    InstantiationException,
-    InvalidType,
-    StructureException,
-    UnknownType,
-)
+from vyper.exceptions import ArrayIndexException, InstantiationException, InvalidType, UnknownType
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
@@ -146,22 +140,9 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    # this is imported to improve error messages
-    # TODO: revisit this!
-    from vyper.semantics.analysis.utils import get_possible_types_from_node
-
     val = prefold(node.value)
 
     if not isinstance(val, int):
-        if hasattr(node, "value"):
-            # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
-            try:
-                get_possible_types_from_node(node.value)
-            except StructureException:
-                # StructureException is a very broad error, better to raise InvalidType in this case
-                pass
-
         raise InvalidType("Subscript must be a literal integer", node)
 
     if val <= 0:

@@ -129,10 +129,11 @@ class _SequenceT(_SubscriptableT):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        if isinstance(node, vy_ast.Int):
-            if node.value < 0:
+        index_val = prefold(node)
+        if isinstance(index_val, int):
+            if index_val < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value >= self.length:
+            if index_val >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
         validate_expected_type(node, IntegerT.any())
