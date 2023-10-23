@@ -45,19 +45,19 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
             new_node = node.evaluate()
-            typ = node._metadata.get("type")
-
-            # type metadata may not be present
-            # e.g. type annotations (`DynArray[uint256, 2**8]`)
-            if typ is not None:
-                new_node._metadata["type"] = typ
-
-                # defer literal validation until folding is no longer possible
-                if not isinstance(node.get_ancestor(), node_types):
-                    typ.validate_literal(new_node)
-
         except UnfoldableNode:
             continue
+
+        typ = node._metadata.get("type")
+
+        # type metadata may not be present
+        # e.g. type annotations (`DynArray[uint256, 2**8]`)
+        if typ is not None:
+            new_node._metadata["type"] = typ
+
+            # defer literal validation until folding is no longer possible
+            if not isinstance(node.get_ancestor(), node_types):
+                typ.validate_literal(new_node)
 
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
@@ -121,13 +121,13 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
             continue
         try:
             new_node = func.evaluate(node)  # type: ignore
-
-            # use old node's type only if type metadata does not exist.
-            # this catches `min_value` and `max_value` specifically.
-            if "type" not in new_node._metadata:
-                new_node._metadata["type"] = node._metadata["type"]
         except UnfoldableNode:
             continue
+
+        # new node will be annotated with type metadata only for `min_value`
+        # and `max_value`. otherwise, use old node's type.
+        if "type" not in new_node._metadata:
+            new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
