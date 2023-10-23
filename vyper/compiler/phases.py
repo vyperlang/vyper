@@ -4,7 +4,6 @@ from functools import cached_property
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.expansion import remove_unused_statements
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
@@ -258,7 +257,6 @@ def generate_folded_ast(
     StorageLayout
         Layout of variables in storage
     """
-    remove_unused_statements(vyper_module)
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)

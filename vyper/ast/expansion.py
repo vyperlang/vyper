@@ -18,6 +18,7 @@ def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node that has been type-checked and annotated.
     """
     generate_public_variable_getters(vyper_module)
+    remove_unused_statements(vyper_module)
 
 
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
@@ -31,8 +32,9 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
+        typ = node._metadata["type"]
         func_type = node._metadata["func_type"]
-        input_types, return_type = node._metadata["type"].getter_signature
+        input_types, return_type = typ.getter_signature
         input_nodes = []
 
         # use the annotation node to build the input args and return type
@@ -48,6 +50,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             # the base return statement is an `Attribute` node, e.g. `self.<var_name>`
             # for each input type we wrap it in a `Subscript` to access a specific member
             return_stmt = vy_ast.Attribute(value=vy_ast.Name(id="self"), attr=func_type.name)
+        return_stmt._metadata["type"] = typ
 
         for i, type_ in enumerate(input_types):
             if not isinstance(annotation, vy_ast.Subscript):
