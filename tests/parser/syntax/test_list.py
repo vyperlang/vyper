@@ -305,8 +305,9 @@ def foo():
     """
 @external
 def foo():
+    x: DynArray[uint256, 3] = [1, 2, 3]
     for i in [[], []]:
-        pass
+        x = i
     """,
 ]
 
