@@ -1,9 +1,9 @@
 from vyper.codegen.ir_basicblock import (
     IRBasicBlock,
     IRInstruction,
-    IRVariable,
-    IRValueBase,
     IRLabel,
+    IRValueBase,
+    IRVariable,
 )
 from vyper.codegen.ir_function import IRFunction
 from vyper.compiler.utils import StackMap

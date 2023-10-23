@@ -1,15 +1,16 @@
 from typing import Optional
-from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
+
 from vyper.codegen.dfg import convert_ir_to_dfg
 from vyper.codegen.ir_function import IRFunctionBase
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.bb_optimizer import (
     calculate_in_set,
     calculate_liveness,
     ir_pass_optimize_empty_blocks,
-    ir_pass_remove_unreachable_blocks,
     ir_pass_optimize_unused_variables,
+    ir_pass_remove_unreachable_blocks,
 )
 from vyper.ir.ir_to_bb_pass import convert_ir_basicblock
 

@@ -5,8 +5,7 @@ from vyper.codegen.ir_basicblock import (
     IRLabel,
 )
 from vyper.codegen.ir_function import IRFunction
-from vyper.utils import OrderedSet
-from vyper.utils import ir_pass
+from vyper.utils import OrderedSet, ir_pass
 
 
 def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:

@@ -15,7 +15,7 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import OrderedSet, MemoryPositions
+from vyper.utils import MemoryPositions, OrderedSet
 
 BINARY_IR_INSTRUCTIONS = [
     "eq",
