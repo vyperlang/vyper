@@ -105,7 +105,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
 
 def _compute_inst_dup_requirements_r(
-    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict
+    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict[str, IRInstruction]
 ):
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
@@ -126,13 +126,12 @@ def _compute_inst_dup_requirements_r(
         target = ctx.dfg_outputs[op.value]
         if target.parent != inst.parent:
             continue
-        old_last_seen = last_seen.copy()
         _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
     for op in inst.get_input_operands():
-        l = last_seen.get(op.value, None)
-        if l:
-            l.dup_requirements.add(op)
+        inst = last_seen.get(op.value, None)
+        if inst:
+            inst.dup_requirements.add(op)
         last_seen[op.value] = inst
 
     return

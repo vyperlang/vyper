@@ -3,7 +3,6 @@ from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagat
 from vyper.codegen.dfg import convert_ir_to_dfg
 from vyper.codegen.ir_function import IRFunctionBase
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.ir_pass_dft import ir_pass_dft
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.bb_optimizer import (
     calculate_in_set,

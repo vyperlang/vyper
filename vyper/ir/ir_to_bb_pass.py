@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 
 from vyper.codegen.dfg import generate_evm
 from vyper.codegen.ir_basicblock import (
@@ -16,10 +16,6 @@ from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import OrderedSet, MemoryPositions
-from vyper.codegen.dfg import convert_ir_to_dfg
-from vyper.codegen.ir_pass_dft import ir_pass_dft
-from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
-
 
 BINARY_IR_INSTRUCTIONS = [
     "eq",
@@ -227,10 +223,12 @@ def _convert_ir_basicblock(
     ctx: IRFunction,
     ir: IRnode,
     symbols: SymbolTable,
-    variables: OrderedSet = {},
-    allocated_variables: dict[str, IRVariable] = {},
+    variables: OrderedSet,
+    allocated_variables: dict[str, IRVariable],
 ) -> Optional[IRVariable]:
     global _break_target, _continue_target
+    variables = variables or OrderedSet()
+    allocated_variables = allocated_variables or {}
 
     frame_info = ir.passthrough_metadata.get("frame_info", None)
     if frame_info is not None:
@@ -526,7 +524,7 @@ def _convert_ir_basicblock(
                 inst = IRInstruction("jmp", [label])
                 ctx.get_basic_block().append_instruction(inst)
                 return
-            if func_t.return_type == None:
+            if func_t.return_type is None:
                 inst = IRInstruction("stop", [])
                 ctx.get_basic_block().append_instruction(inst)
                 return
@@ -585,7 +583,7 @@ def _convert_ir_basicblock(
                         if last_ir.value > 32:
                             inst = IRInstruction("return", [last_ir, ret_ir])
                         else:
-                            ret_buf = IRLiteral(128)  ## TODO: need allocator
+                            ret_buf = IRLiteral(128)  # TODO: need allocator
                             new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_buf])
                             ctx.append_instruction("mstore", [ret_ir, new_var], False)
                             inst = IRInstruction("return", [last_ir, new_var])
@@ -775,7 +773,8 @@ def _convert_ir_basicblock(
         sym = ir.args[0]
         start = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         end = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
-        bound = _convert_ir_basicblock(ctx, ir.args[3], symbols, variables, allocated_variables)
+        # "bound" is not used
+        _ = _convert_ir_basicblock(ctx, ir.args[3], symbols, variables, allocated_variables)
         body = ir.args[4]
 
         entry_block = ctx.get_basic_block()
@@ -814,9 +813,7 @@ def _convert_ir_basicblock(
         # Do a dry run to get the symbols needing phi nodes
         start_syms = symbols.copy()
         ctx.append_basic_block(body_block)
-        old_counters = ctx.last_variable, ctx.last_label
         emit_body_block()
-        # ctx.last_variable, ctx.last_label = old_counters
         end_syms = symbols.copy()
         diff_syms = _get_symbols_common(start_syms, end_syms)
 
@@ -834,9 +831,6 @@ def _convert_ir_basicblock(
             )
 
         body_block.update_operands(replacements)
-
-        # body_block.clear_instructions()
-        # emit_body_block()
 
         body_end = ctx.get_basic_block()
         if body_end.is_terminal() is False:
