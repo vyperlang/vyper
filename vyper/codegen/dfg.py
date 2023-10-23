@@ -75,8 +75,8 @@ class DFGNode:
 
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
     # Reset DFG
-    ctx.dfg_inputs = {}
-    ctx.dfg_outputs = {}
+    ctx.dfg_inputs = dict()
+    ctx.dfg_outputs = dict()
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             inst.dup_requirements = OrderedSet()
@@ -105,8 +105,11 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 
 
 def _compute_inst_dup_requirements_r(
-    ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict[str, IRInstruction]
-):
+    ctx: IRFunction,
+    inst: IRInstruction,
+    visited: OrderedSet,
+    last_seen: dict,
+) -> None:
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
@@ -129,9 +132,9 @@ def _compute_inst_dup_requirements_r(
         _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
     for op in inst.get_input_operands():
-        inst = last_seen.get(op.value, None)
-        if inst:
-            inst.dup_requirements.add(op)
+        target = last_seen.get(op.value, None)
+        if target:
+            target.dup_requirements.add(op)
         last_seen[op.value] = inst
 
     return
@@ -146,7 +149,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
                 fen += 1
 
         visited = OrderedSet()
-        last_seen = {}
+        last_seen = dict()
         for inst in bb.instructions:
             _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
 
