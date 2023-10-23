@@ -83,8 +83,6 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             inst.fen = -1
             operands = inst.get_input_operands()
             operands.extend(inst.get_output_operands())
-            for op in operands:
-                op.use_count = 0
 
     # Build DFG
     for bb in ctx.basic_blocks:
@@ -93,7 +91,6 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             res = inst.get_output_operands()
 
             for op in operands:
-                op.use_count += 1
                 ctx.dfg_inputs[op.value] = (
                     [inst]
                     if ctx.dfg_inputs.get(op.value) is None
@@ -110,7 +107,6 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 def _compute_inst_dup_requirements_r(
     ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict
 ):
-    print(inst)
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
@@ -233,15 +229,10 @@ def _stack_duplications(
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
-        assert op.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         if op in inst.dup_requirements:
-            # if op.use_count > 1:
-            # print(inst, op)
-            # Operand needs duplication
             stack_map.dup(assembly, depth)
-            op.use_count -= 1
 
 
 def __stack_duplications(
@@ -251,19 +242,14 @@ def __stack_duplications(
     stack_map: StackMap,
     stack_ops: list[IRValueBase],
 ) -> None:
-    last_used2 = inst.parent.get_last_used_operands(inst)
     last_used = inst.liveness.difference(dep_liveness)
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
-        assert op.use_count >= 0, "Operand used up"
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         if op not in last_used:
-            # print(inst, op)
-            # Operand needs duplication
             stack_map.dup(assembly, depth)
-            op.use_count -= 1
 
 
 def _stack_reorder(
@@ -476,7 +462,7 @@ def _generate_evm_for_instruction_r(
             ]
         )
         label_counter += 1
-        if stack_map.get_height() > 0 and stack_map.peek(0).use_count == 0:
+        if stack_map.get_height() > 0 and stack_map.peek(0) in inst.dup_requirements:
             stack_map.pop()
             assembly.append("POP")
     elif opcode == "call":

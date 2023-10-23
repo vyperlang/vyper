@@ -33,12 +33,10 @@ IRValueBaseValue = str | int
 
 class IRValueBase:
     value: IRValueBaseValue
-    use_count: int = 0
 
     def __init__(self, value: IRValueBaseValue) -> None:
         assert isinstance(value, IRValueBaseValue), "value must be an IRValueBaseValue"
         self.value = value
-        self.use_count = 0
 
     @property
     def is_literal(self) -> bool:
@@ -55,7 +53,6 @@ class IRLiteral(IRValueBase):
 
     def __init__(self, value: IRValueBaseValue) -> None:
         super().__init__(value)
-        self.use_count = 0
 
     @property
     def is_literal(self) -> bool:
@@ -359,14 +356,6 @@ class IRBasicBlock:
         Get liveness of basic block.
         """
         return self.instructions[0].liveness
-
-    def get_use_count(self, var: IRVariable) -> int:
-        """
-        Get use count of variable in basic block.
-        """
-        if var.value not in self.use_counts.keys():
-            self.use_counts[var.value] = 0 if var.value not in self.instructions[-1].liveness else 1
-        return self.use_counts[var.value]
 
     def get_last_used_operands(self, _inst: IRInstruction) -> OrderedSet[IRVariable]:
         """
