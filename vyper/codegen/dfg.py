@@ -104,7 +104,6 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
                 ctx.dfg_outputs[op.value] = inst
 
     # Build DUP requirements
-    print("Building DUP requirements")
     _compute_dup_requirements(ctx)
 
 
@@ -128,37 +127,43 @@ def _compute_inst_dup_requirements_r(
         return
 
     for op in inst.get_input_operands():
-        last_seen[op.value] = inst
-
-    old_last_seen = last_seen.copy()
+        target = ctx.dfg_outputs[op.value]
+        if target.parent != inst.parent:
+            continue
+        old_last_seen = last_seen.copy()
+        _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
     for op in inst.get_input_operands():
-        _compute_inst_dup_requirements_r(ctx, ctx.dfg_outputs[op.value], visited, last_seen)
-        l = old_last_seen.get(op.value, None)
+        l = last_seen.get(op.value, None)
         if l:
             l.dup_requirements.add(op)
-
-    print("**", inst)
+        last_seen[op.value] = inst
 
     return
 
 
 def _compute_dup_requirements(ctx: IRFunction) -> None:
-    print("***************Computing DUP requirements")
+    # print("***************Computing DUP requirements")
 
     for bb in ctx.basic_blocks:
-        visited = OrderedSet()
-        last_seen = {}
-
         fen = 0
         for inst in bb.instructions:
             inst.fen = fen
             if inst.volatile:
                 fen += 1
 
+        visited = OrderedSet()
+        last_seen = {}
         for inst in bb.instructions:
             _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
-    print("*************** DONE: Computing DUP requirements")
+
+        out_vars = bb.out_vars
+        for inst in bb.instructions[::-1]:
+            for op in inst.get_input_operands():
+                if op in out_vars:
+                    inst.dup_requirements.add(op)
+
+    # print("*************** DONE: Computing DUP requirements")
 
 
 def compute_phi_vars(ctx: IRFunction) -> None:
@@ -229,7 +234,6 @@ def _stack_duplications(
     stack_ops: list[IRValueBase],
 ) -> None:
     last_used = inst.parent.get_last_used_operands(inst)
-    print(inst)
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue

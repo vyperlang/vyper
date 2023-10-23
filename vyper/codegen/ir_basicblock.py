@@ -199,8 +199,11 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        if self.liveness:
-            return f"{s: <30} # {self.liveness}"
+        if len(self.dup_requirements):
+            return f"{s: <30} # {self.dup_requirements}"
+
+        # if self.liveness:
+        #     return f"{s: <30} # {self.liveness}"
 
         return s
 
