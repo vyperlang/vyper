@@ -45,3 +45,4 @@ These resources have not been updated for a while, but may still offer interesti
 
 - `Awesome Vyper curated resources <https://github.com/spadebuilders/awesome-vyper>`_
 - `Brownie – Python framework for developing smart contracts (deprecated) <https://eth-brownie.readthedocs.io/en/stable/>`_
+- `Foundry x Vyper – Foundry template to compile Vyper contracts <https://github.com/0xKitsune/Foundry-Vyper>`_
