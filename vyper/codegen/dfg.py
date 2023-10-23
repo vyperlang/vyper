@@ -110,13 +110,13 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
 def _compute_inst_dup_requirements_r(
     ctx: IRFunction, inst: IRInstruction, visited: OrderedSet, last_seen: dict
 ):
+    print(inst)
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
                 continue
             if target.fen != inst.fen:
                 continue
-
             _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
     if inst in visited:
@@ -143,10 +143,8 @@ def _compute_inst_dup_requirements_r(
 
 
 def _compute_dup_requirements(ctx: IRFunction) -> None:
-    # print("***************Computing DUP requirements")
-
+    fen = 0
     for bb in ctx.basic_blocks:
-        fen = 0
         for inst in bb.instructions:
             inst.fen = fen
             if inst.volatile:
@@ -162,8 +160,6 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
             for op in inst.get_input_operands():
                 if op in out_vars:
                     inst.dup_requirements.add(op)
-
-    # print("*************** DONE: Computing DUP requirements")
 
 
 def compute_phi_vars(ctx: IRFunction) -> None:
