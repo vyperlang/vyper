@@ -1,7 +1,6 @@
 from typing import Union
 
 from vyper.ast import nodes as vy_ast
-from vyper.builtins.functions import DISPATCH_TABLE
 from vyper.exceptions import UnfoldableNode
 from vyper.semantics.types.base import VyperType
 
@@ -115,10 +114,10 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
         if not isinstance(node.func, vy_ast.Name):
             continue
 
-        name = node.func.id
-        func = DISPATCH_TABLE.get(name)
+        func = node.func._metadata.get("type")
         if func is None or not hasattr(func, "evaluate"):
             continue
+
         try:
             new_node = func.evaluate(node)  # type: ignore
         except UnfoldableNode:
@@ -153,9 +152,6 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     changed_nodes = 0
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-        if not isinstance(node.target, vy_ast.Name):
-            # left-hand-side of assignment is not a variable
-            continue
         if not node.is_constant:
             # annotation is not wrapped in `constant(...)`
             continue
@@ -215,10 +211,10 @@ def replace_constant(
     replacement_node : Constant | List | Call
         Vyper ast node representing the literal value to be substituted in.
         `Call` nodes are for struct constants.
+    type_ : VyperType
+        Type definition to be propagated to type checker.
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
-    type_ : VyperType, optional
-        Type definition to be propagated to type checker.
 
     Returns
     -------
