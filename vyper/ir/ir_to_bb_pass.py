@@ -276,7 +276,6 @@ def _convert_ir_basicblock(
 
     elif ir.value in ["pass", "stop", "return"]:
         pass
-
     elif ir.value == "deploy":
         memsize = ir.args[0].value
         ir_runtime = ir.args[1]
@@ -603,7 +602,6 @@ def _convert_ir_basicblock(
             if func_t.return_type is None:
                 inst = IRInstruction("ret", [symbols["return_pc"]])
             else:
-                ret_var = ir.args[1]
                 if func_t.return_type.memory_bytes_required > 32:
                     inst = IRInstruction("ret", [symbols["return_buffer"], symbols["return_pc"]])
                 else:

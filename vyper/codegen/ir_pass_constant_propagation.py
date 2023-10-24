@@ -9,8 +9,5 @@ def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock):
 
 @ir_pass
 def ir_pass_constant_propagation(ctx: IRFunction):
-    global visited_instructions
-    visited_instructions = OrderedSet()
-
     for bb in ctx.basic_blocks:
         _process_basic_block(ctx, bb)
