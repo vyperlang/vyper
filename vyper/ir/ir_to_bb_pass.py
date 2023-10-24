@@ -231,8 +231,6 @@ def _convert_ir_basicblock(
     allocated_variables: dict[str, IRVariable],
 ) -> Optional[IRVariable]:
     global _break_target, _continue_target
-    variables = variables or OrderedSet()
-    allocated_variables = allocated_variables or {}
 
     frame_info = ir.passthrough_metadata.get("frame_info", None)
     if frame_info is not None:
