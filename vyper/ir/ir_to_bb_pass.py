@@ -319,6 +319,7 @@ def _convert_ir_basicblock(
             ctx, ir.args[idx + 1], symbols, variables, allocated_variables
         )
 
+        value = None
         if ir.value == "call":
             value = _convert_ir_basicblock(
                 ctx, ir.args[idx + 2], symbols, variables, allocated_variables
@@ -455,7 +456,7 @@ def _convert_ir_basicblock(
             ctx, ir.args[2], with_symbols, variables, allocated_variables
         )  # body
     elif ir.value == "goto":
-        return _append_jmp(ctx, IRLabel(ir.args[0].value))
+        _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "jump":
         arg_1 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         inst = IRInstruction("jmp", [arg_1])
@@ -693,15 +694,6 @@ def _convert_ir_basicblock(
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
 
-        # if sym_ir.is_literal is False:
-        #     sym = symbols.get(f"{sym_ir.value}", None)
-        #     if sym_ir.value == "return_buffer":
-        #         if sym is None:
-        #             new_var = ctx.append_instruction("store", [arg_1], sym_ir)
-        #             symbols[f"{sym_ir.value}"] = new_var
-        #             return new_var
-        #     return sym
-
         var = _get_variable_from_address(variables, sym_ir.value) if sym_ir.is_literal else None
         if var is not None:
             if var.size > 32:
@@ -862,7 +854,6 @@ def _convert_ir_basicblock(
         ctx.get_basic_block().append_instruction(inst)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
     elif ir.value == "continue":
-        pass
         assert _continue_target is not None, "Continue with no contrinue target"
         inst = IRInstruction("jmp", [_continue_target.label])
         ctx.get_basic_block().append_instruction(inst)

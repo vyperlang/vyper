@@ -72,6 +72,7 @@ def calculate_in_set(ctx: IRFunction) -> None:
         bb.out_vars = OrderedSet()
 
     deploy_bb = None
+    after_deploy_bb = None
     for i, bb in enumerate(ctx.basic_blocks):
         if bb.instructions[0].opcode == "deploy":
             deploy_bb = bb

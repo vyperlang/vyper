@@ -268,8 +268,6 @@ def _generate_evm_for_basicblock_r(
     for bb in basicblock.out_set:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
 
-    return asm
-
 
 # TODO: refactor this
 label_counter = 0
