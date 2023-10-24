@@ -97,7 +97,7 @@ class BuiltinFunction(VyperType):
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, expect_num_args, self._kwargs)
+        validate_call_args(node, expect_num_args, self._kwargs.keys())
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             self._validate_single(arg, expected)
