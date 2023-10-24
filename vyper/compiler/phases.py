@@ -26,10 +26,12 @@ class CompilerData:
 
     Attributes
     ----------
-    vyper_module: vy_ast.Module
+    vyper_module : vy_ast.Module
         Top-level Vyper AST node
     vyper_module_unfolded : vy_ast.Module
         Unfolded Vyper AST
+    vyper_module_folded : vy_ast.Module
+        Folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
