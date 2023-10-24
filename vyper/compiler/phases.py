@@ -257,6 +257,7 @@ def generate_folded_ast(
     StorageLayout
         Layout of variables in storage
     """
+    vy_ast.expansion.remove_unused_statements(vyper_module)
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)

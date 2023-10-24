@@ -13,5 +13,5 @@ def validate_semantics(vyper_ast, interface_codes):
 
     with namespace.enter_scope():
         add_module_namespace(vyper_ast, interface_codes)
-        vy_ast.expansion.expand_annotated_ast(vyper_ast)
+        vy_ast.expansion.generate_public_variable_getters(vyper_ast)
         validate_functions(vyper_ast)
