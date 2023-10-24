@@ -58,6 +58,10 @@ def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir, {}, {}, {})
 
+    for i, bb in enumerate(global_function.basic_blocks):
+        if bb.is_terminated is False and i < len(global_function.basic_blocks) - 1:
+            bb.append_instruction(IRInstruction("jmp", [global_function.basic_blocks[i + 1].label]))
+
     revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
     revert_bb = global_function.append_basic_block(revert_bb)
     revert_bb.append_instruction(IRInstruction("revert", [IRLiteral(0), IRLiteral(0)]))
@@ -344,6 +348,8 @@ def _convert_ir_basicblock(
                 argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
                 argsOffsetVar.mem_addr = addr
                 argsOffsetVar.offset = 32 - 4 if argsOffset.value > 0 else 0
+        else:
+            argsOffsetVar = argsOffset
 
         retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
