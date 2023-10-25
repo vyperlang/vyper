@@ -39,6 +39,15 @@ def foo(inp: Bytes[10]) -> uint256:
 def foo(inp: String[10]) -> uint256:
     return len(inp)
     """,
+    """
+BAR: constant(String[5]) = "vyper"
+FOO: constant(uint256) = len(BAR)
+
+@external
+def foo() -> uint256:
+    a: uint256 = FOO
+    return a
+    """,
 ]
 
 

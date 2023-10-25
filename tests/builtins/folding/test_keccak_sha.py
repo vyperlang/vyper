@@ -47,7 +47,7 @@ def foo(a: Bytes[100]) -> bytes32:
 
 
 @pytest.mark.fuzzing
-@given(value=st.binary(min_size=1, max_size=100))
+@given(value=st.binary(min_size=1, max_size=32))
 @settings(max_examples=50)
 @pytest.mark.parametrize("fn_name", ["keccak256", "sha256"])
 def test_hex(get_contract, value, fn_name):

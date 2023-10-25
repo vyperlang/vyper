@@ -1,3 +1,6 @@
+from vyper.utils import hex_to_int
+
+
 def test_hash_code(get_contract_with_gas_estimation, keccak):
     hash_code = """
 @external
@@ -80,3 +83,33 @@ def try32(inp: bytes32) -> bool:
     assert c.tryy(b"\x35" * 33) is True
 
     print("Passed KECCAK256 hash test")
+
+
+def test_hash_constant_bytes32(get_contract_with_gas_estimation, keccak):
+    hex_val = "0x1234567890123456789012345678901234567890123456789012345678901234"
+    code = f"""
+FOO: constant(bytes32) = {hex_val}
+BAR: constant(bytes32) = keccak256(FOO)
+
+@external
+def foo() -> bytes32:
+    x: bytes32 = BAR
+    return x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert "0x" + c.foo().hex() == keccak(hex_to_int(hex_val).to_bytes(32, "big")).hex()
+
+
+def test_hash_constant_string(get_contract_with_gas_estimation, keccak):
+    str_val = "0x1234567890123456789012345678901234567890123456789012345678901234"
+    code = f"""
+FOO: constant(String[66]) = "{str_val}"
+BAR: constant(bytes32) = keccak256(FOO)
+
+@external
+def foo() -> bytes32:
+    x: bytes32 = BAR
+    return x
+    """
+    c = get_contract_with_gas_estimation(code)
+    assert "0x" + c.foo().hex() == keccak(str_val.encode()).hex()
