@@ -1,9 +1,15 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import ArrayIndexException, StructureException
 
 fail_list = [
+    (
+        """
+foo: DynArray[uint256, 2.5]
+    """,
+        StructureException,
+    ),
     (
         """
 foo: DynArray[HashMap[uint8, uint8], 2]
