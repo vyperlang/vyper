@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException
+from vyper.exceptions import InvalidType, StructureException, TypeMismatch
 
 fail_list = [
     (
@@ -9,6 +9,15 @@ fail_list = [
 @external
 def foo():
     for a[1] in range(10):
+        pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def bar():
+    for i in range(1,2,bound=0):
         pass
     """,
         StructureException,
@@ -31,6 +40,48 @@ def bar():
         pass
     """,
         StructureException,
+    ),
+    (
+        """
+@external
+def bar():
+    x:uint256 = 1
+    y:uint256 = 2
+    for i in range(x,y+1):
+        pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def bar():
+    x:uint256 = 1
+    for i in range(x,x+0):
+        pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def bar(x: uint256):
+    for i in range(3, x):
+        pass
+    """,
+        InvalidType,
+    ),
+    (
+        """
+FOO: constant(int128) = 3
+BAR: constant(uint256) = 7
+
+@external
+def foo():
+    for i in range(FOO, BAR):
+        pass
+    """,
+        TypeMismatch,
     ),
 ]
 

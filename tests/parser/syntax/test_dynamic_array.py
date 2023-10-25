@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArrayIndexException, StructureException
+from vyper.exceptions import StructureException
 
 fail_list = [
     (
