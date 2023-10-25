@@ -295,6 +295,8 @@ class DArrayT(_SequenceT):
 
         value_type = type_from_annotation(node.slice.value.elements[0])
         if not value_type._as_darray:
+            # TODO: this is currently not reachable because all instantiable types are set to True
+            #       and non-instantiable types like events are caught by `type_from_annotation`
             raise StructureException(f"Arrays of {value_type} are not allowed", node)
 
         return cls(value_type, max_length)
