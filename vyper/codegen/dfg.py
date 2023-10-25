@@ -242,20 +242,6 @@ def _generate_evm_for_basicblock_r(
     asm.append(f"_sym_{basicblock.label}")
     asm.append("JUMPDEST")
 
-    # values to pop from stack
-    in_vars = OrderedSet()
-    for in_bb in basicblock.in_set:
-        in_vars |= in_bb.out_vars.difference(basicblock.in_vars_for(in_bb))
-
-    for var in in_vars:
-        depth = stack_map.get_depth_in(IRValueBase(var.value))
-        if depth is StackMap.NOT_IN_STACK:
-            continue
-        if depth != 0:
-            stack_map.swap(asm, depth)
-        stack_map.pop()
-        asm.append("POP")
-
     fen = 0
     for inst in basicblock.instructions:
         inst.fen = fen
