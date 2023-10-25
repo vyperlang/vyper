@@ -1087,16 +1087,12 @@ class RawCall(BuiltinFunction):
                 return None
             return BoolT()
 
-        if outsize < 0:
-            raise
+        return_type = BytesT()
+        return_type.set_min_length(outsize)
 
-        if outsize:
-            return_type = BytesT()
-            return_type.set_min_length(outsize)
-
-            if revert_on_failure:
-                return return_type
-            return TupleT([BoolT(), return_type])
+        if revert_on_failure:
+            return return_type
+        return TupleT([BoolT(), return_type])
 
     def infer_arg_types(self, node, *args, **kwargs):
         self._validate_arg_types(node)
