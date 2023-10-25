@@ -80,9 +80,9 @@ def foo(a: {data_type}) -> uint256:
     assert_tx_failed(lambda: c.foo(value))
 
 
-@pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
+@pytest.mark.parametrize("denom", wei_denoms.keys())
 @pytest.mark.parametrize("data_type", ["decimal", "int128", "uint256"])
-def test_zero_value(get_contract, assert_tx_failed, denom, multiplier, data_type):
+def test_zero_value(get_contract, denom, data_type):
     code = f"""
 @external
 def foo(a: {data_type}) -> uint256:
