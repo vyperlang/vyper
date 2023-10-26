@@ -1032,24 +1032,29 @@ class AsWeiValue(BuiltinFunction):
 
         denom_divisor = self.get_denomination(expr)
         with value.cache_when_complex("value") as (b1, value):
-            if value.typ in (UINT256_T, UINT8_T):
-                sub = [
-                    "with",
-                    "ans",
-                    ["mul", value, denom_divisor],
-                    [
-                        "seq",
-                        [
-                            "assert",
-                            ["or", ["eq", ["div", "ans", value], denom_divisor], ["iszero", value]],
-                        ],
+            if isinstance(value.typ, IntegerT):
+                if not value.typ.is_signed:
+                    sub = [
+                        "with",
                         "ans",
-                    ],
-                ]
-            elif value.typ == INT128_T:
-                # signed types do not require bounds checks because the
-                # largest possible converted value will not overflow 2**256
-                sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
+                        ["mul", value, denom_divisor],
+                        [
+                            "seq",
+                            [
+                                "assert",
+                                [
+                                    "or",
+                                    ["eq", ["div", "ans", value], denom_divisor],
+                                    ["iszero", value],
+                                ],
+                            ],
+                            "ans",
+                        ],
+                    ]
+                else:
+                    # signed types do not require bounds checks because the
+                    # largest possible converted value will not overflow 2**256
+                    sub = ["seq", ["assert", ["sgt", value, -1]], ["mul", value, denom_divisor]]
             elif value.typ == DecimalT():
                 sub = [
                     "seq",
