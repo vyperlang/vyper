@@ -434,7 +434,7 @@ def _emit_input_operands(
     inst: IRInstruction,
     ops: list[IRValueBase],
     stack_map: StackMap,
-) -> OrderedSet[IRValueBase]:
+):
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -453,5 +453,3 @@ def _emit_input_operands(
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
-
-    return
