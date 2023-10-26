@@ -604,9 +604,9 @@ class Keccak256(BuiltinFunction):
         value = prefold(node.args[0])
         if not isinstance(value, (bytes, str)):
             raise UnfoldableNode
-                
+
         if isinstance(value, str):
-            # we need the argument type to differentiate between 
+            # we need the argument type to differentiate between
             # strings and hex values
             arg_typ = self.infer_arg_types(node).pop()
             if isinstance(arg_typ, StringT):
@@ -655,9 +655,9 @@ class Sha256(BuiltinFunction):
         value = prefold(node.args[0])
         if not isinstance(value, (bytes, str)):
             raise UnfoldableNode
-                
+
         if isinstance(value, str):
-            # we need the argument type to differentiate between 
+            # we need the argument type to differentiate between
             # strings and hex values
             arg_typ = self.infer_arg_types(node).pop()
             if isinstance(arg_typ, StringT):
@@ -992,9 +992,7 @@ class AsWeiValue(BuiltinFunction):
         try:
             denom = next(v for k, v in self.wei_denoms.items() if value in k)
         except StopIteration:
-            raise ArgumentException(
-                f"Unknown denomination: {value}", node.args[1]
-            ) from None
+            raise ArgumentException(f"Unknown denomination: {value}", node.args[1]) from None
 
         return denom
 
@@ -1362,7 +1360,7 @@ class BitwiseAnd(BuiltinFunction):
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = values[0] & values[1]
-        return = vy_ast.Int.from_node(node, value=value)
+        return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1463,7 +1461,7 @@ class Shift(BuiltinFunction):
 
         validate_call_args(node, 2)
         value, shift = [prefold(i) for i in node.args]
-        if any(not isinstance(i, int) for i in [value,shift]):
+        if any(not isinstance(i, int) for i in [value, shift]):
             raise UnfoldableNode
         if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
@@ -2607,7 +2605,7 @@ class _MinMaxValue(TypenameFoldedFunction):
         if isinstance(input_type, IntegerT):
             ret = vy_ast.Int.from_node(node, value=val)
 
-        #ret._metadata["type"] = input_type
+        # ret._metadata["type"] = input_type
         return ret
 
 

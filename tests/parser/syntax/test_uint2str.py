@@ -2,12 +2,11 @@ import pytest
 
 from vyper import compiler
 
-
 valid_list = [
     """
 FOO: constant(uint256) = 3
 BAR: constant(String[78]) = uint2str(FOO)
-    """,
+    """
 ]
 
 

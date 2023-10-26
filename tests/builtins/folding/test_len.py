@@ -38,4 +38,3 @@ def foo(a: Bytes[1024]) -> uint256:
     new_node = vy_fn.Len().evaluate(old_node)
 
     assert contract.foo(value.encode()) == new_node.value
-

@@ -1,4 +1,4 @@
-import pytest 
+import pytest
 
 from vyper.compiler import compile_code
 
@@ -10,8 +10,9 @@ FOO: constant(int256) = floor(BAR)
 @external
 def foo():
     a: int256 = FOO
-    """,
+    """
 ]
+
 
 @pytest.mark.parametrize("code", valid_list)
 def test_floor_good(code):

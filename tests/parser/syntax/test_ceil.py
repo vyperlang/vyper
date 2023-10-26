@@ -1,4 +1,4 @@
-import pytest 
+import pytest
 
 from vyper.compiler import compile_code
 
@@ -10,8 +10,9 @@ FOO: constant(int256) = ceil(BAR)
 @external
 def foo():
     a: int256 = FOO
-    """,
+    """
 ]
+
 
 @pytest.mark.parametrize("code", valid_list)
 def test_ceil_good(code):
