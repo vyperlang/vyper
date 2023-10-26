@@ -32,6 +32,19 @@ def bar() -> (bytes32 , bytes32):
     assert c.bar() == [h, h]
 
 
+def test_sha256_bytes1(get_contract_with_gas_estimation):
+    code = """
+@external
+def bar(a: bytes1) -> bytes32:
+    return sha256(a)
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    test_val = b"b"
+    assert c.bar(test_val) == hashlib.sha256(test_val).digest()
+
+
 def test_sha256_bytes32(get_contract_with_gas_estimation):
     code = """
 @external
