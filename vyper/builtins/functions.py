@@ -597,7 +597,7 @@ class Concat(BuiltinFunction):
 class Keccak256(BuiltinFunction):
     _id = "keccak256"
     # TODO allow any BytesM_T
-    _inputs = [("value", (BytesT.any(), BytesM_T.any(), StringT.any()))]
+    _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
     def evaluate(self, node):
@@ -612,7 +612,7 @@ class Keccak256(BuiltinFunction):
             arg_typ = self.infer_arg_types(node).pop()
             if isinstance(arg_typ, StringT):
                 value = value.encode()
-            elif isinstance(arg_typ, BytesM_T):
+            elif arg_typ == BYTES32_T:
                 length = len(value) // 2 - 1
                 value = int(value, 16).to_bytes(length, "big")
 
@@ -648,7 +648,7 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
 
 class Sha256(BuiltinFunction):
     _id = "sha256"
-    _inputs = [("value", (BytesM_T.any(), BytesT.any(), StringT.any()))]
+    _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
 
     def evaluate(self, node):
@@ -663,7 +663,7 @@ class Sha256(BuiltinFunction):
             arg_typ = self.infer_arg_types(node).pop()
             if isinstance(arg_typ, StringT):
                 value = value.encode()
-            elif isinstance(arg_typ, BytesM_T):
+            elif arg_typ == BYTES32_T:
                 length = len(value) // 2 - 1
                 value = int(value, 16).to_bytes(length, "big")
 
@@ -679,15 +679,15 @@ class Sha256(BuiltinFunction):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         sub = args[0]
-        # bytesM_T input
-        if isinstance(sub.typ, BytesM_T):
+        # bytes32 input
+        if sub.typ == BYTES32_T:
             return IRnode.from_list(
                 [
                     "seq",
                     ["mstore", MemoryPositions.FREE_VAR_SPACE, sub],
                     _make_sha256_call(
                         inp_start=MemoryPositions.FREE_VAR_SPACE,
-                        inp_len=sub.typ.length,
+                        inp_len=32,
                         out_start=MemoryPositions.FREE_VAR_SPACE,
                         out_len=32,
                     ),

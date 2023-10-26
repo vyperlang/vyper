@@ -38,13 +38,10 @@ def foo(inp: Bytes[100]) -> bool:
 def test_hash_code3(get_contract_with_gas_estimation):
     hash_code3 = """
 test: Bytes[100]
-test1: Bytes[1]
 
 @external
 def set_test(inp: Bytes[100]):
     self.test = inp
-    if len(inp) > 0:
-        self.test1 = slice(inp, 0, 1)
 
 @external
 def tryy(inp: Bytes[100]) -> bool:
@@ -63,9 +60,6 @@ def trymem(inp: Bytes[100]) -> bool:
 def try32(inp: bytes32) -> bool:
     return keccak256(inp) == keccak256(self.test)
 
-@external
-def try1(inp: bytes1) -> bool:
-    return keccak256(inp) == keccak256(self.test1)
     """
     c = get_contract_with_gas_estimation(hash_code3)
     c.set_test(b"", transact={})
@@ -77,12 +71,10 @@ def try1(inp: bytes1) -> bool:
     assert c.tryy(b"") is False
     assert c.tryy(b"cow") is True
     assert c.tryy_str("cow") is True
-    assert c.try1(b"c") is True
     c.set_test(b"\x35" * 32, transact={})
     assert c.tryy(b"\x35" * 32) is True
     assert c.trymem(b"\x35" * 32) is True
     assert c.try32(b"\x35" * 32) is True
-    assert c.try1(b"\x35") is True
     assert c.tryy(b"\x35" * 33) is False
     c.set_test(b"\x35" * 33, transact={})
     assert c.tryy(b"\x35" * 32) is False
