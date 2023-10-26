@@ -9,24 +9,13 @@ from vyper.codegen.ir_basicblock import (
 )
 
 
-class IRFunctionBase:
-    """
-    Base class for IRFunction
-    """
-
-    name: IRLabel  # symbol name
-    args: list
-
-    def __init__(self, name: IRLabel, args: list = []) -> None:
-        self.name = name
-        self.args = args
-
-
-class IRFunction(IRFunctionBase):
+class IRFunction:
     """
     Function that contains basic blocks.
     """
 
+    name: IRLabel  # symbol name
+    args: list
     basic_blocks: list[IRBasicBlock]
     data_segment: list[IRInstruction]
     dfg_inputs = dict[str, IRInstruction]
@@ -35,7 +24,8 @@ class IRFunction(IRFunctionBase):
     last_variable: int
 
     def __init__(self, name: IRLabel) -> None:
-        super().__init__(name)
+        self.name = name
+        self.args = []
         self.basic_blocks = []
         self.data_segment = []
         self.last_label = 0

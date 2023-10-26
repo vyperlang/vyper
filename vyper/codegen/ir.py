@@ -1,7 +1,7 @@
 from typing import Optional
 
 from vyper.codegen.dfg import convert_ir_to_dfg
-from vyper.codegen.ir_function import IRFunctionBase
+from vyper.codegen.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
 from vyper.compiler.settings import OptimizationLevel
@@ -15,7 +15,7 @@ from vyper.ir.bb_optimizer import (
 from vyper.ir.ir_to_bb_pass import convert_ir_basicblock
 
 
-def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunctionBase:
+def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
     # Convert "old" IR to "new" IR
     ctx = convert_ir_basicblock(ir)
 
