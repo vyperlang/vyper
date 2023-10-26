@@ -224,14 +224,14 @@ class IRBasicBlock:
         bb.append_instruction(IRInstruction("add", ["%0", "1"], "%1"))
         bb.append_instruction(IRInstruction("mul", ["%1", "2"], "%2"))
 
-    The label of a basic block is used to refer to it from other basic blocks in order
-    to branch to it.
+    The label of a basic block is used to refer to it from other basic blocks
+    in order to branch to it.
 
     The parent of a basic block is the function it belongs to.
 
-    The instructions of a basic block are executed sequentially, and the last instruction
-    of a basic block is always a terminator instruction, which is used to branch to other
-    basic blocks.
+    The instructions of a basic block are executed sequentially, and the last
+    instruction of a basic block is always a terminator instruction, which is
+    used to branch to other basic blocks.
     """
 
     label: IRLabel
@@ -274,21 +274,19 @@ class IRBasicBlock:
         self.cfg_out.remove(bb)
 
     # calculate the input variables for the target bb
-    def in_vars_for(self, target: "IRBasicBlock" = None) -> OrderedSet[IRVariable]:
-        assert target is not None
+    def in_vars_for(self, target: "IRBasicBlock") -> OrderedSet[IRVariable]:
         liveness = self.instructions[0].liveness.copy()
 
-        if target:
-            for inst in self.instructions:
-                if inst.opcode == "select":
-                    if inst.operands[0] == target.label:
-                        liveness.add(inst.operands[1])
-                        if inst.operands[3] in liveness:
-                            liveness.remove(inst.operands[3])
-                    if inst.operands[2] == target.label:
-                        liveness.add(inst.operands[3])
-                        if inst.operands[1] in liveness:
-                            liveness.remove(inst.operands[1])
+        for inst in self.instructions:
+            if inst.opcode == "select":
+                if inst.operands[0] == target.label:
+                    liveness.add(inst.operands[1])
+                    if inst.operands[3] in liveness:
+                        liveness.remove(inst.operands[3])
+                if inst.operands[2] == target.label:
+                    liveness.add(inst.operands[3])
+                    if inst.operands[1] in liveness:
+                        liveness.remove(inst.operands[1])
 
         return liveness
 
