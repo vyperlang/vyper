@@ -62,13 +62,13 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
     return count
 
 
-def calculate_in_set(ctx: IRFunction) -> None:
+def calculate_cfg_in(ctx: IRFunction) -> None:
     """
-    Calculate in set for each basic block.
+    Calculate (cfg) inputs for each basic block.
     """
     for bb in ctx.basic_blocks:
-        bb.in_set = OrderedSet()
-        bb.out_set = OrderedSet()
+        bb.cfg_in = OrderedSet()
+        bb.cfg_out = OrderedSet()
         bb.out_vars = OrderedSet()
 
     deploy_bb = None
@@ -83,14 +83,14 @@ def calculate_in_set(ctx: IRFunction) -> None:
         entry_block = after_deploy_bb
         has_constructor = True if ctx.basic_blocks[0].instructions[0].opcode != "deploy" else False
         if has_constructor:
-            deploy_bb.add_in(ctx.basic_blocks[0])
-            entry_block.add_in(deploy_bb)
+            deploy_bb.add_cfg_in(ctx.basic_blocks[0])
+            entry_block.add_cfg_in(deploy_bb)
     else:
         entry_block = ctx.basic_blocks[0]
 
     for bb in ctx.basic_blocks:
         if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
-            bb.add_in(entry_block)
+            bb.add_cfg_in(entry_block)
 
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
@@ -103,12 +103,12 @@ def calculate_in_set(ctx: IRFunction) -> None:
             if inst.opcode in ["jmp", "jnz", "call", "staticcall", "invoke", "deploy"]:
                 ops = inst.get_label_operands()
                 for op in ops:
-                    ctx.get_basic_block(op.value).add_in(bb)
+                    ctx.get_basic_block(op.value).add_cfg_in(bb)
 
     # Fill in the "out" set for each basic block
     for bb in ctx.basic_blocks:
-        for in_bb in bb.in_set:
-            in_bb.add_out(bb)
+        for in_bb in bb.cfg_in:
+            in_bb.add_cfg_out(bb)
 
 
 def _reset_liveness(ctx: IRFunction) -> None:
@@ -118,7 +118,8 @@ def _reset_liveness(ctx: IRFunction) -> None:
 
 
 def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
-    for out_bb in bb.out_set:
+    for out_bb in bb.cfg_out:
+        # REVIEW: .get() already defaults to None
         if liveness_visited.get(bb, None) == out_bb:
             continue
         liveness_visited[bb] = out_bb
@@ -137,7 +138,7 @@ def calculate_liveness(ctx: IRFunction) -> None:
 @ir_pass
 def ir_pass_optimize_empty_blocks(ctx: IRFunction) -> int:
     changes = _optimize_empty_basicblocks(ctx)
-    calculate_in_set(ctx)
+    calculate_cfg_in(ctx)
     return changes
 
 

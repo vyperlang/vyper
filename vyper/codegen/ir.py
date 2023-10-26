@@ -6,7 +6,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.bb_optimizer import (
-    calculate_in_set,
+    calculate_cfg_in,
     calculate_liveness,
     ir_pass_optimize_empty_blocks,
     ir_pass_optimize_unused_variables,
@@ -31,14 +31,14 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         changes += ir_pass_optimize_unused_variables(ctx)
 
-        calculate_in_set(ctx)
+        calculate_cfg_in(ctx)
         calculate_liveness(ctx)
         convert_ir_to_dfg(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
         # changes += ir_pass_dft(ctx)
 
-        calculate_in_set(ctx)
+        calculate_cfg_in(ctx)
         calculate_liveness(ctx)
         convert_ir_to_dfg(ctx)
 

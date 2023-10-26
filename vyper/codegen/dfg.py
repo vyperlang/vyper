@@ -160,15 +160,15 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
                     inst.dup_requirements.add(op)
 
 
-visited_instructions = {IRInstruction}
-visited_basicblocks = {IRBasicBlock}
+visited_instructions = None  # {IRInstruction}
+visited_basicblocks = None # {IRBasicBlock}
 
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     global visited_instructions, visited_basicblocks
     asm = []
-    visited_instructions = set()
-    visited_basicblocks = set()
+    visited_instructions = OrderedSet()
+    visited_basicblocks = OrderedSet()
 
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
 
@@ -251,7 +251,7 @@ def _generate_evm_for_basicblock_r(
     for inst in basicblock.instructions:
         asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
 
-    for bb in basicblock.out_set:
+    for bb in basicblock.cfg_out:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
 
 
@@ -295,7 +295,7 @@ def _generate_evm_for_instruction_r(
     else:
         operands = inst.operands
 
-    if opcode == "select":
+    if opcode == "select":  # REVIEW: maybe call this 'phi'
         ret = inst.get_output_operands()[0]
         inputs = inst.get_input_operands()
         depth = stack_map.get_depth_in(inputs)
@@ -313,7 +313,7 @@ def _generate_evm_for_instruction_r(
 
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:
-        _, b = next(enumerate(inst.parent.out_set))
+        _, b = next(enumerate(inst.parent.cfg_out))
         target_stack = OrderedSet(b.in_vars_for(inst.parent))
         _stack_reorder(assembly, stack_map, target_stack)
 

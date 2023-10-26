@@ -69,7 +69,7 @@ class IRFunction:
         """
         Get basic blocks that contain label.
         """
-        return [bb for bb in self.basic_blocks if basic_block.label in bb.in_set]
+        return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
     def get_terminal_basicblocks(self) -> list[IRBasicBlock]:
         """
@@ -95,8 +95,9 @@ class IRFunction:
         new_basic_blocks = []
         for bb in self.basic_blocks:
             if not bb.is_reachable and bb.label.value != "global":
-                for bb2 in bb.out_set:
-                    bb2.in_set.remove(bb)
+                for bb2 in bb.cfg_out:
+                    # REVIEW: use cfg_remove_in
+                    bb2.cfg_in.remove(bb)
                 removed += 1
             else:
                 new_basic_blocks.append(bb)

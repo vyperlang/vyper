@@ -65,9 +65,10 @@ class IRVariable(IRValueBase):
     """
 
     offset: int = 0
+    # REVIEW: make this toplevel definition
     MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
     mem_type: MemType = MemType.OPERAND_STACK
-    mem_addr: int = -1
+    mem_addr: int = -1  # REVIEW should this be None?
 
     def __init__(
         self, value: IRValueBaseValue, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
@@ -81,6 +82,7 @@ class IRVariable(IRValueBase):
 
 
 class IRLabel(IRValueBase):
+    # REVIEW: what do the values of is_symbol mean?
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -103,11 +105,14 @@ class IRInstruction:
     opcode: str
     volatile: bool
     operands: list[IRValueBase]
+    # REVIEW: rename to lhs?
     ret: Optional[IRValueBase]
+    # REVIEW: rename to source_info?
     dbg: Optional[IRDebugInfo]
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
     parent: Optional["IRBasicBlock"]
+    # REVIEW: rename to `fence`
     fen: int
     annotation: Optional[str]
 
@@ -119,6 +124,7 @@ class IRInstruction:
         dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
+        # REVIEW nit: make this global definition
         self.volatile = opcode in [
             "param",
             "alloca",
@@ -168,9 +174,12 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
+    # REVIEW suggestion: rename to `get_outputs`
     def get_output_operands(self) -> list[IRValueBase]:
         return [self.ret] if self.ret else []
 
+    # REVIEW: rename to `replace_operands`
+    # use of `dict` here seems a bit weird (what is equality on operands?)
     def update_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
@@ -228,8 +237,13 @@ class IRBasicBlock:
     label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
-    in_set: OrderedSet["IRBasicBlock"]
-    out_set: OrderedSet["IRBasicBlock"]
+    # REVIEW: "in_set" -> "cfg_in"
+    # (basic blocks which can jump to this basic block)
+    cfg_in: OrderedSet["IRBasicBlock"]
+    # REVIEW: "out_set" -> "cfg_out"
+    # (basic blocks which this basic block can jump to)
+    cfg_out: OrderedSet["IRBasicBlock"]
+    # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
@@ -237,39 +251,41 @@ class IRBasicBlock:
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.in_set = OrderedSet()
-        self.out_set = OrderedSet()
+        self.cfg_in = OrderedSet()
+        self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
 
-    def add_in(self, bb: "IRBasicBlock") -> None:
-        self.in_set.add(bb)
+    def add_cfg_in(self, bb: "IRBasicBlock") -> None:
+        self.cfg_in.add(bb)
 
-    def union_in(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
-        self.in_set = self.in_set.union(bb_set)
+    def union_cfg_in(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
+        self.cfg_in = self.cfg_in.union(bb_set)
 
-    def remove_in(self, bb: "IRBasicBlock") -> None:
-        self.in_set.remove(bb)
+    def remove_cfg_in(self, bb: "IRBasicBlock") -> None:
+        self.cfg_in.remove(bb)
 
-    def add_out(self, bb: "IRBasicBlock") -> None:
-        self.out_set.add(bb)
+    def add_cfg_out(self, bb: "IRBasicBlock") -> None:
+        self.cfg_out.add(bb)
 
-    def union_out(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
-        self.out_set = self.out_set.union(bb_set)
+    def union_cfg_out(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
+        self.cfg_out = self.cfg_out.union(bb_set)
 
-    def remove_out(self, bb: "IRBasicBlock") -> None:
-        self.out_set.remove(bb)
+    def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
+        self.cfg_out.remove(bb)
 
-    def in_vars_for(self, bb: "IRBasicBlock" = None) -> set[IRVariable]:
+    # calculate the input variables for the target bb
+    def in_vars_for(self, target: "IRBasicBlock" = None) -> OrderedSet[IRVariable]:
+        assert target is not None
         liveness = self.instructions[0].liveness.copy()
 
-        if bb:
+        if target:
             for inst in self.instructions:
                 if inst.opcode == "select":
-                    if inst.operands[0] == bb.label:
+                    if inst.operands[0] == target.label:
                         liveness.add(inst.operands[1])
                         if inst.operands[3] in liveness:
                             liveness.remove(inst.operands[3])
-                    if inst.operands[2] == bb.label:
+                    if inst.operands[2] == target.label:
                         liveness.add(inst.operands[3])
                         if inst.operands[1] in liveness:
                             liveness.remove(inst.operands[1])
@@ -278,7 +294,7 @@ class IRBasicBlock:
 
     @property
     def is_reachable(self) -> bool:
-        return len(self.in_set) > 0
+        return len(self.cfg_in) > 0
 
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
@@ -321,6 +337,7 @@ class IRBasicBlock:
         Compute liveness of each instruction in the basic block.
         """
         liveness = self.out_vars.copy()
+        # REVIEW: use `reversed()` here
         for instruction in self.instructions[::-1]:
             ops = instruction.get_input_operands()
             liveness = liveness.union(OrderedSet.fromkeys(ops))
@@ -333,7 +350,7 @@ class IRBasicBlock:
                 liveness.remove(out)
             instruction.liveness = liveness
 
-    def get_liveness(self) -> set[IRVariable]:
+    def get_liveness(self) -> OrderedSet[IRVariable]:
         """
         Get liveness of basic block.
         """
@@ -370,15 +387,15 @@ class IRBasicBlock:
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = self.instructions.copy()
-        bb.in_set = self.in_set.copy()
-        bb.out_set = self.out_set.copy()
+        bb.cfg_in = self.cfg_in.copy()
+        bb.cfg_out = self.cfg_out.copy()
         bb.out_vars = self.out_vars.copy()
         return bb
 
     def __repr__(self) -> str:
         s = (
-            f"{repr(self.label)}:  IN={[bb.label for bb in self.in_set]}"
-            f" OUT={[bb.label for bb in self.out_set]} \n"
+            f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
+            f" OUT={[bb.label for bb in self.cfg_out]} \n"
         )
         for instruction in self.instructions:
             s += f"    {instruction}\n"
