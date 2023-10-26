@@ -71,7 +71,7 @@ class IRFunction:
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
-    def get_terminal_basicblocks(self) -> list[IRBasicBlock]:
+    def DEAD_get_terminal_basicblocks(self) -> list[IRBasicBlock]:
         """
         Get basic blocks that contain label.
         """

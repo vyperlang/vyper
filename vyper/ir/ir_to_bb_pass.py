@@ -827,6 +827,8 @@ def _convert_ir_basicblock(
         body_block.update_operands(replacements)
 
         body_end = ctx.get_basic_block()
+        # REVIEW: should be is_terminated()?
+        # if so, is_terminal() is a dead function
         if body_end.is_terminal() is False:
             body_end.append_instruction(IRInstruction("jmp", [jump_up_block.label]))
 

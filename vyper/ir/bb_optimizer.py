@@ -1,5 +1,5 @@
 from vyper.codegen.ir_basicblock import (
-    TERMINATOR_IR_INSTRUCTIONS,
+    BB_TERMINATORS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -96,7 +96,7 @@ def calculate_cfg_in(ctx: IRFunction) -> None:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]
         assert (
-            last_inst.opcode in TERMINATOR_IR_INSTRUCTIONS
+            last_inst.opcode in BB_TERMINATORS
         ), "Last instruction should be a terminator" + str(bb)
 
         for inst in bb.instructions:

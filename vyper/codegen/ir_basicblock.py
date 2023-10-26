@@ -3,8 +3,14 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper.utils import OrderedSet
 
-TERMINAL_IR_INSTRUCTIONS = ["ret", "revert"]
-TERMINATOR_IR_INSTRUCTIONS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
+
+# instructions which terminate instruction
+# REVIEW: this seems dead
+EXEC_TERMINATORS = ["return", "revert", "invalid", "stop"]
+
+
+# instructions which can terminate a basic block
+BB_TERMINATORS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
 if TYPE_CHECKING:
     from vyper.codegen.ir_function import IRFunction
@@ -109,6 +115,7 @@ class IRInstruction:
     ret: Optional[IRValueBase]
     # REVIEW: rename to source_info?
     dbg: Optional[IRDebugInfo]
+    # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
     parent: Optional["IRBasicBlock"]
@@ -278,6 +285,8 @@ class IRBasicBlock:
         liveness = self.instructions[0].liveness.copy()
 
         for inst in self.instructions:
+            # REVIEW: might be nice if some of these instructions
+            # were more structured.
             if inst.opcode == "select":
                 if inst.operands[0] == target.label:
                     liveness.add(inst.operands[1])
@@ -307,6 +316,7 @@ class IRBasicBlock:
     def clear_instructions(self) -> None:
         self.instructions = []
 
+    # REVIEW: rename to replace_operands
     def update_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
@@ -314,21 +324,23 @@ class IRBasicBlock:
         for instruction in self.instructions:
             instruction.update_operands(replacements)
 
+    # REVIEW: this seems to be dead
     def is_terminal(self) -> bool:
         """
         Check if the basic block is terminal, i.e. the last instruction is a terminator.
         """
         assert len(self.instructions) > 0, "basic block must have at least one instruction"
-        return self.instructions[-1].opcode in TERMINAL_IR_INSTRUCTIONS
+        return self.instructions[-1].opcode in EXEC_TERMINATORS
 
     @property
     def is_terminated(self) -> bool:
         """
         Check if the basic block is terminal, i.e. the last instruction is a terminator.
         """
+        # REVIEW: should this be an assert (like `is_terminal()`)?
         if len(self.instructions) == 0:
             return False
-        return self.instructions[-1].opcode in TERMINATOR_IR_INSTRUCTIONS
+        return self.instructions[-1].opcode in BB_TERMINATORS
 
     def calculate_liveness(self) -> None:
         """
