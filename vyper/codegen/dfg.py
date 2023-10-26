@@ -259,6 +259,7 @@ def _generate_evm_for_basicblock_r(
 label_counter = 0
 
 
+# REVIEW: would this be better as a class?
 def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
 ) -> list[str]:
@@ -266,8 +267,10 @@ def _generate_evm_for_instruction_r(
 
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
+            # REVIEW: what does this line do?
             if target.parent != inst.parent:
                 continue
+            # REVIEW: what does this line do?
             if target.fen != inst.fen:
                 continue
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
@@ -298,6 +301,8 @@ def _generate_evm_for_instruction_r(
     if opcode == "select":  # REVIEW: maybe call this 'phi'
         ret = inst.get_output_operands()[0]
         inputs = inst.get_input_operands()
+        # REVIEW: the special handling in get_depth_in for lists
+        # seems cursed, refactor
         depth = stack_map.get_depth_in(inputs)
         assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)

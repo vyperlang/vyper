@@ -49,9 +49,12 @@ def _expand_row(row):
     return result
 
 
+# REVIEW: move this to vyper/ir/ or vyper/venom/
+# rename to StackModel
 class StackMap:
     NOT_IN_STACK = object()
-    stack_map: list[IRValueBase]
+    stack_map: list[IRValueBase]  # REVIEW: rename to stack
+    # REVIEW: dead variable
     dependant_liveness: OrderedSet[IRValueBase]
 
     def __init__(self):
@@ -93,12 +96,15 @@ class StackMap:
 
         for i, stack_op in enumerate(self.stack_map[::-1]):
             if isinstance(stack_op, IRValueBase):
+                # REVIEW: handling literals this way seems a bit cursed,
+                # why not use IRLiteral, so it is always IRValueBase?
                 if isinstance(op, str) and stack_op.value == op:
                     return -i
                 if isinstance(op, int) and stack_op.value == op:
                     return -i
                 if isinstance(op, IRValueBase) and stack_op.value == op.value:
                     return -i
+                # REVIEW: this branch seems cursed
                 elif isinstance(op, list) and stack_op in op:
                     return -i
 
