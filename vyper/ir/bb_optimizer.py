@@ -117,7 +117,8 @@ def _reset_liveness(ctx: IRFunction) -> None:
             inst.liveness = OrderedSet()
 
 
-def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
+def _calculate_liveness(bb: IRBasicBlock, liveness_visited: OrderedSet) -> None:
+    assert isinstance(liveness_visited, OrderedSet)
     for out_bb in bb.cfg_out:
         # REVIEW: .get() already defaults to None
         if liveness_visited.get(bb, None) == out_bb:
@@ -132,7 +133,7 @@ def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
 
 def calculate_liveness(ctx: IRFunction) -> None:
     _reset_liveness(ctx)
-    _calculate_liveness(ctx.basic_blocks[0], {})
+    _calculate_liveness(ctx.basic_blocks[0], OrderedSet())
 
 
 @ir_pass

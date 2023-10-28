@@ -56,7 +56,7 @@ def generate_assembly_experimental(
 
 def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
-    _convert_ir_basicblock(global_function, ir, {}, {}, {})
+    _convert_ir_basicblock(global_function, ir, {}, OrderedSet(), {})
 
     for i, bb in enumerate(global_function.basic_blocks):
         if bb.is_terminated is False and i < len(global_function.basic_blocks) - 1:
@@ -230,6 +230,7 @@ def _convert_ir_basicblock(
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
 ) -> Optional[IRVariable]:
+    assert isinstance(variables, OrderedSet)
     global _break_target, _continue_target
 
     frame_info = ir.passthrough_metadata.get("frame_info", None)
