@@ -45,7 +45,15 @@ SymbolTable = dict[str, IRValueBase]
 
 
 def _get_symbols_common(a: dict, b: dict) -> dict:
-    return {k: [a[k], b[k]] for k in a.keys() & b.keys() if a[k] != b[k]}
+    ret = {}
+    # preserves the ordering in `a`
+    for k in a.keys():
+        if k not in b:
+            continue
+        if a[k] == b[k]:
+            continue
+        ret[k] = a[k], b[k]
+    return ret
 
 
 def generate_assembly_experimental(
@@ -413,7 +421,8 @@ def _convert_ir_basicblock(
                 )
             )
 
-        for sym, val in _get_symbols_common(after_then_syms, after_else_syms).items():
+        common_symbols = _get_symbols_common(after_then_syms, after_else_syms)
+        for sym, val in common_symbols.items():
             ret = ctx.get_next_variable()
             old_var = symbols.get(sym, None)
             symbols[sym] = ret
