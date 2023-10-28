@@ -32,32 +32,32 @@ def bar() -> (bytes32 , bytes32):
     assert c.bar() == [h, h]
 
 
-# def test_sha256_bytes32(get_contract_with_gas_estimation):
-#     code = """
-# @external
-# def bar(a: bytes32) -> bytes32:
-#     return sha256(a)
-#     """
+def test_sha256_bytes32(get_contract_with_gas_estimation):
+    code = """
+@external
+def bar(a: bytes32) -> bytes32:
+    return sha256(a)
+    """
 
-#     c = get_contract_with_gas_estimation(code)
+    c = get_contract_with_gas_estimation(code)
 
-#     test_val = 8 * b"bBaA"
-#     assert c.bar(test_val) == hashlib.sha256(test_val).digest()
+    test_val = 8 * b"bBaA"
+    assert c.bar(test_val) == hashlib.sha256(test_val).digest()
 
 
-# def test_sha256_bytearraylike(get_contract_with_gas_estimation):
-#     code = """
-# @external
-# def bar(a: String[100]) -> bytes32:
-#     return sha256(a)
-#     """
+def test_sha256_bytearraylike(get_contract_with_gas_estimation):
+    code = """
+@external
+def bar(a: String[100]) -> bytes32:
+    return sha256(a)
+    """
 
-#     c = get_contract_with_gas_estimation(code)
+    c = get_contract_with_gas_estimation(code)
 
-#     test_val = "test me! test me!"
-#     assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
-#     test_val = "fun"
-#     assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
+    test_val = "test me! test me!"
+    assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
+    test_val = "fun"
+    assert c.bar(test_val) == hashlib.sha256(test_val.encode()).digest()
 
 
 def test_sha256_bytearraylike_storage(get_contract_with_gas_estimation):

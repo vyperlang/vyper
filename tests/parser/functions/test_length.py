@@ -1,7 +1,6 @@
 import pytest
 
 
-"""
 def test_test_length(get_contract_with_gas_estimation):
     test_length = """
 y: Bytes[10]
@@ -16,7 +15,7 @@ def foo(inp: Bytes[10]) -> uint256:
     c = get_contract_with_gas_estimation(test_length)
     assert c.foo(b"badminton") == 954, c.foo(b"badminton")
     print("Passed length test")
-"""
+
 
 @pytest.mark.parametrize("typ", ["DynArray[uint256, 50]", "Bytes[50]", "String[50]"])
 def test_zero_length(get_contract_with_gas_estimation, typ):
