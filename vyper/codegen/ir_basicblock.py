@@ -280,19 +280,20 @@ class IRBasicBlock:
     def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
         self.cfg_out.remove(bb)
 
-    # calculate the input variables for the target bb
-    def in_vars_for(self, target: "IRBasicBlock") -> OrderedSet[IRVariable]:
+    # calculate the input variables into self from source
+    def in_vars_from(self, source: "IRBasicBlock") -> OrderedSet[IRVariable]:
         liveness = self.instructions[0].liveness.copy()
+        assert isinstance(liveness, OrderedSet)
 
         for inst in self.instructions:
             # REVIEW: might be nice if some of these instructions
             # were more structured.
             if inst.opcode == "select":
-                if inst.operands[0] == target.label:
+                if inst.operands[0] == source.label:
                     liveness.add(inst.operands[1])
                     if inst.operands[3] in liveness:
                         liveness.remove(inst.operands[3])
-                if inst.operands[2] == target.label:
+                if inst.operands[2] == source.label:
                     liveness.add(inst.operands[3])
                     if inst.operands[1] in liveness:
                         liveness.remove(inst.operands[1])

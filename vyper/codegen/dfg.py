@@ -219,7 +219,7 @@ def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueB
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack_map.get_depth_in(op)
-        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        assert depth is not StackMap.NOT_IN_STACK, f"{op} not in stack: {stack_map.stack_map}"
         is_in_place = depth == final_stack_depth
 
         if not is_in_place:
@@ -318,8 +318,9 @@ def _generate_evm_for_instruction_r(
 
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:
-        _, b = next(enumerate(inst.parent.cfg_out))
-        target_stack = OrderedSet(b.in_vars_for(inst.parent))
+        assert isinstance(inst.parent.cfg_out, OrderedSet)
+        b = next(iter(inst.parent.cfg_out))
+        target_stack = OrderedSet(b.in_vars_from(inst.parent))
         _stack_reorder(assembly, stack_map, target_stack)
 
     _stack_duplications(assembly, inst, stack_map, operands)

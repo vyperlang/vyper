@@ -124,7 +124,7 @@ def _calculate_liveness(bb: IRBasicBlock, liveness_visited: set) -> None:
             continue
         liveness_visited[bb] = out_bb
         _calculate_liveness(out_bb, liveness_visited)
-        in_vars = out_bb.in_vars_for(bb)
+        in_vars = out_bb.in_vars_from(bb)
         bb.out_vars = bb.out_vars.union(in_vars)
 
     bb.calculate_liveness()
