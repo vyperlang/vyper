@@ -464,8 +464,10 @@ def _emit_input_operands(
             stack_map.push(op)
             continue
         #print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
-        assembly = _generate_evm_for_instruction_r(
-            ctx, assembly, ctx.dfg_outputs[op.value], stack_map
+        assembly.extend(
+            _generate_evm_for_instruction_r(
+                ctx, [], ctx.dfg_outputs[op.value], stack_map
+            )
         )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
