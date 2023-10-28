@@ -85,7 +85,7 @@ class CompilerData:
             Use experimental codegen. Defaults to False
         """
         # to force experimental codegen, uncomment:
-        # experimental_codegen = True
+        experimental_codegen = True
         self.contract_name = contract_name
         self.source_code = source_code
         self.interface_codes = interface_codes
