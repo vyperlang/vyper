@@ -215,8 +215,8 @@ def _stack_duplications(
 
 def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
-    #print("ENTER reorder", stack_map.stack_map, stack_ops)
-    #start_len = len(assembly)
+    # print("ENTER reorder", stack_map.stack_map, stack_ops)
+    # start_len = len(assembly)
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
@@ -276,6 +276,7 @@ def _generate_evm_for_instruction_r(
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
+        #print("seen:", inst)
         return assembly
     visited_instructions.add(inst)
 
@@ -441,6 +442,7 @@ def _emit_input_operands(
     ops: list[IRValueBase],
     stack_map: StackMap,
 ):
+    #print("EMIT INPUTS FOR", inst)
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -453,6 +455,7 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op)
             continue
+        #print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
         assembly = _generate_evm_for_instruction_r(
             ctx, assembly, ctx.dfg_outputs[op.value], stack_map
         )
