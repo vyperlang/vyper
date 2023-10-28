@@ -75,7 +75,9 @@ class DFGNode:
 
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
     # Reset DFG
+    # REVIEW: dfg inputs is all, flattened inputs to a given variable
     ctx.dfg_inputs = dict()
+    # REVIEW: dfg outputs is the instruction which produces a variable
     ctx.dfg_outputs = dict()
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
@@ -113,6 +115,7 @@ def _compute_inst_dup_requirements_r(
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
+                # REVIEW: produced by parent.out_vars
                 continue
             if target.fen != inst.fen:
                 continue
@@ -215,8 +218,8 @@ def _stack_duplications(
 
 def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
-    # print("ENTER reorder", stack_map.stack_map, stack_ops)
-    # start_len = len(assembly)
+    #print("ENTER reorder", stack_map.stack_map, operands)
+    #start_len = len(assembly)
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
@@ -273,6 +276,9 @@ def _generate_evm_for_instruction_r(
             # REVIEW: what does this line do?
             if target.fen != inst.fen:
                 continue
+            # REVIEW: I think it would be better to have an explicit step,
+            # `reorder instructions per DFG`, and then `generate_evm_for_instruction`
+            # does not need to recurse (or be co-recursive with `emit_input_operands`).
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
@@ -325,6 +331,8 @@ def _generate_evm_for_instruction_r(
         _stack_reorder(assembly, stack_map, target_stack)
 
     _stack_duplications(assembly, inst, stack_map, operands)
+
+    #print("(inst)", inst)
     _stack_reorder(assembly, stack_map, operands)
 
     # Step 4: Push instruction's return value to stack
