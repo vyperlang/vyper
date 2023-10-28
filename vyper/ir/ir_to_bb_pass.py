@@ -243,14 +243,17 @@ def _convert_ir_basicblock(
 
     frame_info = ir.passthrough_metadata.get("frame_info", None)
     if frame_info is not None:
-        vars = {v: True for v in frame_info.frame_vars.values()}  # FIXME
-        variables |= vars
+        local_vars = OrderedSet(frame_info.frame_vars.values())
+        variables |= local_vars
+
+    assert isinstance(variables, OrderedSet)
 
     if ir.value in BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(
             ctx, ir, symbols, variables, allocated_variables, ir.value in ["sha3_64"]
         )
 
+    # REVIEW: no need for .keys()
     elif ir.value in MAPPED_IR_INSTRUCTIONS.keys():
         org_value = ir.value
         ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
@@ -261,6 +264,7 @@ def _convert_ir_basicblock(
     elif ir.value in ["iszero", "ceil32", "calldataload", "extcodesize", "extcodehash", "balance"]:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
 
+    # REVIEW: make this a global constant
     elif ir.value in [
         "chainid",
         "basefee",

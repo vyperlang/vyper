@@ -44,7 +44,10 @@ class OrderedSet(dict):
         return ret
 
     def union(self, other):
-        return self.__class__(self | other)
+        return self | other
+
+    def __or__(self, other):
+        return self.__class__(super().__or__(other))
 
     def copy(self):
         return self.__class__(super().copy())
