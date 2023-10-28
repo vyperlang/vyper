@@ -136,6 +136,10 @@ class StackMap:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.
         """
+        # convenience, avoids branching in caller
+        if depth == 0:
+            return
+
         assert depth < 0, "Cannot swap positive depth"
         assembly.append(f"SWAP{-depth}")
         self.stack_map[depth - 1], self.stack_map[-1] = (

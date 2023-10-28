@@ -215,22 +215,22 @@ def _stack_duplications(
 
 def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
+    #print("ENTER reorder", stack_map.stack_map, stack_ops)
+    #start_len = len(assembly)
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack_map.get_depth_in(op)
         assert depth is not StackMap.NOT_IN_STACK, f"{op} not in stack: {stack_map.stack_map}"
-        is_in_place = depth == final_stack_depth
+        if depth == final_stack_depth:
+            continue
 
-        if not is_in_place:
-            if final_stack_depth == 0 and depth != 0:
-                stack_map.swap(assembly, depth)
-            elif final_stack_depth != 0 and depth == 0:
-                stack_map.swap(assembly, final_stack_depth)
-            else:
-                stack_map.swap(assembly, depth)
-                stack_map.swap(assembly, final_stack_depth)
+        #print("trace", depth, final_stack_depth)
+        stack_map.swap(assembly, depth)
+        stack_map.swap(assembly, final_stack_depth)
 
+    #print("INSTRUCTIONS", assembly[start_len:])
+    #print("EXIT reorder", stack_map.stack_map, stack_ops)
 
 def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
