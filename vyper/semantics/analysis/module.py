@@ -329,29 +329,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             )
 
         with self.input_bundle.search_path(builtins_path):
-            file = self._resolve_import(level, qualified_module_name)
-
-        if isinstance(file, VyFile):
-            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
-            type_ = InterfaceT.from_ast(interface_ast)
-        elif isinstance(file, ABIInput):
-            type_ = InterfaceT.from_json_abi(file.path, file.abi)
-        else:  # pragma: nocover
-            raise CompilerPanic(f"Unknown interface format: {type(file)}")
+            type_ = self._load_import(level, qualified_module_name)
 
         try:
             self.namespace[alias] = type_
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    def _resolve_import(self, level: int, module: str) -> CompilerInput:
+    # load an InterfaceT from an import
+    def _load_import(self, level: int, module: str) -> InterfaceT:
         path = _import_to_path(level, module)
         try:
-            return self.input_bundle.load_file(path.with_suffix(".vy"))
+            file = self.input_bundle.load_file(path.with_suffix(".vy"))
+            ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
+            InterfaceT.from_ast(interface_ast)
         except FileNotFoundError:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             abi = json.loads(file.source_code)
-            return ABIInput(file.path, abi)
+            return InterfaceT.from_json_abi(file.path, abi)
 
 
 # convert an import to a path (without suffix)
