@@ -171,12 +171,8 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
                 )
         if path in ret:
             raise JSONError(f"Contract namespace collision: {key}")
+
         ret[path] = value["content"]
-    return ret
-
-
-def get_input_dict_files(input_dict: dict) -> dict[str, str]:
-    ret: dict = {}
 
     for path, value in input_dict.get("interfaces", {}).items():
         if key in interface_sources:
@@ -184,7 +180,7 @@ def get_input_dict_files(input_dict: dict) -> dict[str, str]:
 
         ret[path] = value
 
-    return interface_sources
+    return ret
 
 
 def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
