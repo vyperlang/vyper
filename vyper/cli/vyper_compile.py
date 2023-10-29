@@ -3,7 +3,6 @@ import argparse
 import json
 import sys
 import warnings
-from collections import OrderedDict
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Set, TypeVar
 
@@ -227,20 +226,18 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout: Optional[Iterable[str]] = None,
     no_bytecode_metadata: bool = False,
-) -> OrderedDict:
+) -> dict:
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
     input_bundle = FilesystemInputBundle([root_path])
 
-    contract_sources: ContractCodes = OrderedDict()
+    contract_sources: ContractCodes = dict()
     for file_name in input_files:
-        file_path = Path(file_name)
-        with file_path.open() as fh:
-            contract_sources[file_path] = fh.read()
+        contract_sources[file_path] = input_bundle.load_file(Path(file_path))
 
-    storage_layouts = OrderedDict()
+    storage_layouts = dict()
     if storage_layout:
         for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
             storage_file_path = Path(storage_file_name)
