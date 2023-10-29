@@ -71,9 +71,11 @@ def _add_constants_to_namespace(module_nodes: list[vy_ast.VyperNode], ns: Namesp
                 continue
 
             val = prefold(c.value)
-            ns.add_constant(name, val)
 
+            # note that if a constant is redefined, its value will be overwritten,
+            # but it is okay because the syntax error is handled downstream
             if val is not None:
+                ns.add_constant(name, val)
                 derived_nodes += 1
                 const_var_decls.remove(c)
 

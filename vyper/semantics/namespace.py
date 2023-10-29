@@ -77,6 +77,8 @@ class Namespace(dict):
         if len(self._scopes) == 1:
             # add mutable vars (`self`) to the initial scope
             self.update(environment.get_mutable_vars())
+            # reset constants
+            self._constants = {}
 
         return self
 
