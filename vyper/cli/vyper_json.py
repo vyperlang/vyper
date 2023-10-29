@@ -164,9 +164,7 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
         if "content" not in value:
             raise JSONError(f"{path} missing required field - 'content'")
         if "keccak256" in value:
-            hash_ = value["keccak256"].lower()
-            if hash_.startswith("0x"):
-                hash_ = hash_[2:]
+            hash_ = value["keccak256"].lower().removeprefix("0x")
             if hash_ != keccak256(value["content"].encode("utf-8")).hex():
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
