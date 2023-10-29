@@ -1,30 +1,29 @@
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
 from vyper.exceptions import CompilerPanic, JSONError
 
 
-# stub
 class CompilerInput:
     # an input to the compiler.
     pass
 
 
-# stub
 @dataclass
-class VyFile(CompilerInput):
+class FileInput(CompilerInput):
+    source_id: int
     path: Path
     source_code: str
 
 
-# stub
 @dataclass
 class ABIInput(CompilerInput):
-    # some json file, either regular ABI or ethPM manifest v3 (EIP-2678)
+    # some json input, that has already been parsed into a dict or list
+    source_id: int
     path: Path
-    abi: Any
+    abi: Any  # something that json.load() returns
 
 
 class _NotFound(Exception):
@@ -35,9 +34,18 @@ class _NotFound(Exception):
 class InputBundle:
     search_paths: list[Path]
     # compilation_targets: dict[str, str]  # contract names => contract sources
+    source_id_counter = 0
+    source_ids: dict[Path, int] = field(default_factory=dict)
 
     def _load_from_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
+
+    def _generate_source_id(self, path: Path) -> int:
+        if path not in self.source_ids:
+            self.source_ids[path] = self.source_id_counter
+            self.source_id_counter += 1
+
+        return self.source_ids[path]
 
     def load_file(self, path: Path) -> str:
         for p in self.search_paths:
@@ -84,13 +92,15 @@ class FilesystemInputBundle(InputBundle):
         try:
             with path.open() as f:
                 code = f.read()
-                return VyFile(path, code)
         except FileNotFoundError:
             raise _NotFound(path)
 
+        source_id = super()._generate_source_id(path)
+        return FileInput(source_id, path, code)
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
-# "reads" the file from the JSON input
+# "reads" the file from the JSON input. Note that this input bundle type
+# never actually interacts with the filesystem -- it is guaranteed to be pure!
 @dataclass
 class JSONInputBundle(InputBundle):
     input_json: dict[PurePath, Any]
@@ -101,11 +111,16 @@ class JSONInputBundle(InputBundle):
         except KeyError:
             raise _NotFound(path)
 
+        source_id = super()._generate_source_id(path)
+
+        if isinstance(contents, str):
+            return FileInput(source_id, path, code)
+
         if "abi" in contents:
-            return ABIInput(path, contents["abi"])
+            return ABIInput(source_id, path, contents["abi"])
 
         if isinstance(contents, list):
-            return ABIInput(path, contents)
+            return ABIInput(source_id, path, contents)
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
