@@ -98,6 +98,7 @@ class FilesystemInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
         return FileInput(source_id, path, code)
 
+
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
 # "reads" the file from the JSON input. Note that this input bundle type
 # never actually interacts with the filesystem -- it is guaranteed to be pure!
@@ -107,20 +108,20 @@ class JSONInputBundle(InputBundle):
 
     def _load_from_path(self, path: PurePath) -> CompilerInput:
         try:
-            contents = self.input_json[path]
+            value = self.input_json[path]
         except KeyError:
             raise _NotFound(path)
 
         source_id = super()._generate_source_id(path)
 
-        if isinstance(contents, str):
-            return FileInput(source_id, path, code)
+        if "content" in value:
+            return FileInput(source_id, path, value["content"])
 
-        if "abi" in contents:
-            return ABIInput(source_id, path, contents["abi"])
+        if "abi" in value:
+            return ABIInput(source_id, path, value["abi"])
 
-        if isinstance(contents, list):
-            return ABIInput(source_id, path, contents)
+        if isinstance(value, list):
+            return ABIInput(source_id, path, value)
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:

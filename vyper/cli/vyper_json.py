@@ -170,15 +170,15 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
         if path in ret:
-            raise JSONError(f"Contract namespace collision: {key}")
-
-        ret[path] = value["content"]
-
-    for path, value in input_dict.get("interfaces", {}).items():
-        if key in interface_sources:
-            raise JSONError(f"Interface namespace collision: {key}")
+            raise JSONError(f"Contract namespace collision: {path}")
 
         ret[path] = value
+
+    for path, value in input_dict.get("interfaces", {}).items():
+        if path in ret:
+            raise JSONError(f"Interface namespace collision: {path}")
+
+        ret[path] = {"content": value}
 
     return ret
 
@@ -208,7 +208,7 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
         if path == "*":
             output_keys = list(contract_sources.keys())
         else:
-            output_keys = [_standardize_path(path)]
+            output_keys = [Path(path)]
             if output_keys[0] not in contract_sources:
                 raise JSONError(f"outputSelection references unknown contract '{output_keys[0]}'")
 

@@ -6,11 +6,10 @@ from typing import Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import ABIInput, CompilerInput, InputBundle, VyFile
+from vyper.compiler.input_bundle import InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
-    CompilerPanic,
     ExceptionList,
     InvalidLiteral,
     InvalidType,
@@ -341,8 +340,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         path = _import_to_path(level, module)
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
-            ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
-            InterfaceT.from_ast(interface_ast)
+            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
+            return InterfaceT.from_ast(interface_ast)
         except FileNotFoundError:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             abi = json.loads(file.source_code)
