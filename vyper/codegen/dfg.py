@@ -6,7 +6,7 @@ from vyper.codegen.ir_basicblock import (
     IRVariable,
 )
 from vyper.codegen.ir_function import IRFunction
-from vyper.compiler.utils import StackMap
+from vyper.compiler.utils import StackModel
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 
@@ -173,7 +173,7 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     visited_instructions = OrderedSet()
     visited_basicblocks = OrderedSet()
 
-    _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackMap())
+    _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackModel())
 
     # Append postambles
     revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
@@ -205,18 +205,18 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 
 def _stack_duplications(
-    assembly: list, inst: IRInstruction, stack_map: StackMap, stack_ops: list[IRValueBase]
+    assembly: list, inst: IRInstruction, stack_map: StackModel, stack_ops: list[IRValueBase]
 ) -> None:
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
         depth = stack_map.get_depth_in(op)
-        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         if op in inst.dup_requirements:
             stack_map.dup(assembly, depth)
 
 
-def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
+def _stack_reorder(assembly: list, stack_map: StackModel, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
     # print("ENTER reorder", stack_map.stack_map, operands)
     # start_len = len(assembly)
@@ -224,7 +224,7 @@ def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueB
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack_map.get_depth_in(op)
-        assert depth is not StackMap.NOT_IN_STACK, f"{op} not in stack: {stack_map.stack_map}"
+        assert depth is not StackModel.NOT_IN_STACK, f"{op} not in stack: {stack_map.stack}"
         if depth == final_stack_depth:
             continue
 
@@ -237,7 +237,7 @@ def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueB
 
 
 def _generate_evm_for_basicblock_r(
-    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
+    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackModel
 ):
     if basicblock in visited_basicblocks:
         return
@@ -265,7 +265,7 @@ label_counter = 0
 
 # REVIEW: would this be better as a class?
 def _generate_evm_for_instruction_r(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackMap
+    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackModel
 ) -> list[str]:
     global label_counter
 
@@ -312,7 +312,7 @@ def _generate_evm_for_instruction_r(
         # REVIEW: the special handling in get_depth_in for lists
         # seems cursed, refactor
         depth = stack_map.get_depth_in(inputs)
-        assert depth is not StackMap.NOT_IN_STACK, "Operand not in stack"
+        assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack_map.peek(depth)
         if to_be_replaced in inst.dup_requirements:
             stack_map.dup(assembly, depth)
@@ -449,7 +449,7 @@ def _emit_input_operands(
     assembly: list,
     inst: IRInstruction,
     ops: list[IRValueBase],
-    stack_map: StackMap,
+    stack_map: StackModel,
 ):
     # print("EMIT INPUTS FOR", inst)
     for op in ops:

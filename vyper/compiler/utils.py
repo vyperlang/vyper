@@ -50,34 +50,33 @@ def _expand_row(row):
 
 
 # REVIEW: move this to vyper/ir/ or vyper/venom/
-# rename to StackModel
-class StackMap:
+class StackModel:
     NOT_IN_STACK = object()
-    stack_map: list[IRValueBase]  # REVIEW: rename to stack
+    stack: list[IRValueBase]
 
     def __init__(self):
-        self.stack_map = []
+        self.stack = []
 
     def copy(self):
-        new = StackMap()
-        new.stack_map = self.stack_map.copy()
+        new = StackModel()
+        new.stack = self.stack.copy()
         return new
 
     def get_height(self) -> int:
         """
         Returns the height of the stack map.
         """
-        return len(self.stack_map)
+        return len(self.stack)
 
     def push(self, op: IRValueBase) -> None:
         """
         Pushes an operand onto the stack map.
         """
         assert isinstance(op, IRValueBase), f"push takes IRValueBase, got '{op}'"
-        self.stack_map.append(op)
+        self.stack.append(op)
 
     def pop(self, num: int = 1) -> None:
-        del self.stack_map[len(self.stack_map) - num :]
+        del self.stack[len(self.stack) - num :]
 
     def get_depth_in(self, op: IRValueBase | list[IRValueBase]) -> int:
         """
@@ -91,7 +90,7 @@ class StackMap:
             or isinstance(op, list)
         ), f"get_depth_in takes IRValueBase or list, got '{op}'"
 
-        for i, stack_op in enumerate(self.stack_map[::-1]):
+        for i, stack_op in enumerate(self.stack[::-1]):
             if isinstance(stack_op, IRValueBase):
                 # REVIEW: handling literals this way seems a bit cursed,
                 # why not use IRLiteral, so it is always IRValueBase?
@@ -105,13 +104,13 @@ class StackMap:
                 elif isinstance(op, list) and stack_op in op:
                     return -i
 
-        return StackMap.NOT_IN_STACK
+        return StackModel.NOT_IN_STACK
 
     def peek(self, depth: int) -> IRValueBase:
         """
         Returns the top of the stack map.
         """
-        return self.stack_map[depth - 1]
+        return self.stack[depth - 1]
 
     def poke(self, depth: int, op: IRValueBase) -> None:
         """
@@ -119,7 +118,7 @@ class StackMap:
         """
         assert depth <= 0, "Bad depth"
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
-        self.stack_map[depth - 1] = op
+        self.stack[depth - 1] = op
 
     def dup(self, assembly: list[str], depth: int) -> None:
         """
@@ -127,7 +126,7 @@ class StackMap:
         """
         assert depth <= 0, "Cannot dup positive depth"
         assembly.append(f"DUP{-(depth-1)}")
-        self.stack_map.append(self.peek(depth))
+        self.stack.append(self.peek(depth))
 
     def swap(self, assembly: list[str], depth: int) -> None:
         """
@@ -139,7 +138,7 @@ class StackMap:
 
         assert depth < 0, "Cannot swap positive depth"
         assembly.append(f"SWAP{-depth}")
-        self.stack_map[depth - 1], self.stack_map[-1] = (
-            self.stack_map[-1],
-            self.stack_map[depth - 1],
+        self.stack[depth - 1], self.stack[-1] = (
+            self.stack[-1],
+            self.stack[depth - 1],
         )
