@@ -1,9 +1,9 @@
 from typing import Optional
 
-from vyper.codegen.dfg import convert_ir_to_dfg
-from vyper.codegen.ir_function import IRFunction
+from vyper.venom.dfg import convert_ir_to_dfg
+from vyper.venom.ir_function import IRFunction
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.ir_pass_constant_propagation import ir_pass_constant_propagation
+from vyper.venom.ir_pass_constant_propagation import ir_pass_constant_propagation
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.bb_optimizer import (
     calculate_cfg_in,

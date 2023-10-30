@@ -1,11 +1,11 @@
-from vyper.codegen.ir_basicblock import (
+from vyper.venom.ir_basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
     IRValueBase,
     IRVariable,
 )
-from vyper.codegen.ir_function import IRFunction
+from vyper.venom.ir_function import IRFunction
 from vyper.venom.stack_model import StackModel
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet

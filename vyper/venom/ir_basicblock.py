@@ -7,7 +7,7 @@ from vyper.utils import OrderedSet
 BB_TERMINATORS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
 if TYPE_CHECKING:
-    from vyper.codegen.ir_function import IRFunction
+    from vyper.venom.ir_function import IRFunction
 
 
 class IRDebugInfo:

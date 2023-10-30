@@ -7,7 +7,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
-from vyper.codegen.ir import generate_ir
+from vyper.venom.ir import generate_ir
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
