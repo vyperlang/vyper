@@ -29,25 +29,16 @@ class StackModel:
     def pop(self, num: int = 1) -> None:
         del self.stack[len(self.stack) - num :]
 
-    def get_depth(self, op: IRValueBase | list[IRValueBase]) -> int:
+    def get_depth(self, op: IRValueBase) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
-        assert (
-            isinstance(op, str) or isinstance(op, int) or isinstance(op, IRValueBase)
-        ), f"get_depth takes IRValueBase or list, got '{op}'"
+        assert isinstance(op, IRValueBase), f"get_depth takes IRValueBase or list, got '{op}'"
 
         for i, stack_op in enumerate(reversed(self.stack)):
-            if isinstance(stack_op, IRValueBase):
-                # REVIEW: handling literals this way seems a bit cursed,
-                # why not use IRLiteral, so it is always IRValueBase?
-                if isinstance(op, str) and stack_op.value == op:
-                    return -i
-                if isinstance(op, int) and stack_op.value == op:
-                    return -i
-                if isinstance(op, IRValueBase) and stack_op.value == op.value:
-                    return -i
+            if stack_op.value == op.value:
+                return -i
 
         return StackModel.NOT_IN_STACK
 
@@ -59,7 +50,7 @@ class StackModel:
         assert isinstance(ops, list), f"get_shallowest_depth takes list, got '{op}'"
 
         for i, stack_op in enumerate(reversed(self.stack)):
-            if isinstance(stack_op, IRValueBase) and stack_op in ops:
+            if stack_op in ops:
                 return -i
 
         return StackModel.NOT_IN_STACK

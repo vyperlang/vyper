@@ -217,8 +217,9 @@ def _stack_duplications(
             stack.dup(assembly, depth)
 
 
-def _stack_reorder(assembly: list, stack: StackModel, stack_ops: list[IRValueBase]) -> None:
-    stack_ops = [x.value for x in stack_ops]
+def _stack_reorder(assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVariable]) -> None:
+    # make a list so we can index it
+    stack_ops = [x for x in stack_ops]
     # print("ENTER reorder", stack.stack, operands)
     # start_len = len(assembly)
     for i in range(len(stack_ops)):
@@ -332,7 +333,7 @@ def _generate_evm_for_instruction_r(
     if opcode in ["jnz", "jmp"]:
         assert isinstance(inst.parent.cfg_out, OrderedSet)
         b = next(iter(inst.parent.cfg_out))
-        target_stack = OrderedSet(b.in_vars_from(inst.parent))
+        target_stack = b.in_vars_from(inst.parent)
         _stack_reorder(assembly, stack, target_stack)
 
     _stack_duplications(assembly, inst, stack, operands)
@@ -392,7 +393,6 @@ def _generate_evm_for_instruction_r(
     elif opcode == "staticcall":
         assembly.append("STATICCALL")
     elif opcode == "ret":
-        # assert len(inst.operands) == 2, "ret instruction takes two operands"
         assembly.append("JUMP")
     elif opcode == "return":
         assembly.append("RETURN")
