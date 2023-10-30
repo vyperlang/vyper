@@ -14,7 +14,6 @@ def prefold(node: vy_ast.VyperNode) -> Any:
             return val[node.attr]
 
     elif isinstance(node, vy_ast.BinOp):
-        assert isinstance(node, vy_ast.BinOp)
         left = prefold(node.left)
         right = prefold(node.right)
         if isinstance(left, type(right)) and isinstance(left, (int, Decimal)):
