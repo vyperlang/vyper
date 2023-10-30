@@ -253,8 +253,7 @@ def _convert_ir_basicblock(
             ctx, ir, symbols, variables, allocated_variables, ir.value in ["sha3_64"]
         )
 
-    # REVIEW: no need for .keys()
-    elif ir.value in MAPPED_IR_INSTRUCTIONS.keys():
+    elif ir.value in MAPPED_IR_INSTRUCTIONS:
         org_value = ir.value
         ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols, variables, allocated_variables)
