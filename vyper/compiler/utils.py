@@ -54,12 +54,9 @@ def _expand_row(row):
 class StackMap:
     NOT_IN_STACK = object()
     stack_map: list[IRValueBase]  # REVIEW: rename to stack
-    # REVIEW: dead variable
-    dependant_liveness: OrderedSet[IRValueBase]
 
     def __init__(self):
         self.stack_map = []
-        self.dependant_liveness = OrderedSet()
 
     def copy(self):
         new = StackMap()

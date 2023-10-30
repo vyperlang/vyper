@@ -82,7 +82,7 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             inst.dup_requirements = OrderedSet()
-            inst.fen = -1
+            inst.fence_id = -1
             operands = inst.get_input_operands()
             operands.extend(inst.get_output_operands())
 
@@ -117,7 +117,7 @@ def _compute_inst_dup_requirements_r(
             if target.parent != inst.parent:
                 # REVIEW: produced by parent.out_vars
                 continue
-            if target.fen != inst.fen:
+            if target.fence_id != inst.fence_id:
                 continue
             _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
@@ -147,7 +147,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
     fen = 0
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            inst.fen = fen
+            inst.fence_id = fen
             if inst.volatile:
                 fen += 1
 
@@ -164,7 +164,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
 
 
 visited_instructions = None  # {IRInstruction}
-visited_basicblocks = None # {IRBasicBlock}
+visited_basicblocks = None  # {IRBasicBlock}
 
 
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
@@ -218,8 +218,8 @@ def _stack_duplications(
 
 def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
-    #print("ENTER reorder", stack_map.stack_map, operands)
-    #start_len = len(assembly)
+    # print("ENTER reorder", stack_map.stack_map, operands)
+    # start_len = len(assembly)
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
@@ -228,12 +228,13 @@ def _stack_reorder(assembly: list, stack_map: StackMap, stack_ops: list[IRValueB
         if depth == final_stack_depth:
             continue
 
-        #print("trace", depth, final_stack_depth)
+        # print("trace", depth, final_stack_depth)
         stack_map.swap(assembly, depth)
         stack_map.swap(assembly, final_stack_depth)
 
-    #print("INSTRUCTIONS", assembly[start_len:])
-    #print("EXIT reorder", stack_map.stack_map, stack_ops)
+    # print("INSTRUCTIONS", assembly[start_len:])
+    # print("EXIT reorder", stack_map.stack_map, stack_ops)
+
 
 def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackMap
@@ -247,7 +248,7 @@ def _generate_evm_for_basicblock_r(
 
     fen = 0
     for inst in basicblock.instructions:
-        inst.fen = fen
+        inst.fence_id = fen
         if inst.volatile:
             fen += 1
 
@@ -274,7 +275,7 @@ def _generate_evm_for_instruction_r(
             if target.parent != inst.parent:
                 continue
             # REVIEW: what does this line do?
-            if target.fen != inst.fen:
+            if target.fence_id != inst.fence_id:
                 continue
             # REVIEW: I think it would be better to have an explicit step,
             # `reorder instructions per DFG`, and then `generate_evm_for_instruction`
@@ -282,7 +283,7 @@ def _generate_evm_for_instruction_r(
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
-        #print("seen:", inst)
+        # print("seen:", inst)
         return assembly
     visited_instructions.add(inst)
 
@@ -332,7 +333,7 @@ def _generate_evm_for_instruction_r(
 
     _stack_duplications(assembly, inst, stack_map, operands)
 
-    #print("(inst)", inst)
+    # print("(inst)", inst)
     _stack_reorder(assembly, stack_map, operands)
 
     # Step 4: Push instruction's return value to stack
@@ -450,7 +451,7 @@ def _emit_input_operands(
     ops: list[IRValueBase],
     stack_map: StackMap,
 ):
-    #print("EMIT INPUTS FOR", inst)
+    # print("EMIT INPUTS FOR", inst)
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -463,11 +464,9 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack_map.push(op)
             continue
-        #print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
+        # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
         assembly.extend(
-            _generate_evm_for_instruction_r(
-                ctx, [], ctx.dfg_outputs[op.value], stack_map
-            )
+            _generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op.value], stack_map)
         )
         if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])

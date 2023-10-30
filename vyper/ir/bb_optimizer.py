@@ -95,9 +95,9 @@ def calculate_cfg_in(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]
-        assert (
-            last_inst.opcode in BB_TERMINATORS
-        ), "Last instruction should be a terminator" + str(bb)
+        assert last_inst.opcode in BB_TERMINATORS, "Last instruction should be a terminator" + str(
+            bb
+        )
 
         for inst in bb.instructions:
             if inst.opcode in ["jmp", "jnz", "call", "staticcall", "invoke", "deploy"]:
@@ -120,8 +120,7 @@ def _reset_liveness(ctx: IRFunction) -> None:
 def _calculate_liveness(bb: IRBasicBlock, liveness_visited: OrderedSet) -> None:
     assert isinstance(liveness_visited, OrderedSet)
     for out_bb in bb.cfg_out:
-        # REVIEW: .get() already defaults to None
-        if liveness_visited.get(bb, None) == out_bb:
+        if liveness_visited.get(bb) == out_bb:
             continue
         liveness_visited[bb] = out_bb
         _calculate_liveness(out_bb, liveness_visited)

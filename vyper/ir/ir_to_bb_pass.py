@@ -837,7 +837,7 @@ def _convert_ir_basicblock(
                 1,
             )
 
-        body_block.update_operands(replacements)
+        body_block.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
         if body_end.is_terminated() is False:

@@ -113,8 +113,7 @@ class IRInstruction:
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
     parent: Optional["IRBasicBlock"]
-    # REVIEW: rename to `fence`
-    fen: int
+    fence_id: int
     annotation: Optional[str]
 
     def __init__(
@@ -154,7 +153,7 @@ class IRInstruction:
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
-        self.fen = -1
+        self.fence_id = -1
         self.annotation = None
 
     def get_label_operands(self) -> list[IRLabel]:
@@ -179,9 +178,8 @@ class IRInstruction:
     def get_output_operands(self) -> list[IRValueBase]:
         return [self.ret] if self.ret else []
 
-    # REVIEW: rename to `replace_operands`
-    # use of `dict` here seems a bit weird (what is equality on operands?)
-    def update_operands(self, replacements: dict) -> None:
+    # REVIEW: use of `dict` here seems a bit weird (what is equality on operands?)
+    def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
         """
@@ -312,12 +310,12 @@ class IRBasicBlock:
         self.instructions = []
 
     # REVIEW: rename to replace_operands
-    def update_operands(self, replacements: dict) -> None:
+    def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
         """
         for instruction in self.instructions:
-            instruction.update_operands(replacements)
+            instruction.replace_operands(replacements)
 
     @property
     def is_terminated(self) -> bool:
@@ -334,8 +332,7 @@ class IRBasicBlock:
         Compute liveness of each instruction in the basic block.
         """
         liveness = self.out_vars.copy()
-        # REVIEW: use `reversed()` here
-        for instruction in self.instructions[::-1]:
+        for instruction in reversed(self.instructions):
             ops = instruction.get_input_operands()
             liveness = liveness.union(OrderedSet.fromkeys(ops))
             out = (
