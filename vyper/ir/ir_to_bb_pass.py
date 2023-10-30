@@ -8,6 +8,7 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IRValueBase,
     IRVariable,
+    MemType,
 )
 from vyper.venom.function import IRFunction
 from vyper.codegen.ir_node import IRnode
@@ -362,13 +363,13 @@ def _convert_ir_basicblock(
             if argsOffsetVar is None:
                 argsOffsetVar = argsOffset
             else:
-                argsOffsetVar.mem_type = IRVariable.MemType.MEMORY
+                argsOffsetVar.mem_type = MemType.MEMORY
                 argsOffsetVar.mem_addr = addr
                 argsOffsetVar.offset = 32 - 4 if argsOffset.value > 0 else 0
         else:
             argsOffsetVar = argsOffset
 
-        retVar = ctx.get_next_variable(IRVariable.MemType.MEMORY, retOffset.value)
+        retVar = ctx.get_next_variable(MemType.MEMORY, retOffset.value)
         symbols[f"&{retOffset.value}"] = retVar
 
         if ir.value == "call":

@@ -6,6 +6,7 @@ from vyper.venom.basicblock import (
     IRLabel,
     IRValueBase,
     IRVariable,
+    MemType,
 )
 
 
@@ -76,7 +77,7 @@ class IRFunction:
         return IRLabel(f"{self.last_label}")
 
     def get_next_variable(
-        self, mem_type: IRVariable.MemType = IRVariable.MemType.OPERAND_STACK, mem_addr: int = -1
+        self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
     ) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}", mem_type, mem_addr)

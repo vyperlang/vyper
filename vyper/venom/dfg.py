@@ -4,6 +4,7 @@ from vyper.venom.basicblock import (
     IRLabel,
     IRValueBase,
     IRVariable,
+    MemType,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.stack_model import StackModel
@@ -443,7 +444,7 @@ def _generate_evm_for_instruction_r(
     # Step 6: Emit instructions output operands (if any)
     if inst.ret is not None:
         assert isinstance(inst.ret, IRVariable), "Return value must be a variable"
-        if inst.ret.mem_type == IRVariable.MemType.MEMORY:
+        if inst.ret.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(inst.ret.mem_addr)])
 
     return assembly
@@ -473,6 +474,6 @@ def _emit_input_operands(
         assembly.extend(
             _generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op.value], stack_map)
         )
-        if isinstance(op, IRVariable) and op.mem_type == IRVariable.MemType.MEMORY:
+        if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")

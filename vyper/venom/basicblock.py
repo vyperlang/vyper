@@ -83,14 +83,15 @@ class IRLiteral(IRValueBase):
         return True
 
 
+MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
+
+
 class IRVariable(IRValueBase):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
     offset: int = 0
-    # REVIEW: make this toplevel definition
-    MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
     mem_type: MemType = MemType.OPERAND_STACK
     mem_addr: int = -1  # REVIEW should this be None?
 
