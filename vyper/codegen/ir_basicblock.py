@@ -121,7 +121,6 @@ class IRInstruction:
         opcode: str,
         operands: list[IRValueBase],
         ret: IRValueBase = None,
-        dbg: IRDebugInfo = None,
     ):
         self.opcode = opcode
         # REVIEW nit: make this global definition
@@ -149,7 +148,6 @@ class IRInstruction:
         ]
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
         self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
-        self.dbg = dbg
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
@@ -197,9 +195,6 @@ class IRInstruction:
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands[::-1]]
         )
         s += operands
-
-        if self.dbg:
-            return s + f" {self.dbg}"
 
         if self.annotation:
             s += f" <{self.annotation}>"
