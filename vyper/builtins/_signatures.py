@@ -126,7 +126,7 @@ class BuiltinFunction(VyperType):
         if self._return_type:
             return self._return_type
 
-    def infer_arg_types(self, node, *args, **kwargs):
+    def infer_arg_types(self, node, *args):
         self._validate_arg_types(node)
         ret = [expected for (_, expected) in self._inputs]
 

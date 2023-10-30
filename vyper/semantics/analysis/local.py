@@ -678,7 +678,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # Skip annotation of builtin functions that are always folded
-            # because they will be annotated during folding.
+            # because the folded node will be annotated during folding.
             if getattr(call_type, "_is_folded", False):
                 return
 
