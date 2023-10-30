@@ -1,3 +1,4 @@
+# REVIEW: move this to vyper/venom/
 from vyper.utils import OrderedSet, ir_pass
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRLabel
 from vyper.venom.function import IRFunction
