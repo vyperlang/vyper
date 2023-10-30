@@ -206,39 +206,39 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
 
 
 def _stack_duplications(
-    assembly: list, inst: IRInstruction, stack_map: StackModel, stack_ops: list[IRValueBase]
+    assembly: list, inst: IRInstruction, stack: StackModel, stack_ops: list[IRValueBase]
 ) -> None:
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
-        depth = stack_map.get_depth_in(op)
+        depth = stack.get_depth_in(op)
         assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         if op in inst.dup_requirements:
-            stack_map.dup(assembly, depth)
+            stack.dup(assembly, depth)
 
 
-def _stack_reorder(assembly: list, stack_map: StackModel, stack_ops: list[IRValueBase]) -> None:
+def _stack_reorder(assembly: list, stack: StackModel, stack_ops: list[IRValueBase]) -> None:
     stack_ops = [x.value for x in stack_ops]
-    # print("ENTER reorder", stack_map.stack_map, operands)
+    # print("ENTER reorder", stack.stack, operands)
     # start_len = len(assembly)
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
-        depth = stack_map.get_depth_in(op)
-        assert depth is not StackModel.NOT_IN_STACK, f"{op} not in stack: {stack_map.stack}"
+        depth = stack.get_depth_in(op)
+        assert depth is not StackModel.NOT_IN_STACK, f"{op} not in stack: {stack.stack}"
         if depth == final_stack_depth:
             continue
 
         # print("trace", depth, final_stack_depth)
-        stack_map.swap(assembly, depth)
-        stack_map.swap(assembly, final_stack_depth)
+        stack.swap(assembly, depth)
+        stack.swap(assembly, final_stack_depth)
 
     # print("INSTRUCTIONS", assembly[start_len:])
-    # print("EXIT reorder", stack_map.stack_map, stack_ops)
+    # print("EXIT reorder", stack.stack, stack_ops)
 
 
 def _generate_evm_for_basicblock_r(
-    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack_map: StackModel
+    ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel
 ):
     if basicblock in visited_basicblocks:
         return
@@ -254,10 +254,10 @@ def _generate_evm_for_basicblock_r(
             fen += 1
 
     for inst in basicblock.instructions:
-        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack_map)
+        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack)
 
     for bb in basicblock.cfg_out:
-        _generate_evm_for_basicblock_r(ctx, asm, bb, stack_map.copy())
+        _generate_evm_for_basicblock_r(ctx, asm, bb, stack.copy())
 
 
 # TODO: refactor this
@@ -266,7 +266,7 @@ label_counter = 0
 
 # REVIEW: would this be better as a class?
 def _generate_evm_for_instruction_r(
-    ctx: IRFunction, assembly: list, inst: IRInstruction, stack_map: StackModel
+    ctx: IRFunction, assembly: list, inst: IRInstruction, stack: StackModel
 ) -> list[str]:
     global label_counter
 
@@ -286,7 +286,7 @@ def _generate_evm_for_instruction_r(
             # does not need to recurse (or be co-recursive with `emit_input_operands`).
             # HK: Indeed, this is eventualy the idea. Especialy now that I have implemented
             #     the "needs duplication" algorithm that needs the same traversal and it's duplicated
-            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
+            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack)
 
     if inst in visited_instructions:
         # print("seen:", inst)
@@ -317,35 +317,35 @@ def _generate_evm_for_instruction_r(
         inputs = inst.get_inputs()
         # REVIEW: the special handling in get_depth_in for lists
         # seems cursed, refactor
-        depth = stack_map.get_depth_in(inputs)
+        depth = stack.get_depth_in(inputs)
         assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
-        to_be_replaced = stack_map.peek(depth)
+        to_be_replaced = stack.peek(depth)
         if to_be_replaced in inst.dup_requirements:
-            stack_map.dup(assembly, depth)
-            stack_map.poke(0, ret)
+            stack.dup(assembly, depth)
+            stack.poke(0, ret)
         else:
-            stack_map.poke(depth, ret)
+            stack.poke(depth, ret)
         return assembly
 
     # Step 2: Emit instruction's input operands
-    _emit_input_operands(ctx, assembly, inst, operands, stack_map)
+    _emit_input_operands(ctx, assembly, inst, operands, stack)
 
     # Step 3: Reorder stack
     if opcode in ["jnz", "jmp"]:
         assert isinstance(inst.parent.cfg_out, OrderedSet)
         b = next(iter(inst.parent.cfg_out))
         target_stack = OrderedSet(b.in_vars_from(inst.parent))
-        _stack_reorder(assembly, stack_map, target_stack)
+        _stack_reorder(assembly, stack, target_stack)
 
-    _stack_duplications(assembly, inst, stack_map, operands)
+    _stack_duplications(assembly, inst, stack, operands)
 
     # print("(inst)", inst)
-    _stack_reorder(assembly, stack_map, operands)
+    _stack_reorder(assembly, stack, operands)
 
     # Step 4: Push instruction's return value to stack
-    stack_map.pop(len(operands))
+    stack.pop(len(operands))
     if inst.ret is not None:
-        stack_map.push(inst.ret)
+        stack.push(inst.ret)
 
     # Step 5: Emit the EVM instruction(s)
     if opcode in ONE_TO_ONE_INSTRUCTIONS:
@@ -386,8 +386,8 @@ def _generate_evm_for_instruction_r(
             ]
         )
         label_counter += 1
-        if stack_map.get_height() > 0 and stack_map.peek(0) in inst.dup_requirements:
-            stack_map.pop()
+        if stack.get_height() > 0 and stack.peek(0) in inst.dup_requirements:
+            stack.pop()
             assembly.append("POP")
     elif opcode == "call":
         assembly.append("CALL")
@@ -455,7 +455,7 @@ def _emit_input_operands(
     assembly: list,
     inst: IRInstruction,
     ops: list[IRValueBase],
-    stack_map: StackModel,
+    stack: StackModel,
 ):
     # print("EMIT INPUTS FOR", inst)
     for op in ops:
@@ -464,16 +464,14 @@ def _emit_input_operands(
             # but we need to add it to the stack map
             if inst.opcode != "invoke":
                 assembly.append(f"_sym_{op.value}")
-            stack_map.push(op)
+            stack.push(op)
             continue
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
-            stack_map.push(op)
+            stack.push(op)
             continue
         # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
-        assembly.extend(
-            _generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op.value], stack_map)
-        )
+        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op.value], stack))
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
