@@ -1,5 +1,5 @@
-from vyper.venom.ir_basicblock import IRBasicBlock
-from vyper.venom.ir_function import IRFunction
+from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.function import IRFunction
 from vyper.utils import OrderedSet, ir_pass
 
 

@@ -1,4 +1,4 @@
-from vyper.venom.ir_basicblock import IRValueBase
+from vyper.venom.basicblock import IRValueBase
 
 
 class StackModel:

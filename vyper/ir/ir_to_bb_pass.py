@@ -1,7 +1,7 @@
 from typing import Optional
 
 from vyper.venom.dfg import generate_evm
-from vyper.venom.ir_basicblock import (
+from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -9,7 +9,7 @@ from vyper.venom.ir_basicblock import (
     IRValueBase,
     IRVariable,
 )
-from vyper.venom.ir_function import IRFunction
+from vyper.venom.function import IRFunction
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes

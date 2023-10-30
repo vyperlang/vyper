@@ -1,10 +1,10 @@
-from vyper.venom.ir_basicblock import (
+from vyper.venom.basicblock import (
     BB_TERMINATORS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
 )
-from vyper.venom.ir_function import IRFunction
+from vyper.venom.function import IRFunction
 from vyper.utils import OrderedSet, ir_pass
 
 

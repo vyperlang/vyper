@@ -1,6 +1,6 @@
 from typing import Optional
 
-from vyper.venom.ir_basicblock import (
+from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
