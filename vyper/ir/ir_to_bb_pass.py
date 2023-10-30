@@ -1,6 +1,11 @@
 from typing import Optional
 
-from vyper.venom.dfg import generate_evm
+from vyper.codegen.ir_node import IRnode
+from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.opcodes import get_opcodes
+from vyper.ir.compile_ir import is_mem_sym, is_symbol
+from vyper.semantics.types.function import ContractFunctionT
+from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -10,13 +15,8 @@ from vyper.venom.basicblock import (
     IRVariable,
     MemType,
 )
+from vyper.venom.dfg import generate_evm
 from vyper.venom.function import IRFunction
-from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.opcodes import get_opcodes
-from vyper.ir.compile_ir import is_mem_sym, is_symbol
-from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import MemoryPositions, OrderedSet
 
 BINARY_IR_INSTRUCTIONS = [
     "eq",

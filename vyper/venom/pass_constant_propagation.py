@@ -1,6 +1,6 @@
+from vyper.utils import ir_pass
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.function import IRFunction
-from vyper.utils import OrderedSet, ir_pass
 
 
 def _process_basic_block(ctx: IRFunction, bb: IRBasicBlock):

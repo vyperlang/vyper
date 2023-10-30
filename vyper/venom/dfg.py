@@ -1,3 +1,5 @@
+from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
+from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -8,8 +10,6 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.stack_model import StackModel
-from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
-from vyper.utils import MemoryPositions, OrderedSet
 
 ONE_TO_ONE_INSTRUCTIONS = [
     "revert",
@@ -285,8 +285,9 @@ def _generate_evm_for_instruction_r(
             # REVIEW: I think it would be better to have an explicit step,
             # `reorder instructions per DFG`, and then `generate_evm_for_instruction`
             # does not need to recurse (or be co-recursive with `emit_input_operands`).
-            # HK: Indeed, this is eventualy the idea. Especialy now that I have implemented
-            #     the "needs duplication" algorithm that needs the same traversal and it's duplicated
+            # HK: Indeed, this is eventualy the idea. Especialy now that I have
+            #     implemented the "needs duplication" algorithm that needs the same
+            #     traversal and it's duplicated
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack)
 
     if inst in visited_instructions:

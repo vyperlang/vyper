@@ -1,9 +1,6 @@
 from typing import Optional
 
-from vyper.venom.dfg import convert_ir_to_dfg
-from vyper.venom.function import IRFunction
 from vyper.codegen.ir_node import IRnode
-from vyper.venom.pass_constant_propagation import ir_pass_constant_propagation
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.bb_optimizer import (
     calculate_cfg_in,
@@ -13,6 +10,9 @@ from vyper.ir.bb_optimizer import (
     ir_pass_remove_unreachable_blocks,
 )
 from vyper.ir.ir_to_bb_pass import convert_ir_basicblock
+from vyper.venom.dfg import convert_ir_to_dfg
+from vyper.venom.function import IRFunction
+from vyper.venom.pass_constant_propagation import ir_pass_constant_propagation
 
 
 def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:

@@ -108,8 +108,9 @@ class IRVariable(IRValueBase):
 
 class IRLabel(IRValueBase):
     # REVIEW: what do the values of is_symbol mean?
-    # HK: is_symbol is used to indicate if the label is a symbol coming from the initial IR. Like a function name,
-    #     that I try to preserve when optimizing so that the final IR is easier to read.
+    # HK: is_symbol is used to indicate if the label is a symbol coming from
+    #     the initial IR. Like a function name, that I try to preserve when
+    #     optimizing so that the final IR is easier to read.
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """

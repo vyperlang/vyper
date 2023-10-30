@@ -47,7 +47,7 @@ class StackModel:
         Returns the depth of the first matching operand in the stack map.
         If the none of the operands in is `ops` is in the stack, returns NOT_IN_STACK.
         """
-        assert isinstance(ops, list), f"get_shallowest_depth takes list, got '{op}'"
+        assert isinstance(ops, list), f"get_shallowest_depth takes list, got '{ops}'"
 
         for i, stack_op in enumerate(reversed(self.stack)):
             if stack_op in ops:
