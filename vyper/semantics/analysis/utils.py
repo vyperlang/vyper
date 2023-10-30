@@ -373,7 +373,7 @@ class _ExprAnalyser:
 
     def types_from_Subscript(self, node):
         # index access, e.g. `foo[1]`
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             types_list = self.get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:

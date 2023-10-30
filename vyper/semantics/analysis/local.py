@@ -738,6 +738,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         validate_expected_type(node, typ)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
+        print("visit_Index")
         validate_expected_type(node.value, typ)
         self.visit(node.value, typ)
 
@@ -759,7 +760,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             possible_base_types = get_possible_types_from_node(node.value)
 
             for possible_type in possible_base_types:
@@ -779,6 +780,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         # note: index_type is validated in types_from_Subscript
         index_types = get_possible_types_from_node(node.slice.value)
         index_type = index_types.pop()
+
+        print("index type: ", index_type)
 
         self.visit(node.slice, index_type)
         self.visit(node.value, base_type)

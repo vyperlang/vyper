@@ -142,18 +142,42 @@ def foo():
 
 
 def test_replace_subscripts_simple():
-    test_ast = vy_ast.parse_to_ast("[foo, bar, baz][1]")
-    expected_ast = vy_ast.parse_to_ast("bar")
+    test = """
+@external
+def foo():
+    a: uint256 = [1, 2, 3][1]
+    """
 
+    expected = """
+@external
+def foo():
+    a: uint256 = 2
+    """
+    test_ast = vy_ast.parse_to_ast(test)
+    expected_ast = vy_ast.parse_to_ast(expected)
+
+    validate_semantics(test_ast, {})
     folding.replace_subscripts(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
 
 def test_replace_subscripts_nested():
-    test_ast = vy_ast.parse_to_ast("[[0, 1], [2, 3], [4, 5]][2][1]")
-    expected_ast = vy_ast.parse_to_ast("5")
+    test = """
+@external
+def foo():
+    a: uint256 = [[0, 1], [2, 3], [4, 5]][2][1]
+    """
 
+    expected = """
+@external
+def foo():
+    a: uint256 = 5
+    """
+    test_ast = vy_ast.parse_to_ast(test)
+    expected_ast = vy_ast.parse_to_ast(expected)
+
+    validate_semantics(test_ast, {})
     folding.replace_subscripts(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
