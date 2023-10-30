@@ -107,14 +107,12 @@ class IRVariable(IRValueBase):
 
 
 class IRLabel(IRValueBase):
-    # REVIEW: what do the values of is_symbol mean?
-    # HK: is_symbol is used to indicate if the label is a symbol coming from
-    #     the initial IR. Like a function name, that I try to preserve when
-    #     optimizing so that the final IR is easier to read.
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
 
+    # is_symbol is used to indicate if the label came from upstream
+    # (like a function name, try to preserve it in optimization passes)
     is_symbol: bool = False
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
@@ -135,6 +133,7 @@ class IRInstruction:
     operands: list[IRValueBase]
     # REVIEW: rename to lhs?
     # HK: Maybe outputs is better?
+    # REVIEW: hmm not sure. to discuss offline
     ret: Optional[IRValueBase]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
@@ -180,11 +179,10 @@ class IRInstruction:
     def get_outputs(self) -> list[IRValueBase]:
         return [self.ret] if self.ret else []
 
-    # REVIEW: use of `dict` here seems a bit weird (what is equality on operands?)
-    # HK: replacements happen "key" replaced by "value", dict is used as a way to represent this.
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
+        replacements are represented using a dict: "key" is replaced by "value".
         """
         for i, operand in enumerate(self.operands):
             if operand in replacements:
@@ -282,6 +280,10 @@ class IRBasicBlock:
             # REVIEW: might be nice if some of these instructions
             # were more structured.
             # HK: Can you elaborate on this? I'm not sure what you mean.
+            # REVIEW: I meant, if there were classs like
+            #   IRPhi(IRInstruction)
+            #   IRStore(IRInstruction)
+            # etc.
             if inst.opcode == "phi":
                 if inst.operands[0] == source.label:
                     liveness.add(inst.operands[1])
@@ -323,9 +325,8 @@ class IRBasicBlock:
         """
         Check if the basic block is terminal, i.e. the last instruction is a terminator.
         """
-        # REVIEW: should this be an assert (like `is_terminal()`)?
-        # HK: I think it's fine to return False here, since we use this to check
-        #     if we can/needto append instructions to the basic block.
+        # it's ok to return False here, since we use this to check
+        # if we can/need to append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in BB_TERMINATORS

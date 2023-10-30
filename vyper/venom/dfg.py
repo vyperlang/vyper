@@ -273,13 +273,11 @@ def _generate_evm_for_instruction_r(
 
     for op in inst.get_outputs():
         for target in ctx.dfg_inputs.get(op.value, []):
-            # REVIEW: what does this line do?
-            # HK: it skips instructions that are not in the same basic block
-            #     so we don't cross basic block boundaries
+            # skip instructions that are not in the same basic block
+            # so we don't cross basic block boundaries
             if target.parent != inst.parent:
                 continue
-            # REVIEW: what does this line do?
-            # HK: it skips instructions that are not in the same fence
+            # it skip instructions that are not in the same fence group
             if target.fence_id != inst.fence_id:
                 continue
             # REVIEW: I think it would be better to have an explicit step,
@@ -288,6 +286,7 @@ def _generate_evm_for_instruction_r(
             # HK: Indeed, this is eventualy the idea. Especialy now that I have
             #     implemented the "needs duplication" algorithm that needs the same
             #     traversal and it's duplicated
+            # REVIEW: OK. to discuss further offline
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack)
 
     if inst in visited_instructions:
