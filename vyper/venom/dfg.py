@@ -157,7 +157,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
             _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
 
         out_vars = bb.out_vars
-        for inst in bb.instructions[::-1]:
+        for inst in reversed(bb.instructions):
             for op in inst.get_inputs():
                 if op in out_vars:
                     inst.dup_requirements.add(op)

@@ -373,11 +373,12 @@ def _convert_ir_basicblock(
 
         if ir.value == "call":
             return ctx.append_instruction(
-                ir.value, [gas, address, value, argsOffsetVar, argsSize, retOffset, retSize][::-1]
+                ir.value,
+                reversed([gas, address, value, argsOffsetVar, argsSize, retOffset, retSize]),
             )
         else:
             return ctx.append_instruction(
-                ir.value, [gas, address, argsOffsetVar, argsSize, retOffset, retSize][::-1]
+                reversed(ir.value, [gas, address, argsOffsetVar, argsSize, retOffset, retSize]),
             )
     elif ir.value == "if":
         cond = ir.args[0]
@@ -896,7 +897,7 @@ def _convert_ir_basicblock(
             _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
             for arg in ir.args
         ]
-        inst = IRInstruction(ir.value, args[::-1])
+        inst = IRInstruction(ir.value, reversed(args))
         ctx.get_basic_block().append_instruction(inst)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols, variables, allocated_variables)

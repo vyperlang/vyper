@@ -41,7 +41,7 @@ class StackModel:
             or isinstance(op, list)
         ), f"get_depth_in takes IRValueBase or list, got '{op}'"
 
-        for i, stack_op in enumerate(self.stack[::-1]):
+        for i, stack_op in enumerate(reversed(self.stack)):
             if isinstance(stack_op, IRValueBase):
                 # REVIEW: handling literals this way seems a bit cursed,
                 # why not use IRLiteral, so it is always IRValueBase?
