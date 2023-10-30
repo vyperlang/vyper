@@ -425,7 +425,7 @@ def _convert_ir_basicblock(
             if_ret = ctx.get_next_variable()
             bb.append_instruction(
                 IRInstruction(
-                    "select",
+                    "phi",
                     [then_block.label, then_ret_val, else_block.label, else_ret_val],
                     if_ret,
                 )
@@ -441,7 +441,7 @@ def _convert_ir_basicblock(
                     if var.value == old_var.value:
                         allocated_variables[idx] = ret
             bb.append_instruction(
-                IRInstruction("select", [then_block.label, val[0], else_block.label, val[1]], ret)
+                IRInstruction("phi", [then_block.label, val[0], else_block.label, val[1]], ret)
             )
 
         if else_block.is_terminated is False:
@@ -811,7 +811,7 @@ def _convert_ir_basicblock(
         symbols[sym.value] = ret
         cond_block.append_instruction(
             IRInstruction(
-                "select",
+                "phi",
                 [entry_block.label, counter_var, increment_block.label, counter_inc_var],
                 ret,
             )
@@ -839,7 +839,7 @@ def _convert_ir_basicblock(
             replacements[val[1]] = new_var
             cond_block.insert_instruction(
                 IRInstruction(
-                    "select", [entry_block.label, val[0], increment_block.label, val[1]], new_var
+                    "phi", [entry_block.label, val[0], increment_block.label, val[1]], new_var
                 ),
                 1,
             )

@@ -125,7 +125,7 @@ def _compute_inst_dup_requirements_r(
         return
     visited.add(inst)
 
-    if inst.opcode == "select":
+    if inst.opcode == "phi":
         return
 
     for op in inst.get_input_operands():
@@ -272,14 +272,19 @@ def _generate_evm_for_instruction_r(
     for op in inst.get_output_operands():
         for target in ctx.dfg_inputs.get(op.value, []):
             # REVIEW: what does this line do?
+            # HK: it skips instructions that are not in the same basic block
+            #     so we don't cross basic block boundaries
             if target.parent != inst.parent:
                 continue
             # REVIEW: what does this line do?
+            # HK: it skips instructions that are not in the same fence
             if target.fence_id != inst.fence_id:
                 continue
             # REVIEW: I think it would be better to have an explicit step,
             # `reorder instructions per DFG`, and then `generate_evm_for_instruction`
             # does not need to recurse (or be co-recursive with `emit_input_operands`).
+            # HK: Indeed, this is eventualy the idea. Especialy now that I have implemented
+            #     the "needs duplication" algorithm that needs the same traversal and it's duplicated
             assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack_map)
 
     if inst in visited_instructions:
@@ -306,7 +311,7 @@ def _generate_evm_for_instruction_r(
     else:
         operands = inst.operands
 
-    if opcode == "select":  # REVIEW: maybe call this 'phi'
+    if opcode == "phi":
         ret = inst.get_output_operands()[0]
         inputs = inst.get_input_operands()
         # REVIEW: the special handling in get_depth_in for lists
@@ -392,7 +397,7 @@ def _generate_evm_for_instruction_r(
         assembly.append("JUMP")
     elif opcode == "return":
         assembly.append("RETURN")
-    elif opcode == "select":
+    elif opcode == "phi":
         pass
     elif opcode == "sha3":
         assembly.append("SHA3")

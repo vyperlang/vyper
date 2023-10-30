@@ -107,8 +107,6 @@ class IRInstruction:
     operands: list[IRValueBase]
     # REVIEW: rename to lhs?
     ret: Optional[IRValueBase]
-    # REVIEW: rename to source_info?
-    dbg: Optional[IRDebugInfo]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
@@ -231,11 +229,9 @@ class IRBasicBlock:
     label: IRLabel
     parent: "IRFunction"
     instructions: list[IRInstruction]
-    # REVIEW: "in_set" -> "cfg_in"
-    # (basic blocks which can jump to this basic block)
+    # basic blocks which can jump to this basic block
     cfg_in: OrderedSet["IRBasicBlock"]
-    # REVIEW: "out_set" -> "cfg_out"
-    # (basic blocks which this basic block can jump to)
+    # basic blocks which this basic block can jump to
     cfg_out: OrderedSet["IRBasicBlock"]
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
@@ -275,7 +271,8 @@ class IRBasicBlock:
         for inst in self.instructions:
             # REVIEW: might be nice if some of these instructions
             # were more structured.
-            if inst.opcode == "select":
+            # HK: Can you elaborate on this? I'm not sure what you mean.
+            if inst.opcode == "phi":
                 if inst.operands[0] == source.label:
                     liveness.add(inst.operands[1])
                     if inst.operands[3] in liveness:
@@ -304,7 +301,6 @@ class IRBasicBlock:
     def clear_instructions(self) -> None:
         self.instructions = []
 
-    # REVIEW: rename to replace_operands
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
@@ -318,6 +314,8 @@ class IRBasicBlock:
         Check if the basic block is terminal, i.e. the last instruction is a terminator.
         """
         # REVIEW: should this be an assert (like `is_terminal()`)?
+        # HK: I think it's fine to return False here, since we use this to check
+        #     if we can/needto append instructions to the basic block.
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in BB_TERMINATORS
