@@ -3,12 +3,6 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper.utils import OrderedSet
 
-
-# instructions which terminate instruction
-# REVIEW: this seems dead
-EXEC_TERMINATORS = ["return", "revert", "invalid", "stop"]
-
-
 # instructions which can terminate a basic block
 BB_TERMINATORS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
