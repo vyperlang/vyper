@@ -39,7 +39,35 @@ BINARY_IR_INSTRUCTIONS = [
     "signextend",
 ]
 
-MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
+# Instuctions that are mapped to their inverse
+INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
+
+# Instructions that have a direct EVM opcode equivalent and can
+# be passed through to the EVM assembly without special handling
+PASS_THROUGH_INSTRUCTIONS = [
+    "chainid",
+    "basefee",
+    "timestamp",
+    "caller",
+    "selfbalance",
+    "calldatasize",
+    "callvalue",
+    "address",
+    "origin",
+    "codesize",
+    "gas",
+    "gasprice",
+    "gaslimit",
+    "returndatasize",
+    "coinbase",
+    "number",
+    "iszero",
+    "ceil32",
+    "calldataload",
+    "extcodesize",
+    "extcodehash",
+    "balance",
+]
 
 SymbolTable = dict[str, IRValueBase]
 
@@ -253,36 +281,15 @@ def _convert_ir_basicblock(
             ctx, ir, symbols, variables, allocated_variables, ir.value in ["sha3_64"]
         )
 
-    elif ir.value in MAPPED_IR_INSTRUCTIONS:
+    elif ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
         org_value = ir.value
-        ir.value = MAPPED_IR_INSTRUCTIONS[ir.value]
+        ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols, variables, allocated_variables)
         ir.value = org_value
         return ctx.append_instruction("iszero", [new_var])
 
-    elif ir.value in ["iszero", "ceil32", "calldataload", "extcodesize", "extcodehash", "balance"]:
+    elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
-
-    # REVIEW: make this a global constant
-    elif ir.value in [
-        "chainid",
-        "basefee",
-        "timestamp",
-        "caller",
-        "selfbalance",
-        "calldatasize",
-        "callvalue",
-        "address",
-        "origin",
-        "codesize",
-        "gas",
-        "gasprice",
-        "gaslimit",
-        "returndatasize",
-        "coinbase",
-        "number",
-    ]:
-        return ctx.append_instruction(ir.value, [])
 
     elif ir.value in ["pass", "stop", "return"]:
         pass
