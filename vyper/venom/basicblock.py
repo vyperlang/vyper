@@ -6,6 +6,30 @@ from vyper.utils import OrderedSet
 # instructions which can terminate a basic block
 BB_TERMINATORS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
 
+VOLATILE_INSTRUCTIONS = [
+    "param",
+    "alloca",
+    "call",
+    "staticcall",
+    "invoke",
+    "sload",
+    "sstore",
+    "iload",
+    "istore",
+    "assert",
+    "mstore",
+    "mload",
+    "calldatacopy",
+    "codecopy",
+    "dloadbytes",
+    "dload",
+    "return",
+    "ret",
+    "jmp",
+    "jnz",
+]
+
+
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
@@ -83,6 +107,8 @@ class IRVariable(IRValueBase):
 
 class IRLabel(IRValueBase):
     # REVIEW: what do the values of is_symbol mean?
+    # HK: is_symbol is used to indicate if the label is a symbol coming from the initial IR. Like a function name,
+    #     that I try to preserve when optimizing so that the final IR is easier to read.
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -106,6 +132,7 @@ class IRInstruction:
     volatile: bool
     operands: list[IRValueBase]
     # REVIEW: rename to lhs?
+    # HK: Maybe outputs is better?
     ret: Optional[IRValueBase]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
@@ -121,29 +148,7 @@ class IRInstruction:
         ret: IRValueBase = None,
     ):
         self.opcode = opcode
-        # REVIEW nit: make this global definition
-        self.volatile = opcode in [
-            "param",
-            "alloca",
-            "call",
-            "staticcall",
-            "invoke",
-            "sload",
-            "sstore",
-            "iload",
-            "istore",
-            "assert",
-            "mstore",
-            "mload",
-            "calldatacopy",
-            "codecopy",
-            "dloadbytes",
-            "dload",
-            "return",
-            "ret",
-            "jmp",
-            "jnz",
-        ]
+        self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
         self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
         self.liveness = OrderedSet()
@@ -174,12 +179,13 @@ class IRInstruction:
         return [self.ret] if self.ret else []
 
     # REVIEW: use of `dict` here seems a bit weird (what is equality on operands?)
+    # HK: replacements happen "key" replaced by "value", dict is used as a way to represent this.
     def replace_operands(self, replacements: dict) -> None:
         """
         Update operands with replacements.
         """
         for i, operand in enumerate(self.operands):
-            if operand in replacements.keys():
+            if operand in replacements:
                 self.operands[i] = replacements[operand]
 
     def __repr__(self) -> str:
@@ -189,7 +195,10 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands[::-1]]
+            [
+                (f"label %{op}" if isinstance(op, IRLabel) else str(op))
+                for op in reversed(self.operands)
+            ]
         )
         s += operands
 
