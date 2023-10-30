@@ -90,8 +90,7 @@ class IRFunction:
         for bb in self.basic_blocks:
             if not bb.is_reachable and bb.label.value != "global":
                 for bb2 in bb.cfg_out:
-                    # REVIEW: use cfg_remove_in
-                    bb2.cfg_in.remove(bb)
+                    bb2.remove_cfg_in(bb)
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
