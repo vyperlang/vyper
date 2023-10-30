@@ -211,7 +211,7 @@ def _stack_duplications(
     for op in stack_ops:
         if op.is_literal or isinstance(op, IRLabel):
             continue
-        depth = stack.get_depth_in(op)
+        depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         if op in inst.dup_requirements:
             stack.dup(assembly, depth)
@@ -224,7 +224,7 @@ def _stack_reorder(assembly: list, stack: StackModel, stack_ops: list[IRValueBas
     for i in range(len(stack_ops)):
         op = stack_ops[i]
         final_stack_depth = -(len(stack_ops) - i - 1)
-        depth = stack.get_depth_in(op)
+        depth = stack.get_depth(op)
         assert depth is not StackModel.NOT_IN_STACK, f"{op} not in stack: {stack.stack}"
         if depth == final_stack_depth:
             continue
@@ -315,9 +315,7 @@ def _generate_evm_for_instruction_r(
     if opcode == "phi":
         ret = inst.get_outputs()[0]
         inputs = inst.get_inputs()
-        # REVIEW: the special handling in get_depth_in for lists
-        # seems cursed, refactor
-        depth = stack.get_depth_in(inputs)
+        depth = stack.get_shallowest_depth(inputs)
         assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack.peek(depth)
         if to_be_replaced in inst.dup_requirements:

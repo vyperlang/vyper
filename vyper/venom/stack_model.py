@@ -29,17 +29,14 @@ class StackModel:
     def pop(self, num: int = 1) -> None:
         del self.stack[len(self.stack) - num :]
 
-    def get_depth_in(self, op: IRValueBase | list[IRValueBase]) -> int:
+    def get_depth(self, op: IRValueBase | list[IRValueBase]) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
         assert (
-            isinstance(op, str)
-            or isinstance(op, int)
-            or isinstance(op, IRValueBase)
-            or isinstance(op, list)
-        ), f"get_depth_in takes IRValueBase or list, got '{op}'"
+            isinstance(op, str) or isinstance(op, int) or isinstance(op, IRValueBase)
+        ), f"get_depth takes IRValueBase or list, got '{op}'"
 
         for i, stack_op in enumerate(reversed(self.stack)):
             if isinstance(stack_op, IRValueBase):
@@ -51,9 +48,19 @@ class StackModel:
                     return -i
                 if isinstance(op, IRValueBase) and stack_op.value == op.value:
                     return -i
-                # REVIEW: this branch seems cursed
-                elif isinstance(op, list) and stack_op in op:
-                    return -i
+
+        return StackModel.NOT_IN_STACK
+
+    def get_shallowest_depth(self, ops: list[IRValueBase]) -> int:
+        """
+        Returns the depth of the first matching operand in the stack map.
+        If the none of the operands in is `ops` is in the stack, returns NOT_IN_STACK.
+        """
+        assert isinstance(ops, list), f"get_shallowest_depth takes list, got '{op}'"
+
+        for i, stack_op in enumerate(reversed(self.stack)):
+            if isinstance(stack_op, IRValueBase) and stack_op in ops:
+                return -i
 
         return StackModel.NOT_IN_STACK
 
