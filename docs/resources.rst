@@ -18,6 +18,7 @@ General
 Frameworks and tooling
 ----------------------
 
+- `Titanoboa – An experimental Vyper interpreter with pretty tracebacks, forking, debugging features and more <https://github.com/vyperlang/titanoboa/>`_
 - `ApeWorX – The Ethereum development framework for Python Developers, Data Scientists, and Security Professionals <https://www.apeworx.io/>`_
 - `VyperDeployer – A helper smart contract to compile and test Vyper contracts in Foundry <https://github.com/pcaversaccio/snekmate/blob/main/lib/utils/VyperDeployer.sol>`_
 - `🐍 snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_
