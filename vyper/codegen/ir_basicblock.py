@@ -325,14 +325,6 @@ class IRBasicBlock:
         for instruction in self.instructions:
             instruction.update_operands(replacements)
 
-    # REVIEW: this seems to be dead
-    def is_terminal(self) -> bool:
-        """
-        Check if the basic block is terminal, i.e. the last instruction is a terminator.
-        """
-        assert len(self.instructions) > 0, "basic block must have at least one instruction"
-        return self.instructions[-1].opcode in EXEC_TERMINATORS
-
     @property
     def is_terminated(self) -> bool:
         """

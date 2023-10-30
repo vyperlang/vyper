@@ -71,12 +71,6 @@ class IRFunction:
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
-    def DEAD_get_terminal_basicblocks(self) -> list[IRBasicBlock]:
-        """
-        Get basic blocks that contain label.
-        """
-        return [bb for bb in self.basic_blocks if bb.is_terminal()]
-
     def get_next_label(self) -> IRLabel:
         self.last_label += 1
         return IRLabel(f"{self.last_label}")
