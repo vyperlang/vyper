@@ -164,14 +164,13 @@ class IRInstruction:
         """
         return [op for op in self.operands if not isinstance(op, IRLabel)]
 
-    def get_input_operands(self) -> list[IRValueBase]:
+    def get_inputs(self) -> list[IRValueBase]:
         """
         Get all input operands for instruction.
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    # REVIEW suggestion: rename to `get_outputs`
-    def get_output_operands(self) -> list[IRValueBase]:
+    def get_outputs(self) -> list[IRValueBase]:
         return [self.ret] if self.ret else []
 
     # REVIEW: use of `dict` here seems a bit weird (what is equality on operands?)
@@ -326,13 +325,9 @@ class IRBasicBlock:
         """
         liveness = self.out_vars.copy()
         for instruction in reversed(self.instructions):
-            ops = instruction.get_input_operands()
+            ops = instruction.get_inputs()
             liveness = liveness.union(OrderedSet.fromkeys(ops))
-            out = (
-                instruction.get_output_operands()[0]
-                if len(instruction.get_output_operands()) > 0
-                else None
-            )
+            out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
             if out in liveness:
                 liveness.remove(out)
             instruction.liveness = liveness

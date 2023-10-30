@@ -83,14 +83,14 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
         for inst in bb.instructions:
             inst.dup_requirements = OrderedSet()
             inst.fence_id = -1
-            operands = inst.get_input_operands()
-            operands.extend(inst.get_output_operands())
+            operands = inst.get_inputs()
+            operands.extend(inst.get_outputs())
 
     # Build DFG
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
-            operands = inst.get_input_operands()
-            res = inst.get_output_operands()
+            operands = inst.get_inputs()
+            res = inst.get_outputs()
 
             for op in operands:
                 ctx.dfg_inputs[op.value] = (
@@ -112,7 +112,7 @@ def _compute_inst_dup_requirements_r(
     visited: OrderedSet,
     last_seen: dict,
 ) -> None:
-    for op in inst.get_output_operands():
+    for op in inst.get_outputs():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
                 # REVIEW: produced by parent.out_vars
@@ -128,13 +128,13 @@ def _compute_inst_dup_requirements_r(
     if inst.opcode == "phi":
         return
 
-    for op in inst.get_input_operands():
+    for op in inst.get_inputs():
         target = ctx.dfg_outputs[op.value]
         if target.parent != inst.parent:
             continue
         _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
 
-    for op in inst.get_input_operands():
+    for op in inst.get_inputs():
         target = last_seen.get(op.value, None)
         if target:
             target.dup_requirements.add(op)
@@ -158,7 +158,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
 
         out_vars = bb.out_vars
         for inst in bb.instructions[::-1]:
-            for op in inst.get_input_operands():
+            for op in inst.get_inputs():
                 if op in out_vars:
                     inst.dup_requirements.add(op)
 
@@ -269,7 +269,7 @@ def _generate_evm_for_instruction_r(
 ) -> list[str]:
     global label_counter
 
-    for op in inst.get_output_operands():
+    for op in inst.get_outputs():
         for target in ctx.dfg_inputs.get(op.value, []):
             # REVIEW: what does this line do?
             # HK: it skips instructions that are not in the same basic block
@@ -312,8 +312,8 @@ def _generate_evm_for_instruction_r(
         operands = inst.operands
 
     if opcode == "phi":
-        ret = inst.get_output_operands()[0]
-        inputs = inst.get_input_operands()
+        ret = inst.get_outputs()[0]
+        inputs = inst.get_inputs()
         # REVIEW: the special handling in get_depth_in for lists
         # seems cursed, refactor
         depth = stack_map.get_depth_in(inputs)
