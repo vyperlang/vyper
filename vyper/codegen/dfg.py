@@ -6,7 +6,7 @@ from vyper.codegen.ir_basicblock import (
     IRVariable,
 )
 from vyper.codegen.ir_function import IRFunction
-from vyper.compiler.utils import StackModel
+from vyper.venom.stack_model import StackModel
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 
