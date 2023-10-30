@@ -147,49 +147,25 @@ class UnaryOp(ExprNode):
 class Operator(VyperNode):
     _op: Callable = ...
 
-class USub(Operator):
-    pass
-
-class Not(Operator):
-    pass
+class USub(Operator): ...
+class Not(Operator): ...
 
 class BinOp(ExprNode):
     left: VyperNode = ...
     op: Operator = ...
     right: VyperNode = ...
 
-class Add(Operator):
-    pass
-
-class Sub(Operator):
-    pass
-
-class Mult(Operator):
-    pass
-
-class Div(Operator):
-    pass
-
-class Mod(Operator):
-    pass
-
-class Pow(Operator):
-    pass
-
-class LShift(Operator):
-    pass
-
-class RShift(Operator):
-    pass
-
-class BitAnd(Operator):
-    pass
-
-class BitOr(Operator):
-    pass
-
-class BitXor(Operator):
-    pass
+class Add(Operator): ...
+class Sub(Operator): ...
+class Mult(Operator): ...
+class Div(Operator): ...
+class Mod(Operator): ...
+class Pow(Operator): ...
+class LShift(Operator): ...
+class RShift(Operator): ...
+class BitAnd(Operator): ...
+class BitOr(Operator): ...
+class BitXor(Operator): ...
 
 class BoolOp(ExprNode):
     op: Operator = ...
@@ -203,29 +179,14 @@ class Compare(ExprNode):
     left: VyperNode = ...
     right: VyperNode = ...
 
-class Eq(Operator):
-    pass
-
-class NotEq(Operator):
-    pass
-
-class Lt(Operator):
-    pass
-
-class LtE(Operator):
-    pass
-
-class Gt(Operator):
-    pass
-
-class GtE(Operator):
-    pass
-
-class In(Operator):
-    pass
-
-class NotIn(Operator):
-    pass
+class Eq(Operator): ...
+class NotEq(Operator): ...
+class Lt(Operator): ...
+class LtE(Operator): ...
+class Gt(Operator): ...
+class GtE(Operator): ...
+class In(Operator): ...
+class NotIn(Operator): ...
 
 class Call(ExprNode):
     args: list = ...
