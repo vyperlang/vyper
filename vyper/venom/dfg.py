@@ -112,6 +112,8 @@ def calculate_dfg(ctx: IRFunction) -> None:
     _compute_dup_requirements(ctx)
 
 
+# REVIEW: i'm not sure this does the right thing if an operand is repeated
+# during an instruction. e.g., `add %15 %15`
 def _compute_dup_requirements(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         last_seen = dict()
