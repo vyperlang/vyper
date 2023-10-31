@@ -77,6 +77,7 @@ class StackModel:
         assembly.append(f"DUP{-(depth-1)}")
         self.stack.append(self.peek(depth))
 
+    # REVIEW: use positive indices (and hide the negation inside StackModel implementation)
     def swap(self, assembly: list[str], depth: int) -> None:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.

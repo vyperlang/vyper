@@ -113,6 +113,8 @@ def _compute_inst_dup_requirements_r(
     visited: OrderedSet,
     last_seen: dict,
 ) -> None:
+    # print("DUP REQUIREMENTS (inst)", inst)
+
     for op in inst.get_outputs():
         for target in ctx.dfg_inputs.get(op.value, []):
             if target.parent != inst.parent:
@@ -127,6 +129,7 @@ def _compute_inst_dup_requirements_r(
     visited.add(inst)
 
     if inst.opcode == "phi":
+        # special handling for phi downstream
         return
 
     for op in inst.get_inputs():
@@ -140,6 +143,11 @@ def _compute_inst_dup_requirements_r(
         if target:
             target.dup_requirements.add(op)
         last_seen[op.value] = inst
+
+    # for op in inst.get_inputs():
+    #     target = ctx.dfg_outputs[op.value]
+    #     if target.dup_requirements:
+    #         print("DUP REQUIREMENTS (target)", op, target.dup_requirements, target)
 
     return
 
@@ -337,10 +345,15 @@ def _generate_evm_for_instruction_r(
         target_stack = b.in_vars_from(inst.parent)
         _stack_reorder(assembly, stack, target_stack)
 
-    _stack_duplications(assembly, inst, stack, operands)
+    # print("pre-dups (inst)", inst.dup_requirements, stack.stack, inst)
 
-    # print("(inst)", inst)
+    # REVIEW: doing duplications and then reorder in
+    # separate steps can result in less optimal code
+    _stack_duplications(assembly, inst, stack, operands)
+    # print("post-dups (inst)", stack.stack, inst)
+
     _stack_reorder(assembly, stack, operands)
+    # print("post-reorder (inst)", stack.stack, inst)
 
     # Step 4: Push instruction's return value to stack
     stack.pop(len(operands))
