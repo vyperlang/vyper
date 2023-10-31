@@ -65,37 +65,32 @@ ONE_TO_ONE_INSTRUCTIONS = [
 
 # DataFlow Graph
 class DFG:
-    # REVIEW: dfg inputs is all, flattened inputs to a given variable
     _dfg_inputs: dict[IRVariable, list[IRInstruction]]
-    # REVIEW: dfg outputs is the instruction which produces a variable
+
     _dfg_outputs: dict[IRVariable, IRInstruction]
 
     def __init__(self):
         self._dfg_inputs = dict()
         self._dfg_outputs = dict()
 
+    # return all, flattened inputs to a given variable
     def get_inputs(self, op: IRVariable) -> list[IRInstruction]:
         return self._dfg_inputs.get(op, [])
 
-    def get_output(self, op: IRVariable) -> IRInstruction:
+    # the instruction which produces this variable.
+    def get_producing_instruction(self, op: IRVariable) -> IRInstruction:
         return self._dfg_outputs[op]
 
     @classmethod
     def from_ir_function(cls, ctx: IRFunction):
         dfg = cls()
 
-        for bb in ctx.basic_blocks:
-            for inst in bb.instructions:
-                inst.dup_requirements = OrderedSet()
-                inst.fence_id = -1
-                operands = inst.get_inputs()
-                operands.extend(inst.get_outputs())
-
         # Build DFG
+
+        # %15 = add %13 %14
+        # dfg_outputs of %15 is (%15 = add %13 %14)
+        # dfg_inputs of %15 is [(%13 = ...), (%14 = ...), ...<combined dfg_inputs of %13 and %14]
         for bb in ctx.basic_blocks:
-            # %15 = add %13 %14
-            # dfg_outputs of %15 is (%15 = add %13 %14)
-            # dfg_inputs of %15 is [(%13 = ...), (%14 = ...), ...<combined dfg_inputs of %13 and %14]
             for inst in bb.instructions:
                 operands = inst.get_inputs()
                 res = inst.get_outputs()
@@ -118,12 +113,17 @@ def calculate_dfg(ctx: IRFunction) -> None:
 
 
 def _compute_dup_requirements(ctx: IRFunction) -> None:
+    # recompute fences
+    # reset dup_requirements data structure
     fence_id = 0
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             inst.fence_id = fence_id
             if inst.volatile:
                 fence_id += 1
+
+            # reset dup_requirements
+            inst.dup_requirements = OrderedSet()
 
         visited = OrderedSet()
         last_seen = dict()
@@ -165,7 +165,7 @@ def _compute_inst_dup_requirements_r(
         return
 
     for op in inst.get_inputs():
-        target = dfg.get_output(op)
+        target = dfg.get_producing_instruction(op)
         if target.parent != inst.parent:
             continue
         _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
@@ -495,7 +495,7 @@ def _emit_input_operands(
             stack.push(op)
             continue
         # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op])
-        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg.get_output(op), stack))
+        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg.get_producing_instruction(op), stack))
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
