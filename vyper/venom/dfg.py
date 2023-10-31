@@ -94,14 +94,12 @@ def convert_ir_to_dfg(ctx: IRFunction) -> None:
             res = inst.get_outputs()
 
             for op in operands:
-                ctx.dfg_inputs[op.value] = (
-                    [inst]
-                    if ctx.dfg_inputs.get(op.value) is None
-                    else ctx.dfg_inputs[op.value] + [inst]
+                ctx.dfg_inputs[op] = (
+                    [inst] if ctx.dfg_inputs.get(op) is None else ctx.dfg_inputs[op] + [inst]
                 )
 
             for op in res:
-                ctx.dfg_outputs[op.value] = inst
+                ctx.dfg_outputs[op] = inst
 
     # Build DUP requirements
     _compute_dup_requirements(ctx)
@@ -116,7 +114,7 @@ def _compute_inst_dup_requirements_r(
     # print("DUP REQUIREMENTS (inst)", inst)
 
     for op in inst.get_outputs():
-        for target in ctx.dfg_inputs.get(op.value, []):
+        for target in ctx.dfg_inputs.get(op, []):
             if target.parent != inst.parent:
                 # REVIEW: produced by parent.out_vars
                 continue
@@ -133,7 +131,7 @@ def _compute_inst_dup_requirements_r(
         return
 
     for op in inst.get_inputs():
-        target = ctx.dfg_outputs[op.value]
+        target = ctx.dfg_outputs[op]
         if target.parent != inst.parent:
             continue
         _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
@@ -145,7 +143,7 @@ def _compute_inst_dup_requirements_r(
         last_seen[op.value] = inst
 
     # for op in inst.get_inputs():
-    #     target = ctx.dfg_outputs[op.value]
+    #     target = ctx.dfg_outputs[op]
     #     if target.dup_requirements:
     #         print("DUP REQUIREMENTS (target)", op, target.dup_requirements, target)
 
@@ -281,7 +279,7 @@ def _generate_evm_for_instruction_r(
     global label_counter
 
     for op in inst.get_outputs():
-        for target in ctx.dfg_inputs.get(op.value, []):
+        for target in ctx.dfg_inputs.get(op, []):
             # skip instructions that are not in the same basic block
             # so we don't cross basic block boundaries
             if target.parent != inst.parent:
@@ -482,8 +480,8 @@ def _emit_input_operands(
             assembly.extend([*PUSH(op.value)])
             stack.push(op)
             continue
-        # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op.value])
-        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op.value], stack))
+        # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op])
+        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op], stack))
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")

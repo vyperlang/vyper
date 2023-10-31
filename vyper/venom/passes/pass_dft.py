@@ -7,7 +7,7 @@ visited_instructions = OrderedSet()
 
 def _emit_operands_instruction(ctx: IRFunction, bb: IRBasicBlock, inst: IRInstruction) -> None:
     for op in inst.get_inputs():
-        target = ctx.dfg_outputs.get(op.value)
+        target = ctx.dfg_outputs.get(op)
         if target is None:
             continue
         _process_instruction(ctx, bb, target)
