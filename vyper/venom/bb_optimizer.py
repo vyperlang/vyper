@@ -2,6 +2,9 @@ from vyper.utils import OrderedSet, ir_pass
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRLabel
 from vyper.venom.function import IRFunction
 
+# maybe rename vyper.venom.passes.pass_dft to vyper.venom.passes.dft
+from vyper.venom.passes.pass_dft import DFTPass
+
 
 def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
     """
@@ -145,3 +148,10 @@ def ir_pass_remove_unreachable_blocks(ctx: IRFunction) -> int:
 @ir_pass
 def ir_pass_optimize_unused_variables(ctx: IRFunction) -> int:
     return _optimize_unused_variables(ctx)
+
+def ir_pass_dft(ctx: IRFunction) -> int:
+    """
+    Reorder instructions to move production of variables as close to use
+    as possible
+    """
+    return DFTPass.run_pass(ctx)

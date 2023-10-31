@@ -66,7 +66,6 @@ ONE_TO_ONE_INSTRUCTIONS = [
 # DataFlow Graph
 class DFG:
     _dfg_inputs: dict[IRVariable, list[IRInstruction]]
-
     _dfg_outputs: dict[IRVariable, IRInstruction]
 
     def __init__(self):
@@ -74,7 +73,7 @@ class DFG:
         self._dfg_outputs = dict()
 
     # return all, flattened inputs to a given variable
-    def get_inputs(self, op: IRVariable) -> list[IRInstruction]:
+    def get_uses(self, op: IRVariable) -> list[IRInstruction]:
         return self._dfg_inputs.get(op, [])
 
     # the instruction which produces this variable.
@@ -88,8 +87,9 @@ class DFG:
         # Build DFG
 
         # %15 = add %13 %14
+        # %16 = iszero %15
         # dfg_outputs of %15 is (%15 = add %13 %14)
-        # dfg_inputs of %15 is [(%13 = ...), (%14 = ...), ...<combined dfg_inputs of %13 and %14]
+        # dfg_inputs of %15 is all the instructions which *use* %15, ex. [(%16 = iszero %15), ...]
         for bb in ctx.basic_blocks:
             for inst in bb.instructions:
                 operands = inst.get_inputs()
@@ -143,17 +143,20 @@ def _compute_inst_dup_requirements_r(
     dfg: DFG,
     inst: IRInstruction,
     visited: OrderedSet,
-    last_seen: dict,
+    last_seen: dict[IRVariable, IRInstruction],
 ) -> None:
     # print("DUP REQUIREMENTS (inst)", inst)
 
+    # traverse down through the DFG
     for op in inst.get_outputs():
-        for target in dfg.get_inputs(op):
+        # print("USES OF", op)
+        for target in dfg.get_uses(op):
             if target.parent != inst.parent:
                 # REVIEW: produced by parent.out_vars
                 continue
             if target.fence_id != inst.fence_id:
                 continue
+            # print("(use)", target)
             _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
 
     if inst in visited:
@@ -164,6 +167,7 @@ def _compute_inst_dup_requirements_r(
         # special handling for phi downstream
         return
 
+    # traverse through dependencies of this instruction
     for op in inst.get_inputs():
         target = dfg.get_producing_instruction(op)
         if target.parent != inst.parent:
@@ -171,10 +175,10 @@ def _compute_inst_dup_requirements_r(
         _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
 
     for op in inst.get_inputs():
-        target = last_seen.get(op.value)
+        target = last_seen.get(op)
         if target:
             target.dup_requirements.add(op)
-        last_seen[op.value] = inst
+        last_seen[op] = inst
 
     # for op in inst.get_inputs():
     #     target = dfg.get_output(op)
@@ -293,7 +297,7 @@ def _generate_evm_for_instruction_r(
     global label_counter
 
     for op in inst.get_outputs():
-        for target in ctx.dfg.get_inputs(op):
+        for target in ctx.dfg.get_uses(op):
             # skip instructions that are not in the same basic block
             # so we don't cross basic block boundaries
             if target.parent != inst.parent:

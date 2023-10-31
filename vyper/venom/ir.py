@@ -9,6 +9,7 @@ from vyper.venom.bb_optimizer import (
     ir_pass_optimize_empty_blocks,
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
+    ir_pass_dft,
 )
 from vyper.venom.ir_to_bb_pass import convert_ir_basicblock
 from vyper.venom.dfg import calculate_dfg, generate_evm
@@ -43,7 +44,7 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
         calculate_dfg(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
-        # changes += ir_pass_dft(ctx)
+        changes += ir_pass_dft(ctx)
 
         calculate_cfg_in(ctx)
         calculate_liveness(ctx)
