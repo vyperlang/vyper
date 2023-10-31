@@ -176,7 +176,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    def get_outputs(self) -> list[IRValueBase]:
+    def get_outputs(self) -> list[IRVariable]:
         return [self.ret] if self.ret else []
 
     def replace_operands(self, replacements: dict) -> None:

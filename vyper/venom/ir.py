@@ -11,9 +11,15 @@ from vyper.venom.bb_optimizer import (
     ir_pass_remove_unreachable_blocks,
 )
 from vyper.venom.ir_to_bb_pass import convert_ir_basicblock
-from vyper.venom.dfg import convert_ir_to_dfg
+from vyper.venom.dfg import calculate_dfg, generate_evm
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.pass_constant_propagation import ir_pass_constant_propagation
+
+
+def generate_assembly_experimental(
+    ir: IRFunction, optimize: Optional[OptimizationLevel] = None
+) -> list[str]:
+    return generate_evm(ir, optimize is OptimizationLevel.NONE)
 
 
 def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
@@ -34,14 +40,14 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         calculate_cfg_in(ctx)
         calculate_liveness(ctx)
-        convert_ir_to_dfg(ctx)
+        calculate_dfg(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
         # changes += ir_pass_dft(ctx)
 
         calculate_cfg_in(ctx)
         calculate_liveness(ctx)
-        convert_ir_to_dfg(ctx)
+        calculate_dfg(ctx)
 
         if changes == 0:
             break

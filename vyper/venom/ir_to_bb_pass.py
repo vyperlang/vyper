@@ -15,7 +15,6 @@ from vyper.venom.basicblock import (
     IRVariable,
     MemType,
 )
-from vyper.venom.dfg import generate_evm
 from vyper.venom.function import IRFunction
 
 BINARY_IR_INSTRUCTIONS = [
@@ -83,13 +82,6 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
             continue
         ret[k] = a[k], b[k]
     return ret
-
-
-def generate_assembly_experimental(
-    ir: IRnode, optimize: Optional[OptimizationLevel] = None
-) -> list[str]:
-    return generate_evm(ir, optimize is OptimizationLevel.NONE)
-
 
 def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))

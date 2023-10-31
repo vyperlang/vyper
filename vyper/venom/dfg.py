@@ -63,50 +63,84 @@ ONE_TO_ONE_INSTRUCTIONS = [
 ]
 
 
-class DFGNode:
-    value: IRInstruction | IRValueBase
-    predecessors: list["DFGNode"]
-    successors: list["DFGNode"]
-
-    def __init__(self, value: IRInstruction | IRValueBase):
-        self.value = value
-        self.predecessors = []
-        self.successors = []
-
-
-def convert_ir_to_dfg(ctx: IRFunction) -> None:
-    # Reset DFG
+# DataFlow Graph
+class DFG:
     # REVIEW: dfg inputs is all, flattened inputs to a given variable
-    ctx.dfg_inputs = dict()
+    _dfg_inputs: dict[IRVariable, list[IRInstruction]]
     # REVIEW: dfg outputs is the instruction which produces a variable
-    ctx.dfg_outputs = dict()
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            inst.dup_requirements = OrderedSet()
-            inst.fence_id = -1
-            operands = inst.get_inputs()
-            operands.extend(inst.get_outputs())
+    _dfg_outputs: dict[IRVariable, IRInstruction]
 
-    # Build DFG
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            operands = inst.get_inputs()
-            res = inst.get_outputs()
+    def __init__(self):
+        self._dfg_inputs = dict()
+        self._dfg_outputs = dict()
 
-            for op in operands:
-                ctx.dfg_inputs[op] = (
-                    [inst] if ctx.dfg_inputs.get(op) is None else ctx.dfg_inputs[op] + [inst]
-                )
+    def get_inputs(self, op: IRVariable) -> list[IRInstruction]:
+        return self._dfg_inputs.get(op, [])
 
-            for op in res:
-                ctx.dfg_outputs[op] = inst
+    def get_output(self, op: IRVariable) -> IRInstruction:
+        return self._dfg_outputs[op]
 
-    # Build DUP requirements
+    @classmethod
+    def from_ir_function(cls, ctx: IRFunction):
+        dfg = cls()
+
+        for bb in ctx.basic_blocks:
+            for inst in bb.instructions:
+                inst.dup_requirements = OrderedSet()
+                inst.fence_id = -1
+                operands = inst.get_inputs()
+                operands.extend(inst.get_outputs())
+
+        # Build DFG
+        for bb in ctx.basic_blocks:
+            # %15 = add %13 %14
+            # dfg_outputs of %15 is (%15 = add %13 %14)
+            # dfg_inputs of %15 is [(%13 = ...), (%14 = ...), ...<combined dfg_inputs of %13 and %14]
+            for inst in bb.instructions:
+                operands = inst.get_inputs()
+                res = inst.get_outputs()
+
+                for op in operands:
+                    inputs = dfg._dfg_inputs.setdefault(op, [])
+                    inputs.append(inst)
+
+                for op in res:
+                    dfg._dfg_outputs[op] = inst
+
+        return dfg
+
+
+def calculate_dfg(ctx: IRFunction) -> None:
+    dfg = DFG.from_ir_function(ctx)
+    ctx.dfg = dfg
+
     _compute_dup_requirements(ctx)
 
 
+def _compute_dup_requirements(ctx: IRFunction) -> None:
+    fence_id = 0
+    for bb in ctx.basic_blocks:
+        for inst in bb.instructions:
+            inst.fence_id = fence_id
+            if inst.volatile:
+                fence_id += 1
+
+        visited = OrderedSet()
+        last_seen = dict()
+
+        dfg = ctx.dfg
+        for inst in bb.instructions:
+            _compute_inst_dup_requirements_r(dfg, inst, visited, last_seen)
+
+        out_vars = bb.out_vars
+        for inst in reversed(bb.instructions):
+            for op in inst.get_inputs():
+                if op in out_vars:
+                    inst.dup_requirements.add(op)
+
+
 def _compute_inst_dup_requirements_r(
-    ctx: IRFunction,
+    dfg: DFG,
     inst: IRInstruction,
     visited: OrderedSet,
     last_seen: dict,
@@ -114,13 +148,13 @@ def _compute_inst_dup_requirements_r(
     # print("DUP REQUIREMENTS (inst)", inst)
 
     for op in inst.get_outputs():
-        for target in ctx.dfg_inputs.get(op, []):
+        for target in dfg.get_inputs(op):
             if target.parent != inst.parent:
                 # REVIEW: produced by parent.out_vars
                 continue
             if target.fence_id != inst.fence_id:
                 continue
-            _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
+            _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
 
     if inst in visited:
         return
@@ -131,49 +165,29 @@ def _compute_inst_dup_requirements_r(
         return
 
     for op in inst.get_inputs():
-        target = ctx.dfg_outputs[op]
+        target = dfg.get_output(op)
         if target.parent != inst.parent:
             continue
-        _compute_inst_dup_requirements_r(ctx, target, visited, last_seen)
+        _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
 
     for op in inst.get_inputs():
-        target = last_seen.get(op.value, None)
+        target = last_seen.get(op.value)
         if target:
             target.dup_requirements.add(op)
         last_seen[op.value] = inst
 
     # for op in inst.get_inputs():
-    #     target = ctx.dfg_outputs[op]
+    #     target = dfg.get_output(op)
     #     if target.dup_requirements:
     #         print("DUP REQUIREMENTS (target)", op, target.dup_requirements, target)
-
-    return
-
-
-def _compute_dup_requirements(ctx: IRFunction) -> None:
-    fen = 0
-    for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            inst.fence_id = fen
-            if inst.volatile:
-                fen += 1
-
-        visited = OrderedSet()
-        last_seen = dict()
-        for inst in bb.instructions:
-            _compute_inst_dup_requirements_r(ctx, inst, visited, last_seen)
-
-        out_vars = bb.out_vars
-        for inst in reversed(bb.instructions):
-            for op in inst.get_inputs():
-                if op in out_vars:
-                    inst.dup_requirements.add(op)
 
 
 visited_instructions = None  # {IRInstruction}
 visited_basicblocks = None  # {IRBasicBlock}
 
 
+# REVIEW: might be cleaner if evm generation were separate from DFG computation
+# (but i can see why it was done this way)
 def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     global visited_instructions, visited_basicblocks
     asm = []
@@ -254,11 +268,11 @@ def _generate_evm_for_basicblock_r(
     asm.append(f"_sym_{basicblock.label}")
     asm.append("JUMPDEST")
 
-    fen = 0
+    fence_id = 0
     for inst in basicblock.instructions:
-        inst.fence_id = fen
+        inst.fence_id = fence_id
         if inst.volatile:
-            fen += 1
+            fence_id += 1
 
     for inst in basicblock.instructions:
         asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack)
@@ -279,7 +293,7 @@ def _generate_evm_for_instruction_r(
     global label_counter
 
     for op in inst.get_outputs():
-        for target in ctx.dfg_inputs.get(op, []):
+        for target in ctx.dfg.get_inputs(op):
             # skip instructions that are not in the same basic block
             # so we don't cross basic block boundaries
             if target.parent != inst.parent:
@@ -481,7 +495,7 @@ def _emit_input_operands(
             stack.push(op)
             continue
         # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op])
-        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg_outputs[op], stack))
+        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg.get_output(op), stack))
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")

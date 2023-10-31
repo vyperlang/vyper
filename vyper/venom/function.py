@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -19,10 +19,10 @@ class IRFunction:
     args: list
     basic_blocks: list[IRBasicBlock]
     data_segment: list[IRInstruction]
-    dfg_inputs = dict[str, IRInstruction]
-    dfg_outputs = dict[str, IRInstruction]
     last_label: int
     last_variable: int
+
+    dfg: Any = None  # dfg will be added in convert_ir_to_dfg pass
 
     def __init__(self, name: IRLabel) -> None:
         self.name = name
