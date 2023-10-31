@@ -575,6 +575,30 @@ struct C:
 def foo():
     bar: C = C({a: 1, b: block.timestamp})
     """,
+    """
+struct X:
+    balance: uint256
+    codesize: uint256
+    is_contract: bool
+    codehash: bytes32
+    code: Bytes[32]
+
+@external
+def foo():
+    x: X = X({
+        balance: 123,
+        codesize: 456,
+        is_contract: False,
+        codehash: empty(bytes32),
+        code: empty(Bytes[32])
+    })
+
+    a: uint256 = x.balance
+    b: uint256 = x.codesize
+    c: bool = x.is_contract
+    d: bytes32 = x.codehash
+    e: Bytes[32] = x.code
+    """,
 ]
 
 
