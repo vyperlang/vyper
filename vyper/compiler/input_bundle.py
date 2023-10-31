@@ -1,5 +1,5 @@
 import contextlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
@@ -30,22 +30,24 @@ class _NotFound(Exception):
     pass
 
 
-@dataclass
 class InputBundle:
     search_paths: list[Path]
     # compilation_targets: dict[str, str]  # contract names => contract sources
-    source_id_counter = 0
-    source_ids: dict[Path, int] = field(default_factory=dict)
+
+    def __init__(self, search_paths):
+        self.search_paths = search_paths
+        self._source_id_counter = 0
+        self._source_ids: dict[Path, int] = {}
 
     def _load_from_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
     def _generate_source_id(self, path: Path) -> int:
-        if path not in self.source_ids:
-            self.source_ids[path] = self.source_id_counter
-            self.source_id_counter += 1
+        if path not in self._source_ids:
+            self._source_ids[path] = self._source_id_counter
+            self._source_id_counter += 1
 
-        return self.source_ids[path]
+        return self._source_ids[path]
 
     def load_file(self, path: Path) -> str:
         for p in self.search_paths:
@@ -86,7 +88,6 @@ class InputBundle:
 
 # regular input. takes a search path(s), and `load_file()` will search all
 # search paths for the file and read it from the filesystem
-@dataclass
 class FilesystemInputBundle(InputBundle):
     def _load_from_path(self, path: Path) -> CompilerInput:
         try:
@@ -102,9 +103,12 @@ class FilesystemInputBundle(InputBundle):
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
 # "reads" the file from the JSON input. Note that this input bundle type
 # never actually interacts with the filesystem -- it is guaranteed to be pure!
-@dataclass
 class JSONInputBundle(InputBundle):
     input_json: dict[PurePath, Any]
+
+    def __init__(self, search_paths, input_json):
+        super().__init__(search_paths)
+        self.input_json = input_json
 
     def _load_from_path(self, path: PurePath) -> CompilerInput:
         try:

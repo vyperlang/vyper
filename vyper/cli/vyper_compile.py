@@ -236,7 +236,7 @@ def compile_files(
     contract_sources: ContractCodes = dict()
     for file_name in input_files:
         file_path = Path(file_name)
-        contract_sources[file_path] = input_bundle.load_file(Path(file_path))
+        contract_sources[file_path] = input_bundle.load_file(Path(file_path)).source_code
 
     storage_layouts = dict()
     if storage_layout:

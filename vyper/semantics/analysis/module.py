@@ -6,7 +6,7 @@ from typing import Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import InputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
@@ -317,7 +317,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-
         type_ = self._load_import(level, qualified_module_name)
 
         try:
@@ -352,11 +351,14 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
         base_path = "./"
     return PurePath(f"{base_path}{module_str.replace('.','/')}/")
 
+
 # can add more, e.g. "vyper.builtins.interfaces", etc.
 BUILTIN_PREFIXES = ["vyper.interfaces"]
 
+
 def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
+
 
 def _load_builtin_import(level: int, module_str: str):
     if not _is_builtin(module_str):
@@ -367,10 +369,10 @@ def _load_builtin_import(level: int, module_str: str):
 
     # remap builtins directory --
     # vyper/interfaces => vyper/builtins/interfaces
-    module_str = (
-        vyper.builtins.interfaces.__package__
-        + qualified_module_name.removeprefix(INTERFACES_PATH)
-    )
+    if module_str.startswith("vyper.interfaces"):
+        module_str = vyper.builtins.interfaces.__package__ + module_str.removeprefix(
+            "vyper.interfaces"
+        )
     path = _import_to_path(level, module_str).with_suffix(".vy")
 
     try:
