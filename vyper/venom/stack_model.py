@@ -87,7 +87,7 @@ class StackModel:
 
         assert depth < 0, "Cannot swap positive depth"
         assembly.append(f"SWAP{-depth}")
-        self.stack[depth - 1], self.stack[-1] = (
-            self.stack[-1],
-            self.stack[depth - 1],
-        )
+        top = self.stack[-1]
+        self.stack[-1] = self.stack[depth - 1]
+        self.stack[depth - 1] = top
+    # REVIEW: maybe have a convenience function which swaps depth1 and depth2
