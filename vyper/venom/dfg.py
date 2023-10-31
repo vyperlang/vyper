@@ -266,6 +266,7 @@ label_counter = 0
 
 
 # REVIEW: would this be better as a class?
+# HK: Let's consider it after the pass_dft refactor
 def _generate_evm_for_instruction_r(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack: StackModel
 ) -> list[str]:
