@@ -2,7 +2,6 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
-from vyper.ast.pre_typecheck import prefold
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -358,7 +357,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 validate_expected_type(n, IntegerT.any())
 
                 if bound is None:
-                    n_val = prefold(n)
+                    n_val = n._metadata.get("folded_value")
                     if not isinstance(n_val, int):
                         raise StateAccessViolation("Value must be a literal integer", n)
                     if n_val <= 0:
@@ -366,7 +365,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_possible_types_from_node(n)
 
                 else:
-                    bound_val = prefold(bound)
+                    bound_val = bound._metadata.get("folded_value")
                     if bound_val is None:
                         raise StateAccessViolation("bound must be a literal", bound)
                     if bound_val <= 0:
@@ -383,7 +382,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
-                arg0_val = prefold(args[0])
+                arg0_val = args[0]._metadata.get("folded_value")
                 if not isinstance(arg0_val, int):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
@@ -397,7 +396,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             "First and second variable must be the same", args[1].left
                         )
 
-                    right_val = prefold(args[1].right)
+                    right_val = args[1].right._metadata.get("folded_value")
                     if not isinstance(right_val, int):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
                     if right_val < 1:
@@ -408,7 +407,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    arg1_val = prefold(args[1])
+                    arg1_val = args[1]._metadata.get("folded_value")
                     if not isinstance(arg1_val, int):
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
@@ -420,7 +419,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            iter_ = prefold(node.iter)
+            iter_ = node.iter._metadata.get("folded_value")
             if isinstance(iter_, list) and len(iter_) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 

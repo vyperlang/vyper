@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.ast.pre_typecheck import prefold
 from vyper.exceptions import ArrayIndexException, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
@@ -129,7 +128,7 @@ class _SequenceT(_SubscriptableT):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        index_val = prefold(node)
+        index_val = node._metadata.get("folded_value")
         if isinstance(index_val, int):
             if index_val < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
@@ -287,7 +286,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        max_length = prefold(node.slice.value.elements[1])
+        max_length = node.slice.value.elements[1]._metadata.get("folded_value")
         if not isinstance(max_length, int):
             raise StructureException(
                 "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node

@@ -2,7 +2,6 @@ import itertools
 from typing import Callable, List
 
 from vyper import ast as vy_ast
-from vyper.ast.pre_typecheck import prefold
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -644,7 +643,7 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
-    if prefold(node) is not None:
+    if node._metadata.get("folded_value") is not None:
         return True
     if isinstance(node, vy_ast.Call):
         call_type = get_exact_type_from_node(node.func)

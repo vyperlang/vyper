@@ -411,6 +411,10 @@ class VyperNode:
         if "type" in self._metadata:
             ast_dict["type"] = str(self._metadata["type"])
 
+        folded_value = self._metadata.get("folded_value")
+        if folded_value is not None:
+            ast_dict["folded_value"] = str(self._metadata["folded_value"])
+
         return ast_dict
 
     def get_ancestor(self, node_type: Union["VyperNode", tuple, None] = None) -> "VyperNode":

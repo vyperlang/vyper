@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.ast.pre_typecheck import prefold
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
@@ -56,35 +55,6 @@ def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
     return None
 
 
-def _add_constants_to_namespace(module_nodes: list[vy_ast.VyperNode], ns: Namespace) -> None:
-    const_var_decls = [
-        n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
-    ]
-
-    while const_var_decls:
-        derived_nodes = 0
-
-        for c in const_var_decls:
-            name = c.get("target.id")
-            # Handle syntax errors downstream
-            if c.value is None:
-                continue
-
-            val = prefold(c.value)
-
-            # note that if a constant is redefined, its value will be overwritten,
-            # but it is okay because the syntax error is handled downstream
-            if val is not None:
-                ns.add_constant(name, val)
-                derived_nodes += 1
-                const_var_decls.remove(c)
-
-        if not derived_nodes:
-            break
-
-    return
-
-
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
@@ -97,9 +67,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # TODO: Move computation out of constructor
         module_nodes = module_node.body.copy()
-
-        _add_constants_to_namespace(module_nodes, namespace)
-
         while module_nodes:
             count = len(module_nodes)
             err_list = ExceptionList()
@@ -130,7 +97,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # note that we don't just copy the namespace because
         # there are constructor issues.
         _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
-        _ns._constants = self.namespace._constants  # type: ignore
         module_node._metadata["namespace"] = _ns
 
         self_members = namespace["self"].typ.members

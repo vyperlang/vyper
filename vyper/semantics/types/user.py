@@ -16,6 +16,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.analysis.pre_typecheck import pre_typecheck
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
@@ -428,6 +429,7 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
+        pre_typecheck(node)
         if isinstance(node, vy_ast.Module):
             members, events = _get_module_definitions(node)
         elif isinstance(node, vy_ast.InterfaceDef):

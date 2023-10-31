@@ -1,5 +1,4 @@
 from vyper import ast as vy_ast
-from vyper.ast.pre_typecheck import prefold
 from vyper.exceptions import ArrayIndexException, InstantiationException, InvalidType, UnknownType
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
@@ -140,7 +139,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    val = prefold(node.value)
+    val = node.value._metadata.get("folded_value")
 
     if not isinstance(val, int):
         raise InvalidType("Subscript must be a literal integer", node)

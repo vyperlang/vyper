@@ -13,14 +13,11 @@ class Namespace(dict):
     ----------
     _scopes : list[set]
         List of sets containing the key names for each scope
-    _constants: dict
-        Set containing user-defined constants and their values
     """
 
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
-        self._constants = {}
         return self
 
     def __init__(self):
@@ -77,8 +74,6 @@ class Namespace(dict):
         if len(self._scopes) == 1:
             # add mutable vars (`self`) to the initial scope
             self.update(environment.get_mutable_vars())
-            # reset constants
-            self._constants = {}
 
         return self
 
@@ -88,7 +83,6 @@ class Namespace(dict):
 
     def clear(self):
         super().clear()
-        self._constants.clear()
         self.__init__()
 
     def validate_assignment(self, attr):
@@ -97,9 +91,6 @@ class Namespace(dict):
         if attr in self:
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
-
-    def add_constant(self, name, value):
-        self._constants[name] = value
 
 
 def get_namespace():

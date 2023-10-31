@@ -1,7 +1,6 @@
 import functools
 from typing import Dict
 
-from vyper.ast.pre_typecheck import prefold
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
@@ -104,7 +103,7 @@ class BuiltinFunction(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            is_literal_value = prefold(kwarg.value) is not None
+            is_literal_value = kwarg.value._metadata.get("folded_value") is not None
 
             if kwarg_settings.require_literal and not is_literal_value:
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
