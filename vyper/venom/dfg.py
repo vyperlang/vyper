@@ -131,11 +131,6 @@ def _compute_inst_dup_requirements_r(
             target.dup_requirements.add(op)
         last_seen[op.value] = inst
 
-    # for op in inst.get_inputs():
-    #     target = ctx.dfg_outputs[op]
-    #     if target.dup_requirements:
-    #         print("DUP REQUIREMENTS (target)", op, target.dup_requirements, target)
-
     return
 
 
