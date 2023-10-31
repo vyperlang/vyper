@@ -63,17 +63,6 @@ ONE_TO_ONE_INSTRUCTIONS = [
 ]
 
 
-class DFGNode:
-    value: IRInstruction | IRValueBase
-    predecessors: list["DFGNode"]
-    successors: list["DFGNode"]
-
-    def __init__(self, value: IRInstruction | IRValueBase):
-        self.value = value
-        self.predecessors = []
-        self.successors = []
-
-
 def convert_ir_to_dfg(ctx: IRFunction) -> None:
     # Reset DFG
     # REVIEW: dfg inputs is all, flattened inputs to a given variable
