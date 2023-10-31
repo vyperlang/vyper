@@ -317,18 +317,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        builtins_path = Path(vyper.builtins.interfaces.__path__[0]).parent.parent.parent
 
-        INTERFACES_PATH = "vyper.interfaces"
-        if qualified_module_name.startswith(INTERFACES_PATH):
-            # remap builtins directory
-            qualified_module_name = (
-                vyper.builtins.interfaces.__package__
-                + qualified_module_name.removeprefix(INTERFACES_PATH)
-            )
-
-        with self.input_bundle.search_path(builtins_path):
-            type_ = self._load_import(level, qualified_module_name)
+        type_ = self._load_import(level, qualified_module_name)
 
         try:
             self.namespace[alias] = type_
@@ -336,8 +326,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             raise exc.with_annotation(node) from None
 
     # load an InterfaceT from an import
-    def _load_import(self, level: int, module: str) -> InterfaceT:
-        path = _import_to_path(level, module)
+    def _load_import(self, level: int, module_str: str) -> InterfaceT:
+        try:
+            return _load_builtin_import(level, module_str)
+        except ModuleNotFoundError:
+            pass
+
+        path = _import_to_path(level, module_str)
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
             interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
@@ -349,13 +344,42 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 # convert an import to a path (without suffix)
-def _import_to_path(level: int, module: str) -> PurePath:
+def _import_to_path(level: int, module_str: str) -> PurePath:
     base_path = ""
     if level > 1:
         base_path = "../" * (level - 1)
     elif level == 1:
         base_path = "./"
-    return PurePath(f"{base_path}{module.replace('.','/')}/")
+    return PurePath(f"{base_path}{module_str.replace('.','/')}/")
+
+# can add more, e.g. "vyper.builtins.interfaces", etc.
+BUILTIN_PREFIXES = ["vyper.interfaces"]
+
+def _is_builtin(module_str):
+    return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
+
+def _load_builtin_import(level: int, module_str: str):
+    if not _is_builtin(module_str):
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+
+    search_path = Path(vyper.builtins.interfaces.__path__[0]).parent.parent.parent
+    input_bundle = FilesystemInputBundle([search_path])
+
+    # remap builtins directory --
+    # vyper/interfaces => vyper/builtins/interfaces
+    module_str = (
+        vyper.builtins.interfaces.__package__
+        + qualified_module_name.removeprefix(INTERFACES_PATH)
+    )
+    path = _import_to_path(level, module_str).with_suffix(".vy")
+
+    try:
+        file = input_bundle.load_file(path)
+    except FileNotFoundError:
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+
+    interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
+    return InterfaceT.from_ast(interface_ast)
 
 
 def _get_builtin_interfaces():
