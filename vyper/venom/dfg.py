@@ -113,78 +113,22 @@ def calculate_dfg(ctx: IRFunction) -> None:
 
 
 def _compute_dup_requirements(ctx: IRFunction) -> None:
-    # recompute fences
-    # reset dup_requirements data structure
-    fence_id = 0
     for bb in ctx.basic_blocks:
-        for inst in bb.instructions:
-            inst.fence_id = fence_id
-            if inst.volatile:
-                fence_id += 1
+        last_seen = dict()
 
+        for inst in bb.instructions:
             # reset dup_requirements
             inst.dup_requirements = OrderedSet()
 
-        visited = OrderedSet()
-        last_seen = dict()
-
-        dfg = ctx.dfg
-        for inst in bb.instructions:
-            _compute_inst_dup_requirements_r(dfg, inst, visited, last_seen)
-
-        out_vars = bb.out_vars
-        for inst in reversed(bb.instructions):
             for op in inst.get_inputs():
-                if op in out_vars:
+                if op in last_seen:
+                    target = last_seen[op]
+                    target.dup_requirements.add(op)
+
+                last_seen[op] = inst
+
+                if op in bb.out_vars:
                     inst.dup_requirements.add(op)
-
-
-def _compute_inst_dup_requirements_r(
-    dfg: DFG,
-    inst: IRInstruction,
-    visited: OrderedSet,
-    last_seen: dict[IRVariable, IRInstruction],
-) -> None:
-    # print("DUP REQUIREMENTS (inst)", inst)
-
-    # traverse down through the DFG
-    for op in inst.get_outputs():
-        # print("USES OF", op)
-        for target in dfg.get_uses(op):
-            if target.parent != inst.parent:
-                # REVIEW: produced by parent.out_vars
-                continue
-            if target.fence_id != inst.fence_id:
-                continue
-            # print("(use)", target)
-            _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
-
-    if inst in visited:
-        return
-    visited.add(inst)
-
-    if inst.opcode == "phi":
-        # special handling for phi downstream
-        return
-
-    # traverse through dependencies of this instruction
-    for op in inst.get_inputs():
-        target = dfg.get_producing_instruction(op)
-        if target.parent != inst.parent:
-            continue
-        _compute_inst_dup_requirements_r(dfg, target, visited, last_seen)
-
-    for op in inst.get_inputs():
-        target = last_seen.get(op)
-        if target:
-            target.dup_requirements.add(op)
-        last_seen[op] = inst
-
-    # for op in inst.get_inputs():
-    #     target = dfg.get_output(op)
-    #     if target.dup_requirements:
-    #         print("DUP REQUIREMENTS (target)", op, target.dup_requirements, target)
-
 
 visited_instructions = None  # {IRInstruction}
 visited_basicblocks = None  # {IRBasicBlock}
@@ -229,21 +173,10 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     return asm
 
 
-def _stack_duplications(
-    assembly: list, inst: IRInstruction, stack: StackModel, stack_ops: list[IRValueBase]
-) -> None:
-    for op in stack_ops:
-        if op.is_literal or isinstance(op, IRLabel):
-            continue
-        depth = stack.get_depth(op)
-        assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
-        if op in inst.dup_requirements:
-            stack.dup(assembly, depth)
-
-
 def _stack_reorder(assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVariable]) -> None:
     # make a list so we can index it
     stack_ops = [x for x in stack_ops]
+
     # print("ENTER reorder", stack.stack, operands)
     # start_len = len(assembly)
     for i in range(len(stack_ops)):
@@ -262,6 +195,36 @@ def _stack_reorder(assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVa
     # print("EXIT reorder", stack.stack, stack_ops)
 
 
+def _emit_input_operands(
+    ctx: IRFunction,
+    assembly: list,
+    inst: IRInstruction,
+    ops: list[IRValueBase],
+    stack: StackModel,
+):
+    # print("EMIT INPUTS FOR", inst)
+    for op in ops:
+        if isinstance(op, IRLabel):
+            # invoke emits the actual instruction itself so we don't need to emit it here
+            # but we need to add it to the stack map
+            if inst.opcode != "invoke":
+                assembly.append(f"_sym_{op.value}")
+            stack.push(op)
+            continue
+        if op.is_literal:
+            assembly.extend([*PUSH(op.value)])
+            stack.push(op)
+            continue
+
+        if op in inst.dup_requirements:
+            depth = stack.get_depth(op)
+            assert depth is not StackModel.NOT_IN_STACK
+            stack.dup(assembly, depth)
+
+        if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
+            assembly.extend([*PUSH(op.mem_addr)])
+            assembly.append("MLOAD")
+
 def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel
 ):
@@ -272,14 +235,8 @@ def _generate_evm_for_basicblock_r(
     asm.append(f"_sym_{basicblock.label}")
     asm.append("JUMPDEST")
 
-    fence_id = 0
     for inst in basicblock.instructions:
-        inst.fence_id = fence_id
-        if inst.volatile:
-            fence_id += 1
-
-    for inst in basicblock.instructions:
-        asm = _generate_evm_for_instruction_r(ctx, asm, inst, stack)
+        asm = _generate_evm_for_instruction(ctx, asm, inst, stack)
 
     for bb in basicblock.cfg_out:
         _generate_evm_for_basicblock_r(ctx, asm, bb, stack.copy())
@@ -291,34 +248,10 @@ label_counter = 0
 
 # REVIEW: would this be better as a class?
 # HK: Let's consider it after the pass_dft refactor
-def _generate_evm_for_instruction_r(
+def _generate_evm_for_instruction(
     ctx: IRFunction, assembly: list, inst: IRInstruction, stack: StackModel
 ) -> list[str]:
     global label_counter
-
-    for op in inst.get_outputs():
-        for target in ctx.dfg.get_uses(op):
-            # skip instructions that are not in the same basic block
-            # so we don't cross basic block boundaries
-            if target.parent != inst.parent:
-                continue
-            # it skip instructions that are not in the same fence group
-            if target.fence_id != inst.fence_id:
-                continue
-            # REVIEW: I think it would be better to have an explicit step,
-            # `reorder instructions per DFG`, and then `generate_evm_for_instruction`
-            # does not need to recurse (or be co-recursive with `emit_input_operands`).
-            # HK: Indeed, this is eventualy the idea. Especialy now that I have
-            #     implemented the "needs duplication" algorithm that needs the same
-            #     traversal and it's duplicated
-            # REVIEW: OK. to discuss further offline
-            assembly.extend(_generate_evm_for_instruction_r(ctx, [], target, stack))
-
-    if inst in visited_instructions:
-        # print("seen:", inst)
-        return assembly
-    visited_instructions.add(inst)
-
     opcode = inst.opcode
 
     #
@@ -362,11 +295,6 @@ def _generate_evm_for_instruction_r(
         _stack_reorder(assembly, stack, target_stack)
 
     # print("pre-dups (inst)", inst.dup_requirements, stack.stack, inst)
-
-    # REVIEW: doing duplications and then reorder in
-    # separate steps can result in less optimal code
-    _stack_duplications(assembly, inst, stack, operands)
-    # print("post-dups (inst)", stack.stack, inst)
 
     _stack_reorder(assembly, stack, operands)
     # print("post-reorder (inst)", stack.stack, inst)
@@ -476,30 +404,3 @@ def _generate_evm_for_instruction_r(
             assembly.extend([*PUSH(inst.ret.mem_addr)])
 
     return assembly
-
-
-def _emit_input_operands(
-    ctx: IRFunction,
-    assembly: list,
-    inst: IRInstruction,
-    ops: list[IRValueBase],
-    stack: StackModel,
-):
-    # print("EMIT INPUTS FOR", inst)
-    for op in ops:
-        if isinstance(op, IRLabel):
-            # invoke emits the actual instruction itself so we don't need to emit it here
-            # but we need to add it to the stack map
-            if inst.opcode != "invoke":
-                assembly.append(f"_sym_{op.value}")
-            stack.push(op)
-            continue
-        if op.is_literal:
-            assembly.extend([*PUSH(op.value)])
-            stack.push(op)
-            continue
-        # print("RECURSE FOR", op, "TO:", ctx.dfg_outputs[op])
-        assembly.extend(_generate_evm_for_instruction_r(ctx, [], ctx.dfg.get_producing_instruction(op), stack))
-        if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
-            assembly.extend([*PUSH(op.mem_addr)])
-            assembly.append("MLOAD")
