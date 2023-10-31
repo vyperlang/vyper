@@ -288,7 +288,7 @@ def _generate_evm_for_instruction_r(
             #     implemented the "needs duplication" algorithm that needs the same
             #     traversal and it's duplicated
             # REVIEW: OK. to discuss further offline
-            assembly = _generate_evm_for_instruction_r(ctx, assembly, target, stack)
+            assembly.extend(_generate_evm_for_instruction_r(ctx, [], target, stack))
 
     if inst in visited_instructions:
         # print("seen:", inst)
