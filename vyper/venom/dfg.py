@@ -72,7 +72,7 @@ class DFG:
         self._dfg_inputs = dict()
         self._dfg_outputs = dict()
 
-    # return all, flattened inputs to a given variable
+    # return uses of a given variable
     def get_uses(self, op: IRVariable) -> list[IRInstruction]:
         return self._dfg_inputs.get(op, [])
 
@@ -307,6 +307,9 @@ def _generate_evm_for_instruction(
     _stack_reorder(assembly, stack, operands)
     # print("post-reorder (inst)", stack.stack, inst)
 
+    # REVIEW: it would be clearer if the order of steps 4 and 5 were
+    # switched (so that the runtime order matches the order they appear
+    # below).
     # Step 4: Push instruction's return value to stack
     stack.pop(len(operands))
     if inst.ret is not None:
