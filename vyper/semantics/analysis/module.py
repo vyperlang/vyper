@@ -345,6 +345,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             raise ModuleNotFoundError(module_str) from None
 
+
 # convert an import to a path (without suffix)
 def _import_to_path(level: int, module_str: str) -> PurePath:
     base_path = ""

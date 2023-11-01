@@ -219,9 +219,7 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
 
 
 def compile_from_input_dict(
-    input_dict: Dict,
-    exc_handler: Callable = exc_handler_raises,
-    root_folder: Optional[str] = None,
+    input_dict: Dict, exc_handler: Callable = exc_handler_raises, root_folder: Optional[str] = None
 ) -> tuple[dict, dict]:
     root_path = None
     if root_folder is not None:
