@@ -210,6 +210,16 @@ def _emit_input_operands(
 
     # print("EMIT INPUTS FOR", inst)
 
+    # dumb heuristic: if the top of stack is not wanted here, swap
+    # it with something that is wanted
+    if ops and stack.stack and stack.stack[-1] not in ops:
+        for op in ops:
+            if isinstance(op, IRVariable) and op not in inst.dup_requirements:
+                depth = stack.get_depth(op)
+                assert depth is not StackModel.NOT_IN_STACK
+                stack.swap(assembly, depth)
+                break
+
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
