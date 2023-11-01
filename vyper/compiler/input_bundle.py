@@ -1,7 +1,7 @@
 import contextlib
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, Optional
+from typing import Any, Optional, Iterator
 
 from vyper.exceptions import CompilerPanic, JSONError
 
@@ -14,7 +14,7 @@ class CompilerInput:
 @dataclass
 class FileInput(CompilerInput):
     source_id: int
-    path: Path
+    path: PathLike
     source_code: str
 
 
@@ -22,12 +22,15 @@ class FileInput(CompilerInput):
 class ABIInput(CompilerInput):
     # some json input, that has already been parsed into a dict or list
     source_id: int
-    path: Path
+    path: PathLike
     abi: Any  # something that json.load() returns
 
 
 class _NotFound(Exception):
     pass
+
+
+PathLike = Path | PurePath  # make mypy happy
 
 
 class InputBundle:
@@ -37,19 +40,19 @@ class InputBundle:
     def __init__(self, search_paths):
         self.search_paths = search_paths
         self._source_id_counter = 0
-        self._source_ids: dict[Path, int] = {}
+        self._source_ids: dict[PathLike, int] = {}
 
     def _load_from_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
-    def _generate_source_id(self, path: Path) -> int:
+    def _generate_source_id(self, path: PathLike) -> int:
         if path not in self._source_ids:
             self._source_ids[path] = self._source_id_counter
             self._source_id_counter += 1
 
         return self._source_ids[path]
 
-    def load_file(self, path: Path) -> str:
+    def load_file(self, path: PathLike) -> str:
         for p in self.search_paths:
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
@@ -68,13 +71,13 @@ class InputBundle:
 
         raise CompilerPanic("unreachable")  # pragma: nocover
 
-    def add_search_path(self, path) -> None:
+    def add_search_path(self, path: Path) -> None:
         self.search_paths.append(path)
 
     # temporarily add something to the search path (within the
     # scope of the context manager). if `path` is None, do nothing
     @contextlib.contextmanager
-    def search_path(self, path: Optional[Path]) -> None:
+    def search_path(self, path: Optional[Path]) -> Iterator[None]:
         if path is None:
             yield
 

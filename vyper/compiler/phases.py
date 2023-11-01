@@ -54,7 +54,7 @@ class CompilerData:
         self,
         source_code: str,
         input_bundle: InputBundle,
-        contract_path: PurePath = DEFAULT_CONTRACT_NAME,
+        contract_path: Path = DEFAULT_CONTRACT_NAME,
         source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,

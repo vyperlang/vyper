@@ -364,7 +364,7 @@ def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
 
-def _load_builtin_import(level: int, module_str: str):
+def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
