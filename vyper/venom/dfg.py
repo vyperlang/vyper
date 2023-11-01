@@ -204,7 +204,12 @@ def _emit_input_operands(
     ops: list[IRValueBase],
     stack: StackModel,
 ):
+    # PRE: we already have all the items on the stack that have
+    # been scheduled to be killed. now it's just a matter of emitting
+    # SWAPs, DUPs and PUSHes until we match the `ops` argument
+
     # print("EMIT INPUTS FOR", inst)
+
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -213,6 +218,7 @@ def _emit_input_operands(
                 assembly.append(f"_sym_{op.value}")
             stack.push(op)
             continue
+
         if op.is_literal:
             assembly.extend([*PUSH(op.value)])
             stack.push(op)
