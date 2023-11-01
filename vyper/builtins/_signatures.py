@@ -8,6 +8,7 @@ from vyper.exceptions import CompilerPanic, TypeMismatch
 from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.utils import get_folded_value
 
 
 def process_arg(arg, expected_arg_type, context):
@@ -103,7 +104,7 @@ class BuiltinFunction(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            is_literal_value = kwarg.value._metadata.get("folded_value") is not None
+            is_literal_value = get_folded_value(kwarg.value) is not None
 
             if kwarg_settings.require_literal and not is_literal_value:
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)

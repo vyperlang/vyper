@@ -4,6 +4,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.utils import get_folded_value
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -139,7 +140,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    folded_node = node.value._metadata.get("folded_value")
+    folded_node = get_folded_value(node.value)
 
     if not isinstance(folded_node, vy_ast.Int):
         raise InvalidType("Subscript must be a literal integer", node)

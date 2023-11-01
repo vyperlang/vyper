@@ -52,6 +52,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.pre_typecheck import get_folded_value
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -141,7 +142,7 @@ class Floor(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Decimal):
             raise UnfoldableNode
 
@@ -172,7 +173,7 @@ class Ceil(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Decimal):
             raise UnfoldableNode
 
@@ -467,9 +468,9 @@ class Len(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
-            length = len(arg)
+            length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
             # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
             length = len(arg.value) // 2 - 1
@@ -604,7 +605,7 @@ class Keccak256(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if isinstance(arg, vy_ast.Bytes):
             value = arg.value
         elif isinstance(arg, vy_ast.Str):
@@ -652,7 +653,7 @@ class Sha256(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if isinstance(arg, vy_ast.Bytes):
             value = arg.value
         elif isinstance(arg, vy_ast.Str):
@@ -980,7 +981,7 @@ class AsWeiValue(BuiltinFunction):
     }
 
     def get_denomination(self, node):
-        arg = node.args[1]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[1])
         if not isinstance(arg, vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
@@ -996,7 +997,7 @@ class AsWeiValue(BuiltinFunction):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
 
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
 
@@ -1082,10 +1083,10 @@ class RawCall(BuiltinFunction):
 
         outsize = kwargz.get("max_outsize")
         if outsize is not None:
-            outsize = outsize._metadata.get("folded_value")
+            outsize = get_folded_value(outsize)
         revert_on_failure = kwargz.get("revert_on_failure")
         if revert_on_failure is not None:
-            revert_on_failure = revert_on_failure._metadata.get("folded_value")
+            revert_on_failure = get_folded_value(revert_on_failure)
 
         revert_on_failure = revert_on_failure if revert_on_failure is not None else True
 
@@ -1358,7 +1359,7 @@ class BitwiseAnd(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         for v, arg in zip(args, node.args):
             if not isinstance(v, vy_ast.Int):
                 raise UnfoldableNode
@@ -1385,7 +1386,7 @@ class BitwiseOr(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         for v, arg in zip(args, node.args):
             if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
@@ -1412,7 +1413,7 @@ class BitwiseXor(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         for v, arg in zip(args, node.args):
             if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
@@ -1439,7 +1440,7 @@ class BitwiseNot(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 
@@ -1466,7 +1467,7 @@ class Shift(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        value, shift = [i._metadata.get("folded_value") for i in node.args]
+        value, shift = [get_folded_value(i) for i in node.args]
         if any(not isinstance(i, int) for i in [value, shift]):
             raise UnfoldableNode
         if value < 0 or value >= 2**256:
@@ -1514,11 +1515,11 @@ class _AddMulMod(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 3)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         if isinstance(args[2], vy_ast.Int) and args[2] == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
         for v, arg in zip(args, node.args):
-            if not isinstance(v, int):
+            if not isinstance(v, vy_ast.Int):
                 raise UnfoldableNode
             if v.value < 0 or v.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
@@ -1557,7 +1558,7 @@ class PowMod256(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 2)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         if any(not isinstance(i, vy_ast.Int) for i in args):
             raise UnfoldableNode
 
@@ -1581,7 +1582,7 @@ class Abs(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 
@@ -2025,7 +2026,7 @@ class _MinMax(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 2)
-        args = [i._metadata.get("folded_value") for i in node.args]
+        args = [get_folded_value(i) for i in node.args]
         if not isinstance(args[0], type(args[1])):
             raise UnfoldableNode
         if not isinstance(args[0], (vy_ast.Decimal, vy_ast.Int)):
@@ -2047,12 +2048,7 @@ class _MinMax(BuiltinFunction):
                 raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left.value, right.value)
-
-        if isinstance(left, Decimal):
-            node = vy_ast.Decimal.from_node(node, value=value)
-        elif isinstance(left, int):
-            node = vy_ast.Int.from_node(node, value=value)
-        return node
+        return type(left).from_node(node, value=value)
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -2119,7 +2115,7 @@ class Uint2Str(BuiltinFunction):
 
     def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        arg = node.args[0]._metadata.get("folded_value")
+        arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 

@@ -1,8 +1,7 @@
-from typing import Optional
-
 from vyper import ast as vy_ast
 from vyper.exceptions import UnfoldableNode, VyperException
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.utils import get_folded_value
 
 
 def pre_typecheck(node: vy_ast.VyperNode) -> None:
@@ -231,7 +230,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
             node._metadata["folded_value"] = vy_ast.NameConstant.from_node(value=value)
 
     def visit_Constant(self, node):
-        node._metadata["folded_value"] = node
+        pass
 
     def visit_Dict(self, node):
         for v in node.values:
@@ -288,10 +287,3 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.test)
         self.visit(node.body)
         self.visit(node.orelse)
-
-
-def get_folded_value(node: vy_ast.VyperNode) -> Optional[vy_ast.VyperNode]:
-    if isinstance(node, vy_ast.Constant):
-        return node
-
-    return node._metadata.get("folded_value")

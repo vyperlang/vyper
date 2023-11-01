@@ -9,6 +9,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import get_index_value, type_from_annotation
+from vyper.semantics.utils import get_folded_value
 
 
 class _SubscriptableT(VyperType):
@@ -128,7 +129,7 @@ class _SequenceT(_SubscriptableT):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        index = node._metadata.get("folded_value")
+        index = get_folded_value(node)
         if isinstance(index, vy_ast.Int):
             value = index.value
             if value < 0:
@@ -287,7 +288,7 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        folded_max_length = node.slice.value.elements[1]._metadata.get("folded_value")
+        folded_max_length = get_folded_value(node.slice.value.elements[1])
         if not isinstance(folded_max_length, vy_ast.Int):
             raise StructureException(
                 "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
