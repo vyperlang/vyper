@@ -221,13 +221,15 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
 def compile_from_input_dict(
     input_dict: Dict,
     exc_handler: Callable = exc_handler_raises,
-    root_folder: Union[str, None] = None,
-) -> Tuple[Dict, Dict]:
+    root_folder: Optional[str] = None,
+) -> tuple[dict, dict]:
     root_path = None
     if root_folder is not None:
         root_path = Path(root_folder).resolve()
         if not root_path.exists():
             raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+    else:
+        root_path = Path(".")
 
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
@@ -250,17 +252,18 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
-    contract_sources: ContractCodes = get_compilation_targets(input_dict)
+    contract_sources = get_compilation_targets(input_dict)
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
 
     compiler_data, warning_data = {}, {}
     warnings.simplefilter("always")
-    input_bundle = JSONInputBundle(["."], contract_sources)
+    input_bundle = JSONInputBundle([root_path], contract_sources)
     for id_, contract_path in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
+                file = input_bundle.load_file(contract_path)
                 data = vyper.compile_codes(
-                    {contract_path: contract_sources[contract_path]},
+                    {contract_path: file.source_code},
                     input_bundle,
                     output_formats[contract_path],
                     initial_id=id_,
