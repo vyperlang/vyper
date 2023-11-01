@@ -52,7 +52,6 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.analysis.pre_typecheck import get_folded_value
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -84,6 +83,7 @@ from vyper.semantics.types.shortcuts import (
     UINT256_T,
 )
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.utils import get_folded_value
 from vyper.utils import (
     DECIMAL_DIVISOR,
     EIP_170_LIMIT,
