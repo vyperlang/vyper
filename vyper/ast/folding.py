@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import UnfoldableNode
@@ -47,7 +47,6 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
-        new_node._metadata["folded_value"] = new_node.value
         typ = node._metadata.get("type")
 
         # type metadata may not be present
@@ -88,7 +87,6 @@ def replace_subscripts(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
-        new_node._metadata["folded_value"] = node._metadata["folded_value"]
         new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
@@ -127,7 +125,6 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
-        new_node._metadata["folded_value"] = new_node.value
         new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
@@ -159,10 +156,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
             continue
 
         type_ = node._metadata["type"]
-        folded_value = node.value._metadata["folded_value"]
-        changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, type_, folded_value, False
-        )
+        changed_nodes += replace_constant(vyper_module, node.target.id, node.value, type_, False)
 
     return changed_nodes
 
@@ -199,7 +193,6 @@ def replace_constant(
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
     type_: VyperType,
-    folded_value: Any,
     raise_on_error: bool,
 ) -> int:
     """
@@ -216,8 +209,6 @@ def replace_constant(
         `Call` nodes are for struct constants.
     type_ : VyperType
         Type definition to be propagated to type checker.
-    folded_value: Any
-        Folded value of the constant
     raise_on_error: bool
         Boolean indicating if `UnfoldableNode` exception should be raised or ignored.
 
@@ -256,7 +247,6 @@ def replace_constant(
         try:
             # note: _replace creates a copy of the replacement_node
             new_node = _replace(node, replacement_node, type_)
-            new_node._metadata["folded_value"] = folded_value
         except UnfoldableNode:
             if raise_on_error:
                 raise

@@ -139,11 +139,12 @@ def get_index_value(node: vy_ast.Index) -> int:
     int
         Literal integer value.
     """
-    val = node.value._metadata.get("folded_value")
+    folded_node = node.value._metadata.get("folded_value")
 
-    if not isinstance(val, int):
+    if not isinstance(folded_node, vy_ast.Int):
         raise InvalidType("Subscript must be a literal integer", node)
 
+    val = folded_node.value
     if val <= 0:
         raise ArrayIndexException("Subscript must be greater than 0", node)
 

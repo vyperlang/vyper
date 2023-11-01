@@ -128,11 +128,12 @@ class _SequenceT(_SubscriptableT):
         # TODO break this cycle
         from vyper.semantics.analysis.utils import validate_expected_type
 
-        index_val = node._metadata.get("folded_value")
-        if isinstance(index_val, int):
-            if index_val < 0:
+        index = node._metadata.get("folded_value")
+        if isinstance(index, vy_ast.Int):
+            value = index.value
+            if value < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if index_val >= self.length:
+            if value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
         validate_expected_type(node, IntegerT.any())
@@ -286,11 +287,12 @@ class DArrayT(_SequenceT):
                 node,
             )
 
-        max_length = node.slice.value.elements[1]._metadata.get("folded_value")
-        if not isinstance(max_length, int):
+        folded_max_length = node.slice.value.elements[1]._metadata.get("folded_value")
+        if not isinstance(folded_max_length, vy_ast.Int):
             raise StructureException(
                 "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
             )
+        max_length = folded_max_length.value
 
         value_type = type_from_annotation(node.slice.value.elements[0])
         if not value_type._as_darray:

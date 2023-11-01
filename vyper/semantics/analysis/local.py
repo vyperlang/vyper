@@ -353,23 +353,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if len(args) == 1:
                 # range(CONSTANT)
                 n = args[0]
+                folded_n = n._metadata.get("folded_value")
+
                 bound = kwargs.pop("bound", None)
                 validate_expected_type(n, IntegerT.any())
 
                 if bound is None:
-                    n_val = n._metadata.get("folded_value")
-                    if not isinstance(n_val, int):
+                    if not isinstance(folded_n, vy_ast.Num):
                         raise StateAccessViolation("Value must be a literal integer", n)
-                    if n_val <= 0:
-                        raise StructureException("For loop must have at least 1 iteration", args[0])
+                    if folded_n.value <= 0:
+                        raise StructureException("For loop must have at least 1 iteration", n)
                     type_list = get_possible_types_from_node(n)
 
                 else:
-                    bound_val = bound._metadata.get("folded_value")
-                    if bound_val is None:
+                    folded_bound = bound._metadata.get("folded_value")
+                    if folded_bound is None:
                         raise StateAccessViolation("bound must be a literal", bound)
-                    if bound_val <= 0:
-                        raise StructureException("bound must be at least 1", args[0])
+                    if folded_bound.value <= 0:
+                        raise StructureException("bound must be at least 1", bound)
                     type_list = get_common_types(n, bound)
 
             else:
@@ -382,8 +383,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 validate_expected_type(args[0], IntegerT.any())
                 type_list = get_common_types(*args)
-                arg0_val = args[0]._metadata.get("folded_value")
-                if not isinstance(arg0_val, int):
+                folded_arg0 = args[0]._metadata.get("folded_value")
+                if not isinstance(folded_arg0, vy_ast.Constant):
                     # range(x, x + CONSTANT)
                     if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
                         args[1].op, vy_ast.Add
@@ -396,22 +397,22 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             "First and second variable must be the same", args[1].left
                         )
 
-                    right_val = args[1].right._metadata.get("folded_value")
-                    if not isinstance(right_val, int):
+                    folded_right = args[1].right._metadata.get("folded_value")
+                    if not isinstance(folded_right, vy_ast.Int):
                         raise InvalidLiteral("Literal must be an integer", args[1].right)
-                    if right_val < 1:
+                    if folded_right.value < 1:
                         raise StructureException(
-                            f"For loop has invalid number of iterations ({right_val}),"
+                            f"For loop has invalid number of iterations ({folded_right.value}),"
                             " the value must be greater than zero",
                             args[1].right,
                         )
                 else:
                     # range(CONSTANT, CONSTANT)
-                    arg1_val = args[1]._metadata.get("folded_value")
-                    if not isinstance(arg1_val, int):
+                    folded_arg1 = args[1]._metadata.get("folded_value")
+                    if not isinstance(folded_arg1, vy_ast.Int):
                         raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerT.any())
-                    if arg0_val >= arg1_val:
+                    validate_expected_type(folded_arg1, IntegerT.any())
+                    if folded_arg0.value >= folded_arg1.value:
                         raise StructureException("Second value must be > first value", args[1])
 
                 if not type_list:
@@ -419,8 +420,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            iter_ = node.iter._metadata.get("folded_value")
-            if isinstance(iter_, list) and len(iter_) == 0:
+            folded_iter = node.iter._metadata.get("folded_value")
+            if isinstance(folded_iter, vy_ast.List) and len(folded_iter.elements) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
             type_list = [

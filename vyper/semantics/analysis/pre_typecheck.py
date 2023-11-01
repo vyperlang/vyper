@@ -1,4 +1,4 @@
-from decimal import Decimal
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import UnfoldableNode, VyperException
@@ -41,7 +41,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
                     self.visit(c.value)
 
-                    val = c.value._metadata.get("folded_value")
+                    val = get_folded_value(c.value)
 
                     # note that if a constant is redefined, its value will be overwritten,
                     # but it is okay because the syntax error is handled downstream
@@ -62,7 +62,8 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_EventDef(self, node):
         for n in node.body:
-            self.visit(n.annotation)
+            if isinstance(n, vy_ast.AnnAssign):
+                self.visit(n.annotation)
 
     def visit_FunctionDef(self, node):
         # visit type annotations of arguments
@@ -89,7 +90,8 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_StructDef(self, node):
         for n in node.body:
-            self.visit(n.annotation)
+            if isinstance(node, vy_ast.AnnAssign):
+                self.visit(n.annotation)
 
     def visit_VariableDecl(self, node):
         self.visit(node.annotation)
@@ -147,28 +149,37 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     # Expr
 
+    def visit_keyword(self, node):
+        self.visit(node.arg)
+        self.visit(node.value)
+
     def visit_Attribute(self, node):
         self.visit(node.value)
-        value_node_val = node.value._metadata.get("folded_value")
-        if isinstance(value_node_val, dict):
-            node._metadata["folded_value"] = value_node_val[node.attr]
+        value_node = get_folded_value(node.value)
+        if isinstance(value_node, vy_ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if k.id == node.attr:
+                    node._metadata["folded_value"] = v
+                    return
 
     def visit_BinOp(self, node):
         self.visit(node.left)
         self.visit(node.right)
 
-        left = node.left._metadata.get("folded_value")
-        right = node.right._metadata.get("folded_value")
-        if isinstance(left, type(right)) and isinstance(left, (int, Decimal)):
-            node._metadata["folded_value"] = node.op._op(left, right)
+        left = get_folded_value(node.left)
+        right = get_folded_value(node.right)
+        if isinstance(left, type(right)) and isinstance(left, (vy_ast.Int, vy_ast.Decimal)):
+            value = node.op._op(left.value, right.value)
+            node._metadata["folded_value"] = type(left).from_node(node, value=value)
 
     def visit_BoolOp(self, node):
         for i in node.values:
             self.visit(i)
 
-        values = [i._metadata.get("folded_value") for i in node.values]
-        if all(isinstance(v, bool) for v in values):
-            node._metadata["folded_value"] = node.op._op(values)
+        values = [get_folded_value(i) for i in node.values]
+        if all(isinstance(v, vy_ast.NameConstant) for v in values):
+            value = node.op._op([v.value for v in values])
+            node._metadata["folded_value"] = vy_ast.NameConstant.from_node(node, value=value)
 
     def visit_Call(self, node):
         for arg in node.args:
@@ -179,7 +190,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         # constant structs
         if len(node.args) == 1 and isinstance(node.args[0], vy_ast.Dict):
             self.visit(node.args[0])
-            node._metadata["folded_value"] = node.args[0]._metadata.get("folded_value")
+            node._metadata["folded_value"] = get_folded_value(node.args[0])
 
         from vyper.builtins.functions import DISPATCH_TABLE
 
@@ -190,7 +201,9 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
             call_type = DISPATCH_TABLE.get(func_name)
             if call_type and hasattr(call_type, "evaluate"):
                 try:
-                    node._metadata["folded_value"] = call_type.evaluate(node).value  # type: ignore
+                    node._metadata["folded_value"] = call_type.evaluate(
+                        node, skip_typecheck=True
+                    )  # type: ignore
                     return
                 except (UnfoldableNode, VyperException):
                     pass
@@ -199,44 +212,49 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.left)
         self.visit(node.right)
 
-        left = node.left._metadata.get("folded_value")
+        left = get_folded_value(node.left)
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             if not isinstance(node.right, (vy_ast.List, vy_ast.Tuple)):
                 return
 
-            right = [i._metadata.get("folded_value") for i in node.right.elements]
+            right = [get_folded_value(i) for i in node.right.elements]
             if left is None or len(set([type(i) for i in right])) > 1:
                 return
-            node._metadata["folded_value"] = node.op._op(left, right)
+            value = node.op._op(left.value, [i.value for i in right])
+            node._metadata["folded_value"] = vy_ast.NameConstant.from_node(value=value)
+            return
 
-        right = node.right._metadata.get("folded_value")
-        if isinstance(left, type(right)) and isinstance(left, (int, Decimal)):
-            node._metadata["folded_value"] = node.op._op(left, right)
+        right = get_folded_value(node)
+        if isinstance(left, type(right)) and isinstance(left, (vy_ast.Int, vy_ast.Decimal)):
+            value = node.op._op(left.value, right.value)
+            node._metadata["folded_value"] = vy_ast.NameConstant.from_node(value=value)
 
     def visit_Constant(self, node):
-        node._metadata["folded_value"] = node.value
+        node._metadata["folded_value"] = node
 
     def visit_Dict(self, node):
         for v in node.values:
             self.visit(v)
 
-        values = [v._metadata.get("folded_value") for v in node.values]
+        values = [get_folded_value(v) for v in node.values]
         if not any(v is None for v in values):
-            node._metadata["folded_value"] = {k.id: v for (k, v) in zip(node.keys, values)}
+            node._metadata["folded_value"] = vy_ast.Dict.from_node(
+                node, keys=node.keys, values=values
+            )
 
     def visit_Index(self, node):
         self.visit(node.value)
-        index_val = node.value._metadata.get("folded_value")
-        if index_val is not None:
-            node._metadata["folded_value"] = index_val
+        index = get_folded_value(node.value)
+        if isinstance(index, vy_ast.Constant):
+            node._metadata["folded_value"] = index
 
     # repeated code for List and Tuple
     def _subscriptable_helper(self, node):
         for e in node.elements:
             self.visit(e)
 
-        values = [e._metadata.get("folded_value") for e in node.elements]
+        values = [get_folded_value(e) for e in node.elements]
         if None not in values:
             node._metadata["folded_value"] = values
 
@@ -251,21 +269,33 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.slice)
         self.visit(node.value)
 
-        slice_val = node.slice._metadata.get("folded_value")
-        sliced_val = node.value._metadata.get("folded_value")
-        if None not in (slice_val, sliced_val):
-            node._metadata["folded_value"] = sliced_val[slice_val]
+        sliced = get_folded_value(node.slice)
+        index = get_folded_value(node.value)
+        if None not in (sliced, index):
+            node._metadata["folded_value"] = sliced.elements[index.value]
 
     def visit_Tuple(self, node):
         self._subscriptable_helper(node)
 
     def visit_UnaryOp(self, node):
         self.visit(node.operand)
-        val = node.operand._metadata.get("folded_value")
-        if isinstance(val, int):
-            node._metadata["folded_value"] = node.op._op(val)
+        val = get_folded_value(node.operand)
+        if isinstance(val, (vy_ast.Int, vy_ast.Decimal)):
+            value = node.op._op(val.value)
+            node._metadata["folded_value"] = type(val).from_node(node, value=value)
 
     def visit_IfExp(self, node):
         self.visit(node.test)
         self.visit(node.body)
         self.visit(node.orelse)
+
+
+def get_folded_value(node: vy_ast.VyperNode) -> Optional[vy_ast.VyperNode]:
+    if isinstance(node, vy_ast.Constant):
+        return node
+    elif isinstance(node, (vy_ast.List, vy_ast.Tuple)):
+        values = [get_folded_value(i) for i in node.elements]
+        if None not in values:
+            return values
+
+    return node._metadata.get("folded_value")

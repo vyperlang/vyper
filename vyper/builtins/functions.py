@@ -139,10 +139,10 @@ class Floor(BuiltinFunction):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
         input_val = node.args[0]._metadata.get("folded_value")
-        if not isinstance(input_val, Decimal):
+        if not isinstance(input_val, vy_ast.Decimal):
             raise UnfoldableNode
 
         value = math.floor(input_val)
@@ -170,10 +170,10 @@ class Ceil(BuiltinFunction):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
         input_val = node.args[0]._metadata.get("folded_value")
-        if not isinstance(input_val, Decimal):
+        if not isinstance(input_val, vy_ast.Decimal):
             raise UnfoldableNode
 
         value = math.ceil(input_val)
@@ -465,11 +465,14 @@ class Len(BuiltinFunction):
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
         arg = node.args[0]._metadata.get("folded_value")
-        if isinstance(arg, (str, bytes)):
+        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
             length = len(arg)
+        elif isinstance(arg, vy_ast.Hex):
+            # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
+            length = len(arg.value) // 2 - 1
         else:
             raise UnfoldableNode
 
@@ -599,21 +602,18 @@ class Keccak256(BuiltinFunction):
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, (bytes, str)):
+        arg = node.args[0]._metadata.get("folded_value")
+        if isinstance(arg, vy_ast.Bytes):
+            value = arg.value
+        elif isinstance(arg, vy_ast.Str):
+            value = arg.value.encode()
+        elif isinstance(arg, vy_ast.Hex):
+            length = len(arg.value) // 2 - 1
+            value = int(arg.value, 16).to_bytes(length, "big")
+        else:
             raise UnfoldableNode
-
-        if isinstance(value, str):
-            # we need the argument type to differentiate between
-            # strings and hex values
-            arg_typ = self.infer_arg_types(node).pop()
-            if isinstance(arg_typ, StringT):
-                value = value.encode()
-            elif arg_typ == BYTES32_T:
-                length = len(value) // 2 - 1
-                value = int(value, 16).to_bytes(length, "big")
 
         hash_ = f"0x{keccak256(value).hex()}"
         return vy_ast.Hex.from_node(node, value=hash_)
@@ -650,21 +650,18 @@ class Sha256(BuiltinFunction):
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, (bytes, str)):
+        arg = node.args[0]._metadata.get("folded_value")
+        if isinstance(arg, vy_ast.Bytes):
+            value = arg.value
+        elif isinstance(arg, vy_ast.Str):
+            value = arg.value.encode()
+        elif isinstance(arg, vy_ast.Hex):
+            length = len(arg.value) // 2 - 1
+            value = int(arg.value, 16).to_bytes(length, "big")
+        else:
             raise UnfoldableNode
-
-        if isinstance(value, str):
-            # we need the argument type to differentiate between
-            # strings and hex values
-            arg_typ = self.infer_arg_types(node).pop()
-            if isinstance(arg_typ, StringT):
-                value = value.encode()
-            elif arg_typ == BYTES32_T:
-                length = len(value) // 2 - 1
-                value = int(value, 16).to_bytes(length, "big")
 
         hash_ = f"0x{hashlib.sha256(value).hexdigest()}"
         return vy_ast.Hex.from_node(node, value=hash_)
@@ -724,7 +721,7 @@ class Sha256(BuiltinFunction):
 class MethodID(FoldedFunction):
     _id = "method_id"
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1, ["output_type"])
 
         args = node.args
@@ -983,26 +980,27 @@ class AsWeiValue(BuiltinFunction):
     }
 
     def get_denomination(self, node):
-        value = node.args[1]._metadata.get("folded_value")
-        if not isinstance(value, str):
+        arg = node.args[1]._metadata.get("folded_value")
+        if not isinstance(arg, vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
             )
         try:
-            denom = next(v for k, v in self.wei_denoms.items() if value in k)
+            denom = next(v for k, v in self.wei_denoms.items() if arg.value in k)
         except StopIteration:
-            raise ArgumentException(f"Unknown denomination: {value}", node.args[1]) from None
+            raise ArgumentException(f"Unknown denomination: {arg.value}", node.args[1]) from None
 
         return denom
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
 
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, (Decimal, int)):
+        arg = node.args[0]._metadata.get("folded_value")
+        if not isinstance(arg, (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
 
+        value = arg.value
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
 
@@ -1096,12 +1094,16 @@ class RawCall(BuiltinFunction):
                 return None
             return BoolT()
 
-        return_type = BytesT()
-        return_type.set_min_length(outsize)
+        if not isinstance(outsize, vy_ast.Int) or outsize.value < 0:
+            raise
 
-        if revert_on_failure:
-            return return_type
-        return TupleT([BoolT(), return_type])
+        if outsize.value:
+            return_type = BytesT()
+            return_type.set_min_length(outsize.value)
+
+            if revert_on_failure:
+                return return_type
+            return TupleT([BoolT(), return_type])
 
     def infer_arg_types(self, node, expected_return_type=None):
         self._validate_arg_types(node)
@@ -1350,20 +1352,20 @@ class BitwiseAnd(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         if not self.__class__._warned:
             vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        for v, arg in zip(values, node.args):
-            if not isinstance(v, int):
+        args = [i._metadata.get("folded_value") for i in node.args]
+        for v, arg in zip(args, node.args):
+            if not isinstance(v, vy_ast.Int):
                 raise UnfoldableNode
-            if v < 0 or v >= 2**256:
+            if v.value < 0 or v.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = values[0] & values[1]
+        value = args[0].value & args[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1377,20 +1379,20 @@ class BitwiseOr(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         if not self.__class__._warned:
             vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        for v, arg in zip(values, node.args):
-            if not isinstance(arg, int):
+        args = [i._metadata.get("folded_value") for i in node.args]
+        for v, arg in zip(args, node.args):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
-            if v < 0 or v >= 2**256:
+            if v.value < 0 or v.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = values[0] | values[1]
+        value = args[0].value | args[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1404,20 +1406,20 @@ class BitwiseXor(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         if not self.__class__._warned:
             vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        for v, arg in zip(values, node.args):
-            if not isinstance(arg, int):
+        args = [i._metadata.get("folded_value") for i in node.args]
+        for v, arg in zip(args, node.args):
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
-            if v < 0 or v >= 2**256:
+            if v.value < 0 or v.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = values[0] ^ values[1]
+        value = args[0].value ^ args[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1431,20 +1433,20 @@ class BitwiseNot(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         if not self.__class__._warned:
             vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, int):
+        arg = node.args[0]._metadata.get("folded_value")
+        if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 
-        if value < 0 or value >= 2**256:
+        if arg.value < 0 or arg.value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
-        value = (2**256 - 1) - value
+        value = (2**256 - 1) - arg.value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1458,7 +1460,7 @@ class Shift(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         if not self.__class__._warned:
             vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
             self.__class__._warned = True
@@ -1510,18 +1512,18 @@ class _AddMulMod(BuiltinFunction):
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 3)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        if isinstance(values[2], int) and values[2] == 0:
+        args = [i._metadata.get("folded_value") for i in node.args]
+        if isinstance(args[2], vy_ast.Int) and args[2] == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
-        for v, arg in zip(values, node.args):
+        for v, arg in zip(args, node.args):
             if not isinstance(v, int):
                 raise UnfoldableNode
-            if v < 0 or v >= 2**256:
+            if v.value < 0 or v.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = self._eval_fn(values[0], values[1]) % values[2]
+        value = self._eval_fn(args[0].value, args[1].value) % args[2].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1553,17 +1555,17 @@ class PowMod256(BuiltinFunction):
     _inputs = [("a", UINT256_T), ("b", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 2)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        if any(not isinstance(i, int) for i in values):
+        args = [i._metadata.get("folded_value") for i in node.args]
+        if any(not isinstance(i, vy_ast.Int) for i in args):
             raise UnfoldableNode
 
-        left, right = values
-        if left < 0 or right < 0:
+        left, right = args
+        if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
-        value = pow(left, right, 2**256)
+        value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
@@ -1577,15 +1579,15 @@ class Abs(BuiltinFunction):
     _inputs = [("value", INT256_T)]
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, int):
+        arg = node.args[0]._metadata.get("folded_value")
+        if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 
-        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
+        if not SizeLimits.MIN_INT256 <= arg.value <= SizeLimits.MAX_INT256:
             raise OverflowException("Literal is outside of allowable range for int256")
-        value = abs(value)
+        value = abs(arg.value)
         if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
             raise OverflowException("Absolute literal value is outside allowable range for int256")
 
@@ -2021,28 +2023,30 @@ class UnsafeDiv(_UnsafeMath):
 class _MinMax(BuiltinFunction):
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 2)
-        values = [i._metadata.get("folded_value") for i in node.args]
-        if not isinstance(values[0], type(values[1])):
+        args = [i._metadata.get("folded_value") for i in node.args]
+        if not isinstance(args[0], type(args[1])):
             raise UnfoldableNode
-        if not isinstance(values[0], (Decimal, int)):
+        if not isinstance(args[0], (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
 
-        left, right = values
-        if isinstance(left, Decimal) and (
-            min(left, right) < SizeLimits.MIN_AST_DECIMAL
-            or max(left, right) > SizeLimits.MAX_AST_DECIMAL
+        left, right = args
+        if isinstance(left.value, Decimal) and (
+            min(left.value, right.value) < SizeLimits.MIN_AST_DECIMAL
+            or max(left.value, right.value) > SizeLimits.MAX_AST_DECIMAL
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
 
-        types_list = get_common_types(
-            *node.args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
-        )
-        if not types_list:
-            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+        # skip during pre-typecheck
+        if not skip_typecheck:
+            types_list = get_common_types(
+                *args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
+            )
+            if not types_list:
+                raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
-        value = self._eval_fn(left, right)
+        value = self._eval_fn(left.value, right.value)
 
         if isinstance(left, Decimal):
             node = vy_ast.Decimal.from_node(node, value=value)
@@ -2113,13 +2117,13 @@ class Uint2Str(BuiltinFunction):
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
         return StringT(len_needed)
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         validate_call_args(node, 1)
-        value = node.args[0]._metadata.get("folded_value")
-        if not isinstance(value, int):
+        arg = node.args[0]._metadata.get("folded_value")
+        if not isinstance(arg, vy_ast.Int):
             raise UnfoldableNode
 
-        value = str(value)
+        value = str(arg.value)
         return vy_ast.Str.from_node(node, value=value)
 
     def infer_arg_types(self, node, expected_return_type=None):
@@ -2599,7 +2603,7 @@ class ABIDecode(BuiltinFunction):
 
 
 class _MinMaxValue(TypenameFoldedFunction):
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
@@ -2634,7 +2638,7 @@ class MaxValue(_MinMaxValue):
 class Epsilon(TypenameFoldedFunction):
     _id = "epsilon"
 
-    def evaluate(self, node):
+    def evaluate(self, node, skip_typecheck=False):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
