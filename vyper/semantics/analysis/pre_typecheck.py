@@ -249,9 +249,6 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_Index(self, node):
         self.visit(node.value)
-        index = get_folded_value(node.value)
-        if isinstance(index, vy_ast.Constant):
-            node._metadata["folded_value"] = index
 
     # repeated code for List and Tuple
     def _subscriptable_helper(self, node):
