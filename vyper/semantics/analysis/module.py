@@ -324,23 +324,26 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    # load an InterfaceT from an import
+    # load an InterfaceT from an import.
+    # raises FileNotFoundError
     def _load_import(self, level: int, module_str: str) -> InterfaceT:
-        try:
-            return _load_builtin_import(level, module_str)
-        except ModuleNotFoundError:
-            pass
+        return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
+
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
             interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
             return InterfaceT.from_ast(interface_ast)
         except FileNotFoundError:
+            pass
+
+        try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             abi = json.loads(file.source_code)
             return InterfaceT.from_json_abi(file.path, abi)
-
+        except FileNotFoundError:
+            raise ModuleNotFoundError(module_str) from None
 
 # convert an import to a path (without suffix)
 def _import_to_path(level: int, module_str: str) -> PurePath:
@@ -362,7 +365,7 @@ def _is_builtin(module_str):
 
 def _load_builtin_import(level: int, module_str: str):
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     search_path = Path(vyper.builtins.interfaces.__path__[0]).parent.parent.parent
     input_bundle = FilesystemInputBundle([search_path])
@@ -370,16 +373,17 @@ def _load_builtin_import(level: int, module_str: str):
     # remap builtins directory --
     # vyper/interfaces => vyper/builtins/interfaces
     if module_str.startswith("vyper.interfaces"):
-        module_str = vyper.builtins.interfaces.__package__ + module_str.removeprefix(
-            "vyper.interfaces"
-        )
+        module_str = module_str.removeprefix("vyper.interfaces")
+        module_str = vyper.builtins.interfaces.__package__ + module_str
+
     path = _import_to_path(level, module_str).with_suffix(".vy")
 
     try:
         file = input_bundle.load_file(path)
     except FileNotFoundError:
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
+    # TODO: it might be good to cache this computation
     interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
     return InterfaceT.from_ast(interface_ast)
 
