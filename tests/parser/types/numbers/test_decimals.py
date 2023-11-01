@@ -3,7 +3,7 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, InvalidOperation
+from vyper.exceptions import DecimalOverrideException, InvalidOperation, TypeMismatch
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
@@ -261,4 +261,4 @@ def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

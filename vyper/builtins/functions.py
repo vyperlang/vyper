@@ -1088,9 +1088,9 @@ class RawCall(BuiltinFunction):
         if revert_on_failure is not None:
             revert_on_failure = get_folded_value(revert_on_failure)
 
-        revert_on_failure = revert_on_failure if revert_on_failure is not None else True
+        revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
-        if outsize is None or outsize == 0:
+        if outsize is None or outsize.value == 0:
             if revert_on_failure:
                 return None
             return BoolT()

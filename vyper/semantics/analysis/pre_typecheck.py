@@ -68,7 +68,8 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         # visit type annotations of arguments
         # e.g. def foo(a: DynArray[uint256, 2 ** 8]): ...
         for arg in node.args.args:
-            self.visit(arg.annotation)
+            if arg.annotation:
+                self.visit(arg.annotation)
 
         for kwarg in node.args.defaults:
             self.visit(kwarg)
@@ -94,7 +95,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_VariableDecl(self, node):
         self.visit(node.annotation)
-        if node.is_constant:
+        if node.is_constant and node.value:
             self.visit(node.value)
 
     # Stmts
@@ -156,7 +157,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.value)
         value_node = get_folded_value(node.value)
         if isinstance(value_node, vy_ast.Dict):
-            for k, v in zip(node.keys, node.values):
+            for k, v in zip(value_node.keys, value_node.values):
                 if k.id == node.attr:
                     node._metadata["folded_value"] = v
                     return
@@ -168,6 +169,10 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         left = get_folded_value(node.left)
         right = get_folded_value(node.right)
         if isinstance(left, type(right)) and isinstance(left, (vy_ast.Int, vy_ast.Decimal)):
+            if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and not (
+                0 <= right.value <= 256
+            ):
+                return
             value = node.op._op(left.value, right.value)
             node._metadata["folded_value"] = type(left).from_node(node, value=value)
 
