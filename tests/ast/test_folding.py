@@ -200,7 +200,7 @@ def test_replace_constant(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
 
-    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, 31337, True)
+    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, True)
 
     assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
@@ -223,7 +223,7 @@ def test_replace_constant_no(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
 
-    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, 31337, True)
+    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, True)
 
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
 

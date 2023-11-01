@@ -256,7 +256,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
         values = [get_folded_value(e) for e in node.elements]
         if None not in values:
-            node._metadata["folded_value"] = values
+            node._metadata["folded_value"] = type(node).from_node(node, elts=values)
 
     def visit_List(self, node):
         self._subscriptable_helper(node)
@@ -269,8 +269,8 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.slice)
         self.visit(node.value)
 
-        sliced = get_folded_value(node.slice)
-        index = get_folded_value(node.value)
+        index = get_folded_value(node.slice)
+        sliced = get_folded_value(node.value)
         if None not in (sliced, index):
             node._metadata["folded_value"] = sliced.elements[index.value]
 
@@ -293,9 +293,5 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 def get_folded_value(node: vy_ast.VyperNode) -> Optional[vy_ast.VyperNode]:
     if isinstance(node, vy_ast.Constant):
         return node
-    elif isinstance(node, (vy_ast.List, vy_ast.Tuple)):
-        values = [get_folded_value(i) for i in node.elements]
-        if None not in values:
-            return values
 
     return node._metadata.get("folded_value")
