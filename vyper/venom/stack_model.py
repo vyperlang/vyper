@@ -59,12 +59,14 @@ class StackModel:
         """
         Returns the top of the stack map.
         """
+        assert depth is not StackModel.NOT_IN_STACK, "Cannot peek non-in-stack depth"
         return self.stack[depth - 1]
 
     def poke(self, depth: int, op: IRValueBase) -> None:
         """
         Pokes an operand at the given depth in the stack map.
         """
+        assert depth is not StackModel.NOT_IN_STACK, "Cannot poke non-in-stack depth"
         assert depth <= 0, "Bad depth"
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
         self.stack[depth - 1] = op
@@ -73,6 +75,7 @@ class StackModel:
         """
         Duplicates the operand at the given depth in the stack map.
         """
+        assert depth is not StackModel.NOT_IN_STACK, "Cannot dup non-existent operand"
         assert depth <= 0, "Cannot dup positive depth"
         assembly.append(f"DUP{-(depth-1)}")
         self.stack.append(self.peek(depth))
@@ -82,6 +85,7 @@ class StackModel:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.
         """
+        assert depth is not StackModel.NOT_IN_STACK, "Cannot swap non-existent operand"
         # convenience, avoids branching in caller
         if depth == 0:
             return
@@ -91,4 +95,5 @@ class StackModel:
         top = self.stack[-1]
         self.stack[-1] = self.stack[depth - 1]
         self.stack[depth - 1] = top
+
     # REVIEW: maybe have a convenience function which swaps depth1 and depth2

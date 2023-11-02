@@ -192,8 +192,6 @@ def _stack_reorder(assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVa
         final_stack_depth = -(len(stack_ops) - i - 1)
         depth = stack.get_depth(op)
 
-        # REVIEW: move this assertion into stack.swap
-        assert depth is not StackModel.NOT_IN_STACK, f"{op} not in stack: {stack.stack}"
         if depth == final_stack_depth:
             continue
 
@@ -224,8 +222,6 @@ def _emit_input_operands(
         for op in ops:
             if isinstance(op, IRVariable) and op not in inst.dup_requirements:
                 depth = stack.get_depth(op)
-                # REVIEW: move this assertion into StackModel implementation
-                assert depth is not StackModel.NOT_IN_STACK
                 stack.swap(assembly, depth)
                 break
 
@@ -246,13 +242,10 @@ def _emit_input_operands(
 
         if op in inst.dup_requirements:
             depth = stack.get_depth(op)
-            assert depth is not StackModel.NOT_IN_STACK
             stack.dup(assembly, depth)
 
         if op in emited_ops:
             depth = stack.get_depth(op)
-            # REVIEW: move this assertion into StackModel implementation
-            assert depth is not StackModel.NOT_IN_STACK
             stack.dup(assembly, depth)
 
         # REVIEW: this seems like it can be reordered across volatile
@@ -315,8 +308,6 @@ def _generate_evm_for_instruction(
         ret = inst.get_outputs()[0]
         inputs = inst.get_inputs()
         depth = stack.get_shallowest_depth(inputs)
-        # REVIEW: move this into StackModel implementation
-        assert depth is not StackModel.NOT_IN_STACK, "Operand not in stack"
         to_be_replaced = stack.peek(depth)
         if to_be_replaced in inst.dup_requirements:
             stack.dup(assembly, depth)
