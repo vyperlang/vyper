@@ -406,7 +406,7 @@ def ok() -> {typ}:
 
 @external
 def should_fail() -> int256:
-    return -2**255 # OOB for all int/uint types with less than 256 bits
+    return min_value(int256) # OOB for all int/uint types with less than 256 bits
     """
 
     code = f"""

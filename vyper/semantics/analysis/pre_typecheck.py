@@ -131,6 +131,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         self.visit(node.target)
 
     def visit_If(self, node):
+        self.visit(node.test)
         for n in node.body:
             self.visit(n)
         for n in node.orelse:
@@ -155,9 +156,10 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_Attribute(self, node):
         self.visit(node.value)
+
         value_node = get_folded_value(node.value)
-        if isinstance(value_node, vy_ast.Dict):
-            for k, v in zip(value_node.keys, value_node.values):
+        if isinstance(value_node, vy_ast.Call) and isinstance(value_node.args[0], vy_ast.Dict):
+            for k, v in zip(value_node.args[0].keys, value_node.args[0].values):
                 if k.id == node.attr:
                     node._metadata["folded_value"] = v
                     return
@@ -169,10 +171,6 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         left = get_folded_value(node.left)
         right = get_folded_value(node.right)
         if isinstance(left, type(right)) and isinstance(left, (vy_ast.Int, vy_ast.Decimal)):
-            if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and not (
-                0 <= right.value <= 256
-            ):
-                return
             node._metadata["folded_value"] = node.evaluate(left, right)
 
     def visit_BoolOp(self, node):
@@ -250,10 +248,6 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
     def _subscriptable_helper(self, node):
         for e in node.elements:
             self.visit(e)
-
-        values = [get_folded_value(e) for e in node.elements]
-        if None not in values:
-            node._metadata["folded_value"] = type(node).from_node(node, elts=values)
 
     def visit_List(self, node):
         self._subscriptable_helper(node)

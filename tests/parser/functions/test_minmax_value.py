@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import OverflowException
+from vyper.exceptions import InvalidType, OverflowException
 from vyper.semantics.types import DecimalT, IntegerT
 
 
@@ -35,8 +35,8 @@ def foo():
     a: {typ} = min_value({typ}) - 1
     """
 
-    assert_compile_failed(lambda: get_contract(upper), OverflowException)
-    assert_compile_failed(lambda: get_contract(lower), OverflowException)
+    assert_compile_failed(lambda: get_contract(upper), (InvalidType, OverflowException))
+    assert_compile_failed(lambda: get_contract(lower), (InvalidType, OverflowException))
 
 
 @pytest.mark.parametrize("typ", [DecimalT()])

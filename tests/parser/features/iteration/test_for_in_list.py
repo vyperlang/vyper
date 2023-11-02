@@ -8,7 +8,6 @@ from vyper.exceptions import (
     InvalidType,
     IteratorException,
     NamespaceCollision,
-    OverflowException,
     StateAccessViolation,
     StructureException,
     TypeMismatch,
@@ -773,7 +772,7 @@ def test_for() -> int128:
         a = i
     return a
     """,
-        OverflowException,
+        InvalidType,
     ),
     (
         """

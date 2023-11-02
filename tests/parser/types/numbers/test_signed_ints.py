@@ -201,7 +201,7 @@ def num_sub() -> {typ}:
     return 1-2**{typ.bits}
     """
 
-    assert_compile_failed(lambda: get_contract(code), OverflowException)
+    assert_compile_failed(lambda: get_contract(code), (InvalidType, OverflowException))
 
 
 ARITHMETIC_OPS = {
