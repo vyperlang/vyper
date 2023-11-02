@@ -21,6 +21,6 @@ def foo(array: int128[10], idx: uint256) -> int128:
 
     vyper_ast = vy_ast.parse_to_ast(f"{array}[{idx}]")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.evaluate(old_node.slice.value, old_node.value)
 
     assert contract.foo(array, idx) == new_node.value

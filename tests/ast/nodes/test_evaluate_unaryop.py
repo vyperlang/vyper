@@ -15,7 +15,7 @@ def foo(a: bool) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(f"not {bool_cond}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.evaluate(old_node.operand)
 
     assert contract.foo(bool_cond) == new_node.value
 
@@ -39,7 +39,7 @@ def foo() -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(expected)
     validate_semantics(vyper_ast, {})
-    vy_ast.folding.replace_literal_ops(vyper_ast)
+    vy_ast.folding.replace_foldable_values(vyper_ast)
     expected = vyper_ast.body[0].body[0].value.value
 
     assert contract.foo(bool_cond) == expected

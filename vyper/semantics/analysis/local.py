@@ -606,6 +606,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         # annotate
         node._metadata["type"] = typ
 
+        # annotate folded values
+        folded_value = node._metadata.get("folded_value")
+        if folded_value:
+            super().visit(folded_value, typ)
+
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
 
@@ -737,6 +742,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         validate_expected_type(node, typ)
+        typ.validate_literal(node)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
         validate_expected_type(node.value, typ)

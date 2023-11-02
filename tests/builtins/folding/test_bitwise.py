@@ -28,7 +28,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.evaluate(old_node.left, old_node.right)
 
     assert contract.foo(a, b) == new_node.value
 
@@ -49,7 +49,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     old_node = vyper_ast.body[0].value
 
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.evaluate(old_node.left, old_node.right)
         # force bounds check, no-op because validate_numeric_bounds
         # already does this, but leave in for hygiene (in case
         # more types are added).
@@ -79,7 +79,7 @@ def foo(a: int256, b: uint256) -> int256:
     old_node = vyper_ast.body[0].value
 
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.evaluate(old_node.left, old_node.right)
         validate_expected_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
@@ -104,6 +104,6 @@ def foo(a: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"~{value}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.evaluate(old_node.operand)
 
     assert contract.foo(value) == new_node.value

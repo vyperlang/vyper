@@ -373,7 +373,7 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def evaluate(self) -> "VyperNode":
+    def evaluate(self, *args) -> "VyperNode":
         """
         Attempt to evaluate the content of a node and generate a new node from it.
 
@@ -413,7 +413,7 @@ class VyperNode:
 
         folded_value = self._metadata.get("folded_value")
         if folded_value is not None:
-            ast_dict["folded_value"] = str(self._metadata["folded_value"])
+            ast_dict["folded_value"] = str(folded_value)
 
         return ast_dict
 
@@ -916,7 +916,7 @@ class Name(ExprNode):
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
-    def evaluate(self) -> ExprNode:
+    def evaluate(self, operand) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
 
@@ -925,16 +925,16 @@ class UnaryOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
+        if isinstance(self.op, Not) and not isinstance(operand, NameConstant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
+        if isinstance(self.op, USub) and not isinstance(operand, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
+        if isinstance(self.op, Invert) and not isinstance(operand, Int):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        value = self.op._op(self.operand.value)
+        value = self.op._op(operand.value)
         _validate_numeric_bounds(self, value)
-        return type(self.operand).from_node(self, value=value)
+        return type(operand).from_node(self, value=value)
 
 
 class Operator(VyperNode):
@@ -964,7 +964,7 @@ class Invert(Operator):
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
 
-    def evaluate(self) -> ExprNode:
+    def evaluate(self, left, right) -> ExprNode:
         """
         Attempt to evaluate the arithmetic operation.
 
@@ -973,7 +973,6 @@ class BinOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        left, right = self.left, self.right
         if type(left) is not type(right):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
@@ -1114,7 +1113,7 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
-    def evaluate(self) -> ExprNode:
+    def evaluate(self, values) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
 
@@ -1123,10 +1122,10 @@ class BoolOp(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        if next((i for i in self.values if not isinstance(i, NameConstant)), None):
+        if next((i for i in values if not isinstance(i, NameConstant)), None):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        values = [i.value for i in self.values]
+        values = [i.value for i in values]
         if None in values:
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
@@ -1170,7 +1169,7 @@ class Compare(ExprNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def evaluate(self) -> ExprNode:
+    def evaluate(self, left, right) -> ExprNode:
         """
         Attempt to evaluate the comparison.
 
@@ -1179,7 +1178,6 @@ class Compare(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        left, right = self.left, self.right
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
@@ -1272,7 +1270,7 @@ class Attribute(ExprNode):
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
 
-    def evaluate(self) -> ExprNode:
+    def evaluate(self, slice_, value) -> ExprNode:
         """
         Attempt to evaluate the subscript.
 
@@ -1284,12 +1282,12 @@ class Subscript(ExprNode):
         ExprNode
             Node representing the result of the evaluation.
         """
-        if not isinstance(self.value, List):
+        if not isinstance(value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
-        elements = self.value.elements
+        elements = value.elements
         if len(set([type(i) for i in elements])) > 1:
             raise UnfoldableNode("List contains multiple node types")
-        idx = self.slice.get("value.value")
+        idx = slice_.get("value")
         if not isinstance(idx, int) or idx < 0 or idx >= len(elements):
             raise UnfoldableNode("Invalid index value")
 

@@ -61,9 +61,7 @@ class _BytestringT(VyperType):
     def validate_literal(self, node: vy_ast.Constant) -> None:
         super().validate_literal(node)
 
-        if len(node.value) != self.length:
-            # should always be constructed with correct length
-            # at the point that validate_literal is calle.d
+        if len(node.value) > self.length:
             raise CompilerPanic("unreachable")
 
     @property

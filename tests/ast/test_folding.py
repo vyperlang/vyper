@@ -4,7 +4,6 @@ from vyper import ast as vy_ast
 from vyper.ast import folding
 from vyper.exceptions import OverflowException
 from vyper.semantics import validate_semantics
-from vyper.semantics.types.shortcuts import UINT256_T
 
 
 def test_integration():
@@ -46,7 +45,7 @@ def foo():
     expected_ast = vy_ast.parse_to_ast(expected)
 
     validate_semantics(test_ast, {})
-    folding.replace_literal_ops(test_ast)
+    folding.replace_foldable_values(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
@@ -67,7 +66,7 @@ def foo():
     expected_ast = vy_ast.parse_to_ast(expected)
 
     validate_semantics(test_ast, {})
-    folding.replace_literal_ops(test_ast)
+    folding.replace_foldable_values(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
@@ -79,9 +78,8 @@ def foo():
     a: uint256 = 2**255 * 2 / 10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.fold(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_binop_nested_intermediate_underflow():
@@ -91,9 +89,8 @@ def foo():
     a: int256 = -2**255 * 2 - 10 + 100
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.fold(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_decimal_nested_intermediate_overflow():
@@ -103,9 +100,8 @@ def foo():
     a: decimal = 18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.fold(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_decimal_nested_intermediate_underflow():
@@ -115,9 +111,8 @@ def foo():
     a: decimal = -18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.fold(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_literal_ops():
@@ -136,7 +131,7 @@ def foo():
     expected_ast = vy_ast.parse_to_ast(expected)
 
     validate_semantics(test_ast, {})
-    folding.replace_literal_ops(test_ast)
+    folding.replace_foldable_values(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
@@ -157,7 +152,7 @@ def foo():
     expected_ast = vy_ast.parse_to_ast(expected)
 
     validate_semantics(test_ast, {})
-    folding.replace_subscripts(test_ast)
+    folding.replace_foldable_values(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
@@ -178,20 +173,69 @@ def foo():
     expected_ast = vy_ast.parse_to_ast(expected)
 
     validate_semantics(test_ast, {})
-    folding.replace_subscripts(test_ast)
+    folding.replace_foldable_values(test_ast)
 
     assert vy_ast.compare_nodes(test_ast, expected_ast)
 
 
 constants_modified = [
-    "bar = FOO",
-    "bar: int128[FOO]",
-    "[1, 2, FOO]",
-    "def bar(a: int128 = FOO): pass",
-    "log bar(FOO)",
-    "FOO + 1",
-    "a: int128[FOO / 2]",
-    "a[FOO - 1] = 44",
+    """
+FOO: constant(uint256) = 4
+
+@external
+def foo():
+    bar: uint256 = 1
+    bar = FOO
+    """,
+    """
+FOO: constant(uint256) = 4
+bar: int128[FOO]
+    """,
+    """
+FOO: constant(uint256) = 4
+
+@external
+def foo():
+    a: uint256[3] = [1, 2, FOO]
+    """,
+    """
+FOO: constant(uint256) = 4
+@external
+def bar(a: uint256 = FOO):
+    pass
+    """,
+    """
+FOO: constant(uint256) = 4
+
+event bar:
+    a: uint256
+
+@external
+def foo():
+    log bar(FOO)
+    """,
+    """
+FOO: constant(uint256) = 4
+
+@external
+def foo():
+    a: uint256 = FOO + 1
+    """,
+    """
+FOO: constant(uint256) = 4
+
+@external
+def foo():
+    a: int128[FOO / 2] = [1, 2]
+    """,
+    """
+FOO: constant(uint256) = 4
+
+@external
+def bar(x: DynArray[uint256, 4]):
+    a: DynArray[uint256, 4] = x
+    a[FOO - 1] = 44
+    """,
 ]
 
 
@@ -200,21 +244,79 @@ def test_replace_constant(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
 
-    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, True)
+    validate_semantics(folded_ast, {})
+    folding.replace_foldable_values(folded_ast)
 
     assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
 
 constants_unmodified = [
-    "FOO = 42",
-    "self.FOO = 42",
-    "bar = FOO()",
-    "FOO()",
-    "bar = FOO()",
-    "bar = self.FOO",
-    "log FOO(bar)",
-    "[1, 2, FOO()]",
-    "FOO[42] = 2",
+    """
+FOO: immutable(uint256)
+
+@external
+def __init__():
+    FOO = 42
+    """,
+    """
+FOO: uint256
+
+@external
+def foo():
+    self.FOO = 42
+    """,
+    """
+bar: uint256
+
+@internal
+def FOO() -> uint256:
+    return 123
+
+@external
+def foo():
+    bar: uint256 = 456
+    bar = self.FOO()
+    """,
+    """
+@internal
+def FOO():
+    pass
+
+@external
+def foo():
+    self.FOO()
+    """,
+    """
+FOO: uint256
+
+@external
+def foo():
+    bar: uint256 = 1
+    bar = self.FOO
+    """,
+    """
+event FOO:
+    a: uint256
+
+@external
+def foo(bar: uint256):
+    log FOO(bar)
+    """,
+    """
+@internal
+def FOO() -> uint256:
+    return 3
+
+@external
+def foo():
+    a: uint256[3] = [1, 2, self.FOO()]
+    """,
+    """
+@external
+def foo():
+    FOO: DynArray[uint256, 5] = [1, 2, 3, 4, 5]
+    FOO[4] = 2
+    """,
 ]
 
 
@@ -223,7 +325,8 @@ def test_replace_constant_no(source):
     unmodified_ast = vy_ast.parse_to_ast(source)
     folded_ast = vy_ast.parse_to_ast(source)
 
-    folding.replace_constant(folded_ast, "FOO", vy_ast.Int(value=31337), UINT256_T, True)
+    validate_semantics(folded_ast, {})
+    folding.replace_foldable_values(folded_ast)
 
     assert vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
@@ -271,7 +374,7 @@ def test_replace_userdefined_constant(source):
     folded_ast = vy_ast.parse_to_ast(source)
 
     validate_semantics(folded_ast, {})
-    folding.replace_user_defined_constants(folded_ast)
+    folding.replace_foldable_values(folded_ast)
 
     assert not vy_ast.compare_nodes(unmodified_ast, folded_ast)
 
@@ -301,7 +404,7 @@ def test_replace_userdefined_attribute(source):
 
     l_ast = vy_ast.parse_to_ast(l_source)
     validate_semantics(l_ast, {})
-    folding.replace_user_defined_constants(l_ast)
+    folding.replace_foldable_values(l_ast)
 
     r_ast = vy_ast.parse_to_ast(r_source)
 
@@ -338,7 +441,7 @@ FOO: constant(Foo) = Foo({a: 123, b: 456})
 
     l_ast = vy_ast.parse_to_ast(l_source)
     validate_semantics(l_ast, {})
-    folding.replace_user_defined_constants(l_ast)
+    folding.replace_foldable_values(l_ast)
 
     r_ast = vy_ast.parse_to_ast(r_source)
 
@@ -379,7 +482,7 @@ FOO: constant(Foo) = Foo({f1: Bar({b1: 123, b2: 456}), f2: 789})
 
     l_ast = vy_ast.parse_to_ast(l_source)
     validate_semantics(l_ast, {})
-    folding.replace_user_defined_constants(l_ast)
+    folding.replace_foldable_values(l_ast)
 
     r_ast = vy_ast.parse_to_ast(r_source)
 
@@ -417,6 +520,6 @@ def test_replace_builtins(source, original, result):
     target_ast = vy_ast.parse_to_ast(source.format(result))
 
     validate_semantics(original_ast, {})
-    folding.replace_builtin_functions(original_ast)
+    folding.replace_foldable_values(original_ast)
 
     assert vy_ast.compare_nodes(original_ast, target_ast)

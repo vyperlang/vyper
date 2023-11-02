@@ -140,7 +140,7 @@ class Floor(BuiltinFunction):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Decimal):
@@ -171,7 +171,7 @@ class Ceil(BuiltinFunction):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Decimal):
@@ -466,7 +466,7 @@ class Len(BuiltinFunction):
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
@@ -603,7 +603,7 @@ class Keccak256(BuiltinFunction):
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if isinstance(arg, vy_ast.Bytes):
@@ -651,7 +651,7 @@ class Sha256(BuiltinFunction):
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if isinstance(arg, vy_ast.Bytes):
@@ -722,7 +722,7 @@ class Sha256(BuiltinFunction):
 class MethodID(FoldedFunction):
     _id = "method_id"
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
 
         args = node.args
@@ -993,7 +993,7 @@ class AsWeiValue(BuiltinFunction):
 
         return denom
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
 
@@ -1353,7 +1353,7 @@ class BitwiseAnd(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
             self.__class__._warned = True
@@ -1380,7 +1380,7 @@ class BitwiseOr(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
             self.__class__._warned = True
@@ -1407,7 +1407,7 @@ class BitwiseXor(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
             self.__class__._warned = True
@@ -1434,7 +1434,7 @@ class BitwiseNot(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
@@ -1461,7 +1461,7 @@ class Shift(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
             self.__class__._warned = True
@@ -1513,7 +1513,7 @@ class _AddMulMod(BuiltinFunction):
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 3)
         args = [get_folded_value(i) for i in node.args]
         if isinstance(args[2], vy_ast.Int) and args[2] == 0:
@@ -1556,7 +1556,7 @@ class PowMod256(BuiltinFunction):
     _inputs = [("a", UINT256_T), ("b", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 2)
         args = [get_folded_value(i) for i in node.args]
         if any(not isinstance(i, vy_ast.Int) for i in args):
@@ -1580,7 +1580,7 @@ class Abs(BuiltinFunction):
     _inputs = [("value", INT256_T)]
     _return_type = INT256_T
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Int):
@@ -2024,7 +2024,7 @@ class UnsafeDiv(_UnsafeMath):
 class _MinMax(BuiltinFunction):
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 2)
         args = [get_folded_value(i) for i in node.args]
         if not isinstance(args[0], type(args[1])):
@@ -2039,13 +2039,11 @@ class _MinMax(BuiltinFunction):
         ):
             raise InvalidType("Decimal value is outside of allowable range", node)
 
-        # skip during pre-typecheck
-        if not skip_typecheck:
-            types_list = get_common_types(
-                *args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
-            )
-            if not types_list:
-                raise TypeMismatch("Cannot perform action between dislike numeric types", node)
+        types_list = get_common_types(
+            *args, filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
+        )
+        if not types_list:
+            raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left.value, right.value)
         return type(left).from_node(node, value=value)
@@ -2113,7 +2111,7 @@ class Uint2Str(BuiltinFunction):
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
         return StringT(len_needed)
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         validate_call_args(node, 1)
         arg = get_folded_value(node.args[0])
         if not isinstance(arg, vy_ast.Int):
@@ -2599,7 +2597,7 @@ class ABIDecode(BuiltinFunction):
 
 
 class _MinMaxValue(TypenameFoldedFunction):
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
@@ -2634,7 +2632,7 @@ class MaxValue(_MinMaxValue):
 class Epsilon(TypenameFoldedFunction):
     _id = "epsilon"
 
-    def evaluate(self, node, skip_typecheck=False):
+    def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 

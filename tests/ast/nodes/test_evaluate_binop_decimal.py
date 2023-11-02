@@ -32,7 +32,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.evaluate(old_node.left, old_node.right)
         is_valid = True
     except ZeroDivisionException:
         is_valid = False
@@ -49,7 +49,7 @@ def test_binop_pow():
     old_node = vyper_ast.body[0].value
 
     with pytest.raises(TypeMismatch):
-        old_node.evaluate()
+        old_node.evaluate(old_node.left, old_node.right)
 
 
 @pytest.mark.fuzzing
@@ -82,7 +82,7 @@ def foo() -> decimal:
     vyper_ast = vy_ast.parse_to_ast(expected)
     try:
         validate_semantics(vyper_ast, {})
-        vy_ast.folding.replace_literal_ops(vyper_ast)
+        vy_ast.folding.replace_foldable_values(vyper_ast)
         expected = vyper_ast.body[0].body[0].value.value
         is_valid = -(2**127) <= expected < 2**127
     except (OverflowException, ZeroDivisionException):
