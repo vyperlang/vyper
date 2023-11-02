@@ -1,4 +1,4 @@
-from vyper.venom.basicblock import IRValueBase
+from vyper.venom.basicblock import IRValueBase, IRVariable
 
 
 class StackModel:
@@ -42,18 +42,22 @@ class StackModel:
 
         return StackModel.NOT_IN_STACK
 
-    def get_shallowest_depth(self, ops: list[IRValueBase]) -> int:
+    def get_phi_depth(self, phi1: IRVariable, phi2: IRVariable) -> int:
         """
-        Returns the depth of the first matching operand in the stack map.
-        If the none of the operands in is `ops` is in the stack, returns NOT_IN_STACK.
+        Returns the depth of the first matching phi variable in the stack map.
+        If the none of the phi operands are in the stack, returns NOT_IN_STACK.
+        Asserts that exactly one of phi1 and phi2 is found.
         """
-        assert isinstance(ops, list), f"get_shallowest_depth takes list, got '{ops}'"
+        assert isinstance(phi1, IRVariable)
+        assert isinstance(phi2, IRVariable)
 
-        for i, stack_op in enumerate(reversed(self.stack)):
-            if stack_op in ops:
-                return -i
+        ret = StackModel.NOT_IN_STACK
+        for i, stack_item in enumerate(reversed(self.stack)):
+            if stack_item in (phi1, phi2):
+                assert ret is StackModel.NOT_IN_STACK, f"phi argument is not unique! {phi1}, {phi2}, {self.stack}"
+                ret = -i
 
-        return StackModel.NOT_IN_STACK
+        return ret
 
     def peek(self, depth: int) -> IRValueBase:
         """

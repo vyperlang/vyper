@@ -277,22 +277,28 @@ class IRBasicBlock:
         assert isinstance(liveness, OrderedSet)
 
         for inst in self.instructions:
-            # REVIEW: might be nice if some of these instructions
-            # were more structured.
-            # HK: Can you elaborate on this? I'm not sure what you mean.
-            # REVIEW: I meant, if there were classs like
-            #   IRPhi(IRInstruction)
-            #   IRStore(IRInstruction)
-            # etc.
             if inst.opcode == "phi":
-                if inst.operands[0] == source.label:
-                    liveness.add(inst.operands[1])
-                    if inst.operands[3] in liveness:
-                        liveness.remove(inst.operands[3])
-                if inst.operands[2] == source.label:
-                    liveness.add(inst.operands[3])
-                    if inst.operands[1] in liveness:
-                        liveness.remove(inst.operands[1])
+                # we arbitrarily choose one of the arguments to be in the
+                # live variables set (dependent on how we traversed into this
+                # basic block). the argument will be replaced by the destination
+                # operand during instruction selection.
+                # for instance, `%56 = phi %label1 %12 %label2 %14`
+                # will arbitrarily choose either %12 or %14 to be in the liveness
+                # set, and then during instruction selection, after this instruction,
+                # %12 will be replaced by %56 in the liveness set
+                source1, source2 = inst.operands[0], inst.operands[2]
+                phi1, phi2 = inst.operands[1], inst.operands[3]
+                if source.label == source1:
+                    liveness.add(phi1)
+                    if phi2 in liveness:
+                        liveness.remove(phi2)
+                elif source.label == source2:
+                    liveness.add(phi2)
+                    if phi1 in liveness:
+                        liveness.remove(phi1)
+                else:
+                    # bad path into this phi node
+                    raise CompilerPanic(f"unreachable: {inst}")
 
         return liveness
 
