@@ -132,6 +132,7 @@ def _compute_dup_requirements(ctx: IRFunction) -> None:
                 if op in bb.out_vars:
                     inst.dup_requirements.add(op)
 
+
 visited_instructions = None  # {IRInstruction}
 visited_basicblocks = None  # {IRBasicBlock}
 
@@ -220,6 +221,7 @@ def _emit_input_operands(
                 stack.swap(assembly, depth)
                 break
 
+    emited_ops = []
     for op in ops:
         if isinstance(op, IRLabel):
             # invoke emits the actual instruction itself so we don't need to emit it here
@@ -234,7 +236,7 @@ def _emit_input_operands(
             stack.push(op)
             continue
 
-        if op in inst.dup_requirements:
+        if op in inst.dup_requirements or op in emited_ops:
             depth = stack.get_depth(op)
             assert depth is not StackModel.NOT_IN_STACK
             stack.dup(assembly, depth)
@@ -242,6 +244,9 @@ def _emit_input_operands(
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")
+
+        emited_ops.append(op)
+
 
 def _generate_evm_for_basicblock_r(
     ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel
