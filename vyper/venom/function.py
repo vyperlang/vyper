@@ -24,7 +24,7 @@ class IRFunction:
 
     dfg: Any = None  # dfg will be added in convert_ir_to_dfg pass
 
-    def __init__(self, name: IRLabel) -> None:
+    def __init__(self, name: IRLabel = IRLabel("global")) -> None:
         self.name = name
         self.args = []
         self.basic_blocks = []
