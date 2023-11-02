@@ -243,7 +243,6 @@ def compile_files(
     translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
-    contract_sources: ContractCodes = dict()
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
             raise VyperException(
@@ -251,30 +250,34 @@ def compile_files(
                 "layouts, but {len(input_files)} source files"
             )
 
+    ret = {}
     for file_name in input_files:
         file_path = Path(file_name)
-        file = input_bundle.load_file(Path(file_path)).source_code
+        file = input_bundle.load_file(Path(file_path))
 
-        storage_layout = None
+        storage_layout_override = None
         if storage_layout_paths:
-            storage_file_path = Path(storage_file_name)
-            storage_layout = json.load(sfh)
+            storage_file_path = Path(storage_layout_paths.pop(0))
+            storage_layout_override = json.load(sfh)
 
-        res = vyper.compile_code(
+        output = vyper.compile_code(
             file.source_code,
             contract_name=file.path,
+            source_id = file.source_id,
             input_bundle=input_bundle,
-            final_formats=file_formats,
+            output_formats=final_formats,
             exc_handler=exc_handler,
             settings=settings,
-            storage_layouts=storage_layouts,
+            storage_layout_override=storage_layout_override,
             show_gas_estimates=show_gas_estimates,
             no_bytecode_metadata=no_bytecode_metadata,
         )
         if show_version:
-            compiler_data["version"] = vyper.__version__
+            output["version"] = vyper.__version__
 
-    return compiler_data
+        ret[file_path] = output
+
+    return ret
 
 
 if __name__ == "__main__":

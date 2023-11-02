@@ -45,14 +45,15 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
-    output_formats: Optional[OutputFormats] = None,
     contract_name: str = UNKNOWN_CONTRACT_NAME,
+    source_id: int = -1,
     input_bundle: InputBundle = None,
     settings: Settings = None,
+    output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
+    no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
-    no_bytecode_metadata: bool = False,
 ) -> dict:
     """
     Generate consumable compiler output(s) from a single contract source code.
@@ -89,9 +90,6 @@ def compile_code(
     if output_formats is None:
         output_formats = ("bytecode",)
 
-    if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in contract_sources.keys())
-
     # make IR output the same between runs
     codegen.reset_names()
 
@@ -105,18 +103,19 @@ def compile_code(
         show_gas_estimates,
         no_bytecode_metadata,
     )
+    ret = {}
+
     with anchor_evm_version(compiler_data.settings.evm_version):
-        for output_format in output_formats[contract_name]:
+        for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
                 raise ValueError(f"Unsupported format type {repr(output_format)}")
             try:
-                out.setdefault(contract_name, {})
                 formatter = OUTPUT_FORMATS[output_format]
-                out[contract_name][output_format] = formatter(compiler_data)
+                ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
                     exc_handler(contract_name, exc)
                 else:
                     raise exc
 
-    return out
+    return ret
