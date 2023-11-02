@@ -17,7 +17,7 @@ from vyper.warnings import ContractSizeLimitWarning
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
-        "contract_name": compiler_data.contract_name,
+        "contract_name": compiler_data.contract_path,
         "ast": ast_to_dict(compiler_data.vyper_module),
     }
     return ast_dict
@@ -35,7 +35,7 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    stem = Path(compiler_data.contract_name).stem
+    stem = compiler_data.contract_path.stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
     name = "".join([x.capitalize() for x in stem.split("_")])

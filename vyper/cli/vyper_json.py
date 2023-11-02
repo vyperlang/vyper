@@ -253,28 +253,28 @@ def compile_from_input_dict(
     contract_sources = get_compilation_targets(input_dict)
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
 
-    compiler_data, warning_data = {}, {}
+    res, warnings_dict = {}, {}
     warnings.simplefilter("always")
     input_bundle = JSONInputBundle([root_path], contract_sources)
     for id_, contract_path in enumerate(sorted(contract_sources)):
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 file = input_bundle.load_file(contract_path)
-                data = vyper.compile_codes(
-                    {contract_path: file.source_code},
+                data = vyper.compile_code(
+                    file.source_code,
                     input_bundle,
                     output_formats[contract_path],
-                    initial_id=id_,
+                    source_id=file.source_id,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
-            compiler_data[contract_path] = data[contract_path]
+            res[contract_path] = data[contract_path]
             if caught_warnings:
-                warning_data[contract_path] = caught_warnings
+                warnings_dict[contract_path] = caught_warnings
 
-    return compiler_data, warning_data
+    return res, warnings_dict
 
 
 def format_to_output_dict(compiler_data: Dict) -> Dict:
@@ -338,17 +338,15 @@ def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
 
 
 def compile_json(
-    input_json: Union[Dict, str],
+    input_json: dict | str,
     exc_handler: Callable = exc_handler_raises,
-    root_path: Union[str, None] = None,
-    json_path: Union[str, None] = None,
+    root_path: Optional[str] = None,
+    json_path: Optional[str] = None,
 ) -> Dict:
     try:
         if isinstance(input_json, str):
             try:
-                input_dict: Dict = json.loads(
-                    input_json, object_pairs_hook=_raise_on_duplicate_keys
-                )
+                input_dict = json.loads(input_json, object_pairs_hook=_raise_on_duplicate_keys)
             except json.decoder.JSONDecodeError as exc:
                 new_exc = JSONError(str(exc), exc.lineno, exc.colno)
                 return exc_handler(json_path, new_exc, "json")

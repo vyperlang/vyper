@@ -224,7 +224,7 @@ def compile_files(
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
-    storage_layout: Optional[Iterable[str]] = None,
+    storage_layout_paths: Iterable[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
     root_path = Path(root_folder).resolve()
@@ -232,18 +232,6 @@ def compile_files(
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
     input_bundle = FilesystemInputBundle([root_path])
-
-    contract_sources: ContractCodes = dict()
-    for file_name in input_files:
-        file_path = Path(file_name)
-        contract_sources[file_path] = input_bundle.load_file(Path(file_path)).source_code
-
-    storage_layouts = dict()
-    if storage_layout:
-        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
-            storage_file_path = Path(storage_file_name)
-            with storage_file_path.open() as sfh:
-                storage_layouts[contract_name] = json.load(sfh)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -255,18 +243,36 @@ def compile_files(
     translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
-    compiler_data = vyper.compile_codes(
-        contract_sources,
-        input_bundle,
-        final_formats,
-        exc_handler=exc_handler,
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-        no_bytecode_metadata=no_bytecode_metadata,
-    )
-    if show_version:
-        compiler_data["version"] = vyper.__version__
+    contract_sources: ContractCodes = dict()
+    if storage_layout_paths:
+        if len(storage_layout_paths) != len(input_files):
+            raise VyperException(
+                "provided {len(storage_layout_paths)} storage "
+                "layouts, but {len(input_files)} source files"
+            )
+
+    for file_name in input_files:
+        file_path = Path(file_name)
+        file = input_bundle.load_file(Path(file_path)).source_code
+
+        storage_layout = None
+        if storage_layout_paths:
+            storage_file_path = Path(storage_file_name)
+            storage_layout = json.load(sfh)
+
+        res = vyper.compile_code(
+            file.source_code,
+            contract_name=file.path,
+            input_bundle=input_bundle,
+            final_formats=file_formats,
+            exc_handler=exc_handler,
+            settings=settings,
+            storage_layouts=storage_layouts,
+            show_gas_estimates=show_gas_estimates,
+            no_bytecode_metadata=no_bytecode_metadata,
+        )
+        if show_version:
+            compiler_data["version"] = vyper.__version__
 
     return compiler_data
 

@@ -53,8 +53,8 @@ class CompilerData:
     def __init__(
         self,
         source_code: str,
-        input_bundle: InputBundle,
-        contract_path: Path = DEFAULT_CONTRACT_NAME,
+        input_bundle: InputBundle = None,
+        contract_path: Path | PurePath = DEFAULT_CONTRACT_NAME,
         source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -80,13 +80,14 @@ class CompilerData:
             Do not add metadata to bytecode. Defaults to False
         """
         self.contract_path = contract_path
-        self.input_bundle = input_bundle
         self.source_code = source_code
         self.source_id = source_id
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
+
         self.settings = settings or Settings()
+        self.input_bundle = input_bundle or InputBundle([PurePath(".")])
 
         _ = self._generate_ast  # force settings to be calculated
 
@@ -233,7 +234,7 @@ def generate_ast(
 
 # destructive -- mutates module in place!
 def generate_unfolded_ast(
-    contract_path: Path, vyper_module: vy_ast.Module, input_bundle: InputBundle
+    contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)

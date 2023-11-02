@@ -40,103 +40,23 @@ OUTPUT_FORMATS = {
 }
 
 
-def compile_codes(
-    contract_sources: ContractCodes,
-    input_bundle: InputBundle,
-    output_formats: Union[OutputDict, OutputFormats, None] = None,
-    exc_handler: Union[Callable, None] = None,
-    initial_id: int = 0,
-    settings: Settings = None,
-    storage_layouts: Optional[dict[ContractPath, Optional[StorageLayout]]] = None,
-    show_gas_estimates: bool = False,
-    no_bytecode_metadata: bool = False,
-) -> OrderedDict:
-    """
-    Generate compiler output(s) from one or more contract source codes.
-
-    Arguments
-    ---------
-    contract_sources: Dict[str, str]
-        Vyper source codes to be compiled. Formatted as `{"contract name": "source code"}`
-    output_formats: List, optional
-        List of compiler outputs to generate. Possible options are all the keys
-        in `OUTPUT_FORMATS`. If not given, the deployment bytecode is generated.
-    exc_handler: Callable, optional
-        Callable used to handle exceptions if the compilation fails. Should accept
-        two arguments - the name of the contract, and the exception that was raised
-    initial_id: int, optional
-        The lowest source ID value to be used when generating the source map.
-    settings: Settings, optional
-        Compiler settings
-    show_gas_estimates: bool, optional
-        Show gas estimates for abi and ir output modes
-    no_bytecode_metadata: bool, optional
-        Do not add metadata to bytecode. Defaults to False
-
-    Returns
-    -------
-    Dict
-        Compiler output as `{'contract name': {'output key': "output data"}}`
-    """
-    settings = settings or Settings()
-
-    if output_formats is None:
-        output_formats = ("bytecode",)
-
-    if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in contract_sources.keys())
-
-    out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        source_code = contract_sources[contract_name]
-        storage_layout_override = None
-        if storage_layouts and contract_name in storage_layouts:
-            storage_layout_override = storage_layouts[contract_name]
-
-        # make IR output the same between runs
-        codegen.reset_names()
-
-        compiler_data = CompilerData(
-            source_code,
-            input_bundle,
-            contract_name,
-            source_id,
-            settings,
-            storage_layout_override,
-            show_gas_estimates,
-            no_bytecode_metadata,
-        )
-        with anchor_evm_version(compiler_data.settings.evm_version):
-            for output_format in output_formats[contract_name]:
-                if output_format not in OUTPUT_FORMATS:
-                    raise ValueError(f"Unsupported format type {repr(output_format)}")
-                try:
-                    out.setdefault(contract_name, {})
-                    formatter = OUTPUT_FORMATS[output_format]
-                    out[contract_name][output_format] = formatter(compiler_data)
-                except Exception as exc:
-                    if exc_handler is not None:
-                        exc_handler(contract_name, exc)
-                    else:
-                        raise exc
-
-    return out
-
-
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
 def compile_code(
     contract_source: str,
-    search_paths: list[str],
     output_formats: Optional[OutputFormats] = None,
     contract_name: str = UNKNOWN_CONTRACT_NAME,
+    input_bundle: InputBundle = None,
     settings: Settings = None,
     storage_layout_override: Optional[StorageLayout] = None,
     show_gas_estimates: bool = False,
+    exc_handler: Optional[Callable] = None,
+    no_bytecode_metadata: bool = False,
 ) -> dict:
     """
-    Generate compiler output(s) from a single contract source code.
+    Generate consumable compiler output(s) from a single contract source code.
+    Basically, a wrapper around CompilerData.
 
     Arguments
     ---------
@@ -152,6 +72,11 @@ def compile_code(
         Compiler settings.
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
+    exc_handler: Callable, optional
+        Callable used to handle exceptions if the compilation fails. Should accept
+        two arguments - the name of the contract, and the exception that was raised
+    no_bytecode_metadata: bool, optional
+        Do not add metadata to bytecode. Defaults to False
 
     Returns
     -------
@@ -159,15 +84,39 @@ def compile_code(
         Compiler output as `{'output key': "output data"}`
     """
 
-    input_bundle = InputBundle(search_paths)
-    storage_layouts = {contract_name: storage_layout_override}
-    contract_sources = {contract_name: contract_source}
+    settings = settings or Settings()
 
-    return compile_codes(
-        contract_sources,
+    if output_formats is None:
+        output_formats = ("bytecode",)
+
+    if isinstance(output_formats, Sequence):
+        output_formats = dict((k, output_formats) for k in contract_sources.keys())
+
+    # make IR output the same between runs
+    codegen.reset_names()
+
+    compiler_data = CompilerData(
+        contract_source,
         input_bundle,
-        output_formats,
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-    )[contract_name]
+        contract_name,
+        source_id,
+        settings,
+        storage_layout_override,
+        show_gas_estimates,
+        no_bytecode_metadata,
+    )
+    with anchor_evm_version(compiler_data.settings.evm_version):
+        for output_format in output_formats[contract_name]:
+            if output_format not in OUTPUT_FORMATS:
+                raise ValueError(f"Unsupported format type {repr(output_format)}")
+            try:
+                out.setdefault(contract_name, {})
+                formatter = OUTPUT_FORMATS[output_format]
+                out[contract_name][output_format] = formatter(compiler_data)
+            except Exception as exc:
+                if exc_handler is not None:
+                    exc_handler(contract_name, exc)
+                else:
+                    raise exc
+
+    return out

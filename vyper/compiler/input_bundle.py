@@ -1,9 +1,13 @@
 import contextlib
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, Optional, Iterator
+from typing import Any, Iterator, Optional
 
 from vyper.exceptions import CompilerPanic, JSONError
+
+
+# a type to make mypy happy
+PathLike = Path | PurePath
 
 
 class CompilerInput:
@@ -30,11 +34,8 @@ class _NotFound(Exception):
     pass
 
 
-PathLike = Path | PurePath  # make mypy happy
-
-
 class InputBundle:
-    search_paths: list[Path]
+    search_paths: list[PathLike]
     # compilation_targets: dict[str, str]  # contract names => contract sources
 
     def __init__(self, search_paths):
@@ -52,7 +53,7 @@ class InputBundle:
 
         return self._source_ids[path]
 
-    def load_file(self, path: PathLike) -> str:
+    def load_file(self, path: PathLike) -> CompilerInput:
         for p in self.search_paths:
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
@@ -71,15 +72,15 @@ class InputBundle:
 
         raise CompilerPanic("unreachable")  # pragma: nocover
 
-    def add_search_path(self, path: Path) -> None:
+    def add_search_path(self, path: PathLike) -> None:
         self.search_paths.append(path)
 
     # temporarily add something to the search path (within the
     # scope of the context manager). if `path` is None, do nothing
     @contextlib.contextmanager
-    def search_path(self, path: Optional[Path]) -> Iterator[None]:
+    def search_path(self, path: Optional[PathLike]) -> Iterator[None]:
         if path is None:
-            yield
+            yield  # convenience, so caller does not have to handle null path
 
         else:
             self.search_paths.append(path)

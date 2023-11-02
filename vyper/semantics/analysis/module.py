@@ -6,7 +6,7 @@ from typing import Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
@@ -333,6 +333,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
+            assert isinstance(file, FileInput)
             interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
             return InterfaceT.from_ast(interface_ast)
         except FileNotFoundError:
@@ -340,6 +341,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
+            assert isinstance(file, FileInput)
             abi = json.loads(file.source_code)
             return InterfaceT.from_json_abi(file.path, abi)
         except FileNotFoundError:
@@ -384,6 +386,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     except FileNotFoundError:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
+    assert isinstance(file, FileInput)
     # TODO: it might be good to cache this computation
     interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
     return InterfaceT.from_ast(interface_ast)
