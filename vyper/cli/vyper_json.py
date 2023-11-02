@@ -262,15 +262,16 @@ def compile_from_input_dict(
                 file = input_bundle.load_file(contract_path)
                 data = vyper.compile_code(
                     file.source_code,
-                    input_bundle,
-                    output_formats[contract_path],
+                    contract_name=file.path,
+                    input_bundle=input_bundle,
+                    output_formats=output_formats[contract_path],
                     source_id=file.source_id,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
-            res[contract_path] = data[contract_path]
+            res[contract_path] = data
             if caught_warnings:
                 warnings_dict[contract_path] = caught_warnings
 
