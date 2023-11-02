@@ -8,6 +8,7 @@ from vyper.venom.basicblock import (
     IRVariable,
     MemType,
 )
+from vyper.venom.bb_optimizer import calculate_cfg_in, calculate_liveness
 from vyper.venom.function import IRFunction
 from vyper.venom.stack_model import StackModel
 
@@ -145,6 +146,10 @@ def generate_evm(ctx: IRFunction, no_optimize: bool = False) -> list[str]:
     visited_instructions = OrderedSet()
     visited_basicblocks = OrderedSet()
 
+    calculate_cfg_in(ctx)
+    calculate_liveness(ctx)
+    calculate_dfg(ctx)
+
     _generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackModel())
 
     # Append postambles
@@ -236,7 +241,12 @@ def _emit_input_operands(
             stack.push(op)
             continue
 
-        if op in inst.dup_requirements or op in emited_ops:
+        if op in inst.dup_requirements:
+            depth = stack.get_depth(op)
+            assert depth is not StackModel.NOT_IN_STACK
+            stack.dup(assembly, depth)
+
+        if op in emited_ops:
             depth = stack.get_depth(op)
             assert depth is not StackModel.NOT_IN_STACK
             stack.dup(assembly, depth)
