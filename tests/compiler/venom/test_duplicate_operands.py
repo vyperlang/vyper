@@ -1,6 +1,5 @@
 from vyper.compiler.settings import OptimizationLevel
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral
-
 from vyper.venom.function import IRFunction
 from vyper.venom.ir import generate_assembly_experimental
 

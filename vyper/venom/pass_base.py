@@ -1,10 +1,12 @@
 # REVIEW: can move this to `vyper/venom/passes/base_pass.py` or something
 
+
 class IRPass:
     """
     Decorator for IR passes. This decorator will run the pass repeatedly
     until no more changes are made.
     """
+
     @classmethod
     def run_pass(cls, *args, **kwargs):
         t = cls()

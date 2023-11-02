@@ -14,7 +14,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import InterfaceImports, StorageLayout
-from vyper.venom.ir import generate_ir, generate_assembly_experimental
+from vyper.venom.ir import generate_assembly_experimental, generate_ir
 
 
 class CompilerData:

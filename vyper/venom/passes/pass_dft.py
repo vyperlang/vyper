@@ -1,7 +1,80 @@
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRVariable,
+    MemType,
+)
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_pass import IRPass
+from vyper.venom.pass_base import IRPass
+
+
+# DataFlow Graph
+class DFG:
+    _dfg_inputs: dict[IRVariable, list[IRInstruction]]
+    _dfg_outputs: dict[IRVariable, IRInstruction]
+
+    def __init__(self):
+        self._dfg_inputs = dict()
+        self._dfg_outputs = dict()
+
+    # return uses of a given variable
+    def get_uses(self, op: IRVariable) -> list[IRInstruction]:
+        return self._dfg_inputs.get(op, [])
+
+    # the instruction which produces this variable.
+    def get_producing_instruction(self, op: IRVariable) -> IRInstruction:
+        return self._dfg_outputs[op]
+
+    @classmethod
+    def calculate_dfg(cls, ctx: IRFunction) -> None:
+        dfg = DFG.from_ir_function(ctx)
+        ctx.dfg = dfg
+
+        dfg._compute_dup_requirements(ctx)
+
+    def _compute_dup_requirements(self, ctx: IRFunction) -> None:
+        for bb in ctx.basic_blocks:
+            last_seen = dict()
+
+            for inst in bb.instructions:
+                # reset dup_requirements
+                inst.dup_requirements = OrderedSet()
+
+                for op in inst.get_inputs():
+                    if op in last_seen:
+                        target = last_seen[op]
+                        target.dup_requirements.add(op)
+
+                    last_seen[op] = inst
+
+                    if op in bb.out_vars:
+                        inst.dup_requirements.add(op)
+
+    @classmethod
+    def from_ir_function(cls, ctx: IRFunction):
+        dfg = cls()
+
+        # Build DFG
+
+        # %15 = add %13 %14
+        # %16 = iszero %15
+        # dfg_outputs of %15 is (%15 = add %13 %14)
+        # dfg_inputs of %15 is all the instructions which *use* %15, ex. [(%16 = iszero %15), ...]
+        for bb in ctx.basic_blocks:
+            for inst in bb.instructions:
+                operands = inst.get_inputs()
+                res = inst.get_outputs()
+
+                for op in operands:
+                    inputs = dfg._dfg_inputs.setdefault(op, [])
+                    inputs.append(inst)
+
+                for op in res:
+                    dfg._dfg_outputs[op] = inst
+
+        return dfg
+
 
 # DataFlow Transformation
 class DFTPass(IRPass):
@@ -63,7 +136,6 @@ class DFTPass(IRPass):
             self._process_instruction_r(bb, inst)
 
     def _run_pass(self, ctx: IRFunction) -> None:
-        # print(ctx)
         self.ctx = ctx
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
@@ -73,5 +145,3 @@ class DFTPass(IRPass):
 
         for bb in basic_blocks:
             self._process_basic_block(bb)
-
-        # print(ctx)
