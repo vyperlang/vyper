@@ -255,6 +255,9 @@ def _emit_input_operands(
             assert depth is not StackModel.NOT_IN_STACK
             stack.dup(assembly, depth)
 
+        # REVIEW: this seems like it can be reordered across volatile
+        # boundaries (which includes memory fences). maybe just
+        # remove it entirely at this point
         if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
             assembly.extend([*PUSH(op.mem_addr)])
             assembly.append("MLOAD")

@@ -39,7 +39,11 @@ class DFTPass(IRPass):
             target = self.ctx.dfg.get_producing_instruction(op)
             if target.parent != inst.parent:
                 continue
-            # REVIEW: should there be a check for fence here?
+            # REVIEW: should there be a check for fence here? i.e.,
+            # ```
+            # if target.fence_id != inst.fence_id:
+            #     continue
+            # ```
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)

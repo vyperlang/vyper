@@ -1,3 +1,4 @@
+# REVIEW: can move this to `vyper/venom/passes/base_pass.py` or something
 
 class IRPass:
     """

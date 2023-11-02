@@ -11,7 +11,7 @@ def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
     Remove unused variables.
     """
     count = 0
-    removeList = []
+    removeList = []  # REVIEW: performance, could be `set()`
     for bb in ctx.basic_blocks:
         for i, inst in enumerate(bb.instructions[:-1]):
             if inst.volatile:
