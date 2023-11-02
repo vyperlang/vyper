@@ -193,8 +193,15 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
         # constant structs
         if len(node.args) == 1 and isinstance(node.args[0], vy_ast.Dict):
-            self.visit(node.args[0])
-            node._metadata["folded_value"] = get_folded_value(node.args[0])
+            values = [get_folded_value(v) for v in node.args[0].values]
+            if not any(v is None for v in values):
+                node._metadata["folded_value"] = type(node).from_node(
+                    node,
+                    func=node.func,
+                    args=[
+                        vy_ast.Dict.from_node(node.args[0], keys=node.args[0].keys, values=values)
+                    ],
+                )
 
         from vyper.builtins.functions import DISPATCH_TABLE
 
@@ -241,12 +248,6 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
         for v in node.values:
             self.visit(v)
 
-        values = [get_folded_value(v) for v in node.values]
-        if not any(v is None for v in values):
-            node._metadata["folded_value"] = vy_ast.Dict.from_node(
-                node, keys=node.keys, values=values
-            )
-
     def visit_Index(self, node):
         self.visit(node.value)
 
@@ -281,7 +282,7 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
     def visit_UnaryOp(self, node):
         self.visit(node.operand)
         val = get_folded_value(node.operand)
-        if isinstance(val, (vy_ast.Int, vy_ast.Decimal)):
+        if isinstance(val, vy_ast.Constant):
             value = node.op._op(val.value)
             node._metadata["folded_value"] = type(val).from_node(node, value=value)
 
