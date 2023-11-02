@@ -221,8 +221,7 @@ def _emit_input_operands(
     if ops and stack.stack and stack.stack[-1] not in ops:
         for op in ops:
             if isinstance(op, IRVariable) and op not in inst.dup_requirements:
-                depth = stack.get_depth(op)
-                stack.swap(assembly, depth)
+                stack.swap_op(assembly, op)
                 break
 
     emited_ops = []
@@ -241,12 +240,10 @@ def _emit_input_operands(
             continue
 
         if op in inst.dup_requirements:
-            depth = stack.get_depth(op)
-            stack.dup(assembly, depth)
+            stack.dup_op(assembly, op)
 
         if op in emited_ops:
-            depth = stack.get_depth(op)
-            stack.dup(assembly, depth)
+            stack.dup_op(assembly, op)
 
         # REVIEW: this seems like it can be reordered across volatile
         # boundaries (which includes memory fences). maybe just

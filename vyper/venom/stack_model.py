@@ -80,6 +80,13 @@ class StackModel:
         assembly.append(f"DUP{-(depth-1)}")
         self.stack.append(self.peek(depth))
 
+    def dup_op(self, assembly: list[str], op: IRValueBase) -> None:
+        """
+        Convinience method: duplicates the given operand in the stack map.
+        """
+        depth = self.get_depth(op)
+        self.dup(assembly, depth)
+
     # REVIEW: use positive indices (and hide the negation inside StackModel implementation)
     def swap(self, assembly: list[str], depth: int) -> None:
         """
@@ -95,5 +102,13 @@ class StackModel:
         top = self.stack[-1]
         self.stack[-1] = self.stack[depth - 1]
         self.stack[depth - 1] = top
+
+    def swap_op(self, assembly: list[str], op: IRValueBase) -> None:
+        """
+        Convinience method: swaps the given operand in the stack map with the
+        top of the stack.
+        """
+        depth = self.get_depth(op)
+        self.swap(assembly, depth)
 
     # REVIEW: maybe have a convenience function which swaps depth1 and depth2
