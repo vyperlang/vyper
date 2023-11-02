@@ -22,8 +22,8 @@ from vyper.venom.bb_optimizer import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_to_bb_pass import convert_ir_basicblock
-from vyper.venom.passes.pass_constant_propagation import ir_pass_constant_propagation
-from vyper.venom.passes.pass_dft import DFG, DFTPass
+from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
+from vyper.venom.passes.dft import DFG, DFTPass
 from vyper.venom.stack_model import StackModel
 
 
@@ -59,6 +59,7 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         calculate_cfg_in(ctx)
         calculate_liveness(ctx)
+        # REVIEW: i think we can move calculate_dfg inside of DFTPass (so it's an implementation detail)
         DFG.calculate_dfg(ctx)
 
         if changes == 0:
@@ -68,6 +69,7 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
 
 class VenomCompiler:
+    # REVIEW: this could be a global, also for performance, could be set or frozenset
     ONE_TO_ONE_INSTRUCTIONS = [
         "revert",
         "coinbase",
@@ -186,8 +188,16 @@ class VenomCompiler:
         # print("INSTRUCTIONS", assembly[start_len:])
         # print("EXIT reorder", stack.stack, stack_ops)
 
+    # REVIEW: possible swap implementation
+    # def swap(self, op):
+    #     depth = self.stack.get_depth(op)
+    #     assert depth is not StackModel.NOT_IN_STACK, f"not in stack: {op}"
+    #     self.stack.swap(depth)
+    #     self.assembly.append(_evm_swap_for(depth))  # f"SWAP{-depth}")
+
     def _emit_input_operands(
         self,
+        # REVIEW: ctx, assembly and stack could be moved onto the VenomCompiler instance
         ctx: IRFunction,
         assembly: list,
         inst: IRInstruction,
@@ -205,10 +215,12 @@ class VenomCompiler:
         if ops and stack.stack and stack.stack[-1] not in ops:
             for op in ops:
                 if isinstance(op, IRVariable) and op not in inst.dup_requirements:
+                    # REVIEW: maybe move swap_op and dup_op onto this class, so that
+                    # StackModel doesn't need to know about the assembly list
                     stack.swap_op(assembly, op)
                     break
 
-        emited_ops = []
+        emitted_ops = []
         for op in ops:
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need to emit it here
@@ -226,7 +238,7 @@ class VenomCompiler:
             if op in inst.dup_requirements:
                 stack.dup_op(assembly, op)
 
-            if op in emited_ops:
+            if op in emitted_ops:
                 stack.dup_op(assembly, op)
 
             # REVIEW: this seems like it can be reordered across volatile
@@ -236,7 +248,7 @@ class VenomCompiler:
                 assembly.extend([*PUSH(op.mem_addr)])
                 assembly.append("MLOAD")
 
-            emited_ops.append(op)
+            emitted_ops.append(op)
 
     def _generate_evm_for_basicblock_r(
         self, ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel

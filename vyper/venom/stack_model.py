@@ -98,6 +98,7 @@ class StackModel:
             return
 
         assert depth < 0, "Cannot swap positive depth"
+        # REVIEW: move EVM details into EVM generation pass
         assembly.append(f"SWAP{-depth}")
         top = self.stack[-1]
         self.stack[-1] = self.stack[depth - 1]

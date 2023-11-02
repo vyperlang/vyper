@@ -6,7 +6,7 @@ from vyper.venom.basicblock import (
     MemType,
 )
 from vyper.venom.function import IRFunction
-from vyper.venom.pass_base import IRPass
+from vyper.venom.passes.base_pass import IRPass
 
 
 # DataFlow Graph
