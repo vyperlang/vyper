@@ -84,6 +84,11 @@ def foo():
     for i in range(1, 2, 3, 4):
         pass
     """,
+    """
+@external
+def foo():
+    x = as_wei_value(5, "vader")
+    """,
 ]
 
 

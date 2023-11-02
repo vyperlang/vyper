@@ -61,11 +61,6 @@ def foo():
 def foo():
     bork = zork
     """,
-    """
-@external
-def foo():
-    x = as_wei_value(5, "vader")
-    """,
 ]
 
 
