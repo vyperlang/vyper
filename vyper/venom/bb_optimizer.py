@@ -57,6 +57,7 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
     return count
 
 
+# REVIEW: rename to `calculate_cfg`
 def calculate_cfg_in(ctx: IRFunction) -> None:
     """
     Calculate (cfg) inputs for each basic block.
