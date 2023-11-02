@@ -87,7 +87,6 @@ class StackModel:
         depth = self.get_depth(op)
         self.dup(assembly, depth)
 
-    # REVIEW: use positive indices (and hide the negation inside StackModel implementation)
     def swap(self, assembly: list[str], depth: int) -> None:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.

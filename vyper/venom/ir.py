@@ -68,6 +68,8 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
     return ctx
 
 
+
+# REVIEW: move to ir_to_assembly.py for max modularity
 class VenomCompiler:
     # REVIEW: this could be a global, also for performance, could be set or frozenset
     ONE_TO_ONE_INSTRUCTIONS = [
@@ -126,16 +128,18 @@ class VenomCompiler:
     visited_basicblocks = None  # {IRBasicBlock}
 
     def generate_evm(self, ctx: IRFunction, no_optimize: bool = False) -> list[str]:
-        asm = []
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
+
+        stack = StackModel()
+        asm = []
 
         calculate_cfg_in(ctx)
         calculate_liveness(ctx)
         DFG.calculate_dfg(ctx)
 
-        self._generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], StackModel())
+        self._generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], stack)
 
         # Append postambles
         revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
@@ -250,6 +254,7 @@ class VenomCompiler:
 
             emitted_ops.append(op)
 
+    # REVIEW: remove asm and stack from recursion, move to self.
     def _generate_evm_for_basicblock_r(
         self, ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ):
