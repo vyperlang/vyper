@@ -361,7 +361,7 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} \n"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars} \n"
         )
         for instruction in self.instructions:
             s += f"    {instruction}\n"
