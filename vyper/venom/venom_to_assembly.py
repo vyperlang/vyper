@@ -69,11 +69,13 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
+
 # figure out which variables we need to emit DUPs for for this
 # instruction (because they are still live after the instruction
 def _compute_dup_requirements(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
-        _compute_dup_requirements_bb(bb: IRBasicBlock)
+        _compute_dup_requirements_bb(bb)
+
 
 def _compute_dup_requirements_bb(bb: IRBasicBlock) -> None:
     # the most recent instruction which used this variable
@@ -95,6 +97,7 @@ def _compute_dup_requirements_bb(bb: IRBasicBlock) -> None:
 
             if op in bb.out_vars:
                 inst.dup_requirements.add(op)
+
 
 # REVIEW: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
