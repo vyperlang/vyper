@@ -68,11 +68,8 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
     return ctx
 
 
-
-# REVIEW: move to ir_to_assembly.py for max modularity
-class VenomCompiler:
-    # REVIEW: this could be a global, also for performance, could be set or frozenset
-    ONE_TO_ONE_INSTRUCTIONS = [
+ONE_TO_ONE_INSTRUCTIONS = frozenset(
+    [
         "revert",
         "coinbase",
         "calldatasize",
@@ -122,7 +119,11 @@ class VenomCompiler:
         "log3",
         "log4",
     ]
+)
 
+
+# REVIEW: move to ir_to_assembly.py for max modularity
+class VenomCompiler:
     label_counter = 0
     visited_instructions = None  # {IRInstruction}
     visited_basicblocks = None  # {IRBasicBlock}
@@ -335,7 +336,7 @@ class VenomCompiler:
             stack.push(inst.ret)
 
         # Step 5: Emit the EVM instruction(s)
-        if opcode in self.ONE_TO_ONE_INSTRUCTIONS:
+        if opcode in ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
