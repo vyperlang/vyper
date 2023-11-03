@@ -311,6 +311,8 @@ class VenomCompiler:
             assert isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
             target_stack = b.in_vars_from(inst.parent)
+            # REVIEW: this seems like it generates bad code, because
+            # the next _stack_reorder will undo the changes to the stack.
             self._stack_reorder(assembly, stack, target_stack)
 
         is_commutative = opcode in _COMMUTATIVE_INSTRUCTIONS
