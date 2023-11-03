@@ -78,23 +78,7 @@ class DFG:
 
 # DataFlow Transformation
 class DFTPass(IRPass):
-    # recurse "down" into all the uses of `inst`, and then recurse "up" through
-    # all of its dependencies, to try to product an ordering of instructions
-    # which tries to optimize production of stack items to be as close as
-    # possible to uses of stack items.
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
-        for op in inst.get_outputs():
-            for target in self.ctx.dfg.get_uses(op):
-                if target.parent != inst.parent:
-                    # don't reorder across basic block boundaries
-                    continue
-                if target.fence_id != inst.fence_id:
-                    # don't reorder across fence groups
-                    continue
-
-                # try to find the last use
-                self._process_instruction_r(bb, target)
-
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)
@@ -107,13 +91,9 @@ class DFTPass(IRPass):
 
         for op in inst.get_inputs():
             target = self.ctx.dfg.get_producing_instruction(op)
-            if target.parent != inst.parent:
+            if target.parent != inst.parent or target.fence_id != inst.fence_id:
+                # don't reorder across basic block or fence boundaries
                 continue
-            # REVIEW: should there be a check for fence here? i.e.,
-            # ```
-            # if target.fence_id != inst.fence_id:
-            #     continue
-            # ```
             self._process_instruction_r(bb, target)
 
         bb.instructions.append(inst)
