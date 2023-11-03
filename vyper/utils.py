@@ -478,7 +478,7 @@ def ir_pass(func):
 
         while True:
             changes = func(*args, **kwargs) or 0
-            if isinstance(changes, list):
+            if isinstance(changes, list) or isinstance(changes, set):
                 changes = len(changes)
             count += changes
             if changes == 0:
