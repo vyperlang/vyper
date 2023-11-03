@@ -13,9 +13,11 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.dft import DFG
 from vyper.venom.stack_model import StackModel
 
-COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "and", "or", "xor", "eq"])
+# binary instructions which are commutative
+_COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "and", "or", "xor", "eq"])
 
-ONE_TO_ONE_INSTRUCTIONS = frozenset(
+# instructions which map one-to-one from venom to EVM
+_ONE_TO_ONE_INSTRUCTIONS = frozenset(
     [
         "revert",
         "coinbase",
@@ -279,7 +281,7 @@ class VenomCompiler:
             target_stack = b.in_vars_from(inst.parent)
             self._stack_reorder(assembly, stack, target_stack)
 
-        is_commutative = opcode in COMMUTATIVE_INSTRUCTIONS
+        is_commutative = opcode in _COMMUTATIVE_INSTRUCTIONS
         self._stack_reorder(assembly, stack, operands, is_commutative)
 
         # some instructions (i.e. invoke) need to do stack manipulations
@@ -292,7 +294,7 @@ class VenomCompiler:
             stack.push(inst.ret)
 
         # Step 5: Emit the EVM instruction(s)
-        if opcode in ONE_TO_ONE_INSTRUCTIONS:
+        if opcode in _ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
