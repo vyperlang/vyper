@@ -13,6 +13,7 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes.dft import DFG
 from vyper.venom.stack_model import StackModel
 
+COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "and", "or", "xor", "eq"])
 
 ONE_TO_ONE_INSTRUCTIONS = frozenset(
     [
@@ -131,14 +132,25 @@ class VenomCompiler:
         return asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVariable]
+        self,
+        assembly: list,
+        stack: StackModel,
+        stack_ops: OrderedSet[IRVariable],
+        commutative: bool = False,
     ) -> None:
         # make a list so we can index it
         stack_ops = [x for x in stack_ops]
+        stack_ops_count = len(stack_ops)
 
-        for i in range(len(stack_ops)):
+        if commutative:
+            depth = stack.get_depth(stack_ops[0])
+            # TODO: Apply commutative knowledge to optimize stack
+            # if depth == 0:
+            #     stack_ops = list(reversed(stack_ops))
+
+        for i in range(stack_ops_count):
             op = stack_ops[i]
-            final_stack_depth = -(len(stack_ops) - i - 1)
+            final_stack_depth = -(stack_ops_count - i - 1)
             depth = stack.get_depth(op)
 
             if depth == final_stack_depth:
@@ -146,6 +158,13 @@ class VenomCompiler:
 
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
+
+    def _get_commutative_alternative(self, depth: int) -> int:
+        if depth == 0:
+            return -1
+        elif depth == -1:
+            return 0
+        assert False, f"Invalid depth {depth}"
 
     def _emit_input_operands(
         self,
@@ -260,7 +279,8 @@ class VenomCompiler:
             target_stack = b.in_vars_from(inst.parent)
             self._stack_reorder(assembly, stack, target_stack)
 
-        self._stack_reorder(assembly, stack, operands)
+        is_commutative = opcode in COMMUTATIVE_INSTRUCTIONS
+        self._stack_reorder(assembly, stack, operands, is_commutative)
 
         # REVIEW: it would be clearer if the order of steps 4 and 5 were
         # switched (so that the runtime order matches the order they appear
