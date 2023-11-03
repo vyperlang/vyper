@@ -635,7 +635,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.left, typ)
 
         rtyp = typ
+        right = get_folded_value(node.right)
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
+            if isinstance(right, vy_ast.Int) and not (0 <= right.value <= 256):
+                raise InvalidLiteral("Shift bits must be between 0 and 256", right)
+
             rtyp = get_possible_types_from_node(node.right).pop()
 
         validate_expected_type(node.right, rtyp)
