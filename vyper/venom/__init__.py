@@ -48,7 +48,6 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         calculate_cfg(ctx)
         calculate_liveness(ctx)
-        # REVIEW: i think we can move calculate_dfg inside of DFTPass (so it's an implementation detail)
         DFG.calculate_dfg(ctx)
 
         if changes == 0:

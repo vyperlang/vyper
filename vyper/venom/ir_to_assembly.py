@@ -153,13 +153,6 @@ class VenomCompiler:
         # print("INSTRUCTIONS", assembly[start_len:])
         # print("EXIT reorder", stack.stack, stack_ops)
 
-    # REVIEW: possible swap implementation
-    # def swap(self, op):
-    #     depth = self.stack.get_depth(op)
-    #     assert depth is not StackModel.NOT_IN_STACK, f"not in stack: {op}"
-    #     self.stack.swap(depth)
-    #     self.assembly.append(_evm_swap_for(depth))  # f"SWAP{-depth}")
-
     def _emit_input_operands(
         self,
         assembly: list,
@@ -229,8 +222,6 @@ class VenomCompiler:
         for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
-    # REVIEW: would this be better as a class?
-    # HK: Let's consider it after the pass_dft refactor
     def _generate_evm_for_instruction(
         self, assembly: list, inst: IRInstruction, stack: StackModel
     ) -> list[str]:
@@ -287,6 +278,9 @@ class VenomCompiler:
         # REVIEW: it would be clearer if the order of steps 4 and 5 were
         # switched (so that the runtime order matches the order they appear
         # below).
+        # HK: Some instructions (e.i. invoke) need to do some stack manipulations
+        # with the stack containing the return values.
+
         # Step 4: Push instruction's return value to stack
         stack.pop(len(operands))
         if inst.ret is not None:
