@@ -1194,9 +1194,6 @@ class Compare(ExprNode):
         if not isinstance(left, type(right)):
             raise UnfoldableNode("Cannot compare different literal types")
 
-        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
-            raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
-
         value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)
 

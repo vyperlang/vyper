@@ -179,7 +179,10 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
         values = [get_folded_value(i) for i in node.values]
         if all(isinstance(v, vy_ast.NameConstant) for v in values):
-            node._metadata["folded_value"] = node.evaluate(values)
+            try:
+                node._metadata["folded_value"] = node.evaluate(values)
+            except UnfoldableNode:
+                pass
 
     def visit_Call(self, node):
         for arg in node.args:
@@ -230,9 +233,11 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
             node._metadata["folded_value"] = node.evaluate(left, right)
             return
 
-        right = get_folded_value(node)
-        if isinstance(left, type(right)) and isinstance(left, (vy_ast.Int, vy_ast.Decimal)):
+        right = get_folded_value(node.right)
+        try:
             node._metadata["folded_value"] = node.evaluate(left, right)
+        except UnfoldableNode:
+            pass
 
     def visit_Constant(self, node):
         pass

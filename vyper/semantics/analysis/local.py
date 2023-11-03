@@ -727,6 +727,16 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
         else:
+            # TODO: this is unreachable because this would throw when the parent node
+            # calls `validate_expected_type`
+            left = get_folded_value(node.left)
+            if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)) and not isinstance(
+                left, (vy_ast.Int, vy_ast.Decimal)
+            ):
+                raise TypeMismatch(
+                    f"Invalid literal types for {node.op.description} comparison", node
+                )
+
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
             if isinstance(cmp_typ, _BytestringT):
