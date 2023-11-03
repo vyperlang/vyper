@@ -343,6 +343,14 @@ class VenomCompiler:
         elif opcode == "jnz":
             assembly.append(f"_sym_{inst.operands[1].value}")
             assembly.append("JUMPI")
+            # REVIEW: probably need to add
+            # assembly.append(f"_sym_{inst.operands[0].value}")
+            # assembly.append("JUMP")
+            # because we only happen to be guaranteed that the next
+            # basic block is coming in the CFG is inst.operands[0].value.
+            # but we should add the jump, in case the CFG traversal
+            # changes. or, add an assertion that
+            # `inst.operands[0].value == inst.parent.cfg_out[0]`.
         elif opcode == "jmp":
             if isinstance(inst.operands[0], IRLabel):
                 assembly.append(f"_sym_{inst.operands[0].value}")
