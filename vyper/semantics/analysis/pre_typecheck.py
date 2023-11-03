@@ -243,11 +243,16 @@ class PreTypecheckVisitor(VyperNodeVisitorBase):
 
     def visit_Index(self, node):
         self.visit(node.value)
+        node._metadata["folded_value"] = node.value._metadata.get("folded_value")
 
     # repeated code for List and Tuple
     def _subscriptable_helper(self, node):
         for e in node.elements:
             self.visit(e)
+
+        values = [get_folded_value(e) for e in node.elements]
+        if None not in values:
+            node._metadata["folded_value"] = type(node).from_node(node, elts=values)
 
     def visit_List(self, node):
         self._subscriptable_helper(node)
