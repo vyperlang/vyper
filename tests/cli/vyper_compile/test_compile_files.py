@@ -1,5 +1,7 @@
 import pytest
 
+from pathlib import Path
+
 from vyper.cli.vyper_compile import compile_files
 
 
@@ -19,10 +21,10 @@ def test_combined_json_keys(tmp_path):
         "userdoc",
         "devdoc",
     }
-    compile_data = compile_files([bar_path], ["combined_json"], root_folder=tmp_path)
+    compile_data = compile_files(["bar.vy"], ["combined_json"], root_folder=tmp_path)
 
-    assert set(compile_data.keys()) == {"bar.vy", "version"}
-    assert set(compile_data["bar.vy"].keys()) == combined_keys
+    assert set(compile_data.keys()) == {Path("bar.vy"), "version"}
+    assert set(compile_data[Path("bar.vy")].keys()) == combined_keys
 
 
 def test_invalid_root_path():

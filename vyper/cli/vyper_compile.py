@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import sys
+import sys, os
 import warnings
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Set, TypeVar
@@ -251,9 +251,12 @@ def compile_files(
             )
 
     ret = {}
+    if show_version:
+        ret["version"] = vyper.__version__
+
     for file_name in input_files:
         file_path = Path(file_name)
-        file = input_bundle.load_file(Path(file_path))
+        file = input_bundle.load_file(file_path)
 
         storage_layout_override = None
         if storage_layout_paths:
@@ -273,8 +276,6 @@ def compile_files(
             show_gas_estimates=show_gas_estimates,
             no_bytecode_metadata=no_bytecode_metadata,
         )
-        if show_version:
-            output["version"] = vyper.__version__
 
         ret[file_path] = output
 

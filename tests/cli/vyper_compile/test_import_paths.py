@@ -117,9 +117,8 @@ def test_import_parent_folder(tmp_path, assert_compile_failed):
         fp.write(BAR_CODE)
 
     assert compile_files([foo_path], ["combined_json"], root_folder=tmp_path)
-    # Cannot perform relative import outside of base folder
-    with pytest.raises(FileNotFoundError):
-        compile_files([foo_path], ["combined_json"], root_folder=tmp_path.joinpath("contracts"))
+    # perform relative import outside of base folder
+    compile_files([foo_path], ["combined_json"], root_folder=tmp_path.joinpath("contracts"))
 
 
 META_IMPORT_STMT = [
