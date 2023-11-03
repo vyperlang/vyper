@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.cli.vyper_compile import compile_files, get_interface_file_path
+from vyper.cli.vyper_compile import compile_files
 
 FOO_CODE = """
 {}
@@ -222,30 +222,6 @@ struct FooStruct:
             fp.write(BAR_CODE)
 
     assert compile_files(compile_paths, ["combined_json"], root_folder=tmp_path)
-
-
-def test_get_interface_file_path(tmp_path):
-    for file_name in ("foo.vy", "foo.json", "bar.vy", "baz.json", "potato"):
-        with tmp_path.joinpath(file_name).open("w") as fp:
-            fp.write("")
-
-    tmp_path.joinpath("interfaces").mkdir()
-    for file_name in ("interfaces/foo.json", "interfaces/bar"):
-        with tmp_path.joinpath(file_name).open("w") as fp:
-            fp.write("")
-
-    base_paths = [tmp_path, tmp_path.joinpath("interfaces")]
-    assert get_interface_file_path(base_paths, "foo") == tmp_path.joinpath("foo.vy")
-    assert get_interface_file_path(base_paths, "bar") == tmp_path.joinpath("bar.vy")
-    assert get_interface_file_path(base_paths, "baz") == tmp_path.joinpath("baz.json")
-
-    base_paths = [tmp_path.joinpath("interfaces"), tmp_path]
-    assert get_interface_file_path(base_paths, "foo") == tmp_path.joinpath("interfaces/foo.json")
-    assert get_interface_file_path(base_paths, "bar") == tmp_path.joinpath("bar.vy")
-    assert get_interface_file_path(base_paths, "baz") == tmp_path.joinpath("baz.json")
-
-    with pytest.raises(Exception):
-        get_interface_file_path(base_paths, "potato")
 
 
 def test_compile_outside_root_path(tmp_path):
