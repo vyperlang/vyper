@@ -68,6 +68,14 @@ ONE_TO_ONE_INSTRUCTIONS = frozenset(
 )
 
 
+# REVIEW: "assembly" gets into the recursion due to how the original
+# IR was structured recursively in regards with the deploy instruction.
+# There, recursing into the deploy instruction was by design, and
+# made it easier to make the assembly generated "recursive" (i.e.
+# instructions being lists of instructions). We don't have this restriction
+# anymore, so we can probably refactor this to be iterative in coordination
+# with the assembler. My suggestion is to let this be for now, and we can
+# refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
     ctx: IRFunction
     label_counter = 0
@@ -205,7 +213,6 @@ class VenomCompiler:
 
             emitted_ops.append(op)
 
-    # REVIEW: remove asm and stack from recursion, move to self.
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ):
