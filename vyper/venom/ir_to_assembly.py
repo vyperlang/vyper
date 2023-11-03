@@ -282,11 +282,9 @@ class VenomCompiler:
         is_commutative = opcode in COMMUTATIVE_INSTRUCTIONS
         self._stack_reorder(assembly, stack, operands, is_commutative)
 
-        # REVIEW: it would be clearer if the order of steps 4 and 5 were
-        # switched (so that the runtime order matches the order they appear
-        # below).
-        # HK: Some instructions (e.i. invoke) need to do some stack manipulations
-        # with the stack containing the return values.
+        # some instructions (i.e. invoke) need to do stack manipulations
+        # with the stack model containing the return value(s), so we fiddle
+        # with the stack model beforehand.
 
         # Step 4: Push instruction's return value to stack
         stack.pop(len(operands))
