@@ -69,11 +69,18 @@ ONE_TO_ONE_INSTRUCTIONS = frozenset(
 
 
 class VenomCompiler:
+    ctx: IRFunction
     label_counter = 0
     visited_instructions = None  # {IRInstruction}
     visited_basicblocks = None  # {IRBasicBlock}
 
-    def generate_evm(self, ctx: IRFunction, no_optimize: bool = False) -> list[str]:
+    def __init__(self, ctx: IRFunction):
+        self.ctx = ctx
+        self.label_counter = 0
+        self.visited_instructions = None
+        self.visited_basicblocks = None
+
+    def generate_evm(self, no_optimize: bool = False) -> list[str]:
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
@@ -81,11 +88,11 @@ class VenomCompiler:
         stack = StackModel()
         asm = []
 
-        calculate_cfg(ctx)
-        calculate_liveness(ctx)
-        DFG.calculate_dfg(ctx)
+        calculate_cfg(self.ctx)
+        calculate_liveness(self.ctx)
+        DFG.calculate_dfg(self.ctx)
 
-        self._generate_evm_for_basicblock_r(ctx, asm, ctx.basic_blocks[0], stack)
+        self._generate_evm_for_basicblock_r(asm, self.ctx.basic_blocks[0], stack)
 
         # Append postambles
         revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
@@ -100,7 +107,7 @@ class VenomCompiler:
 
         # Append data segment
         data_segments = {}
-        for inst in ctx.data_segment:
+        for inst in self.ctx.data_segment:
             if inst.opcode == "dbname":
                 label = inst.operands[0].value
                 data_segments[label] = [DataHeader(f"_sym_{label}")]
@@ -200,7 +207,7 @@ class VenomCompiler:
 
     # REVIEW: remove asm and stack from recursion, move to self.
     def _generate_evm_for_basicblock_r(
-        self, ctx: IRFunction, asm: list, basicblock: IRBasicBlock, stack: StackModel
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ):
         if basicblock in self.visited_basicblocks:
             return
@@ -213,7 +220,7 @@ class VenomCompiler:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
         for bb in basicblock.cfg_out:
-            self._generate_evm_for_basicblock_r(ctx, asm, bb, stack.copy())
+            self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
     # REVIEW: would this be better as a class?
     # HK: Let's consider it after the pass_dft refactor

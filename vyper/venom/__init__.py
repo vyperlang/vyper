@@ -17,10 +17,10 @@ from vyper.venom.passes.dft import DFG, DFTPass
 
 
 def generate_assembly_experimental(
-    ir: IRFunction, optimize: Optional[OptimizationLevel] = None
+    ctx: IRFunction, optimize: Optional[OptimizationLevel] = None
 ) -> list[str]:
-    compiler = VenomCompiler()
-    return compiler.generate_evm(ir, optimize is OptimizationLevel.NONE)
+    compiler = VenomCompiler(ctx)
+    return compiler.generate_evm(optimize is OptimizationLevel.NONE)
 
 
 def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
