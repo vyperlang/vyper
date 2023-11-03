@@ -193,12 +193,12 @@ class VenomCompiler:
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
+    # REVIEW: note this is dead code
     def _get_commutative_alternative(self, depth: int) -> int:
+        assert depth in (-1, 0), f"Invalid depth {depth}"
         if depth == 0:
             return -1
-        elif depth == -1:
-            return 0
-        assert False, f"Invalid depth {depth}"
+        return 0
 
     def _emit_input_operands(
         self,
@@ -249,6 +249,10 @@ class VenomCompiler:
 
             emitted_ops.add(op)
 
+    # REVIEW: we don't need to thread the stack through this recursion,
+    # because the input stack will depend on CFG traversal order. would
+    # be better to construct a new stack model on entry into this
+    # function, which uses the stack layout calculated by the CFG inputs.
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ):
@@ -262,6 +266,7 @@ class VenomCompiler:
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
+        # REVIEW: codegen for `jnz` depends on this traversal order.
         for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
@@ -313,6 +318,7 @@ class VenomCompiler:
             target_stack = b.in_vars_from(inst.parent)
             # REVIEW: this seems like it generates bad code, because
             # the next _stack_reorder will undo the changes to the stack.
+            # i think we can just remove it entirely.
             self._stack_reorder(assembly, stack, target_stack)
 
         is_commutative = opcode in _COMMUTATIVE_INSTRUCTIONS
