@@ -85,15 +85,6 @@ class StackModel:
         assert depth <= 0, "Cannot dup positive depth"
         self.stack.append(self.peek(depth))
 
-    def dup_op(self, op: IRValueBase) -> None:
-        """
-        Convinience method: duplicates the given operand in the stack map.
-        Returns the depth of the duplicated operand in the stack map.
-        """
-        depth = self.get_depth(op)
-        self.dup(depth)
-        return depth
-
     def swap(self, depth: int) -> None:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.
@@ -103,13 +94,3 @@ class StackModel:
         top = self.stack[-1]
         self.stack[-1] = self.stack[depth - 1]
         self.stack[depth - 1] = top
-
-    def swap_op(self, op: IRValueBase) -> None:
-        """
-        Convinience method: swaps the given operand in the stack map with the
-        top of the stack.
-        Returns the depth of the swapped operand in the stack map.
-        """
-        depth = self.get_depth(op)
-        self.swap(depth)
-        return depth
