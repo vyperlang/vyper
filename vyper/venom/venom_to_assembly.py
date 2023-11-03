@@ -207,7 +207,7 @@ class VenomCompiler:
                     self.swap_op(assembly, stack, op)
                     break
 
-        emitted_ops = []
+        emitted_ops = OrderedSet()
         for op in ops:
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need to emit it here
@@ -235,7 +235,7 @@ class VenomCompiler:
                 assembly.extend([*PUSH(op.mem_addr)])
                 assembly.append("MLOAD")
 
-            emitted_ops.append(op)
+            emitted_ops.add(op)
 
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
