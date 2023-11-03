@@ -57,8 +57,7 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
     return count
 
 
-# REVIEW: rename to `calculate_cfg`
-def calculate_cfg_in(ctx: IRFunction) -> None:
+def calculate_cfg(ctx: IRFunction) -> None:
     """
     Calculate (cfg) inputs for each basic block.
     """
@@ -134,7 +133,7 @@ def calculate_liveness(ctx: IRFunction) -> None:
 @ir_pass
 def ir_pass_optimize_empty_blocks(ctx: IRFunction) -> int:
     changes = _optimize_empty_basicblocks(ctx)
-    calculate_cfg_in(ctx)
+    calculate_cfg(ctx)
     return changes
 
 

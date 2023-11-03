@@ -14,7 +14,7 @@ from vyper.venom.basicblock import (
     MemType,
 )
 from vyper.venom.bb_optimizer import (
-    calculate_cfg_in,
+    calculate_cfg,
     calculate_liveness,
     ir_pass_optimize_empty_blocks,
     ir_pass_optimize_unused_variables,
@@ -50,14 +50,14 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         changes += ir_pass_optimize_unused_variables(ctx)
 
-        calculate_cfg_in(ctx)
+        calculate_cfg(ctx)
         calculate_liveness(ctx)
         DFG.calculate_dfg(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
         changes += DFTPass.run_pass(ctx)
 
-        calculate_cfg_in(ctx)
+        calculate_cfg(ctx)
         calculate_liveness(ctx)
         # REVIEW: i think we can move calculate_dfg inside of DFTPass (so it's an implementation detail)
         DFG.calculate_dfg(ctx)
@@ -136,7 +136,7 @@ class VenomCompiler:
         stack = StackModel()
         asm = []
 
-        calculate_cfg_in(ctx)
+        calculate_cfg(ctx)
         calculate_liveness(ctx)
         DFG.calculate_dfg(ctx)
 
