@@ -121,7 +121,6 @@ def _get_contract(w3, source_code, optimize, *args, override_opt_level=None, **k
         # test that metadata and natspecs get generated
         ["abi", "bytecode", "metadata", "userdoc", "devdoc"],
         settings=settings,
-        interface_codes=kwargs.pop("interface_codes", None),
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
@@ -145,7 +144,6 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
     out = compiler.compile_code(
         source_code,
         ["abi", "bytecode"],
-        interface_codes=kwargs.pop("interface_codes", None),
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
