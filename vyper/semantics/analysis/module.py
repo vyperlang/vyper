@@ -3,6 +3,7 @@ import json
 import pkgutil
 from pathlib import Path, PurePath
 from typing import Optional
+import os
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -368,16 +369,24 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
-    search_path = Path(vyper.builtins.interfaces.__path__[0]).parent.parent.parent
+    builtins_path = vyper.builtins.interfaces.__path__[0]
+    # hygiene: convert to relpath to avoid leaking user directory info
+    # (note Path.relative_to cannot handle absolute to relative path
+    # conversion, so we must use the `os` module).
+    builtins_path = os.path.relpath(builtins_path)
+
+    search_path = Path(builtins_path).parent.parent.parent
+    # generate an input bundle just because it knows how to build paths.
     input_bundle = FilesystemInputBundle([search_path])
 
     # remap builtins directory --
     # vyper/interfaces => vyper/builtins/interfaces
-    if module_str.startswith("vyper.interfaces"):
-        module_str = module_str.removeprefix("vyper.interfaces")
-        module_str = vyper.builtins.interfaces.__package__ + module_str
+    remapped_module = module_str
+    if remapped_module.startswith("vyper.interfaces"):
+        remapped_module = remapped_module.removeprefix("vyper.interfaces")
+        remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
 
-    path = _import_to_path(level, module_str).with_suffix(".vy")
+    path = _import_to_path(level, remapped_module).with_suffix(".vy")
 
     try:
         file = input_bundle.load_file(path)
@@ -385,7 +394,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
+    interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=module_str)
     return InterfaceT.from_ast(interface_ast)
 
 
