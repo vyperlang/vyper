@@ -69,23 +69,32 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
+# figure out which variables we need to emit DUPs for for this
+# instruction (because they are still live after the instruction
 def _compute_dup_requirements(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
-        last_seen = dict()
+        _compute_dup_requirements_bb(bb: IRBasicBlock)
 
-        for inst in bb.instructions:
-            # reset dup_requirements
-            inst.dup_requirements = OrderedSet()
+def _compute_dup_requirements_bb(bb: IRBasicBlock) -> None:
+    # the most recent instruction which used this variable
+    most_recent_use_of = dict()
 
-            for op in inst.get_inputs():
-                if op in last_seen:
-                    target = last_seen[op]
-                    target.dup_requirements.add(op)
+    for inst in bb.instructions:
+        # reset dup_requirements
+        inst.dup_requirements = OrderedSet()
 
-                last_seen[op] = inst
+        for op in inst.get_inputs():
+            # the variable is still live at `inst`, so we look
+            # back to `most_recent_use_of[op]` and add to its
+            # dup requirements.
+            if op in most_recent_use_of:
+                target = most_recent_use_of[op]
+                target.dup_requirements.add(op)
 
-                if op in bb.out_vars:
-                    inst.dup_requirements.add(op)
+            most_recent_use_of[op] = inst
+
+            if op in bb.out_vars:
+                inst.dup_requirements.add(op)
 
 # REVIEW: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
