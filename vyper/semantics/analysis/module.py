@@ -328,7 +328,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     # load an InterfaceT from an import.
     # raises FileNotFoundError
     def _load_import(self, level: int, module_str: str) -> InterfaceT:
-        return _load_builtin_import(level, module_str)
+        if _is_builtin(module_str):
+            return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
 
@@ -341,8 +342,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
-            abi = json.loads(file.source_code)
-            return InterfaceT.from_json_abi(file.path, abi)
+            return InterfaceT.from_json_abi(file.path, file.abi)
         except FileNotFoundError:
             raise ModuleNotFoundError(module_str) from None
 

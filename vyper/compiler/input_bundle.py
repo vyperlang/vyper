@@ -2,6 +2,7 @@ import contextlib
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
+import json
 
 from vyper.exceptions import CompilerPanic, JSONError
 
@@ -100,6 +101,13 @@ class FilesystemInputBundle(InputBundle):
             raise _NotFound(path)
 
         source_id = super()._generate_source_id(path)
+
+        try:
+            s = json.loads(code)
+            return ABIInput(source_id, path, s)
+        except ValueError:
+            pass
+
         return FileInput(source_id, path, code)
 
 
@@ -122,7 +130,14 @@ class JSONInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
 
         if "content" in value:
-            return FileInput(source_id, path, value["content"])
+            content = value["content"]
+            try:
+                s = json.loads(content)
+                return ABIInput(source_id, path, s)
+            except ValueError:
+                pass
+
+            return FileInput(source_id, path, content)
 
         if "abi" in value:
             return ABIInput(source_id, path, value["abi"])
