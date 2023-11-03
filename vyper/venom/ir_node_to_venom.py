@@ -83,6 +83,7 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
         ret[k] = a[k], b[k]
     return ret
 
+
 def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     global_function = IRFunction(IRLabel("global"))
     _convert_ir_basicblock(global_function, ir, {}, OrderedSet(), {})
@@ -841,7 +842,7 @@ def _convert_ir_basicblock(
         body_block.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
-        if body_end.is_terminated() is False:
+        if body_end.is_terminated is False:
             body_end.append_instruction(IRInstruction("jmp", [jump_up_block.label]))
 
         jump_cond = IRInstruction("jmp", [increment_block.label])
