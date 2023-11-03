@@ -136,8 +136,6 @@ class VenomCompiler:
         # make a list so we can index it
         stack_ops = [x for x in stack_ops]
 
-        # print("ENTER reorder", stack.stack, operands)
-        # start_len = len(assembly)
         for i in range(len(stack_ops)):
             op = stack_ops[i]
             final_stack_depth = -(len(stack_ops) - i - 1)
@@ -146,12 +144,8 @@ class VenomCompiler:
             if depth == final_stack_depth:
                 continue
 
-            # print("trace", depth, final_stack_depth)
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
-
-        # print("INSTRUCTIONS", assembly[start_len:])
-        # print("EXIT reorder", stack.stack, stack_ops)
 
     def _emit_input_operands(
         self,
@@ -164,15 +158,11 @@ class VenomCompiler:
         # been scheduled to be killed. now it's just a matter of emitting
         # SWAPs, DUPs and PUSHes until we match the `ops` argument
 
-        # print("EMIT INPUTS FOR", inst)
-
         # dumb heuristic: if the top of stack is not wanted here, swap
         # it with something that is wanted
         if ops and stack.stack and stack.stack[-1] not in ops:
             for op in ops:
                 if isinstance(op, IRVariable) and op not in inst.dup_requirements:
-                    # REVIEW: maybe move swap_op and dup_op onto this class, so that
-                    # StackModel doesn't need to know about the assembly list
                     self.swap_op(assembly, stack, op)
                     break
 
@@ -270,10 +260,7 @@ class VenomCompiler:
             target_stack = b.in_vars_from(inst.parent)
             self._stack_reorder(assembly, stack, target_stack)
 
-        # print("pre-dups (inst)", inst.dup_requirements, stack.stack, inst)
-
         self._stack_reorder(assembly, stack, operands)
-        # print("post-reorder (inst)", stack.stack, inst)
 
         # REVIEW: it would be clearer if the order of steps 4 and 5 were
         # switched (so that the runtime order matches the order they appear
