@@ -147,8 +147,6 @@ class VenomCompiler:
 
     def _emit_input_operands(
         self,
-        # REVIEW: ctx, assembly and stack could be moved onto the VenomCompiler instance
-        ctx: IRFunction,
         assembly: list,
         inst: IRInstruction,
         ops: list[IRValueBase],
@@ -212,7 +210,7 @@ class VenomCompiler:
         asm.append("JUMPDEST")
 
         for inst in basicblock.instructions:
-            asm = self._generate_evm_for_instruction(ctx, asm, inst, stack)
+            asm = self._generate_evm_for_instruction(asm, inst, stack)
 
         for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(ctx, asm, bb, stack.copy())
@@ -220,7 +218,7 @@ class VenomCompiler:
     # REVIEW: would this be better as a class?
     # HK: Let's consider it after the pass_dft refactor
     def _generate_evm_for_instruction(
-        self, ctx: IRFunction, assembly: list, inst: IRInstruction, stack: StackModel
+        self, assembly: list, inst: IRInstruction, stack: StackModel
     ) -> list[str]:
         opcode = inst.opcode
 
@@ -258,7 +256,7 @@ class VenomCompiler:
             return assembly
 
         # Step 2: Emit instruction's input operands
-        self._emit_input_operands(ctx, assembly, inst, operands, stack)
+        self._emit_input_operands(assembly, inst, operands, stack)
 
         # Step 3: Reorder stack
         if opcode in ["jnz", "jmp"]:
