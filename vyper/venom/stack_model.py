@@ -54,7 +54,9 @@ class StackModel:
         ret = StackModel.NOT_IN_STACK
         for i, stack_item in enumerate(reversed(self.stack)):
             if stack_item in (phi1, phi2):
-                assert ret is StackModel.NOT_IN_STACK, f"phi argument is not unique! {phi1}, {phi2}, {self.stack}"
+                assert (
+                    ret is StackModel.NOT_IN_STACK
+                ), f"phi argument is not unique! {phi1}, {phi2}, {self.stack}"
                 ret = -i
 
         return ret
@@ -75,44 +77,39 @@ class StackModel:
         assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
         self.stack[depth - 1] = op
 
-    def dup(self, assembly: list[str], depth: int) -> None:
+    def dup(self, depth: int) -> None:
         """
         Duplicates the operand at the given depth in the stack map.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot dup non-existent operand"
         assert depth <= 0, "Cannot dup positive depth"
-        assembly.append(f"DUP{-(depth-1)}")
         self.stack.append(self.peek(depth))
 
-    def dup_op(self, assembly: list[str], op: IRValueBase) -> None:
+    def dup_op(self, op: IRValueBase) -> None:
         """
         Convinience method: duplicates the given operand in the stack map.
+        Returns the depth of the duplicated operand in the stack map.
         """
         depth = self.get_depth(op)
-        self.dup(assembly, depth)
+        self.dup(depth)
+        return depth
 
-    def swap(self, assembly: list[str], depth: int) -> None:
+    def swap(self, depth: int) -> None:
         """
         Swaps the operand at the given depth in the stack map with the top of the stack.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot swap non-existent operand"
-        # convenience, avoids branching in caller
-        if depth == 0:
-            return
-
         assert depth < 0, "Cannot swap positive depth"
-        # REVIEW: move EVM details into EVM generation pass
-        assembly.append(f"SWAP{-depth}")
         top = self.stack[-1]
         self.stack[-1] = self.stack[depth - 1]
         self.stack[depth - 1] = top
 
-    def swap_op(self, assembly: list[str], op: IRValueBase) -> None:
+    def swap_op(self, op: IRValueBase) -> None:
         """
         Convinience method: swaps the given operand in the stack map with the
         top of the stack.
+        Returns the depth of the swapped operand in the stack map.
         """
         depth = self.get_depth(op)
-        self.swap(assembly, depth)
-
-    # REVIEW: maybe have a convenience function which swaps depth1 and depth2
+        self.swap(depth)
+        return depth

@@ -147,8 +147,8 @@ class VenomCompiler:
                 continue
 
             # print("trace", depth, final_stack_depth)
-            stack.swap(assembly, depth)
-            stack.swap(assembly, final_stack_depth)
+            self.swap(assembly, stack, depth)
+            self.swap(assembly, stack, final_stack_depth)
 
         # print("INSTRUCTIONS", assembly[start_len:])
         # print("EXIT reorder", stack.stack, stack_ops)
@@ -180,7 +180,7 @@ class VenomCompiler:
                 if isinstance(op, IRVariable) and op not in inst.dup_requirements:
                     # REVIEW: maybe move swap_op and dup_op onto this class, so that
                     # StackModel doesn't need to know about the assembly list
-                    stack.swap_op(assembly, op)
+                    self.swap_op(assembly, stack, op)
                     break
 
         emitted_ops = []
@@ -199,10 +199,10 @@ class VenomCompiler:
                 continue
 
             if op in inst.dup_requirements:
-                stack.dup_op(assembly, op)
+                self.dup_op(assembly, stack, op)
 
             if op in emitted_ops:
-                stack.dup_op(assembly, op)
+                self.dup_op(assembly, stack, op)
 
             # REVIEW: this seems like it can be reordered across volatile
             # boundaries (which includes memory fences). maybe just
@@ -263,7 +263,7 @@ class VenomCompiler:
             to_be_replaced = stack.peek(depth)
             if to_be_replaced in inst.dup_requirements:
                 # %13/%14 is still live(!), so we make a copy of it
-                stack.dup(assembly, depth)
+                self.dup(assembly, stack, depth)
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
@@ -392,3 +392,31 @@ class VenomCompiler:
                 assembly.extend([*PUSH(inst.ret.mem_addr)])
 
         return assembly
+
+    def swap(self, assembly, stack, depth):
+        if depth == 0:
+            return
+        stack.swap(depth)
+        assembly.append(_evm_swap_for(depth))
+
+    def dup(self, assembly, stack, depth):
+        stack.dup(depth)
+        assembly.append(_evm_dup_for(depth))
+
+    def swap_op(self, assembly, stack, op):
+        self.swap(assembly, stack, stack.get_depth(op))
+
+    def dup_op(self, assembly, stack, op):
+        self.dup(assembly, stack, stack.get_depth(op))
+
+
+def _evm_swap_for(depth: int) -> str:
+    swap_idx = -depth
+    assert swap_idx >= 1 and swap_idx <= 16, "Unsupported swap depth"
+    return f"SWAP{swap_idx}"
+
+
+def _evm_dup_for(depth: int) -> str:
+    dup_idx = 1 - depth
+    assert dup_idx >= 1 and dup_idx <= 16, "Unsupported dup depth"
+    return f"DUP{dup_idx}"
