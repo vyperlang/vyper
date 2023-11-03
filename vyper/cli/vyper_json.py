@@ -251,12 +251,15 @@ def compile_from_input_dict(
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
     contract_sources = get_compilation_targets(input_dict)
+
     output_formats = get_input_dict_output_formats(input_dict, contract_sources)
 
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
+
     input_bundle = JSONInputBundle([root_path], contract_sources)
-    for id_, contract_path in enumerate(sorted(contract_sources)):
+
+    for contract_path in contract_sources.keys():
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
                 file = input_bundle.load_file(contract_path)

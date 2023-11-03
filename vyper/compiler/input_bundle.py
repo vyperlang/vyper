@@ -5,7 +5,6 @@ from typing import Any, Iterator, Optional
 
 from vyper.exceptions import CompilerPanic, JSONError
 
-
 # a type to make mypy happy
 PathLike = Path | PurePath
 

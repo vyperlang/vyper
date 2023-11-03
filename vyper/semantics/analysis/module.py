@@ -1,13 +1,13 @@
 import importlib
 import json
+import os
 import pkgutil
 from pathlib import Path, PurePath
 from typing import Optional
-import os
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,

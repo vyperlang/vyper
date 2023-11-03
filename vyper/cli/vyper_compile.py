@@ -17,7 +17,7 @@ from vyper.compiler.settings import (
     _set_debug_mode,
 )
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.typing import ContractCodes, ContractPath, OutputFormats
+from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
 
@@ -245,7 +245,7 @@ def compile_files(
 
     if storage_layout_paths:
         if len(storage_layout_paths) != len(input_files):
-            raise VyperException(
+            raise ValueError(
                 "provided {len(storage_layout_paths)} storage "
                 "layouts, but {len(input_files)} source files"
             )
@@ -257,13 +257,14 @@ def compile_files(
 
         storage_layout_override = None
         if storage_layout_paths:
-            storage_file_path = Path(storage_layout_paths.pop(0))
-            storage_layout_override = json.load(sfh)
+            storage_file_path = storage_layout_paths.pop(0)
+            with open(storage_file_path) as sfh:
+                storage_layout_override = json.load(sfh)
 
         output = vyper.compile_code(
             file.source_code,
             contract_name=file.path,
-            source_id = file.source_id,
+            source_id=file.source_id,
             input_bundle=input_bundle,
             output_formats=final_formats,
             exc_handler=exc_handler,

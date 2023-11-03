@@ -1,6 +1,5 @@
 import warnings
 from collections import OrderedDict, deque
-from pathlib import Path
 
 import asttokens
 
