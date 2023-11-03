@@ -1,10 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import (
-    IRBasicBlock,
-    IRInstruction,
-    IRVariable,
-    MemType,
-)
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable, MemType
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 

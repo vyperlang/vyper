@@ -1,7 +1,7 @@
 from vyper.compiler.settings import OptimizationLevel
+from vyper.venom import generate_assembly_experimental
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.function import IRFunction
-from vyper.venom import generate_assembly_experimental
 
 
 def test_duplicate_operands():
