@@ -57,7 +57,8 @@ def compile_code(
 ) -> dict:
     """
     Generate consumable compiler output(s) from a single contract source code.
-    Basically, a wrapper around CompilerData.
+    Basically, a wrapper around CompilerData which munges the output
+    data into the requested output formats.
 
     Arguments
     ---------
@@ -103,8 +104,8 @@ def compile_code(
         show_gas_estimates,
         no_bytecode_metadata,
     )
-    ret = {}
 
+    ret = {}
     with anchor_evm_version(compiler_data.settings.evm_version):
         for output_format in output_formats:
             if output_format not in OUTPUT_FORMATS:
