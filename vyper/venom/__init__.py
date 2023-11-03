@@ -1,4 +1,3 @@
-# REVIEW: maybe this should be __init__.py (or some name less generic than 'ir.py')
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
