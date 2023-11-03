@@ -45,14 +45,12 @@ def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRF
 
         calculate_cfg(ctx)
         calculate_liveness(ctx)
-        DFG.calculate_dfg(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
         changes += DFTPass.run_pass(ctx)
 
         calculate_cfg(ctx)
         calculate_liveness(ctx)
-        DFG.calculate_dfg(ctx)
 
         if changes == 0:
             break

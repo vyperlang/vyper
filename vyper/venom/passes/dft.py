@@ -5,6 +5,8 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 # DataFlow Graph
+# this could be refactored into its own file, but it's only used here
+# for now
 class DFG:
     _dfg_inputs: dict[IRVariable, list[IRInstruction]]
     _dfg_outputs: dict[IRVariable, IRInstruction]
@@ -22,32 +24,7 @@ class DFG:
         return self._dfg_outputs[op]
 
     @classmethod
-    def calculate_dfg(cls, ctx: IRFunction) -> None:
-        dfg = DFG.from_ir_function(ctx)
-        ctx.dfg = dfg
-
-        dfg._compute_dup_requirements(ctx)
-
-    def _compute_dup_requirements(self, ctx: IRFunction) -> None:
-        for bb in ctx.basic_blocks:
-            last_seen = dict()
-
-            for inst in bb.instructions:
-                # reset dup_requirements
-                inst.dup_requirements = OrderedSet()
-
-                for op in inst.get_inputs():
-                    if op in last_seen:
-                        target = last_seen[op]
-                        target.dup_requirements.add(op)
-
-                    last_seen[op] = inst
-
-                    if op in bb.out_vars:
-                        inst.dup_requirements.add(op)
-
-    @classmethod
-    def from_ir_function(cls, ctx: IRFunction):
+    def build_dfg(cls, ctx: IRFunction):
         dfg = cls()
 
         # Build DFG
@@ -85,7 +62,7 @@ class DFTPass(IRPass):
             return
 
         for op in inst.get_inputs():
-            target = self.ctx.dfg.get_producing_instruction(op)
+            target = self.dfg.get_producing_instruction(op)
             if target.parent != inst.parent or target.fence_id != inst.fence_id:
                 # don't reorder across basic block or fence boundaries
                 continue
@@ -109,6 +86,7 @@ class DFTPass(IRPass):
 
     def _run_pass(self, ctx: IRFunction) -> None:
         self.ctx = ctx
+        self.dfg = DFG.build_dfg(ctx)
         self.fence_id = 0
         self.visited_instructions: OrderedSet[IRInstruction] = OrderedSet()
 

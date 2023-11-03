@@ -22,8 +22,6 @@ class IRFunction:
     last_label: int
     last_variable: int
 
-    dfg: Any = None  # dfg will be added in convert_ir_to_dfg pass
-
     def __init__(self, name: IRLabel = IRLabel("global")) -> None:
         self.name = name
         self.args = []
@@ -31,8 +29,6 @@ class IRFunction:
         self.data_segment = []
         self.last_label = 0
         self.last_variable = 0
-        self.dfg_inputs = {}
-        self.dfg_outputs = {}
 
         self.append_basic_block(IRBasicBlock(name, self))
 
@@ -119,8 +115,6 @@ class IRFunction:
         new.data_segment = self.data_segment.copy()
         new.last_label = self.last_label
         new.last_variable = self.last_variable
-        new.dfg_inputs = self.dfg_inputs.copy()
-        new.dfg_outputs = self.dfg_outputs.copy()
         return new
 
     def __repr__(self) -> str:
