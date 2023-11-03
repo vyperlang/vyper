@@ -83,10 +83,8 @@ class DFTPass(IRPass):
     # which tries to optimize production of stack items to be as close as
     # possible to uses of stack items.
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
-        # print("(inst)", inst)
         for op in inst.get_outputs():
             for target in self.ctx.dfg.get_uses(op):
-                # print("(target)", target)
                 if target.parent != inst.parent:
                     # don't reorder across basic block boundaries
                     continue
@@ -99,15 +97,14 @@ class DFTPass(IRPass):
 
         if inst in self.visited_instructions:
             return
-        # print("VISITING", inst)
         self.visited_instructions.add(inst)
 
         if inst.opcode == "phi":
-            # don't try to reorder inputs of phi
+            # phi instructions stay at the beginning of the basic block
+            # and no input processing is needed
             bb.instructions.append(inst)
             return
 
-        # print(inst.get_inputs(), inst)
         for op in inst.get_inputs():
             target = self.ctx.dfg.get_producing_instruction(op)
             if target.parent != inst.parent:
