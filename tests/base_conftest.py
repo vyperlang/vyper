@@ -112,15 +112,18 @@ def w3(tester):
     return w3
 
 
-def _get_contract(w3, source_code, optimize, *args, override_opt_level=None, **kwargs):
+def _get_contract(
+    w3, source_code, optimize, *args, override_opt_level=None, input_bundle=None, **kwargs
+):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
         # test that metadata and natspecs get generated
-        ["abi", "bytecode", "metadata", "userdoc", "devdoc"],
+        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
         settings=settings,
+        input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
     parse_vyper_source(source_code)  # Test grammar.
@@ -185,10 +188,10 @@ def deploy_blueprint_for(w3, optimize):
 
 @pytest.fixture(scope="module")
 def get_contract(w3, optimize):
-    def get_contract(source_code, *args, **kwargs):
+    def fn(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, optimize, *args, **kwargs)
 
-    return get_contract
+    return fn
 
 
 @pytest.fixture

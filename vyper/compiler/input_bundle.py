@@ -14,12 +14,13 @@ class CompilerInput:
     # an input to the compiler.
 
     @staticmethod
-    def from_string(source_id: int, path: PathLike, file_contents: str) -> CompilerInput:
+    def from_string(source_id: int, path: PathLike, file_contents: str) -> "CompilerInput":
         try:
             s = json.loads(file_contents)
             return ABIInput(source_id, path, s)
         except ValueError:
             return FileInput(source_id, path, file_contents)
+
 
 @dataclass
 class FileInput(CompilerInput):

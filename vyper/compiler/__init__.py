@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Sequence, Union
+from pathlib import Path
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
@@ -97,7 +98,7 @@ def compile_code(
     compiler_data = CompilerData(
         contract_source,
         input_bundle,
-        contract_name,
+        Path(contract_name),
         source_id,
         settings,
         storage_layout_override,
