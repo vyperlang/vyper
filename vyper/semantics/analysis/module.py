@@ -396,14 +396,3 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     # TODO: it might be good to cache this computation
     interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=module_str)
     return InterfaceT.from_ast(interface_ast)
-
-
-def _get_builtin_interfaces():
-    interface_names = [i.name for i in pkgutil.iter_modules(vyper.builtins.interfaces.__path__)]
-    return {
-        name: {
-            "type": "vyper",
-            "code": importlib.import_module(f"vyper.builtins.interfaces.{name}").interface_code,
-        }
-        for name in interface_names
-    }
