@@ -12,8 +12,14 @@ PathLike = Path | PurePath
 
 class CompilerInput:
     # an input to the compiler.
-    pass
 
+    @staticmethod
+    def from_string(source_id: int, path: PathLike, file_contents: str) -> CompilerInput:
+        try:
+            s = json.loads(file_contents)
+            return ABIInput(source_id, path, s)
+        except ValueError:
+            return FileInput(source_id, path, file_contents)
 
 @dataclass
 class FileInput(CompilerInput):
@@ -102,13 +108,25 @@ class FilesystemInputBundle(InputBundle):
 
         source_id = super()._generate_source_id(path)
 
-        try:
-            s = json.loads(code)
-            return ABIInput(source_id, path, s)
-        except ValueError:
-            pass
+        return CompilerInput.from_string(source_id, path, code)
 
-        return FileInput(source_id, path, code)
+
+class MockInputBundle(InputBundle):
+    files: dict[PurePath, str]
+
+    def __init__(self, search_paths, files):
+        super().__init__(search_paths)
+        self.files = files
+
+    def _load_from_path(self, path: PurePath) -> CompilerInput:
+        try:
+            file_contents = self.files[path]
+        except KeyError:
+            raise _NotFound(path)
+
+        source_id = super()._generate_source_id(path)
+
+        return CompilerInput.from_string(source_id, path, file_contents)
 
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
@@ -130,14 +148,7 @@ class JSONInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
 
         if "content" in value:
-            content = value["content"]
-            try:
-                s = json.loads(content)
-                return ABIInput(source_id, path, s)
-            except ValueError:
-                pass
-
-            return FileInput(source_id, path, content)
+            return CompilerInput.from_string(source_id, path, value["content"])
 
         if "abi" in value:
             return ABIInput(source_id, path, value["abi"])
