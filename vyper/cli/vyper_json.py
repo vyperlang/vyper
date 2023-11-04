@@ -157,6 +157,8 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
         pass
 
     ret: ContractCodes = {}
+    seen = {}
+
     for path, value in input_dict["sources"].items():
         path = Path(path)
         if "urls" in value:
@@ -169,16 +171,19 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        if path in ret:
+        if path.stem in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
         ret[path] = value
+        seen[path.stem] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
-        if path in ret:
+        path = Path(path)
+        if path.stem in seen:
             raise JSONError(f"Interface namespace collision: {path}")
 
         ret[path] = {"content": value}
+        seen[path.stem] = True
 
     return ret
 
