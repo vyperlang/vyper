@@ -1,7 +1,6 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes
 from vyper.ir.compile_ir import is_mem_sym, is_symbol
 from vyper.semantics.types.function import ContractFunctionT
@@ -17,27 +16,29 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 
-BINARY_IR_INSTRUCTIONS = [
-    "eq",
-    "gt",
-    "lt",
-    "slt",
-    "sgt",
-    "shr",
-    "shl",
-    "or",
-    "xor",
-    "and",
-    "add",
-    "sub",
-    "mul",
-    "div",
-    "mod",
-    "exp",
-    "sha3",
-    "sha3_64",
-    "signextend",
-]
+_BINARY_IR_INSTRUCTIONS = frozenset(
+    [
+        "eq",
+        "gt",
+        "lt",
+        "slt",
+        "sgt",
+        "shr",
+        "shl",
+        "or",
+        "xor",
+        "and",
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "mod",
+        "exp",
+        "sha3",
+        "sha3_64",
+        "signextend",
+    ]
+)
 
 # Instuctions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
@@ -270,7 +271,7 @@ def _convert_ir_basicblock(
 
     assert isinstance(variables, OrderedSet)
 
-    if ir.value in BINARY_IR_INSTRUCTIONS:
+    if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(
             ctx, ir, symbols, variables, allocated_variables, ir.value in ["sha3_64"]
         )
