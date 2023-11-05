@@ -142,12 +142,7 @@ class IRInstruction:
     fence_id: int
     annotation: Optional[str]
 
-    def __init__(
-        self,
-        opcode: str,
-        operands: list[IRValueBase],
-        ret: IRValueBase = None,
-    ):
+    def __init__(self, opcode: str, operands: list[IRValueBase], ret: IRValueBase = None):
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]

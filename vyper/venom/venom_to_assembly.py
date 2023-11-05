@@ -160,11 +160,7 @@ class VenomCompiler:
             self.swap(assembly, stack, final_stack_depth)
 
     def _emit_input_operands(
-        self,
-        assembly: list,
-        inst: IRInstruction,
-        ops: list[IRValueBase],
-        stack: StackModel,
+        self, assembly: list, inst: IRInstruction, ops: list[IRValueBase], stack: StackModel
     ):
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting

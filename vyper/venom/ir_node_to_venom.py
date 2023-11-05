@@ -373,7 +373,7 @@ def _convert_ir_basicblock(
             )
         else:
             return ctx.append_instruction(
-                reversed(ir.value, [gas, address, argsOffsetVar, argsSize, retOffset, retSize]),
+                reversed(ir.value, [gas, address, argsOffsetVar, argsSize, retOffset, retSize])
             )
     elif ir.value == "if":
         cond = ir.args[0]
@@ -421,9 +421,7 @@ def _convert_ir_basicblock(
             if_ret = ctx.get_next_variable()
             bb.append_instruction(
                 IRInstruction(
-                    "phi",
-                    [then_block.label, then_ret_val, else_block.label, else_ret_val],
-                    if_ret,
+                    "phi", [then_block.label, then_ret_val, else_block.label, else_ret_val], if_ret
                 )
             )
 
@@ -807,9 +805,7 @@ def _convert_ir_basicblock(
         symbols[sym.value] = ret
         cond_block.append_instruction(
             IRInstruction(
-                "phi",
-                [entry_block.label, counter_var, increment_block.label, counter_inc_var],
-                ret,
+                "phi", [entry_block.label, counter_var, increment_block.label, counter_inc_var], ret
             )
         )
 
