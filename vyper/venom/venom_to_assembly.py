@@ -194,6 +194,7 @@ class VenomCompiler:
             self.swap(assembly, stack, final_stack_depth)
 
     # REVIEW: note this is dead code
+    # HK: is't for some WIP
     def _get_commutative_alternative(self, depth: int) -> int:
         assert depth in (-1, 0), f"Invalid depth {depth}"
         if depth == 0:
@@ -253,6 +254,9 @@ class VenomCompiler:
     # because the input stack will depend on CFG traversal order. would
     # be better to construct a new stack model on entry into this
     # function, which uses the stack layout calculated by the CFG inputs.
+    # HK: I think we need to thread the stack through the recursion because
+    # we need to ensure that the stack is in the correct state for the next
+    # basic block regardless from where we came from. Let's discuss offline.
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ):
@@ -333,6 +337,13 @@ class VenomCompiler:
             # REVIEW: this seems like it generates bad code, because
             # the next _stack_reorder will undo the changes to the stack.
             # i think we can just remove it entirely.
+            # HK: Can't be removed entirely because we need to ensure that
+            # the stack is in the correct state for the next basic block
+            # regardless from where we came from. The next _stack_reorder
+            # will undo the changes to the stack for the operand only.
+            # The optimization is to have the _stack_reorder emidiatly below
+            # stop at the operand lenght. Or make a combined version.
+            # I am adding a TODO for this.
             self._stack_reorder(assembly, stack, target_stack)
 
         is_commutative = opcode in _COMMUTATIVE_INSTRUCTIONS
