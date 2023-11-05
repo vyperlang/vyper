@@ -344,6 +344,11 @@ class IRBasicBlock:
         liveness = self.out_vars.copy()
         for instruction in reversed(self.instructions):
             ops = instruction.get_inputs()
+
+            for op in ops:
+                if op in liveness:
+                    instruction.dup_requirements.add(op)
+
             liveness = liveness.union(OrderedSet.fromkeys(ops))
             out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
             if out in liveness:

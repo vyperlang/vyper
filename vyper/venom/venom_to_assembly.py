@@ -70,35 +70,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 )
 
 
-# figure out which variables we need to emit DUPs for for this
-# instruction (because they are still live after the instruction
-def _compute_dup_requirements(ctx: IRFunction) -> None:
-    for bb in ctx.basic_blocks:
-        _compute_dup_requirements_bb(bb)
-
-
-def _compute_dup_requirements_bb(bb: IRBasicBlock) -> None:
-    # the most recent instruction which used this variable
-    most_recent_use_of = dict()
-
-    for inst in bb.instructions:
-        # reset dup_requirements
-        inst.dup_requirements = OrderedSet()
-
-        for op in inst.get_inputs():
-            # the variable is still live at `inst`, so we look
-            # back to `most_recent_use_of[op]` and add to its
-            # dup requirements.
-            if op in most_recent_use_of:
-                target = most_recent_use_of[op]
-                target.dup_requirements.add(op)
-
-            most_recent_use_of[op] = inst
-
-            if op in bb.out_vars:
-                inst.dup_requirements.add(op)
-
-
 # REVIEW: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
 # There, recursing into the deploy instruction was by design, and
@@ -128,12 +99,7 @@ class VenomCompiler:
         asm = []
 
         calculate_cfg(self.ctx)
-
-        # REVIEW: calculate_liveness and compute_dup_requirements are really
-        # related, maybe they can be combined somehow. or maybe they should go
-        # into vyper/venom/analysis.py
         calculate_liveness(self.ctx)
-        _compute_dup_requirements(self.ctx)
 
         self._generate_evm_for_basicblock_r(asm, self.ctx.basic_blocks[0], stack)
 
