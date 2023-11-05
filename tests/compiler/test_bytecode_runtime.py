@@ -72,7 +72,9 @@ def test_bytecode_signature():
 def test_bytecode_signature_dense_jumptable():
     settings = Settings(optimize=OptimizationLevel.CODESIZE)
 
-    out = vyper.compile_code(many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings)
+    out = vyper.compile_code(
+        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
@@ -89,7 +91,9 @@ def test_bytecode_signature_dense_jumptable():
 def test_bytecode_signature_sparse_jumptable():
     settings = Settings(optimize=OptimizationLevel.GAS)
 
-    out = vyper.compile_code(many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings)
+    out = vyper.compile_code(
+        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))

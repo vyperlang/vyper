@@ -19,9 +19,7 @@ INPUT_JSON = {
 
 
 def test_keys():
-    data = compile_code(
-        FOO_CODE, contract_name="foo.vy", output_formats=OUTPUT_FORMATS, source_id=0
-    )
+    data = compile_code(FOO_CODE, contract_name="foo.vy", output_formats=OUTPUT_FORMATS)
     output_json = compile_json(INPUT_JSON)
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"

@@ -8,7 +8,7 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
-from vyper.compiler.input_bundle import JSONInputBundle, FileInput
+from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError

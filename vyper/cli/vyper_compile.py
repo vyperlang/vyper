@@ -4,12 +4,12 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Set, TypeVar, Any
+from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
-from vyper.compiler.input_bundle import FilesystemInputBundle, FileInput
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import (
     VYPER_TRACEBACK_LIMIT,
     OptimizationLevel,

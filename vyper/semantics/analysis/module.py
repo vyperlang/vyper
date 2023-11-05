@@ -4,7 +4,7 @@ from typing import Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle, FileInput, ABIInput
+from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
@@ -333,7 +333,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
             assert isinstance(file, FileInput)  # mypy hint
-            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=file.path)
+            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
             return InterfaceT.from_ast(interface_ast)
         except FileNotFoundError:
             pass

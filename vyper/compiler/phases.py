@@ -93,7 +93,8 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
-        settings, ast = generate_ast(self.source_code, self.source_id, self.contract_path)
+        contract_name = str(self.contract_path)
+        settings, ast = generate_ast(self.source_code, self.source_id, contract_name)
 
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
@@ -210,7 +211,7 @@ class CompilerData:
 
 
 def generate_ast(
-    source_code: str, source_id: int, contract_path: str
+    source_code: str, source_id: int, contract_name: str
 ) -> tuple[Settings, vy_ast.Module]:
     """
     Generate a Vyper AST from source code.
@@ -221,7 +222,7 @@ def generate_ast(
         Vyper source code.
     source_id : int
         ID number used to identify this contract in the source map.
-    contract_path: str
+    contract_name: str
         Name of the contract.
 
     Returns
@@ -229,7 +230,7 @@ def generate_ast(
     vy_ast.Module
         Top-level Vyper AST node
     """
-    return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_path)
+    return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
 
 
 # destructive -- mutates module in place!
