@@ -10,12 +10,9 @@ class IRPass:
         count = 0
 
         while True:
-            changes = t._run_pass(*args, **kwargs) or 0
-            # REVIEW: let's make sure all passes return `int`s instead
-            if isinstance(changes, list):
-                changes = len(changes)
-            count += changes
-            if changes == 0:
+            changes_count = t._run_pass(*args, **kwargs) or 0
+            count += changes_count
+            if changes_count == 0:
                 break
 
         return count

@@ -142,4 +142,4 @@ def ir_pass_remove_unreachable_blocks(ctx: IRFunction) -> int:
 
 @ir_pass
 def ir_pass_optimize_unused_variables(ctx: IRFunction) -> int:
-    return _optimize_unused_variables(ctx)
+    return len(_optimize_unused_variables(ctx))
