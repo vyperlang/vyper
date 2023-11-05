@@ -32,7 +32,7 @@ def _shr(x: uint256, y: uint256) -> uint256:
 
 
 def test_bitwise_opcodes():
-    opcodes = compile_code(code, ["opcodes"])["opcodes"]
+    opcodes = compile_code(code, output_formats=["opcodes"])["opcodes"]
     assert "SHL" in opcodes
     assert "SHR" in opcodes
 

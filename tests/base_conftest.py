@@ -146,7 +146,7 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
-        ["abi", "bytecode"],
+        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
