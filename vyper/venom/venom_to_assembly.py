@@ -193,14 +193,6 @@ class VenomCompiler:
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
-    # REVIEW: note this is dead code
-    # HK: is't for some WIP
-    def _get_commutative_alternative(self, depth: int) -> int:
-        assert depth in (-1, 0), f"Invalid depth {depth}"
-        if depth == 0:
-            return -1
-        return 0
-
     def _emit_input_operands(
         self,
         assembly: list,
