@@ -228,8 +228,11 @@ class VenomCompiler:
 
         for var in in_vars:
             depth = stack.get_depth(IRValueBase(var.value))
+            # REVIEW: maybe should be an assertion
             if depth is StackModel.NOT_IN_STACK:
                 continue
+
+            # REVIEW: self.pop_op() or self.pop()
             if depth != 0:
                 stack.swap(asm, depth)
             stack.pop()
@@ -360,6 +363,7 @@ class VenomCompiler:
             )
             self.label_counter += 1
             if stack.get_height() > 0 and stack.peek(0) in inst.dup_requirements:
+                # REVIEW: self.pop()
                 stack.pop()
                 assembly.append("POP")
         elif opcode == "call":
