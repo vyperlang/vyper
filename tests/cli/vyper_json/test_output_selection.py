@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from pathlib import PurePath
 
 import pytest
 
@@ -13,48 +13,48 @@ def test_no_outputs():
 
 def test_invalid_output():
     input_json = {"settings": {"outputSelection": {"foo.vy": ["abi", "foobar"]}}}
-    sources = {"foo.vy": ""}
+    targets = [PurePath("foo.vy")]
     with pytest.raises(JSONError):
-        get_output_formats(input_json, sources)
+        get_output_formats(input_json, targets)
 
 
 def test_unknown_contract():
     input_json = {"settings": {"outputSelection": {"bar.vy": ["abi"]}}}
-    sources = {"foo.vy": ""}
+    targets = [PurePath("foo.vy")]
     with pytest.raises(JSONError):
-        get_output_formats(input_json, sources)
+        get_output_formats(input_json, targets)
 
 
 @pytest.mark.parametrize("output", TRANSLATE_MAP.items())
 def test_translate_map(output):
     input_json = {"settings": {"outputSelection": {"foo.vy": [output[0]]}}}
-    sources = {"foo.vy": ""}
-    assert get_output_formats(input_json, sources) == {"foo.vy": [output[1]]}
+    targets = [PurePath("foo.vy")]
+    assert get_output_formats(input_json, targets) == {PurePath("foo.vy"): [output[1]]}
 
 
 def test_star():
     input_json = {"settings": {"outputSelection": {"*": ["*"]}}}
-    sources = {"foo.vy": "", "bar.vy": ""}
+    targets = [PurePath("foo.vy"), PurePath("bar.vy")]
     expected = sorted(set(TRANSLATE_MAP.values()))
-    result = get_output_formats(input_json, sources)
-    assert result == {"foo.vy": expected, "bar.vy": expected}
+    result = get_output_formats(input_json, targets)
+    assert result == {PurePath("foo.vy"): expected, PurePath("bar.vy"): expected}
 
 
 def test_evm():
     input_json = {"settings": {"outputSelection": {"foo.vy": ["abi", "evm"]}}}
-    sources = {"foo.vy": ""}
+    targets = [PurePath("foo.vy")]
     expected = ["abi"] + sorted(v for k, v in TRANSLATE_MAP.items() if k.startswith("evm"))
-    result = get_output_formats(input_json, sources)
-    assert result == {"foo.vy": expected}
+    result = get_output_formats(input_json, targets)
+    assert result == {PurePath("foo.vy"): expected}
 
 
 def test_solc_style():
     input_json = {"settings": {"outputSelection": {"foo.vy": {"": ["abi"], "foo.vy": ["ir"]}}}}
-    sources = {"foo.vy": ""}
-    assert get_output_formats(input_json, sources) == {"foo.vy": ["abi", "ir_dict"]}
+    targets = [PurePath("foo.vy")]
+    assert get_output_formats(input_json, targets) == {PurePath("foo.vy"): ["abi", "ir_dict"]}
 
 
 def test_metadata():
     input_json = {"settings": {"outputSelection": {"*": ["metadata"]}}}
-    sources = {"foo.vy": ""}
-    assert get_output_formats(input_json, sources) == {"foo.vy": ["metadata"]}
+    targets = [PurePath("foo.vy")]
+    assert get_output_formats(input_json, targets) == {PurePath("foo.vy"): ["metadata"]}

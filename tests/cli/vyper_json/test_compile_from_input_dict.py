@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from copy import deepcopy
+from pathlib import PurePath
 
 import pytest
 
@@ -113,14 +114,21 @@ def test_source_ids_increment():
     input_json = deepcopy(INPUT_JSON)
     input_json["settings"]["outputSelection"] = {"*": ["evm.deployedBytecode.sourceMap"]}
     result, _ = compile_from_input_dict(input_json)
-    assert result["contracts/foo.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:0")
-    assert result["contracts/bar.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:1")
+    assert result[PurePath("contracts/foo.vy")]["source_map"]["pc_pos_map_compressed"].startswith(
+        "-1:-1:0"
+    )
+    assert result[PurePath("contracts/bar.vy")]["source_map"]["pc_pos_map_compressed"].startswith(
+        "-1:-1:1"
+    )
 
 
 def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
-    assert list(result.keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
-    assert list(result["contracts/bar.vy"].keys()) == sorted(set(TRANSLATE_MAP.values()))
+    assert list(result.keys()) == [PurePath("contracts/foo.vy"), PurePath("contracts/bar.vy")]
+
+    output_formats = list(TRANSLATE_MAP.values())
+    output_formats.append("source_id")
+    assert sorted(result[PurePath("contracts/bar.vy")].keys()) == sorted(set(output_formats))
 
 
 def test_relative_import_paths():

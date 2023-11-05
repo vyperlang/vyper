@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import vyper
-from vyper.cli.vyper_json import format_to_output_dict
+from vyper.cli.vyper_json import compile_json
 from vyper.compiler import OUTPUT_FORMATS, compile_code
 
 FOO_CODE = """
@@ -11,14 +11,20 @@ def foo() -> bool:
 """
 
 
+INPUT_JSON = {
+    "language": "Vyper",
+    "sources": {"foo.vy": {"content": FOO_CODE}},
+    "settings": {"outputSelection": {"*": ["*"]}},
+}
+
+
 def test_keys():
-    compiler_data = compile_code(
-        FOO_CODE, contract_name="foo.vy", output_formats=list(OUTPUT_FORMATS.keys())
+    data = compile_code(
+        FOO_CODE, contract_name="foo.vy", output_formats=OUTPUT_FORMATS, source_id=0
     )
-    output_json = format_to_output_dict(compiler_data)
+    output_json = compile_json(INPUT_JSON)
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
-    data = compiler_data["foo.vy"]
     assert output_json["sources"]["foo.vy"] == {"id": 0, "ast": data["ast_dict"]["ast"]}
     assert output_json["contracts"]["foo.vy"]["foo"] == {
         "abi": data["abi"],

@@ -285,11 +285,10 @@ def compile_from_input_dict(
     sources = get_inputs(input_dict)
     output_formats = get_output_formats(input_dict, compilation_targets)
 
-    res, warnings_dict = {}, {}
-    warnings.simplefilter("always")
-
     input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
 
+    res, warnings_dict = {}, {}
+    warnings.simplefilter("always")
     for contract_path in compilation_targets:
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
@@ -304,9 +303,11 @@ def compile_from_input_dict(
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
+                assert isinstance(data, dict)
+                data["source_id"] = file.source_id
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
-            res[str(contract_path)] = data
+            res[contract_path] = data
             if caught_warnings:
                 warnings_dict[contract_path] = caught_warnings
 
@@ -316,8 +317,9 @@ def compile_from_input_dict(
 # convert output of compile_input_dict to final output format
 def format_to_output_dict(compiler_data: dict) -> dict:
     output_dict: dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
-    for id_, (path, data) in enumerate(compiler_data.items()):
-        output_dict["sources"][path] = {"id": id_}
+    for path, data in compiler_data.items():
+        path = str(path)  # Path breaks json serializability
+        output_dict["sources"][path] = {"id": data["source_id"]}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
 
