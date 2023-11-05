@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -8,6 +8,8 @@ from vyper.venom.basicblock import (
     IRVariable,
     MemType,
 )
+
+GLOBAL_LABEL = IRLabel("global")
 
 
 class IRFunction:
@@ -22,7 +24,9 @@ class IRFunction:
     last_label: int
     last_variable: int
 
-    def __init__(self, name: IRLabel = IRLabel("global")) -> None:
+    def __init__(self, name: IRLabel = None) -> None:
+        if name is None:
+            name = GLOBAL_LABEL
         self.name = name
         self.args = []
         self.basic_blocks = []

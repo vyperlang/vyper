@@ -86,7 +86,7 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
 
 
 def convert_ir_basicblock(ir: IRnode) -> IRFunction:
-    global_function = IRFunction(IRLabel("global"))
+    global_function = IRFunction()
     _convert_ir_basicblock(global_function, ir, {}, OrderedSet(), {})
 
     for i, bb in enumerate(global_function.basic_blocks):

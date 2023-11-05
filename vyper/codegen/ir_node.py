@@ -607,7 +607,7 @@ class IRnode:
         mutable: bool = True,
         add_gas_estimate: int = 0,
         is_self_call: bool = False,
-        passthrough_metadata: dict[str, Any] = {},
+        passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
