@@ -46,7 +46,7 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
-    contract_name: PathLike = UNKNOWN_CONTRACT_NAME,
+    contract_name: str = UNKNOWN_CONTRACT_NAME,
     source_id: int = 0,
     input_bundle: InputBundle = None,
     settings: Settings = None,

@@ -242,14 +242,14 @@ def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePa
         outputs = sorted(set(outputs))
 
         if path == "*":
-            output_keys = targets
+            output_paths = targets
         else:
-            output_keys = [PurePath(path)]
-            if output_keys[0] not in targets:
-                raise JSONError(f"outputSelection references unknown contract '{output_keys[0]}'")
+            output_paths = [PurePath(path)]
+            if output_paths[0] not in targets:
+                raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
-        for key in output_keys:
-            output_formats[key] = outputs
+        for path in output_paths:
+            output_formats[path] = outputs
 
     return output_formats
 
@@ -297,7 +297,7 @@ def compile_from_input_dict(
                 assert isinstance(file, FileInput)  # mypy hint
                 data = vyper.compile_code(
                     file.source_code,
-                    contract_name=file.path,
+                    contract_name=str(file.path),
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
                     source_id=file.source_id,
