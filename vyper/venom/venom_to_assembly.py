@@ -263,6 +263,20 @@ class VenomCompiler:
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
 
+        # values to pop from stack
+        in_vars = OrderedSet()
+        for in_bb in basicblock.cfg_in:
+            in_vars |= in_bb.out_vars.difference(basicblock.in_vars_from(in_bb))
+
+        for var in in_vars:
+            depth = stack.get_depth(IRValueBase(var.value))
+            if depth is StackModel.NOT_IN_STACK:
+                continue
+            if depth != 0:
+                stack.swap(asm, depth)
+            stack.pop()
+            asm.append("POP")
+
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
