@@ -8,7 +8,7 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
-from vyper.compiler.input_bundle import JSONInputBundle
+from vyper.compiler.input_bundle import JSONInputBundle, FileInput
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
@@ -219,7 +219,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 # get unique output formats for each contract, given the input_dict
 # NOTE: would maybe be nice to raise on duplicated output formats
 def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePath, list[str]]:
-    output_formats = {}
+    output_formats: dict[PurePath, list[str]] = {}
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
@@ -294,6 +294,7 @@ def compile_from_input_dict(
             try:
                 # use load_file to get a unique source_id
                 file = input_bundle.load_file(contract_path)
+                assert isinstance(file, FileInput)  # mypy hint
                 data = vyper.compile_code(
                     file.source_code,
                     contract_name=file.path,

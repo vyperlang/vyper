@@ -4,12 +4,12 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Set, TypeVar
+from typing import Iterable, Iterator, Optional, Set, TypeVar, Any
 
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
-from vyper.compiler.input_bundle import FilesystemInputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, FileInput
 from vyper.compiler.settings import (
     VYPER_TRACEBACK_LIMIT,
     OptimizationLevel,
@@ -219,12 +219,12 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
 
 
 def compile_files(
-    input_files: Iterable[str],
+    input_files: list[str],
     output_formats: OutputFormats,
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
-    storage_layout_paths: Iterable[str] = None,
+    storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
     root_path = Path(root_folder).resolve()
@@ -250,13 +250,14 @@ def compile_files(
                 "layouts, but {len(input_files)} source files"
             )
 
-    ret = {}
+    ret: dict[Any, Any] = {}
     if show_version:
         ret["version"] = vyper.__version__
 
     for file_name in input_files:
         file_path = Path(file_name)
         file = input_bundle.load_file(file_path)
+        assert isinstance(file, FileInput)  # mypy hint
 
         storage_layout_override = None
         if storage_layout_paths:
@@ -266,7 +267,7 @@ def compile_files(
 
         output = vyper.compile_code(
             file.source_code,
-            contract_name=file.path,
+            contract_name=str(file.path),
             source_id=file.source_id,
             input_bundle=input_bundle,
             output_formats=final_formats,

@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Union
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.input_bundle import InputBundle
+from vyper.compiler.input_bundle import InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
@@ -46,7 +46,7 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
-    contract_name: str = UNKNOWN_CONTRACT_NAME,
+    contract_name: PathLike = UNKNOWN_CONTRACT_NAME,
     source_id: int = -1,
     input_bundle: InputBundle = None,
     settings: Settings = None,
