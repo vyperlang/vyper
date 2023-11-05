@@ -1,8 +1,9 @@
 import contextlib
+import json
+import os
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
-import json
 
 from vyper.exceptions import CompilerPanic, JSONError
 
@@ -18,7 +19,7 @@ class CompilerInput:
         try:
             s = json.loads(file_contents)
             return ABIInput(source_id, path, s)
-        except ValueError:
+        except (ValueError, TypeError):
             return FileInput(source_id, path, file_contents)
 
 
@@ -41,6 +42,11 @@ class _NotFound(Exception):
     pass
 
 
+# wrap os.path.normpath, but return the same type as the input
+def _normpath(path):
+    return path.__class__(os.path.normpath(path))
+
+
 class InputBundle:
     search_paths: list[PathLike]
     # compilation_targets: dict[str, str]  # contract names => contract sources
@@ -61,20 +67,27 @@ class InputBundle:
         return self._source_ids[path]
 
     def load_file(self, path: PathLike) -> CompilerInput:
-        for p in self.search_paths:
+        # search path precedence
+        tried = []
+        for sp in reversed(self.search_paths):
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
             # Path("/a") / Path("/b") => Path("/b")
-            to_try = p / path
+            to_try = sp / path
+
+            # normalize the path with os.path.normpath, to break down
+            # things like "foo/bar/../x.vy" => "foo/x.vy", with all
+            # the caveats around symlinks that os.path.normpath comes with.
+            to_try = _normpath(to_try)
             try:
                 return self._load_from_path(to_try)
             except _NotFound:
-                pass
+                tried.append(to_try)
         else:
-            formatted_search_paths = "\n".join(["  " + str(sp) for sp in self.search_paths])
+            formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
             raise FileNotFoundError(
-                f"could not find {path} within any of the following search "
-                f"paths:\n{formatted_search_paths}"
+                f"could not find {path} in any of the following locations:\n"
+                f"{formatted_search_paths}"
             )
 
         raise CompilerPanic("unreachable")  # pragma: nocover
@@ -83,7 +96,8 @@ class InputBundle:
         self.search_paths.append(path)
 
     # temporarily add something to the search path (within the
-    # scope of the context manager). if `path` is None, do nothing
+    # scope of the context manager) with highest precedence.
+    # if `path` is None, do nothing
     @contextlib.contextmanager
     def search_path(self, path: Optional[PathLike]) -> Iterator[None]:
         if path is None:
@@ -115,7 +129,7 @@ class FilesystemInputBundle(InputBundle):
 class MockInputBundle(InputBundle):
     files: dict[PurePath, str]
 
-    def __init__(self, search_paths, files):
+    def __init__(self, files, search_paths):
         super().__init__(search_paths)
         self.files = files
 
@@ -136,9 +150,11 @@ class MockInputBundle(InputBundle):
 class JSONInputBundle(InputBundle):
     input_json: dict[PurePath, Any]
 
-    def __init__(self, search_paths, input_json):
+    def __init__(self, input_json, search_paths):
         super().__init__(search_paths)
-        self.input_json = input_json
+        self.input_json = {}
+        for path, item in input_json.items():
+            self.input_json[_normpath(path)] = item
 
     def _load_from_path(self, path: PurePath) -> CompilerInput:
         try:
@@ -153,9 +169,6 @@ class JSONInputBundle(InputBundle):
 
         if "abi" in value:
             return ABIInput(source_id, path, value["abi"])
-
-        if isinstance(value, list):
-            return ABIInput(source_id, path, value)
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:

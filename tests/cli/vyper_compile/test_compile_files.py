@@ -1,6 +1,6 @@
-import pytest
-
 from pathlib import Path
+
+import pytest
 
 from vyper.cli.vyper_compile import compile_files
 

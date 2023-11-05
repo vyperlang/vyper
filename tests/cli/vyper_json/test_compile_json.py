@@ -39,7 +39,7 @@ INPUT_JSON = {
         "contracts/foo.vy": {"content": FOO_CODE},
         "contracts/bar.vy": {"content": BAR_CODE},
     },
-    "interfaces": {"contracts/bar.json": {"abi": BAR_ABI}},
+    "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
     "settings": {"outputSelection": {"*": ["*"]}},
 }
 

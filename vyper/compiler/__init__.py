@@ -1,6 +1,6 @@
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Optional, Sequence, Union
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
@@ -9,7 +9,7 @@ from vyper.compiler.input_bundle import InputBundle
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
-from vyper.typing import ContractCodes, ContractPath, OutputDict, OutputFormats, StorageLayout
+from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module

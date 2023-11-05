@@ -4,15 +4,14 @@ import argparse
 import json
 import sys
 import warnings
-from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, List, Optional, Tuple, Union
+from pathlib import Path, PurePath
+from typing import Any, Callable, Hashable, Optional
 
 import vyper
 from vyper.compiler.input_bundle import JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.typing import ContractCodes
 from vyper.utils import keccak256
 
 TRANSLATE_MAP = {
@@ -97,15 +96,15 @@ def _parse_args(argv):
         print(output_json)
 
 
-def exc_handler_raises(file_path: Union[str, None], exception: Exception, component: str) -> None:
+def exc_handler_raises(file_path: Optional[str], exception: Exception, component: str) -> None:
     if file_path:
         print(f"Unhandled exception in '{file_path}':")
     exception._exc_handler = True  # type: ignore
     raise exception
 
 
-def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, component: str) -> Dict:
-    err_dict: Dict = {
+def exc_handler_to_dict(file_path: Optional[str], exception: Exception, component: str) -> dict:
+    err_dict: dict = {
         "type": type(exception).__name__,
         "component": component,
         "severity": "error",
@@ -129,7 +128,7 @@ def exc_handler_to_dict(file_path: Union[str, None], exception: Exception, compo
     return output_json
 
 
-def get_evm_version(input_dict: Dict) -> Optional[str]:
+def get_evm_version(input_dict: dict) -> Optional[str]:
     if "settings" not in input_dict:
         return None
 
@@ -152,15 +151,19 @@ def get_evm_version(input_dict: Dict) -> Optional[str]:
     return evm_version
 
 
-def get_compilation_targets(input_dict: dict) -> ContractCodes:
-    if "compilation_targets" in input_dict:
-        pass
+def get_compilation_targets(input_dict: dict) -> list[PurePath]:
+    # TODO: once we have modules, add optional "compilation_targets" key
+    # which specifies which sources we actually want to compile.
 
-    ret: ContractCodes = {}
+    return [PurePath(p) for p in input_dict["sources"].keys()]
+
+
+def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
+    ret = {}
     seen = {}
 
     for path, value in input_dict["sources"].items():
-        path = Path(path)
+        path = PurePath(path)
         if "urls" in value:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if "content" not in value:
@@ -174,21 +177,48 @@ def get_compilation_targets(input_dict: dict) -> ContractCodes:
         if path.stem in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
+        # value looks like {"content": <source code>}
+        # this will be interpreted by JSONInputBundle later
         ret[path] = value
         seen[path.stem] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
-        path = Path(path)
+        path = PurePath(path)
         if path.stem in seen:
             raise JSONError(f"Interface namespace collision: {path}")
 
-        ret[path] = {"content": value}
+        if isinstance(value, list):
+            # backwards compatibility - straight ABI with no "abi" key.
+            # (should probably just reject these)
+            value = {"abi": value}
+
+        # some validation
+        if not isinstance(value, dict):
+            raise JSONError("invalid interface (must be a dictionary):\n{json.dumps(value)}")
+        if "content" in value:
+            if not isinstance(value["content"], str):
+                raise JSONError(f"invalid 'content' (expected string):\n{json.dumps(value)}")
+        elif "abi" in value:
+            if not isinstance(value["abi"], list):
+                raise JSONError(f"invalid 'abi' (expected list):\n{json.dumps(value)}")
+        else:
+            raise JSONError(
+                "invalid interface (must contain either 'content' or 'abi'):\n{json.dumps(value)}"
+            )
+        if "content" in value and "abi" in value:
+            raise JSONError(
+                "invalid interface (found both 'content' and 'abi'):\n{json.dumps(value)}"
+            )
+
+        ret[path] = value
         seen[path.stem] = True
 
     return ret
 
 
-def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCodes) -> Dict:
+# get unique output formats for each contract, given the input_dict
+# NOTE: would maybe be nice to raise on duplicated output formats
+def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePath, list[str]]:
     output_formats = {}
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
@@ -200,6 +230,7 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
         for key in [i for i in ("evm", "evm.bytecode", "evm.deployedBytecode") if i in outputs]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
+
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
         else:
@@ -211,10 +242,10 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
         outputs = sorted(set(outputs))
 
         if path == "*":
-            output_keys = list(contract_sources.keys())
+            output_keys = targets
         else:
-            output_keys = [Path(path)]
-            if output_keys[0] not in contract_sources:
+            output_keys = [PurePath(path)]
+            if output_keys[0] not in targets:
                 raise JSONError(f"outputSelection references unknown contract '{output_keys[0]}'")
 
         for key in output_keys:
@@ -224,15 +255,10 @@ def get_input_dict_output_formats(input_dict: Dict, contract_sources: ContractCo
 
 
 def compile_from_input_dict(
-    input_dict: Dict, exc_handler: Callable = exc_handler_raises, root_folder: Optional[str] = None
+    input_dict: dict, exc_handler: Callable = exc_handler_raises, root_folder: Optional[str] = None
 ) -> tuple[dict, dict]:
-    root_path = None
-    if root_folder is not None:
-        root_path = Path(root_folder).resolve()
-        if not root_path.exists():
-            raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
-    else:
-        root_path = Path(".")
+    if root_folder is None:
+        root_folder = "."
 
     if input_dict["language"] != "Vyper":
         raise JSONError(f"Invalid language '{input_dict['language']}' - Only Vyper is supported.")
@@ -255,18 +281,19 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
-    contract_sources = get_compilation_targets(input_dict)
-
-    output_formats = get_input_dict_output_formats(input_dict, contract_sources)
+    compilation_targets = get_compilation_targets(input_dict)
+    sources = get_inputs(input_dict)
+    output_formats = get_output_formats(input_dict, compilation_targets)
 
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
 
-    input_bundle = JSONInputBundle([root_path], contract_sources)
+    input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
 
-    for contract_path in contract_sources.keys():
+    for contract_path in compilation_targets:
         with warnings.catch_warnings(record=True) as caught_warnings:
             try:
+                # use load_file to get a unique source_id
                 file = input_bundle.load_file(contract_path)
                 data = vyper.compile_code(
                     file.source_code,
@@ -279,22 +306,22 @@ def compile_from_input_dict(
                 )
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
-            res[contract_path] = data
+            res[str(contract_path)] = data
             if caught_warnings:
                 warnings_dict[contract_path] = caught_warnings
 
     return res, warnings_dict
 
 
-def format_to_output_dict(compiler_data: Dict) -> Dict:
-    output_dict: Dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
+# convert output of compile_input_dict to final output format
+def format_to_output_dict(compiler_data: dict) -> dict:
+    output_dict: dict = {"compiler": f"vyper-{vyper.__version__}", "contracts": {}, "sources": {}}
     for id_, (path, data) in enumerate(compiler_data.items()):
-        path = str(path)  # Path is not json serializable
         output_dict["sources"][path] = {"id": id_}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
 
-        name = Path(path).stem
+        name = PurePath(path).stem
         output_dict["contracts"][path] = {name: {}}
         output_contracts = output_dict["contracts"][path][name]
 
@@ -332,7 +359,7 @@ def format_to_output_dict(compiler_data: Dict) -> Dict:
 
 
 # https://stackoverflow.com/a/49518779
-def _raise_on_duplicate_keys(ordered_pairs: List[Tuple[Hashable, Any]]) -> Dict:
+def _raise_on_duplicate_keys(ordered_pairs: list[tuple[Hashable, Any]]) -> dict:
     """
     Raise JSONError if a duplicate key exists in provided ordered list
     of pairs, otherwise return a dict.
@@ -351,7 +378,7 @@ def compile_json(
     exc_handler: Callable = exc_handler_raises,
     root_path: Optional[str] = None,
     json_path: Optional[str] = None,
-) -> Dict:
+) -> dict:
     try:
         if isinstance(input_json, str):
             try:

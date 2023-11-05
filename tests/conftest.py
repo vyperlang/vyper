@@ -11,8 +11,8 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.compiler.input_bundle import FilesystemInputBundle
+from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
 from .base_conftest import VyperContract, _get_contract, zero_gas_price_strategy

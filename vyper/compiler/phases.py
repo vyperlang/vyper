@@ -9,7 +9,7 @@ from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import InputBundle, FilesystemInputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer

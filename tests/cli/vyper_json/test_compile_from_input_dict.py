@@ -48,7 +48,6 @@ BAR_ABI = [
         "inputs": [{"type": "uint256", "name": "a"}],
         "stateMutability": "nonpayable",
         "type": "function",
-        "gas": 313,
     }
 ]
 
@@ -58,14 +57,14 @@ INPUT_JSON = {
         "contracts/foo.vy": {"content": FOO_CODE},
         "contracts/bar.vy": {"content": BAR_CODE},
     },
-    "interfaces": {"contracts/bar.json": {"abi": BAR_ABI}},
+    "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
     "settings": {"outputSelection": {"*": ["*"]}},
 }
 
 
 def test_root_folder_not_exists():
     with pytest.raises(FileNotFoundError):
-        compile_from_input_dict({}, root_folder="/path/that/does/not/exist")
+        compile_from_input_dict(INPUT_JSON, root_folder="/path/that/does/not/exist")
 
 
 def test_wrong_language():
@@ -87,7 +86,7 @@ def test_exc_handler_to_dict_syntax():
     assert "errors" in result
     assert len(result["errors"]) == 1
     error = result["errors"][0]
-    assert error["component"] == "parser"
+    assert error["component"] == "compiler", error
     assert error["type"] == "SyntaxException"
 
 
@@ -114,14 +113,14 @@ def test_source_ids_increment():
     input_json = deepcopy(INPUT_JSON)
     input_json["settings"]["outputSelection"] = {"*": ["evm.deployedBytecode.sourceMap"]}
     result, _ = compile_from_input_dict(input_json)
-    assert result["contracts/bar.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:0")
-    assert result["contracts/foo.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:1")
+    assert result["contracts/foo.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:0")
+    assert result["contracts/bar.vy"]["source_map"]["pc_pos_map_compressed"].startswith("-1:-1:1")
 
 
 def test_outputs():
     result, _ = compile_from_input_dict(INPUT_JSON)
-    assert sorted(result.keys()) == ["contracts/bar.vy", "contracts/foo.vy"]
-    assert sorted(result["contracts/bar.vy"].keys()) == sorted(set(TRANSLATE_MAP.values()))
+    assert list(result.keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
+    assert list(result["contracts/bar.vy"].keys()) == sorted(set(TRANSLATE_MAP.values()))
 
 
 def test_relative_import_paths():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import sys, os
+import sys
 import warnings
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Set, TypeVar

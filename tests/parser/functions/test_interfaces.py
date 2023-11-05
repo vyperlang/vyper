@@ -1,5 +1,5 @@
-from decimal import Decimal
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -7,8 +7,8 @@ from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     InterfaceViolation,
-    StructureException,
     NamespaceCollision,
+    StructureException,
 )
 
 
