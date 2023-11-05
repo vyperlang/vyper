@@ -66,7 +66,7 @@ class InputBundle:
 
         return self._source_ids[path]
 
-    def load_file(self, path: PathLike) -> CompilerInput:
+    def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
         tried = []
         for sp in reversed(self.search_paths):
@@ -124,24 +124,6 @@ class FilesystemInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
 
         return CompilerInput.from_string(source_id, path, code)
-
-
-class MockInputBundle(InputBundle):
-    files: dict[PurePath, str]
-
-    def __init__(self, files, search_paths):
-        super().__init__(search_paths)
-        self.files = files
-
-    def _load_from_path(self, path: PurePath) -> CompilerInput:
-        try:
-            file_contents = self.files[path]
-        except KeyError:
-            raise _NotFound(path)
-
-        source_id = super()._generate_source_id(path)
-
-        return CompilerInput.from_string(source_id, path, file_contents)
 
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
