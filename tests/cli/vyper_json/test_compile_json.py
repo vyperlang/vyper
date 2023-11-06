@@ -1,27 +1,11 @@
 import json
-from copy import deepcopy
 
 import pytest
 
 import vyper
-from vyper.compiler import compile_code, OUTPUT_FORMATS
 from vyper.cli.vyper_json import compile_from_input_dict, compile_json, exc_handler_to_dict
-from vyper.exceptions import JSONError
-
-from copy import deepcopy
-from pathlib import PurePath
-
-import pytest
-
-import vyper
-from vyper.cli.vyper_json import (
-    TRANSLATE_MAP,
-    compile_from_input_dict,
-    exc_handler_raises,
-    exc_handler_to_dict,
-)
+from vyper.compiler import OUTPUT_FORMATS, compile_code
 from vyper.exceptions import InvalidType, JSONError, SyntaxException
-
 
 FOO_CODE = """
 import contracts.bar as Bar
@@ -96,8 +80,16 @@ def test_keyerror_becomes_jsonerror(input_json):
 def test_compile_json(input_json, make_input_bundle):
     input_bundle = make_input_bundle({"contracts/bar.vy": BAR_CODE})
 
-    foo = compile_code(FOO_CODE, source_id=0, contract_name="contracts/foo.vy", output_formats=OUTPUT_FORMATS, input_bundle=input_bundle)
-    bar = compile_code(BAR_CODE, source_id=1, contract_name="contracts/bar.vy", output_formats=OUTPUT_FORMATS)
+    foo = compile_code(
+        FOO_CODE,
+        source_id=0,
+        contract_name="contracts/foo.vy",
+        output_formats=OUTPUT_FORMATS,
+        input_bundle=input_bundle,
+    )
+    bar = compile_code(
+        BAR_CODE, source_id=1, contract_name="contracts/bar.vy", output_formats=OUTPUT_FORMATS
+    )
 
     compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo}
 
@@ -132,7 +124,10 @@ def test_compile_json(input_json, make_input_bundle):
 
 
 def test_different_outputs(make_input_bundle, input_json):
-    input_json["settings"]["outputSelection"] = {"contracts/bar.vy": "*", "contracts/foo.vy": ["evm.methodIdentifiers"]}
+    input_json["settings"]["outputSelection"] = {
+        "contracts/bar.vy": "*",
+        "contracts/foo.vy": ["evm.methodIdentifiers"],
+    }
     output_json = compile_json(input_json)
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
@@ -143,15 +138,21 @@ def test_different_outputs(make_input_bundle, input_json):
 
     foo = contracts["contracts/foo.vy"]["foo"]
     bar = contracts["contracts/bar.vy"]["bar"]
-    assert sorted(bar.keys()) == [ "abi", "devdoc", "evm", "interface", "ir", "metadata", "userdoc"]
- 
+    assert sorted(bar.keys()) == ["abi", "devdoc", "evm", "interface", "ir", "metadata", "userdoc"]
+
     assert sorted(foo.keys()) == ["evm"]
 
     # check method_identifiers
     input_bundle = make_input_bundle({"contracts/bar.vy": BAR_CODE})
-    method_identifiers = compile_code(FOO_CODE, contract_name="contracts/foo.vy", output_formats=["method_identifiers"], input_bundle=input_bundle)["method_identifiers"]
+    method_identifiers = compile_code(
+        FOO_CODE,
+        contract_name="contracts/foo.vy",
+        output_formats=["method_identifiers"],
+        input_bundle=input_bundle,
+    )["method_identifiers"]
     assert foo["evm"]["methodIdentifiers"] == method_identifiers
- 
+
+
 def test_root_folder_not_exists(input_json):
     with pytest.raises(FileNotFoundError):
         compile_json(input_json, root_folder="/path/that/does/not/exist")

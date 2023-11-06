@@ -2,7 +2,7 @@ from pathlib import PurePath
 
 import pytest
 
-from vyper.cli.vyper_json import get_inputs, get_compilation_targets
+from vyper.cli.vyper_json import get_compilation_targets, get_inputs
 from vyper.exceptions import JSONError
 from vyper.utils import keccak256
 
