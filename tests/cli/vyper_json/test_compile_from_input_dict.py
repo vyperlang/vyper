@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# CMC 2023-11-06 this can probably be merged into compile_json tests
+# (i.e., no need to separately test compile_from_input_dict)
 
 from copy import deepcopy
 from pathlib import PurePath

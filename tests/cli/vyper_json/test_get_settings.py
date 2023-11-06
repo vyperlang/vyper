@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import pytest
 
 from vyper.cli.vyper_json import get_evm_version
