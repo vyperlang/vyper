@@ -15,8 +15,8 @@ class StackModel:
         new.stack = self.stack.copy()
         return new
 
-    # REVIEW: worth changing to a property? `@property\ndef height(self)`
-    def get_height(self) -> int:
+    @property
+    def height(self) -> int:
         """
         Returns the height of the stack map.
         """

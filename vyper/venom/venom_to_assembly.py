@@ -362,10 +362,8 @@ class VenomCompiler:
                 ]
             )
             self.label_counter += 1
-            if stack.get_height() > 0 and stack.peek(0) in inst.dup_requirements:
-                # REVIEW: self.pop()
-                stack.pop()
-                assembly.append("POP")
+            if stack.height > 0 and stack.peek(0) in inst.dup_requirements:
+                self.pop(assembly, stack)
         elif opcode == "call":
             assembly.append("CALL")
         elif opcode == "staticcall":
@@ -424,6 +422,10 @@ class VenomCompiler:
                 assembly.extend([*PUSH(inst.ret.mem_addr)])
 
         return assembly
+
+    def pop(self, assembly, stack, num=1):
+        stack.pop(num)
+        assembly.extend(["POP"] * num)
 
     def swap(self, assembly, stack, depth):
         if depth == 0:
