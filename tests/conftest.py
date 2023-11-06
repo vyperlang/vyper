@@ -73,11 +73,15 @@ def keccak():
 
 @pytest.fixture
 def make_file(tmp_path):
+    # writes file_contents to file_name, creating it in the
+    # tmp_path directory. returns final path.
     def fn(file_name, file_contents):
         path = tmp_path / file_name
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
             f.write(file_contents)
+
+        return path
 
     return fn
 
