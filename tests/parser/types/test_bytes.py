@@ -1,4 +1,5 @@
 import pytest
+
 from vyper.exceptions import InvalidType, TypeMismatch
 
 
