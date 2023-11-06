@@ -724,7 +724,7 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
 
     compile_code(code, input_bundle=input_bundle)
 
-    # overwrite the file
+    # !!! overwrite the file
     make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
 
     compile_code(code, input_bundle=input_bundle)

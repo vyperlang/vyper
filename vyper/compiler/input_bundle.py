@@ -11,8 +11,11 @@ from vyper.exceptions import JSONError
 PathLike = Path | PurePath
 
 
+@dataclass
 class CompilerInput:
-    # an input to the compiler.
+    # an input to the compiler, basically an abstraction for file contents
+    source_id: int
+    path: PathLike
 
     @staticmethod
     def from_string(source_id: int, path: PathLike, file_contents: str) -> "CompilerInput":
@@ -25,16 +28,15 @@ class CompilerInput:
 
 @dataclass
 class FileInput(CompilerInput):
-    source_id: int
-    path: PathLike
     source_code: str
 
 
 @dataclass
 class ABIInput(CompilerInput):
-    # some json input, that has already been parsed into a dict or list
-    source_id: int
-    path: PathLike
+    # some json input, which has already been parsed into a dict or list
+    # this is needed because json inputs present json interfaces as json
+    # objects, not as strings. this class helps us avoid round-tripping
+    # back to a string to pretend it's a file.
     abi: Any  # something that json.load() returns
 
 
@@ -47,9 +49,16 @@ def _normpath(path):
     return path.__class__(os.path.normpath(path))
 
 
+# an "input bundle" to the compiler, representing the files which are
+# available to the compiler. it is useful because it parametrizes I/O
+# operations over different possible input types. you can think of it
+# as a virtual filesystem which models the compiler's interactions
+# with the outside world. it exposes a "load_file" operation which
+# searches for a file from a set of search paths, and also provides
+# id generation service to get a unique source id per file.
 class InputBundle:
+    # a list of search paths
     search_paths: list[PathLike]
-    # compilation_targets: dict[str, str]  # contract names => contract sources
 
     def __init__(self, search_paths):
         self.search_paths = search_paths
@@ -80,15 +89,24 @@ class InputBundle:
             # the caveats around symlinks that os.path.normpath comes with.
             to_try = _normpath(to_try)
             try:
-                return self._load_from_path(to_try)
+                res = self._load_from_path(to_try)
+                break
             except _NotFound:
                 tried.append(to_try)
 
-        formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
-        raise FileNotFoundError(
-            f"could not find {path} in any of the following locations:\n"
-            f"{formatted_search_paths}"
-        )
+        else:
+            formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
+            raise FileNotFoundError(
+                f"could not find {path} in any of the following locations:\n"
+                f"{formatted_search_paths}"
+            )
+
+        # try to parse from json, so that return types are consistent
+        # across FilesystemInputBundle and JSONInputBundle.
+        if isinstance(res, FileInput):
+            return CompilerInput.from_string(res.source_id, res.path, res.source_code)
+
+        return res
 
     def add_search_path(self, path: PathLike) -> None:
         self.search_paths.append(path)
@@ -121,7 +139,7 @@ class FilesystemInputBundle(InputBundle):
 
         source_id = super()._generate_source_id(path)
 
-        return CompilerInput.from_string(source_id, path, code)
+        return FileInput(source_id, path, code)
 
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
@@ -134,6 +152,10 @@ class JSONInputBundle(InputBundle):
         super().__init__(search_paths)
         self.input_json = {}
         for path, item in input_json.items():
+            path = _normpath(path)
+
+            # should be checked by caller
+            assert path not in self.input_json
             self.input_json[_normpath(path)] = item
 
     def _load_from_path(self, path: PurePath) -> CompilerInput:
@@ -145,7 +167,7 @@ class JSONInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
 
         if "content" in value:
-            return CompilerInput.from_string(source_id, path, value["content"])
+            return FileInput(source_id, path, value["content"])
 
         if "abi" in value:
             return ABIInput(source_id, path, value["abi"])
