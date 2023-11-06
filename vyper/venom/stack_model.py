@@ -97,3 +97,6 @@ class StackModel:
         top = self._stack[-1]
         self._stack[-1] = self._stack[depth - 1]
         self._stack[depth - 1] = top
+
+    def __repr__(self) -> str:
+        return f"<StackModel: {self._stack}>"
