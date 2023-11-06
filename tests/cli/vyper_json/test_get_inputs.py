@@ -72,6 +72,7 @@ def test_contracts_return_value():
         PurePath("contracts/bar.vy"): {"content": BAR_CODE},
     }
 
+
 BAR_ABI = [
     {
         "name": "bar",

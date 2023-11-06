@@ -379,7 +379,7 @@ def _raise_on_duplicate_keys(ordered_pairs: list[tuple[Hashable, Any]]) -> dict:
 def compile_json(
     input_json: dict | str,
     exc_handler: Callable = exc_handler_raises,
-    root_path: Optional[str] = None,
+    root_folder: Optional[str] = None,
     json_path: Optional[str] = None,
 ) -> dict:
     try:
@@ -393,7 +393,7 @@ def compile_json(
             input_dict = input_json
 
         try:
-            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_path)
+            compiler_data, warn_data = compile_from_input_dict(input_dict, exc_handler, root_folder)
             if "errors" in compiler_data:
                 return compiler_data
         except KeyError as exc:
