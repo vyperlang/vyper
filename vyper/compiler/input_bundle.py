@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
-from vyper.exceptions import CompilerPanic, JSONError
+from vyper.exceptions import JSONError
 
 # a type to make mypy happy
 PathLike = Path | PurePath
@@ -83,14 +83,12 @@ class InputBundle:
                 return self._load_from_path(to_try)
             except _NotFound:
                 tried.append(to_try)
-        else:
-            formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
-            raise FileNotFoundError(
-                f"could not find {path} in any of the following locations:\n"
-                f"{formatted_search_paths}"
-            )
 
-        raise CompilerPanic("unreachable")  # pragma: nocover
+        formatted_search_paths = "\n".join(["  " + str(p) for p in tried])
+        raise FileNotFoundError(
+            f"could not find {path} in any of the following locations:\n"
+            f"{formatted_search_paths}"
+        )
 
     def add_search_path(self, path: PathLike) -> None:
         self.search_paths.append(path)
@@ -155,4 +153,6 @@ class JSONInputBundle(InputBundle):
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
 
-        raise JSONError(f"Unexpected type in file: '{path}'")
+        # unreachable, based on how JSONInputBundle is constructed in
+        # the codebase.
+        raise JSONError(f"Unexpected type in file: '{path}'")  # pragma: nocover
