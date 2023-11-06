@@ -1,6 +1,7 @@
 import pytest
+from vyper.abi_types import ABI_Bytes, ABI_BytesM, ABI_DynamicArray, ABI_FixedMxN, ABI_GIntM, ABI_String
 
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import CompilerPanic, InvalidType, TypeMismatch
 
 
 def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
@@ -333,3 +334,61 @@ def assign():
 @pytest.mark.parametrize("code,exc", cases_invalid_assignments)
 def test_invalid_assignments(get_contract, assert_compile_failed, code, exc):
     assert_compile_failed(lambda: get_contract(code), exc)
+
+cases_invalid_types = [
+    (
+        ABI_GIntM,
+        [
+            (0, False),
+            (7, False),
+            (300, True),
+            (300, False)
+        ],
+        CompilerPanic
+    ),
+    (
+        ABI_FixedMxN,
+        [
+            (0, 0, False),
+            (8, 0, False),
+            (256, 81, True),
+            (300, 80, False)
+        ],
+        CompilerPanic
+    ),
+    (
+        ABI_BytesM,
+        [
+            (0,),
+            (33,),
+            (-10,),
+        ],
+        CompilerPanic
+    ),
+    (
+        ABI_Bytes,
+        [
+            (-1,),
+            (-69,),
+        ],
+        CompilerPanic
+    ),
+    (
+        ABI_DynamicArray,
+        [
+            (ABI_GIntM(256, False), -1),
+            (ABI_String(256), -10),
+        ],
+        CompilerPanic
+    ),
+]
+
+# double parametrization cannot work because the 2nd dimension is variable
+cases_invalid_types_flat = []
+for cases in cases_invalid_types:
+    for case in cases[1]:
+        cases_invalid_types_flat.append((cases[0], case, cases[2]))
+
+@pytest.mark.parametrize("typ,params,exc", cases_invalid_types_flat)
+def test_invalid_abi_types(assert_compile_failed, typ, params, exc):
+    assert_compile_failed(lambda: typ(*params), exc)
