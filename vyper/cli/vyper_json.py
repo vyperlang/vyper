@@ -248,8 +248,8 @@ def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePa
             if output_paths[0] not in targets:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
-        for path in output_paths:
-            output_formats[path] = outputs
+        for output_path in output_paths:
+            output_formats[output_path] = outputs
 
     return output_formats
 
