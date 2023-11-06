@@ -1,4 +1,3 @@
-interface_code = """
 # Events
 
 event Transfer:
@@ -66,5 +65,3 @@ def approve(_approved: address, _tokenId: uint256):
 @external
 def setApprovalForAll(_operator: address, _approved: bool):
     pass
-
-"""

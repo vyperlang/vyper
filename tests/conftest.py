@@ -11,6 +11,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from vyper import compiler
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
@@ -68,6 +69,34 @@ def debug(pytestconfig):
 @pytest.fixture
 def keccak():
     return Web3.keccak
+
+
+@pytest.fixture
+def make_file(tmp_path):
+    # writes file_contents to file_name, creating it in the
+    # tmp_path directory. returns final path.
+    def fn(file_name, file_contents):
+        path = tmp_path / file_name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as f:
+            f.write(file_contents)
+
+        return path
+
+    return fn
+
+
+# this can either be used for its side effects (to prepare a call
+# to get_contract), or the result can be provided directly to
+# compile_code / CompilerData.
+@pytest.fixture
+def make_input_bundle(tmp_path, make_file):
+    def fn(sources_dict):
+        for file_name, file_contents in sources_dict.items():
+            make_file(file_name, file_contents)
+        return FilesystemInputBundle([tmp_path])
+
+    return fn
 
 
 @pytest.fixture

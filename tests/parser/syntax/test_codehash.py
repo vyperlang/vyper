@@ -33,7 +33,7 @@ def foo4() -> bytes32:
     return self.a.codehash
     """
     settings = Settings(evm_version=evm_version, optimize=optimize)
-    compiled = compile_code(code, ["bytecode_runtime"], settings=settings)
+    compiled = compile_code(code, output_formats=["bytecode_runtime"], settings=settings)
     bytecode = bytes.fromhex(compiled["bytecode_runtime"][2:])
     hash_ = keccak256(bytecode)
 

@@ -374,7 +374,7 @@ def test_interfaces_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
 
-def test_imports_and_implements_within_interface():
+def test_imports_and_implements_within_interface(make_input_bundle):
     interface_code = """
 from vyper.interfaces import ERC20
 import foo.bar as Baz
@@ -386,6 +386,8 @@ def foobar():
     pass
 """
 
+    input_bundle = make_input_bundle({"foo.vy": interface_code})
+
     code = """
 import foo as Foo
 
@@ -396,9 +398,4 @@ def foobar():
     pass
 """
 
-    assert (
-        compiler.compile_code(
-            code, interface_codes={"Foo": {"type": "vyper", "code": interface_code}}
-        )
-        is not None
-    )
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None

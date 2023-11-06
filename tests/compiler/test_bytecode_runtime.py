@@ -48,14 +48,14 @@ def _parse_cbor_metadata(initcode):
 
 
 def test_bytecode_runtime():
-    out = vyper.compile_code(simple_contract_code, ["bytecode_runtime", "bytecode"])
+    out = vyper.compile_code(simple_contract_code, output_formats=["bytecode_runtime", "bytecode"])
 
     assert len(out["bytecode"]) > len(out["bytecode_runtime"])
     assert out["bytecode_runtime"].removeprefix("0x") in out["bytecode"].removeprefix("0x")
 
 
 def test_bytecode_signature():
-    out = vyper.compile_code(simple_contract_code, ["bytecode_runtime", "bytecode"])
+    out = vyper.compile_code(simple_contract_code, output_formats=["bytecode_runtime", "bytecode"])
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
@@ -72,7 +72,9 @@ def test_bytecode_signature():
 def test_bytecode_signature_dense_jumptable():
     settings = Settings(optimize=OptimizationLevel.CODESIZE)
 
-    out = vyper.compile_code(many_functions, ["bytecode_runtime", "bytecode"], settings=settings)
+    out = vyper.compile_code(
+        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
@@ -89,7 +91,9 @@ def test_bytecode_signature_dense_jumptable():
 def test_bytecode_signature_sparse_jumptable():
     settings = Settings(optimize=OptimizationLevel.GAS)
 
-    out = vyper.compile_code(many_functions, ["bytecode_runtime", "bytecode"], settings=settings)
+    out = vyper.compile_code(
+        many_functions, output_formats=["bytecode_runtime", "bytecode"], settings=settings
+    )
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
@@ -104,7 +108,7 @@ def test_bytecode_signature_sparse_jumptable():
 
 
 def test_bytecode_signature_immutables():
-    out = vyper.compile_code(has_immutables, ["bytecode_runtime", "bytecode"])
+    out = vyper.compile_code(has_immutables, output_formats=["bytecode_runtime", "bytecode"])
 
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))

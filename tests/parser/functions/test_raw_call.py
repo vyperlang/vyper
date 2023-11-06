@@ -274,8 +274,8 @@ def test_raw_call(_target: address):
 def test_raw_call(_target: address):
     raw_call(_target, method_id("foo()"), max_outsize=0)
     """
-    output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
-    output2 = compile_code(code2, ["bytecode", "bytecode_runtime"])
+    output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
     assert output1 == output2
 
 
@@ -296,8 +296,8 @@ def test_raw_call(_target: address) -> bool:
     a: bool = raw_call(_target, method_id("foo()"), max_outsize=0, revert_on_failure=False)
     return a
     """
-    output1 = compile_code(code1, ["bytecode", "bytecode_runtime"])
-    output2 = compile_code(code2, ["bytecode", "bytecode_runtime"])
+    output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
     assert output1 == output2
 
 

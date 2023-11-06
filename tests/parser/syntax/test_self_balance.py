@@ -20,7 +20,7 @@ def __default__():
     pass
     """
     settings = Settings(evm_version=evm_version)
-    opcodes = compiler.compile_code(code, ["opcodes"], settings=settings)["opcodes"]
+    opcodes = compiler.compile_code(code, output_formats=["opcodes"], settings=settings)["opcodes"]
     if EVM_VERSIONS[evm_version] >= EVM_VERSIONS["istanbul"]:
         assert "SELFBALANCE" in opcodes
     else:

@@ -19,7 +19,7 @@ def get_node_ids(ast_struct, ids=None):
         elif v is None or isinstance(v, (str, int)):
             continue
         else:
-            raise Exception("Unknown ast_struct provided.")
+            raise Exception(f"Unknown ast_struct provided. {k}, {v}")
     return ids
 
 
@@ -30,7 +30,7 @@ def test() -> int128:
     a: uint256 = 100
     return 123
     """
-    dict_out = compiler.compile_code(code, ["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
     node_ids = get_node_ids(dict_out)
 
     assert len(node_ids) == len(set(node_ids))
@@ -40,7 +40,7 @@ def test_basic_ast():
     code = """
 a: int128
     """
-    dict_out = compiler.compile_code(code, ["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
     assert dict_out["ast_dict"]["ast"]["body"][0] == {
         "annotation": {
             "ast_type": "Name",
@@ -89,7 +89,7 @@ implements: Foo
 def foo() -> uint256:
     return 1
     """
-    dict_out = compiler.compile_code(code, ["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
         "col_offset": 0,
         "annotation": {

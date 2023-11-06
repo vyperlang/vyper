@@ -8,7 +8,9 @@ def test_dense_jumptable_stability():
 
     code = "\n".join(f"@external\ndef {name}():\n  pass" for name in function_names)
 
-    output = compile_code(code, ["asm"], settings=Settings(optimize=OptimizationLevel.CODESIZE))
+    output = compile_code(
+        code, output_formats=["asm"], settings=Settings(optimize=OptimizationLevel.CODESIZE)
+    )
 
     # test that the selector table data is stable across different runs
     # (tox should provide different PYTHONHASHSEEDs).
