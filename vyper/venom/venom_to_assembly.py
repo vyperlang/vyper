@@ -228,15 +228,12 @@ class VenomCompiler:
 
         for var in in_vars:
             depth = stack.get_depth(IRValueBase(var.value))
-            # REVIEW: maybe should be an assertion
             if depth is StackModel.NOT_IN_STACK:
                 continue
 
-            # REVIEW: self.pop_op() or self.pop()
             if depth != 0:
                 stack.swap(asm, depth)
-            stack.pop()
-            asm.append("POP")
+            self.pop(asm, stack)
 
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
