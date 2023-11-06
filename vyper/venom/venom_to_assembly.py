@@ -168,7 +168,7 @@ class VenomCompiler:
 
         # dumb heuristic: if the top of stack is not wanted here, swap
         # it with something that is wanted
-        if ops and stack.stack and stack.stack[-1] not in ops:
+        if ops and stack._stack and stack._stack[-1] not in ops:
             for op in ops:
                 if isinstance(op, IRVariable) and op not in inst.dup_requirements:
                     self.swap_op(assembly, stack, op)
