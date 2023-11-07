@@ -37,12 +37,12 @@ def test_func(_value: uint256):
     logs = get_logs(tx_hash, c, "TestLog")
 
     log = logs[0].args
-    assert w3.toInt(log.testData1) == 123
-    assert w3.toInt(log.testData2[:32]) == 123
+    assert w3.to_int(log.testData1) == 123
+    assert w3.to_int(log.testData2[:32]) == 123
     assert log.testData2[-7:] == b"testing"
     assert log.testData2[32:] == b"\x00\x00\x00\x00\x00\x00\x00{testing"
     assert log.testData3 == b"\x00\x00\x00\x00\x00\x00\x00{"
-    assert w3.toInt(log.testData3) == 123
+    assert w3.to_int(log.testData3) == 123
 
     assert logs[0].args == logs[1].args
 
@@ -83,7 +83,7 @@ def test_func(_value: uint256,input: Bytes[133]):
 
     print(logs[0].args)
 
-    assert w3.toInt(logs[0].args.testData1) == 1234444
+    assert w3.to_int(logs[0].args.testData1) == 1234444
     assert logs[0].args.testData3 == "bababa"
     assert logs[0].args.testData2 == b"x" * 129
 
@@ -114,7 +114,7 @@ def test_func(_value: uint256,input: Bytes[133]):
     tx_hash = c.test_func(1234444, b"x" * 129, transact={})
     logs = get_logs(tx_hash, c, "TestLog")
 
-    assert w3.toInt(logs[0].args.testData1) == 1234444
+    assert w3.to_int(logs[0].args.testData1) == 1234444
     assert logs[0].args.testData2 == b"x" * 129
 
 
@@ -160,11 +160,11 @@ def test_func(_value: uint256,input: Bytes[2048]):
 
     print(logs[0].args)
 
-    assert w3.toInt(logs[0].args.testData1) == 333
+    assert w3.to_int(logs[0].args.testData1) == 333
 
-    assert w3.toInt(logs[0].args.testData2[0:8]) == 333
-    assert w3.toInt(logs[0].args.testData2[8:16]) == 333
+    assert w3.to_int(logs[0].args.testData2[0:8]) == 333
+    assert w3.to_int(logs[0].args.testData2[8:16]) == 333
     assert logs[0].args.testData2[16:] == b"x" * 132
-    assert w3.toInt(logs[0].args.testData3) == 333
+    assert w3.to_int(logs[0].args.testData3) == 333
 
     assert logs[0].args == logs[1].args

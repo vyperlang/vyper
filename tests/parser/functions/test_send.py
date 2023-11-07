@@ -56,3 +56,37 @@ def __default__():
     assert receiver.last_sender() == sender.address
     assert w3.eth.get_balance(sender.address) == 0
     assert w3.eth.get_balance(receiver.address) == 1
+
+
+def test_send_gas_stipend(get_contract, w3):
+    """
+    Tests to verify that adding gas stipend to send() will send sufficient gas
+    """
+
+    sender_code = """
+
+@external
+def test_send_stipend(receiver: address):
+    send(receiver, 1, gas=50000)
+    """
+
+    # default function writes variable, this requires more gas than
+    # send would pass without gas stipend
+    receiver_code = """
+last_sender: public(address)
+
+@external
+@payable
+def __default__():
+    self.last_sender = msg.sender
+    """
+
+    sender = get_contract(sender_code, value=1)
+    receiver = get_contract(receiver_code)
+
+    sender.test_send_stipend(receiver.address, transact={"gas": 100000})
+
+    # value transfer hapenned, variable was changed
+    assert receiver.last_sender() == sender.address
+    assert w3.eth.get_balance(sender.address) == 0
+    assert w3.eth.get_balance(receiver.address) == 1

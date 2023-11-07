@@ -6,4 +6,4 @@ def tx_gasprice() -> uint256:
 """
     c = get_contract(code)
     for i in range(10):
-        assert c.tx_gasprice(call={"gasPrice": 10 ** i}) == 10 ** i
+        assert c.tx_gasprice(call={"gasPrice": 10**i}) == 10**i

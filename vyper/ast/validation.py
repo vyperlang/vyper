@@ -45,15 +45,17 @@ def validate_call_args(
             # -1 is sentinel which means we have varargs.
             # set arg_count[1] to some large number that we
             # would never see in practice
-            arg_count = (arg_count[0], 2 ** 64)
+            arg_count = (arg_count[0], 2**64)
 
         if arg_count[0] == arg_count[1]:
-            arg_count == arg_count[0]
+            arg_count = arg_count[0]
 
     if isinstance(node.func, vy_ast.Attribute):
         msg = f" for call to '{node.func.attr}'"
     elif isinstance(node.func, vy_ast.Name):
         msg = f" for call to '{node.func.id}'"
+    else:
+        raise CompilerPanic("Unreachable")
 
     if isinstance(arg_count, int) and len(node.args) != arg_count:
         if not node.args:

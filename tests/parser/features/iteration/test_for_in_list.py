@@ -230,7 +230,7 @@ def iterate_return_second() -> address:
         count += 1
         if count == 2:
             return i
-    return ZERO_ADDRESS
+    return empty(address)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -656,6 +656,20 @@ def foo():
 @external
 def foo():
     for i in range(0):
+        pass
+    """,
+    """
+@external
+def foo():
+    for i in []:
+        pass
+    """,
+    """
+FOO: constant(DynArray[uint256, 3]) = []
+
+@external
+def foo():
+    for i in FOO:
         pass
     """,
     (

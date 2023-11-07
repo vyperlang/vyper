@@ -11,9 +11,8 @@ def to_little_endian_64(_value: uint256) -> Bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
     for _ in range(8):
-        y = shift(y, 8)
-        y = y + (x & 255)
-        x = shift(x, -8)
+        y = (y << 8) | (x & 255)
+        x >>= 8
     return slice(convert(y, bytes32), 24, 8)
 
 @external
@@ -26,8 +25,7 @@ def get_count(counter: uint256) -> Bytes[24]:
 
 
 @pytest.mark.fuzzing
-@hypothesis.given(value=hypothesis.strategies.integers(min_value=0, max_value=2 ** 64))
-@hypothesis.settings(deadline=400)
+@hypothesis.given(value=hypothesis.strategies.integers(min_value=0, max_value=2**64))
 def test_zero_pad_range(little_endian_contract, value):
     actual_bytes = value.to_bytes(8, byteorder="little")
     contract_bytes = little_endian_contract.get_count(value)

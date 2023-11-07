@@ -56,9 +56,9 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     # Check that highest bidder and highest bid have changed accordingly
     assert auction_contract.highestBidder() == k5
     assert auction_contract.highestBid() == 5
-    auction_contract.bid(transact={"value": 1 * 10 ** 10, "from": k1})
+    auction_contract.bid(transact={"value": 1 * 10**10, "from": k1})
     pending_return_before_outbid = auction_contract.pendingReturns(k1)
-    auction_contract.bid(transact={"value": 2 * 10 ** 10, "from": k2})
+    auction_contract.bid(transact={"value": 2 * 10**10, "from": k2})
     pending_return_after_outbid = auction_contract.pendingReturns(k1)
     # Account has a greater pending return balance after being outbid
     assert pending_return_after_outbid > pending_return_before_outbid
@@ -76,7 +76,7 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
     # Fails if auction end time has not been reached
     assert_tx_failed(lambda: auction_contract.endAuction())
-    auction_contract.bid(transact={"value": 1 * 10 ** 10, "from": k2})
+    auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
     # Move block timestamp foreward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
     w3.testing.mine(EXPIRY)
@@ -84,7 +84,7 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     auction_contract.endAuction(transact={"from": k2})
     balance_after_end = w3.eth.get_balance(k1)
     # Beneficiary receives the highest bid
-    assert balance_after_end == balance_before_end + 1 * 10 ** 10
+    assert balance_after_end == balance_before_end + 1 * 10**10
     # Bidder cannot bid after auction end time has been reached
     assert_tx_failed(lambda: auction_contract.bid(transact={"value": 10, "from": k1}))
     # Auction cannot be ended twice

@@ -11,4 +11,4 @@ def a() -> bool:
     return True
 """
     with pytest.warns(vyper.warnings.ContractSizeLimitWarning):
-        vyper.compile_code(code, ["bytecode_runtime"])
+        vyper.compile_code(code, output_formats=["bytecode_runtime"])

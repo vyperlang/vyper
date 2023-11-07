@@ -21,7 +21,9 @@ def foo() -> bool:
     bar_path = chdir_path.joinpath("bar.vy")
     with bar_path.open("w") as fp:
         fp.write(code)
+
     _parse_args([str(bar_path)])  # absolute path
     os.chdir(chdir_path.parent)
+
     _parse_args([str(bar_path)])  # absolute path, subfolder of cwd
     _parse_args([str(bar_path.relative_to(chdir_path.parent))])  # relative path

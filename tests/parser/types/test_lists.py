@@ -652,12 +652,12 @@ def foo(x: Bar[2][2][2]) -> uint256:
     [
         ("decimal", [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]),
         ("uint8", [0, 1, 17, 250, 255, 2]),
-        ("int128", [0, -1, 1, -(2 ** 127), 2 ** 127 - 1, -50]),
-        ("int256", [0, -1, 1, -(2 ** 255), 2 ** 255 - 1, -50]),
-        ("uint256", [0, 1, 2 ** 8, 2 ** 255 + 1, 2 ** 256 - 1, 100]),
+        ("int128", [0, -1, 1, -(2**127), 2**127 - 1, -50]),
+        ("int256", [0, -1, 1, -(2**255), 2**255 - 1, -50]),
+        ("uint256", [0, 1, 2**8, 2**255 + 1, 2**256 - 1, 100]),
         (
             "uint256",
-            [2 ** 255 + 1, 2 ** 255 + 2, 2 ** 255 + 3, 2 ** 255 + 4, 2 ** 255 + 5, 2 ** 255 + 6],
+            [2**255 + 1, 2**255 + 2, 2**255 + 3, 2**255 + 4, 2**255 + 5, 2**255 + 6],
         ),
         ("bool", [True, False, True, False, True, False]),
     ],
@@ -674,6 +674,18 @@ def ix(i: uint256) -> {type}:
         assert c.ix(i) == p
     # assert oob
     assert_tx_failed(lambda: c.ix(len(value) + 1))
+
+
+def test_nested_constant_list_accessor(get_contract):
+    code = """
+@external
+def foo() -> bool:
+    f: uint256 = 1
+    a: bool = 1 == [1,2,4][f] + -1
+    return a
+    """
+    c = get_contract(code)
+    assert c.foo() is True
 
 
 # Would be nice to put this somewhere accessible, like in vyper.types or something
@@ -745,20 +757,37 @@ def ix(i: uint256) -> address:
     assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
 
 
+def test_list_index_complex_expr(get_contract, assert_tx_failed):
+    # test subscripts where the index is not a literal
+    code = """
+@external
+def foo(xs: uint256[257], i: uint8) -> uint256:
+    return xs[i + 1]
+    """
+    c = get_contract(code)
+    xs = [i + 1 for i in range(257)]
+
+    for ix in range(255):
+        assert c.foo(xs, ix) == xs[ix + 1]
+
+    # safemath should fail for uint8: 255 + 1.
+    assert_tx_failed(lambda: c.foo(xs, 255))
+
+
 @pytest.mark.parametrize(
     "type,value",
     [
         ("decimal", [[5.0, 11.0], [17.0, 29.0], [37.0, 41.0]]),
         ("uint8", [[0, 1], [17, 250], [255, 2]]),
-        ("int128", [[0, -1], [1, -(2 ** 127)], [2 ** 127 - 1, -50]]),
-        ("int256", [[0, -1], [1, -(2 ** 255)], [2 ** 255 - 1, -50]]),
-        ("uint256", [[0, 1], [2 ** 8, 2 ** 255 + 1], [2 ** 256 - 1, 100]]),
+        ("int128", [[0, -1], [1, -(2**127)], [2**127 - 1, -50]]),
+        ("int256", [[0, -1], [1, -(2**255)], [2**255 - 1, -50]]),
+        ("uint256", [[0, 1], [2**8, 2**255 + 1], [2**256 - 1, 100]]),
         (
             "uint256",
             [
-                [2 ** 255 + 1, 2 ** 255 + 2],
-                [2 ** 255 + 3, 2 ** 255 + 4],
-                [2 ** 255 + 5, 2 ** 255 + 6],
+                [2**255 + 1, 2**255 + 2],
+                [2**255 + 3, 2**255 + 4],
+                [2**255 + 5, 2**255 + 6],
             ],
         ),
         ("bool", [[True, False], [True, False], [True, False]]),

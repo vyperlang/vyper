@@ -50,6 +50,14 @@ def __init__(_value: uint256):
     VALUE = _value * 3
     VALUE = VALUE + 1
     """,
+    # immutable(public()) banned
+    """
+VALUE: immutable(public(uint256))
+
+@external
+def __init__(_value: uint256):
+    VALUE = _value * 3
+    """,
 ]
 
 
@@ -147,6 +155,23 @@ def report():
     z: uint256 = self.imm
     """,
         "'imm' is not a storage variable, it should not be prepended with self",
+    ),
+    (
+        """
+struct Foo:
+    a : uint256
+
+x: immutable(Foo)
+
+@external
+def __init__():
+    x = Foo({a:1})
+
+@external
+def hello() :
+    x.a =  2
+    """,
+        "Immutable value cannot be written to",
     ),
 ]
 

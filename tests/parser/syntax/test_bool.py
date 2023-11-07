@@ -52,7 +52,7 @@ def foo() -> bool:
     """
 @external
 def foo() -> bool:
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     return a == 1
     """,
     (
@@ -63,24 +63,6 @@ def foo(a: address) -> bool:
     """,
         InvalidOperation,
     ),
-    """
-@external
-def foo() -> bool:
-    b: int128 = 0
-    return not b
-    """,
-    """
-@external
-def foo() -> bool:
-    b: uint256 = 0
-    return not b
-    """,
-    """
-@external
-def foo() -> bool:
-    b: uint256 = 0
-    return not b
-    """,
     (
         """
 @external
@@ -95,7 +77,6 @@ def test(a: address) -> bool:
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_bool_fail(bad_code):
-
     if isinstance(bad_code, tuple):
         with raises(bad_code[1]):
             compiler.compile_code(bad_code[0])
@@ -156,7 +137,7 @@ def foo() -> bool:
     """
 @external
 def foo2(a: address) -> bool:
-    return a != ZERO_ADDRESS
+    return a != empty(address)
     """,
 ]
 

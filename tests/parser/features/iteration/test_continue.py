@@ -1,5 +1,7 @@
 import pytest
 
+from vyper.exceptions import StructureException
+
 
 def test_continue1(get_contract_with_gas_estimation):
     code = """
@@ -59,19 +61,26 @@ def foo() -> int128:
 
 
 fail_list = [
-    """
+    (
+        """
 @external
 def foo():
     a: uint256 = 3
     continue
     """,
-    """
+        StructureException,
+    ),
+    (
+        """
 @external
 def foo():
     if True:
         continue
     """,
-    """
+        StructureException,
+    ),
+    (
+        """
 @external
 def foo():
     for i in [1, 2, 3]:
@@ -79,9 +88,11 @@ def foo():
     if True:
         continue
     """,
+        StructureException,
+    ),
 ]
 
 
-@pytest.mark.parametrize("bad_code", fail_list)
-def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code))
+@pytest.mark.parametrize("bad_code,exc", fail_list)
+def test_block_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)

@@ -4,10 +4,12 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    ImmutableViolation,
     InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     VariableDeclarationException,
 )
 
@@ -70,6 +72,46 @@ VAL: uint256
     """,
         NamespaceCollision,
     ),
+    # global with same type and name
+    (
+        """
+VAL: constant(uint256) = 1
+VAL: uint256
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: constant(uint256) = 1
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name
+    (
+        """
+VAL: immutable(uint256)
+VAL: uint256
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
+    # global with same type and name, different order
+    (
+        """
+VAL: uint256
+VAL: immutable(uint256)
+
+@external
+def __init__():
+    VAL = 1
+    """,
+        NamespaceCollision,
+    ),
     # signature variable with same name
     (
         """
@@ -107,6 +149,27 @@ def foo() -> uint256:
 c1: constant(uint256) = self.foo()
      """,
         StateAccessViolation,
+    ),
+    (
+        # constant(public()) banned
+        """
+S: constant(public(uint256)) = 3
+    """,
+        SyntaxException,
+    ),
+    # cannot re-assign constant value
+    (
+        """
+struct Foo:
+    a : uint256
+
+x: constant(Foo) = Foo({a: 1})
+
+@external
+def hello() :
+    x.a =  2
+    """,
+        ImmutableViolation,
     ),
 ]
 
