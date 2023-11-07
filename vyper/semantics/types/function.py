@@ -44,6 +44,7 @@ class KeywordArg(_FunctionArg):
     ast_source: Optional[vy_ast.VyperNode] = None
 
 
+# TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
 class ContractFunctionT(VyperType):
     """
     Contract function type.
@@ -81,6 +82,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
+        ast_def: Optional[vy_ast.FunctionDef] = None,
     ) -> None:
         super().__init__()
 
@@ -92,8 +94,14 @@ class ContractFunctionT(VyperType):
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
 
-        # a list of internal functions this function calls
+        self.ast_def = ast_def
+
+        # a list of internal functions this function calls.
+        # to be populated during analysis
         self.called_functions = OrderedSet()
+
+        # recursively reachable from this function
+        self.reachable_internal_functions = OrderedSet()
 
         # to be populated during codegen
         self._ir_info: Any = None
@@ -340,7 +348,7 @@ class ContractFunctionT(VyperType):
         else:
             raise InvalidType("Function return value must be a type name or tuple", node.returns)
 
-        return cls(node.name, positional_args, keyword_args, return_type, **kwargs)
+        return cls(node.name, positional_args, keyword_args, return_type, ast_def=node, **kwargs)
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
         if hasattr(self, "reentrancy_key_position"):

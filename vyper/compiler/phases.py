@@ -7,7 +7,6 @@ from typing import Optional, Tuple
 from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
-from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
@@ -15,6 +14,7 @@ from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 
 DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
@@ -34,7 +34,7 @@ class CompilerData:
         Top-level Vyper AST node
     vyper_module_folded : vy_ast.Module
         Folded Vyper AST
-    global_ctx : GlobalContext
+    global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
         IR used to generate deployment bytecode
@@ -154,8 +154,8 @@ class CompilerData:
         return storage_layout
 
     @property
-    def global_ctx(self) -> GlobalContext:
-        return GlobalContext(self.vyper_module_folded)
+    def global_ctx(self) -> ModuleT:
+        return ModuleT(self.vyper_module_folded)
 
     @cached_property
     def _ir_output(self):
@@ -282,9 +282,7 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(
-    global_ctx: GlobalContext, optimize: OptimizationLevel
-) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -295,7 +293,7 @@ def generate_ir_nodes(
 
     Arguments
     ---------
-    global_ctx : GlobalContext
+    global_ctx: ModuleT
         Contextualized Vyper AST
 
     Returns

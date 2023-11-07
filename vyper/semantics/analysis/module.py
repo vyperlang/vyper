@@ -1,6 +1,5 @@
 import os
 from pathlib import Path, PurePath
-from typing import Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -20,11 +19,16 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.utils import check_constant, validate_expected_type
+from vyper.semantics.analysis.utils import (
+    check_constant,
+    validate_expected_type,
+    get_exact_type_from_node,
+)
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import Namespace, get_namespace
+from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -35,19 +39,38 @@ def add_module_namespace(vy_module: vy_ast.Module, input_bundle: InputBundle) ->
     """
 
     namespace = get_namespace()
-    ModuleAnalyzer(vy_module, input_bundle, namespace)
+    analyzer = ModuleAnalyzer(vy_module, input_bundle, namespace)
+    analyzer.analyze()
 
 
-def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
-    if fn_names[-1] not in self_members:
-        return None
-    internal_calls = self_members[fn_names[-1]].internal_calls
-    for name in internal_calls:
-        if name in fn_names:
-            return fn_names + [name]
-        sequence = _find_cyclic_call(fn_names + [name], self_members)
-        if sequence:
-            return sequence
+def _compute_reachable_set(fn_t: ContractFunctionT):
+    for g in fn_t.called_functions:
+        assert g != fn_t
+
+        fn_t.reachable_internal_functions.add(g)
+
+        _compute_reachable_set(g)
+
+        for h in g.reachable_internal_functions:
+            assert h != fn_t
+
+            fn_t.reachable_internal_functions.add(h)
+
+
+def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
+    path = path or []
+
+    path.append(fn_t)
+    root = path[0]
+
+    for g in fn_t.called_functions:
+        if g == root:
+            return path
+        if _find_cyclic_call(g, path=path) is not None:
+            return path + [root]
+
+    path.pop()
+
     return None
 
 
@@ -61,8 +84,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.input_bundle = input_bundle
         self.namespace = namespace
 
-        # TODO: Move computation out of constructor
-        module_nodes = module_node.body.copy()
+    def analyze(self) -> ModuleT:
+        module_nodes = self.ast.body.copy()
         while module_nodes:
             count = len(module_nodes)
             err_list = ExceptionList()
@@ -82,61 +105,49 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
-        # generate an `InterfaceT` from the top-level node - used for building the ABI
+        # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
-        interface = InterfaceT.from_ast(module_node)
-        module_node._metadata["type"] = interface
-        self.interface = interface  # this is useful downstream
+        module_t = ModuleT(self.ast)
+        self.ast._metadata["type"] = module_t
 
         # attach namespace to the module for downstream use.
         _ns = Namespace()
         # note that we don't just copy the namespace because
         # there are constructor issues.
-        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
-        module_node._metadata["namespace"] = _ns
+        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
+        self.ast._metadata["namespace"] = _ns
 
-        self_members = namespace["self"].typ.members
+        self.analyze_call_graph()
 
+    def analyze_call_graph(self):
         # get list of internal function calls made by each function
-        function_defs = self.ast.get_children(vy_ast.FunctionDef)
-        function_names = set(node.name for node in function_defs)
-        for node in function_defs:
-            calls_to_self = set(
-                i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
-            )
-            # anything that is not a function call will get semantically checked later
-            calls_to_self = calls_to_self.intersection(function_names)
-            self_members[node.name].internal_calls = calls_to_self
+        function_defs = self.ast.get_descendants(vy_ast.FunctionDef)
 
-        for fn_name in sorted(function_names):
-            if fn_name not in self_members:
-                # the referenced function does not exist - this is an issue, but we'll report
-                # it later when parsing the function so we can give more meaningful output
-                continue
+        for func in function_defs:
+            fn_t = func._metadata["type"]
 
-            # check for circular function calls
-            sequence = _find_cyclic_call([fn_name], self_members)
-            if sequence is not None:
-                nodes = []
-                for i in range(len(sequence) - 1):
-                    fn_node = self.ast.get_children(vy_ast.FunctionDef, {"name": sequence[i]})[0]
-                    call_node = fn_node.get_descendants(
-                        vy_ast.Attribute, {"value.id": "self", "attr": sequence[i + 1]}
-                    )[0]
-                    nodes.append(call_node)
+            function_calls = func.get_descendants(vy_ast.Call)
 
-                raise CallViolation("Contract contains cyclic function call", *nodes)
+            for call in function_calls:
+                try:
+                    call_t = get_exact_type_from_node(call.func)
+                except VyperException:
+                    # either there is a problem getting the call type. this is
+                    # an issue, but it will be handled properly later. right now
+                    # we just want to be able to construct the call graph.
+                    continue
 
-            # get complete list of functions that are reachable from this function
-            function_set = set(i for i in self_members[fn_name].internal_calls if i in self_members)
-            while True:
-                expanded = set(x for i in function_set for x in self_members[i].internal_calls)
-                expanded |= function_set
-                if expanded == function_set:
-                    break
-                function_set = expanded
+                if isinstance(call_t, ContractFunctionT) and call_t.is_internal:
+                    fn_t.called_functions.add(call_t)
 
-            self_members[fn_name].recursive_calls = function_set
+        for func in function_defs:
+            fn_t = func._metadata["type"]
+            cyclic_calls = _find_cyclic_call(fn_t)
+            if cyclic_calls is not None:
+                message = " -> ".join([f.name for f in cyclic_calls])
+                raise CallViolation(f"Contract contains cyclic function call: {message}")
+
+            _compute_reachable_set(fn_t)
 
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
@@ -155,6 +166,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # we need this when building the public getter
             node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
 
+        # TODO: move this check to local analysis
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
@@ -333,8 +345,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
             assert isinstance(file, FileInput)  # mypy hint
-            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
-            return InterfaceT.from_ast(interface_ast)
+            module_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
+
+            # NOTE: circular import
+            from . import validate_semantics
+
+            with override_global_namespace(Namespace()):
+                validate_semantics(module_ast, self.input_bundle)
+                return ModuleT(module_ast)
+
         except FileNotFoundError:
             pass
 

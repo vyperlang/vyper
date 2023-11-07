@@ -690,7 +690,7 @@ class Expr:
             # type annotations are consistently available
             isinstance(self.expr.func, vy_ast.Attribute)
             and isinstance(self.expr.func.value, vy_ast.Name)
-            and self.expr.func.value.id == "self"
+            and self.expr.func._metadata["type"].is_internal
         ):
             return self_call.ir_for_self_call(self.expr, self.context)
         else:

@@ -7,7 +7,7 @@ from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
-from vyper.codegen.global_context import GlobalContext
+from vyper.semantics.types.module import ModuleT
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.exceptions import CompilerPanic
@@ -94,7 +94,7 @@ class InternalFuncIR(FuncIR):
 
 # TODO: should split this into external and internal ir generation?
 def generate_ir_for_function(
-    code: vy_ast.FunctionDef, global_ctx: GlobalContext, is_ctor_context: bool = False
+    code: vy_ast.FunctionDef, module_ctx: ModuleT, is_ctor_context: bool = False
 ) -> FuncIR:
     """
     Parse a function and produce IR code for the function, includes:
@@ -126,7 +126,7 @@ def generate_ir_for_function(
 
     context = Context(
         vars_=None,
-        global_ctx=global_ctx,
+        module_ctx=module_ctx,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,
