@@ -6,10 +6,10 @@ from vyper.codegen import core, jumptable_utils
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import generate_ir_for_function
 from vyper.codegen.ir_node import IRnode
-from vyper.semantics.types.module import ModuleT
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
-from vyper.utils import method_id_int, OrderedSet
+from vyper.semantics.types.module import ModuleT
+from vyper.utils import OrderedSet, method_id_int
 
 
 def _topsort(functions):

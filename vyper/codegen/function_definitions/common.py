@@ -7,12 +7,12 @@ from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import check_single_exit
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
-from vyper.semantics.types.module import ModuleT
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions, calc_mem_gas, mkalphanum
 
 

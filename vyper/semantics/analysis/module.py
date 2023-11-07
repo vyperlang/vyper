@@ -21,8 +21,8 @@ from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     check_constant,
-    validate_expected_type,
     get_exact_type_from_node,
+    validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
@@ -47,14 +47,14 @@ def _compute_reachable_set(fn_t: ContractFunctionT):
     for g in fn_t.called_functions:
         assert g != fn_t
 
-        fn_t.reachable_internal_functions.add(g)
-
         _compute_reachable_set(g)
 
         for h in g.reachable_internal_functions:
             assert h != fn_t
 
             fn_t.reachable_internal_functions.add(h)
+
+        fn_t.reachable_internal_functions.add(g)
 
 
 def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
