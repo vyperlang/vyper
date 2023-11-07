@@ -336,3 +336,7 @@ class UnfoldableNode(VyperInternalException):
 
 class TypeCheckFailure(VyperInternalException):
     """An issue was not caught during type checking that should have been."""
+
+
+class InvalidABIType(VyperInternalException):
+    """Unexpected ABI Type internals"""

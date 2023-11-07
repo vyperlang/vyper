@@ -8,7 +8,7 @@ from vyper.abi_types import (
     ABI_GIntM,
     ABI_String,
 )
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import InvalidABIType
 
 cases_invalid_types = [
     (ABI_GIntM, ((0, False), (7, False), (300, True), (300, False))),
@@ -23,4 +23,4 @@ cases_invalid_types = [
 def test_invalid_abi_types(assert_compile_failed, typ, params_variants):
     # double parametrization cannot work because the 2nd dimension is variable
     for params in params_variants:
-        assert_compile_failed(lambda: typ(*params), CompilerPanic)
+        assert_compile_failed(lambda: typ(*params), InvalidABIType)
