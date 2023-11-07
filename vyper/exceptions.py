@@ -339,4 +339,4 @@ class TypeCheckFailure(VyperInternalException):
 
 
 class InvalidABIType(VyperInternalException):
-    """An internal routine constructed an invalid ABI type""
+    """An internal routine constructed an invalid ABI type"""
