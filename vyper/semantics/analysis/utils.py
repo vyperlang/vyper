@@ -246,7 +246,9 @@ class _ExprAnalyser:
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if any(isinstance(t, EnumT) for t in left):
+            if any(isinstance(t, EnumT) for t in left) and not any(
+                isinstance(i, (DArrayT, SArrayT)) for i in right
+            ):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
