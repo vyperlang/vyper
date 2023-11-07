@@ -304,7 +304,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     b: uint256 = 1
     c: int128 = 1
     d: int128 = 123
-    f: bytes32 = EMPTY_BYTES32
+    f: bytes32 = empty(bytes32)
     f, b, c = self._test(a)
     assert d == 123
     return f, b, c
@@ -316,8 +316,8 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test(b"test") == [b"test" + 28 * b"\x00", 1000, -1200]
-    assert c.test2(b"test") == [b"test" + 28 * b"\x00", 1000, -1200]
+    assert c.test(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
+    assert c.test2(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
 
 
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
@@ -408,13 +408,13 @@ def __default__():
 
     c = get_contract_with_gas_estimation(code)
 
-    w3.eth.send_transaction({"to": c.address, "value": w3.toWei(1, "ether")})
-    assert w3.eth.get_balance(c.address) == w3.toWei(1, "ether")
+    w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(1, "ether")})
+    assert w3.eth.get_balance(c.address) == w3.to_wei(1, "ether")
     a3 = w3.eth.accounts[2]
-    assert w3.eth.get_balance(a3) == w3.toWei(1000000, "ether")
-    c.test(True, a3, w3.toWei(0.05, "ether"), transact={})
-    assert w3.eth.get_balance(a3) == w3.toWei(1000000.05, "ether")
-    assert w3.eth.get_balance(c.address) == w3.toWei(0.95, "ether")
+    assert w3.eth.get_balance(a3) == w3.to_wei(1000000, "ether")
+    c.test(True, a3, w3.to_wei(0.05, "ether"), transact={})
+    assert w3.eth.get_balance(a3) == w3.to_wei(1000000.05, "ether")
+    assert w3.eth.get_balance(c.address) == w3.to_wei(0.95, "ether")
 
 
 def test_private_msg_sender(get_contract, w3):
@@ -433,7 +433,7 @@ def i_am_me() -> bool:
     return msg.sender == self._whoami()
 
 @external
-@view
+@nonpayable
 def whoami() -> address:
     log Addr(self._whoami())
     return self._whoami()
@@ -445,7 +445,7 @@ def whoami() -> address:
     addr = w3.eth.accounts[1]
     txhash = c.whoami(transact={"from": addr})
     receipt = w3.eth.wait_for_transaction_receipt(txhash)
-    logged_addr = w3.toChecksumAddress(receipt.logs[0].data[-40:])
+    logged_addr = w3.to_checksum_address(receipt.logs[0].data[-20:])
     assert logged_addr == addr, "oh no"
 
 

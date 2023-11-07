@@ -1,14 +1,8 @@
 import contextlib
-import re
 
-from vyper.evm.opcodes import OPCODES
-from vyper.exceptions import (
-    CompilerPanic,
-    NamespaceCollision,
-    StructureException,
-    UndeclaredDefinition,
-)
-from vyper.semantics.validation.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.ast.identifiers import validate_identifier
+from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
 class Namespace(dict):
@@ -21,17 +15,23 @@ class Namespace(dict):
         List of sets containing the key names for each scope
     """
 
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls, *args, **kwargs)
+        self._scopes = []
+        return self
+
     def __init__(self):
         super().__init__()
-        self._scopes = []
         # NOTE cyclic imports!
-        from vyper.builtin_functions.functions import get_builtin_functions
+        # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
+        from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
-        from vyper.semantics.types import get_types
+        from vyper.semantics.analysis.base import VarInfo
+        from vyper.semantics.types import PRIMITIVE_TYPES
 
-        self.update(get_types())
+        self.update(PRIMITIVE_TYPES)
         self.update(environment.get_constant_vars())
-        self.update(get_builtin_functions())
+        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other
@@ -40,6 +40,7 @@ class Namespace(dict):
         if self._scopes:
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
+        assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
     def __getitem__(self, key):
@@ -86,6 +87,7 @@ class Namespace(dict):
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
+
         if attr in self:
             obj = super().__getitem__(attr)
             raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
@@ -114,96 +116,3 @@ def override_global_namespace(ns):
     finally:
         # unclobber
         _namespace = tmp
-
-
-def validate_identifier(attr):
-    namespace = get_namespace()
-    if attr in namespace and attr not in [x for i in namespace._scopes for x in i]:
-        raise NamespaceCollision(f"Cannot assign to '{attr}', it is a builtin")
-    if attr.lower() in RESERVED_KEYWORDS or attr.upper() in OPCODES:
-        raise StructureException(f"'{attr}' is a reserved keyword")
-    if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
-        raise StructureException(f"'{attr}' contains invalid character(s)")
-
-
-# Cannot be used for variable or member naming
-RESERVED_KEYWORDS = {
-    # decorators
-    "public",
-    "external",
-    "nonpayable",
-    "constant",
-    "immutable",
-    "internal",
-    "payable",
-    "nonreentrant",
-    # control flow
-    "if",
-    "for",
-    "while",
-    "until",
-    "pass",
-    "def",
-    # EVM operations
-    "send",
-    "selfdestruct",
-    "assert",
-    "raise",
-    "throw",
-    # special functions (no name mangling)
-    "init",
-    "_init_",
-    "___init___",
-    "____init____",
-    "default",
-    "_default_",
-    "___default___",
-    "____default____",
-    # environment variables
-    "chainid",
-    "blockhash",
-    "timestamp",
-    "timedelta",
-    # boolean literals
-    "true",
-    "false",
-    # more control flow and special operations
-    "this",
-    "continue",
-    "range",
-    # None sentinal value
-    "none",
-    # more special operations
-    "indexed",
-    # denominations
-    "ether",
-    "wei",
-    "finney",
-    "szabo",
-    "shannon",
-    "lovelace",
-    "ada",
-    "babbage",
-    "gwei",
-    "kwei",
-    "mwei",
-    "twei",
-    "pwei",
-    # `address` members
-    "balance",
-    "codesize",
-    "codehash",
-    "code",
-    "is_contract",
-    # units
-    "units",
-    # sentinal constant values
-    "zero_address",
-    "empty_bytes32",
-    "max_int128",
-    "min_int128",
-    "max_decimal",
-    "min_decimal",
-    "max_uint256",
-    "zero_wei",
-}

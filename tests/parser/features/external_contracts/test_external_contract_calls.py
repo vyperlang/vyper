@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from eth.codecs import abi
 
 from vyper.exceptions import (
     ArgumentException,
@@ -774,9 +775,9 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
@@ -807,15 +808,15 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", (2 ** 160) - 2]
+    assert c.foo() == [(2**160) - 1, b"dog", (2**160) - 2]
     result = c2.bar(c.address)
     assert len(result) == 3
     assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
@@ -840,15 +841,15 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> (address, Bytes[3], address):
-    a: address = ZERO_ADDRESS
+    a: address = empty(address)
     b: Bytes[3] = b""
-    c: address = ZERO_ADDRESS
+    c: address = empty(address)
     a, b, c = Foo(arg1).foo()
     return a, b, c
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2 ** 160) - 1, b"dog", 2 ** 160]
+    assert c.foo() == [(2**160) - 1, b"dog", 2**160]
     assert_tx_failed(lambda: c2.bar(c.address))
 
 
@@ -1300,7 +1301,7 @@ def foo(contract_address: contract(Boo)) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -1438,7 +1439,6 @@ def call_baz():
 
 
 def test_invalid_keyword_on_call(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1455,7 +1455,6 @@ def get_lucky(amount_to_send: int128) -> int128:
 
 
 def test_invalid_contract_declaration(assert_compile_failed, get_contract_with_gas_estimation):
-
     contract_1 = """
 interface Bar:
     def set_lucky(arg1: int128): nonpayable
@@ -1508,7 +1507,6 @@ def foo(a: address, x: uint256, y: uint256):
 
 @pytest.mark.parametrize("bad_code", FAILING_CONTRACTS_STRUCTURE_EXCEPTION)
 def test_bad_code_struct_exc(assert_compile_failed, get_contract_with_gas_estimation, bad_code):
-
     assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), ArgumentException)
 
 
@@ -1540,7 +1538,7 @@ interface Test:
 @external
 def test(addr: address) -> (int128, address, Bytes[10]):
     a: int128 = 0
-    b: address = ZERO_ADDRESS
+    b: address = empty(address)
     c: Bytes[10] = b""
     (a, b, c) = Test(addr).out_literals()
     return a, b,c
@@ -2458,7 +2456,7 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 @pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
-def test_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+def test_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: {typ}):
@@ -2466,7 +2464,7 @@ def foo(a: {typ}):
     """
     c1 = get_contract(code)
     sig = keccak(f"foo({typ})".encode()).hex()[:10]
-    encoded = abi_encode(f"({typ})", (val,)).hex()
+    encoded = abi.encode(f"({typ})", (val,)).hex()
     data = f"{sig}{encoded}"
 
     # Static size is short by 1 byte
@@ -2481,7 +2479,7 @@ def foo(a: {typ}):
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
-def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, abi_encode, keccak, typ, val):
+def test_dynamic_calldata_clamp(w3, get_contract, assert_tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: DynArray[{typ}, 3], b: String[5]):
@@ -2490,7 +2488,7 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
 
     c1 = get_contract(code)
     sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
-    encoded = abi_encode(f"({typ}[],string)", val).hex()
+    encoded = abi.encode(f"({typ}[],string)", val).hex()
     data = f"{sig}{encoded}"
 
     # Dynamic size is short by 1 byte

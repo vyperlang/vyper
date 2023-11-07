@@ -1,4 +1,4 @@
-def test_assure_refund(w3, get_contract):
+def test_unreachable_refund(w3, get_contract):
     code = """
 @external
 def foo():
@@ -7,7 +7,7 @@ def foo():
 
     c = get_contract(code)
     a0 = w3.eth.accounts[0]
-    gas_sent = 10 ** 6
+    gas_sent = 10**6
     tx_hash = c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
     tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
 
@@ -52,5 +52,16 @@ def foo(val: int128) -> int128:
     assert c.foo(33) == -123
 
     assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
-    assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
     assert_tx_failed(lambda: c.foo(-1), exc_text="Invalid opcode 0xfe")
+
+
+def test_raise_unreachable(w3, get_contract, assert_tx_failed):
+    code = """
+@external
+def foo():
+    raise UNREACHABLE
+    """
+
+    c = get_contract(code)
+
+    assert_tx_failed(lambda: c.foo(), exc_text="Invalid opcode 0xfe")

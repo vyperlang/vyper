@@ -28,7 +28,7 @@ def foo(a: uint256) -> int128:
 
 
 def test_jump_map():
-    source_map = compile_code(TEST_CODE, ["source_map"])["source_map"]
+    source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
@@ -46,7 +46,7 @@ def test_jump_map():
 
 
 def test_pos_map_offsets():
-    source_map = compile_code(TEST_CODE, ["source_map"])["source_map"]
+    source_map = compile_code(TEST_CODE, output_formats=["source_map"])["source_map"]
     expanded = expand_source_map(source_map["pc_pos_map_compressed"])
 
     pc_iter = iter(source_map["pc_pos_map"][i] for i in sorted(source_map["pc_pos_map"]))
@@ -76,7 +76,7 @@ foo: uint256
 def update_foo():
     self.foo += 1
     """
-    error_map = compile_code(code, ["source_map"])["source_map"]["error_map"]
+    error_map = compile_code(code, output_formats=["source_map"])["source_map"]["error_map"]
     assert "safeadd" in list(error_map.values())
     assert "fallback function" in list(error_map.values())
 

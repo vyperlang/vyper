@@ -1,6 +1,5 @@
 import warnings
 from collections import OrderedDict, deque
-from pathlib import Path
 
 import asttokens
 
@@ -17,7 +16,7 @@ from vyper.warnings import ContractSizeLimitWarning
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
-        "contract_name": compiler_data.contract_name,
+        "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.vyper_module),
     }
     return ast_dict
@@ -35,16 +34,16 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    stem = Path(compiler_data.contract_name).stem
+    stem = compiler_data.contract_path.stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
     name = "".join([x.capitalize() for x in stem.split("_")])
     out = f"\n# External Interfaces\ninterface {name}:\n"
 
-    for func in interface.members.values():
+    for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
-        args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+        args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
         return_value = f" -> {func.return_type}" if func.return_type is not None else ""
         mutability = func.mutability.value
         out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
@@ -62,14 +61,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out = f"{out}event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n"
 
-    if interface.members:
+    if interface.functions:
         out = f"{out}\n# Functions\n\n"
-        for func in interface.members.values():
+        for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
                 out = f"{out}@{func.mutability.value}\n"
-            args = ", ".join([f"{name}: {typ}" for name, typ in func.arguments.items()])
+            args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
             out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
 
@@ -104,11 +103,10 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    warnings.warn("metadata output format is unstable!")
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):
-        ret = vars(variable_record)
+        ret = vars(variable_record).copy()
         ret["typ"] = str(ret["typ"])
         if ret["data_offset"] is None:
             del ret["data_offset"]
@@ -117,21 +115,39 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["location"] = ret["location"].name
         return ret
 
-    def _to_dict(sig):
-        ret = vars(sig)
+    def _to_dict(func_t):
+        ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
-        ret["_ir_identifier"] = sig._ir_identifier
-        for attr in ("gas_estimate", "func_ast_code"):
-            del ret[attr]
-        for attr in ("args", "base_args", "default_args"):
-            if attr in ret:
-                ret[attr] = {arg.name: str(arg.typ) for arg in ret[attr]}
-        for k in ret["default_values"]:
-            # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
-            ret["default_values"][k] = ret["default_values"][k].node_source_code
-        ret["frame_info"] = vars(ret["frame_info"])
-        for k in ret["frame_info"]["frame_vars"].keys():
-            ret["frame_info"]["frame_vars"][k] = _var_rec_dict(ret["frame_info"]["frame_vars"][k])
+        ret["_ir_identifier"] = func_t._ir_info.ir_identifier
+
+        for attr in ("mutability", "visibility"):
+            ret[attr] = ret[attr].name.lower()
+
+        # e.g. {"x": vy_ast.Int(..)} -> {"x": 1}
+        ret["default_values"] = {
+            k: val.node_source_code for k, val in func_t.default_values.items()
+        }
+
+        for attr in ("positional_args", "keyword_args"):
+            args = ret[attr]
+            ret[attr] = {arg.name: str(arg.typ) for arg in args}
+
+        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
+        del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
+
+        keep_keys = {
+            "name",
+            "return_type",
+            "positional_args",
+            "keyword_args",
+            "default_values",
+            "frame_info",
+            "mutability",
+            "visibility",
+            "_ir_identifier",
+            "nonreentrant_key",
+        }
+        ret = {k: v for k, v in ret.items() if k in keep_keys}
         return ret
 
     return {"function_info": {name: _to_dict(sig) for (name, sig) in sigs.items()}}
@@ -139,13 +155,13 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.members.values()
+    functions = interface.functions.values()
 
     return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_abi_dict()
+    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)
@@ -177,7 +193,6 @@ def _build_asm(asm_list):
     output_string = ""
     in_push = 0
     for node in asm_list:
-
         if isinstance(node, list):
             output_string += "{ " + _build_asm(node) + "} "
             continue
@@ -191,7 +206,7 @@ def _build_asm(asm_list):
         else:
             output_string += str(node) + " "
 
-            if isinstance(node, str) and node.startswith("PUSH"):
+            if isinstance(node, str) and node.startswith("PUSH") and node != "PUSH0":
                 assert in_push == 0
                 in_push = int(node[4:])
                 output_string += "0x"
@@ -201,9 +216,7 @@ def _build_asm(asm_list):
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
-        compiler_data.assembly_runtime,
-        insert_vyper_signature=True,
-        disable_bytecode_metadata=compiler_data.no_bytecode_metadata,
+        compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
     # Sort line_number_map
     out = OrderedDict()
@@ -253,7 +266,7 @@ def build_blueprint_bytecode_output(compiler_data: CompilerData) -> str:
 
 
 # EIP-170. Ref: https://eips.ethereum.org/EIPS/eip-170
-EIP170_CONTRACT_SIZE_LIMIT: int = 2 ** 14 + 2 ** 13
+EIP170_CONTRACT_SIZE_LIMIT: int = 2**14 + 2**13
 
 
 def build_bytecode_runtime_output(compiler_data: CompilerData) -> str:
@@ -285,9 +298,13 @@ def _build_opcodes(bytecode: bytes) -> str:
 
     while bytecode_sequence:
         op = bytecode_sequence.popleft()
-        opcode_output.append(opcode_map[op])
-        if "PUSH" in opcode_output[-1]:
+        opcode_output.append(opcode_map.get(op, f"VERBATIM_{hex(op)}"))
+        if "PUSH" in opcode_output[-1] and opcode_output[-1] != "PUSH0":
             push_len = int(opcode_map[op][4:])
+            # we can have push_len > len(bytecode_sequence) when there is data
+            # (instead of code) at end of contract
+            # CMC 2023-07-13 maybe just strip known data segments?
+            push_len = min(push_len, len(bytecode_sequence))
             push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
             opcode_output.append(f"0x{''.join(push_values).upper()}")
 

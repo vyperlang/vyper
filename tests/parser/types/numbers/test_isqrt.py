@@ -40,7 +40,7 @@ def test(a: uint256) -> uint256:
     val = 3333
     assert c.test(val) == math.isqrt(val)
 
-    val = 10 ** 17
+    val = 10**17
     assert c.test(val) == math.isqrt(val)
     assert c.test(0) == 0
 
@@ -75,7 +75,6 @@ def test(a: uint256) -> uint256:
 
 
 def test_isqrt_storage_internal_variable(get_contract_with_gas_estimation):
-
     val = 44444
     code = f"""
 s_var: uint256
@@ -120,7 +119,6 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
 @hypothesis.example(2704)
 @hypothesis.example(110889)
 @hypothesis.example(32239684)
-@hypothesis.settings(deadline=1000)
 def test_isqrt_valid_range(isqrt_contract, value):
     vyper_isqrt = isqrt_contract.test(value)
     actual_isqrt = math.isqrt(value)

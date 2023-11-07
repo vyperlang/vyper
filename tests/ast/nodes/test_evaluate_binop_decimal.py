@@ -8,12 +8,12 @@ from vyper import ast as vy_ast
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 
 st_decimals = st.decimals(
-    min_value=-(2 ** 32), max_value=2 ** 32, allow_nan=False, allow_infinity=False, places=10
+    min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10
 )
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(left=st_decimals, right=st_decimals)
 @example(left=Decimal("0.9999999999"), right=Decimal("0.0000000001"))
 @example(left=Decimal("0.0000000001"), right=Decimal("0.9999999999"))
@@ -52,7 +52,7 @@ def test_binop_pow():
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(
     values=st.lists(st_decimals, min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
@@ -75,7 +75,7 @@ def foo({input_value}) -> decimal:
     try:
         vy_ast.folding.replace_literal_ops(vyper_ast)
         expected = vyper_ast.body[0].value.value
-        is_valid = -(2 ** 127) <= expected < 2 ** 127
+        is_valid = -(2**127) <= expected < 2**127
     except (OverflowException, ZeroDivisionException):
         # for overflow or division/modulus by 0, expect the contract call to revert
         is_valid = False

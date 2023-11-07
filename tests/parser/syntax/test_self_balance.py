@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import compiler
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 
 
@@ -18,7 +19,8 @@ def get_balance() -> uint256:
 def __default__():
     pass
     """
-    opcodes = compiler.compile_code(code, ["opcodes"], evm_version=evm_version)["opcodes"]
+    settings = Settings(evm_version=evm_version)
+    opcodes = compiler.compile_code(code, output_formats=["opcodes"], settings=settings)["opcodes"]
     if EVM_VERSIONS[evm_version] >= EVM_VERSIONS["istanbul"]:
         assert "SELFBALANCE" in opcodes
     else:

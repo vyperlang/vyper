@@ -12,12 +12,12 @@ def test_builtin_constants(get_contract_with_gas_estimation):
     code = """
 @external
 def test_zaddress(a: address) -> bool:
-    return a == ZERO_ADDRESS
+    return a == empty(address)
 
 
 @external
 def test_empty_bytes32(a: bytes32) -> bool:
-    return a == EMPTY_BYTES32
+    return a == empty(bytes32)
 
 
 @external
@@ -48,8 +48,8 @@ def test_arithmetic(a: int128) -> int128:
     assert c.test_zaddress("0x0000000000000000000000000000000000000000") is True
     assert c.test_zaddress("0x0000000000000000000000000000000000000012") is False
 
-    assert c.test_int128(2 ** 127 - 1) == [True, False]
-    assert c.test_int128(-(2 ** 127)) == [False, True]
+    assert c.test_int128(2**127 - 1) == [True, False]
+    assert c.test_int128(-(2**127)) == [False, True]
     assert c.test_int128(0) == [False, False]
 
     assert c.test_decimal(Decimal("18707220957835557353007165858768422651595.9365500927")) == [
@@ -62,9 +62,9 @@ def test_arithmetic(a: int128) -> int128:
     ]
     assert c.test_decimal(Decimal("0.1")) == [False, False]
 
-    assert c.test_uint256(2 ** 256 - 1) is True
+    assert c.test_uint256(2**256 - 1) is True
 
-    assert c.test_arithmetic(5000) == 2 ** 127 - 1 - 5000
+    assert c.test_arithmetic(5000) == 2**127 - 1 - 5000
 
 
 def test_builtin_constants_assignment(get_contract_with_gas_estimation):
@@ -81,12 +81,12 @@ def goo() -> int128:
 
 @external
 def hoo() -> bytes32:
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     return bar
 
 @external
 def joo() -> address:
-    bar: address = ZERO_ADDRESS
+    bar: address = empty(address)
     return bar
 
 @external
@@ -107,17 +107,17 @@ def zoo() -> uint256:
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.foo() == 2 ** 127 - 1
-    assert c.goo() == -(2 ** 127)
+    assert c.foo() == 2**127 - 1
+    assert c.goo() == -(2**127)
 
     assert c.hoo() == b"\x00" * 32
 
     assert c.joo() is None
 
-    assert c.koo() == Decimal(2 ** 167 - 1) / 10 ** 10
-    assert c.loo() == Decimal(-(2 ** 167)) / 10 ** 10
+    assert c.koo() == Decimal(2**167 - 1) / 10**10
+    assert c.loo() == Decimal(-(2**167)) / 10**10
 
-    assert c.zoo() == 2 ** 256 - 1
+    assert c.zoo() == 2**256 - 1
 
 
 def test_custom_constants(get_contract):
@@ -206,9 +206,9 @@ def test() -> uint256:
     return ret
     """
 
-    ir = compile_code(code, ["ir"])["ir"]
+    ir = compile_code(code, output_formats=["ir"])["ir"]
     assert search_for_sublist(
-        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2 ** 12 * some_prime]]
+        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
     )
 
 

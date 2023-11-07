@@ -3,7 +3,7 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, TypeMismatch
+from vyper.exceptions import DecimalOverrideException, InvalidOperation, TypeMismatch
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
@@ -21,6 +21,26 @@ def test_decimal_override():
         assert (
             str(w[-1].message) == "Changing decimals precision could have unintended side effects!"
         )
+
+
+@pytest.mark.parametrize("op", ["**", "&", "|", "^"])
+def test_invalid_ops(get_contract, assert_compile_failed, op):
+    code = f"""
+@external
+def foo(x: decimal, y: decimal) -> decimal:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+
+
+@pytest.mark.parametrize("op", ["not"])
+def test_invalid_unary_ops(get_contract, assert_compile_failed, op):
+    code = f"""
+@external
+def foo(x: decimal) -> decimal:
+    return {op} x
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
 def quantize(x: Decimal) -> Decimal:

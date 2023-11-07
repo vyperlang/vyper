@@ -4,24 +4,21 @@ import random
 
 import pytest
 
-from vyper.codegen.types.types import UNSIGNED_INTEGER_TYPES, parse_integer_typeinfo
-from vyper.exceptions import InvalidType, OverflowException, ZeroDivisionException
-from vyper.utils import SizeLimits, evm_div, evm_mod, int_bounds
+from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
+from vyper.semantics.types import IntegerT
+from vyper.utils import evm_div, evm_mod
 
-PARAMS = []
-for t in sorted(UNSIGNED_INTEGER_TYPES):
-    info = parse_integer_typeinfo(t)
-    lo, hi = int_bounds(bits=info.bits, signed=info.is_signed)
-    PARAMS.append((t, lo, hi, info.bits))
+types = sorted(IntegerT.unsigneds())
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_zero(get_contract, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_base_zero(get_contract, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 0 ** x
     """
+    lo, hi = typ.ast_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 0
@@ -29,13 +26,14 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(hi) == 0
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_base_one(get_contract, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_base_one(get_contract, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return 1 ** x
     """
+    lo, hi = typ.ast_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
@@ -43,14 +41,15 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(hi) == 1
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_power_zero(get_contract, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_power_zero(get_contract, typ):
     # #2984
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return x ** 0
     """
+    lo, hi = typ.ast_bounds
     c = get_contract(code)
     assert c.foo(0) == 1
     assert c.foo(1) == 1
@@ -58,14 +57,15 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(hi) == 1
 
 
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_exponent_power_one(get_contract, typ, lo, hi, bits):
+@pytest.mark.parametrize("typ", types)
+def test_exponent_power_one(get_contract, typ):
     # #2984
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
     return x ** 1
     """
+    lo, hi = typ.ast_bounds
     c = get_contract(code)
     assert c.foo(0) == 0
     assert c.foo(1) == 1
@@ -83,11 +83,9 @@ ARITHMETIC_OPS = {
 
 
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(
-    get_contract, assert_tx_failed, assert_compile_failed, op, typ, lo, hi, bits
-):
+def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -113,9 +111,11 @@ def foo() -> {typ}:
     return {x} {op} {y}
     """
 
+    fn = ARITHMETIC_OPS[op]
     c = get_contract(code_1)
 
-    fn = ARITHMETIC_OPS[op]
+    lo, hi = typ.ast_bounds
+    bits = typ.bits
 
     special_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 2, hi - 1, hi]
     xs = special_cases.copy()
@@ -127,11 +127,12 @@ def foo() -> {typ}:
     ys += [random.randrange(lo, hi) for _ in range(NUM_CASES)]
 
     # mirror signed integer tests
-    assert 2 ** (bits - 1) in xs and (2 ** bits) - 1 in ys
+    assert 2 ** (bits - 1) in xs and (2**bits) - 1 in ys
 
-    for (x, y) in itertools.product(xs, ys):
+    for x, y in itertools.product(xs, ys):
         expected = fn(x, y)
-        in_bounds = SizeLimits.in_bounds(typ, expected)
+
+        in_bounds = lo <= expected <= hi
         # safediv and safemod disallow divisor == 0
         div_by_zero = y == 0 and op in ("/", "%")
 
@@ -169,9 +170,9 @@ COMPARISON_OPS = {
 
 
 @pytest.mark.parametrize("op", sorted(COMPARISON_OPS.keys()))
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
+@pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_comparators(get_contract, op, typ, lo, hi, bits):
+def test_comparators(get_contract, op, typ):
     code_1 = f"""
 @external
 def foo(x: {typ}, y: {typ}) -> bool:
@@ -179,8 +180,9 @@ def foo(x: {typ}, y: {typ}) -> bool:
     """
 
     fn = COMPARISON_OPS[op]
-
     c = get_contract(code_1)
+
+    lo, hi = typ.ast_bounds
 
     # note: constant folding is tested in tests/ast/folding
 
@@ -193,51 +195,10 @@ def foo(x: {typ}, y: {typ}) -> bool:
         assert c.foo(x, y) is expected
 
 
-# TODO move to tests/parser/functions/test_mulmod.py and test_addmod.py
-def test_uint256_mod(assert_tx_failed, get_contract_with_gas_estimation):
-    uint256_code = """
-@external
-def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
-    return uint256_addmod(x, y, z)
+@pytest.mark.parametrize("typ", types)
+def test_uint_literal(get_contract, assert_compile_failed, typ):
+    lo, hi = typ.ast_bounds
 
-@external
-def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
-    return uint256_mulmod(x, y, z)
-    """
-
-    c = get_contract_with_gas_estimation(uint256_code)
-
-    assert c._uint256_addmod(1, 2, 2) == 1
-    assert c._uint256_addmod(32, 2, 32) == 2
-    assert c._uint256_addmod((2 ** 256) - 1, 0, 2) == 1
-    assert c._uint256_addmod(2 ** 255, 2 ** 255, 6) == 4
-    assert_tx_failed(lambda: c._uint256_addmod(1, 2, 0))
-    assert c._uint256_mulmod(3, 1, 2) == 1
-    assert c._uint256_mulmod(200, 3, 601) == 600
-    assert c._uint256_mulmod(2 ** 255, 1, 3) == 2
-    assert c._uint256_mulmod(2 ** 255, 2, 6) == 4
-    assert_tx_failed(lambda: c._uint256_mulmod(2, 2, 0))
-
-
-def test_uint256_modmul(get_contract_with_gas_estimation):
-    modexper = """
-@external
-def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
-    o: uint256 = 1
-    for i in range(256):
-        o = uint256_mulmod(o, o, modulus)
-        if exponent & shift(1, 255 - i) != 0:
-            o = uint256_mulmod(o, base, modulus)
-    return o
-    """
-
-    c = get_contract_with_gas_estimation(modexper)
-    assert c.exponential(3, 5, 100) == 43
-    assert c.exponential(2, 997, 997) == 2
-
-
-@pytest.mark.parametrize("typ,lo,hi,bits", PARAMS)
-def test_uint_literal(get_contract, assert_compile_failed, typ, lo, hi, bits):
     good_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 1, hi]
     bad_cases = [-1, -2, -3, -hi // 2, -hi + 1, -hi]
     code_template = """
@@ -253,3 +214,14 @@ def test() -> {typ}:
 
     for val in bad_cases:
         assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["not", "-"])
+def test_invalid_unary_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(a: {typ}) -> {typ}:
+    return {op} a
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)

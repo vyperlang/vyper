@@ -1,6 +1,6 @@
 from typing import List
 
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, MemoryAllocationException
 from vyper.utils import MemoryPositions
 
 
@@ -45,6 +45,8 @@ class MemoryAllocator:
     """
 
     next_mem: int
+
+    _ALLOCATION_LIMIT: int = 2**64
 
     def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
         """
@@ -98,10 +100,9 @@ class MemoryAllocator:
                 return free_memory.partially_allocate(size)
 
         # if no deallocated slots are available, expand memory
-        return self.expand_memory(size)
+        return self._expand_memory(size)
 
-    # TODO this should be an internal function
-    def expand_memory(self, size: int) -> int:
+    def _expand_memory(self, size: int) -> int:
         """
         Allocate `size` bytes in memory, starting from the free memory pointer.
         """
@@ -111,6 +112,14 @@ class MemoryAllocator:
         before_value = self.next_mem
         self.next_mem += size
         self.size_of_mem = max(self.size_of_mem, self.next_mem)
+
+        if self.size_of_mem >= self._ALLOCATION_LIMIT:
+            # this should not be caught
+            raise MemoryAllocationException(
+                f"Tried to allocate {self.size_of_mem} bytes! "
+                f"(limit is {self._ALLOCATION_LIMIT} (2**64) bytes)"
+            )
+
         return before_value
 
     def deallocate_memory(self, pos: int, size: int) -> None:

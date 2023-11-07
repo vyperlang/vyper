@@ -41,7 +41,7 @@ def out_literals() -> (int128, int128, Bytes[10]):
 @external
 def test() -> (int128, address, Bytes[10]):
     a: int128 = 0
-    b: address = ZERO_ADDRESS
+    b: address = empty(address)
     a, b = self.out_literals()  # tuple count mismatch
     return
     """,
@@ -85,6 +85,25 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
     a, b, c = self._test(a)
     assert d == 123
     return a, b, c
+    """,
+        ImmutableViolation,
+    ),
+    (
+        """
+B: immutable(uint256)
+
+@external
+def __init__(b: uint256):
+    B = b
+
+@internal
+def foo() -> (uint256, uint256):
+    return (1, 2)
+
+@external
+def bar():
+    a: uint256 = 1
+    a, B = self.foo()
     """,
         ImmutableViolation,
     ),

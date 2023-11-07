@@ -38,7 +38,6 @@ def foo():
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_raw_call_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 

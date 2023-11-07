@@ -50,7 +50,6 @@ def foo(choice: bool):
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_fail_undeclared(bad_code):
-
     with raises(UndeclaredDefinition):
         compiler.compile_code(bad_code)
 
@@ -67,7 +66,6 @@ def foo():
 
 @pytest.mark.parametrize("bad_code", fail_list_collision)
 def test_fail_collision(bad_code):
-
     with raises(NamespaceCollision):
         compiler.compile_code(bad_code)
 

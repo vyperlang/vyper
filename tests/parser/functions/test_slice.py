@@ -1,20 +1,15 @@
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
-from vyper.exceptions import ArgumentException
+from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
 
 def _generate_bytes(length):
     return bytes(list(range(length)))
-
-
-# good numbers to try
-_fun_numbers = [0, 1, 5, 31, 32, 33, 64, 99, 100, 101]
-
-
-# [b"", b"\x01", b"\x02"...]
-_bytes_examples = [_generate_bytes(i) for i in _fun_numbers if i <= 100]
 
 
 def test_basic_slice(get_contract_with_gas_estimation):
@@ -31,80 +26,102 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     assert x == b"klmnopqrst", x
 
 
-@pytest.mark.parametrize("bytesdata", _bytes_examples)
-@pytest.mark.parametrize("start", _fun_numbers)
-@pytest.mark.parametrize("literal_start", (True, False))
-@pytest.mark.parametrize("length", _fun_numbers)
-@pytest.mark.parametrize("literal_length", (True, False))
+# note: optimization boundaries at 32, 64 and 320 depending on mode
+_draw_1024 = st.integers(min_value=0, max_value=1024)
+_draw_1024_1 = st.integers(min_value=1, max_value=1024)
+_bytes_1024 = st.binary(min_size=0, max_size=1024)
+
+
+@pytest.mark.parametrize("use_literal_start", (True, False))
+@pytest.mark.parametrize("use_literal_length", (True, False))
+@pytest.mark.parametrize("opt_level", list(OptimizationLevel))
+@given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
+@settings(max_examples=100)
 @pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
     assert_tx_failed,
+    opt_level,
     bytesdata,
     start,
-    literal_start,
+    use_literal_start,
     length,
-    literal_length,
+    use_literal_length,
+    length_bound,
 ):
-    _start = start if literal_start else "start"
-    _length = length if literal_length else "length"
+    _start = start if use_literal_start else "start"
+    _length = length if use_literal_length else "length"
 
     code = f"""
-IMMUTABLE_BYTES: immutable(Bytes[100])
-IMMUTABLE_SLICE: immutable(Bytes[100])
+IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
+IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
 @external
-def __init__(inp: Bytes[100], start: uint256, length: uint256):
+def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
     IMMUTABLE_BYTES = inp
     IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
 
 @external
-def do_splice() -> Bytes[100]:
+def do_splice() -> Bytes[{length_bound}]:
     return IMMUTABLE_SLICE
     """
 
+    def _get_contract():
+        return get_contract(code, bytesdata, start, length, override_opt_level=opt_level)
+
     if (
-        (start + length > 100 and literal_start and literal_length)
-        or (literal_length and length > 100)
-        or (literal_start and start > 100)
-        or (literal_length and length < 1)
+        (start + length > length_bound and use_literal_start and use_literal_length)
+        or (use_literal_length and length > length_bound)
+        or (use_literal_start and start > length_bound)
+        or (use_literal_length and length == 0)
     ):
-        assert_compile_failed(
-            lambda: get_contract(code, bytesdata, start, length), ArgumentException
-        )
-    elif start + length > len(bytesdata):
-        assert_tx_failed(lambda: get_contract(code, bytesdata, start, length))
+        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+    elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
+        # deploy fail
+        assert_tx_failed(lambda: _get_contract())
     else:
-        c = get_contract(code, bytesdata, start, length)
+        c = _get_contract()
         assert c.do_splice() == bytesdata[start : start + length]
 
 
 @pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
-@pytest.mark.parametrize("bytesdata", _bytes_examples)
-@pytest.mark.parametrize("start", _fun_numbers)
-@pytest.mark.parametrize("literal_start", (True, False))
-@pytest.mark.parametrize("length", _fun_numbers)
-@pytest.mark.parametrize("literal_length", (True, False))
+@pytest.mark.parametrize("use_literal_start", (True, False))
+@pytest.mark.parametrize("use_literal_length", (True, False))
+@pytest.mark.parametrize("opt_level", list(OptimizationLevel))
+@given(start=_draw_1024, length=_draw_1024, length_bound=_draw_1024_1, bytesdata=_bytes_1024)
+@settings(max_examples=100)
 @pytest.mark.fuzzing
-def test_slice_bytes(
+def test_slice_bytes_fuzz(
     get_contract,
     assert_compile_failed,
     assert_tx_failed,
+    opt_level,
     location,
     bytesdata,
     start,
-    literal_start,
+    use_literal_start,
     length,
-    literal_length,
+    use_literal_length,
+    length_bound,
 ):
+    preamble = ""
     if location == "memory":
-        spliced_code = "foo: Bytes[100] = inp"
+        spliced_code = f"foo: Bytes[{length_bound}] = inp"
         foo = "foo"
     elif location == "storage":
+        preamble = f"""
+foo: Bytes[{length_bound}]
+        """
         spliced_code = "self.foo = inp"
         foo = "self.foo"
     elif location == "code":
+        preamble = f"""
+IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
+@external
+def __init__(foo: Bytes[{length_bound}]):
+    IMMUTABLE_BYTES = foo
+    """
         spliced_code = ""
         foo = "IMMUTABLE_BYTES"
     elif location == "literal":
@@ -113,37 +130,58 @@ def test_slice_bytes(
     elif location == "calldata":
         spliced_code = ""
         foo = "inp"
+    else:
+        raise Exception("unreachable")
 
-    _start = start if literal_start else "start"
-    _length = length if literal_length else "length"
+    _start = start if use_literal_start else "start"
+    _length = length if use_literal_length else "length"
 
     code = f"""
-foo: Bytes[100]
-IMMUTABLE_BYTES: immutable(Bytes[100])
-@external
-def __init__(foo: Bytes[100]):
-    IMMUTABLE_BYTES = foo
+{preamble}
 
 @external
-def do_slice(inp: Bytes[100], start: uint256, length: uint256) -> Bytes[100]:
+def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Bytes[{length_bound}]:
     {spliced_code}
     return slice({foo}, {_start}, {_length})
     """
 
-    length_bound = len(bytesdata) if location == "literal" else 100
-    if (
-        (start + length > length_bound and literal_start and literal_length)
-        or (literal_length and length > length_bound)
-        or (literal_start and start > length_bound)
-        or (literal_length and length < 1)
-    ):
-        assert_compile_failed(lambda: get_contract(code, bytesdata), ArgumentException)
-    elif start + length > len(bytesdata):
-        c = get_contract(code, bytesdata)
+    def _get_contract():
+        return get_contract(code, bytesdata, override_opt_level=opt_level)
+
+    # length bound is the container size; input_bound is the bound on the input
+    # (which can be different, if the input is a literal)
+    input_bound = length_bound
+    slice_output_too_large = False
+
+    if location == "literal":
+        input_bound = len(bytesdata)
+
+        # ex.:
+        # @external
+        # def do_slice(inp: Bytes[1], start: uint256, length: uint256) -> Bytes[1]:
+        #    return slice(b'\x00\x00', 0, length)
+        output_length = length if use_literal_length else input_bound
+        slice_output_too_large = output_length > length_bound
+
+    end = start + length
+
+    compile_time_oob = (
+        (use_literal_length and (length > input_bound or length == 0))
+        or (use_literal_start and start > input_bound)
+        or (use_literal_start and use_literal_length and start + length > input_bound)
+    )
+
+    if compile_time_oob or slice_output_too_large:
+        assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
+    elif location == "code" and len(bytesdata) > length_bound:
+        # deploy fail
+        assert_tx_failed(lambda: _get_contract())
+    elif end > len(bytesdata) or len(bytesdata) > length_bound:
+        c = _get_contract()
         assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
     else:
-        c = get_contract(code, bytesdata)
-        assert c.do_slice(bytesdata, start, length) == bytesdata[start : start + length], code
+        c = _get_contract()
+        assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
 
 
 def test_slice_private(get_contract):
@@ -163,12 +201,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2 ** 256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2 ** 256 - 1, ""]
-    assert c.foo(7, 5) == [2 ** 256 - 1, "world"]
-    assert c.foo(0, 5) == [2 ** 256 - 1, "hello"]
-    assert c.foo(0, 1) == [2 ** 256 - 1, "h"]
-    assert c.foo(11, 1) == [2 ** 256 - 1, "d"]
+    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
+    assert c.foo(12, 0) == [2**256 - 1, ""]
+    assert c.foo(7, 5) == [2**256 - 1, "world"]
+    assert c.foo(0, 5) == [2**256 - 1, "hello"]
+    assert c.foo(0, 1) == [2**256 - 1, "h"]
+    assert c.foo(11, 1) == [2**256 - 1, "d"]
 
 
 def test_slice_storage_bytes32(get_contract):
@@ -183,6 +221,23 @@ def dice() -> Bytes[1]:
 
     c = get_contract(code)
     assert c.dice() == b"A"
+
+
+def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
+    code = """
+LENGTH: immutable(uint256)
+
+@external
+def __init__():
+    LENGTH = 5
+
+@external
+def do_slice(inp: Bytes[50]) -> Bytes[50]:
+    return slice(inp, 0, LENGTH)
+    """
+    c = get_contract_with_gas_estimation(code)
+    x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
+    assert x == b"abcde", x
 
 
 def test_slice_at_end(get_contract):
@@ -307,7 +362,6 @@ def bar() -> Bytes[32]:
 @pytest.mark.parametrize("code", code_bytes32)
 @pytest.mark.parametrize("start,length", _fun_bytes32_bounds)
 def test_slice_bytes32(get_contract, code, start, length):
-
     c = get_contract(code.format(start=start, length=length))
     assert c.bar() == _generate_bytes(32)[start : start + length]
 
@@ -331,7 +385,6 @@ def bar(foo: bytes32) -> Bytes[32]:
 @pytest.mark.parametrize("code", code_bytes32_calldata)
 @pytest.mark.parametrize("start,length", _fun_bytes32_bounds)
 def test_slice_bytes32_calldata(get_contract, code, start, length):
-
     c = get_contract(code.format(start=start, length=length))
     assert c.bar(_generate_bytes(32)) == _generate_bytes(32)[start : start + length]
 
@@ -374,7 +427,6 @@ def bar(a: uint256, foo: bytes32, b: uint256) -> Bytes[32]:
 
 @pytest.mark.parametrize("code,result", code_bytes32_calldata_extended)
 def test_slice_bytes32_calldata_extended(get_contract, code, result):
-
     c = get_contract(code)
     assert (
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()

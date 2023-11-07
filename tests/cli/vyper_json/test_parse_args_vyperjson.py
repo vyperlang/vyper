@@ -29,7 +29,6 @@ BAR_ABI = [
         "inputs": [{"type": "uint256", "name": "a"}],
         "stateMutability": "nonpayable",
         "type": "function",
-        "gas": 313,
     }
 ]
 
@@ -39,7 +38,7 @@ INPUT_JSON = {
         "contracts/foo.vy": {"content": FOO_CODE},
         "contracts/bar.vy": {"content": BAR_CODE},
     },
-    "interfaces": {"contracts/bar.json": {"abi": BAR_ABI}},
+    "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
     "settings": {"outputSelection": {"*": ["*"]}},
 }
 
@@ -57,7 +56,7 @@ def test_to_stdout(tmp_path, capfd):
     _parse_args([path.absolute().as_posix()])
     out, _ = capfd.readouterr()
     output_json = json.loads(out)
-    assert _no_errors(output_json)
+    assert _no_errors(output_json), (INPUT_JSON, output_json)
     assert "contracts/foo.vy" in output_json["sources"]
     assert "contracts/bar.vy" in output_json["sources"]
 
@@ -71,7 +70,7 @@ def test_to_file(tmp_path):
     assert output_path.exists()
     with output_path.open() as fp:
         output_json = json.load(fp)
-    assert _no_errors(output_json)
+    assert _no_errors(output_json), (INPUT_JSON, output_json)
     assert "contracts/foo.vy" in output_json["sources"]
     assert "contracts/bar.vy" in output_json["sources"]
 

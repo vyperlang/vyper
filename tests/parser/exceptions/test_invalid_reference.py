@@ -32,6 +32,29 @@ x: int128
 def foo():
     x = 5
     """,
+    """
+@external
+def foo():
+    int128 = 5
+    """,
+    """
+a: public(constant(uint256)) = 1
+
+@external
+def foo():
+    b: uint256 = self.a
+    """,
+    """
+a: public(immutable(uint256))
+
+@external
+def __init__():
+    a = 123
+
+@external
+def foo():
+    b: uint256 = self.a
+    """,
 ]
 
 

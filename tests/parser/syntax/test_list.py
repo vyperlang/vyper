@@ -231,7 +231,6 @@ def foo(x: int128[2][2]):
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_block_fail(bad_code, exc):
-
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
 
@@ -302,6 +301,13 @@ b: decimal[5]
 @external
 def foo():
     self.b[0] = 7.0
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    for i in [[], []]:
+        x = i
     """,
 ]
 

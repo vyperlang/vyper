@@ -1,11 +1,14 @@
 import pytest
 
+PROPOSAL_1_NAME = b"Clinton" + b"\x00" * 25
+PROPOSAL_2_NAME = b"Trump" + b"\x00" * 27
+
 
 @pytest.fixture
 def c(get_contract):
     with open("examples/voting/ballot.vy") as f:
         contract_code = f.read()
-    return get_contract(contract_code, *[[b"Clinton", b"Trump"]])
+    return get_contract(contract_code, *[[PROPOSAL_1_NAME, PROPOSAL_2_NAME]])
 
 
 z0 = "0x0000000000000000000000000000000000000000"
@@ -231,7 +234,7 @@ def test_winner_namer(w3, c):
     c.delegate(a1, transact={"from": a2})
     c.vote(0, transact={})
     # Proposal 0 is now winning
-    assert c.winnerName()[:7], b"Clinton"
+    assert c.winnerName()[:7] == b"Clinton"
     c.vote(1, transact={"from": a1})
     # Proposal 2 is now winning
-    assert c.winnerName()[:5], b"Trump"
+    assert c.winnerName()[:5] == b"Trump"

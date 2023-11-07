@@ -19,7 +19,7 @@ def get_node_ids(ast_struct, ids=None):
         elif v is None or isinstance(v, (str, int)):
             continue
         else:
-            raise Exception("Unknown ast_struct provided.")
+            raise Exception(f"Unknown ast_struct provided. {k}, {v}")
     return ids
 
 
@@ -30,7 +30,7 @@ def test() -> int128:
     a: uint256 = 100
     return 123
     """
-    dict_out = compiler.compile_code(code, ["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
     node_ids = get_node_ids(dict_out)
 
     assert len(node_ids) == len(set(node_ids))
@@ -40,7 +40,7 @@ def test_basic_ast():
     code = """
 a: int128
     """
-    dict_out = compiler.compile_code(code, ["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
     assert dict_out["ast_dict"]["ast"]["body"][0] == {
         "annotation": {
             "ast_type": "Name",
@@ -73,6 +73,51 @@ a: int128
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
+        "is_transient": False,
+    }
+
+
+def test_implements_ast():
+    code = """
+interface Foo:
+    def foo() -> uint256: view
+
+implements: Foo
+
+@external
+@view
+def foo() -> uint256:
+    return 1
+    """
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
+    assert dict_out["ast_dict"]["ast"]["body"][1] == {
+        "col_offset": 0,
+        "annotation": {
+            "col_offset": 12,
+            "end_col_offset": 15,
+            "node_id": 12,
+            "src": "60:3:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "Foo",
+        },
+        "end_col_offset": 15,
+        "node_id": 9,
+        "src": "48:15:0",
+        "ast_type": "ImplementsDecl",
+        "target": {
+            "col_offset": 0,
+            "end_col_offset": 10,
+            "node_id": 10,
+            "src": "48:10:0",
+            "ast_type": "Name",
+            "end_lineno": 5,
+            "lineno": 5,
+            "id": "implements",
+        },
+        "end_lineno": 5,
+        "lineno": 5,
     }
 
 

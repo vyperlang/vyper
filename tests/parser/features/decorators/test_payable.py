@@ -177,11 +177,14 @@ def baz() -> bool:
 
 
 @pytest.mark.parametrize("code", nonpayable_code)
-def test_nonpayable_runtime_assertion(assert_tx_failed, get_contract, code):
+def test_nonpayable_runtime_assertion(w3, keccak, assert_tx_failed, get_contract, code):
     c = get_contract(code)
 
     c.foo(transact={"value": 0})
-    assert_tx_failed(lambda: c.foo(transact={"value": 10 ** 18}))
+    sig = keccak("foo()".encode()).hex()[:10]
+    assert_tx_failed(
+        lambda: w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18})
+    )
 
 
 payable_code = [
@@ -332,7 +335,7 @@ def bar() -> bool:
 def test_payable_runtime_assertion(get_contract, code):
     c = get_contract(code)
 
-    c.foo(transact={"value": 10 ** 18})
+    c.foo(transact={"value": 10**18})
     c.foo(transact={"value": 0})
 
 
@@ -369,3 +372,24 @@ def __default__():
     assert_tx_failed(
         lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
     )
+
+
+def test_batch_nonpayable(get_contract, w3, assert_tx_failed):
+    code = """
+@external
+def foo() -> bool:
+    return True
+
+@external
+def __default__():
+    pass
+    """
+
+    c = get_contract(code)
+    w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    data = bytes([1, 2, 3, 4])
+    for i in range(5):
+        calldata = "0x" + data[:i].hex()
+        assert_tx_failed(
+            lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})
+        )

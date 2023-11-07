@@ -5,7 +5,8 @@ from eth_tester.exceptions import TransactionFailed
 from web3 import Web3
 
 from vyper import compiler
-from vyper.exceptions import StructureException, VyperException
+from vyper.compiler.settings import Settings
+from vyper.exceptions import NamespaceCollision, StructureException, VyperException
 
 # For reproducibility, use precompiled data of `hello: public(uint256)` using vyper 0.3.1
 PRECOMPILED_ABI = """[{"stateMutability": "view", "type": "function", "name": "hello", "inputs": [], "outputs": [{"name": "", "type": "uint256"}], "gas": 2460}]"""  # noqa: E501
@@ -77,6 +78,17 @@ def code_slice(x: address) -> uint256:
             "(address).code is only allowed inside of a slice function with a constant length",
         ),
         (
+            """
+a: HashMap[Bytes[4], uint256]
+
+@external
+def foo(x: address):
+    self.a[x.code] += 1
+""",
+            StructureException,
+            "(address).code is only allowed inside of a slice function with a constant length",
+        ),
+        (
             # `len` not supported
             """
 @external
@@ -103,17 +115,8 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
             """
 code: public(Bytes[4])
 """,
-            StructureException,
-            "'code' is a reserved keyword",
-        ),
-        (
-            # User defined struct with `code` attribute
-            """
-struct S:
-    code: Bytes[4]
-""",
-            StructureException,
-            "'code' is a reserved keyword",
+            NamespaceCollision,
+            "Value 'code' has already been declared",
         ),
     ],
 )
@@ -159,7 +162,7 @@ def test_address_code_compile_success(code: str):
     compiler.compile_code(code)
 
 
-def test_address_code_self_success(get_contract, no_optimize: bool):
+def test_address_code_self_success(get_contract, optimize):
     code = """
 code_deployment: public(Bytes[32])
 
@@ -172,8 +175,9 @@ def code_runtime() -> Bytes[32]:
     return slice(self.code, 0, 32)
 """
     contract = get_contract(code)
+    settings = Settings(optimize=optimize)
     code_compiled = compiler.compile_code(
-        code, output_formats=["bytecode", "bytecode_runtime"], no_optimize=no_optimize
+        code, output_formats=["bytecode", "bytecode_runtime"], settings=settings
     )
     assert contract.code_deployment() == bytes.fromhex(code_compiled["bytecode"][2:])[:32]
     assert contract.code_runtime() == bytes.fromhex(code_compiled["bytecode_runtime"][2:])[:32]

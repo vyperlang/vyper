@@ -1,6 +1,13 @@
-name: Test
+name: Run test suite
 
 on: [push, pull_request]
+
+concurrency:
+  # cancel older, in-progress jobs from the same PR, same workflow.
+  # use run_id if the job is triggered by a push to ensure
+  # push-triggered jobs to not get canceled.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
 
@@ -10,10 +17,11 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
+        cache: "pip"
 
     - name: Install Dependencies
       run: pip install .[lint]
@@ -35,10 +43,11 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v1
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.8
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install Tox
         run: pip install tox
@@ -52,10 +61,11 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
@@ -68,25 +78,33 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.8", "38"], ["3.9", "39"], ["3.10", "310"]]
-        # run in default (optimized) and --no-optimize mode
-        flag: ["core", "no-opt"]
+        python-version: [["3.11", "311"]]
+        # run in modes: --optimize [gas, none, codesize]
+        opt-mode: ["gas", "none", "codesize"]
+        debug: [true, false]
+        # run across other python versions.# we don't really need to run all
+        # modes across all python versions - one is enough
+        include:
+          - python-version: ["3.10", "310"]
+            opt-mode: gas
+            debug: false
 
-    name: py${{ matrix.python-version[1] }}-${{ matrix.flag }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
 
     steps:
     - uses: actions/checkout@v1
 
     - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version[0] }}
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }}-${{ matrix.flag }} tox -r -- --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
@@ -119,22 +137,23 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
-    # `TOXENV=fuzzing tox -r -- --store-durations --reruns 10 --reruns-delay 1 -r aR tests/`
+    # `TOXENV=fuzzing tox -r -- --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/ac71e77863d7f4e7e7cd19a93cf50a8c39de4845/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run Tox
-      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration --reruns 10 --reruns-delay 1 -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v1
@@ -160,10 +179,11 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
+        cache: "pip"
 
     - name: Install Tox
       run: pip install tox

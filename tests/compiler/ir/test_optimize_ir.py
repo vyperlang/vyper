@@ -1,8 +1,12 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.opcodes import EVM_VERSIONS, anchor_evm_version
 from vyper.exceptions import StaticAssertionException
 from vyper.ir import optimizer
+
+POST_CANCUN = {k: v for k, v in EVM_VERSIONS.items() if v >= EVM_VERSIONS["cancun"]}
+
 
 optimize_list = [
     (["eq", 1, 2], [0]),
@@ -34,34 +38,42 @@ optimize_list = [
     # conditions
     (["ge", "x", 0], [1]),  # x >= 0 == True
     (["ge", ["sload", 0], 0], None),  # no-op
-    (["gt", "x", 2 ** 256 - 1], [0]),  # x >= MAX_UINT256 == False
+    (["gt", "x", 2**256 - 1], [0]),  # x >= MAX_UINT256 == False
     # (x > 0) => x == 0
     (["iszero", ["gt", "x", 0]], ["iszero", ["iszero", ["iszero", "x"]]]),
     # !(x < MAX_UINT256) => x == MAX_UINT256
-    (["iszero", ["lt", "x", 2 ** 256 - 1]], ["iszero", ["iszero", ["iszero", ["not", "x"]]]]),
+    (["iszero", ["lt", "x", 2**256 - 1]], ["iszero", ["iszero", ["iszero", ["not", "x"]]]]),
     # !(x < MAX_INT256) => x == MAX_INT256
     (
-        ["iszero", ["slt", "x", 2 ** 255 - 1]],
-        ["iszero", ["iszero", ["iszero", ["xor", "x", 2 ** 255 - 1]]]],
+        ["iszero", ["slt", "x", 2**255 - 1]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", 2**255 - 1]]]],
     ),
     # !(x > MIN_INT256) => x == MIN_INT256
     (
-        ["iszero", ["sgt", "x", -(2 ** 255)]],
-        ["iszero", ["iszero", ["iszero", ["xor", "x", -(2 ** 255)]]]],
+        ["iszero", ["sgt", "x", -(2**255)]],
+        ["iszero", ["iszero", ["iszero", ["xor", "x", -(2**255)]]]],
     ),
-    (["sgt", "x", 2 ** 255 - 1], [0]),  # signed x > MAX_INT256 == False
-    (["sge", "x", 2 ** 255 - 1], ["eq", "x", 2 ** 255 - 1]),
+    (["sgt", "x", 2**255 - 1], [0]),  # signed x > MAX_INT256 == False
+    (["sge", "x", 2**255 - 1], ["eq", "x", 2**255 - 1]),
     (["eq", -1, "x"], ["iszero", ["not", "x"]]),
     (["iszero", ["eq", -1, "x"]], ["iszero", ["iszero", ["not", "x"]]]),
     (["le", "x", 0], ["iszero", "x"]),
     (["le", 0, "x"], [1]),
     (["le", 0, ["sload", 0]], None),  # no-op
     (["ge", "x", 0], [1]),
+    (["le", "x", "x"], [1]),
+    (["ge", "x", "x"], [1]),
+    (["sle", "x", "x"], [1]),
+    (["sge", "x", "x"], [1]),
+    (["lt", "x", "x"], [0]),
+    (["gt", "x", "x"], [0]),
+    (["slt", "x", "x"], [0]),
+    (["sgt", "x", "x"], [0]),
     # boundary conditions
-    (["slt", "x", -(2 ** 255)], [0]),
-    (["sle", "x", -(2 ** 255)], ["eq", "x", -(2 ** 255)]),
-    (["lt", "x", 2 ** 256 - 1], None),
-    (["le", "x", 2 ** 256 - 1], [1]),
+    (["slt", "x", -(2**255)], [0]),
+    (["sle", "x", -(2**255)], ["eq", "x", -(2**255)]),
+    (["lt", "x", 2**256 - 1], None),
+    (["le", "x", 2**256 - 1], [1]),
     (["gt", "x", 0], ["iszero", ["iszero", "x"]]),
     # x < 0 => false
     (["lt", "x", 0], [0]),
@@ -73,18 +85,18 @@ optimize_list = [
     (["slt", "x", 1], None),
     (["gt", "x", 1], None),
     (["sgt", "x", 1], None),
-    (["gt", "x", 2 ** 256 - 2], ["iszero", ["not", "x"]]),
-    (["lt", "x", 2 ** 256 - 2], None),
-    (["slt", "x", 2 ** 256 - 2], None),
-    (["sgt", "x", 2 ** 256 - 2], None),
-    (["slt", "x", -(2 ** 255) + 1], ["eq", "x", -(2 ** 255)]),
-    (["sgt", "x", -(2 ** 255) + 1], None),
-    (["lt", "x", -(2 ** 255) + 1], None),
-    (["gt", "x", -(2 ** 255) + 1], None),
-    (["sgt", "x", 2 ** 255 - 2], ["eq", "x", 2 ** 255 - 1]),
-    (["slt", "x", 2 ** 255 - 2], None),
-    (["gt", "x", 2 ** 255 - 2], None),
-    (["lt", "x", 2 ** 255 - 2], None),
+    (["gt", "x", 2**256 - 2], ["iszero", ["not", "x"]]),
+    (["lt", "x", 2**256 - 2], None),
+    (["slt", "x", 2**256 - 2], None),
+    (["sgt", "x", 2**256 - 2], None),
+    (["slt", "x", -(2**255) + 1], ["eq", "x", -(2**255)]),
+    (["sgt", "x", -(2**255) + 1], None),
+    (["lt", "x", -(2**255) + 1], None),
+    (["gt", "x", -(2**255) + 1], None),
+    (["sgt", "x", 2**255 - 2], ["eq", "x", 2**255 - 1]),
+    (["slt", "x", 2**255 - 2], None),
+    (["gt", "x", 2**255 - 2], None),
+    (["lt", "x", 2**255 - 2], None),
     # 5 > x; x < 5; x <= 4
     (["iszero", ["gt", 5, "x"]], ["iszero", ["le", "x", 4]]),
     (["iszero", ["ge", 5, "x"]], None),
@@ -109,18 +121,18 @@ optimize_list = [
     # 5 <= x; x >= 5; x > 4
     (["sle", 5, "x"], ["sgt", "x", 4]),
     # tricky constant folds
-    (["sgt", 2 ** 256 - 1, 0], [0]),  # -1 > 0
-    (["gt", 2 ** 256 - 1, 0], [1]),  # -1 > 0
-    (["gt", 2 ** 255, 0], [1]),  # 0x80 > 0
-    (["sgt", 2 ** 255, 0], [0]),  # 0x80 > 0
-    (["sgt", 2 ** 255, 2 ** 255 - 1], [0]),  # 0x80 > 0x81
-    (["gt", -(2 ** 255), 2 ** 255 - 1], [1]),  # 0x80 > 0x81
-    (["slt", 2 ** 255, 2 ** 255 - 1], [1]),  # 0x80 < 0x7f
-    (["lt", -(2 ** 255), 2 ** 255 - 1], [0]),  # 0x80 < 0x7f
-    (["sle", -1, 2 ** 256 - 1], [1]),  # -1 <= -1
-    (["sge", -(2 ** 255), 2 ** 255], [1]),  # 0x80 >= 0x80
-    (["sgt", -(2 ** 255), 2 ** 255], [0]),  # 0x80 > 0x80
-    (["slt", 2 ** 255, -(2 ** 255)], [0]),  # 0x80 < 0x80
+    (["sgt", 2**256 - 1, 0], [0]),  # -1 > 0
+    (["gt", 2**256 - 1, 0], [1]),  # -1 > 0
+    (["gt", 2**255, 0], [1]),  # 0x80 > 0
+    (["sgt", 2**255, 0], [0]),  # 0x80 > 0
+    (["sgt", 2**255, 2**255 - 1], [0]),  # 0x80 > 0x81
+    (["gt", -(2**255), 2**255 - 1], [1]),  # 0x80 > 0x81
+    (["slt", 2**255, 2**255 - 1], [1]),  # 0x80 < 0x7f
+    (["lt", -(2**255), 2**255 - 1], [0]),  # 0x80 < 0x7f
+    (["sle", -1, 2**256 - 1], [1]),  # -1 <= -1
+    (["sge", -(2**255), 2**255], [1]),  # 0x80 >= 0x80
+    (["sgt", -(2**255), 2**255], [0]),  # 0x80 > 0x80
+    (["slt", 2**255, -(2**255)], [0]),  # 0x80 < 0x80
     # arithmetic
     (["ceil32", "x"], None),
     (["ceil32", 0], [0]),
@@ -135,7 +147,9 @@ optimize_list = [
     (["sub", "x", 0], ["x"]),
     (["sub", "x", "x"], [0]),
     (["sub", ["sload", 0], ["sload", 0]], None),
-    (["sub", ["callvalue"], ["callvalue"]], None),
+    (["sub", ["callvalue"], ["callvalue"]], [0]),
+    (["sub", ["msize"], ["msize"]], None),
+    (["sub", ["gas"], ["gas"]], None),
     (["sub", -1, ["sload", 0]], ["not", ["sload", 0]]),
     (["mul", "x", 1], ["x"]),
     (["div", "x", 1], ["x"]),
@@ -159,17 +173,17 @@ optimize_list = [
     (["mod", "x", 128], ["and", "x", 127]),
     (["sdiv", "x", 64], None),
     (["smod", "x", 64], None),
-    (["exp", 3, 5], [3 ** 5]),
-    (["exp", 3, 256], [(3 ** 256) % (2 ** 256)]),
+    (["exp", 3, 5], [3**5]),
+    (["exp", 3, 256], [(3**256) % (2**256)]),
     (["exp", 2, 257], [0]),
     (["exp", "x", 0], [1]),
     (["exp", "x", 1], ["x"]),
     (["exp", 1, "x"], [1]),
     (["exp", 0, "x"], ["iszero", "x"]),
     # bitwise ops
-    (["xor", "x", 2 ** 256 - 1], ["not", "x"]),
-    (["and", "x", 2 ** 256 - 1], ["x"]),
-    (["or", "x", 2 ** 256 - 1], [2 ** 256 - 1]),
+    (["xor", "x", 2**256 - 1], ["not", "x"]),
+    (["and", "x", 2**256 - 1], ["x"]),
+    (["or", "x", 2**256 - 1], [2**256 - 1]),
     (["shr", 0, "x"], ["x"]),
     (["sar", 0, "x"], ["x"]),
     (["shl", 0, "x"], ["x"]),
@@ -195,14 +209,16 @@ optimize_list = [
     (["iszero", ["or", 1, ["sload", 0]]], None),
     # nested optimizations
     (["eq", 0, ["sub", 1, 1]], [1]),
-    (["eq", 0, ["add", 2 ** 255, 2 ** 255]], [1]),  # test compile-time wrapping
-    (["eq", 0, ["add", 2 ** 255, -(2 ** 255)]], [1]),  # test compile-time wrapping
+    (["eq", 0, ["add", 2**255, 2**255]], [1]),  # test compile-time wrapping
+    (["eq", 0, ["add", 2**255, -(2**255)]], [1]),  # test compile-time wrapping
     (["eq", -1, ["add", 0, -1]], [1]),  # test compile-time wrapping
-    (["eq", -1, ["add", 2 ** 255, 2 ** 255 - 1]], [1]),  # test compile-time wrapping
-    (["eq", -1, ["add", -(2 ** 255), 2 ** 255 - 1]], [1]),  # test compile-time wrapping
-    (["eq", -2, ["add", 2 ** 256 - 1, 2 ** 256 - 1]], [1]),  # test compile-time wrapping
+    (["eq", -1, ["add", 2**255, 2**255 - 1]], [1]),  # test compile-time wrapping
+    (["eq", -1, ["add", -(2**255), 2**255 - 1]], [1]),  # test compile-time wrapping
+    (["eq", -2, ["add", 2**256 - 1, 2**256 - 1]], [1]),  # test compile-time wrapping
     (["eq", "x", "x"], [1]),
-    (["eq", "callvalue", "callvalue"], None),
+    (["eq", "gas", "gas"], None),
+    (["eq", "msize", "msize"], None),
+    (["eq", "callvalue", "callvalue"], [1]),
     (["ne", "x", "x"], [0]),
 ]
 
@@ -229,23 +245,23 @@ static_assertions_list = [
     ["assert", ["lt", 1, 1]],
     ["assert", ["lt", "x", 0]],  # +x < 0
     ["assert", ["le", 1, 0]],
-    ["assert", ["le", 2 ** 256 - 1, 0]],
+    ["assert", ["le", 2**256 - 1, 0]],
     ["assert", ["gt", 1, 2]],
     ["assert", ["gt", 1, 1]],
-    ["assert", ["gt", 0, 2 ** 256 - 1]],
-    ["assert", ["gt", "x", 2 ** 256 - 1]],
+    ["assert", ["gt", 0, 2**256 - 1]],
+    ["assert", ["gt", "x", 2**256 - 1]],
     ["assert", ["ge", 1, 2]],
     ["assert", ["ge", 1, 2]],
     ["assert", ["slt", 2, 1]],
     ["assert", ["slt", 1, 1]],
-    ["assert", ["slt", 0, 2 ** 256 - 1]],  # 0 < -1
-    ["assert", ["slt", -(2 ** 255), 2 ** 255]],  # 0x80 < 0x80
-    ["assert", ["sle", 0, 2 ** 255]],  # 0 < 0x80
+    ["assert", ["slt", 0, 2**256 - 1]],  # 0 < -1
+    ["assert", ["slt", -(2**255), 2**255]],  # 0x80 < 0x80
+    ["assert", ["sle", 0, 2**255]],  # 0 < 0x80
     ["assert", ["sgt", 1, 2]],
     ["assert", ["sgt", 1, 1]],
-    ["assert", ["sgt", 2 ** 256 - 1, 0]],  # -1 > 0
-    ["assert", ["sgt", 2 ** 255, -(2 ** 255)]],  # 0x80 > 0x80
-    ["assert", ["sge", 2 ** 255, 0]],  # 0x80 > 0
+    ["assert", ["sgt", 2**256 - 1, 0]],  # -1 > 0
+    ["assert", ["sgt", 2**255, -(2**255)]],  # 0x80 > 0x80
+    ["assert", ["sge", 2**255, 0]],  # 0x80 > 0
 ]
 
 
@@ -253,3 +269,113 @@ static_assertions_list = [
 def test_static_assertions(ir, assert_compile_failed):
     ir = IRnode.from_list(ir)
     assert_compile_failed(lambda: optimizer.optimize(ir), StaticAssertionException)
+
+
+def test_operator_set_values():
+    # some sanity checks
+    assert optimizer.COMPARISON_OPS == {"lt", "gt", "le", "ge", "slt", "sgt", "sle", "sge"}
+    assert optimizer.STRICT_COMPARISON_OPS == {"lt", "gt", "slt", "sgt"}
+    assert optimizer.UNSTRICT_COMPARISON_OPS == {"le", "ge", "sle", "sge"}
+
+
+mload_merge_list = [
+    # copy "backward" with no overlap between src and dst buffers,
+    # OK to become mcopy
+    (
+        ["seq", ["mstore", 32, ["mload", 128]], ["mstore", 64, ["mload", 160]]],
+        ["mcopy", 32, 128, 64],
+    ),
+    # copy with overlap "backwards", OK to become mcopy
+    (["seq", ["mstore", 32, ["mload", 64]], ["mstore", 64, ["mload", 96]]], ["mcopy", 32, 64, 64]),
+    # "stationary" overlap (i.e. a no-op mcopy), OK to become mcopy
+    (["seq", ["mstore", 32, ["mload", 32]], ["mstore", 64, ["mload", 64]]], ["mcopy", 32, 32, 64]),
+    # copy "forward" with no overlap, OK to become mcopy
+    (["seq", ["mstore", 64, ["mload", 0]], ["mstore", 96, ["mload", 32]]], ["mcopy", 64, 0, 64]),
+    # copy "forwards" with overlap by one word, must NOT become mcopy
+    (["seq", ["mstore", 64, ["mload", 32]], ["mstore", 96, ["mload", 64]]], None),
+    # check "forward" overlap by one byte, must NOT become mcopy
+    (["seq", ["mstore", 64, ["mload", 1]], ["mstore", 96, ["mload", 33]]], None),
+    # check "forward" overlap by one byte again, must NOT become mcopy
+    (["seq", ["mstore", 63, ["mload", 0]], ["mstore", 95, ["mload", 32]]], None),
+    # copy 3 words with partial overlap "forwards", partially becomes mcopy
+    # (2 words are mcopied and 1 word is mload/mstored
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 32]],
+            ["mstore", 128, ["mload", 64]],
+            ["mstore", 160, ["mload", 96]],
+        ],
+        ["seq", ["mcopy", 96, 32, 64], ["mstore", 160, ["mload", 96]]],
+    ),
+    # copy 4 words with partial overlap "forwards", becomes 2 mcopies of 2 words each
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 32]],
+            ["mstore", 128, ["mload", 64]],
+            ["mstore", 160, ["mload", 96]],
+            ["mstore", 192, ["mload", 128]],
+        ],
+        ["seq", ["mcopy", 96, 32, 64], ["mcopy", 160, 96, 64]],
+    ),
+    # copy 4 words with 1 byte of overlap, must NOT become mcopy
+    (
+        [
+            "seq",
+            ["mstore", 96, ["mload", 33]],
+            ["mstore", 128, ["mload", 65]],
+            ["mstore", 160, ["mload", 97]],
+            ["mstore", 192, ["mload", 129]],
+        ],
+        None,
+    ),
+    # Ensure only sequential mstore + mload sequences are optimized
+    (
+        [
+            "seq",
+            ["mstore", 0, ["mload", 32]],
+            ["sstore", 0, ["calldataload", 4]],
+            ["mstore", 32, ["mload", 64]],
+        ],
+        None,
+    ),
+    # not-word aligned optimizations (not overlap)
+    (["seq", ["mstore", 0, ["mload", 1]], ["mstore", 32, ["mload", 33]]], ["mcopy", 0, 1, 64]),
+    # not-word aligned optimizations (overlap)
+    (["seq", ["mstore", 1, ["mload", 0]], ["mstore", 33, ["mload", 32]]], None),
+    # not-word aligned optimizations (overlap and not-overlap)
+    (
+        [
+            "seq",
+            ["mstore", 0, ["mload", 1]],
+            ["mstore", 32, ["mload", 33]],
+            ["mstore", 1, ["mload", 0]],
+            ["mstore", 33, ["mload", 32]],
+        ],
+        ["seq", ["mcopy", 0, 1, 64], ["mstore", 1, ["mload", 0]], ["mstore", 33, ["mload", 32]]],
+    ),
+    # overflow test
+    (
+        [
+            "seq",
+            ["mstore", 2**256 - 1 - 31 - 32, ["mload", 0]],
+            ["mstore", 2**256 - 1 - 31, ["mload", 32]],
+        ],
+        ["mcopy", 2**256 - 1 - 31 - 32, 0, 64],
+    ),
+]
+
+
+@pytest.mark.parametrize("ir", mload_merge_list)
+@pytest.mark.parametrize("evm_version", list(POST_CANCUN.keys()))
+def test_mload_merge(ir, evm_version):
+    with anchor_evm_version(evm_version):
+        optimized = optimizer.optimize(IRnode.from_list(ir[0]))
+        if ir[1] is None:
+            # no-op, assert optimizer does nothing
+            expected = IRnode.from_list(ir[0])
+        else:
+            expected = IRnode.from_list(ir[1])
+
+        assert optimized == expected

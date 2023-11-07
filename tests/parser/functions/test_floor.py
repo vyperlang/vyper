@@ -45,7 +45,7 @@ def fou() -> int256:
     assert c.x_floor() == 504
     assert c.foo() == 1
     assert c.fop() == 1
-    assert c.foq() == math.floor(Decimal(2 ** 167 - 1) / 10 ** 10)
+    assert c.foq() == math.floor(Decimal(2**167 - 1) / 10**10)
     assert c.fos() == 0
     assert c.fot() == 0
     assert c.fou() == 3
@@ -104,7 +104,41 @@ def floor_param(p: decimal) -> int256:
     assert c.fop() == -27
     assert c.foq() == -9001
     assert c.fos() == -1
-    assert c.fot() == math.floor(-Decimal(2 ** 167) / 10 ** 10)
+    assert c.fot() == math.floor(-Decimal(2**167) / 10**10)
     assert c.fou() == -4
     assert c.floor_param(Decimal("-5.6")) == -6
     assert c.floor_param(Decimal("-0.0000000001")) == -1
+
+
+def test_floor_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+    code = """
+@external
+def foo(a: Foo) -> int256:
+    return floor(a.foo(2.5))
+
+interface Foo:
+    def foo(x: decimal) -> decimal: nonpayable
+    """
+
+    c1 = side_effects_contract("decimal")
+    c2 = get_contract(code)
+
+    assert c2.foo(c1.address) == 2
+
+    assert_side_effects_invoked(c1, lambda: c2.foo(c1.address, transact={}))
+
+
+def test_floor_internal_call(get_contract_with_gas_estimation):
+    code = """
+@external
+def foo() -> int256:
+    return floor(self.bar())
+
+@internal
+def bar() -> decimal:
+    return 2.5
+    """
+
+    c = get_contract_with_gas_estimation(code)
+
+    assert c.foo() == 2

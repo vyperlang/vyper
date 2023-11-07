@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InstantiationException, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -87,8 +87,8 @@ def foo():
     self.foobar = empty(address)
     bar = empty(address)
 
-    assert self.foobar == ZERO_ADDRESS
-    assert bar == ZERO_ADDRESS
+    assert self.foobar == empty(address)
+    assert bar == empty(address)
     """,
         """
 @external
@@ -214,12 +214,12 @@ def foo():
     self.foobar = empty(address[3])
     bar = empty(address[3])
 
-    assert self.foobar[0] == ZERO_ADDRESS
-    assert self.foobar[1] == ZERO_ADDRESS
-    assert self.foobar[2] == ZERO_ADDRESS
-    assert bar[0] == ZERO_ADDRESS
-    assert bar[1] == ZERO_ADDRESS
-    assert bar[2] == ZERO_ADDRESS
+    assert self.foobar[0] == empty(address)
+    assert self.foobar[1] == empty(address)
+    assert self.foobar[2] == empty(address)
+    assert bar[0] == empty(address)
+    assert bar[1] == empty(address)
+    assert bar[2] == empty(address)
     """,
     ],
 )
@@ -376,14 +376,14 @@ def foo():
     assert self.foobar.c == False
     assert self.foobar.d == 0.0
     assert self.foobar.e == 0x0000000000000000000000000000000000000000000000000000000000000000
-    assert self.foobar.f == ZERO_ADDRESS
+    assert self.foobar.f == empty(address)
 
     assert bar.a == 0
     assert bar.b == 0
     assert bar.c == False
     assert bar.d == 0.0
     assert bar.e == 0x0000000000000000000000000000000000000000000000000000000000000000
-    assert bar.f == ZERO_ADDRESS
+    assert bar.f == empty(address)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -525,11 +525,14 @@ def delete(key: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test") == b"\x00" * 32
-    c.set(b"test", b"value", transact={})
-    assert c.get(b"test")[:5] == b"value"
-    c.delete(b"test", transact={})
-    assert c.get(b"test") == b"\x00" * 32
+    key = b"test".ljust(32)
+    val = b"value".ljust(32)
+
+    assert c.get(key) == b"\x00" * 32
+    c.set(key, val, transact={})
+    assert c.get(key)[:5] == b"value"
+    c.delete(key, transact={})
+    assert c.get(key) == b"\x00" * 32
 
 
 def test_map_clear_nested(get_contract_with_gas_estimation):
@@ -551,11 +554,15 @@ def delete(key1: bytes32, key2: bytes32):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get(b"test1", b"test2") == b"\x00" * 32
-    c.set(b"test1", b"test2", b"value", transact={})
-    assert c.get(b"test1", b"test2")[:5] == b"value"
-    c.delete(b"test1", b"test2", transact={})
-    assert c.get(b"test1", b"test2") == b"\x00" * 32
+    key1 = b"test1".ljust(32)
+    key2 = b"test2".ljust(32)
+    val = b"value".ljust(32)
+
+    assert c.get(key1, key2) == b"\x00" * 32
+    c.set(key1, key2, val, transact={})
+    assert c.get(key1, key2)[:5] == b"value"
+    c.delete(key1, key2, transact={})
+    assert c.get(key1, key2) == b"\x00" * 32
 
 
 def test_map_clear_struct(get_contract_with_gas_estimation):
@@ -691,3 +698,17 @@ def foo():
     assert log.args.arg3 == 314159
     assert log.args.arg4 == b"help" * 11
     assert log.args.arg5 == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        """
+@external
+def test():
+    a: uint256 = empty(HashMap[uint256, uint256])[0]
+    """
+    ],
+)
+def test_invalid_types(contract, get_contract, assert_compile_failed):
+    assert_compile_failed(lambda: get_contract(contract), InstantiationException)

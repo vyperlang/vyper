@@ -156,6 +156,23 @@ def report():
     """,
         "'imm' is not a storage variable, it should not be prepended with self",
     ),
+    (
+        """
+struct Foo:
+    a : uint256
+
+x: immutable(Foo)
+
+@external
+def __init__():
+    x = Foo({a:1})
+
+@external
+def hello() :
+    x.a =  2
+    """,
+        "Immutable value cannot be written to",
+    ),
 ]
 
 
