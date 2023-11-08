@@ -280,10 +280,13 @@ class IRBasicBlock:
 
     # calculate the input variables into self from source
     def in_vars_from(self, source: "IRBasicBlock") -> OrderedSet[IRVariable]:
-        liveness = self.instructions[0].liveness.copy()
+        target = self
+
+        liveness = target.instructions[0].liveness.copy()
         assert isinstance(liveness, OrderedSet)
 
-        for inst in self.instructions:
+
+        for inst in target.instructions:
             if inst.opcode == "phi":
                 # we arbitrarily choose one of the arguments to be in the
                 # live variables set (dependent on how we traversed into this
