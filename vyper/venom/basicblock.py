@@ -132,10 +132,7 @@ class IRInstruction:
     opcode: str
     volatile: bool
     operands: list[IRValueBase]
-    # REVIEW: rename to lhs?
-    # HK: Maybe outputs is better?
-    # REVIEW: hmm not sure. to discuss offline
-    ret: Optional[IRValueBase]
+    output: Optional[IRValueBase]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
@@ -147,7 +144,7 @@ class IRInstruction:
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
-        self.ret = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
+        self.output = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
@@ -173,7 +170,7 @@ class IRInstruction:
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
     def get_outputs(self) -> list[IRVariable]:
-        return [self.ret] if self.ret else []
+        return [self.output] if self.output else []
 
     def replace_operands(self, replacements: dict) -> None:
         """
@@ -186,8 +183,8 @@ class IRInstruction:
 
     def __repr__(self) -> str:
         s = ""
-        if self.ret:
-            s += f"{self.ret} = "
+        if self.output:
+            s += f"{self.output} = "
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = ", ".join(

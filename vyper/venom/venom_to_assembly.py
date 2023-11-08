@@ -309,8 +309,8 @@ class VenomCompiler:
 
         # Step 4: Push instruction's return value to stack
         stack.pop(len(operands))
-        if inst.ret is not None:
-            stack.push(inst.ret)
+        if inst.output is not None:
+            stack.push(inst.output)
 
         # Step 5: Emit the EVM instruction(s)
         if opcode in _ONE_TO_ONE_INSTRUCTIONS:
@@ -413,10 +413,10 @@ class VenomCompiler:
             raise Exception(f"Unknown opcode: {opcode}")
 
         # Step 6: Emit instructions output operands (if any)
-        if inst.ret is not None:
-            assert isinstance(inst.ret, IRVariable), "Return value must be a variable"
-            if inst.ret.mem_type == MemType.MEMORY:
-                assembly.extend([*PUSH(inst.ret.mem_addr)])
+        if inst.output is not None:
+            assert isinstance(inst.output, IRVariable), "Return value must be a variable"
+            if inst.output.mem_type == MemType.MEMORY:
+                assembly.extend([*PUSH(inst.output.mem_addr)])
 
         return assembly
 
