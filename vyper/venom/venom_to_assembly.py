@@ -297,12 +297,15 @@ class VenomCompiler:
 
         # Step 3: Reorder stack
         if opcode in ["jnz", "jmp"]:
+            # prepare stack for jump into another basic block
             assert isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
             target_stack = input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
             self._stack_reorder(assembly, stack, target_stack)
 
+        # final step to get the inputs to this instruction ordered
+        # correctly on the stack
         self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
