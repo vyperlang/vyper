@@ -620,8 +620,20 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node can be used as a default arg
     """
+    print("check kwargable")
     if _check_literal(node):
         return True
+    if isinstance(node, vy_ast.Attribute):
+        res = check_kwargable(node.value)
+        print("check_constant - attribute: ", res)
+        return res
+    # if isinstance(node, vy_ast.Name):
+    #     ns = get_namespace()
+    #     varinfo = ns.get(node.id)
+    #     if varinfo is None:
+    #         return False
+        
+    #     return varinfo.is_constant
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_kwargable(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
@@ -646,6 +658,9 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
         return True
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(_check_literal(item) for item in node.elements)
+
+    if node._metadata.get("folded_value"):
+        return True
     return False
 
 
@@ -655,6 +670,20 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     if _check_literal(node):
         return True
+    if isinstance(node, vy_ast.Attribute):
+        print("check_constant - attribute")
+        return check_constant(node.value)
+    if isinstance(node, vy_ast.Name):
+        ns = get_namespace()
+        varinfo = self.namespace.get(node.id)
+        if varinfo is None:
+            return False
+        
+        return varinfo.is_constant
+
+    if isinstance(node, vy_ast.BinOp):
+        return all(check_kwargable(i) for i in (node.left, node.right))
+
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_constant(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
@@ -666,4 +695,6 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         if getattr(call_type, "_kwargable", False):
             return True
 
-    return False
+    value_type = get_expr_info(node)
+    # is_constant here actually means not_assignable, and is to be renamed
+    return value_type.is_constant

@@ -20,6 +20,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.utils import check_constant, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
@@ -231,6 +232,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise exc.with_annotation(node) from None
 
         if node.is_constant:
+            ExprVisitor().visit(node.value, type_)
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
             if not check_constant(node.value):

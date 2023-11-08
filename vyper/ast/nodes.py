@@ -912,6 +912,15 @@ class Name(ExprNode):
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
+    def prefold(self) -> ExprNode:
+        operand = self.operand._metadata.get("folded_value")
+        if operand is None:
+            return
+        
+        value = self.op._op(operand.value)
+        print("prefolded unary val: ", value)
+        return type(self.operand).from_node(self, value=value)
+
     def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
@@ -959,6 +968,22 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
+
+    def prefold(self) -> ExprNode:
+        left = self.left._metadata.get("folded_value")
+        right = self.right._metadata.get("folded_value")
+
+        if None in (left, right):
+            return
+
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
+
+        value = self.op._op(left.value, right.value)
+        return type(left).from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
