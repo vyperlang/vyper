@@ -95,7 +95,7 @@ class _BytestringT(VyperType):
         if self._length:
             return True
 
-        # return other.compare_type(self)
+        return other.compare_type(self)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
