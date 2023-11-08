@@ -1,5 +1,6 @@
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
+from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -8,7 +9,6 @@ from vyper.venom.basicblock import (
     IRVariable,
     MemType,
 )
-from vyper.venom.bb_optimizer import calculate_cfg, calculate_liveness
 from vyper.venom.function import IRFunction
 from vyper.venom.stack_model import StackModel
 

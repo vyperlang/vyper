@@ -5,9 +5,8 @@ from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
+from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
 from vyper.venom.bb_optimizer import (
-    calculate_cfg,
-    calculate_liveness,
     ir_pass_optimize_empty_blocks,
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
@@ -15,7 +14,7 @@ from vyper.venom.bb_optimizer import (
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import convert_ir_basicblock
 from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
-from vyper.venom.passes.dft import DFG, DFTPass
+from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
