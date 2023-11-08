@@ -77,7 +77,7 @@ class IRFunction:
         return IRLabel(f"{self.last_label}")
 
     def get_next_variable(
-        self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
+        self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: Optional[int] = None
     ) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}", mem_type, mem_addr)

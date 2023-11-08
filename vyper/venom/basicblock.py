@@ -94,10 +94,13 @@ class IRVariable(IRValueBase):
 
     offset: int = 0
     mem_type: MemType = MemType.OPERAND_STACK
-    mem_addr: int = -1  # REVIEW should this be None?
+    mem_addr: Optional[int] = None
 
     def __init__(
-        self, value: IRValueBaseValue, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = -1
+        self,
+        value: IRValueBaseValue,
+        mem_type: MemType = MemType.OPERAND_STACK,
+        mem_addr: int = None,
     ) -> None:
         if isinstance(value, IRLiteral):
             value = value.value
