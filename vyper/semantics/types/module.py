@@ -14,7 +14,7 @@ class ModuleT(VyperType):
         # for function collisions
         interface_t = self.interface_t
 
-        members = {"the_interface": interface_t}
+        members = {"at": interface_t}
 
         for f in self.functions:
             members[f.name] = f._metadata["type"]
