@@ -30,6 +30,9 @@ class OrderedSet(dict):
         keys = ", ".join(repr(k) for k in self.keys())
         return f"{{{keys}}}"
 
+    def get(self, *args, **kwargs):
+        raise RuntimeError("can't call get() on OrderedSet!")
+
     def add(self, item):
         self[item] = None
 

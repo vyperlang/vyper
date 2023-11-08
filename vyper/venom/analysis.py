@@ -76,14 +76,20 @@ def _calculate_liveness_bb(bb: IRBasicBlock):
         instruction.liveness = liveness
 
 
-def _calculate_liveness_helper(bb: IRBasicBlock, liveness_visited: OrderedSet) -> None:
-    assert isinstance(liveness_visited, OrderedSet)
+def _calculate_liveness_r(bb: IRBasicBlock, visited: dict) -> None:
+    assert isinstance(visited, dict)
     for out_bb in bb.cfg_out:
-        if liveness_visited.get(bb) == out_bb:
+        if visited.get(bb) == out_bb:
             continue
-        liveness_visited[bb] = out_bb
-        _calculate_liveness_helper(out_bb, liveness_visited)
+        visited[bb] = out_bb
+
+        # recurse
+        _calculate_liveness_r(out_bb, visited)
+
         target_vars = input_vars_from(bb, out_bb)
+
+        # the output stack layout for bb. it produces a stack layout
+        # which works for all possible cfg_outs from the bb.
         bb.out_vars = bb.out_vars.union(target_vars)
 
     _calculate_liveness_bb(bb)
@@ -91,7 +97,7 @@ def _calculate_liveness_helper(bb: IRBasicBlock, liveness_visited: OrderedSet) -
 
 def calculate_liveness(ctx: IRFunction) -> None:
     _reset_liveness(ctx)
-    _calculate_liveness_helper(ctx.basic_blocks[0], OrderedSet())
+    _calculate_liveness_r(ctx.basic_blocks[0], dict())
 
 
 # calculate the input variables into self from source

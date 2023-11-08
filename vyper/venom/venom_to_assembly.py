@@ -12,9 +12,6 @@ from vyper.venom.basicblock import (
 from vyper.venom.function import IRFunction
 from vyper.venom.stack_model import StackModel
 
-# binary instructions which are commutative
-_COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "and", "or", "xor", "eq"])
-
 # instructions which map one-to-one from venom to EVM
 _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     [
@@ -136,17 +133,10 @@ class VenomCompiler:
         assembly: list,
         stack: StackModel,
         stack_ops: OrderedSet[IRVariable],
-        commutative: bool = False,
     ) -> None:
         # make a list so we can index it
         stack_ops = [x for x in stack_ops]
         stack_ops_count = len(stack_ops)
-
-        if commutative:
-            depth = stack.get_depth(stack_ops[0])
-            # TODO: Apply commutative knowledge to optimize stack
-            # if depth == 0:
-            #     stack_ops = list(reversed(stack_ops))
 
         for i in range(stack_ops_count):
             op = stack_ops[i]
@@ -231,15 +221,30 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
     # pop values from stack at entry to bb
+    # note this produces the same result(!) no matter which basic block
+    # we enter from in the CFG.
     def clean_stack_from_cfg_in(self, asm: list, basicblock: IRBasicBlock, stack: StackModel):
-        if not basicblock.cfg_in:
+        if len(basicblock.cfg_in) == 0:
             return
+
+        for in_bb in basicblock.cfg_in:
+            if in_bb.out_vars == OrderedSet(stack._stack):
+                break
+        else:
+            # the input stack is not produced by a cfg_in
+            raise CompilerPanic("unreachable!")
 
         to_pop = OrderedSet()
         for in_bb in basicblock.cfg_in:
+            # inputs is the input variables we need from in_bb
             inputs = input_vars_from(in_bb, basicblock)
+
+            # layout is the output stack layout for in_bb (which works
+            # for all possible cfg_outs from the in_bb).
             layout = in_bb.out_vars
-            to_pop |= in_bb.out_vars.difference(inputs)
+
+            # pop all the stack items which in_bb produced which we don't need.
+            to_pop |= layout.difference(inputs)
 
         for var in to_pop:
             depth = stack.get_depth(IRValueBase(var.value))
@@ -297,20 +302,10 @@ class VenomCompiler:
             assert isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
             target_stack = input_vars_from(inst.parent, b)
-            # REVIEW: this seems like it generates bad code, because
-            # the next _stack_reorder will undo the changes to the stack.
-            # i think we can just remove it entirely.
-            # HK: Can't be removed entirely because we need to ensure that
-            # the stack is in the correct state for the next basic block
-            # regardless from where we came from. The next _stack_reorder
-            # will undo the changes to the stack for the operand only.
-            # The optimization is to have the _stack_reorder emidiatly below
-            # stop at the operand lenght. Or make a combined version.
-            # I am adding a TODO for this.
+            # TODO optimize stack reordering at entry and exit from basic blocks
             self._stack_reorder(assembly, stack, target_stack)
 
-        is_commutative = opcode in _COMMUTATIVE_INSTRUCTIONS
-        self._stack_reorder(assembly, stack, operands, is_commutative)
+        self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
