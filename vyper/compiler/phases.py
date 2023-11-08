@@ -155,7 +155,7 @@ class CompilerData:
 
     @property
     def global_ctx(self) -> ModuleT:
-        return ModuleT(self.vyper_module_folded)
+        return self.vyper_module_folded._metadata["type"]
 
     @cached_property
     def _ir_output(self):
