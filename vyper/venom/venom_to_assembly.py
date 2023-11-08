@@ -244,6 +244,7 @@ class VenomCompiler:
             # pop all the stack items which in_bb produced which we don't need.
             to_pop |= layout.difference(inputs)
 
+        # REVIEW: does this work when len(cfg_in) > 1?
         for var in to_pop:
             depth = stack.get_depth(IRValueBase(var.value))
             # don't pop phantom phi inputs
