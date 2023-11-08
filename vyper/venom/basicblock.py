@@ -140,11 +140,11 @@ class IRInstruction:
     fence_id: int
     annotation: Optional[str]
 
-    def __init__(self, opcode: str, operands: list[IRValueBase], ret: IRValueBase = None):
+    def __init__(self, opcode: str, operands: list[IRValueBase], output: IRValueBase = None):
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
-        self.output = ret if isinstance(ret, IRValueBase) else IRValueBase(ret) if ret else None
+        self.output = output if isinstance(output, IRValueBase) else IRValueBase(output) if output else None
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
