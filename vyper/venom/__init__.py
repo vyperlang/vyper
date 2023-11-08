@@ -1,5 +1,4 @@
-# REVIEW stylistically i don't really like code (besides just imports)
-# going into `__init__.py`. maybe `main.py` or `venom.py`
+# maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
 from typing import Optional

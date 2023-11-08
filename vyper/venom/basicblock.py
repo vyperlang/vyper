@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 from typing import TYPE_CHECKING, Optional
 
 from vyper.exceptions import CompilerPanic
@@ -84,7 +84,9 @@ class IRLiteral(IRValueBase):
         return True
 
 
-MemType = Enum("MemType", ["OPERAND_STACK", "MEMORY"])
+class MemType(Enum):
+    OPERAND_STACK = auto()
+    MEMORY = auto()
 
 
 class IRVariable(IRValueBase):
@@ -93,6 +95,8 @@ class IRVariable(IRValueBase):
     """
 
     offset: int = 0
+
+    # some variables can be in memory for conversion from legacy IR to venom
     mem_type: MemType = MemType.OPERAND_STACK
     mem_addr: Optional[int] = None
 

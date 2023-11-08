@@ -232,7 +232,7 @@ class VenomCompiler:
                 continue
 
             if depth != 0:
-                stack.swap(asm, depth)
+                stack.swap(depth)
             self.pop(asm, stack)
 
         for inst in basicblock.instructions:

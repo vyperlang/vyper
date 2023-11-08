@@ -3,8 +3,6 @@ from vyper.venom.basicblock import IRValueBase, IRVariable
 
 class StackModel:
     NOT_IN_STACK = object()
-    # REVIEW: rename to `_stack_items` and add a `repr()` to StackModel
-    # so that the stack is more hidden from observers
     _stack: list[IRValueBase]
 
     def __init__(self):
