@@ -1,6 +1,6 @@
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import calculate_cfg, calculate_liveness
+from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -232,11 +232,16 @@ class VenomCompiler:
 
     # pop values from stack at entry to bb
     def clean_stack_from_cfg_in(self, asm: list, basicblock: IRBasicBlock, stack: StackModel):
-        in_vars = OrderedSet()
-        for in_bb in basicblock.cfg_in:
-            in_vars |= in_bb.out_vars.difference(basicblock.in_vars_from(in_bb))
+        if not basicblock.cfg_in:
+            return
 
-        for var in in_vars:
+        to_pop = OrderedSet()
+        for in_bb in basicblock.cfg_in:
+            inputs = input_vars_from(in_bb, basicblock)
+            layout = in_bb.out_vars
+            to_pop |= in_bb.out_vars.difference(inputs)
+
+        for var in to_pop:
             depth = stack.get_depth(IRValueBase(var.value))
             # don't pop phantom phi inputs
             if depth is StackModel.NOT_IN_STACK:
@@ -291,7 +296,7 @@ class VenomCompiler:
         if opcode in ["jnz", "jmp"]:
             assert isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
-            target_stack = b.in_vars_from(inst.parent)
+            target_stack = input_vars_from(inst.parent, b)
             # REVIEW: this seems like it generates bad code, because
             # the next _stack_reorder will undo the changes to the stack.
             # i think we can just remove it entirely.

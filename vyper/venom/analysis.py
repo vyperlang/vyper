@@ -57,23 +57,73 @@ def _reset_liveness(ctx: IRFunction) -> None:
         for inst in bb.instructions:
             inst.liveness = OrderedSet()
 
+def _calculate_liveness_bb(bb: IRBasicBlock):
+    """
+    Compute liveness of each instruction in the basic block.
+    """
+    liveness = bb.out_vars.copy()
+    for instruction in reversed(bb.instructions):
+        ops = instruction.get_inputs()
 
-def _calculate_liveness(bb: IRBasicBlock, liveness_visited: OrderedSet) -> None:
+        for op in ops:
+            if op in liveness:
+                instruction.dup_requirements.add(op)
+
+        liveness = liveness.union(OrderedSet.fromkeys(ops))
+        out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
+        if out in liveness:
+            liveness.remove(out)
+        instruction.liveness = liveness
+
+
+def _calculate_liveness_helper(bb: IRBasicBlock, liveness_visited: OrderedSet) -> None:
     assert isinstance(liveness_visited, OrderedSet)
     for out_bb in bb.cfg_out:
         if liveness_visited.get(bb) == out_bb:
             continue
         liveness_visited[bb] = out_bb
-        _calculate_liveness(out_bb, liveness_visited)
-        target_vars = out_bb.in_vars_from(bb)
+        _calculate_liveness_helper(out_bb, liveness_visited)
+        target_vars = input_vars_from(bb, out_bb)
         bb.out_vars = bb.out_vars.union(target_vars)
 
-    bb.calculate_liveness()
+    _calculate_liveness_bb(bb)
 
 
 def calculate_liveness(ctx: IRFunction) -> None:
     _reset_liveness(ctx)
-    _calculate_liveness(ctx.basic_blocks[0], OrderedSet())
+    _calculate_liveness_helper(ctx.basic_blocks[0], OrderedSet())
+
+
+# calculate the input variables into self from source
+def input_vars_from(source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
+    liveness = target.instructions[0].liveness.copy()
+    assert isinstance(liveness, OrderedSet)
+
+    for inst in target.instructions:
+        if inst.opcode == "phi":
+            # we arbitrarily choose one of the arguments to be in the
+            # live variables set (dependent on how we traversed into this
+            # basic block). the argument will be replaced by the destination
+            # operand during instruction selection.
+            # for instance, `%56 = phi %label1 %12 %label2 %14`
+            # will arbitrarily choose either %12 or %14 to be in the liveness
+            # set, and then during instruction selection, after this instruction,
+            # %12 will be replaced by %56 in the liveness set
+            source1, source2 = inst.operands[0], inst.operands[2]
+            phi1, phi2 = inst.operands[1], inst.operands[3]
+            if source.label == source1:
+                liveness.add(phi1)
+                if phi2 in liveness:
+                    liveness.remove(phi2)
+            elif source.label == source2:
+                liveness.add(phi2)
+                if phi1 in liveness:
+                    liveness.remove(phi1)
+            else:
+                # bad path into this phi node
+                raise CompilerPanic(f"unreachable: {inst}")
+
+    return liveness
 
 
 # DataFlow Graph

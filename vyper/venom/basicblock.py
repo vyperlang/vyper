@@ -278,40 +278,6 @@ class IRBasicBlock:
     def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
         self.cfg_out.remove(bb)
 
-    # calculate the input variables into self from source
-    def in_vars_from(self, source: "IRBasicBlock") -> OrderedSet[IRVariable]:
-        target = self
-
-        liveness = target.instructions[0].liveness.copy()
-        assert isinstance(liveness, OrderedSet)
-
-
-        for inst in target.instructions:
-            if inst.opcode == "phi":
-                # we arbitrarily choose one of the arguments to be in the
-                # live variables set (dependent on how we traversed into this
-                # basic block). the argument will be replaced by the destination
-                # operand during instruction selection.
-                # for instance, `%56 = phi %label1 %12 %label2 %14`
-                # will arbitrarily choose either %12 or %14 to be in the liveness
-                # set, and then during instruction selection, after this instruction,
-                # %12 will be replaced by %56 in the liveness set
-                source1, source2 = inst.operands[0], inst.operands[2]
-                phi1, phi2 = inst.operands[1], inst.operands[3]
-                if source.label == source1:
-                    liveness.add(phi1)
-                    if phi2 in liveness:
-                        liveness.remove(phi2)
-                elif source.label == source2:
-                    liveness.add(phi2)
-                    if phi1 in liveness:
-                        liveness.remove(phi1)
-                else:
-                    # bad path into this phi node
-                    raise CompilerPanic(f"unreachable: {inst}")
-
-        return liveness
-
     @property
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
@@ -346,24 +312,6 @@ class IRBasicBlock:
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in BB_TERMINATORS
-
-    def calculate_liveness(self) -> None:
-        """
-        Compute liveness of each instruction in the basic block.
-        """
-        liveness = self.out_vars.copy()
-        for instruction in reversed(self.instructions):
-            ops = instruction.get_inputs()
-
-            for op in ops:
-                if op in liveness:
-                    instruction.dup_requirements.add(op)
-
-            liveness = liveness.union(OrderedSet.fromkeys(ops))
-            out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
-            if out in liveness:
-                liveness.remove(out)
-            instruction.liveness = liveness
 
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)
