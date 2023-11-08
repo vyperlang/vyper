@@ -39,7 +39,7 @@ class OrderedSet(dict):
     def difference(self, other):
         ret = self.copy()
         for k in other.keys():
-            if k in ret.keys():
+            if k in ret:
                 ret.remove(k)
         return ret
 
