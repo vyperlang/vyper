@@ -319,7 +319,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
-        obj = InterfaceT.from_ast(node)
+        obj = InterfaceT.from_InterfaceDef(node)
         try:
             self.namespace[node.name] = obj
         except VyperException as exc:
@@ -335,7 +335,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        type_ = self._load_import(node, level, qualified_module_name)
+        type_ = self._load_import(node, level, qualified_module_name, alias)
 
         try:
             self.namespace[alias] = type_
@@ -344,20 +344,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str) -> Any:
+    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
 
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vy"))
+            path_vy = path.with_suffix(".vy")
+            file = self.input_bundle.load_file(path_vy)
             assert isinstance(file, FileInput)  # mypy hint
-            module_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
 
+            # TODO share work if same file is imported
+            module_ast = vy_ast.parse_to_ast(
+                file.source_code, module_path=str(path_vy), module_name=alias
+            )
             with override_global_namespace(Namespace()):
                 validate_semantics(module_ast, self.input_bundle)
-                module_t = ModuleT(module_ast)
+                module_t = module_ast._metadata["type"]
 
                 return ModuleInfo(module_t, decl_node=node)
 
@@ -420,5 +424,5 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=module_str)
-    return InterfaceT.from_ast(interface_ast)
+    interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path, module_name=module_str)
+    return InterfaceT.from_Module(interface_ast)

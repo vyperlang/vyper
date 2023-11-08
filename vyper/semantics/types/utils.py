@@ -119,6 +119,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
         raise InvalidType(f"'{node.node_source_code}' is not a type", node)
+
     if node.id not in namespace:
         _failwith(node.node_source_code)
 

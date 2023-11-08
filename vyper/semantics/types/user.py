@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
@@ -112,7 +112,7 @@ class EnumT(_UserType):
         -------
         Enum
         """
-        members: Dict = {}
+        members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
             raise EnumDeclarationException("Enum must have members", base_node)
@@ -135,7 +135,7 @@ class EnumT(_UserType):
         # TODO
         return None
 
-    def to_toplevel_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> list[dict]:
         # TODO
         return []
 
@@ -187,7 +187,7 @@ class EventT(_UserType):
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "EventT":
+    def from_abi(cls, abi: dict) -> "EventT":
         """
         Generate an `Event` object from an ABI interface.
 
@@ -201,7 +201,7 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: List = [i["indexed"] for i in abi["inputs"]]
+        indexed: list = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
@@ -219,8 +219,8 @@ class EventT(_UserType):
         -------
         Event
         """
-        members: Dict = {}
-        indexed: List = []
+        members: dict = {}
+        indexed: list = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
             return EventT(base_node.name, members, indexed)
@@ -259,7 +259,7 @@ class EventT(_UserType):
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
-    def to_toplevel_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> list[dict]:
         return [
             {
                 "name": self.name,
@@ -295,13 +295,11 @@ class InterfaceT(_UserType):
         return ABI_Address()
 
     def __repr__(self):
-        return f"{self._id}"
+        return f"interface {self._id}"
 
     # when using the type itself (not an instance) in the call position
-    # maybe rename to _ctor_call_return
     def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
         self._ctor_arg_types(node)
-
         return self
 
     def _ctor_arg_types(self, node):
@@ -365,7 +363,7 @@ class InterfaceT(_UserType):
                 node,
             )
 
-    def to_toplevel_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> list[dict]:
         abi = []
         for event in self.events.values():
             abi += event.to_toplevel_abi_dict()
@@ -394,8 +392,8 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        members: Dict = {}
-        events: Dict = {}
+        members: dict = {}
+        events: dict = {}
 
         names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
         collisions = set(i for i in names if names.count(i) > 1)
@@ -415,33 +413,37 @@ class InterfaceT(_UserType):
 
     # TODO: split me into from_InterfaceDef and from_Module
     @classmethod
-    def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
+    def from_Module(cls, node: vy_ast.Module, name: Optional[str] = None) -> "InterfaceT":
         """
         Generate an `InterfaceT` object from a Vyper ast node.
 
         Arguments
         ---------
-        node : InterfaceDef | Module
+        node : Module
             Vyper ast node defining the interface
         Returns
         -------
         InterfaceT
             primitive interface type
         """
-        if isinstance(node, vy_ast.Module):
-            members, events = _get_module_definitions(node)
-        elif isinstance(node, vy_ast.InterfaceDef):
-            members = _get_class_functions(node)
-            events = {}
-        else:
-            raise StructureException("Invalid syntax for interface definition", node)
+        members, events = _get_module_definitions(node)
+
+        name = name or node.name
+
+        return cls(name, members, events)
+
+    @classmethod
+    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
+        members = _get_class_functions(node)
+        events = {}
 
         return cls(node.name, members, events)
 
 
-def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
-    functions: Dict = {}
-    events: Dict = {}
+# TODO: refactor this to use ModuleT information
+def _get_module_definitions(base_node: vy_ast.Module) -> tuple[dict, dict]:
+    functions: dict = {}
+    events: dict = {}
     for node in base_node.get_children(vy_ast.FunctionDef):
         if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
             func = ContractFunctionT.from_FunctionDef(node)
@@ -464,7 +466,7 @@ def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
     return functions, events
 
 
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunctionT]:
+def _get_class_functions(base_node: vy_ast.InterfaceDef) -> dict[str, ContractFunctionT]:
     functions = {}
     for node in base_node.body:
         if not isinstance(node, vy_ast.FunctionDef):
@@ -531,7 +533,7 @@ class StructT(_UserType):
         """
 
         struct_name = base_node.name
-        members: Dict[str, VyperType] = {}
+        members: dict[str, VyperType] = {}
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException(

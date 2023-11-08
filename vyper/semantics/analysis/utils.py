@@ -192,6 +192,7 @@ class _ExprAnalyser:
 
         try:
             s = t.get_member(name, node)
+
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]

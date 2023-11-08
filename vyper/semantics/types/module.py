@@ -1,20 +1,28 @@
 from functools import cached_property
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.function import MemberFunctionT
+from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import InterfaceT
 
 
 # Datatype to store all module information.
 class ModuleT(VyperType):
-    def __init__(self, module: vy_ast.Module):
+    def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         self._module = module
+
+        self._id = name or module.name
 
         # compute the interface, note this has the side effect of checking
         # for function collisions
-        interface_t = self.interface_t
+        interface_t = self.interface
 
-        members = {"at": interface_t}
+        # module.at(<address>)
+        at = MemberFunctionT(self, "at", [AddressT()], interface_t, is_modifying=False)
+
+        members = {"at": at}
 
         for f in self.functions:
             members[f.name] = f._metadata["type"]
@@ -44,5 +52,5 @@ class ModuleT(VyperType):
         return sum([imm.typ.memory_bytes_required for imm in self.immutables])
 
     @cached_property
-    def interface_t(self):
-        return InterfaceT.from_ast(self._module)
+    def interface(self):
+        return InterfaceT.from_Module(self._module, name=self._id)

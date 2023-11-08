@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -662,39 +663,39 @@ class Expr:
             if function_name in DISPATCH_TABLE:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
-            # Struct constructors do not need `self` prefix.
-            elif isinstance(self.expr._metadata["type"], StructT):
-                args = self.expr.args
-                if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
+        func_type = self.expr.func._metadata["type"]
+        return_type = self.expr._metadata["type"]
 
-            # Interface assignment. Bar(<address>).
-            elif isinstance(self.expr._metadata["type"], InterfaceT):
-                (arg0,) = self.expr.args
-                arg_ir = Expr(arg0, self.context).ir_node
+        # Struct constructors do not need `self` prefix.
+        if isinstance(return_type, StructT):
+            args = self.expr.args
+            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
-                assert arg_ir.typ == AddressT()
-                arg_ir.typ = self.expr._metadata["type"]
+        # Interface assignment. Bar(<address>).
+        if isinstance(return_type, InterfaceT):
+            (arg0,) = self.expr.args
+            arg_ir = Expr(arg0, self.context).ir_node
 
-                return arg_ir
+            assert arg_ir.typ == AddressT()
+            arg_ir.typ = self.expr._metadata["type"]
 
-        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            return arg_ir
+
+        if isinstance(func_type, MemberFunctionT) and self.expr.func.attr == "pop":
             # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayT)
             return pop_dyn_array(darray, return_popped_item=True)
 
-        elif (
-            # TODO use expr.func.type.is_internal once
-            # type annotations are consistently available
-            isinstance(self.expr.func, vy_ast.Attribute)
-            and isinstance(self.expr.func.value, vy_ast.Name)
-            and self.expr.func._metadata["type"].is_internal
-        ):
-            return self_call.ir_for_self_call(self.expr, self.context)
-        else:
-            return external_call.ir_for_external_call(self.expr, self.context)
+        if isinstance(func_type, ContractFunctionT):
+            if self.expr.func._metadata["type"].is_internal:
+                return self_call.ir_for_self_call(self.expr, self.context)
+            else:
+                return external_call.ir_for_external_call(self.expr, self.context)
+
+        raise CompilerPanic("unreachable", self.expr)
 
     def parse_List(self):
         typ = self.expr._metadata["type"]

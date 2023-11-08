@@ -154,14 +154,15 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.functions.values()
+    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    functions = module_t.functions
 
     return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
+    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    abi = module_t.interface_t.to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)

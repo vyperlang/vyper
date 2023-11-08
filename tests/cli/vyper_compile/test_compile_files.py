@@ -42,7 +42,7 @@ def foo() -> FooStruct:
 
 @external
 def bar(a: address) -> FooStruct:
-    return {}(a).bar()
+    return {}.at(a).bar()
 """
 
 BAR_CODE = """
