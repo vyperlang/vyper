@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo, ModuleInfo
+from vyper.semantics.analysis.base import ExprInfo, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType

@@ -18,8 +18,9 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VarInfo, ModuleInfo
+from vyper.semantics.analysis.base import ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.local import validate_functions
 from vyper.semantics.analysis.utils import (
     check_constant,
     get_exact_type_from_node,
@@ -33,15 +34,21 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def add_module_namespace(vy_module: vy_ast.Module, input_bundle: InputBundle) -> None:
+def validate_semantics(module_ast: vy_ast.Module, input_bundle: InputBundle):
     """
     Analyze a Vyper module AST node, add all module-level objects to the
-    namespace and validate top-level correctness
+    namespace, type-check/validate semantics and annotate with type and analysis info
     """
-
+    # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
-    analyzer = ModuleAnalyzer(vy_module, input_bundle, namespace)
-    analyzer.analyze()
+
+    with namespace.enter_scope():
+        namespace = get_namespace()
+        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace)
+        analyzer.analyze()
+
+        vy_ast.expansion.expand_annotated_ast(module_ast)
+        validate_functions(module_ast)
 
 
 def _compute_reachable_set(fn_t: ContractFunctionT):
@@ -347,9 +354,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             file = self.input_bundle.load_file(path.with_suffix(".vy"))
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
-
-            # NOTE: circular import
-            from . import validate_semantics
 
             with override_global_namespace(Namespace()):
                 validate_semantics(module_ast, self.input_bundle)

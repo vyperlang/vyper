@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
