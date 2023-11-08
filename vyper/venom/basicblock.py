@@ -1,7 +1,6 @@
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Optional
 
-from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block

@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
@@ -129,10 +130,7 @@ class VenomCompiler:
         return asm
 
     def _stack_reorder(
-        self,
-        assembly: list,
-        stack: StackModel,
-        stack_ops: OrderedSet[IRVariable],
+        self, assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVariable]
     ) -> None:
         # make a list so we can index it
         stack_ops = [x for x in stack_ops]

@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
@@ -56,6 +57,7 @@ def _reset_liveness(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         for inst in bb.instructions:
             inst.liveness = OrderedSet()
+
 
 def _calculate_liveness_bb(bb: IRBasicBlock):
     """
