@@ -238,7 +238,6 @@ class VenomCompiler:
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
-        # REVIEW: codegen for `jnz` depends on this traversal order.
         for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
@@ -326,16 +325,18 @@ class VenomCompiler:
         elif opcode in ["codecopy", "dloadbytes"]:
             assembly.append("CODECOPY")
         elif opcode == "jnz":
-            assembly.append(f"_sym_{inst.operands[1].value}")
+            # jump if not zero
+            if_nonzero_label = inst.operands[1]
+            if_zero_label = inst.operands[2]
+            assembly.append(f"_sym_{if_nonzero_label.value}")
             assembly.append("JUMPI")
-            # REVIEW: probably need to add
-            # assembly.append(f"_sym_{inst.operands[0].value}")
-            # assembly.append("JUMP")
-            # because we only happen to be guaranteed that the next
-            # basic block is coming in the CFG is inst.operands[0].value.
-            # but we should add the jump, in case the CFG traversal
-            # changes. or, add an assertion that
-            # `inst.operands[0].value == inst.parent.cfg_out[0]`.
+
+            # make sure the if_zero_label will be optimized out
+            assert if_zero_label == next(iter(inst.parent.cfg_out)).label
+
+            assembly.append(f"_sym_{if_zero_label.value}")
+            assembly.append("JUMP")
+
         elif opcode == "jmp":
             if isinstance(inst.operands[0], IRLabel):
                 assembly.append(f"_sym_{inst.operands[0].value}")
