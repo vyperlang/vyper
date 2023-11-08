@@ -196,8 +196,7 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
-GAS_CODECOPY_WORD = 3
-GAS_CALLDATACOPY_WORD = 3
+GAS_COPY_WORD = 3  # i.e., W_copy from YP
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10

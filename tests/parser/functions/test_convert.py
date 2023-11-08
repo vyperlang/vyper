@@ -22,7 +22,7 @@ from vyper.utils import (
 
 BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT(), BoolT()}
 
-TEST_TYPES = BASE_TYPES | {BytesT(32)}
+TEST_TYPES = BASE_TYPES | {BytesT(32)} | {StringT(32)}
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -163,6 +163,17 @@ def _cases_for_Bytes(typ):
     # would not need this if we tested all Bytes[1]...Bytes[32] types.
     for i in range(32):
         ret.extend(_cases_for_bytes(BytesM_T(i + 1)))
+
+    ret.append(b"")
+    return uniq(ret)
+
+
+def _cases_for_String(typ):
+    ret = []
+    # would not need this if we tested all Bytes[1]...Bytes[32] types.
+    for i in range(32):
+        ret.extend([str(c, "utf-8") for c in _cases_for_bytes(BytesM_T(i + 1))])
+    ret.append("")
     return uniq(ret)
 
 
@@ -176,6 +187,8 @@ def interesting_cases_for_type(typ):
         return _cases_for_bytes(typ)
     if isinstance(typ, BytesT):
         return _cases_for_Bytes(typ)
+    if isinstance(typ, StringT):
+        return _cases_for_String(typ)
     if isinstance(typ, BoolT):
         return _cases_for_bool(typ)
     if isinstance(typ, AddressT):
@@ -519,24 +532,6 @@ def foo(a: {typ}) -> Status:
             assert_tx_failed(lambda: c.foo(val))
     else:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
-
-
-# TODO CMC 2022-04-06 I think this test is somewhat unnecessary.
-@pytest.mark.parametrize(
-    "builtin_constant,out_type,out_value",
-    [("ZERO_ADDRESS", "bool", False), ("msg.sender", "bool", True)],
-)
-def test_convert_builtin_constant(
-    get_contract_with_gas_estimation, builtin_constant, out_type, out_value
-):
-    contract = f"""
-@external
-def convert_builtin_constant() -> {out_type}:
-    return convert({builtin_constant}, {out_type})
-    """
-
-    c = get_contract_with_gas_estimation(contract)
-    assert c.convert_builtin_constant() == out_value
 
 
 # uint256 conversion is currently valid due to type inference on literals

@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InstantiationException, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -87,8 +87,8 @@ def foo():
     self.foobar = empty(address)
     bar = empty(address)
 
-    assert self.foobar == ZERO_ADDRESS
-    assert bar == ZERO_ADDRESS
+    assert self.foobar == empty(address)
+    assert bar == empty(address)
     """,
         """
 @external
@@ -214,12 +214,12 @@ def foo():
     self.foobar = empty(address[3])
     bar = empty(address[3])
 
-    assert self.foobar[0] == ZERO_ADDRESS
-    assert self.foobar[1] == ZERO_ADDRESS
-    assert self.foobar[2] == ZERO_ADDRESS
-    assert bar[0] == ZERO_ADDRESS
-    assert bar[1] == ZERO_ADDRESS
-    assert bar[2] == ZERO_ADDRESS
+    assert self.foobar[0] == empty(address)
+    assert self.foobar[1] == empty(address)
+    assert self.foobar[2] == empty(address)
+    assert bar[0] == empty(address)
+    assert bar[1] == empty(address)
+    assert bar[2] == empty(address)
     """,
     ],
 )
@@ -376,14 +376,14 @@ def foo():
     assert self.foobar.c == False
     assert self.foobar.d == 0.0
     assert self.foobar.e == 0x0000000000000000000000000000000000000000000000000000000000000000
-    assert self.foobar.f == ZERO_ADDRESS
+    assert self.foobar.f == empty(address)
 
     assert bar.a == 0
     assert bar.b == 0
     assert bar.c == False
     assert bar.d == 0.0
     assert bar.e == 0x0000000000000000000000000000000000000000000000000000000000000000
-    assert bar.f == ZERO_ADDRESS
+    assert bar.f == empty(address)
     """
 
     c = get_contract_with_gas_estimation(code)
@@ -711,4 +711,4 @@ def test():
     ],
 )
 def test_invalid_types(contract, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
+    assert_compile_failed(lambda: get_contract(contract), InstantiationException)

@@ -1,6 +1,7 @@
 import pytest
 from hexbytes import HexBytes
 
+from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
 from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
 
@@ -260,6 +261,68 @@ def __default__():
     w3.eth.send_transaction({"to": caller.address, "data": sig})
 
 
+# check max_outsize=0 does same thing as not setting max_outsize.
+# compile to bytecode and compare bytecode directly.
+def test_max_outsize_0():
+    code1 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"))
+    """
+    code2 = """
+@external
+def test_raw_call(_target: address):
+    raw_call(_target, method_id("foo()"), max_outsize=0)
+    """
+    output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
+    assert output1 == output2
+
+
+# check max_outsize=0 does same thing as not setting max_outsize,
+# this time with revert_on_failure set to False
+def test_max_outsize_0_no_revert_on_failure():
+    code1 = """
+@external
+def test_raw_call(_target: address) -> bool:
+    # compile raw_call both ways, with revert_on_failure
+    a: bool = raw_call(_target, method_id("foo()"), revert_on_failure=False)
+    return a
+    """
+    # same code, but with max_outsize=0
+    code2 = """
+@external
+def test_raw_call(_target: address) -> bool:
+    a: bool = raw_call(_target, method_id("foo()"), max_outsize=0, revert_on_failure=False)
+    return a
+    """
+    output1 = compile_code(code1, output_formats=["bytecode", "bytecode_runtime"])
+    output2 = compile_code(code2, output_formats=["bytecode", "bytecode_runtime"])
+    assert output1 == output2
+
+
+# test functionality of max_outsize=0
+def test_max_outsize_0_call(get_contract):
+    target_source = """
+@external
+@payable
+def bar() -> uint256:
+    return 123
+    """
+
+    caller_source = """
+@external
+@payable
+def foo(_addr: address) -> bool:
+    success: bool = raw_call(_addr, method_id("bar()"), max_outsize=0, revert_on_failure=False)
+    return success
+    """
+
+    target = get_contract(target_source)
+    caller = get_contract(caller_source)
+    assert caller.foo(target.address) is True
+
+
 def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
     target_source = """
 baz: int128
@@ -361,6 +424,164 @@ def baz(_addr: address, should_raise: bool) -> uint256:
     assert caller.bar(target.address, False) == 2
     assert caller.baz(target.address, True) == 3
     assert caller.baz(target.address, False) == 3
+
+
+# XXX: these test_raw_call_clean_mem* tests depend on variables and
+# calling convention writing to memory. think of ways to make more
+# robust to changes to calling convention and memory layout.
+
+
+def test_raw_call_msg_data_clean_mem(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments
+    code = """
+identity: constant(address) = 0x0000000000000000000000000000000000000004
+
+@external
+def foo():
+    pass
+
+@internal
+@view
+def get_address()->address:
+    a:uint256 = 121 # 0x79
+    return identity
+@external
+def bar(f: uint256, u: uint256) -> Bytes[100]:
+    # embed an internal call in the calculation of address
+    a: Bytes[100] = raw_call(self.get_address(), msg.data, max_outsize=100)
+    return a
+    """
+
+    c = get_contract(code)
+    assert (
+        c.bar(1, 2).hex() == "ae42e951"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000002"
+    )
+
+
+def test_raw_call_clean_mem2(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments, another way
+    code = """
+buf: Bytes[100]
+
+@external
+def bar(f: uint256, g: uint256, h: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        [0x0000000000000000000000000000000000000004,][f-1],
+        msg.data,
+        max_outsize=100
+    )
+    return self.buf
+    """
+    c = get_contract(code)
+
+    assert (
+        c.bar(1, 2, 3).hex() == "9309b76e"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000002"
+        "0000000000000000000000000000000000000000000000000000000000000003"
+    )
+
+
+def test_raw_call_clean_mem3(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() arguments, and also test order of evaluation for
+    # scope_multi
+    code = """
+buf: Bytes[100]
+canary: String[32]
+
+@internal
+def bar() -> address:
+    self.canary = "bar"
+    return 0x0000000000000000000000000000000000000004
+
+@internal
+def goo() -> uint256:
+    self.canary = "goo"
+    return 0
+
+@external
+def foo() -> String[32]:
+    self.buf = raw_call(self.bar(), msg.data, value = self.goo(), max_outsize=100)
+    return self.canary
+    """
+    c = get_contract(code)
+    assert c.foo() == "goo"
+
+
+def test_raw_call_clean_mem_kwargs_value(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() kwargs
+    code = """
+buf: Bytes[100]
+
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
+
+@internal
+def _value() -> uint256:
+    x: uint256 = 1
+    return x
+
+@external
+def bar(f: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        0x0000000000000000000000000000000000000004,
+        msg.data,
+        max_outsize=100,
+        value=self._value()
+    )
+    return self.buf
+    """
+    c = get_contract(code, value=1)
+
+    assert (
+        c.bar(13).hex() == "0423a132"
+        "000000000000000000000000000000000000000000000000000000000000000d"
+    )
+
+
+def test_raw_call_clean_mem_kwargs_gas(get_contract):
+    # test msize uses clean memory and does not get overwritten by
+    # any raw_call() kwargs
+    code = """
+buf: Bytes[100]
+
+# add a dummy function to trigger memory expansion in the selector table routine
+@external
+def foo():
+    pass
+
+@internal
+def _gas() -> uint256:
+    x: uint256 = msg.gas
+    return x
+
+@external
+def bar(f: uint256) -> Bytes[100]:
+    # embed a memory modifying expression in the calculation of address
+    self.buf = raw_call(
+        0x0000000000000000000000000000000000000004,
+        msg.data,
+        max_outsize=100,
+        gas=self._gas()
+    )
+    return self.buf
+    """
+    c = get_contract(code, value=1)
+
+    assert (
+        c.bar(15).hex() == "0423a132"
+        "000000000000000000000000000000000000000000000000000000000000000f"
+    )
 
 
 uncompilable_code = [

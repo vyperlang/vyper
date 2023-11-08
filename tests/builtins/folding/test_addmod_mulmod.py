@@ -9,7 +9,7 @@ st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50, deadline=1000)
+@settings(max_examples=50)
 @given(a=st_uint256, b=st_uint256, c=st_uint256)
 @pytest.mark.parametrize("fn_name", ["uint256_addmod", "uint256_mulmod"])
 def test_modmath(get_contract, a, b, c, fn_name):

@@ -1,7 +1,6 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
 from vyper.utils import unsigned_to_signed
 
@@ -32,20 +31,14 @@ def _shr(x: uint256, y: uint256) -> uint256:
     """
 
 
-@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-def test_bitwise_opcodes(evm_version):
-    opcodes = compile_code(code, ["opcodes"], evm_version=evm_version)["opcodes"]
-    if evm_version in ("byzantium", "atlantis"):
-        assert "SHL" not in opcodes
-        assert "SHR" not in opcodes
-    else:
-        assert "SHL" in opcodes
-        assert "SHR" in opcodes
+def test_bitwise_opcodes():
+    opcodes = compile_code(code, output_formats=["opcodes"])["opcodes"]
+    assert "SHL" in opcodes
+    assert "SHR" in opcodes
 
 
-@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
-    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
+def test_test_bitwise(get_contract_with_gas_estimation):
+    c = get_contract_with_gas_estimation(code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     assert c._bitwise_and(x, y) == (x & y)
@@ -59,11 +52,7 @@ def test_test_bitwise(get_contract_with_gas_estimation, evm_version):
             assert c._shl(t, s) == (t << s) % (2**256)
 
 
-POST_BYZANTIUM = [k for (k, v) in EVM_VERSIONS.items() if v > 0]
-
-
-@pytest.mark.parametrize("evm_version", POST_BYZANTIUM)
-def test_signed_shift(get_contract_with_gas_estimation, evm_version):
+def test_signed_shift(get_contract_with_gas_estimation):
     code = """
 @external
 def _sar(x: int256, y: uint256) -> int256:
@@ -73,7 +62,7 @@ def _sar(x: int256, y: uint256) -> int256:
 def _shl(x: int256, y: uint256) -> int256:
     return x << y
     """
-    c = get_contract_with_gas_estimation(code, evm_version=evm_version)
+    c = get_contract_with_gas_estimation(code)
     x = 126416208461208640982146408124
     y = 7128468721412412459
     cases = [x, y, -x, -y]
@@ -104,8 +93,7 @@ def baz(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
     assert tuple(c.baz(1, 6, 14)) == (1 + 8 | ~6 & 14 * 2, (1 + 8 | ~6) & 14 * 2) == (25, 24)
 
 
-@pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
-def test_literals(get_contract, evm_version):
+def test_literals(get_contract):
     code = """
 @external
 def _shr(x: uint256) -> uint256:
@@ -116,7 +104,7 @@ def _shl(x: uint256) -> uint256:
     return x << 3
     """
 
-    c = get_contract(code, evm_version=evm_version)
+    c = get_contract(code)
     assert c._shr(80) == 10
     assert c._shl(80) == 640
 

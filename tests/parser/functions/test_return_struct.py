@@ -17,7 +17,7 @@ def test() -> Voter:
     return a
     """
 
-    out = compile_code(code, ["abi"])
+    out = compile_code(code, output_formats=["abi"])
     abi = out["abi"][0]
 
     assert abi["name"] == "test"
@@ -38,7 +38,7 @@ def test() -> Voter:
     return a
     """
 
-    out = compile_code(code, ["abi"])
+    out = compile_code(code, output_formats=["abi"])
     abi = out["abi"][0]
 
     assert abi["name"] == "test"

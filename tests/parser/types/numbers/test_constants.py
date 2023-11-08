@@ -12,12 +12,12 @@ def test_builtin_constants(get_contract_with_gas_estimation):
     code = """
 @external
 def test_zaddress(a: address) -> bool:
-    return a == ZERO_ADDRESS
+    return a == empty(address)
 
 
 @external
 def test_empty_bytes32(a: bytes32) -> bool:
-    return a == EMPTY_BYTES32
+    return a == empty(bytes32)
 
 
 @external
@@ -81,12 +81,12 @@ def goo() -> int128:
 
 @external
 def hoo() -> bytes32:
-    bar: bytes32 = EMPTY_BYTES32
+    bar: bytes32 = empty(bytes32)
     return bar
 
 @external
 def joo() -> address:
-    bar: address = ZERO_ADDRESS
+    bar: address = empty(address)
     return bar
 
 @external
@@ -206,7 +206,7 @@ def test() -> uint256:
     return ret
     """
 
-    ir = compile_code(code, ["ir"])["ir"]
+    ir = compile_code(code, output_formats=["ir"])["ir"]
     assert search_for_sublist(
         ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
     )

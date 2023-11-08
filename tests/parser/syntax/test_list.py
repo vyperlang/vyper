@@ -302,6 +302,13 @@ b: decimal[5]
 def foo():
     self.b[0] = 7.0
     """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    for i in [[], []]:
+        x = i
+    """,
 ]
 
 

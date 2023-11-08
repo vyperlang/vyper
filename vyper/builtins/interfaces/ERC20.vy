@@ -1,4 +1,3 @@
-interface_code = """
 # Events
 event Transfer:
     _from: indexed(address)
@@ -37,4 +36,3 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
 @external
 def approve(_spender: address, _value: uint256) -> bool:
     pass
-"""

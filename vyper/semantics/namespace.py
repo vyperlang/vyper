@@ -1,12 +1,7 @@
 import contextlib
-import re
 
-from vyper.exceptions import (
-    CompilerPanic,
-    NamespaceCollision,
-    StructureException,
-    UndeclaredDefinition,
-)
+from vyper.ast.identifiers import validate_identifier
+from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -20,9 +15,13 @@ class Namespace(dict):
         List of sets containing the key names for each scope
     """
 
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls, *args, **kwargs)
+        self._scopes = []
+        return self
+
     def __init__(self):
         super().__init__()
-        self._scopes = []
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
@@ -117,74 +116,3 @@ def override_global_namespace(ns):
     finally:
         # unclobber
         _namespace = tmp
-
-
-def validate_identifier(attr):
-    if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
-        raise StructureException(f"'{attr}' contains invalid character(s)")
-    if attr.lower() in RESERVED_KEYWORDS:
-        raise StructureException(f"'{attr}' is a reserved keyword")
-
-
-# Cannot be used for variable or member naming
-RESERVED_KEYWORDS = {
-    # decorators
-    "public",
-    "external",
-    "nonpayable",
-    "constant",
-    "immutable",
-    "internal",
-    "payable",
-    "nonreentrant",
-    # "class" keywords
-    "interface",
-    "struct",
-    "event",
-    "enum",
-    # EVM operations
-    "unreachable",
-    # special functions (no name mangling)
-    "init",
-    "_init_",
-    "___init___",
-    "____init____",
-    "default",
-    "_default_",
-    "___default___",
-    "____default____",
-    # boolean literals
-    "true",
-    "false",
-    # more control flow and special operations
-    "this",
-    "range",
-    # None sentinal value
-    "none",
-    # more special operations
-    "indexed",
-    # denominations
-    "ether",
-    "wei",
-    "finney",
-    "szabo",
-    "shannon",
-    "lovelace",
-    "ada",
-    "babbage",
-    "gwei",
-    "kwei",
-    "mwei",
-    "twei",
-    "pwei",
-    # sentinal constant values
-    # TODO remove when these are removed from the language
-    "zero_address",
-    "empty_bytes32",
-    "max_int128",
-    "min_int128",
-    "max_decimal",
-    "min_decimal",
-    "max_uint256",
-    "zero_wei",
-}

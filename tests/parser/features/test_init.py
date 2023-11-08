@@ -15,7 +15,7 @@ def __init__(a: uint256):
     assert c.val() == 123
 
     # Make sure the init code does not access calldata
-    assembly = vyper.compile_code(code, ["asm"])["asm"].split(" ")
+    assembly = vyper.compile_code(code, output_formats=["asm"])["asm"].split(" ")
     ir_return_idx_start = assembly.index("{")
     ir_return_idx_end = assembly.index("}")
 
@@ -53,3 +53,29 @@ def baz() -> uint8:
 
     n = 256
     assert_compile_failed(lambda: get_contract(code, n))
+
+
+# GH issue 3206
+def test_nested_internal_call_from_ctor(get_contract):
+    code = """
+x: uint256
+
+@external
+def __init__():
+    self.a()
+
+@internal
+def a():
+    self.x += 1
+    self.b()
+
+@internal
+def b():
+    self.x += 2
+
+@external
+def test() -> uint256:
+    return self.x
+    """
+    c = get_contract(code)
+    assert c.test() == 3

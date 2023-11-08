@@ -74,7 +74,7 @@ def process_inputs(wrapped_fn):
     return decorator_fn
 
 
-class BuiltinFunction:
+class BuiltinFunction(VyperType):
     _has_varargs = False
     _kwargs: Dict[str, KwargSettings] = {}
 

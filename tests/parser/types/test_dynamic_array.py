@@ -1543,7 +1543,7 @@ def bar(x: int128) -> DynArray[int128, 3]:
     assert c.bar(7) == [7, 14]
 
 
-def test_nested_struct_of_lists(get_contract, assert_compile_failed, no_optimize):
+def test_nested_struct_of_lists(get_contract, assert_compile_failed, optimize):
     code = """
 struct nestedFoo:
     a1: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1584,14 +1584,9 @@ def bar2() -> uint256:
         newFoo.b1[1][0][0].a1[0][1][1] + \\
         newFoo.b1[0][1][0].a1[0][0][0]
     """
-
-    if no_optimize:
-        # fails at assembly stage with too many stack variables
-        assert_compile_failed(lambda: get_contract(code), Exception)
-    else:
-        c = get_contract(code)
-        assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
-        assert c.bar2() == 0
+    c = get_contract(code)
+    assert c.bar() == [[[3, 7], [7, 3]], [[7, 3], [0, 0]]]
+    assert c.bar2() == 0
 
 
 def test_tuple_of_lists(get_contract):
@@ -1748,3 +1743,95 @@ def foo(i: uint256) -> {return_type}:
     return MY_CONSTANT[i]
     """
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+
+
+dynarray_length_no_clobber_cases = [
+    # GHSA-3p37-3636-q8wv cases
+    """
+a: DynArray[uint256,3]
+
+@external
+def should_revert() -> DynArray[uint256,3]:
+    self.a = [1,2,3]
+    self.a = empty(DynArray[uint256,3])
+    self.a = [self.a[0], self.a[1], self.a[2]]
+
+    return self.a  # if bug: returns [1,2,3]
+    """,
+    """
+@external
+def should_revert() -> DynArray[uint256,3]:
+    self.a()
+    return self.b() # if bug: returns [1,2,3]
+
+@internal
+def a():
+    a: uint256 = 0
+    b: uint256 = 1
+    c: uint256 = 2
+    d: uint256 = 3
+
+@internal
+def b() -> DynArray[uint256,3]:
+    a: DynArray[uint256,3] = empty(DynArray[uint256,3])
+    a = [a[0],a[1],a[2]]
+    return a
+    """,
+    """
+a: DynArray[uint256,4]
+
+@external
+def should_revert() -> DynArray[uint256,4]:
+    self.a = [1,2,3]
+    self.a = empty(DynArray[uint256,4])
+    self.a = [4, self.a[0]]
+
+    return self.a  # if bug: return [4, 4]
+    """,
+    """
+@external
+def should_revert() -> DynArray[uint256,4]:
+    a: DynArray[uint256, 4] = [1,2,3]
+    a = []
+
+    a = [a.pop()]  # if bug: return [1]
+
+    return a
+    """,
+    """
+@external
+def should_revert():
+    c: DynArray[uint256, 1] = []
+    c.append(c[0])
+    """,
+    """
+@external
+def should_revert():
+    c: DynArray[uint256, 1] = [1]
+    c[0] = c.pop()
+    """,
+    """
+@external
+def should_revert():
+    c: DynArray[DynArray[uint256, 1], 2] = [[]]
+    c[0] = c.pop()
+    """,
+    """
+a: DynArray[String[65],2]
+
+@external
+def should_revert() -> DynArray[String[65], 2]:
+    self.a = ["hello", "world"]
+    self.a = []
+    self.a = [self.a[0], self.a[1]]
+
+    return self.a  # if bug: return ["hello", "world"]
+    """,
+]
+
+
+@pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
+def test_dynarray_length_no_clobber(get_contract, assert_tx_failed, code):
+    # check that length is not clobbered before dynarray data copy happens
+    c = get_contract(code)
+    assert_tx_failed(lambda: c.should_revert())

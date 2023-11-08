@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    InterfaceViolation,
     InvalidReference,
     InvalidType,
     StructureException,
@@ -46,7 +47,7 @@ from vyper.interfaces import ERC20
 
 @external
 def test():
-    a: address(ERC20) = ZERO_ADDRESS
+    a: address(ERC20) = empty(address)
     """,
         InvalidType,
     ),
@@ -105,6 +106,109 @@ struct Foo:
 implements: Foo
     """,
         StructureException,
+    ),
+    (
+        """
+from vyper.interfaces import ERC20
+
+interface A:
+    def f(): view
+
+@internal
+def foo():
+    a: ERC20 = A(empty(address))
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+interface A:
+    def f(a: uint256): view
+
+implements: A
+
+@external
+@nonpayable
+def f(a: uint256): # visibility is nonpayable instead of view
+    pass
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # `receiver` of `Transfer` event should be indexed
+        """
+from vyper.interfaces import ERC20
+
+implements: ERC20
+
+event Transfer:
+    sender: indexed(address)
+    receiver: address
+    value: uint256
+
+event Approval:
+    owner: indexed(address)
+    spender: indexed(address)
+    value: uint256
+
+name: public(String[32])
+symbol: public(String[32])
+decimals: public(uint8)
+balanceOf: public(HashMap[address, uint256])
+allowance: public(HashMap[address, HashMap[address, uint256]])
+totalSupply: public(uint256)
+
+@external
+def transfer(_to : address, _value : uint256) -> bool:
+    return True
+
+@external
+def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    return True
+
+@external
+def approve(_spender : address, _value : uint256) -> bool:
+    return True
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # `value` of `Transfer` event should not be indexed
+        """
+from vyper.interfaces import ERC20
+
+implements: ERC20
+
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: indexed(uint256)
+
+event Approval:
+    owner: indexed(address)
+    spender: indexed(address)
+    value: uint256
+
+name: public(String[32])
+symbol: public(String[32])
+decimals: public(uint8)
+balanceOf: public(HashMap[address, uint256])
+allowance: public(HashMap[address, HashMap[address, uint256]])
+totalSupply: public(uint256)
+
+@external
+def transfer(_to : address, _value : uint256) -> bool:
+    return True
+
+@external
+def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    return True
+
+@external
+def approve(_spender : address, _value : uint256) -> bool:
+    return True
+    """,
+        InterfaceViolation,
     ),
 ]
 
@@ -202,7 +306,7 @@ idx: uint256
 
 @external
 def __init__():
-    self.my_interface[self.idx] = MyInterface(ZERO_ADDRESS)
+    self.my_interface[self.idx] = MyInterface(empty(address))
     """,
     """
 interface MyInterface:
@@ -248,6 +352,20 @@ foo: public(immutable(uint256))
 def __init__(x: uint256):
     foo = x
     """,
+    # no namespace collision of interface after storage variable
+    """
+a: constant(uint256) = 1
+
+interface A:
+    def f(a: uint128): view
+    """,
+    # no namespace collision of storage variable after interface
+    """
+interface A:
+    def f(a: uint256): view
+
+a: constant(uint128) = 1
+    """,
 ]
 
 
@@ -256,7 +374,7 @@ def test_interfaces_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
 
-def test_imports_and_implements_within_interface():
+def test_imports_and_implements_within_interface(make_input_bundle):
     interface_code = """
 from vyper.interfaces import ERC20
 import foo.bar as Baz
@@ -268,6 +386,8 @@ def foobar():
     pass
 """
 
+    input_bundle = make_input_bundle({"foo.vy": interface_code})
+
     code = """
 import foo as Foo
 
@@ -278,9 +398,4 @@ def foobar():
     pass
 """
 
-    assert (
-        compiler.compile_code(
-            code, interface_codes={"Foo": {"type": "vyper", "code": interface_code}}
-        )
-        is not None
-    )
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None

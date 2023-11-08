@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
@@ -23,7 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode
+from vyper.utils import checksum_encode, int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -179,24 +180,30 @@ class _ExprAnalyser:
         raise StructureException("Cannot determine type of this object", node)
 
     def types_from_Attribute(self, node):
+        is_self_reference = node.get("value.id") == "self"
         # variable attribute, e.g. `foo.bar`
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
+
+        def _raise_invalid_reference(name, node):
+            raise InvalidReference(
+                f"'{name}' is not a storage variable, it should not be prepended with self", node
+            )
+
         try:
             s = t.get_member(name, node)
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
+            if is_self_reference and (s.is_constant or s.is_immutable):
+                _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
         except UnknownAttribute:
-            if node.get("value.id") != "self":
+            if not is_self_reference:
                 raise
             if name in self.namespace:
-                raise InvalidReference(
-                    f"'{name}' is not a storage variable, it should not be prepended with self",
-                    node,
-                ) from None
+                _raise_invalid_reference(name, node)
 
             suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(
@@ -219,8 +226,6 @@ class _ExprAnalyser:
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
-            # CMC 2022-07-20 this seems like unreachable code -
-            # should be handled in evaluate()
             raise ZeroDivisionException(f"{node.op.description} by zero", node)
 
         return _validate_op(node, types_list, "validate_numeric_op")
@@ -307,12 +312,28 @@ class _ExprAnalyser:
     def types_from_List(self, node):
         # literal array
         if _is_empty_list(node):
-            # empty list literal `[]`
-            # subtype can be anything
-            types_list = types.PRIMITIVE_TYPES
-            # 1 is minimum possible length for dynarray, assignable to anything
-            ret = [DArrayT(t, 1) for t in types_list.values()]
+            ret = []
+
+            if len(node.elements) > 0:
+                # empty nested list literals `[[], []]`
+                subtypes = self.get_possible_types_from_node(node.elements[0])
+            else:
+                # empty list literal `[]`
+                # subtype can be anything
+                subtypes = types.PRIMITIVE_TYPES.values()
+
+            for t in subtypes:
+                # 1 is minimum possible length for dynarray,
+                # can be assigned to anything
+                if isinstance(t, VyperType):
+                    ret.append(DArrayT(t, 1))
+                elif isinstance(t, type) and issubclass(t, VyperType):
+                    # for typeclasses like bytestrings, use a generic type acceptor
+                    ret.append(DArrayT(t.any(), 1))
+                else:
+                    raise CompilerPanic("busted type {t}", node)
             return ret
+
         types_list = get_common_types(*node.elements)
 
         if len(types_list) > 0:
@@ -326,7 +347,11 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
-        if name not in self.namespace and name in self.namespace["self"].typ.members:
+        if (
+            name not in self.namespace
+            and "self" in self.namespace
+            and name in self.namespace["self"].typ.members
+        ):
             raise InvalidReference(
                 f"'{name}' is a storage variable, access it as self.{name}", node
             )
@@ -364,6 +389,17 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
+
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        return types_list
 
 
 def _is_empty_list(node):
@@ -570,8 +606,13 @@ def validate_unique_method_ids(functions: List) -> None:
     seen = set()
     for method_id in method_ids:
         if method_id in seen:
-            collision_str = ", ".join(i.name for i in functions if method_id in i.method_ids)
-            raise StructureException(f"Methods have conflicting IDs: {collision_str}")
+            collision_str = ", ".join(
+                x for i in functions for x in i.method_ids.keys() if i.method_ids[x] == method_id
+            )
+            collision_hex = int_to_fourbytes(method_id).hex()
+            raise StructureException(
+                f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}"
+            )
         seen.add(method_id)
 
 
