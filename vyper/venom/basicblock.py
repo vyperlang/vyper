@@ -159,7 +159,7 @@ class IRInstruction:
 
     def get_non_label_operands(self) -> list[IRValueBase]:
         """
-        Get all input operands in instruction.
+        Get input operands for instruction which are not labels
         """
         return [op for op in self.operands if not isinstance(op, IRLabel)]
 
@@ -170,6 +170,11 @@ class IRInstruction:
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
     def get_outputs(self) -> list[IRVariable]:
+        """
+        Get the output item for an instruction.
+        (Currently all instructions output at most one item, but write
+        it as a list to be generic for the future)
+        """
         return [self.output] if self.output else []
 
     def replace_operands(self, replacements: dict) -> None:
