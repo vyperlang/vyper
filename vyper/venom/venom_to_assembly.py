@@ -218,28 +218,33 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
+        # assembly entry point into the block
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
 
-        # values to pop from stack
-        in_vars = OrderedSet()
-        for in_bb in basicblock.cfg_in:
-            in_vars |= in_bb.out_vars.difference(basicblock.in_vars_from(in_bb))
-
-        for var in in_vars:
-            depth = stack.get_depth(IRValueBase(var.value))
-            if depth is StackModel.NOT_IN_STACK:
-                continue
-
-            if depth != 0:
-                stack.swap(depth)
-            self.pop(asm, stack)
+        self.clean_stack_from_cfg_in()
 
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
         for bb in basicblock.cfg_out:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+
+    # pop values from stack at entry to bb
+    def clean_stack_from_cfg_in(self):
+        in_vars = OrderedSet()
+        for in_bb in basicblock.cfg_in:
+            in_vars |= in_bb.out_vars.difference(basicblock.in_vars_from(in_bb))
+
+        for var in in_vars:
+            depth = stack.get_depth(IRValueBase(var.value))
+            # don't pop phantom phi inputs
+            if depth is StackModel.NOT_IN_STACK:
+                continue
+
+            if depth != 0:
+                stack.swap(depth)
+            self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
         self, assembly: list, inst: IRInstruction, stack: StackModel
