@@ -21,8 +21,8 @@ from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
-# Import the base_conftest fixtures
-pytest_plugins = ["tests.base_conftest", "tests.fixtures.memorymock"]
+# Import the base fixtures
+pytest_plugins = ["tests.fixtures.memorymock"]
 
 ############
 # PATCHING #
