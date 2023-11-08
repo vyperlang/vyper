@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -143,6 +143,17 @@ class CodeOffset(DataPosition):
 
     def __repr__(self):
         return f"<CodeOffset: {self.offset}>"
+
+
+# base class for things that are the "result" of analysis
+class AnalysisResult:
+    pass
+
+
+@dataclass
+class ModuleInfo(AnalysisResult):
+    module: Any  # ModuleT, but importing that creates an import cycle
+    decl_node: vy_ast.VyperNode
 
 
 @dataclass

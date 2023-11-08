@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, VarInfo, ModuleInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -66,8 +66,8 @@ class _ExprAnalyser:
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
-            varinfo = self.namespace[node.id]
-            return ExprInfo.from_varinfo(varinfo)
+            info = self.namespace[node.id]
+            return ExprInfo.from_varinfo(info)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
@@ -363,7 +363,14 @@ class _ExprAnalyser:
                 # attribute conditions, like Enum.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
-            return [t.typ]
+            if isinstance(t, ModuleInfo):
+                return [t.module]
+
+            if isinstance(t, (VarInfo, ExprInfo)):
+                return [t.typ]
+
+            raise CompilerPanic("unreachable")  # pragma: nocover
+
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

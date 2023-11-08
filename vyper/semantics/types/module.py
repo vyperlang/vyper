@@ -19,12 +19,7 @@ class ModuleT(VyperType):
         for f in self.functions:
             members[f.name] = f._metadata["type"]
 
-        # use a VyperType for convenient access to the `get_member` function
-        # also conveniently checks well-formedness of the members namespace
-        self._helper = VyperType(members)
-
-        # set the name for exception handling in `get_member`
-        self._helper._id = module.name
+        super().__init__(members)
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)

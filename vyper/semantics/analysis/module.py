@@ -1,5 +1,6 @@
 import os
 from pathlib import Path, PurePath
+from typing import Any
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -17,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import VarInfo, ModuleInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     check_constant,
@@ -327,16 +328,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        type_ = self._load_import(level, qualified_module_name)
+        type_ = self._load_import(node, level, qualified_module_name)
 
         try:
             self.namespace[alias] = type_
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
-    # load an InterfaceT from an import.
+    # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, level: int, module_str: str) -> InterfaceT:
+    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str) -> Any:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -352,7 +353,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             with override_global_namespace(Namespace()):
                 validate_semantics(module_ast, self.input_bundle)
-                return ModuleT(module_ast)
+                module_t = ModuleT(module_ast)
+
+                return ModuleInfo(module_t, decl_node=node)
 
         except FileNotFoundError:
             pass
