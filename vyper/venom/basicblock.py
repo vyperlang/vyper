@@ -144,7 +144,9 @@ class IRInstruction:
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
-        self.output = output if isinstance(output, IRValueBase) else IRValueBase(output) if output else None
+        self.output = (
+            output if isinstance(output, IRValueBase) else IRValueBase(output) if output else None
+        )
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
