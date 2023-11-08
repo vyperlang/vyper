@@ -222,7 +222,7 @@ class VenomCompiler:
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
 
-        self.clean_stack_from_cfg_in()
+        self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
@@ -231,7 +231,7 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
     # pop values from stack at entry to bb
-    def clean_stack_from_cfg_in(self):
+    def clean_stack_from_cfg_in(self, asm: list, basicblock: IRBasicBlock, stack: StackModel):
         in_vars = OrderedSet()
         for in_bb in basicblock.cfg_in:
             in_vars |= in_bb.out_vars.difference(basicblock.in_vars_from(in_bb))
