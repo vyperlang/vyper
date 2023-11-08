@@ -81,13 +81,13 @@ class _BytestringT(VyperType):
         if not super().compare_type(other):
             return False
 
-        if self._length and other._length:
-            # when comparing two literals, invert the comparison so that the
-            # larger type is derived during annotation of the smaller type for widening
-            if self._is_literal and other._is_literal:
-                return self._length <= other._length
+        # when comparing two literals, invert the comparison so that the
+        # larger type is derived during annotation of the smaller type for widening
+        if self._is_literal and other._is_literal:
+            return self._length <= other._length
 
-            # otherwise, ensure the current length fits within the other
+        # if both are non-literals, ensure the current length fits within the other
+        if self._length and other._length:
             return self._length >= other._length
 
         # relax typechecking if length has not been set for other type
@@ -95,7 +95,7 @@ class _BytestringT(VyperType):
         if self._length:
             return True
 
-        return other.compare_type(self)
+        # return other.compare_type(self)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
