@@ -1,3 +1,4 @@
+import copy
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -642,6 +643,15 @@ class _ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
+            # if the function call is an expression (if it is a statement,
+            # the function type is passed down), and its return type consists
+            # of at least one bytestring (which is initialized as zero-length
+            # in `type_from_abi`), overwrite the return type with a concrete type.
+            if not isinstance(typ, ContractFunctionT) and call_type.returns_abi_bytestring:
+                call_type_copy = copy.copy(call_type)
+                call_type_copy.return_type = typ
+                self.visit(node.func, call_type_copy)
+
             # function calls
             if call_type.is_internal:
                 self.func.called_functions.add(call_type)

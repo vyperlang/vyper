@@ -81,18 +81,21 @@ class _BytestringT(VyperType):
         if not super().compare_type(other):
             return False
 
-        # when comparing two literals, invert the comparison so that the
-        # larger type is derived during annotation of the smaller type for widening
-        if self._is_literal and other._is_literal:
-            return self._length <= other._length
-
-        # if both are non-literals, ensure the current length fits within the other
-        if self._length and other._length:
+        # when comparing two literals, or two bytestrings of non-zero lengths,
+        # ensure the current length fits within the other
+        if (self._is_literal and other._is_literal) or (self._length and other._length):
             return self._length >= other._length
 
         # relax typechecking if length has not been set for other type
-        # (e.g. JSON ABI import) so that it can be updated in annotation phase
+        # (e.g. JSON ABI import, `address.code`) so that it can be updated in
+        # annotation phase
         if self._length:
+            return True
+
+        # if both are non-literals and zero length, then the bytestring length
+        # cannot be derived and it is likely to be a syntax error, so we defer
+        # the syntax error to be handled downstream for better error messages
+        if self._length == other._length == 0:
             return True
 
         return other.compare_type(self)

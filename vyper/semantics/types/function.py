@@ -20,6 +20,7 @@ from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, S
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -81,6 +82,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
+        returns_abi_bytestring: Optional[bool] = False,
     ) -> None:
         super().__init__()
 
@@ -91,6 +93,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.returns_abi_bytestring = returns_abi_bytestring
 
         # a list of internal functions this function calls
         self.called_functions = OrderedSet()
@@ -139,14 +142,19 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
+        returns_abi_bytestring = False
         positional_args = []
         for item in abi["inputs"]:
             positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
+            if isinstance(return_type, _BytestringT):
+                returns_abi_bytestring = True
         elif len(abi["outputs"]) > 1:
             return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
+            if any([i for i in return_type.member_types if isinstance(i, _BytestringT)]):
+                returns_abi_bytestring = True
         return cls(
             abi["name"],
             positional_args,
@@ -154,6 +162,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
+            returns_abi_bytestring=returns_abi_bytestring,
         )
 
     @classmethod

@@ -416,7 +416,7 @@ def _is_empty_list(node):
 
 def _is_type_in_list(obj, types_list):
     # check if a type object is in a list of types
-    return any(i.compare_type(obj) for i in types_list)
+    return any(obj.compare_type(i) for i in types_list)
 
 
 # NOTE: dead fn
