@@ -673,9 +673,11 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     if isinstance(node, vy_ast.Attribute):
         print("check_constant - attribute")
         return check_constant(node.value)
+
+    # TODO: is this necessary?
     if isinstance(node, vy_ast.Name):
         ns = get_namespace()
-        varinfo = self.namespace.get(node.id)
+        varinfo = ns.get(node.id)
         if varinfo is None:
             return False
         
