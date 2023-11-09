@@ -8,6 +8,7 @@ from socketserver import ThreadingMixIn
 
 import vyper
 from vyper.codegen import ir_node
+from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION
 from vyper.exceptions import VyperException
 
@@ -91,10 +92,9 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
         try:
             code = data["code"]
+            settings = Settings(evm_version=data.get("evm_version", DEFAULT_EVM_VERSION))
             out_dict = vyper.compile_code(
-                code,
-                list(vyper.compiler.OUTPUT_FORMATS.keys()),
-                evm_version=data.get("evm_version", DEFAULT_EVM_VERSION),
+                code, output_formats=list(vyper.compiler.OUTPUT_FORMATS.keys()), settings=settings
             )
             out_dict["ir"] = str(out_dict["ir"])
             out_dict["ir_runtime"] = str(out_dict["ir_runtime"])
