@@ -1,3 +1,4 @@
+# TODO: check, this is probably redundant with examples/test_crowdfund.py
 def test_crowdfund(w3, tester, get_contract_with_gas_estimation_for_constants):
     crowdfund = """
 
