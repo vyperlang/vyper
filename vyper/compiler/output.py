@@ -162,7 +162,7 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.vyper_module_folded._metadata["type"]
-    abi = module_t.interface_t.to_toplevel_abi_dict()
+    abi = module_t.interface.to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)

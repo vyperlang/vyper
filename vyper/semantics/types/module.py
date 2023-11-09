@@ -32,7 +32,8 @@ class ModuleT(VyperType):
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
 
-    @cached_property
+    # this is a property, because the function set changes after AST expansion
+    @property
     def functions(self):
         return self._module.get_children(vy_ast.FunctionDef)
 
@@ -43,7 +44,7 @@ class ModuleT(VyperType):
         variable_decls = self._module.get_children(vy_ast.VariableDecl)
         return {s.target.id: s.target._metadata["varinfo"] for s in variable_decls}
 
-    @property
+    @cached_property
     def immutables(self):
         return [t for t in self.variables.values() if t.is_immutable]
 

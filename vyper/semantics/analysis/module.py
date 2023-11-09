@@ -115,8 +115,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
-        module_t = ModuleT(self.ast)
-        self.ast._metadata["type"] = module_t
+        self.module_t = ModuleT(self.ast)
+        self.ast._metadata["type"] = self.module_t
 
         # attach namespace to the module for downstream use.
         _ns = Namespace()
@@ -129,7 +129,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def analyze_call_graph(self):
         # get list of internal function calls made by each function
-        function_defs = self.ast.get_descendants(vy_ast.FunctionDef)
+        function_defs = self.module_t.functions
 
         for func in function_defs:
             fn_t = func._metadata["type"]
