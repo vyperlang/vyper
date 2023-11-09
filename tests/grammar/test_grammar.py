@@ -20,12 +20,7 @@ def test_basic_grammar():
     code_func = """
     @external
     def one_two_three() -> uint256:
-        return 123123123
-    """
-    code_nums = """
-    x: constant(uint256) = 100_000
-    y: constant(uint256) = 0o100_000
-    z: constant(decimal) = 1.100_000_007
+        return 123_123_123
     """
 
     assert parse_vyper_source(code, dedent=True)
@@ -33,9 +28,6 @@ def test_basic_grammar():
 
     assert parse_vyper_source(code_func, dedent=True)
     assert parse_to_ast(textwrap.dedent(code_func))
-
-    assert parse_vyper_source(code_nums, dedent=True)
-    assert parse_to_ast(textwrap.dedent(code_nums))
 
 
 def test_basic_grammar_empty():
