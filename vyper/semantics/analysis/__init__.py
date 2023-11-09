@@ -15,5 +15,6 @@ def validate_semantics(vyper_ast, input_bundle):
     with namespace.enter_scope():
         pre_typecheck(vyper_ast)
         add_module_namespace(vyper_ast, input_bundle)
-        vy_ast.expansion.expand_annotated_ast(vyper_ast)
+        vy_ast.expansion.generate_public_variable_getters(vyper_ast)
         validate_functions(vyper_ast)
+        vy_ast.expansion.remove_unused_statements(vyper_ast)
