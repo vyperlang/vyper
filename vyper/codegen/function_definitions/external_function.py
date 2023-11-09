@@ -1,3 +1,4 @@
+from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
@@ -50,7 +51,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
 
 
 def _generate_kwarg_handlers(
-    func_t: ContractFunctionT, context: Context
+    func_t: ContractFunctionT, context: Context, code: vy_ast.FunctionDef
 ) -> dict[str, tuple[int, IRnode]]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
@@ -62,7 +63,7 @@ def _generate_kwarg_handlers(
     #    write default args to memory
     #    goto external_function_common_ir
 
-    def handler_for(calldata_kwargs, default_kwargs):
+    def handler_for(calldata_kwargs, folded_default_kwargs, original_default_kwargs):
         calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
@@ -81,7 +82,7 @@ def _generate_kwarg_handlers(
         calldata_min_size = args_abi_t.min_size() + 4
 
         # TODO optimize make_setter by using
-        # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
+        # TupleT(list(arg.typ for arg in calldata_kwargs + folded_default_kwargs))
         # (must ensure memory area is contiguous)
 
         for i, arg_meta in enumerate(calldata_kwargs):
@@ -97,15 +98,15 @@ def _generate_kwarg_handlers(
             copy_arg.source_pos = getpos(arg_meta.ast_source)
             ret.append(copy_arg)
 
-        for x in default_kwargs:
+        for x, y in zip(original_default_kwargs, folded_default_kwargs):
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
-            lhs.source_pos = getpos(x.ast_source)
-            kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
+            lhs.source_pos = getpos(y)
+            kw_ast_val = y
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(x.ast_source)
+            copy_arg.source_pos = getpos(y)
             ret.append(copy_arg)
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
@@ -116,6 +117,7 @@ def _generate_kwarg_handlers(
     ret = {}
 
     keyword_args = func_t.keyword_args
+    folded_keyword_args = code.args.defaults
 
     # allocate variable slots in memory
     for arg in keyword_args:
@@ -123,12 +125,15 @@ def _generate_kwarg_handlers(
 
     for i, _ in enumerate(keyword_args):
         calldata_kwargs = keyword_args[:i]
-        default_kwargs = keyword_args[i:]
+        # folded ast
+        original_default_kwargs = keyword_args[i:]
+        # unfolded ast
+        folded_default_kwargs = folded_keyword_args[1:]
 
-        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs)
+        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, folded_default_kwargs, original_default_kwargs)
         ret[sig] = calldata_min_size, ir_node
 
-    sig, calldata_min_size, ir_node = handler_for(keyword_args, [])
+    sig, calldata_min_size, ir_node = handler_for(keyword_args, [], [])
 
     ret[sig] = calldata_min_size, ir_node
 
@@ -153,7 +158,7 @@ def generate_ir_for_external_function(code, func_t, context):
     handle_base_args = _register_function_args(func_t, context)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(func_t, context)
+    kwarg_handlers = _generate_kwarg_handlers(func_t, context, code)
 
     body = ["seq"]
     # once optional args have been handled,
