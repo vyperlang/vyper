@@ -82,7 +82,7 @@ class _BytestringT(VyperType):
             return False
 
         # when comparing two literals, or two bytestrings of non-zero lengths,
-        # ensure the current length fits within the other
+        # ensure that the other length fits within self
         if (self._is_literal and other._is_literal) or (self._length and other._length):
             return self._length >= other._length
 
