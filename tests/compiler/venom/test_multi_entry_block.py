@@ -2,6 +2,7 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.function import IRFunction, IRLabel, IRBasicBlock
+from vyper.venom.passes.normalization import Normalization
 
 
 def test_multi_entry_block():
@@ -20,7 +21,7 @@ def test_multi_entry_block():
     sum = ctx.append_instruction("add", [sum, op])
     op = ctx.append_instruction("store", [IRLiteral(10)])
     ctx.append_instruction("mstore", [sum, op], False)
-    ctx.append_instruction("jnz", [sum, target_label, finish_label])
+    ctx.append_instruction("jnz", [sum, finish_label, target_label], False)
 
     target_bb = IRBasicBlock(target_label, ctx)
     ctx.append_basic_block(target_bb)
@@ -30,6 +31,8 @@ def test_multi_entry_block():
     finish_label = IRBasicBlock(finish_label, ctx)
     ctx.append_basic_block(finish_label)
     ctx.append_instruction("stop", [], False)
+
+    Normalization.run_pass(ctx)
 
     asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
 
