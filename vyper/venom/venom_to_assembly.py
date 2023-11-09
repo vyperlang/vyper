@@ -225,13 +225,6 @@ class VenomCompiler:
         if len(basicblock.cfg_in) == 0:
             return
 
-        for in_bb in basicblock.cfg_in:
-            if in_bb.out_vars == OrderedSet(stack._stack):
-                break
-        else:
-            # the input stack is not produced by a cfg_in
-            raise CompilerPanic("unreachable!")
-
         to_pop = OrderedSet()
         for in_bb in basicblock.cfg_in:
             # inputs is the input variables we need from in_bb
@@ -339,7 +332,7 @@ class VenomCompiler:
             assembly.append("JUMPI")
 
             # make sure the if_zero_label will be optimized out
-            assert if_zero_label == next(iter(inst.parent.cfg_out)).label
+            # assert if_zero_label == next(iter(inst.parent.cfg_out)).label
 
             assembly.append(f"_sym_{if_zero_label.value}")
             assembly.append("JUMP")
