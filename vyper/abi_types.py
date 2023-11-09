@@ -1,4 +1,4 @@
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import InvalidABIType
 from vyper.utils import ceil32
 
 
@@ -69,7 +69,7 @@ class ABIType:
 class ABI_GIntM(ABIType):
     def __init__(self, m_bits, signed):
         if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise CompilerPanic("Invalid M provided for GIntM")
+            raise InvalidABIType("Invalid M provided for GIntM")
 
         self.m_bits = m_bits
         self.signed = signed
@@ -117,9 +117,9 @@ class ABI_Bool(ABI_GIntM):
 class ABI_FixedMxN(ABIType):
     def __init__(self, m_bits, n_places, signed):
         if not (0 < m_bits <= 256 and 0 == m_bits % 8):
-            raise CompilerPanic("Invalid M for FixedMxN")
+            raise InvalidABIType("Invalid M for FixedMxN")
         if not (0 < n_places and n_places <= 80):
-            raise CompilerPanic("Invalid N for FixedMxN")
+            raise InvalidABIType("Invalid N for FixedMxN")
 
         self.m_bits = m_bits
         self.n_places = n_places
@@ -142,7 +142,7 @@ class ABI_FixedMxN(ABIType):
 class ABI_BytesM(ABIType):
     def __init__(self, m_bytes):
         if not 0 < m_bytes <= 32:
-            raise CompilerPanic("Invalid M for BytesM")
+            raise InvalidABIType("Invalid M for BytesM")
 
         self.m_bytes = m_bytes
 
@@ -173,7 +173,7 @@ class ABI_Function(ABI_BytesM):
 class ABI_StaticArray(ABIType):
     def __init__(self, subtyp, m_elems):
         if not m_elems >= 0:
-            raise CompilerPanic("Invalid M")
+            raise InvalidABIType("Invalid M")
 
         self.subtyp = subtyp
         self.m_elems = m_elems
@@ -200,7 +200,7 @@ class ABI_StaticArray(ABIType):
 class ABI_Bytes(ABIType):
     def __init__(self, bytes_bound):
         if not bytes_bound >= 0:
-            raise CompilerPanic("Negative bytes_bound provided to ABI_Bytes")
+            raise InvalidABIType("Negative bytes_bound provided to ABI_Bytes")
 
         self.bytes_bound = bytes_bound
 
@@ -234,7 +234,7 @@ class ABI_String(ABI_Bytes):
 class ABI_DynamicArray(ABIType):
     def __init__(self, subtyp, elems_bound):
         if not elems_bound >= 0:
-            raise CompilerPanic("Negative bound provided to DynamicArray")
+            raise InvalidABIType("Negative bound provided to DynamicArray")
 
         self.subtyp = subtyp
         self.elems_bound = elems_bound
