@@ -538,9 +538,7 @@ def test_fail2() -> Bytes[2]:
     return x
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_pass1() -> Bytes[3]:
     return self.foo.returns_Bytes3()
     """
 
@@ -558,9 +556,7 @@ def test_fail3() -> Bytes[3]:
 
     assert_tx_failed(lambda: c.test_fail1())
     assert_tx_failed(lambda: c.test_fail2())
-
-
-# assert_tx_failed(lambda: c.test_fail3())
+    assert c.test_pass1() == b"123"
 
 
 def test_units_interface(w3, get_contract, make_input_bundle):
