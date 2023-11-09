@@ -58,7 +58,7 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
     # Increase the number of approved transactions by 1
     self.seq += 1
     # Use raw_call to send the transaction
-    return raw_call(to, data, max_outsize=4096, gas=3000000, value=_value)
+    return raw_call(to, data, max_outsize=4096, gas=3_000_000, value=_value)
 
 
 @external
