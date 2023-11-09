@@ -153,7 +153,7 @@ class ContractFunctionT(VyperType):
                 returns_abi_bytestring = True
         elif len(abi["outputs"]) > 1:
             return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
-            if any([i for i in return_type.member_types if isinstance(i, _BytestringT)]):
+            if any(i for i in return_type.member_types if isinstance(i, _BytestringT)):
                 returns_abi_bytestring = True
         return cls(
             abi["name"],
