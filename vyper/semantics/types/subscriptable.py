@@ -274,11 +274,12 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
+        length = node.slice.value.elements[1]._metadata.get("folded_value")
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not isinstance(node.slice.value.elements[1], vy_ast.Int)
+            or not isinstance(length, vy_ast.Int)
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
@@ -290,7 +291,7 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", node)
 
-        max_length = node.slice.value.elements[1].value
+        max_length = length.value
         return cls(value_type, max_length)
 
 

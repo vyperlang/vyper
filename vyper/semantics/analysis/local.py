@@ -352,7 +352,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
                 # range(CONSTANT)
-                n = args[0]
+                n = args[0]._metadata.get("folded_value")
                 bound = kwargs.pop("bound", None)
                 validate_expected_type(n, IntegerT.any())
 
@@ -668,6 +668,9 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
+            if getattr(call_type, "_is_folded_before_codegen", False):
+                return
+
             # builtin functions
             arg_types = call_type.infer_arg_types(node)
             # `infer_arg_types` already calls `validate_expected_type`

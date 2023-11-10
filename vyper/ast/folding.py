@@ -49,6 +49,12 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
+        # type may not be available if it is within a type's annotation
+        # e.g. DynArray[uint256, 2 ** 8]
+        typ = node._metadata.get("type")
+        if typ:
+            new_node._metadata["type"] = node._metadata["type"]
+
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
 
@@ -149,7 +155,7 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
         type_ = node._metadata["type"]
 
         changed_nodes += replace_constant(
-            vyper_module, node.target.id, node.value, False, type_=type_
+            vyper_module, node.target.id, node.value, type_, False
         )
 
     return changed_nodes
@@ -158,18 +164,16 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
 # TODO constant folding on log events
 
 
-def _replace(old_node, new_node, type_=None):
+def _replace(old_node, new_node, type_):
     if isinstance(new_node, vy_ast.Constant):
         new_node = new_node.from_node(old_node, value=new_node.value)
-        if type_:
-            new_node._metadata["type"] = type_
+        new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
         base_type = type_.value_type if type_ else None
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
-        if type_:
-            new_node._metadata["type"] = type_
+        new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.Call):
         # Replace `Name` node with `Call` node
@@ -191,8 +195,8 @@ def replace_constant(
     vyper_module: vy_ast.Module,
     id_: str,
     replacement_node: Union[vy_ast.Constant, vy_ast.List, vy_ast.Call],
+    type_: VyperType,
     raise_on_error: bool,
-    type_: Optional[VyperType] = None,
 ) -> int:
     """
     Replace references to a variable name with a literal value.

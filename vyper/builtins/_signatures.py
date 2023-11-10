@@ -6,7 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch
-from vyper.semantics.analysis.utils import get_exact_type_from_node, validate_expected_type
+from vyper.semantics.analysis.utils import check_constant, get_exact_type_from_node, validate_expected_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -97,14 +97,14 @@ class BuiltinFunction(VyperType):
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
 
-        validate_call_args(node, expect_num_args, self._kwargs)
+        validate_call_args(node, expect_num_args, self._kwargs.keys())
 
         for arg, (_, expected) in zip(node.args, self._inputs):
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
+            if kwarg_settings.require_literal and not check_constant(kwarg.value):
                 raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 

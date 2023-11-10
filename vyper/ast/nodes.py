@@ -918,7 +918,6 @@ class UnaryOp(ExprNode):
             return
         
         value = self.op._op(operand.value)
-        print("prefolded unary val: ", value)
         return type(self.operand).from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
@@ -1135,6 +1134,14 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
+    def prefold(self) -> ExprNode:
+        values = [i._metadata.get("folded_value") for i in self.values]
+        if None in values:
+            return
+
+        value = self.op._op(values)
+        return NameConstant.from_node(self, value=value)
+
     def evaluate(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
@@ -1190,6 +1197,16 @@ class Compare(ExprNode):
         kwargs["op"] = kwargs.pop("ops")[0]
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
+
+    def prefold(self) -> ExprNode:
+        left = self.left._metadata.get("folded_value")
+        right = self.right._metadata.get("folded_value")
+
+        if None in (left, right):
+            return
+
+        value = self.op._op(left.value, right.value)
+        return NameConstant.from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """

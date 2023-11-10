@@ -620,20 +620,10 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node can be used as a default arg
     """
-    print("check kwargable")
     if _check_literal(node):
         return True
     if isinstance(node, vy_ast.Attribute):
-        res = check_kwargable(node.value)
-        print("check_constant - attribute: ", res)
-        return res
-    # if isinstance(node, vy_ast.Name):
-    #     ns = get_namespace()
-    #     varinfo = ns.get(node.id)
-    #     if varinfo is None:
-    #         return False
-        
-    #     return varinfo.is_constant
+        return check_kwargable(node.value)
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_kwargable(item) for item in node.elements)
     if isinstance(node, vy_ast.Call):
@@ -670,24 +660,16 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
     """
     if _check_literal(node):
         return True
-    if isinstance(node, vy_ast.Attribute):
-        print("check_constant - attribute")
-        return check_constant(node.value)
-
-    # TODO: is this necessary?
-    if isinstance(node, vy_ast.Name):
-        ns = get_namespace()
-        varinfo = ns.get(node.id)
-        if varinfo is None:
-            return False
-        
-        return varinfo.is_constant
 
     if isinstance(node, vy_ast.BinOp):
         return all(check_kwargable(i) for i in (node.left, node.right))
+    
+    if isinstance(node, vy_ast.BoolOp):
+        return all(check_kwargable(i) for i in node.values)
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_constant(item) for item in node.elements)
+
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):

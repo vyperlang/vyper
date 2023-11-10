@@ -111,6 +111,8 @@ class FoldedFunction(BuiltinFunction):
     # Since foldable builtin functions are not folded before semantics validation,
     # this flag is used for `check_kwargable` in semantics validation.
     _kwargable = True
+    # Skip annotation of builtins if it will be folded before codegen
+    _is_folded_before_codegen = True
 
 
 class TypenameFoldedFunction(FoldedFunction):
@@ -2260,6 +2262,9 @@ class ISqrt(BuiltinFunction):
 
 class Empty(TypenameFoldedFunction):
     _id = "empty"
+    # Since `empty` is not folded in the AST, `is_folded` is set to False
+    # so that it will be properly annotated.
+    _is_folded_before_codegen = False
 
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
