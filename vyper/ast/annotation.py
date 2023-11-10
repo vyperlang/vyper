@@ -85,8 +85,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
-        node.path = self._module_path
         node.name = self._module_name
+        node.path = self._module_path
+        node.source_id = self._source_id
         return self._visit_docstring(node)
 
     def visit_FunctionDef(self, node):

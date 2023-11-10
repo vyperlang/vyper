@@ -1,11 +1,13 @@
+import contextlib
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
+    ImportCycle,
     StateAccessViolation,
     VyperInternalException,
 )
@@ -143,6 +145,37 @@ class CodeOffset(DataPosition):
 
     def __repr__(self):
         return f"<CodeOffset: {self.offset}>"
+
+
+@dataclass
+class ImportGraph:
+    _graph: dict[vy_ast.Module, list[vy_ast.Module]] = field(default_factory=dict)
+
+    # the current path in the import graph traversal
+    _path: list[vy_ast.Module] = field(default_factory=list)
+
+    def push_path(self, module_ast: vy_ast.Module):
+        if module_ast in self._path:
+            raise ImportCycle(
+                msg=" imports ".join(f'"{t.name}" (located at {t.path})' for t in self._path)
+            )
+
+        if len(self._path) > 0:
+            parent = self._graph.setdefault(self._path[-1], [])
+            parent.append(module_ast)
+
+        self._path.append(module_ast)
+
+    def pop_path(self, expected: vy_ast.Module):
+        assert expected == self._path.pop()
+
+    @contextlib.contextmanager
+    def enter_path(self, module_ast: vy_ast.Module):
+        self.push_path(module_ast)
+        try:
+            yield
+        finally:
+            self.pop_path(module_ast)
 
 
 # base class for things that are the "result" of analysis

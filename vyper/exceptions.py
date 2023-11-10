@@ -229,6 +229,10 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
+class ImportCycle(VyperException):
+    """An import cycle"""
+
+
 class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 

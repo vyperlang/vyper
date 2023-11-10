@@ -589,7 +589,8 @@ class TopLevel(VyperNode):
 
 
 class Module(TopLevel):
-    __slots__ = ()
+    # metadata
+    __slots__ = ("path", "source_id")
 
     def replace_in_tree(self, old_node: VyperNode, new_node: VyperNode) -> None:
         """

@@ -1,3 +1,4 @@
+import contextlib
 import os
 from pathlib import Path, PurePath
 from typing import Any
@@ -18,7 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ImportGraph, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.local import validate_functions
 from vyper.semantics.analysis.utils import (
@@ -34,7 +35,13 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast: vy_ast.Module, input_bundle: InputBundle):
+def validate_semantics(module_ast, input_bundle):
+    return validate_semantics_r(module_ast, input_bundle, ImportGraph())
+
+
+def validate_semantics_r(
+    module_ast: vy_ast.Module, input_bundle: InputBundle, import_graph: ImportGraph
+):
     """
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
@@ -42,9 +49,8 @@ def validate_semantics(module_ast: vy_ast.Module, input_bundle: InputBundle):
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
 
-    with namespace.enter_scope():
-        namespace = get_namespace()
-        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace)
+    with namespace.enter_scope(), import_graph.enter_path(module_ast):
+        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph)
         analyzer.analyze()
 
         vy_ast.expansion.expand_annotated_ast(module_ast)
@@ -85,14 +91,32 @@ def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
+    # class object
+    _ast_of: dict[int, vy_ast.Module] = {}
+
     def __init__(
-        self, module_node: vy_ast.Module, input_bundle: InputBundle, namespace: Namespace
+        self,
+        module_node: vy_ast.Module,
+        input_bundle: InputBundle,
+        namespace: Namespace,
+        import_graph: ImportGraph,
     ) -> None:
         self.ast = module_node
         self.input_bundle = input_bundle
         self.namespace = namespace
+        self._import_graph = import_graph
+
+        self.module_t = None
 
     def analyze(self) -> ModuleT:
+        # generate a `ModuleT` from the top-level node
+        # note: also validates unique method ids
+        if "type" in self.ast._metadata:
+            assert isinstance(self.ast._metadata["type"], ModuleT)
+            # we don't need to analyse again, skip out
+            self.module_t = self.ast._metadata["type"]
+            return self.module_t
+
         module_nodes = self.ast.body.copy()
         while module_nodes:
             count = len(module_nodes)
@@ -113,8 +137,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(module_nodes):
                 err_list.raise_if_not_empty()
 
-        # generate a `ModuleT` from the top-level node
-        # note: also validates unique method ids
         self.module_t = ModuleT(self.ast)
         self.ast._metadata["type"] = self.module_t
 
@@ -156,6 +178,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise CallViolation(f"Contract contains cyclic function call: {message}")
 
             _compute_reachable_set(fn_t)
+
+    @classmethod
+    def _ast_from_file(cls, file: FileInput, alias: str):
+        if file.source_id not in cls._ast_of:
+            cls._ast_of[file.source_id] = vy_ast.parse_to_ast(
+                file.source_code, module_path=str(file.path), module_name=alias
+            )
+
+        return cls._ast_of[file.source_id]
 
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
@@ -355,12 +386,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             file = self.input_bundle.load_file(path_vy)
             assert isinstance(file, FileInput)  # mypy hint
 
-            # TODO share work if same file is imported
-            module_ast = vy_ast.parse_to_ast(
-                file.source_code, module_path=str(path_vy), module_name=alias
-            )
+            module_ast = self.__class__._ast_from_file(file, alias)
+
             with override_global_namespace(Namespace()):
-                validate_semantics(module_ast, self.input_bundle)
+                with tag_exceptions(node):
+                    validate_semantics_r(
+                        module_ast, self.input_bundle, import_graph=self._import_graph
+                    )
                 module_t = module_ast._metadata["type"]
 
                 return ModuleInfo(module_t, decl_node=node)
@@ -374,6 +406,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
             raise ModuleNotFoundError(module_str)
+
+
+@contextlib.contextmanager
+def tag_exceptions(node: vy_ast.VyperNode) -> Any:
+    try:
+        yield
+    except VyperException as e:
+        raise e.with_annotation(node) from None
 
 
 # convert an import to a path (without suffix)
