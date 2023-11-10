@@ -279,6 +279,8 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
+    vy_ast.expansion.remove_unused_statements(vyper_module_folded)
+
     return vyper_module_folded, symbol_tables
 
 
