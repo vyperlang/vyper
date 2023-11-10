@@ -432,3 +432,44 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()
         == result
     )
+
+
+code_comptime = [
+    (
+        """
+@external
+@view
+def baz() -> Bytes[16]:
+    return slice(0x1234567891234567891234567891234567891234567891234567891234567891, 0, 16)
+        """,
+        "12345678912345678912345678912345",
+    ),
+    (
+        """
+@external
+@view
+def baz() -> String[5]:
+    return slice("why hello! how are you?", 4, 5)
+        """,
+        "hello",
+    ),
+    (
+        """
+@external
+@view
+def baz() -> Bytes[6]:
+    return slice(b'gm sir, how are you ?', 0, 6)
+        """,
+        "gm sir".encode("utf-8").hex(),
+    ),
+]
+
+
+@pytest.mark.parametrize("code,result", code_comptime)
+def test_comptime(get_contract, code, result):
+    c = get_contract(code)
+    ret = c.baz()
+    if hasattr(ret, "hex"):
+        assert ret.hex() == result
+    else:
+        assert ret == result

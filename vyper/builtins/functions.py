@@ -294,6 +294,25 @@ class Slice(BuiltinFunction):
     ]
     _return_type = None
 
+    def evaluate(self, node):
+        (lit, st, le) = node.args[:3]
+        (st_val, le_val) = (st.value, le.value)
+        if isinstance(lit, vy_ast.Bytes):
+            sublit = lit.value[st_val : (st_val + le_val)]
+            return vy_ast.Bytes.from_node(node, value=sublit)
+        elif isinstance(lit, vy_ast.Str):
+            sublit = lit.value[st_val : (st_val + le_val)]
+            return vy_ast.Str.from_node(node, value=sublit)
+        elif isinstance(lit, vy_ast.Hex):
+            length = len(lit.value) // 2 - 1
+            if length != 32:
+                # TODO unreachable?
+                raise UnfoldableNode
+            sublit = lit.value[st_val : (2 + st_val + (le_val * 2))]
+            return vy_ast.Bytes.from_node(node, value=sublit)
+        else:
+            raise UnfoldableNode
+
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
