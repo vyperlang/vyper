@@ -483,13 +483,15 @@ def baz() -> Bytes[6]:
 def baz(val: Bytes[100]) -> Bytes[6]:
     return slice(val, 0, 6)
         """,
-        b'gm sir, how are you ?',
+        b"gm sir, how are you ?",
         "gm sir".encode("utf-8").hex(),
     ),
 ]
 
 
-@pytest.mark.parametrize("name,compcode,runcode,arg,result", code_compruntime, ids=[el[0] for el in code_compruntime])
+@pytest.mark.parametrize(
+    "name,compcode,runcode,arg,result", code_compruntime, ids=[el[0] for el in code_compruntime]
+)
 def test_comptime_runtime(get_contract, name, compcode, runcode, arg, result):
     c1 = get_contract(compcode)
     c2 = get_contract(runcode)
