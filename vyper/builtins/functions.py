@@ -310,8 +310,6 @@ class Slice(BuiltinFunction):
             if st_val + le_val > 32:
                 raise ArgumentException("Slice is out of bounds", st)
             if isinstance(lit, vy_ast.Bytes):
-                st_val *= 2
-                le_val *= 2
                 sublit = lit.value[st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=sublit)
             elif isinstance(lit, vy_ast.Str):

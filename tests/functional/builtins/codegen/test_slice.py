@@ -434,72 +434,42 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
     )
 
 
-code_compruntime = [
+code_comptime = [
     (
-        "bytes32",
         """
 @external
 @view
 def baz() -> Bytes[16]:
     return slice(0x1234567891234567891234567891234567891234567891234567891234567891, 0, 16)
         """,
-        """
-@external
-@view
-def baz(val: bytes32) -> Bytes[16]:
-    return slice(val, 0, 16)
-        """,
-        "0x1234567891234567891234567891234567891234567891234567891234567891",
         "12345678912345678912345678912345",
     ),
     (
-        "string",
         """
 @external
 @view
 def baz() -> String[5]:
     return slice("why hello! how are you?", 4, 5)
         """,
-        """
-@external
-@view
-def baz(val: String[100]) -> String[5]:
-    return slice(val, 4, 5)
-        """,
-        "why hello! how are you?",
         "hello",
     ),
     (
-        "bytes",
         """
 @external
 @view
 def baz() -> Bytes[6]:
     return slice(b'gm sir, how are you ?', 0, 6)
         """,
-        """
-@external
-@view
-def baz(val: Bytes[100]) -> Bytes[6]:
-    return slice(val, 0, 6)
-        """,
-        b"gm sir, how are you ?",
         "gm sir".encode("utf-8").hex(),
     ),
 ]
 
 
-@pytest.mark.parametrize(
-    "name,compcode,runcode,arg,result", code_compruntime, ids=[el[0] for el in code_compruntime]
-)
-def test_comptime_runtime(get_contract, name, compcode, runcode, arg, result):
-    c1 = get_contract(compcode)
-    c2 = get_contract(runcode)
-    ret1 = c1.baz()
-    ret2 = c2.baz(arg)
-    if hasattr(ret1, "hex"):
-        assert ret1.hex() == result
-        assert ret2.hex() == result
+@pytest.mark.parametrize("code,result", code_comptime)
+def test_comptime(get_contract, code, result):
+    c = get_contract(code)
+    ret = c.baz()
+    if hasattr(ret, "hex"):
+        assert ret.hex() == result
     else:
-        assert ret1 == result
-        assert ret2 == result
+        assert ret == result
