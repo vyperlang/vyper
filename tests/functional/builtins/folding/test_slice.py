@@ -9,10 +9,6 @@ from vyper.builtins import functions as vy_fn
 from vyper.exceptions import ArgumentException
 
 
-def normalize_bytes(data):
-    return bytes(int.from_bytes(data, "big"))
-
-
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(
@@ -39,7 +35,7 @@ def foo(a: bytes32) -> Bytes[{le}]:
 
     s *= 2
     le *= 2
-    assert normalize_bytes(contract.foo(a)) == new_node.value == bytes.fromhex(a[2:][s : (s + le)])
+    assert contract.foo(a) == new_node.value == bytes.fromhex(a[2:][s : (s + le)])
 
 
 @pytest.mark.fuzzing
