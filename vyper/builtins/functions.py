@@ -295,6 +295,7 @@ class Slice(BuiltinFunction):
     _return_type = None
 
     def evaluate(self, node):
+        validate_call_args(node, 3)
         (lit, st, le) = node.args[:3]
         if (
             isinstance(lit, (vy_ast.Bytes, vy_ast.Str, vy_ast.Hex))
@@ -302,7 +303,15 @@ class Slice(BuiltinFunction):
             and isinstance(le, vy_ast.Int)
         ):
             (st_val, le_val) = (st.value, le.value)
+            if not 0 <= st_val <= 31:
+                raise ArgumentException("Start cannot take that value", st)
+            if not 1 <= le_val <= 32:
+                raise ArgumentException("Length cannot take that value", le)
+            if st_val + le_val > 32:
+                raise ArgumentException("Slice is out of bounds", st)
             if isinstance(lit, vy_ast.Bytes):
+                st_val *= 2
+                le_val *= 2
                 sublit = lit.value[st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=sublit)
             elif isinstance(lit, vy_ast.Str):
@@ -311,10 +320,12 @@ class Slice(BuiltinFunction):
             else:
                 length = len(lit.value) // 2 - 1
                 if length != 32:
-                    # TODO unreachable?
-                    raise UnfoldableNode
-                sublit = lit.value[st_val : (2 + st_val + (le_val * 2))]
-                return vy_ast.Bytes.from_node(node, value=sublit)
+                    # raise UnfoldableNode
+                    raise ArgumentException("Length can only be of 32", lit)
+                st_val *= 2
+                le_val *= 2
+                sublit = lit.value[2:][st_val : (st_val + le_val)]
+                return vy_ast.Bytes.from_node(node, value=f"0x{sublit}")
         else:
             raise UnfoldableNode
 
