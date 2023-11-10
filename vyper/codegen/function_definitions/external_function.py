@@ -130,7 +130,9 @@ def _generate_kwarg_handlers(
         # unfolded ast
         folded_default_kwargs = folded_keyword_args[1:]
 
-        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, folded_default_kwargs, original_default_kwargs)
+        sig, calldata_min_size, ir_node = handler_for(
+            calldata_kwargs, folded_default_kwargs, original_default_kwargs
+        )
         ret[sig] = calldata_min_size, ir_node
 
     sig, calldata_min_size, ir_node = handler_for(keyword_args, [], [])

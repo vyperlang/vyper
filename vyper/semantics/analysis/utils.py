@@ -663,7 +663,7 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
 
     if isinstance(node, vy_ast.BinOp):
         return all(check_kwargable(i) for i in (node.left, node.right))
-    
+
     if isinstance(node, vy_ast.BoolOp):
         return all(check_kwargable(i) for i in node.values)
 

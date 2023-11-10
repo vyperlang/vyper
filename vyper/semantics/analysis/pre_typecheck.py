@@ -1,6 +1,5 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import UnfoldableNode
-from vyper.semantics.analysis.common import VyperNodeVisitorBase
 
 
 def get_constants(node: vy_ast.Module) -> dict:
@@ -39,11 +38,11 @@ def get_constants(node: vy_ast.Module) -> dict:
 
 def pre_typecheck(node: vy_ast.Module):
     constants = get_constants(node)
-    
+
     for n in node.get_descendants(reverse=True):
         if isinstance(n, vy_ast.VariableDecl):
             continue
-        
+
         prefold(n, constants)
 
 
@@ -53,7 +52,7 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
 
     if isinstance(node, vy_ast.UnaryOp):
         node._metadata["folded_value"] = node.prefold()
-    
+
     if isinstance(node, (vy_ast.Constant, vy_ast.NameConstant)):
         node._metadata["folded_value"] = node
 
@@ -71,6 +70,7 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
     if isinstance(node, vy_ast.Call):
         if isinstance(node.func, vy_ast.Name):
             from vyper.builtins.functions import DISPATCH_TABLE
+
             func_name = node.func.id
 
             call_type = DISPATCH_TABLE.get(func_name)

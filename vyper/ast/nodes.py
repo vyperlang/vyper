@@ -916,7 +916,7 @@ class UnaryOp(ExprNode):
         operand = self.operand._metadata.get("folded_value")
         if operand is None:
             return
-        
+
         value = self.op._op(operand.value)
         return type(self.operand).from_node(self, value=value)
 
