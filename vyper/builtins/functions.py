@@ -318,7 +318,6 @@ class Slice(BuiltinFunction):
             else:
                 length = len(lit.value) // 2 - 1
                 if length != 32:
-                    # raise UnfoldableNode
                     raise ArgumentException("Length can only be of 32", lit)
                 st_val *= 2
                 le_val *= 2

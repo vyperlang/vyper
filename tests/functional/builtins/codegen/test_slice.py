@@ -2,6 +2,8 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from vyper import ast as vy_ast
+from vyper.builtins import functions as vy_fn
 from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import ArgumentException, TypeMismatch
 
@@ -473,3 +475,21 @@ def test_comptime(get_contract, code, result):
         assert ret.hex() == result
     else:
         assert ret == result
+
+
+error_slice = [
+    "slice(0x00, 0, 1)",
+    'slice("why hello! how are you?", 32, 1)',
+    'slice("why hello! how are you?", -1, 1)',
+    'slice("why hello! how are you?", 4, 0)',
+    'slice("why hello! how are you?", 0, 33)',
+    'slice("why hello! how are you?", 16, 17)',
+]
+
+
+@pytest.mark.parametrize("code", error_slice)
+def test_slice_error(code):
+    vyper_ast = vy_ast.parse_to_ast(code)
+    old_node = vyper_ast.body[0].value
+    with pytest.raises(ArgumentException):
+        vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
