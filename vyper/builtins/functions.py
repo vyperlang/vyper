@@ -303,28 +303,36 @@ class Slice(BuiltinFunction):
             and isinstance(le, vy_ast.Int)
         ):
             (st_val, le_val) = (st.value, le.value)
-            if not 0 <= st_val <= 31:
-                raise ArgumentException("Start cannot take that value", st)
-            if not 1 <= le_val <= 32:
-                raise ArgumentException("Length cannot take that value", le)
+
+            if st_val < 0:
+                raise ArgumentException("Start cannot be negative", st)
+            elif le_val <= 0:
+                raise ArgumentException("Length cannot be negative", le)
+
+            if isinstance(lit, vy_ast.Hex):
+                if st_val >= 32:
+                    raise ArgumentException("Start cannot take that value", st)
+                if le_val > 32:
+                    raise ArgumentException("Length cannot take that value", le)
+                length = len(lit.value) // 2 - 1
+                if length != 32:
+                    raise ArgumentException("Length can only be of 32", lit)
+                st_val *= 2
+                le_val *= 2
+
             if st_val + le_val > len(lit.value):
                 raise ArgumentException("Slice is out of bounds", st)
+
             if isinstance(lit, vy_ast.Bytes):
                 sublit = lit.value[st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=sublit)
             elif isinstance(lit, vy_ast.Str):
                 sublit = lit.value[st_val : (st_val + le_val)]
                 return vy_ast.Str.from_node(node, value=sublit)
-            else:
-                length = len(lit.value) // 2 - 1
-                if length != 32:
-                    raise ArgumentException("Length can only be of 32", lit)
-                st_val *= 2
-                le_val *= 2
+            elif isinstance(lit, vy_ast.Hex):
                 sublit = lit.value[2:][st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=f"0x{sublit}")
-        else:
-            raise UnfoldableNode
+        raise UnfoldableNode
 
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
