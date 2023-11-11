@@ -1,4 +1,3 @@
-import contextlib
 import os
 from pathlib import Path, PurePath
 from typing import Any
@@ -264,22 +263,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace["self"].typ.add_member(name, var_info)
                 node.target._metadata["type"] = type_
             except NamespaceCollision:
+                # rewrite the error message to be slightly more helpful
                 raise NamespaceCollision(
                     f"Value '{name}' has already been declared", node
                 ) from None
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
 
         def _validate_self_namespace():
             # block globals if storage variable already exists
-            try:
-                if name in self.namespace["self"].typ.members:
-                    raise NamespaceCollision(
-                        f"Value '{name}' has already been declared", node
-                    ) from None
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
+            if name in self.namespace["self"].typ.members:
+                raise NamespaceCollision(
+                    f"Value '{name}' has already been declared", node
+                ) from None
+            self.namespace[name] = var_info
 
         if node.is_constant:
             if not node.value:
@@ -302,35 +297,23 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             _validate_self_namespace()
             return _finalize()
 
-        try:
-            self.namespace.validate_assignment(name)
-        except NamespaceCollision as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace.validate_assignment(name)
 
         return _finalize()
 
     def visit_EnumDef(self, node):
         obj = EnumT.from_EnumDef(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[node.name] = obj
 
     def visit_EventDef(self, node):
         obj = EventT.from_EventDef(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[node.name] = obj
 
     def visit_FunctionDef(self, node):
         func = ContractFunctionT.from_FunctionDef(node)
 
-        try:
-            self.namespace["self"].typ.add_member(func.name, func)
-            node._metadata["type"] = func
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace["self"].typ.add_member(func.name, func)
+        node._metadata["type"] = func
 
     def visit_Import(self, node):
         if not node.alias:
@@ -351,27 +334,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_InterfaceDef(self, node):
         obj = InterfaceT.from_InterfaceDef(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[node.name] = obj
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_ast_def(node)
-        try:
-            self.namespace[node.name] = struct_t
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[node.name] = struct_t
 
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         type_ = self._load_import(node, level, qualified_module_name, alias)
 
-        try:
-            self.namespace[alias] = type_
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[alias] = type_
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
@@ -389,10 +363,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self.__class__._ast_from_file(file, alias)
 
             with override_global_namespace(Namespace()):
-                with tag_exceptions(node):
-                    validate_semantics_r(
-                        module_ast, self.input_bundle, import_graph=self._import_graph
-                    )
+                validate_semantics_r(module_ast, self.input_bundle, import_graph=self._import_graph)
                 module_t = module_ast._metadata["type"]
 
                 return ModuleInfo(module_t, decl_node=node)
@@ -406,14 +377,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
             raise ModuleNotFoundError(module_str)
-
-
-@contextlib.contextmanager
-def tag_exceptions(node: vy_ast.VyperNode) -> Any:
-    try:
-        yield
-    except VyperException as e:
-        raise e.with_annotation(node) from None
 
 
 # convert an import to a path (without suffix)

@@ -224,10 +224,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, typ)
 
-        try:
-            self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
         self.expr_visitor.visit(node.target, typ)
         self.expr_visitor.visit(node.value, typ)
@@ -474,10 +471,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # type check the for loop body using each possible type for iterator value
 
             with self.namespace.enter_scope():
-                try:
-                    self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
-                except VyperException as exc:
-                    raise exc.with_annotation(node) from None
+                self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
