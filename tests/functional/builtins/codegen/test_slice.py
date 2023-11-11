@@ -479,11 +479,13 @@ def test_comptime(get_contract, code, result):
 
 error_slice = [
     "slice(0x00, 0, 1)",
+    "slice(b'\x01\x02\x03\x04\x05\x06\x07\x08\x09\x10', 10, 1)",
+    "slice(b'', 0, 1)",
     'slice("why hello! how are you?", 32, 1)',
     'slice("why hello! how are you?", -1, 1)',
     'slice("why hello! how are you?", 4, 0)',
     'slice("why hello! how are you?", 0, 33)',
-    'slice("why hello! how are you?", 16, 17)',
+    'slice("why hello! how are you?", 16, 10)',
 ]
 
 

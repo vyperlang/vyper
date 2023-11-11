@@ -307,7 +307,7 @@ class Slice(BuiltinFunction):
                 raise ArgumentException("Start cannot take that value", st)
             if not 1 <= le_val <= 32:
                 raise ArgumentException("Length cannot take that value", le)
-            if st_val + le_val > 32:
+            if st_val + le_val > len(lit.value):
                 raise ArgumentException("Slice is out of bounds", st)
             if isinstance(lit, vy_ast.Bytes):
                 sublit = lit.value[st_val : (st_val + le_val)]
