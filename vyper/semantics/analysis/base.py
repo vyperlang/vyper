@@ -156,9 +156,8 @@ class ImportGraph:
 
     def push_path(self, module_ast: vy_ast.Module):
         if module_ast in self._path:
-            raise ImportCycle(
-                msg=" imports ".join(f'"{t.name}" (located at {t.path})' for t in self._path)
-            )
+            cycle = self._path + [module_ast]
+            raise ImportCycle(" imports ".join(f'"{t.path}"' for t in cycle))
 
         if len(self._path) > 0:
             parent = self._graph.setdefault(self._path[-1], [])

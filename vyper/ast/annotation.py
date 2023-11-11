@@ -20,12 +20,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
-        module_name: Optional[str] = None,
     ):
         self._tokens = tokens
         self._source_id = source_id
         self._module_path = module_path
-        self._module_name = module_name
         self._source_code: str = source_code
         self.counter: int = 0
         self._modification_offsets = {}
@@ -85,7 +83,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
-        node.name = self._module_name
         node.path = self._module_path
         node.source_id = self._source_id
         return self._visit_docstring(node)
@@ -255,7 +252,6 @@ def annotate_python_ast(
     modification_offsets: Optional[ModificationOffsets] = None,
     source_id: int = 0,
     module_path: Optional[str] = None,
-    module_name: Optional[str] = None,
 ) -> python_ast.AST:
     """
     Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
@@ -276,12 +272,7 @@ def annotate_python_ast(
 
     tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(
-        source_code,
-        modification_offsets,
-        tokens,
-        source_id,
-        module_name=module_name,
-        module_path=module_path,
+        source_code, modification_offsets, tokens, source_id, module_path=module_path
     )
     visitor.visit(parsed_ast)
 

@@ -13,7 +13,7 @@ class ModuleT(VyperType):
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         self._module = module
 
-        self._id = name or module.name
+        self._id = name or module.path
 
         # compute the interface, note this has the side effect of checking
         # for function collisions

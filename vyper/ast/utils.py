@@ -16,7 +16,6 @@ def parse_to_ast_with_settings(
     source_code: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
-    module_name: Optional[str] = None,
     add_fn_node: Optional[str] = None,
 ) -> tuple[Settings, vy_ast.Module]:
     """
@@ -55,14 +54,7 @@ def parse_to_ast_with_settings(
         fn_node.args = python_ast.arguments(defaults=[])
         py_ast.body = [fn_node]
 
-    annotate_python_ast(
-        py_ast,
-        source_code,
-        class_types,
-        source_id,
-        module_name=module_name,
-        module_path=module_path,
-    )
+    annotate_python_ast(py_ast, source_code, class_types, source_id, module_path=module_path)
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)

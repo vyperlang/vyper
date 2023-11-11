@@ -428,8 +428,6 @@ class InterfaceT(_UserType):
         """
         members, events = _get_module_definitions(node)
 
-        name = name or node.name
-
         return cls(name, members, events)
 
     @classmethod

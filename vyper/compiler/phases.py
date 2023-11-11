@@ -94,10 +94,7 @@ class CompilerData:
     @cached_property
     def _generate_ast(self):
         settings, ast = vy_ast.parse_to_ast_with_settings(
-            self.source_code,
-            self.source_id,
-            module_path=str(self.contract_path),
-            module_name=str(self.contract_path),  # something better than "<main>"
+            self.source_code, self.source_id, module_path=str(self.contract_path)
         )
 
         # validate the compiler settings

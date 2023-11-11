@@ -183,7 +183,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _ast_from_file(cls, file: FileInput, alias: str):
         if file.source_id not in cls._ast_of:
             cls._ast_of[file.source_id] = vy_ast.parse_to_ast(
-                file.source_code, module_path=str(file.path), module_name=alias
+                file.source_code, module_path=str(file.path)
             )
 
         return cls._ast_of[file.source_id]
@@ -464,5 +464,5 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path, module_name=module_str)
-    return InterfaceT.from_Module(interface_ast)
+    interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path)
+    return InterfaceT.from_Module(interface_ast, name=module_str)
