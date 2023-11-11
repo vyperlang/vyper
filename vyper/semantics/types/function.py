@@ -82,7 +82,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
-        returns_abi_bytestring: Optional[bool] = False,
+        is_from_abi: Optional[bool] = False,
     ) -> None:
         super().__init__()
 
@@ -93,7 +93,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
-        self.returns_abi_bytestring = returns_abi_bytestring
+        self.is_from_abi = is_from_abi
 
         # a list of internal functions this function calls
         self.called_functions = OrderedSet()
@@ -142,19 +142,14 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT object.
         """
-        returns_abi_bytestring = False
         positional_args = []
         for item in abi["inputs"]:
             positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
         if len(abi["outputs"]) == 1:
             return_type = type_from_abi(abi["outputs"][0])
-            if isinstance(return_type, _BytestringT):
-                returns_abi_bytestring = True
         elif len(abi["outputs"]) > 1:
             return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
-            if any(i for i in return_type.member_types if isinstance(i, _BytestringT)):
-                returns_abi_bytestring = True
         return cls(
             abi["name"],
             positional_args,
@@ -162,7 +157,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
-            returns_abi_bytestring=returns_abi_bytestring,
+            is_from_abi=True,
         )
 
     @classmethod

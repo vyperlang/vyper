@@ -647,7 +647,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # the function type is passed down), and its return type consists
             # of at least one bytestring (which is initialized as zero-length
             # in `type_from_abi`), overwrite the return type with a concrete type.
-            if not isinstance(typ, ContractFunctionT) and call_type.returns_abi_bytestring:
+            if not isinstance(typ, ContractFunctionT) and call_type.is_from_abi:
                 call_type_copy = copy.copy(call_type)
                 call_type_copy.return_type = typ
                 self.visit(node.func, call_type_copy)
