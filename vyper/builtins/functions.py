@@ -2091,6 +2091,7 @@ class Uint2Str(BuiltinFunction):
         return StringT(len_needed)
 
     def evaluate(self, node):
+        self._validate_arg_types(node)
         validate_call_args(node, 1)
         if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
