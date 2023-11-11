@@ -66,17 +66,6 @@ class _BytestringT(VyperType):
 
         return 32 + ceil32(self.length)
 
-    def set_length(self, length):
-        """
-        Sets the exact length of the type.
-
-        May only be called once, and only on a type that does not yet have
-        a fixed length.
-        """
-        if self._length:
-            raise CompilerPanic("Type already has a fixed length")
-        self._length = length
-
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
@@ -118,8 +107,7 @@ class _BytestringT(VyperType):
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
         if not isinstance(node, cls._valid_literal):
             raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
-        t = cls()
-        t.set_length(len(node.value))
+        t = cls(len(node.value))
         t._is_literal = True
         return t
 

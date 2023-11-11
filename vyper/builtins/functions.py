@@ -297,11 +297,6 @@ class Slice(BuiltinFunction):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
         arg = node.args[0]
@@ -331,8 +326,11 @@ class Slice(BuiltinFunction):
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
         # we know the length statically
-        if length_literal is not None:
-            return_type.set_length(length_literal)
+        length = length_literal if not None else 0
+        if isinstance(arg_type, StringT):
+            return_type = StringT(length)
+        else:
+            return_type = BytesT(length)
 
         return return_type
 
@@ -497,10 +495,9 @@ class Concat(BuiltinFunction):
             length += arg_t.length
 
         if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
+            return_type = StringT(length)
         else:
-            return_type = BytesT()
-        return_type.set_length(length)
+            return_type = BytesT(length)
         return return_type
 
     def infer_arg_types(self, node):
@@ -1087,8 +1084,7 @@ class RawCall(BuiltinFunction):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -2421,9 +2417,7 @@ class ABIEncode(BuiltinFunction):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):
