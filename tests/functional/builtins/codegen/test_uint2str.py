@@ -2,6 +2,8 @@ import math
 
 import pytest
 
+from vyper.exceptions import InvalidType
+
 VALID_BITS = list(range(8, 257, 8))
 
 
@@ -47,5 +49,5 @@ def test():
     pass
     """
 
-    with pytest.raises(ArithmeticError):
+    with pytest.raises(InvalidType):
         get_contract(code)
