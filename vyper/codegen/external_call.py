@@ -30,7 +30,7 @@ class _CallKwargs:
     default_return_value: IRnode
 
 
-def _pack_arguments(fn_type, args, context):
+def _pack_arguments(fn_type, return_type, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -41,7 +41,7 @@ def _pack_arguments(fn_type, args, context):
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
     if fn_type.return_type is not None:
-        return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+        return_abi_t = calculate_type_for_external_return(return_type).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -74,13 +74,11 @@ def _pack_arguments(fn_type, args, context):
     return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, expr):
-    return_t = fn_type.return_type
-
-    if return_t is None:
+def _unpack_returndata(buf, fn_type, return_type, call_kwargs, contract_address, context, expr):
+    if fn_type.return_type is None:
         return ["pass"], 0, 0
 
-    wrapped_return_t = calculate_type_for_external_return(return_t)
+    wrapped_return_t = calculate_type_for_external_return(return_type)
 
     abi_return_t = wrapped_return_t.abi_type
 
@@ -171,6 +169,7 @@ def _extcodesize_check(address):
 
 def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
     fn_type = call_expr.func._metadata["type"]
+    return_t = call_expr._metadata["type"] if fn_type.is_from_abi else fn_type.return_type
 
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
@@ -182,10 +181,10 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # a duplicate label exception will get thrown during assembly.
     ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, return_t, args_ir, context)
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, fn_type, call_kwargs, contract_address, context, call_expr
+        buf, fn_type, return_t, call_kwargs, contract_address, context, call_expr
     )
 
     ret += arg_packer
@@ -213,8 +212,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret.append(check_external_call(call_op))
 
-    return_t = fn_type.return_type
-    if return_t is not None:
+    if fn_type.return_type is not None:
         ret.append(ret_unpacker)
 
     return IRnode.from_list(ret, typ=return_t, location=MEMORY)
