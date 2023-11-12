@@ -193,7 +193,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
         )
         for arg in self.func.arguments:
-            namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable)
+            namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable, is_runtime_constant=is_immutable)
 
         for node in fn_node.body:
             self.visit(node)
@@ -473,7 +473,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             with self.namespace.enter_scope():
                 try:
-                    self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
+                    self.namespace[iter_name] = VarInfo(possible_target_type, is_compile_time_constant=True)
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
 

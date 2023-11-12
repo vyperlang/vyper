@@ -195,7 +195,7 @@ class _ExprAnalyser:
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and (s.is_constant or s.is_immutable):
+            if is_self_reference and (s.is_compile_time_constant or s.is_immutable):
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -622,10 +622,16 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
     """
     if _check_literal(node):
         return True
-    if isinstance(node, vy_ast.Attribute):
-        return check_kwargable(node.value)
+
+    if isinstance(node, vy_ast.BinOp):
+        return all(check_kwargable(i) for i in (node.left, node.right))
+
+    if isinstance(node, vy_ast.BoolOp):
+        return all(check_kwargable(i) for i in node.values)
+
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_kwargable(item) for item in node.elements)
+
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
@@ -636,8 +642,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    # is_constant here actually means not_assignable, and is to be renamed
-    return value_type.is_constant
+    return value_type.is_runtime_constant
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:
@@ -662,10 +667,10 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         return True
 
     if isinstance(node, vy_ast.BinOp):
-        return all(check_kwargable(i) for i in (node.left, node.right))
+        return all(check_constant(i) for i in (node.left, node.right))
 
     if isinstance(node, vy_ast.BoolOp):
-        return all(check_kwargable(i) for i in node.values)
+        return all(check_constant(i) for i in node.values)
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_constant(item) for item in node.elements)
@@ -680,5 +685,4 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    # is_constant here actually means not_assignable, and is to be renamed
-    return value_type.is_constant
+    return value_type.is_compile_time_constant

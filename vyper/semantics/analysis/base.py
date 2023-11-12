@@ -159,7 +159,8 @@ class VarInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    is_constant: bool = False
+    is_compile_time_constant: bool = False
+    is_runtime_constant: bool = False
     is_public: bool = False
     is_immutable: bool = False
     is_transient: bool = False
@@ -192,11 +193,12 @@ class ExprInfo:
     typ: VyperType
     var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
-    is_constant: bool = False
+    is_compile_time_constant: bool = False
+    is_runtime_constant: bool = False
     is_immutable: bool = False
 
     def __post_init__(self):
-        should_match = ("typ", "location", "is_constant", "is_immutable")
+        should_match = ("typ", "location", "is_compile_time_constant", "is_runtime_constant", "is_immutable")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
@@ -208,15 +210,16 @@ class ExprInfo:
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
-            is_constant=var_info.is_constant,
-            is_immutable=var_info.is_immutable,
+            is_compile_time_constant=var_info.is_compile_time_constant,
+            is_runtime_constant=var_info.is_runtime_constant,
+            is_immutable=var_info.is_immutable
         )
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "is_constant", "is_immutable")
+        to_copy = ("location", "is_compile_time_constant", "is_runtime_constant", "is_immutable")
         fields = {k: getattr(self, k) for k in to_copy}
         return self.__class__(typ=typ, **fields)
 
@@ -240,7 +243,7 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.is_constant:
+        if self.is_compile_time_constant:
             raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":

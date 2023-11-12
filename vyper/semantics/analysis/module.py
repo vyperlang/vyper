@@ -195,9 +195,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             type_,
             decl_node=node,
             location=data_loc,
-            is_constant=node.is_constant,
+            is_compile_time_constant=node.is_constant,
             is_public=node.is_public,
             is_immutable=node.is_immutable,
+            is_runtime_constant=node.is_immutable,
             is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace

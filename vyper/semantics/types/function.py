@@ -17,7 +17,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
-from vyper.semantics.analysis.utils import check_constant, validate_expected_type
+from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -320,7 +320,7 @@ class ContractFunctionT(VyperType):
                 positional_args.append(PositionalArg(argname, type_, ast_source=arg))
             else:
                 value = node.args.defaults[i - n_positional_args]
-                if not check_constant(value):
+                if not check_kwargable(value):
                     raise StateAccessViolation(
                         "Value must be literal or environment variable", value
                     )

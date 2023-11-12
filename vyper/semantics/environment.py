@@ -52,7 +52,7 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, is_constant=True)
+        result[k] = VarInfo(v, is_runtime_constant=True)
 
     return result
 

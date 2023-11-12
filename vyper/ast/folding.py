@@ -116,6 +116,7 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
             continue
         try:
             new_node = func.evaluate(node)  # type: ignore
+            new_node._metadata["type"] = node._metadata["type"]
         except UnfoldableNode:
             continue
 
