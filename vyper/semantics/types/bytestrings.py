@@ -84,10 +84,10 @@ class _BytestringT(VyperType):
         if self._length is not None:
             return True
 
-        # if both are non-literals and zero length, then the bytestring length
+        # if both are non-literals and zero/None length, then the bytestring length
         # cannot be derived and it is likely to be a syntax error, so we defer
         # the syntax error to be handled downstream for better error messages
-        if self._length == other._length == 0:
+        if self._length == other._length and not self._length:
             return True
 
         return other.compare_type(self)
