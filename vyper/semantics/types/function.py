@@ -20,7 +20,6 @@ from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, S
 from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
