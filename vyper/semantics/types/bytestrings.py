@@ -1,3 +1,5 @@
+from typing import Optional
+
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
@@ -25,9 +27,8 @@ class _BytestringT(VyperType):
     _as_hashmap_key = True
     _equality_attrs = ("_length",)
     _is_bytestring: bool = True
-    _is_literal: bool = False
 
-    def __init__(self, length: int = 0) -> None:
+    def __init__(self, length: Optional[int] = None) -> None:
         super().__init__()
 
         self._length = length
@@ -40,6 +41,8 @@ class _BytestringT(VyperType):
         """
         Property method used to check the length of a type.
         """
+        if self._length is None:
+            return 0
         return self._length
 
     @property
@@ -72,13 +75,13 @@ class _BytestringT(VyperType):
 
         # when comparing two literals, or two bytestrings of non-zero lengths,
         # ensure that the other length fits within self
-        if (self._is_literal and other._is_literal) or (self._length and other._length):
+        if self._length is not None and other._length is not None:
             return self._length >= other._length
 
         # relax typechecking if length has not been set for other type
         # (e.g. JSON ABI import, `address.code`) so that it can be updated in
         # annotation phase
-        if self._length:
+        if self._length is not None:
             return True
 
         # if both are non-literals and zero length, then the bytestring length
@@ -108,7 +111,6 @@ class _BytestringT(VyperType):
         if not isinstance(node, cls._valid_literal):
             raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
         t = cls(len(node.value))
-        t._is_literal = True
         return t
 
 
