@@ -6,6 +6,7 @@ from vyper.venom.basicblock import (
     IRInstruction,
     IRLabel,
     IRValueBase,
+    IRValueBaseValue,
     IRVariable,
     MemType,
 )
@@ -84,8 +85,8 @@ class VenomCompiler:
     def __init__(self, ctx: IRFunction):
         self.ctx = ctx
         self.label_counter = 0
-        self.visited_instructions = None
-        self.visited_basicblocks = None
+        self.visited_instructions = OrderedSet()
+        self.visited_basicblocks = OrderedSet()
 
     def generate_evm(self, no_optimize: bool = False) -> list[str]:
         self.visited_instructions = OrderedSet()
@@ -112,7 +113,7 @@ class VenomCompiler:
             asm.append(runtime)
 
         # Append data segment
-        data_segments = {}
+        data_segments = dict[IRValueBase | IRValueBaseValue, list[str | DataHeader]]()
         for inst in self.ctx.data_segment:
             if inst.opcode == "dbname":
                 label = inst.operands[0].value
