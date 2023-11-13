@@ -113,6 +113,29 @@ class IRFunction:
         """
         self.data_segment.append(IRInstruction(opcode, args))
 
+    @property
+    def normalized(self) -> bool:
+        """
+        Check if function is normalized.
+        """
+        for bb in self.basic_blocks:
+            # Ignore if there are no multiple predecessors
+            if len(bb.cfg_in) <= 1:
+                continue
+
+            # Check if there is a conditional jump at the end
+            # of one of the predecessors
+            for in_bb in bb.cfg_in:
+                jump_inst = in_bb.instructions[-1]
+                if jump_inst.opcode != "jnz":
+                    continue
+
+                # The function is not normalized
+                return False
+
+        # The function is normalized
+        return True
+
     def copy(self):
         new = IRFunction(self.name)
         new.basic_blocks = self.basic_blocks.copy()
