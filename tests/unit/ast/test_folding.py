@@ -2,7 +2,7 @@ import pytest
 
 from vyper import ast as vy_ast
 from vyper.ast import folding
-from vyper.exceptions import OverflowException
+from vyper.exceptions import InvalidType, OverflowException
 from vyper.semantics import validate_semantics
 
 
@@ -78,9 +78,8 @@ def foo():
     a: uint256 = 2**255 * 2 / 10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.replace_literal_ops(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_binop_nested_intermediate_underflow():
@@ -90,9 +89,8 @@ def foo():
     a: int256 = -2**255 * 2 - 10 + 100
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
-    with pytest.raises(OverflowException):
-        folding.replace_literal_ops(test_ast)
+    with pytest.raises(InvalidType):
+        validate_semantics(test_ast, {})
 
 
 def test_replace_decimal_nested_intermediate_overflow():
@@ -102,9 +100,8 @@ def foo():
     a: decimal = 18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.replace_literal_ops(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_decimal_nested_intermediate_underflow():
@@ -114,9 +111,8 @@ def foo():
     a: decimal = -18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10
     """
     test_ast = vy_ast.parse_to_ast(test)
-    validate_semantics(test_ast, {})
     with pytest.raises(OverflowException):
-        folding.replace_literal_ops(test_ast)
+        validate_semantics(test_ast, {})
 
 
 def test_replace_literal_ops():
