@@ -40,7 +40,14 @@ class Normalization(IRPass):
         self.dfg = DFG.build_dfg(ctx)
         self.changes = 0
 
-        calculate_cfg(ctx)
+        # Already normalized -> bail out
+        if ctx.normalized:
+            return 0
+
+        # Calculate control flow graph if needed
+        if ctx.cfg_dirty:
+            calculate_cfg(ctx)
+
         for bb in ctx.basic_blocks:
             if len(bb.cfg_in) > 1:
                 self._split_basic_block(bb)
