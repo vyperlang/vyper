@@ -1,7 +1,5 @@
-from vyper.compiler.settings import OptimizationLevel
-from vyper.venom import generate_assembly_experimental
 from vyper.venom.basicblock import IRLiteral
-from vyper.venom.function import IRFunction, IRLabel, IRBasicBlock
+from vyper.venom.function import IRBasicBlock, IRFunction, IRLabel
 from vyper.venom.passes.normalization import Normalization
 
 
@@ -25,19 +23,19 @@ def test_multi_entry_block():
 
     target_bb = IRBasicBlock(target_label, ctx)
     ctx.append_basic_block(target_bb)
-    mul = ctx.append_instruction("mul", [sum, sum])
+    _ = ctx.append_instruction("mul", [sum, sum])
     ctx.append_instruction("jmp", [finish_label], False)
 
     finish_bb = IRBasicBlock(finish_label, ctx)
     ctx.append_basic_block(finish_bb)
     ctx.append_instruction("stop", [], False)
 
-    assert ctx.cfg_dirty == True, "CFG should be dirty"
+    assert ctx.cfg_dirty is True, "CFG should be dirty"
 
     Normalization.run_pass(ctx)
 
-    assert ctx.cfg_dirty == False, "CFG should be clean"
-    assert ctx.normalized == True, "CFG should be normalized"
+    assert ctx.cfg_dirty is False, "CFG should be clean"
+    assert ctx.normalized is True, "CFG should be normalized"
 
     finish_bb = ctx.get_basic_block(finish_label.value)
     cfg_in = list(finish_bb.cfg_in.keys())

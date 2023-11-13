@@ -1,8 +1,8 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
-    CFG_ALTERING_OPS,
     BB_TERMINATORS,
+    CFG_ALTERING_OPS,
     IRBasicBlock,
     IRInstruction,
     IRVariable,

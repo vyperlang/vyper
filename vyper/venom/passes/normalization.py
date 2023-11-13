@@ -1,6 +1,5 @@
-from vyper.utils import OrderedSet
-from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel
+from vyper.venom.analysis import DFG, calculate_cfg
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -52,6 +51,6 @@ class Normalization(IRPass):
         calculate_cfg(ctx)
 
         # Sanity check
-        assert ctx.normalized == True, "Normalization pass failed"
+        assert ctx.normalized is True, "Normalization pass failed"
 
         return self.changes
