@@ -2,7 +2,7 @@ from vyper.venom.basicblock import IRValueBase, IRVariable
 
 
 class StackModel:
-    NOT_IN_STACK = 1
+    NOT_IN_STACK = object()
     _stack: list[IRValueBase]
 
     def __init__(self):
@@ -41,7 +41,7 @@ class StackModel:
             if stack_op.value == op.value:
                 return -i
 
-        return StackModel.NOT_IN_STACK
+        return StackModel.NOT_IN_STACK  # type: ignore
 
     def get_phi_depth(self, phi1: IRVariable, phi2: IRVariable) -> int:
         """
@@ -60,7 +60,7 @@ class StackModel:
                 ), f"phi argument is not unique! {phi1}, {phi2}, {self._stack}"
                 ret = -i
 
-        return ret
+        return ret  # type: ignore
 
     def peek(self, depth: int) -> IRValueBase:
         """
