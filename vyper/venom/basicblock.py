@@ -4,32 +4,34 @@ from typing import TYPE_CHECKING, Optional
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = ["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"]
+BB_TERMINATORS = frozenset(["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
 
-VOLATILE_INSTRUCTIONS = [
-    "param",
-    "alloca",
-    "call",
-    "staticcall",
-    "invoke",
-    "sload",
-    "sstore",
-    "iload",
-    "istore",
-    "assert",
-    "mstore",
-    "mload",
-    "calldatacopy",
-    "codecopy",
-    "dloadbytes",
-    "dload",
-    "return",
-    "ret",
-    "jmp",
-    "jnz",
-]
+VOLATILE_INSTRUCTIONS = frozenset(
+    [
+        "param",
+        "alloca",
+        "call",
+        "staticcall",
+        "invoke",
+        "sload",
+        "sstore",
+        "iload",
+        "istore",
+        "assert",
+        "mstore",
+        "mload",
+        "calldatacopy",
+        "codecopy",
+        "dloadbytes",
+        "dload",
+        "return",
+        "ret",
+        "jmp",
+        "jnz",
+    ]
+)
 
-CFG_ALTERING_OPS = ["jmp", "jnz", "call", "staticcall", "invoke", "deploy"]
+CFG_ALTERING_OPS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
 
 
 if TYPE_CHECKING:
