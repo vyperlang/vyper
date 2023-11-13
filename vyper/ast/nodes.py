@@ -193,23 +193,6 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
     )
 
 
-def _validate_numeric_bounds(
-    node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
-) -> None:
-    if isinstance(value, decimal.Decimal):
-        # this will change if/when we add more decimal types
-        lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
-    elif isinstance(value, int):
-        lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
-    else:
-        raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
-    if not lower <= value <= upper:
-        raise OverflowException(
-            f"Result of {node.op.description} ({value}) is outside bounds of all numeric types",
-            node,
-        )
-
-
 class VyperNode:
     """
     Base class for all vyper AST nodes.
