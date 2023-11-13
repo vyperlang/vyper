@@ -52,7 +52,6 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
         # e.g. DynArray[uint256, 2 ** 8]
         typ = node._metadata.get("type")
         if typ:
-            vy_ast._validate_numeric_bounds(node, new_node.value)
             new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
