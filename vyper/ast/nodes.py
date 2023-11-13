@@ -373,6 +373,9 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
+    def prefold(self) -> "VyperNode":
+        return
+
     def evaluate(self) -> "VyperNode":
         """
         Attempt to evaluate the content of a node and generate a new node from it.
@@ -891,6 +894,13 @@ class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
+    def prefold(self):
+        for e in self.elements:
+            e.prefold()
+        elements = [e._metadata.get("folded_value") for e in self.elements]
+        if None not in elements:
+            self._metadata["folded_value"] = type(self).from_node(self, elements=elements)
+
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
@@ -921,12 +931,13 @@ class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
     def prefold(self) -> ExprNode:
+        self.operand.prefold()
         operand = self.operand._metadata.get("folded_value")
         if operand is None:
             return
 
         value = self.op._op(operand.value)
-        return type(self.operand).from_node(self, value=value)
+        self._metadata["folded_value"] = type(self.operand).from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -945,7 +956,6 @@ class UnaryOp(ExprNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(self.operand.value)
-        _validate_numeric_bounds(self, value)
         return type(self.operand).from_node(self, value=value)
 
 
@@ -977,11 +987,10 @@ class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
 
     def prefold(self) -> ExprNode:
+        self.left.prefold()
+        self.right.prefold()
         left = self.left._metadata.get("folded_value")
         right = self.right._metadata.get("folded_value")
-
-        if None in (left, right):
-            return
 
         # this validation is performed to prevent the compiler from hanging
         # on very large shifts and improve the error message for negative
@@ -989,8 +998,9 @@ class BinOp(ExprNode):
         if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
             raise InvalidLiteral("Shift bits must be between 0 and 256", right)
 
-        value = self.op._op(left.value, right.value)
-        return type(left).from_node(self, value=value)
+        if isinstance(left, type(right)) and isinstance(left, (Int, Decimal)):
+            value = self.op._op(left.value, right.value)
+            self._metadata["folded_value"] = type(left).from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1014,7 +1024,6 @@ class BinOp(ExprNode):
             raise InvalidLiteral("Shift bits must be between 0 and 256", right)
 
         value = self.op._op(left.value, right.value)
-        _validate_numeric_bounds(self, value)
         return type(left).from_node(self, value=value)
 
 
@@ -1143,12 +1152,14 @@ class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
     def prefold(self) -> ExprNode:
+        for i in self.values:
+            i.prefold()
         values = [i._metadata.get("folded_value") for i in self.values]
         if None in values:
             return
 
         value = self.op._op(values)
-        return NameConstant.from_node(self, value=value)
+        self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1207,6 +1218,8 @@ class Compare(ExprNode):
         super().__init__(*args, **kwargs)
 
     def prefold(self) -> ExprNode:
+        self.left.prefold()
+        self.right.prefold()
         left = self.left._metadata.get("folded_value")
         right = self.right._metadata.get("folded_value")
 
@@ -1214,7 +1227,7 @@ class Compare(ExprNode):
             return
 
         value = self.op._op(left.value, right.value)
-        return NameConstant.from_node(self, value=value)
+        self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1317,6 +1330,16 @@ class Attribute(ExprNode):
 
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
+
+    def prefold(self):
+        self.slice.value.prefold()
+        self.value.prefold()
+
+        slice_ = self.slice.value._metadata.get("folded_value")
+        value = self.value._metadata.get("folded_value")
+
+        if None not in (slice_, value):
+            self._metadata["folded_value"] = value.elements[slice_.value]
 
     def evaluate(self) -> ExprNode:
         """

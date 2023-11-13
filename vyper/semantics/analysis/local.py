@@ -757,7 +757,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             possible_base_types = get_possible_types_from_node(node.value)
 
             for possible_type in possible_base_types:

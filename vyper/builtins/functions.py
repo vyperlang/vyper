@@ -142,10 +142,11 @@ class Floor(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Decimal):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Decimal):
             raise UnfoldableNode
 
-        value = math.floor(node.args[0].value)
+        value = math.floor(value.value)
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -172,10 +173,11 @@ class Ceil(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Decimal):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Decimal):
             raise UnfoldableNode
 
-        value = math.ceil(node.args[0].value)
+        value = math.ceil(value.value)
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs

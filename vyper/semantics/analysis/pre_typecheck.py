@@ -48,16 +48,22 @@ def pre_typecheck(node: vy_ast.Module):
 
 def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
     if isinstance(node, vy_ast.BinOp):
-        node._metadata["folded_value"] = node.prefold()
+        node.prefold()
 
     if isinstance(node, vy_ast.UnaryOp):
-        node._metadata["folded_value"] = node.prefold()
+        node.prefold()
 
     if isinstance(node, vy_ast.Compare):
-        node._metadata["folded_value"] = node.prefold()
+        node.prefold()
 
     if isinstance(node, vy_ast.BoolOp):
-        node._metadata["folded_value"] = node.prefold()
+        node.prefold()
+
+    if isinstance(node, vy_ast.Subscript):
+        node.prefold()
+
+    if isinstance(node, vy_ast.List):
+        node.prefold()
 
     if isinstance(node, vy_ast.Name):
         var_name = node.id
@@ -71,7 +77,7 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
             func_name = node.func.id
 
             call_type = DISPATCH_TABLE.get(func_name)
-            if call_type and getattr(call_type, "_is_folded_before_codegen", False):
+            if call_type and hasattr(call_type, "evaluate"):
                 try:
                     node._metadata["folded_value"] = call_type.evaluate(node)  # type: ignore
                 except UnfoldableNode:
