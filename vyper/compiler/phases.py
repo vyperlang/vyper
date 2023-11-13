@@ -1,6 +1,7 @@
 import copy
 import warnings
 from functools import cached_property
+from pathlib import Path, PurePath
 from typing import Optional, Tuple
 
 from vyper import ast as vy_ast
@@ -8,13 +9,17 @@ from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.typing import InterfaceImports, StorageLayout
+from vyper.typing import StorageLayout
 from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.typing import StorageLayout
+
+DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
 
 
 class CompilerData:
@@ -50,8 +55,8 @@ class CompilerData:
     def __init__(
         self,
         source_code: str,
-        contract_name: str = "VyperContract",
-        interface_codes: Optional[InterfaceImports] = None,
+        input_bundle: InputBundle = None,
+        contract_path: Path | PurePath = DEFAULT_CONTRACT_NAME,
         source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -64,15 +69,11 @@ class CompilerData:
 
         Arguments
         ---------
-        source_code : str
+        source_code: str
             Vyper source code.
-        contract_name : str, optional
+        contract_path: Path, optional
             The name of the contract being compiled.
-        interface_codes: Dict, optional
-            Interfaces that may be imported by the contracts during compilation.
-            * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-            * JSON interfaces are given as lists, vyper interfaces as strings
-        source_id : int, optional
+        source_id: int, optional
             ID number used to identify this contract in the source map.
         settings: Settings
             Set optimization mode.
@@ -85,21 +86,22 @@ class CompilerData:
         """
         # to force experimental codegen, uncomment:
         experimental_codegen = True
-        self.contract_name = contract_name
+        self.contract_path = contract_path
         self.source_code = source_code
-        self.interface_codes = interface_codes
         self.source_id = source_id
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
         self.experimental_codegen = experimental_codegen
         self.settings = settings or Settings()
+        self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
         _ = self._generate_ast  # force settings to be calculated
 
     @cached_property
     def _generate_ast(self):
-        settings, ast = generate_ast(self.source_code, self.source_id, self.contract_name)
+        contract_name = str(self.contract_path)
+        settings, ast = generate_ast(self.source_code, self.source_id, contract_name)
 
         # validate the compiler settings
         # XXX: this is a bit ugly, clean up later
@@ -140,12 +142,12 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.vyper_module, self.interface_codes)
+        return generate_unfolded_ast(self.contract_path, self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.vyper_module, self.interface_codes, self.storage_layout_override
+            self.contract_path, self.vyper_module, self.input_bundle, self.storage_layout_override
         )
 
     @property
@@ -237,7 +239,7 @@ def generate_ast(
         Vyper source code.
     source_id : int
         ID number used to identify this contract in the source map.
-    contract_name : str
+    contract_name: str
         Name of the contract.
 
     Returns
@@ -248,20 +250,24 @@ def generate_ast(
     return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
 
 
+# destructive -- mutates module in place!
 def generate_unfolded_ast(
-    vyper_module: vy_ast.Module, interface_codes: Optional[InterfaceImports]
+    contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
-    # note: validate_semantics does type inference on the AST
-    validate_semantics(vyper_module, interface_codes)
+
+    with input_bundle.search_path(contract_path.parent):
+        # note: validate_semantics does type inference on the AST
+        validate_semantics(vyper_module, input_bundle)
 
     return vyper_module
 
 
 def generate_folded_ast(
+    contract_path: Path,
     vyper_module: vy_ast.Module,
-    interface_codes: Optional[InterfaceImports],
+    input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
 ) -> Tuple[vy_ast.Module, StorageLayout]:
     """
@@ -279,11 +285,15 @@ def generate_folded_ast(
     StorageLayout
         Layout of variables in storage
     """
+
     vy_ast.validation.validate_literal_nodes(vyper_module)
 
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
-    validate_semantics(vyper_module_folded, interface_codes)
+
+    with input_bundle.search_path(contract_path.parent):
+        validate_semantics(vyper_module_folded, input_bundle)
+
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
 
     return vyper_module_folded, symbol_tables

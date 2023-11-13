@@ -1,21 +1,15 @@
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
+from vyper.compiler.input_bundle import InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
-from vyper.typing import (
-    ContractCodes,
-    ContractPath,
-    InterfaceDict,
-    InterfaceImports,
-    OutputDict,
-    OutputFormats,
-    StorageLayout,
-)
+from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
@@ -47,123 +41,25 @@ OUTPUT_FORMATS = {
 }
 
 
-def compile_codes(
-    contract_sources: ContractCodes,
-    output_formats: Union[OutputDict, OutputFormats, None] = None,
-    exc_handler: Union[Callable, None] = None,
-    interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
-    initial_id: int = 0,
-    settings: Settings = None,
-    storage_layouts: Optional[dict[ContractPath, Optional[StorageLayout]]] = None,
-    show_gas_estimates: bool = False,
-    no_bytecode_metadata: bool = False,
-    experimental_codegen: bool = False,
-) -> OrderedDict:
-    """
-    Generate compiler output(s) from one or more contract source codes.
-
-    Arguments
-    ---------
-    contract_sources: Dict[str, str]
-        Vyper source codes to be compiled. Formatted as `{"contract name": "source code"}`
-    output_formats: List, optional
-        List of compiler outputs to generate. Possible options are all the keys
-        in `OUTPUT_FORMATS`. If not given, the deployment bytecode is generated.
-    exc_handler: Callable, optional
-        Callable used to handle exceptions if the compilation fails. Should accept
-        two arguments - the name of the contract, and the exception that was raised
-    initial_id: int, optional
-        The lowest source ID value to be used when generating the source map.
-    settings: Settings, optional
-        Compiler settings
-    show_gas_estimates: bool, optional
-        Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * May be a singular dictionary shared across all sources to be compiled,
-          i.e. `{'interface name': "definition"}`
-        * or may be organized according to contracts that are being compiled, i.e.
-          `{'contract name': {'interface name': "definition"}`
-
-        * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
-    no_bytecode_metadata: bool, optional
-        Do not add metadata to bytecode. Defaults to False
-    experimental_codegen: bool, optional
-        Use experimental codegen. Defaults to False
-
-    Returns
-    -------
-    Dict
-        Compiler output as `{'contract name': {'output key': "output data"}}`
-    """
-    settings = settings or Settings()
-
-    if output_formats is None:
-        output_formats = ("bytecode",)
-    if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in contract_sources.keys())
-
-    out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        source_code = contract_sources[contract_name]
-        interfaces: Any = interface_codes
-        storage_layout_override = None
-        if storage_layouts and contract_name in storage_layouts:
-            storage_layout_override = storage_layouts[contract_name]
-
-        if (
-            isinstance(interfaces, dict)
-            and contract_name in interfaces
-            and isinstance(interfaces[contract_name], dict)
-        ):
-            interfaces = interfaces[contract_name]
-
-        # make IR output the same between runs
-        codegen.reset_names()
-
-        with anchor_evm_version(settings.evm_version):
-            compiler_data = CompilerData(
-                source_code,
-                contract_name,
-                interfaces,
-                source_id,
-                settings,
-                storage_layout_override,
-                show_gas_estimates,
-                no_bytecode_metadata,
-                experimental_codegen,
-            )
-            for output_format in output_formats[contract_name]:
-                if output_format not in OUTPUT_FORMATS:
-                    raise ValueError(f"Unsupported format type {repr(output_format)}")
-                try:
-                    out.setdefault(contract_name, {})
-                    formatter = OUTPUT_FORMATS[output_format]
-                    out[contract_name][output_format] = formatter(compiler_data)
-                except Exception as exc:
-                    if exc_handler is not None:
-                        exc_handler(contract_name, exc)
-                    else:
-                        raise exc
-
-    return out
-
-
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
 def compile_code(
     contract_source: str,
-    output_formats: Optional[OutputFormats] = None,
-    interface_codes: Optional[InterfaceImports] = None,
+    contract_name: str = UNKNOWN_CONTRACT_NAME,
+    source_id: int = 0,
+    input_bundle: InputBundle = None,
     settings: Settings = None,
+    output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
+    no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
+    exc_handler: Optional[Callable] = None,
 ) -> dict:
     """
-    Generate compiler output(s) from a single contract source code.
+    Generate consumable compiler output(s) from a single contract source code.
+    Basically, a wrapper around CompilerData which munges the output
+    data into the requested output formats.
 
     Arguments
     ---------
@@ -179,11 +75,11 @@ def compile_code(
         Compiler settings.
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
+    exc_handler: Callable, optional
+        Callable used to handle exceptions if the compilation fails. Should accept
+        two arguments - the name of the contract, and the exception that was raised
+    no_bytecode_metadata: bool, optional
+        Do not add metadata to bytecode. Defaults to False
 
     Returns
     -------
@@ -191,14 +87,37 @@ def compile_code(
         Compiler output as `{'output key': "output data"}`
     """
 
-    contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
-    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
+    settings = settings or Settings()
 
-    return compile_codes(
-        contract_sources,
-        output_formats,
-        interface_codes=interface_codes,
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-    )[UNKNOWN_CONTRACT_NAME]
+    if output_formats is None:
+        output_formats = ("bytecode",)
+
+    # make IR output the same between runs
+    codegen.reset_names()
+
+    compiler_data = CompilerData(
+        contract_source,
+        input_bundle,
+        Path(contract_name),
+        source_id,
+        settings,
+        storage_layout_override,
+        show_gas_estimates,
+        no_bytecode_metadata,
+    )
+
+    ret = {}
+    with anchor_evm_version(compiler_data.settings.evm_version):
+        for output_format in output_formats:
+            if output_format not in OUTPUT_FORMATS:
+                raise ValueError(f"Unsupported format type {repr(output_format)}")
+            try:
+                formatter = OUTPUT_FORMATS[output_format]
+                ret[output_format] = formatter(compiler_data)
+            except Exception as exc:
+                if exc_handler is not None:
+                    exc_handler(contract_name, exc)
+                else:
+                    raise exc
+
+    return ret
