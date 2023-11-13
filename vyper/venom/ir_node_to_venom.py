@@ -1,4 +1,5 @@
 from typing import Optional
+from vyper.codegen.context import VariableRecord
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
@@ -104,7 +105,7 @@ def _convert_binary_op(
     ctx: IRFunction,
     ir: IRnode,
     symbols: SymbolTable,
-    variables,
+    variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
     swap: bool = False,
 ) -> IRVariable:
@@ -226,7 +227,7 @@ _break_target: IRBasicBlock = None
 _continue_target: IRBasicBlock = None
 
 
-def _get_variable_from_address(variables: OrderedSet, addr: int) -> IRVariable:
+def _get_variable_from_address(variables: OrderedSet[VariableRecord], addr: int) -> VariableRecord:
     assert isinstance(addr, int), "non-int address"
     for var in variables:
         if var.location.name != "memory":
