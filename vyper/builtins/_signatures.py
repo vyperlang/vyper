@@ -1,7 +1,6 @@
 import functools
 from typing import Dict
 
-
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode

@@ -198,7 +198,13 @@ class ExprInfo:
     is_immutable: bool = False
 
     def __post_init__(self):
-        should_match = ("typ", "location", "is_compile_time_constant", "is_runtime_constant", "is_immutable")
+        should_match = (
+            "typ",
+            "location",
+            "is_compile_time_constant",
+            "is_runtime_constant",
+            "is_immutable",
+        )
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
@@ -212,7 +218,7 @@ class ExprInfo:
             location=var_info.location,
             is_compile_time_constant=var_info.is_compile_time_constant,
             is_runtime_constant=var_info.is_runtime_constant,
-            is_immutable=var_info.is_immutable
+            is_immutable=var_info.is_immutable,
         )
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":

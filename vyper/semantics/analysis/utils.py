@@ -91,11 +91,18 @@ class _ExprAnalyser:
             # kludge! for validate_modification in local analysis of Assign
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            is_constant = any((getattr(i, "is_constant", False) for i in types))
+            is_compile_time_constant = any(
+                (getattr(i, "is_compile_time_constant", False) for i in types)
+            )
+            is_runtime_constant = any((getattr(i, "is_runtime_constant", False) for i in types))
             is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
             return ExprInfo(
-                t, location=location, is_constant=is_constant, is_immutable=is_immutable
+                t,
+                location=location,
+                is_compile_time_constant=is_compile_time_constant,
+                is_runtime_constant=is_runtime_constant,
+                is_immutable=is_immutable,
             )
 
         # If it's a Subscript, propagate the subscriptable varinfo
