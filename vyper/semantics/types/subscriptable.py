@@ -274,12 +274,10 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
-        length = node.slice.value.elements[1]._metadata.get("folded_value")
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not isinstance(length, vy_ast.Int)
             or len(node.slice.value.elements) != 2
         ):
             raise StructureException(
@@ -287,8 +285,16 @@ class DArrayT(_SequenceT):
                 node,
             )
 
+        length = node.slice.value.elements[1]._metadata.get("folded_value")
+        if not isinstance(length, vy_ast.Int):
+            raise StructureException(
+                "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
+            )
+
         value_type = type_from_annotation(node.slice.value.elements[0])
         if not value_type._as_darray:
+            # TODO: this is currently not reachable because all instantiable types are set to True
+            #       and non-instantiable types like events are caught by `type_from_annotation`
             raise StructureException(f"Arrays of {value_type} are not allowed", node)
 
         max_length = length.value
