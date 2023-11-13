@@ -63,7 +63,7 @@ def _generate_kwarg_handlers(
     #    write default args to memory
     #    goto external_function_common_ir
 
-    def handler_for(calldata_kwargs, folded_default_kwargs, original_default_kwargs):
+    def handler_for(calldata_kwargs, original_default_kwargs, folded_default_kwargs):
         calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
         calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
@@ -128,10 +128,10 @@ def _generate_kwarg_handlers(
         # folded ast
         original_default_kwargs = keyword_args[i:]
         # unfolded ast
-        folded_default_kwargs = folded_keyword_args[1:]
+        folded_default_kwargs = folded_keyword_args[i:]
 
         sig, calldata_min_size, ir_node = handler_for(
-            calldata_kwargs, folded_default_kwargs, original_default_kwargs
+            calldata_kwargs, original_default_kwargs, folded_default_kwargs
         )
         ret[sig] = calldata_min_size, ir_node
 
