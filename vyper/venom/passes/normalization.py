@@ -12,6 +12,8 @@ class Normalization(IRPass):
     each basic block has at most one conditional predecessor.
     """
 
+    changes = 0
+
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
         ctx = self.ctx
         label_base = bb.label.value
@@ -31,16 +33,22 @@ class Normalization(IRPass):
             # Redirect the original conditional jump to the intermediary basic block
             jump_inst.operands[1] = split_bb.label
 
+            self.changes += 1
+
     def _run_pass(self, ctx: IRFunction) -> int:
         self.ctx = ctx
         self.dfg = DFG.build_dfg(ctx)
+        self.changes = 0
 
         calculate_cfg(ctx)
-
-        changes = 0
         for bb in ctx.basic_blocks:
             if len(bb.cfg_in) > 1:
                 self._split_basic_block(bb)
-                changes += 1
 
-        return changes
+        # Recalculate control flow graph
+        calculate_cfg(ctx)
+
+        # Sanity check
+        assert ctx.normalized == True, "Normalization pass failed"
+
+        return self.changes
