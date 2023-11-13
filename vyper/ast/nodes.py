@@ -933,11 +933,9 @@ class UnaryOp(ExprNode):
     def prefold(self) -> ExprNode:
         self.operand.prefold()
         operand = self.operand._metadata.get("folded_value")
-        if operand is None:
-            return
-
-        value = self.op._op(operand.value)
-        self._metadata["folded_value"] = type(self.operand).from_node(self, value=value)
+        if operand is not None:
+            value = self.op._op(operand.value)
+            self._metadata["folded_value"] = type(operand).from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1155,11 +1153,9 @@ class BoolOp(ExprNode):
         for i in self.values:
             i.prefold()
         values = [i._metadata.get("folded_value") for i in self.values]
-        if None in values:
-            return
-
-        value = self.op._op(values)
-        self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
+        if None not in values:
+            value = self.op._op(values)
+            self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
@@ -1223,11 +1219,9 @@ class Compare(ExprNode):
         left = self.left._metadata.get("folded_value")
         right = self.right._metadata.get("folded_value")
 
-        if None in (left, right):
-            return
-
-        value = self.op._op(left.value, right.value)
-        self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
+        if None not in (left, right):
+            value = self.op._op(left.value, right.value)
+            self._metadata["folded_value"] = NameConstant.from_node(self, value=value)
 
     def evaluate(self) -> ExprNode:
         """
