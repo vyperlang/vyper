@@ -11,7 +11,12 @@ from typing import List, Union
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
 
-class OrderedSet(dict):
+from typing import Generic, TypeVar
+
+_T = TypeVar("_T")
+
+
+class OrderedSet(Generic[_T], dict[_T, None]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -33,10 +38,10 @@ class OrderedSet(dict):
     def get(self, *args, **kwargs):
         raise RuntimeError("can't call get() on OrderedSet!")
 
-    def add(self, item):
+    def add(self, item: _T) -> None:
         self[item] = None
 
-    def remove(self, item):
+    def remove(self, item: _T) -> None:
         del self[item]
 
     def difference(self, other):
