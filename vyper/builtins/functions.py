@@ -1081,7 +1081,11 @@ class RawCall(BuiltinFunction):
         kwargz = {i.arg: i.value for i in node.keywords}
 
         outsize = kwargz.get("max_outsize")
+        if outsize is not None:
+            outsize = outsize._metadata.get("folded_value")
         revert_on_failure = kwargz.get("revert_on_failure")
+        if revert_on_failure is not None:
+            revert_on_failure = revert_on_failure._metadata.get("folded_value")
         revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
 
         if outsize is None or outsize.value == 0:
