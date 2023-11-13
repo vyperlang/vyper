@@ -603,6 +603,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         # can happen.
         super().visit(node, typ)
 
+        folded_value = node._metadata.get("folded_value")
+        if folded_value:
+            #print("folded value: ", folded_value)
+            validate_expected_type(folded_value, typ)
+
         # annotate
         node._metadata["type"] = typ
 
