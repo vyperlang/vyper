@@ -28,6 +28,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
             break
 
     if deploy_bb:
+        assert after_deploy_bb is not None, "No block after deploy block"
         entry_block = after_deploy_bb
         has_constructor = True if ctx.basic_blocks[0].instructions[0].opcode != "deploy" else False
         if has_constructor:
@@ -37,7 +38,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
         entry_block = ctx.basic_blocks[0]
 
     for bb in ctx.basic_blocks:
-        if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
+        if "selector_bucket_" in bb.label.value_str or bb.label.value == "fallback":
             bb.add_cfg_in(entry_block)
 
     for bb in ctx.basic_blocks:
@@ -51,7 +52,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
             if inst.opcode in CFG_ALTERING_OPS:
                 ops = inst.get_label_operands()
                 for op in ops:
-                    ctx.get_basic_block(op.value).add_cfg_in(bb)
+                    ctx.get_basic_block(op.value_str).add_cfg_in(bb)
 
     # Fill in the "out" set for each basic block
     for bb in ctx.basic_blocks:
@@ -67,7 +68,7 @@ def _reset_liveness(ctx: IRFunction) -> None:
             inst.liveness = OrderedSet()
 
 
-def _calculate_liveness_bb(bb: IRBasicBlock):
+def _calculate_liveness_bb(bb: IRBasicBlock) -> None:
     """
     Compute liveness of each instruction in the basic block.
     """
@@ -162,7 +163,7 @@ class DFG:
         return self._dfg_outputs[op]
 
     @classmethod
-    def build_dfg(cls, ctx: IRFunction):
+    def build_dfg(cls, ctx: IRFunction) -> "DFG":
         dfg = cls()
 
         # Build DFG

@@ -70,6 +70,10 @@ class IRValueBase:
     def is_literal(self) -> bool:
         return False
 
+    @property
+    def value_str(self) -> str:
+        return str(self.value)
+
     def __repr__(self) -> str:
         return str(self.value)
 
