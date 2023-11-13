@@ -53,9 +53,6 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
     if isinstance(node, vy_ast.UnaryOp):
         node._metadata["folded_value"] = node.prefold()
 
-    if isinstance(node, (vy_ast.Constant, vy_ast.NameConstant)):
-        node._metadata["folded_value"] = node
-
     if isinstance(node, vy_ast.Compare):
         node._metadata["folded_value"] = node.prefold()
 

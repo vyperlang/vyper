@@ -751,6 +751,10 @@ class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        self._metadata["folded_value"] = self
+
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -903,6 +907,10 @@ class Dict(ExprNode):
 
 class NameConstant(Constant):
     __slots__ = ("value",)
+
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        self._metadata["folded_value"] = self
 
 
 class Name(ExprNode):
