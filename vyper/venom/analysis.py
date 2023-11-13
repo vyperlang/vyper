@@ -1,6 +1,12 @@
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.basicblock import BB_TERMINATORS, IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import (
+    CFG_ALTERING_OPS,
+    BB_TERMINATORS,
+    IRBasicBlock,
+    IRInstruction,
+    IRVariable,
+)
 from vyper.venom.function import IRFunction
 
 
@@ -42,7 +48,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
         )
 
         for inst in bb.instructions:
-            if inst.opcode in ["jmp", "jnz", "call", "staticcall", "invoke", "deploy"]:
+            if inst.opcode in CFG_ALTERING_OPS:
                 ops = inst.get_label_operands()
                 for op in ops:
                     ctx.get_basic_block(op.value).add_cfg_in(bb)
