@@ -28,17 +28,19 @@ def test_multi_entry_block():
     mul = ctx.append_instruction("mul", [sum, sum])
     ctx.append_instruction("jmp", [finish_label], False)
 
-    finish_label = IRBasicBlock(finish_label, ctx)
-    ctx.append_basic_block(finish_label)
+    finish_bb = IRBasicBlock(finish_label, ctx)
+    ctx.append_basic_block(finish_bb)
     ctx.append_instruction("stop", [], False)
+
+    assert ctx.cfg_dirty == True, "CFG should be dirty"
 
     Normalization.run_pass(ctx)
 
-    asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
+    assert ctx.cfg_dirty == False, "CFG should be clean"
+    assert ctx.normalized == True, "CFG should be normalized"
 
-    print(ctx)
-    print(asm)
-
-
-if __name__ == "__main__":
-    test_multi_entry_block()
+    finish_bb = ctx.get_basic_block(finish_label.value)
+    cfg_in = list(finish_bb.cfg_in.keys())
+    assert cfg_in[0].label.value == "target", "Should contain target"
+    assert cfg_in[1].label.value == "finish_split_global", "Should contain finish_split_global"
+    assert cfg_in[2].label.value == "finish_split_block_1", "Should contain finish_split_block_1"
