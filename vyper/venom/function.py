@@ -100,7 +100,7 @@ class IRFunction:
 
     def append_instruction(
         self, opcode: str, args: list[IRValueBase], do_ret: bool = True
-    ) -> IRVariable:
+    ) -> IRVariable | None:
         """
         Append instruction to last basic block.
         """
@@ -109,7 +109,7 @@ class IRFunction:
         self.get_basic_block().append_instruction(inst)
         return ret
 
-    def append_data(self, opcode: str, args: list[IRValueBase]):
+    def append_data(self, opcode: str, args: list[IRValueBase]) -> None:
         """
         Append data
         """
