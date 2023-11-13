@@ -64,7 +64,8 @@ class _FuncIRInfo:
 
 
 class FuncIR:
-    pass
+    common_ir: IRnode  # the "common" code for the function
+    func_ir: IRnode  # the code for the function
 
 
 @dataclass

@@ -116,7 +116,7 @@ def _convert_binary_op(
 
     ret = ctx.get_next_variable()
 
-    inst = IRInstruction(str(ir.value), args, ret)
+    inst = IRInstruction(str(ir.value), args, ret)  # type: ignore
     ctx.get_basic_block().append_instruction(inst)
     return ret
 
@@ -142,13 +142,13 @@ def _handle_self_call(
     symbols: SymbolTable,
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
-) -> None:
+) -> IRVariable:
     func_t = ir.passthrough_metadata.get("func_t", None)
     args_ir = ir.passthrough_metadata["args_ir"]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = [IRLabel(target_label)]
+    ret_args = list[Optional[IRValueBase]]([IRLabel(str(target_label))])
 
     for arg in args_ir:
         if arg.is_literal:
@@ -163,21 +163,21 @@ def _handle_self_call(
                 ctx, arg._optimized, symbols, variables, allocated_variables
             )
             if arg.location and arg.location.load_op == "calldataload":
-                ret = ctx.append_instruction(arg.location.load_op, [ret])
+                ret = ctx.append_instruction(arg.location.load_op, [ret])  # type: ignore
             ret_args.append(ret)
 
     if return_buf.is_literal:
         ret_args.append(IRLiteral(return_buf.value))
 
-    invoke_ret = ctx.append_instruction("invoke", ret_args, func_t.return_type is not None)
-    allocated_variables["return_buffer"] = invoke_ret
+    invoke_ret = ctx.append_instruction("invoke", ret_args, func_t.return_type is not None)  # type: ignore
+    allocated_variables["return_buffer"] = invoke_ret  # type: ignore
     return invoke_ret
 
 
 def _handle_internal_func(
     ctx: IRFunction, ir: IRnode, func_t: ContractFunctionT, symbols: SymbolTable
 ) -> IRnode:
-    bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)
+    bb = IRBasicBlock(IRLabel(str(ir.args[0].args[0].value), True), ctx)
     bb = ctx.append_basic_block(bb)
 
     old_ir_mempos = 0
@@ -216,18 +216,20 @@ def _convert_ir_simple_node(
     symbols: SymbolTable,
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
-) -> IRVariable:
+) -> Optional[IRVariable]:
     args = [
         _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables) for arg in ir.args
     ]
-    return ctx.append_instruction(ir.value, args)
+    return ctx.append_instruction(ir.value, args)  # type: ignore
 
 
-_break_target: IRBasicBlock = None
-_continue_target: IRBasicBlock = None
+_break_target: Optional[IRBasicBlock] = None
+_continue_target: Optional[IRBasicBlock] = None
 
 
-def _get_variable_from_address(variables: OrderedSet[VariableRecord], addr: int) -> VariableRecord:
+def _get_variable_from_address(
+    variables: OrderedSet[VariableRecord], addr: int
+) -> Optional[VariableRecord]:
     assert isinstance(addr, int), "non-int address"
     for var in variables:
         if var.location.name != "memory":

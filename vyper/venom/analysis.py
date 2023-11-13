@@ -182,6 +182,6 @@ class DFG:
                     inputs.append(inst)
 
                 for op2 in res:
-                    dfg._dfg_outputs[op2] = inst
+                    dfg._dfg_outputs[op2] = inst  # type: ignore
 
         return dfg

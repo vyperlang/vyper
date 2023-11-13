@@ -122,7 +122,7 @@ class VenomCompiler:
                 data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
         extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
-        extent_point.extend([data_segments[label] for label in data_segments])
+        extent_point.extend([data_segments[label] for label in data_segments])  # type: ignore
 
         if no_optimize is False:
             optimize_assembly(asm)
@@ -130,16 +130,16 @@ class VenomCompiler:
         return asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, stack_ops: OrderedSet[IRVariable]
+        self, assembly: list, stack: StackModel, _stack_ops: OrderedSet[IRVariable]
     ) -> None:
         # make a list so we can index it
-        stack_ops = [x for x in stack_ops]
-        stack_ops_count = len(stack_ops)
+        stack_ops = [x for x in _stack_ops.keys()]
+        stack_ops_count = len(_stack_ops)
 
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op)
+            depth = stack.get_depth(op)  # type: ignore
 
             if depth == final_stack_depth:
                 continue
@@ -162,7 +162,7 @@ class VenomCompiler:
                     self.swap_op(assembly, stack, op)
                     break
 
-        emitted_ops = OrderedSet()
+        emitted_ops = OrderedSet[IRValueBase]()
         for op in ops:
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need to emit it here
@@ -221,11 +221,13 @@ class VenomCompiler:
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
     # we enter from in the CFG.
-    def clean_stack_from_cfg_in(self, asm: list, basicblock: IRBasicBlock, stack: StackModel):
+    def clean_stack_from_cfg_in(
+        self, asm: list, basicblock: IRBasicBlock, stack: StackModel
+    ) -> None:
         if len(basicblock.cfg_in) == 0:
             return
 
-        to_pop = OrderedSet()
+        to_pop = OrderedSet[IRVariable]()
         for in_bb in basicblock.cfg_in:
             # inputs is the input variables we need from in_bb
             inputs = input_vars_from(in_bb, basicblock)
@@ -291,7 +293,7 @@ class VenomCompiler:
         # Step 3: Reorder stack
         if opcode in ["jnz", "jmp"]:
             # prepare stack for jump into another basic block
-            assert isinstance(inst.parent.cfg_out, OrderedSet)
+            assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
             target_stack = input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
@@ -299,7 +301,7 @@ class VenomCompiler:
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, operands)
+        self._stack_reorder(assembly, stack, OrderedSet(operands))
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
@@ -401,7 +403,7 @@ class VenomCompiler:
             assembly.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
             assembly.extend(["_mem_deploy_start"])  # stack: len mem_ofst
             assembly.extend(["RETURN"])
-            assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])
+            assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])  # type: ignore
             assembly = assembly[-1]
         elif opcode == "iload":
             loc = inst.operands[0].value

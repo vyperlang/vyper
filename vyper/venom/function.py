@@ -105,7 +105,7 @@ class IRFunction:
         Append instruction to last basic block.
         """
         ret = self.get_next_variable() if do_ret else None
-        inst = IRInstruction(opcode, args, ret)
+        inst = IRInstruction(opcode, args, ret)  # type: ignore
         self.get_basic_block().append_instruction(inst)
         return ret
 
@@ -113,7 +113,7 @@ class IRFunction:
         """
         Append data
         """
-        self.data_segment.append(IRInstruction(opcode, args))
+        self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
 
     @property
     def cfg_dirty(self) -> bool:
