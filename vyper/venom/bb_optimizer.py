@@ -4,7 +4,7 @@ from vyper.venom.basicblock import IRInstruction, IRLabel
 from vyper.venom.function import IRFunction
 
 
-def _optimize_unused_variables(ctx: IRFunction) -> list[IRInstruction]:
+def _optimize_unused_variables(ctx: IRFunction) -> set[IRInstruction]:
     """
     Remove unused variables.
     """

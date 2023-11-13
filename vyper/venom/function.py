@@ -98,7 +98,9 @@ class IRFunction:
         self.basic_blocks = new_basic_blocks
         return removed
 
-    def append_instruction(self, opcode: str, args: list[IRValueBase], do_ret: bool = True):
+    def append_instruction(
+        self, opcode: str, args: list[IRValueBase], do_ret: bool = True
+    ) -> IRVariable:
         """
         Append instruction to last basic block.
         """

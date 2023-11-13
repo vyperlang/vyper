@@ -78,8 +78,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 class VenomCompiler:
     ctx: IRFunction
     label_counter = 0
-    visited_instructions = None  # {IRInstruction}
-    visited_basicblocks = None  # {IRBasicBlock}
+    visited_instructions: OrderedSet  # {IRInstruction}
+    visited_basicblocks: OrderedSet  # {IRBasicBlock}
 
     def __init__(self, ctx: IRFunction):
         self.ctx = ctx
@@ -93,7 +93,7 @@ class VenomCompiler:
         self.label_counter = 0
 
         stack = StackModel()
-        asm = []
+        asm: list[str] = []
 
         calculate_cfg(self.ctx)
         calculate_liveness(self.ctx)
@@ -148,7 +148,7 @@ class VenomCompiler:
 
     def _emit_input_operands(
         self, assembly: list, inst: IRInstruction, ops: list[IRValueBase], stack: StackModel
-    ):
+    ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
         # SWAPs, DUPs and PUSHes until we match the `ops` argument
@@ -200,7 +200,7 @@ class VenomCompiler:
     # basic block regardless from where we came from. Let's discuss offline.
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
-    ):
+    ) -> None:
         if basicblock in self.visited_basicblocks:
             return
         self.visited_basicblocks.add(basicblock)

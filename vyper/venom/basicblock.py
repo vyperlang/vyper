@@ -63,7 +63,7 @@ class IRValueBase:
     value: IRValueBaseValue
 
     def __init__(self, value: IRValueBaseValue) -> None:
-        assert isinstance(value, IRValueBaseValue), "value must be an IRValueBaseValue"
+        assert isinstance(value, str) or isinstance(value, int), "value must be an IRValueBaseValue"
         self.value = value
 
     @property
@@ -175,7 +175,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if not isinstance(op, IRLabel)]
 
-    def get_inputs(self) -> list[IRValueBase]:
+    def get_inputs(self) -> list[IRVariable]:
         """
         Get all input operands for instruction.
         """
