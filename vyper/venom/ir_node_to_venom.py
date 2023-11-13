@@ -647,7 +647,8 @@ def _convert_ir_basicblock(
         src = ctx.append_instruction("add", [src_offset, IRLabel("code_end")])
 
         inst = IRInstruction("dloadbytes", [len_, src, dst])
-        return ctx.get_basic_block().append_instruction(inst)
+        ctx.get_basic_block().append_instruction(inst)
+        return None
     elif ir.value == "mload":
         sym_ir = ir.args[0]
         var = _get_variable_from_address(variables, sym_ir.value) if sym_ir.is_literal else None
