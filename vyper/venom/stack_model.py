@@ -2,7 +2,7 @@ from vyper.venom.basicblock import IRValueBase, IRVariable
 
 
 class StackModel:
-    NOT_IN_STACK = object()
+    NOT_IN_STACK = 1
     _stack: list[IRValueBase]
 
     def __init__(self):
