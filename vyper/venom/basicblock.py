@@ -154,13 +154,16 @@ class IRInstruction:
     fence_id: int
     annotation: Optional[str]
 
-    def __init__(self, opcode: str, operands: list[IRValueBase], output: IRValueBase = None):
+    def __init__(
+        self,
+        opcode: str,
+        operands: list[IRValueBase | IRValueBaseValue],
+        output: Optional[IRValueBase] = None,
+    ):
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
         self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
-        self.output = (
-            output if isinstance(output, IRValueBase) else IRValueBase(output) if output else None
-        )
+        self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
         self.parent = None
@@ -185,7 +188,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    def get_outputs(self) -> list[IRVariable]:
+    def get_outputs(self) -> list[IRValueBase]:
         """
         Get the output item for an instruction.
         (Currently all instructions output at most one item, but write
