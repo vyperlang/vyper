@@ -31,12 +31,16 @@ class Normalization(IRPass):
             # Redirect the original conditional jump to the intermediary basic block
             jump_inst.operands[1] = split_bb.label
 
-    def _run_pass(self, ctx: IRFunction) -> None:
+    def _run_pass(self, ctx: IRFunction) -> int:
         self.ctx = ctx
         self.dfg = DFG.build_dfg(ctx)
 
         calculate_cfg(ctx)
 
+        changes = 0
         for bb in ctx.basic_blocks:
             if len(bb.cfg_in) > 1:
                 self._split_basic_block(bb)
+                changes += 1
+
+        return changes
