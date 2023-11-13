@@ -357,22 +357,24 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
                 # range(CONSTANT)
-                n = args[0]._metadata.get("folded_value")
+                n = args[0]
                 bound = kwargs.pop("bound", None)
                 validate_expected_type(n, IntegerT.any())
 
                 if bound is None:
-                    if not isinstance(n, vy_ast.Num):
+                    n_val = n._metadata.get("folded_value")
+                    if not isinstance(n_val, vy_ast.Num):
                         raise StateAccessViolation("Value must be a literal", n)
-                    if n.value <= 0:
+                    if n_val.value <= 0:
                         raise StructureException("For loop must have at least 1 iteration", args[0])
                     type_list = get_possible_types_from_node(n)
 
                 else:
-                    if not isinstance(bound, vy_ast.Num):
+                    bound_val = bound._metadata.get("folded_value")
+                    if not isinstance(bound_val, vy_ast.Num):
                         raise StateAccessViolation("bound must be a literal", bound)
-                    if bound.value <= 0:
-                        raise StructureException("bound must be at least 1", args[0])
+                    if bound_val.value <= 0:
+                        raise StructureException("bound must be at least 1", bound)
                     type_list = get_common_types(n, bound)
 
             else:
