@@ -330,7 +330,7 @@ class TYPE_T:
             return self.typedef._ctor_call_return(node)
         raise StructureException("Value is not callable", node)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, expected_return_typ=None):
         if hasattr(self.typedef, "_ctor_arg_types"):
             return self.typedef._ctor_arg_types(node)
         raise StructureException("Value is not callable", node)
