@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import UnfoldableNode
+from vyper.exceptions import VyperException
 
 
 def get_constants(node: vy_ast.Module) -> dict:
@@ -78,7 +78,4 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
 
             call_type = DISPATCH_TABLE.get(func_name)
             if call_type and hasattr(call_type, "prefold"):
-                try:
-                    node._metadata["folded_value"] = call_type.prefold(node)  # type: ignore
-                except UnfoldableNode:
-                    pass
+                node._metadata["folded_value"] = call_type.prefold(node)  # type: ignore
