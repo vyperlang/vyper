@@ -32,8 +32,10 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
+    vyper_module_annotated : vy_ast.Module
+        Annotated but unfolded Vyper AST 
     vyper_module_folded : vy_ast.Module
-        Folded Vyper AST
+        Annotated and folded Vyper AST
     global_ctx : GlobalContext
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
@@ -131,16 +133,13 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
-    def vyper_module_unfolded(self) -> vy_ast.Module:
-        # This phase is intended to generate an AST for tooling use, and is not
-        # used in the compilation process.
-
-        return generate_unfolded_ast(self.contract_path, self.vyper_module, self.input_bundle)
+    def vyper_module_annotated(self) -> vy_ast.Module:
+        return generate_annotated_ast(self.contract_path, self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.contract_path, self.vyper_module, self.input_bundle, self.storage_layout_override
+            self.contract_path, self.vyper_module_annotated, self.input_bundle, self.storage_layout_override
         )
 
     @property
@@ -234,11 +233,10 @@ def generate_ast(
 
 
 # destructive -- mutates module in place!
-def generate_unfolded_ast(
+def generate_annotated_ast(
     contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
 ) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
 
     with input_bundle.search_path(contract_path.parent):
         # note: validate_semantics does type inference on the AST
