@@ -1,5 +1,4 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import VyperException
 
 
 def get_constants(node: vy_ast.Module) -> dict:
