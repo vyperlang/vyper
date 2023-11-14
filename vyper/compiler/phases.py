@@ -262,16 +262,10 @@ def generate_folded_ast(
     Returns
     -------
     vy_ast.Module
-        Folded Vyper AST
+        Annotated Vyper AST
     StorageLayout
         Layout of variables in storage
     """
-
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
-    with input_bundle.search_path(contract_path.parent):
-        validate_semantics(vyper_module, input_bundle)
-
     symbol_tables = set_data_positions(vyper_module, storage_layout_overrides)
 
     vyper_module_folded = copy.deepcopy(vyper_module)
