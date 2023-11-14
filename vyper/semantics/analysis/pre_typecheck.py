@@ -35,7 +35,7 @@ def get_constants(node: vy_ast.Module) -> dict:
     return constants
 
 
-def pre_typecheck(node: vy_ast.Module):
+def pre_typecheck(node: vy_ast.Module) -> None:
     constants = get_constants(node)
 
     for n in node.get_descendants(reverse=True):
