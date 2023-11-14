@@ -281,6 +281,8 @@ class _ExprAnalyser:
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
         return_value = var.fetch_call_return(node)
         if return_value:
+            if isinstance(return_value, list):
+                return return_value
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
 

@@ -607,7 +607,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         super().visit(node, typ)
 
         folded_value = node._metadata.get("folded_value")
-        if folded_value:
+        if isinstance(folded_value, vy_ast.Constant):
             # print("folded value: ", folded_value)
             validate_expected_type(folded_value, typ)
 
@@ -689,7 +689,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 return
 
             # builtin functions
-            arg_types = call_type.infer_arg_types(node)
+            arg_types = call_type.infer_arg_types(node, typ)
             # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)

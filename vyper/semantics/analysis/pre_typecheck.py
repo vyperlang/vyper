@@ -79,6 +79,6 @@ def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
             call_type = DISPATCH_TABLE.get(func_name)
             if call_type and hasattr(call_type, "evaluate"):
                 try:
-                    node._metadata["folded_value"] = call_type.evaluate(node)  # type: ignore
+                    node._metadata["folded_value"] = call_type.prefold(node)  # type: ignore
                 except UnfoldableNode:
                     pass
