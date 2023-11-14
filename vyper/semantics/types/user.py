@@ -295,7 +295,7 @@ class InterfaceT(_UserType):
         return ABI_Address()
 
     def __repr__(self):
-        return f"{self._id}"
+        return f"interface ({self.functions})"
 
     # when using the type itself (not an instance) in the call position
     # maybe rename to _ctor_call_return
