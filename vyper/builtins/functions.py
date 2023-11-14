@@ -49,7 +49,6 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnfoldableNode,
-    VyperException,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import VarInfo
@@ -991,9 +990,7 @@ class AsWeiValue(BuiltinFunction):
         try:
             denom = next(v for k, v in self.wei_denoms.items() if value.value in k)
         except StopIteration:
-            raise ArgumentException(
-                f"Unknown denomination: {value.value}", node.args[1]
-            ) from None
+            raise ArgumentException(f"Unknown denomination: {value.value}", node.args[1]) from None
 
         return denom
 

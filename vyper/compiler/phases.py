@@ -33,7 +33,7 @@ class CompilerData:
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
     vyper_module_annotated : vy_ast.Module
-        Annotated but unfolded Vyper AST 
+        Annotated but unfolded Vyper AST
     vyper_module_folded : vy_ast.Module
         Annotated and folded Vyper AST
     global_ctx : GlobalContext
@@ -139,7 +139,10 @@ class CompilerData:
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.contract_path, self.vyper_module_annotated, self.input_bundle, self.storage_layout_override
+            self.contract_path,
+            self.vyper_module_annotated,
+            self.input_bundle,
+            self.storage_layout_override,
         )
 
     @property

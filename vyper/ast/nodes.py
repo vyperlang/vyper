@@ -888,7 +888,7 @@ class List(ExprNode):
         elements = [e._metadata.get("folded_value") for e in self.elements]
         if None not in elements:
             return type(self).from_node(self, elements=elements)
-        
+
         return None
 
 
@@ -925,7 +925,7 @@ class UnaryOp(ExprNode):
         if operand is not None:
             value = self.op._op(operand.value)
             return type(operand).from_node(self, value=value)
-        
+
         return None
 
     def evaluate(self) -> ExprNode:
@@ -1204,7 +1204,7 @@ class Compare(ExprNode):
 
         if None in (left, right):
             return None
-        
+
         value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)
 

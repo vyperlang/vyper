@@ -124,7 +124,7 @@ class BuiltinFunction(VyperType):
     def prefold(self, node):
         if not hasattr(self, "evaluate"):
             return None
-        
+
         try:
             return self.evaluate(node)
         except (UnfoldableNode, VyperException):
