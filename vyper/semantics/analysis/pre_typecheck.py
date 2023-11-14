@@ -2,7 +2,7 @@ from vyper import ast as vy_ast
 
 
 def get_constants(node: vy_ast.Module) -> dict:
-    constants = {}
+    constants: dict[str, vy_ast.VyperNode] = {}
     module_nodes = node.body.copy()
     const_var_decls = [
         n for n in module_nodes if isinstance(n, vy_ast.VariableDecl) and n.is_constant
@@ -45,7 +45,7 @@ def pre_typecheck(node: vy_ast.Module):
         prefold(n, constants)
 
 
-def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
+def prefold(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]) -> None:
     if isinstance(
         node,
         (
