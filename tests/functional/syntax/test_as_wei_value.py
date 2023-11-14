@@ -7,7 +7,7 @@ fail_list = [
         """
 @external
 def foo():
-    x: int128 = as_wei_value(5, szabo)
+    x: uint256 = as_wei_value(5, "szaboo")
     """,
         ArgumentException,
     ),
@@ -58,6 +58,10 @@ def foo():
 def foo() -> uint256:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance
+    """,
+    """
+y: constant(String[5]) = "szabo"
+x: constant(uint256) = as_wei_value(5, y)
     """,
 ]
 

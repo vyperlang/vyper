@@ -7,7 +7,7 @@ fail_list = [
     """
 @external
 def foo():
-    x = as_wei_value(5, "vader")
+    x: uint256 = as_wei_value(5, "vader")
     """,
     """
 @external
