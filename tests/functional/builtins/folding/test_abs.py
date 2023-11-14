@@ -54,7 +54,7 @@ def test_abs_lower_bound_folded(get_contract, assert_tx_failed):
     source = """
 @external
 def foo() -> int256:
-    return abs(-2**255)
+    return abs(min_value(int256))
     """
     with pytest.raises(OverflowException):
         get_contract(source)
