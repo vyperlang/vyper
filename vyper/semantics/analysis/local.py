@@ -415,7 +415,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         raise InvalidType("Value must be a literal integer", args[1])
                     validate_expected_type(args[1], IntegerT.any())
                     if arg0_val.value >= arg1_val.value:
-                        raise StructureException("Second value must be > first value", args[1])
+                        raise StructureExcargeption("Second value must be > first value", args[1])
 
                 if not type_list:
                     raise TypeMismatch("Iterator values are of different types", node.iter)
