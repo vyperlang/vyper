@@ -1019,15 +1019,16 @@ class AsWeiValue(BuiltinFunction):
     }
 
     def get_denomination(self, node):
-        if not isinstance(node.args[1], vy_ast.Str):
+        value = node.args[1]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
             )
         try:
-            denom = next(v for k, v in self.wei_denoms.items() if node.args[1].value in k)
+            denom = next(v for k, v in self.wei_denoms.items() if value.value in k)
         except StopIteration:
             raise ArgumentException(
-                f"Unknown denomination: {node.args[1].value}", node.args[1]
+                f"Unknown denomination: {value.value}", node.args[1]
             ) from None
 
         return denom
@@ -1042,9 +1043,10 @@ class AsWeiValue(BuiltinFunction):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
 
-        if not isinstance(node.args[0], (vy_ast.Decimal, vy_ast.Int)):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
-        value = node.args[0].value
+        value = value.value
 
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
@@ -2107,9 +2109,13 @@ class _MinMax(BuiltinFunction):
             return None
 
     def evaluate(self, node):
+        validate_call_args(node, 2)
+
         left = node.args[0]._metadata.get("folded_value")
         right = node.args[1]._metadata.get("folded_value")
-        if None in (left, right):
+        if not isinstance(left, type(right)):
+            raise UnfoldableNode
+        if not isinstance(left, (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
 
         if isinstance(left.value, Decimal) and (
