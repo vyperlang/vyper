@@ -4,7 +4,7 @@ from typing import Dict
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, TypeMismatch
+from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode, VyperException
 from vyper.semantics.analysis.utils import (
     check_kwargable,
     get_exact_type_from_node,
@@ -120,6 +120,15 @@ class BuiltinFunction(VyperType):
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
+
+    def prefold(self, node):
+        if not hasattr(self, "evaluate"):
+            return None
+        
+        try:
+            return self.evaluate(node)
+        except (UnfoldableNode, VyperException):
+            return None
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)

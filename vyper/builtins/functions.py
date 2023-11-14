@@ -141,12 +141,6 @@ class Floor(BuiltinFunction):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
@@ -177,12 +171,6 @@ class Ceil(BuiltinFunction):
     _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
     _return_type = INT256_T
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -479,12 +467,6 @@ class Len(BuiltinFunction):
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         validate_call_args(node, 1)
         arg = node.args[0]
@@ -622,12 +604,6 @@ class Keccak256(BuiltinFunction):
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
@@ -676,12 +652,6 @@ class Sha256(BuiltinFunction):
     _id = "sha256"
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -752,12 +722,6 @@ class Sha256(BuiltinFunction):
 
 class MethodID(FoldedFunction):
     _id = "method_id"
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -1032,12 +996,6 @@ class AsWeiValue(BuiltinFunction):
             ) from None
 
         return denom
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 2)
@@ -1398,12 +1356,6 @@ class BitwiseAnd(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
@@ -1429,12 +1381,6 @@ class BitwiseOr(BuiltinFunction):
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
     _warned = False
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         if not self.__class__._warned:
@@ -1462,12 +1408,6 @@ class BitwiseXor(BuiltinFunction):
     _return_type = UINT256_T
     _warned = False
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
@@ -1493,12 +1433,6 @@ class BitwiseNot(BuiltinFunction):
     _inputs = [("x", UINT256_T)]
     _return_type = UINT256_T
     _warned = False
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         if not self.__class__._warned:
@@ -1526,12 +1460,6 @@ class Shift(BuiltinFunction):
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
     _warned = False
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         if not self.__class__._warned:
@@ -1585,12 +1513,6 @@ class Shift(BuiltinFunction):
 class _AddMulMod(BuiltinFunction):
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 3)
@@ -2102,12 +2024,6 @@ class UnsafeDiv(_UnsafeMath):
 class _MinMax(BuiltinFunction):
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         validate_call_args(node, 2)
 
@@ -2198,12 +2114,6 @@ class Uint2Str(BuiltinFunction):
         bits = arg_t.bits
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
         return StringT(len_needed)
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         validate_call_args(node, 1)
@@ -2692,12 +2602,6 @@ class ABIDecode(BuiltinFunction):
 
 
 class _MinMaxValue(TypenameFoldedFunction):
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
@@ -2733,12 +2637,6 @@ class MaxValue(_MinMaxValue):
 
 class Epsilon(TypenameFoldedFunction):
     _id = "epsilon"
-
-    def prefold(self, node):
-        try:
-            return self.evaluate(node)
-        except (UnfoldableNode, VyperException):
-            return None
 
     def evaluate(self, node):
         self._validate_arg_types(node)
