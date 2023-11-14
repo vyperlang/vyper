@@ -1514,9 +1514,9 @@ class Shift(BuiltinFunction):
 
         validate_call_args(node, 2)
         args = [i._metadata.get("folded_value") for i in node.args]
-        if [i for i in node.args if not isinstance(i, vy_ast.Int)]:
+        if [i for i in args if not isinstance(i, vy_ast.Int)]:
             raise UnfoldableNode
-        value, shift = [i.value for i in node.args]
+        value, shift = [i.value for i in args]
         if shift < -256 or shift > 256:
             # this validation is performed to prevent the compiler from hanging
             # rather than for correctness because the post-folded constant would
@@ -1530,7 +1530,7 @@ class Shift(BuiltinFunction):
         return vy_ast.Int.from_node(node, value=value)
 
     def evaluate(self, node):
-        value = args[0]._metadata.get("folded_value")
+        value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Int):
             raise UnfoldableNode
 
@@ -2107,7 +2107,7 @@ class _MinMax(BuiltinFunction):
 
     def evaluate(self, node):
         new_node = self.prefold(node)
-        
+
         left = node.args[0]._metadata.get("folded_value")
         right = node.args[1]._metadata.get("folded_value")
         if isinstance(left.value, Decimal) and (
