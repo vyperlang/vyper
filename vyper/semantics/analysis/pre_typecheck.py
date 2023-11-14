@@ -46,22 +46,7 @@ def pre_typecheck(node: vy_ast.Module):
 
 
 def prefold(node: vy_ast.VyperNode, constants: dict) -> None:
-    if isinstance(node, vy_ast.BinOp):
-        node._metadata["folded_value"] = node.prefold()
-
-    if isinstance(node, vy_ast.UnaryOp):
-        node._metadata["folded_value"] = node.prefold()
-
-    if isinstance(node, vy_ast.Compare):
-        node._metadata["folded_value"] = node.prefold()
-
-    if isinstance(node, vy_ast.BoolOp):
-        node._metadata["folded_value"] = node.prefold()
-
-    if isinstance(node, vy_ast.Subscript):
-        node._metadata["folded_value"] = node.prefold()
-
-    if isinstance(node, vy_ast.List):
+    if isinstance(node, (vy_ast.BinOp, vy_ast.BoolOp, vy_ast.Compare, vy_ast.List, vy_ast.Subscript, vy_ast.UnaryOp)):
         node._metadata["folded_value"] = node.prefold()
 
     if isinstance(node, vy_ast.Name):
