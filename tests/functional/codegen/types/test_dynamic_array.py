@@ -328,9 +328,10 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     """
 
     assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(array_constant_negative_accessor), ArrayIndexException
+        lambda: get_contract_with_gas_estimation(array_constant_negative_accessor),
+        ArrayIndexException,
     )
-    
+
     array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
