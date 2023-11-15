@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Constancy, VarInfo
+from vyper.semantics.analysis.base import VariableConstancy, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.utils import check_constant, validate_expected_type
@@ -187,11 +187,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         constancy = (
-            Constancy.RUNTIME_CONSTANT
+            VariableConstancy.RUNTIME_CONSTANT
             if node.is_immutable
-            else Constancy.COMPILE_TIME_CONSTANT
+            else VariableConstancy.COMPILE_TIME_CONSTANT
             if node.is_constant
-            else Constancy.MUTABLE
+            else VariableConstancy.MUTABLE
         )
 
         type_ = type_from_annotation(node.annotation, data_loc)

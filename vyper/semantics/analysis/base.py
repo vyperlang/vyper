@@ -93,7 +93,7 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-class Constancy(_StringEnum):
+class VariableConstancy(_StringEnum):
     MUTABLE = _StringEnum.auto()
     RUNTIME_CONSTANT = _StringEnum.auto()
     COMPILE_TIME_CONSTANT = _StringEnum.auto()
@@ -165,7 +165,7 @@ class VarInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    constancy: Constancy = Constancy.MUTABLE
+    constancy: VariableConstancy = VariableConstancy.MUTABLE
     is_public: bool = False
     is_immutable: bool = False
     is_transient: bool = False
@@ -198,7 +198,7 @@ class ExprInfo:
     typ: VyperType
     var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
-    constancy: Constancy = Constancy.MUTABLE
+    constancy: VariableConstancy = VariableConstancy.MUTABLE
     is_immutable: bool = False
 
     def __post_init__(self):
@@ -246,7 +246,7 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.constancy == Constancy.COMPILE_TIME_CONSTANT:
+        if self.constancy == VariableConstancy.COMPILE_TIME_CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":

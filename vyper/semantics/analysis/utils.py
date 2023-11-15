@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import Constancy, ExprInfo, VarInfo
+from vyper.semantics.analysis.base import VariableConstancy, ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -198,7 +198,7 @@ class _ExprAnalyser:
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and s.constancy >= Constancy.RUNTIME_CONSTANT:
+            if is_self_reference and s.constancy >= VariableConstancy.RUNTIME_CONSTANT:
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -647,7 +647,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    return value_type.constancy >= Constancy.RUNTIME_CONSTANT
+    return value_type.constancy >= VariableConstancy.RUNTIME_CONSTANT
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:
@@ -690,4 +690,4 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    return value_type.constancy == Constancy.COMPILE_TIME_CONSTANT
+    return value_type.constancy == VariableConstancy.COMPILE_TIME_CONSTANT

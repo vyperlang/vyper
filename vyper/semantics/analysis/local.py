@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Constancy, VarInfo
+from vyper.semantics.analysis.base import VariableConstancy, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -197,7 +197,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 arg.typ,
                 location=location,
                 is_immutable=is_immutable,
-                constancy=Constancy.RUNTIME_CONSTANT,
+                constancy=VariableConstancy.RUNTIME_CONSTANT,
             )
 
         for node in fn_node.body:
@@ -484,7 +484,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             with self.namespace.enter_scope():
                 try:
                     self.namespace[iter_name] = VarInfo(
-                        possible_target_type, constancy=Constancy.COMPILE_TIME_CONSTANT
+                        possible_target_type, constancy=VariableConstancy.COMPILE_TIME_CONSTANT
                     )
                 except VyperException as exc:
                     raise exc.with_annotation(node) from None
