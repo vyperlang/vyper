@@ -684,7 +684,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            if getattr(call_type, "_is_folded_before_codegen", False):
+            if getattr(call_type, "_always_folded_before_codegen", False):
                 return
 
             # builtin functions
