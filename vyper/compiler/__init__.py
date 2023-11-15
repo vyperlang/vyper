@@ -13,7 +13,7 @@ from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
-    "raw_ast_dict": output.build_ast_dict,
+    "unannotated_ast_dict": output.build_ast_dict,
     "ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
