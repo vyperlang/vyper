@@ -323,6 +323,8 @@ def format_to_output_dict(compiler_data: dict) -> dict:
         output_dict["sources"][path] = {"id": data["source_id"]}
         if "ast_dict" in data:
             output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
+        if "raw_ast_dict" in data:
+            output_dict["sources"][path]["raw_ast"] = data["raw_ast_dict"]["ast"]
 
         name = PurePath(path).stem
         output_dict["contracts"][path] = {name: {}}
