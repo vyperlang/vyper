@@ -651,7 +651,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    return value_type.is_runtime_constant
+    return value_type.is_runtime_constant or value_type.is_compile_time_constant
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:

@@ -90,6 +90,20 @@ def foo():
         value=self.balance - self.balances[0]
     )
     """,
+    # test constants
+    """
+OUTSIZE: constant(uint256) = 4
+REVERT_ON_FAILURE: constant(bool) = True
+@external
+def foo():
+    x: Bytes[9] = raw_call(
+        0x1234567890123456789012345678901234567890,
+        b"cow",
+        max_outsize=OUTSIZE,
+        gas=595757,
+        revert_on_failure=REVERT_ON_FAILURE
+    )
+    """,
 ]
 
 

@@ -304,6 +304,28 @@ A: public(int112)
 def foo(a: int112 = min_value(int112)):
     self.A = a
     """,
+    """
+struct X:
+    x: int128
+    y: address
+BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+@external
+def out_literals(a: int128 = BAR.x + 1) -> X:
+    return BAR
+    """,
+    """
+struct X:
+    x: int128
+    y: address
+struct Y:
+    x: X
+    y: uint256
+BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+FOO: constant(Y) = Y({x: BAR, y: 256})
+@external
+def out_literals(a: int128 = FOO.x.x + 1) -> Y:
+    return FOO
+    """,
 ]
 
 
