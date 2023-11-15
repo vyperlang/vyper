@@ -727,7 +727,7 @@ class MethodID(FoldedFunction):
 
         value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Str):
-            raise InvalidType("method id must be given as a literal string", args[0])
+            raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
