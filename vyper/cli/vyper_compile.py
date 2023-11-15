@@ -34,7 +34,7 @@ devdoc             - Natspec developer documentation
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
 ast                - Annotated AST in JSON format
-raw_ast            - Unannotated AST in JSON format
+unannotated_ast    - Unannotated AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
