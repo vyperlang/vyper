@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import Constancy, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.local import ExprVisitor
 from vyper.semantics.analysis.utils import check_constant, validate_expected_type
@@ -186,6 +186,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else DataLocation.STORAGE
         )
 
+        constancy = (
+            Constancy.RUNTIME_CONSTANT
+            if node.is_immutable
+            else Constancy.COMPILE_TIME_CONSTANT
+            if node.is_constant
+            else Constancy.MUTABLE
+        )
+
         type_ = type_from_annotation(node.annotation, data_loc)
 
         if node.is_transient and not version_check(begin="cancun"):
@@ -195,10 +203,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             type_,
             decl_node=node,
             location=data_loc,
-            is_compile_time_constant=node.is_constant,
+            constancy=constancy,
             is_public=node.is_public,
             is_immutable=node.is_immutable,
-            is_runtime_constant=node.is_immutable,
             is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace

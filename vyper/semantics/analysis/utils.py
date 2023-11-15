@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo
+from vyper.semantics.analysis.base import Constancy, ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -91,17 +91,13 @@ class _ExprAnalyser:
             # kludge! for validate_modification in local analysis of Assign
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            is_compile_time_constant = any(
-                (getattr(i, "is_compile_time_constant", False) for i in types)
-            )
-            is_runtime_constant = any((getattr(i, "is_runtime_constant", False) for i in types))
+            constancy = sorted((i.constancy for i in types), key=lambda k: k.value)[-1]
             is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
             return ExprInfo(
                 t,
                 location=location,
-                is_compile_time_constant=is_compile_time_constant,
-                is_runtime_constant=is_runtime_constant,
+                constancy=constancy,
                 is_immutable=is_immutable,
             )
 
@@ -202,7 +198,7 @@ class _ExprAnalyser:
             if isinstance(s, VyperType):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and (s.is_compile_time_constant or s.is_immutable):
+            if is_self_reference and s.constancy >= Constancy.RUNTIME_CONSTANT:
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -651,7 +647,7 @@ def check_kwargable(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    return value_type.is_runtime_constant or value_type.is_compile_time_constant
+    return value_type.constancy >= Constancy.RUNTIME_CONSTANT
 
 
 def _check_literal(node: vy_ast.VyperNode) -> bool:
@@ -694,4 +690,4 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
             return True
 
     value_type = get_expr_info(node)
-    return value_type.is_compile_time_constant
+    return value_type.constancy == Constancy.COMPILE_TIME_CONSTANT

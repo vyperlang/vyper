@@ -93,6 +93,12 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
+class Constancy(_StringEnum):
+    MUTABLE = _StringEnum.auto()
+    RUNTIME_CONSTANT = _StringEnum.auto()
+    COMPILE_TIME_CONSTANT = _StringEnum.auto()
+
+
 class DataPosition:
     _location: DataLocation
 
@@ -159,8 +165,7 @@ class VarInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    is_compile_time_constant: bool = False
-    is_runtime_constant: bool = False
+    constancy: Constancy = Constancy.MUTABLE
     is_public: bool = False
     is_immutable: bool = False
     is_transient: bool = False
@@ -193,18 +198,11 @@ class ExprInfo:
     typ: VyperType
     var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
-    is_compile_time_constant: bool = False
-    is_runtime_constant: bool = False
+    constancy: Constancy = Constancy.MUTABLE
     is_immutable: bool = False
 
     def __post_init__(self):
-        should_match = (
-            "typ",
-            "location",
-            "is_compile_time_constant",
-            "is_runtime_constant",
-            "is_immutable",
-        )
+        should_match = ("typ", "location", "constancy", "is_immutable")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
@@ -216,8 +214,7 @@ class ExprInfo:
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
-            is_compile_time_constant=var_info.is_compile_time_constant,
-            is_runtime_constant=var_info.is_runtime_constant,
+            constancy=var_info.constancy,
             is_immutable=var_info.is_immutable,
         )
 
@@ -225,7 +222,7 @@ class ExprInfo:
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "is_compile_time_constant", "is_runtime_constant", "is_immutable")
+        to_copy = ("location", "constancy", "is_immutable")
         fields = {k: getattr(self, k) for k in to_copy}
         return self.__class__(typ=typ, **fields)
 
@@ -249,7 +246,7 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.is_compile_time_constant:
+        if self.constancy == Constancy.COMPILE_TIME_CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
