@@ -83,6 +83,8 @@ def replace_subscripts(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
+        new_node._metadata["type"] = node._metadata["type"]
+
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
 
@@ -116,9 +118,10 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
             continue
         try:
             new_node = func.evaluate(node)  # type: ignore
-            new_node._metadata["type"] = node._metadata["type"]
         except UnfoldableNode:
             continue
+
+        new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
@@ -168,7 +171,7 @@ def _replace(old_node, new_node, type_):
         new_node._metadata["type"] = type_
         return new_node
     elif isinstance(new_node, vy_ast.List):
-        base_type = type_.value_type if type_ else None
+        base_type = type_.value_type
         list_values = [_replace(old_node, i, type_=base_type) for i in new_node.elements]
         new_node = new_node.from_node(old_node, elements=list_values)
         new_node._metadata["type"] = type_
