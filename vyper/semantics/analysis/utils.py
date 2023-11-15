@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import VariableConstancy, ExprInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, VariableConstancy, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -94,12 +94,7 @@ class _ExprAnalyser:
             constancy = sorted((i.constancy for i in types), key=lambda k: k.value)[-1]
             is_immutable = any((getattr(i, "is_immutable", False) for i in types))
 
-            return ExprInfo(
-                t,
-                location=location,
-                constancy=constancy,
-                is_immutable=is_immutable,
-            )
+            return ExprInfo(t, location=location, constancy=constancy, is_immutable=is_immutable)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
