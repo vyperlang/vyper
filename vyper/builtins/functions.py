@@ -725,14 +725,14 @@ class MethodID(FoldedFunction):
     def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        args = node.args
-        if not isinstance(args[0], vy_ast.Str):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", args[0])
-        if " " in args[0].value:
+        if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
         return_type = self.infer_kwarg_types(node)
-        value = method_id_int(args[0].value)
+        value = method_id_int(value.value)
 
         if return_type.compare_type(BYTES4_T):
             return vy_ast.Hex.from_node(node, value=hex(value))
@@ -1359,13 +1359,14 @@ class BitwiseAnd(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        for arg in node.args:
-            if not isinstance(arg, vy_ast.Int):
+        values = [i._metadata.get("folded_value") for i in node.args]
+        for val, arg in zip(values, node.args):
+            if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if val.value < 0 or val.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = node.args[0].value & node.args[1].value
+        value = values[0].value & values[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1385,13 +1386,14 @@ class BitwiseOr(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        for arg in node.args:
-            if not isinstance(arg, vy_ast.Int):
+        values = [i._metadata.get("folded_value") for i in node.args]
+        for val, arg in zip(values, node.args):
+            if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if val.value < 0 or val.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = node.args[0].value | node.args[1].value
+        value = values[0].value | values[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1411,13 +1413,14 @@ class BitwiseXor(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 2)
-        for arg in node.args:
-            if not isinstance(arg, vy_ast.Int):
+        values = [i._metadata.get("folded_value") for i in node.args]
+        for val, arg in zip(values, node.args):
+            if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if arg.value < 0 or arg.value >= 2**256:
+            if val.value < 0 or val.value >= 2**256:
                 raise InvalidLiteral("Value out of range for uint256", arg)
 
-        value = node.args[0].value ^ node.args[1].value
+        value = values[0].value ^ values[1].value
         return vy_ast.Int.from_node(node, value=value)
 
     @process_inputs
@@ -1437,10 +1440,11 @@ class BitwiseNot(BuiltinFunction):
             self.__class__._warned = True
 
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Int):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Int):
             raise UnfoldableNode
 
-        value = node.args[0].value
+        value = value.value
         if value < 0 or value >= 2**256:
             raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
