@@ -93,10 +93,10 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-class VariableConstancy(_StringEnum):
-    MUTABLE = _StringEnum.auto()
-    RUNTIME_CONSTANT = _StringEnum.auto()
-    COMPILE_TIME_CONSTANT = _StringEnum.auto()
+class VariableConstancy(enum.IntEnum):
+    MUTABLE = enum.auto()
+    RUNTIME_CONSTANT = enum.auto()
+    COMPILE_TIME_CONSTANT = enum.auto()
 
 
 class DataPosition:
