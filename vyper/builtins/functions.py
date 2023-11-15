@@ -468,7 +468,7 @@ class Len(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        arg = node.args[0]
+        arg = node.args[0]._metadata.get("folded_value")
         if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
             length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
@@ -606,7 +606,6 @@ class Keccak256(BuiltinFunction):
     def evaluate(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
-
         if isinstance(value, vy_ast.Bytes):
             value = value.value
         elif isinstance(value, vy_ast.Str):
@@ -654,13 +653,14 @@ class Sha256(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        if isinstance(node.args[0], vy_ast.Bytes):
-            value = node.args[0].value
-        elif isinstance(node.args[0], vy_ast.Str):
-            value = node.args[0].value.encode()
-        elif isinstance(node.args[0], vy_ast.Hex):
-            length = len(node.args[0].value) // 2 - 1
-            value = int(node.args[0].value, 16).to_bytes(length, "big")
+        value = node.args[0]._metadata.get("folded_value")
+        if isinstance(value, vy_ast.Bytes):
+            value = value.value
+        elif isinstance(value, vy_ast.Str):
+            value = value.value.encode()
+        elif isinstance(value, vy_ast.Hex):
+            length = len(value.value) // 2 - 1
+            value = int(value.value, 16).to_bytes(length, "big")
         else:
             raise UnfoldableNode
 
@@ -1556,10 +1556,11 @@ class PowMod256(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 2)
-        if next((i for i in node.args if not isinstance(i, vy_ast.Int)), None):
+        values = [i._metadata.get("folded_value") for i in node.args]
+        if any(not isinstance(i, vy_ast.Int) for i in values):
             raise UnfoldableNode
 
-        left, right = node.args
+        left, right = values
         if left.value < 0 or right.value < 0:
             raise UnfoldableNode
 
@@ -1579,10 +1580,11 @@ class Abs(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Int):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Int):
             raise UnfoldableNode
 
-        value = node.args[0].value
+        value = value.value
         if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
             raise OverflowException("Literal is outside of allowable range for int256")
         value = abs(value)
@@ -2114,10 +2116,11 @@ class Uint2Str(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Int):
+        value = node.args[0]._metadata.get("folded_value")
+        if not isinstance(value, vy_ast.Int):
             raise UnfoldableNode
 
-        value = str(node.args[0].value)
+        value = str(value.value)
         return vy_ast.Str.from_node(node, value=value)
 
     def infer_arg_types(self, node, expected_return_typ=None):
