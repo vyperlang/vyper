@@ -684,9 +684,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            if getattr(call_type, "_always_folded_before_codegen", False):
-                return
-
             # builtin functions
             arg_types = call_type.infer_arg_types(node, typ)
             # `infer_arg_types` already calls `validate_expected_type`
