@@ -147,9 +147,6 @@ def replace_user_defined_constants(vyper_module: vy_ast.Module) -> int:
     changed_nodes = 0
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
-        if not isinstance(node.target, vy_ast.Name):
-            # left-hand-side of assignment is not a variable
-            continue
         if not node.is_constant:
             # annotation is not wrapped in `constant(...)`
             continue
