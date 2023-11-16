@@ -1468,7 +1468,7 @@ class Shift(BuiltinFunction):
 
         validate_call_args(node, 2)
         args = [i._metadata.get("folded_value") for i in node.args]
-        if [i for i in args if not isinstance(i, vy_ast.Int)]:
+        if any(not isinstance(i, vy_ast.Int) for i in args):
             raise UnfoldableNode
         value, shift = [i.value for i in args]
         if value < 0 or value >= 2**256:
