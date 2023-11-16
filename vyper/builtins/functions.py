@@ -719,6 +719,8 @@ class Sha256(BuiltinFunction):
 
 class MethodID(FoldedFunction):
     _id = "method_id"
+    _inputs = [("value", StringT.any())]
+    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BytesT(4))}
 
     def evaluate(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -729,7 +731,7 @@ class MethodID(FoldedFunction):
         if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.")
 
-        return_type = self.infer_kwarg_types(node)
+        return_type = self.infer_kwarg_types(node)["output_type"].typedef
         value = method_id_int(value.value)
 
         if return_type.compare_type(BYTES4_T):
@@ -740,21 +742,20 @@ class MethodID(FoldedFunction):
     def fetch_call_return(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        type_ = self.infer_kwarg_types(node)
+        type_ = self.infer_kwarg_types(node)["output_type"].typedef
         return type_
 
     def infer_kwarg_types(self, node):
+        # If `output_type` is not given, default to `Bytes[4]`
+        output_typedef = TYPE_T(BytesT(4))
         if node.keywords:
             return_type = type_from_annotation(node.keywords[0].value)
             if return_type.compare_type(BYTES4_T):
-                return BYTES4_T
-            elif isinstance(return_type, BytesT) and return_type.length == 4:
-                return BytesT(4)
-            else:
+                output_typedef = TYPE_T(BYTES4_T)
+            elif not (isinstance(return_type, BytesT) and return_type.length == 4):
                 raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
 
-        # If `output_type` is not given, default to `Bytes[4]`
-        return BytesT(4)
+        return {"output_type": output_typedef}
 
 
 class ECRecover(BuiltinFunction):
