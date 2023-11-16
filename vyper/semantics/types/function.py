@@ -16,7 +16,12 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot, VariableConstancy
+from vyper.semantics.analysis.base import (
+    FunctionVisibility,
+    StateMutability,
+    StorageSlot,
+    VariableConstancy,
+)
 from vyper.semantics.analysis.utils import check_variable_constancy, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType

@@ -108,7 +108,9 @@ class BuiltinFunction(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not check_variable_constancy(kwarg.value, VariableConstancy.RUNTIME_CONSTANT):
+            if kwarg_settings.require_literal and not check_variable_constancy(
+                kwarg.value, VariableConstancy.RUNTIME_CONSTANT
+            ):
                 raise TypeMismatch("Value must be literal or environment variable", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 
