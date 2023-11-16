@@ -908,10 +908,6 @@ class Dict(ExprNode):
 class NameConstant(Constant):
     __slots__ = ("value",)
 
-    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
-        super().__init__(parent, **kwargs)
-        self._metadata["folded_value"] = self
-
 
 class Name(ExprNode):
     __slots__ = ("id",)
