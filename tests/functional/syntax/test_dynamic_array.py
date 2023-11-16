@@ -24,6 +24,14 @@ def foo():
     """,
         StructureException,
     ),
+    (
+        """
+@external
+def foo():
+    a: DynArray[uint256, FOO] = [1, 2, 3]
+    """,
+        StructureException,
+    ),
 ]
 
 
