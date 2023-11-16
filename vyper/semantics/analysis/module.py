@@ -21,7 +21,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VariableConstancy, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.local import ExprVisitor
-from vyper.semantics.analysis.utils import check_constant, validate_expected_type
+from vyper.semantics.analysis.utils import check_variable_constancy, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
@@ -242,7 +242,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_constant:
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
-            if not check_constant(node.value):
+            if not check_variable_constancy(node.value, VariableConstancy.COMPILE_TIME_CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

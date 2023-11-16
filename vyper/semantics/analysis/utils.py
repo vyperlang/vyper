@@ -616,35 +616,6 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node can be used as a default arg
-    """
-    if _check_literal(node):
-        return True
-
-    if isinstance(node, vy_ast.BinOp):
-        return all(check_kwargable(i) for i in (node.left, node.right))
-
-    if isinstance(node, vy_ast.BoolOp):
-        return all(check_kwargable(i) for i in node.values)
-
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_kwargable(item) for item in node.elements)
-
-    if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_kwargable(v) for v in args[0].values)
-
-        call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
-
-    value_type = get_expr_info(node)
-    return value_type.constancy >= VariableConstancy.RUNTIME_CONSTANT
-
-
 def _check_literal(node: vy_ast.VyperNode) -> bool:
     """
     Check if the given node is a literal value.
@@ -659,7 +630,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def check_constant(node: vy_ast.VyperNode) -> bool:
+def check_variable_constancy(node: vy_ast.VyperNode, constancy: VariableConstancy) -> bool:
     """
     Check if the given node is a literal or constant value.
     """
@@ -667,22 +638,22 @@ def check_constant(node: vy_ast.VyperNode) -> bool:
         return True
 
     if isinstance(node, vy_ast.BinOp):
-        return all(check_constant(i) for i in (node.left, node.right))
+        return all(check_variable_constancy(i, constancy) for i in (node.left, node.right))
 
     if isinstance(node, vy_ast.BoolOp):
-        return all(check_constant(i) for i in node.values)
+        return all(check_variable_constancy(i, constancy) for i in node.values)
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_constant(item) for item in node.elements)
+        return all(check_variable_constancy(item, constancy) for item in node.elements)
 
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_constant(v) for v in args[0].values)
+            return all(check_variable_constancy(v, constancy) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
 
     value_type = get_expr_info(node)
-    return value_type.constancy == VariableConstancy.COMPILE_TIME_CONSTANT
+    return value_type.constancy >= constancy
