@@ -13,7 +13,7 @@ from vyper.venom.bb_optimizer import (
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import convert_ir_basicblock
-from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
+from vyper.venom.passes.constant_propagation import ConstantPropagationPass
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 

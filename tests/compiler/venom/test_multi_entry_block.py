@@ -1,6 +1,6 @@
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.function import IRBasicBlock, IRFunction, IRLabel
-from vyper.venom.passes.normalization import Normalization
+from vyper.venom.passes.normalization import NormalizationPass
 
 
 def test_multi_entry_block():
@@ -32,7 +32,7 @@ def test_multi_entry_block():
 
     assert ctx.cfg_dirty is True, "CFG should be dirty"
 
-    Normalization.run_pass(ctx)
+    NormalizationPass.run_pass(ctx)
 
     assert ctx.cfg_dirty is False, "CFG should be clean"
     assert ctx.normalized is True, "CFG should be normalized"
