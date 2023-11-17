@@ -977,12 +977,16 @@ class AsWeiValue(BuiltinFunction):
         ("kether", "grand"): 10**21,
     }
 
-    def get_denomination(self, node):
+    def _get_denomination_node(self, node):
         value = node.args[1]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Str):
             raise ArgumentException(
                 "Wei denomination must be given as a literal string", node.args[1]
             )
+        return value
+
+    def get_denomination(self, node):
+        value = self._get_denomination_node(node)
         try:
             denom = next(v for k, v in self.wei_denoms.items() if value.value in k)
         except StopIteration:
@@ -1009,6 +1013,9 @@ class AsWeiValue(BuiltinFunction):
         return self._return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
+        # raise a better error message by first calling this function
+        # for its side effects of checking the denom
+        self._get_denomination_node(node)
         self._validate_arg_types(node)
         # return a concrete type instead of abstract type
         value_type = get_possible_types_from_node(node.args[0]).pop()

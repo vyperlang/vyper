@@ -1,8 +1,22 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, InvalidType, OverflowException, StructureException
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidLiteral,
+    InvalidType,
+    OverflowException,
+    StructureException,
+)
 
 fail_list = [
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(5, szabo)
+    """,
+        ArgumentException,
+    ),
     (
         """
 @external
@@ -38,6 +52,14 @@ def foo() -> uint256:
     )
     """,
         OverflowException,
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(-1, "szabo")
+    """,
+        InvalidLiteral,
     ),
 ]
 
