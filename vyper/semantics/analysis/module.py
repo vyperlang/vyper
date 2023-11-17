@@ -240,9 +240,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise exc.with_annotation(node) from None
 
         if node.is_constant:
-            ExprVisitor().visit(node.value, type_)
             if not node.value:
                 raise VariableDeclarationException("Constant must be declared with a value", node)
+            
+            ExprVisitor().visit(node.value, type_)
+            
             if not check_variable_constancy(node.value, VariableConstancy.COMPILE_TIME_CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
