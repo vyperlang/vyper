@@ -4,7 +4,7 @@ from hypothesis import strategies as st
 
 from vyper import ast as vy_ast
 from vyper.builtins import functions as vy_fn
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import InvalidType
 
 
 @pytest.mark.fuzzing
@@ -56,5 +56,5 @@ def test_abs_lower_bound_folded(get_contract, assert_tx_failed):
 def foo() -> int256:
     return abs(min_value(int256))
     """
-    with pytest.raises(OverflowException):
+    with pytest.raises(InvalidType):
         get_contract(source)
