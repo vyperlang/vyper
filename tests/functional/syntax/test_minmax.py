@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
 
 fail_list = [
     (
@@ -19,6 +19,14 @@ def foo():
     a: int16 = min(min_value(int16), max_value(int8))
     """,
         TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+   a: decimal = min(1.0, 18707220957835557353007165858768422651595.9365500928)
+    """,
+        OverflowException,
     ),
 ]
 

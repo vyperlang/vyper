@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, InvalidType, StructureException
+from vyper.exceptions import ArgumentException, InvalidType, OverflowException, StructureException
 
 fail_list = [
     (
@@ -27,6 +27,17 @@ def foo():
     x: int128 = as_wei_value(0xf5, "szabo")
     """,
         InvalidType,
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return as_wei_value(
+        115792089237316195423570985008687907853269984665640564039457584007913129639937,
+        'milliether'
+    )
+    """,
+        OverflowException,
     ),
 ]
 
