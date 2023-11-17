@@ -411,7 +411,6 @@ class InterfaceT(_UserType):
 
         return cls(name, members, events)
 
-    # TODO: split me into from_InterfaceDef and from_Module
     @classmethod
     def from_Module(cls, node: vy_ast.Module, name: Optional[str] = None) -> "InterfaceT":
         """
