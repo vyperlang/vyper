@@ -1,7 +1,6 @@
 import hashlib
 import math
 import operator
-from decimal import Decimal
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Tuple
@@ -44,7 +43,6 @@ from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
     InvalidType,
-    OverflowException,
     StateAccessViolation,
     StructureException,
     TypeMismatch,
@@ -88,7 +86,6 @@ from vyper.utils import (
     EIP_170_LIMIT,
     SHA3_PER_WORD,
     MemoryPositions,
-    SizeLimits,
     bytes_to_int,
     ceil32,
     fourbytes_to_int,
@@ -729,7 +726,7 @@ class MethodID(FoldedFunction):
         if not isinstance(value, vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
-            raise InvalidLiteral("Invalid function signature - no spaces allowed.")
+            raise InvalidLiteral("Invalid function signature - no spaces allowed.", node.args[0])
 
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
         value = method_id_int(value.value)
@@ -1004,11 +1001,6 @@ class AsWeiValue(BuiltinFunction):
 
         if value < 0:
             raise InvalidLiteral("Negative wei value not allowed", node.args[0])
-
-        if isinstance(value, int) and value >= 2**256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
-        if isinstance(value, Decimal) and value > SizeLimits.MAX_AST_DECIMAL:
-            raise InvalidLiteral("Value out of range for decimal", node.args[0])
 
         return vy_ast.Int.from_node(node, value=int(value * denom))
 
@@ -1359,11 +1351,9 @@ class BitwiseAnd(BuiltinFunction):
 
         validate_call_args(node, 2)
         values = [i._metadata.get("folded_value") for i in node.args]
-        for val, arg in zip(values, node.args):
+        for val in values:
             if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if val.value < 0 or val.value >= 2**256:
-                raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = values[0].value & values[1].value
         return vy_ast.Int.from_node(node, value=value)
@@ -1386,11 +1376,9 @@ class BitwiseOr(BuiltinFunction):
 
         validate_call_args(node, 2)
         values = [i._metadata.get("folded_value") for i in node.args]
-        for val, arg in zip(values, node.args):
+        for val in values:
             if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if val.value < 0 or val.value >= 2**256:
-                raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = values[0].value | values[1].value
         return vy_ast.Int.from_node(node, value=value)
@@ -1413,11 +1401,9 @@ class BitwiseXor(BuiltinFunction):
 
         validate_call_args(node, 2)
         values = [i._metadata.get("folded_value") for i in node.args]
-        for val, arg in zip(values, node.args):
+        for val in values:
             if not isinstance(val, vy_ast.Int):
                 raise UnfoldableNode
-            if val.value < 0 or val.value >= 2**256:
-                raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = values[0].value ^ values[1].value
         return vy_ast.Int.from_node(node, value=value)
@@ -1444,8 +1430,6 @@ class BitwiseNot(BuiltinFunction):
             raise UnfoldableNode
 
         value = value.value
-        if value < 0 or value >= 2**256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
 
         value = (2**256 - 1) - value
         return vy_ast.Int.from_node(node, value=value)
@@ -1471,8 +1455,6 @@ class Shift(BuiltinFunction):
         if any(not isinstance(i, vy_ast.Int) for i in args):
             raise UnfoldableNode
         value, shift = [i.value for i in args]
-        if value < 0 or value >= 2**256:
-            raise InvalidLiteral("Value out of range for uint256", node.args[0])
         if shift < -256 or shift > 256:
             # this validation is performed to prevent the compiler from hanging
             # rather than for correctness because the post-folded constant would
@@ -1519,11 +1501,9 @@ class _AddMulMod(BuiltinFunction):
         args = [i._metadata.get("folded_value") for i in node.args]
         if isinstance(args[2], vy_ast.Int) and args[2].value == 0:
             raise ZeroDivisionException("Modulo by 0", node.args[2])
-        for arg, prefolded in zip(node.args, args):
-            if not isinstance(prefolded, vy_ast.Int):
+        for arg in args:
+            if not isinstance(arg, vy_ast.Int):
                 raise UnfoldableNode
-            if prefolded.value < 0 or prefolded.value >= 2**256:
-                raise InvalidLiteral("Value out of range for uint256", arg)
 
         value = self._eval_fn(args[0].value, args[1].value) % args[2].value
         return vy_ast.Int.from_node(node, value=value)
@@ -1564,9 +1544,6 @@ class PowMod256(BuiltinFunction):
             raise UnfoldableNode
 
         left, right = values
-        if left.value < 0 or right.value < 0:
-            raise UnfoldableNode
-
         value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
@@ -1587,13 +1564,7 @@ class Abs(BuiltinFunction):
         if not isinstance(value, vy_ast.Int):
             raise UnfoldableNode
 
-        value = value.value
-        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
-            raise OverflowException("Literal is outside of allowable range for int256")
-        value = abs(value)
-        if not SizeLimits.MIN_INT256 <= value <= SizeLimits.MAX_INT256:
-            raise OverflowException("Absolute literal value is outside allowable range for int256")
-
+        value = abs(value.value)
         return vy_ast.Int.from_node(node, value=value)
 
     def build_IR(self, expr, context):
@@ -2036,12 +2007,6 @@ class _MinMax(BuiltinFunction):
         if not isinstance(left, (vy_ast.Decimal, vy_ast.Int)):
             raise UnfoldableNode
 
-        if isinstance(left.value, Decimal) and (
-            min(left.value, right.value) < SizeLimits.MIN_AST_DECIMAL
-            or max(left.value, right.value) > SizeLimits.MAX_AST_DECIMAL
-        ):
-            raise InvalidType("Decimal value is outside of allowable range", node)
-
         types_list = get_common_types(
             *(left, right), filter_fn=lambda x: isinstance(x, (IntegerT, DecimalT))
         )
@@ -2064,16 +2029,9 @@ class _MinMax(BuiltinFunction):
 
     def infer_arg_types(self, node, expected_return_typ=None):
         types_list = self.fetch_call_return(node)
-
-        if expected_return_typ is not None:
-            if expected_return_typ not in types_list:
-                raise TypeMismatch("Cannot perform action between dislike numeric types", node)
-
-            arg_typ = expected_return_typ
-        else:
-            arg_typ = types_list.pop()
-
-        return [arg_typ, arg_typ]
+        # type mismatch should have been caught in `fetch_call_return`
+        assert expected_return_typ in types_list
+        return [expected_return_typ, expected_return_typ]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
