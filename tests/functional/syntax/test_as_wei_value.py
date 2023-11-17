@@ -61,6 +61,24 @@ def foo():
     """,
         InvalidLiteral,
     ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(5, szabo)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(5, "szaboo")
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(-1, "szabo")
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 

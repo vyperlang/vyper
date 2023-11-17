@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import InvalidLiteral, InvalidType
 
 fail_list = [
     (
@@ -11,7 +11,19 @@ def foo():
     a: Bytes[4] = method_id("bar ()")
     """,
         InvalidLiteral,
-    )
+    ),
+    (
+        """
+FOO: constant(Bytes[4]) = method_id(1)
+    """,
+        InvalidType,
+    ),
+    (
+        """
+FOO: constant(Bytes[4]) = method_id("bar ()")
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 

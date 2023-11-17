@@ -4,18 +4,8 @@ from vyper.exceptions import InvalidType
 
 fail_list = [
     """
-@external
-def foo():
-    a: address = min_value(address)
-    """,
+FOO: constant(address) = epsilon(address)
     """
-@external
-def foo():
-    a: address = max_value(address)
-    """,
-    """
-FOO: constant(address) = min_value(address)
-    """,
 ]
 
 
