@@ -637,11 +637,14 @@ def check_variable_constancy(node: vy_ast.VyperNode, constancy: VariableConstanc
     if _check_literal(node):
         return True
 
-    if isinstance(node, vy_ast.BinOp):
+    if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
         return all(check_variable_constancy(i, constancy) for i in (node.left, node.right))
 
     if isinstance(node, vy_ast.BoolOp):
         return all(check_variable_constancy(i, constancy) for i in node.values)
+
+    if isinstance(node, vy_ast.UnaryOp):
+        return check_variable_constancy(node.operand, constancy)
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_variable_constancy(item, constancy) for item in node.elements)

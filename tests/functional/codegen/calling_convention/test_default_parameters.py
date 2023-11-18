@@ -326,6 +326,26 @@ FOO: constant(Y) = Y({x: BAR, y: 256})
 def out_literals(a: int128 = FOO.x.x + 1) -> Y:
     return FOO
     """,
+    """
+struct Bar:
+    a: bool
+
+BAR: constant(Bar) = Bar({a: True})
+
+@external
+def foo(x: bool = True and not BAR.a):
+    pass
+    """,
+    """
+struct Bar:
+    a: uint256
+
+BAR: constant(Bar) = Bar({ a: 123 })
+
+@external
+def foo(x: bool = BAR.a + 1 > 456):
+    pass
+    """,
 ]
 
 
