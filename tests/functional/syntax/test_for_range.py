@@ -82,6 +82,17 @@ def foo():
     """,
         TypeMismatch,
     ),
+    (
+        """
+FOO: constant(int128) = -1
+
+@external
+def foo():
+    for i in range(10, bound=FOO):
+        pass
+        """,
+        StructureException,
+    )
 ]
 
 
