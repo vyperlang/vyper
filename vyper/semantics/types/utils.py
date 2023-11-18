@@ -151,11 +151,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    value = (
-        node.value
-        if isinstance(node.value, vy_ast.Int)
-        else node.value._metadata.get("folded_value")
-    )
+    value = node.value._metadata.get("folded_value")
     if not isinstance(value, vy_ast.Int):
         if hasattr(node, "value"):
             # even though the subscript is an invalid type, first check if it's a valid _something_
