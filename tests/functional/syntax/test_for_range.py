@@ -92,7 +92,7 @@ def foo():
         pass
         """,
         StructureException,
-    )
+    ),
 ]
 
 
