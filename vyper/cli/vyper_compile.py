@@ -3,14 +3,13 @@ import argparse
 import json
 import sys
 import warnings
-from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, Optional, Set, TypeVar
+from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
 from vyper.cli import vyper_json
-from vyper.cli.utils import extract_file_interface_imports, get_interface_file_path
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import (
     VYPER_TRACEBACK_LIMIT,
     OptimizationLevel,
@@ -18,7 +17,7 @@ from vyper.compiler.settings import (
     _set_debug_mode,
 )
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
-from vyper.typing import ContractCodes, ContractPath, OutputFormats
+from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
 
@@ -43,7 +42,6 @@ ir                 - Intermediate representation in list format
 ir_json            - Intermediate representation in JSON format
 ir_runtime         - Intermediate representation of runtime bytecode in list format
 asm                - Output the EVM assembly of the deployable bytecode
-hex-ir             - Output IR and assembly constants in hex instead of decimal
 """
 
 combined_json_outputs = [
@@ -219,94 +217,20 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
-def get_interface_codes(root_path: Path, contract_sources: ContractCodes) -> Dict:
-    interface_codes: Dict = {}
-    interfaces: Dict = {}
-
-    for file_path, code in contract_sources.items():
-        interfaces[file_path] = {}
-        parent_path = root_path.joinpath(file_path).parent
-
-        interface_codes = extract_file_interface_imports(code)
-        for interface_name, interface_path in interface_codes.items():
-            base_paths = [parent_path]
-            if not interface_path.startswith(".") and root_path.joinpath(file_path).exists():
-                base_paths.append(root_path)
-            elif interface_path.startswith("../") and len(Path(file_path).parent.parts) < Path(
-                interface_path
-            ).parts.count(".."):
-                raise FileNotFoundError(
-                    f"{file_path} - Cannot perform relative import outside of base folder"
-                )
-
-            valid_path = get_interface_file_path(base_paths, interface_path)
-            with valid_path.open() as fh:
-                code = fh.read()
-                if valid_path.suffix == ".json":
-                    contents = json.loads(code.encode())
-
-                    # EthPM Manifest (EIP-2678)
-                    if "contractTypes" in contents:
-                        if (
-                            interface_name not in contents["contractTypes"]
-                            or "abi" not in contents["contractTypes"][interface_name]
-                        ):
-                            raise ValueError(
-                                f"Could not find interface '{interface_name}'"
-                                f" in manifest '{valid_path}'."
-                            )
-
-                        interfaces[file_path][interface_name] = {
-                            "type": "json",
-                            "code": contents["contractTypes"][interface_name]["abi"],
-                        }
-
-                    # ABI JSON file (either `List[ABI]` or `{"abi": List[ABI]}`)
-                    elif isinstance(contents, list) or (
-                        "abi" in contents and isinstance(contents["abi"], list)
-                    ):
-                        interfaces[file_path][interface_name] = {"type": "json", "code": contents}
-
-                    else:
-                        raise ValueError(f"Corrupted file: '{valid_path}'")
-
-                else:
-                    interfaces[file_path][interface_name] = {"type": "vyper", "code": code}
-
-    return interfaces
-
-
 def compile_files(
-    input_files: Iterable[str],
+    input_files: list[str],
     output_formats: OutputFormats,
     root_folder: str = ".",
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
-    storage_layout: Optional[Iterable[str]] = None,
+    storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
-) -> OrderedDict:
+) -> dict:
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
         raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
 
-    contract_sources: ContractCodes = OrderedDict()
-    for file_name in input_files:
-        file_path = Path(file_name)
-        try:
-            file_str = file_path.resolve().relative_to(root_path).as_posix()
-        except ValueError:
-            file_str = file_path.as_posix()
-        with file_path.open() as fh:
-            # trailing newline fixes python parsing bug when source ends in a comment
-            # https://bugs.python.org/issue35107
-            contract_sources[file_str] = fh.read() + "\n"
-
-    storage_layouts = OrderedDict()
-    if storage_layout:
-        for storage_file_name, contract_name in zip(storage_layout, contract_sources.keys()):
-            storage_file_path = Path(storage_file_name)
-            with storage_file_path.open() as sfh:
-                storage_layouts[contract_name] = json.load(sfh)
+    input_bundle = FilesystemInputBundle([root_path])
 
     show_version = False
     if "combined_json" in output_formats:
@@ -318,20 +242,44 @@ def compile_files(
     translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
-    compiler_data = vyper.compile_codes(
-        contract_sources,
-        final_formats,
-        exc_handler=exc_handler,
-        interface_codes=get_interface_codes(root_path, contract_sources),
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-        no_bytecode_metadata=no_bytecode_metadata,
-    )
-    if show_version:
-        compiler_data["version"] = vyper.__version__
+    if storage_layout_paths:
+        if len(storage_layout_paths) != len(input_files):
+            raise ValueError(
+                "provided {len(storage_layout_paths)} storage "
+                "layouts, but {len(input_files)} source files"
+            )
 
-    return compiler_data
+    ret: dict[Any, Any] = {}
+    if show_version:
+        ret["version"] = vyper.__version__
+
+    for file_name in input_files:
+        file_path = Path(file_name)
+        file = input_bundle.load_file(file_path)
+        assert isinstance(file, FileInput)  # mypy hint
+
+        storage_layout_override = None
+        if storage_layout_paths:
+            storage_file_path = storage_layout_paths.pop(0)
+            with open(storage_file_path) as sfh:
+                storage_layout_override = json.load(sfh)
+
+        output = vyper.compile_code(
+            file.source_code,
+            contract_name=str(file.path),
+            source_id=file.source_id,
+            input_bundle=input_bundle,
+            output_formats=final_formats,
+            exc_handler=exc_handler,
+            settings=settings,
+            storage_layout_override=storage_layout_override,
+            show_gas_estimates=show_gas_estimates,
+            no_bytecode_metadata=no_bytecode_metadata,
+        )
+
+        ret[file_path] = output
+
+    return ret
 
 
 if __name__ == "__main__":
