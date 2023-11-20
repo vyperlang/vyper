@@ -30,7 +30,7 @@ class _CallKwargs:
     default_return_value: IRnode
 
 
-def _pack_arguments(fn_type, return_type, args, context):
+def _pack_arguments(fn_type, return_t, args, context):
     # abi encoding just treats all args as a big tuple
     args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
@@ -40,8 +40,8 @@ def _pack_arguments(fn_type, return_type, args, context):
     dst_tuple_t = TupleT(fn_type.argument_types[: len(args)])
     check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
 
-    if fn_type.return_type is not None:
-        return_abi_t = calculate_type_for_external_return(return_type).abi_type
+    if return_t is not None:
+        return_abi_t = calculate_type_for_external_return(return_t).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -74,11 +74,11 @@ def _pack_arguments(fn_type, return_type, args, context):
     return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, fn_type, return_type, call_kwargs, contract_address, context, expr):
-    if fn_type.return_type is None:
+def _unpack_returndata(buf, fn_type, return_t, call_kwargs, contract_address, context, expr):
+    if return_t is None:
         return ["pass"], 0, 0
 
-    wrapped_return_t = calculate_type_for_external_return(return_type)
+    wrapped_return_t = calculate_type_for_external_return(return_t)
 
     abi_return_t = wrapped_return_t.abi_type
 
@@ -171,7 +171,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     fn_type = call_expr.func._metadata["type"]
     # the return type may differ from the function's return type if the function was
     # imported via ABI e.g. widening of bytestrings
-    return_t = call_expr._metadata["type"] if fn_type.is_from_abi else fn_type.return_type
+    return_t = call_expr._metadata["type"]
 
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
@@ -191,7 +191,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret += arg_packer
 
-    if fn_type.return_type is None and not call_kwargs.skip_contract_check:
+    if return_t is None and not call_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -214,7 +214,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret.append(check_external_call(call_op))
 
-    if fn_type.return_type is not None:
+    if return_t is not None:
         ret.append(ret_unpacker)
 
     return IRnode.from_list(ret, typ=return_t, location=MEMORY)
