@@ -19,10 +19,7 @@ class ModuleT(VyperType):
         # for function collisions
         interface_t = self.interface
 
-        # module.at(<address>)
-        at = MemberFunctionT(self, "at", [AddressT()], interface_t, is_modifying=False)
-
-        members = {"at": at}
+        members = {}
 
         for f in self.functions:
             members[f.name] = f._metadata["type"]
@@ -31,6 +28,12 @@ class ModuleT(VyperType):
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
+
+    def _ctor_call_return(self, node):
+        return self.interface._ctor_call_return(node)
+
+    def _ctor_arg_types(self, node):
+        return self.interface._ctor_arg_types(node)
 
     # this is a property, because the function set changes after AST expansion
     @property
