@@ -324,16 +324,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = fn_type.fetch_call_return(node.value)
+        return_type = fn_type.fetch_call_return(node.value)
         if (
-            return_value
+            return_type
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
-        self.expr_visitor.visit(node.value, fn_type)
+        self.expr_visitor.visit(node.value, return_type)
 
     def visit_For(self, node):
         if isinstance(node.iter, vy_ast.Subscript):
