@@ -8,6 +8,13 @@ from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
 
+class _UnknownLength:
+    pass
+
+
+UNKNOWN_LENGTH = _UnknownLength()
+
+
 class _BytestringT(VyperType):
     """
     Private base class for single-value types which occupy multiple memory slots
@@ -28,20 +35,20 @@ class _BytestringT(VyperType):
     _equality_attrs = ("_length",)
     _is_bytestring: bool = True
 
-    def __init__(self, length: Optional[int] = None) -> None:
+    def __init__(self, length: int | _UnknownLength = UNKNOWN_LENGTH) -> None:
         super().__init__()
 
         self._length = length
 
     def __repr__(self):
-        return f"{self._id}[{self.length}]"
+        return f"{self._id}[{self._length}]"
 
     @property
     def length(self):
         """
         Property method used to check the length of a type.
         """
-        if self._length is None:
+        if self._length is UNKNOWN_LENGTH:
             return 0
         return self._length
 
@@ -62,35 +69,40 @@ class _BytestringT(VyperType):
 
     @property
     def size_in_bytes(self):
-        # the first slot (32 bytes) stores the actual length, and then we reserve
-        # enough additional slots to store the data if it uses the max available length
-        # because this data type is single-bytes, we make it so it takes the max 32 byte
-        # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
-
+        # the first slot (32 bytes) stores the actual length, and then we
+        # reserve enough additional slots to store the data if it uses the
+        # max available length because this data type is single-bytes, we
+        # make it so it takes the max 32 byte boundary as it's size, instead
+        # of giving it a size that is not cleanly divisble by 32
         return 32 + ceil32(self.length)
 
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
 
+        self_length_known = self._length is not UNKNOWN_LENGTH
+        other_length_known = other._length is not UNKNOWN_LENGTH
+
         # when comparing two literals, or two bytestrings of non-zero lengths,
         # ensure that the other length fits within self
-        if self._length is not None and other._length is not None:
+        if self_length_known and other_length_known:
             return self._length >= other._length
+
+        # if both are non-literals and zero/None length, then the bytestring
+        # length cannot be derived and it is likely to be a syntax error,
+        # so we defer the syntax error to be handled downstream for better
+        # error messages
+        if not self_length_known and not other_length_known:
+            # TODO raise here?
+            return True
 
         # relax typechecking if length has not been set for other type
         # (e.g. JSON ABI import, `address.code`) so that it can be updated in
         # annotation phase
-        if self._length is not None:
+        if not self_length_known or not other_length_known:
             return True
 
-        # if both are non-literals and zero/None length, then the bytestring length
-        # cannot be derived and it is likely to be a syntax error, so we defer
-        # the syntax error to be handled downstream for better error messages
-        if self._length == other._length and not self._length:
-            return True
-
-        return other.compare_type(self)
+        return False
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
@@ -102,16 +114,14 @@ class _BytestringT(VyperType):
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
-        length = get_index_value(node.slice)  # type: ignore
-        # return cls._type(length, location, is_constant, is_public, is_immutable)
+        length = get_index_value(node.slice)
         return cls(length)
 
     @classmethod
     def from_literal(cls, node: vy_ast.Constant) -> "_BytestringT":
         if not isinstance(node, cls._valid_literal):
             raise UnexpectedNodeType(f"Not a {cls._id}: {node}")
-        t = cls(len(node.value))
-        return t
+        return cls(len(node.value))
 
 
 class BytesT(_BytestringT):
