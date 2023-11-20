@@ -1,5 +1,3 @@
-from typing import Optional
-
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
 from vyper.exceptions import CompilerPanic, StructureException, UnexpectedNodeType, UnexpectedValue
