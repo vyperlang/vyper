@@ -57,14 +57,14 @@ python setup.py test
 ## Developing (working on the compiler)
 
 A useful script to have in your PATH is something like the following:
-```
+```bash
 $ cat ~/.local/bin/vyc
 #!/usr/bin/env bash
 PYTHONPATH=. python vyper/cli/vyper_compile.py "$@"
 ```
 
 To run a python performance profile (to find compiler perf hotspots):
-```
+```bash
 PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
