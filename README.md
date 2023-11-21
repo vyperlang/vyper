@@ -68,6 +68,8 @@ To run a python performance profile (to find compiler perf hotspots):
 PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
 ```
 
+To get a call graph from a python profile, https://stackoverflow.com/a/23164271/ is helpful.
+
 
 # Contributing
 * See Issues tab, and feel free to submit your own issues
