@@ -1,6 +1,6 @@
 from pathlib import Path as _Path
 
-from vyper.compiler import compile_code, compile_codes  # noqa: F401
+from vyper.compiler import compile_code  # noqa: F401
 
 try:
     from importlib.metadata import PackageNotFoundError  # type: ignore

@@ -269,6 +269,10 @@ class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
 
 
+class MemoryAllocationException(VyperException):
+    """Tried to allocate too much memory"""
+
+
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
@@ -332,3 +336,7 @@ class UnfoldableNode(VyperInternalException):
 
 class TypeCheckFailure(VyperInternalException):
     """An issue was not caught during type checking that should have been."""
+
+
+class InvalidABIType(VyperInternalException):
+    """An internal routine constructed an invalid ABI type"""

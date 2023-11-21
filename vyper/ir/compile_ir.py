@@ -415,7 +415,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 )
             )
             # stack: i, rounds, rounds_bound
-            # assert rounds <= rounds_bound
+            # assert 0 <= rounds <= rounds_bound (for rounds_bound < 2**255)
             # TODO this runtime assertion shouldn't fail for
             # internally generated repeats.
             o.extend(["DUP2", "GT"] + _assert_false())

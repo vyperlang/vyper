@@ -91,11 +91,11 @@ class VyperRequestHandler(BaseHTTPRequestHandler):
 
         try:
             code = data["code"]
-            out_dict = vyper.compile_codes(
-                {"": code},
+            out_dict = vyper.compile_code(
+                code,
                 list(vyper.compiler.OUTPUT_FORMATS.keys()),
                 evm_version=data.get("evm_version", DEFAULT_EVM_VERSION),
-            )[""]
+            )
             out_dict["ir"] = str(out_dict["ir"])
             out_dict["ir_runtime"] = str(out_dict["ir_runtime"])
         except VyperException as e:

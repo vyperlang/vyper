@@ -1,6 +1,5 @@
 import warnings
 from collections import OrderedDict, deque
-from pathlib import Path
 
 import asttokens
 
@@ -17,7 +16,7 @@ from vyper.warnings import ContractSizeLimitWarning
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
-        "contract_name": compiler_data.contract_name,
+        "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.vyper_module),
     }
     return ast_dict
@@ -35,7 +34,7 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.vyper_module_folded._metadata["type"]
-    stem = Path(compiler_data.contract_name).stem
+    stem = compiler_data.contract_path.stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
     name = "".join([x.capitalize() for x in stem.split("_")])
@@ -104,11 +103,10 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    warnings.warn("metadata output format is unstable!")
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):
-        ret = vars(variable_record)
+        ret = vars(variable_record).copy()
         ret["typ"] = str(ret["typ"])
         if ret["data_offset"] is None:
             del ret["data_offset"]
@@ -118,7 +116,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         return ret
 
     def _to_dict(func_t):
-        ret = vars(func_t)
+        ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = func_t._ir_info.ir_identifier
 
@@ -134,7 +132,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info)
+        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         keep_keys = {
