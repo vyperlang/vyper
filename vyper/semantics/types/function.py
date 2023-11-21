@@ -2,7 +2,7 @@ import re
 import warnings
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.ast.identifiers import validate_identifier
@@ -15,14 +15,9 @@ from vyper.exceptions import (
     InvalidType,
     StateAccessViolation,
     StructureException,
-    TypeMismatch,
 )
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
-from vyper.semantics.analysis.utils import (
-    check_kwargable,
-    get_exact_type_from_node,
-    validate_expected_type,
-)
+from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -638,76 +633,6 @@ class MemberFunctionT(VyperType):
             validate_expected_type(arg, expected_type)
 
         return self.return_type
-
-
-class BuiltinFunctionT(VyperType):
-    _has_varargs = False
-    _inputs: list[tuple[str, Any]] = []
-    _kwargs: Dict[str, KwargSettings] = {}
-    _return_type: Optional[VyperType] = None
-
-    # helper function to deal with TYPE_DEFINITIONs
-    def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
-        # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
-        # refactor me.
-        if expected_type == "TYPE_DEFINITION":
-            # try to parse the type - call type_from_annotation
-            # for its side effects (will throw if is not a type)
-            type_from_annotation(arg)
-        else:
-            validate_expected_type(arg, expected_type)
-
-    def _validate_arg_types(self, node: vy_ast.Call) -> None:
-        num_args = len(self._inputs)  # the number of args the signature indicates
-
-        expect_num_args: Union[int, tuple] = num_args
-        if self._has_varargs:
-            # note special meaning for -1 in validate_call_args API
-            expect_num_args = (num_args, -1)
-
-        validate_call_args(node, expect_num_args, list(self._kwargs.keys()))
-
-        for arg, (_, expected) in zip(node.args, self._inputs):
-            self._validate_single(arg, expected)
-
-        for kwarg in node.keywords:
-            kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not isinstance(kwarg.value, vy_ast.Constant):
-                raise TypeMismatch("Value for kwarg must be a literal", kwarg.value)
-            self._validate_single(kwarg.value, kwarg_settings.typ)
-
-        # typecheck varargs. we don't have type info from the signature,
-        # so ensure that the types of the args can be inferred exactly.
-        varargs = node.args[num_args:]
-        if len(varargs) > 0:
-            assert self._has_varargs  # double check validate_call_args
-        for arg in varargs:
-            # call get_exact_type_from_node for its side effects -
-            # ensures the type can be inferred exactly.
-            get_exact_type_from_node(arg)
-
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
-        self._validate_arg_types(node)
-
-        return self._return_type
-
-    def infer_arg_types(self, node: vy_ast.Call) -> list[VyperType]:
-        self._validate_arg_types(node)
-        ret = [expected for (_, expected) in self._inputs]
-
-        # handle varargs.
-        n_known_args = len(self._inputs)
-        varargs = node.args[n_known_args:]
-        if len(varargs) > 0:
-            assert self._has_varargs
-        ret.extend(get_exact_type_from_node(arg) for arg in varargs)
-        return ret
-
-    def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:
-        return {i.arg: self._kwargs[i.arg].typ for i in node.keywords}
-
-    def __repr__(self):
-        return f"(builtin) {self._id}"
 
 
 def _generate_method_id(name: str, canonical_abi_types: List[str]) -> Dict[str, int]:

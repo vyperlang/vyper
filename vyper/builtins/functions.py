@@ -74,7 +74,6 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.function import BuiltinFunctionT
 from vyper.semantics.types.shortcuts import (
     BYTES4_T,
     BYTES32_T,
@@ -99,7 +98,7 @@ from vyper.utils import (
 )
 
 from ._convert import convert
-from ._signatures import process_inputs
+from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
