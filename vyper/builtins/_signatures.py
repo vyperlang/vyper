@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -94,7 +94,7 @@ class BuiltinFunctionT(VyperType):
     def _validate_arg_types(self, node: vy_ast.Call) -> None:
         num_args = len(self._inputs)  # the number of args the signature indicates
 
-        expect_num_args: Union[int, tuple] = num_args
+        expect_num_args: Any = num_args
         if self._has_varargs:
             # note special meaning for -1 in validate_call_args API
             expect_num_args = (num_args, -1)
