@@ -33,7 +33,7 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
+    interface = compiler_data.vyper_module_folded._metadata["type"].interface
     stem = compiler_data.contract_path.stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
@@ -52,7 +52,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
+    interface = compiler_data.vyper_module_folded._metadata["type"].interface
     out = ""
 
     if interface.events:

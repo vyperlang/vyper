@@ -121,9 +121,8 @@ def foo() -> uint256:
 
     """
 
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
+    with pytest.raises(InterfaceViolation):
+        compile_code(not_implemented_code, input_bundle=input_bundle)
 
 
 def test_missing_event(make_input_bundle, assert_compile_failed):
