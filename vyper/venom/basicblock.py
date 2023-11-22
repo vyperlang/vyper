@@ -56,14 +56,11 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-IRValueBaseValue = str | int
+class IRValue:
+    value: int | str  # maybe just Any
 
-
-class IRValueBase:
-    value: IRValueBaseValue
-
-    def __init__(self, value: IRValueBaseValue) -> None:
-        assert isinstance(value, str) or isinstance(value, int), "value must be an IRValueBaseValue"
+    def __init__(self, value: int | str) -> None:
+        assert isinstance(value, str) or isinstance(value, int), "value must be an int | str"
         self.value = value
 
     @property
@@ -77,13 +74,15 @@ class IRValueBase:
     def __repr__(self) -> str:
         return str(self.value)
 
+# REVIEW: consider putting IROperand into the inheritance tree:
+# `IRLiteral | IRVariable`, i.e. something which can live on the operand stack
 
-class IRLiteral(IRValueBase):
+class IRLiteral(IRValue):
     """
     IRLiteral represents a literal in IR
     """
 
-    def __init__(self, value: IRValueBaseValue) -> None:
+    def __init__(self, value: int) -> None:
         super().__init__(value)
 
     @property
@@ -96,7 +95,7 @@ class MemType(Enum):
     MEMORY = auto()
 
 
-class IRVariable(IRValueBase):
+class IRVariable(IRValue):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
@@ -108,20 +107,16 @@ class IRVariable(IRValueBase):
     mem_addr: Optional[int] = None
 
     def __init__(
-        self,
-        value: IRValueBaseValue,
-        mem_type: MemType = MemType.OPERAND_STACK,
-        mem_addr: int = None,
+        self, value: str, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = None
     ) -> None:
-        if isinstance(value, IRLiteral):
-            value = value.value
+        assert isinstance(value, str)
         super().__init__(value)
         self.offset = 0
         self.mem_type = mem_type
         self.mem_addr = mem_addr
 
 
-class IRLabel(IRValueBase):
+class IRLabel(IRValue):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -145,8 +140,8 @@ class IRInstruction:
 
     opcode: str
     volatile: bool
-    operands: list[IRValueBase]
-    output: Optional[IRValueBase]
+    operands: list[IRValue]
+    output: Optional[IRValue]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
@@ -155,14 +150,11 @@ class IRInstruction:
     annotation: Optional[str]
 
     def __init__(
-        self,
-        opcode: str,
-        operands: list[IRValueBase | IRValueBaseValue],
-        output: Optional[IRValueBase] = None,
+        self, opcode: str, operands: list[IRValue | str | int], output: Optional[IRValue] = None
     ):
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
-        self.operands = [op if isinstance(op, IRValueBase) else IRValueBase(op) for op in operands]
+        self.operands = [op if isinstance(op, IRValue) else IRValue(op) for op in operands]
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
@@ -176,7 +168,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRLabel)]
 
-    def get_non_label_operands(self) -> list[IRValueBase]:
+    def get_non_label_operands(self) -> list[IRValue]:
         """
         Get input operands for instruction which are not labels
         """
@@ -188,7 +180,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    def get_outputs(self) -> list[IRValueBase]:
+    def get_outputs(self) -> list[IRValue]:
         """
         Get the output item for an instruction.
         (Currently all instructions output at most one item, but write

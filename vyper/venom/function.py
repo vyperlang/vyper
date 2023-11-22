@@ -4,7 +4,7 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
-    IRValueBase,
+    IRValue,
     IRVariable,
     MemType,
 )
@@ -99,8 +99,8 @@ class IRFunction:
         return removed
 
     def append_instruction(
-        self, opcode: str, args: list[IRValueBase], do_ret: bool = True
-    ) -> IRVariable | None:
+        self, opcode: str, args: list[IRValue], do_ret: bool = True
+    ) -> Optional[IRVariable]:
         """
         Append instruction to last basic block.
         """
@@ -109,7 +109,7 @@ class IRFunction:
         self.get_basic_block().append_instruction(inst)
         return ret
 
-    def append_data(self, opcode: str, args: list[IRValueBase]) -> None:
+    def append_data(self, opcode: str, args: list[IRValue]) -> None:
         """
         Append data
         """

@@ -1,9 +1,11 @@
-from vyper.venom.basicblock import IRValueBase, IRVariable
+from vyper.venom.basicblock import IRValue, IRVariable
 
 
 class StackModel:
     NOT_IN_STACK = object()
-    _stack: list[IRValueBase]
+    # REVIEW: maybe this type signature could be clearer -- we
+    # only have IRVariable | IRLiteral on the stack
+    _stack: list[IRValue]
 
     def __init__(self):
         self._stack = []
@@ -20,22 +22,22 @@ class StackModel:
         """
         return len(self._stack)
 
-    def push(self, op: IRValueBase) -> None:
+    def push(self, op: IRValue) -> None:
         """
         Pushes an operand onto the stack map.
         """
-        assert isinstance(op, IRValueBase), f"push takes IRValueBase, got '{op}'"
+        assert isinstance(op, IRValue), f"{type(op)}: {op}"
         self._stack.append(op)
 
     def pop(self, num: int = 1) -> None:
         del self._stack[len(self._stack) - num :]
 
-    def get_depth(self, op: IRValueBase) -> int:
+    def get_depth(self, op: IRValue) -> int:
         """
         Returns the depth of the first matching operand in the stack map.
         If the operand is not in the stack map, returns NOT_IN_STACK.
         """
-        assert isinstance(op, IRValueBase), f"get_depth takes IRValueBase or list, got '{op}'"
+        assert isinstance(op, IRValue), f"{type(op)}: {op}"
 
         for i, stack_op in enumerate(reversed(self._stack)):
             if stack_op.value == op.value:
@@ -62,20 +64,20 @@ class StackModel:
 
         return ret  # type: ignore
 
-    def peek(self, depth: int) -> IRValueBase:
+    def peek(self, depth: int) -> IRValue:
         """
         Returns the top of the stack map.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot peek non-in-stack depth"
         return self._stack[depth - 1]
 
-    def poke(self, depth: int, op: IRValueBase) -> None:
+    def poke(self, depth: int, op: IRValue) -> None:
         """
         Pokes an operand at the given depth in the stack map.
         """
         assert depth is not StackModel.NOT_IN_STACK, "Cannot poke non-in-stack depth"
         assert depth <= 0, "Bad depth"
-        assert isinstance(op, IRValueBase), f"poke takes IRValueBase, got '{op}'"
+        assert isinstance(op, IRValue), f"{type(op)}: {op}"
         self._stack[depth - 1] = op
 
     def dup(self, depth: int) -> None:

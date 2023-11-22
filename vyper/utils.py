@@ -6,12 +6,9 @@ import sys
 import time
 import traceback
 import warnings
-from typing import List, Union
+from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
-
-
-from typing import Generic, TypeVar
 
 _T = TypeVar("_T")
 

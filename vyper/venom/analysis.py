@@ -181,7 +181,7 @@ class DFG:
                     inputs = dfg._dfg_inputs.setdefault(op, [])
                     inputs.append(inst)
 
-                for op2 in res:
-                    dfg._dfg_outputs[op2] = inst  # type: ignore
+                for op in res:  # type: ignore
+                    dfg._dfg_outputs[op] = inst
 
         return dfg

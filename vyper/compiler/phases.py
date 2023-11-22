@@ -17,7 +17,6 @@ from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import StorageLayout
 from vyper.venom import generate_assembly_experimental, generate_ir
-from vyper.typing import StorageLayout
 
 DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
 
@@ -195,14 +194,18 @@ class CompilerData:
     @cached_property
     def assembly(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(self.ir_nodes, self.settings.optimize)  # type: ignore
+            return generate_assembly_experimental(
+                self.ir_nodes, self.settings.optimize  # type: ignore
+            )
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(self.ir_runtime, self.settings.optimize)  # type: ignore
+            return generate_assembly_experimental(
+                self.ir_runtime, self.settings.optimize  # type: ignore
+            )
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 

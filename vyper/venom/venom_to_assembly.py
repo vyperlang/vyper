@@ -1,3 +1,5 @@
+from typing import Any
+
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
@@ -5,8 +7,7 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
-    IRValueBase,
-    IRValueBaseValue,
+    IRValue,
     IRVariable,
     MemType,
 )
@@ -113,7 +114,7 @@ class VenomCompiler:
             asm.append(runtime)
 
         # Append data segment
-        data_segments = dict[IRValueBase | IRValueBaseValue, list[str | DataHeader]]()
+        data_segments: dict[Any, list[Any]] = dict()
         for inst in self.ctx.data_segment:
             if inst.opcode == "dbname":
                 label = inst.operands[0].value
@@ -148,7 +149,7 @@ class VenomCompiler:
             self.swap(assembly, stack, final_stack_depth)
 
     def _emit_input_operands(
-        self, assembly: list, inst: IRInstruction, ops: list[IRValueBase], stack: StackModel
+        self, assembly: list, inst: IRInstruction, ops: list[IRValue], stack: StackModel
     ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
@@ -162,7 +163,7 @@ class VenomCompiler:
                     self.swap_op(assembly, stack, op)
                     break
 
-        emitted_ops = OrderedSet[IRValueBase]()
+        emitted_ops = OrderedSet[IRValue]()
         for op in ops:
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need to emit it here
@@ -240,7 +241,7 @@ class VenomCompiler:
             to_pop |= layout.difference(inputs)
 
         for var in to_pop:
-            depth = stack.get_depth(IRValueBase(var.value))
+            depth = stack.get_depth(IRValue(var.value))
             # don't pop phantom phi inputs
             if depth is StackModel.NOT_IN_STACK:
                 continue
