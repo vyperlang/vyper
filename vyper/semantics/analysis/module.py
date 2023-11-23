@@ -379,11 +379,21 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             pass
 
         try:
+            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            assert isinstance(file, FileInput)  # mypy hint
+            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
+            return InterfaceT.from_vyi(interface_ast)
+        except FileNotFoundError:
+            pass
+
+        try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
             return InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
-            raise ModuleNotFoundError(module_str)
+            pass
+
+        raise ModuleNotFoundError(module_str)
 
 
 # convert an import to a path (without suffix)
@@ -425,7 +435,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         remapped_module = remapped_module.removeprefix("vyper.interfaces")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
 
-    path = _import_to_path(level, remapped_module).with_suffix(".vy")
+    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
 
     try:
         file = input_bundle.load_file(path)
@@ -435,4 +445,4 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
 
     # TODO: it might be good to cache this computation
     interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path)
-    return InterfaceT.from_Module(interface_ast, name=module_str)
+    return InterfaceT.from_vyi(interface_ast)

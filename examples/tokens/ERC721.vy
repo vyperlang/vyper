@@ -14,7 +14,7 @@ interface ERC721Receiver:
             _operator: address,
             _from: address,
             _tokenId: uint256,
-            _data: Bytes[1024]
+            _data: Bytes[...]
         ) -> bytes4: nonpayable
 
 

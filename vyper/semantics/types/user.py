@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional
+from typing import Any, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
@@ -412,73 +412,62 @@ class InterfaceT(_UserType):
         return cls(name, members, events)
 
     @classmethod
-    def from_Module(cls, node: vy_ast.Module, name: Optional[str] = None) -> "InterfaceT":
+    def from_vyi(cls, module: vy_ast.Module) -> tuple[dict, dict]:
+        functions: dict = {}
+        events: dict = {}
+        for funcdef in module.get_children(vy_ast.FunctionDef):
+            func_t = ContractFunctionT.from_vyi(funcdef)
+            functions[funcdef.name] = func_t
+
+        for eventdef in module.get_children(vy_ast.EventDef):
+            name = eventdef.name
+            if name in functions or name in events:
+                raise NamespaceCollision(
+                    f"Interface contains multiple objects named '{name}'", module
+                )
+            events[name] = EventT.from_EventDef(eventdef)
+
+        return cls(name, functions, events)
+
+    @classmethod
+    # node is `Any` here to avoid an import cycle
+    def from_ModuleT(cls, module_t: Any) -> "InterfaceT":
         """
         Generate an `InterfaceT` object from a Vyper ast node.
 
         Arguments
         ---------
-        node : Module
-            Vyper ast node defining the interface
+        module_t: ModuleT
+            Vyper module type
         Returns
         -------
         InterfaceT
             primitive interface type
         """
-        members, events = _get_module_definitions(node)
+        funcs = {node.name: node._metadata["type"] for node in module_t.functions}
+        events = {node.name: node._metadata["type"] for node in module_t.events}
 
-        return cls(name, members, events)
+        return cls(module_t._id, funcs, events)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
-        members = _get_class_functions(node)
+        functions = {}
+        for node in node.body:
+            if not isinstance(node, vy_ast.FunctionDef):
+                raise StructureException("Interfaces can only contain function definitions", node)
+            if node.name in functions:
+                raise NamespaceCollision(
+                    f"Interface contains multiple functions named '{node.name}'", node
+                )
+            if len(node.decorator_list) > 0:
+                raise StructureException(
+                    "Function definition in interface cannot be decorated", node.decorator_list[0]
+                )
+            functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
+
         events = {}
 
-        return cls(node.name, members, events)
-
-
-# TODO: refactor this to use ModuleT information
-def _get_module_definitions(base_node: vy_ast.Module) -> tuple[dict, dict]:
-    functions: dict = {}
-    events: dict = {}
-    for node in base_node.get_children(vy_ast.FunctionDef):
-        if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
-            func = ContractFunctionT.from_FunctionDef(node)
-            functions[node.name] = func
-    for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        name = node.target.id
-        if name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{name}'", base_node
-            )
-        functions[name] = ContractFunctionT.getter_from_VariableDecl(node)
-    for node in base_node.get_children(vy_ast.EventDef):
-        name = node.name
-        if name in functions or name in events:
-            raise NamespaceCollision(
-                f"Interface contains multiple objects named '{name}'", base_node
-            )
-        events[name] = EventT.from_EventDef(node)
-
-    return functions, events
-
-
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> dict[str, ContractFunctionT]:
-    functions = {}
-    for node in base_node.body:
-        if not isinstance(node, vy_ast.FunctionDef):
-            raise StructureException("Interfaces can only contain function definitions", node)
-        if node.name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{node.name}'", node
-            )
-        if len(node.decorator_list) > 0:
-            raise StructureException(
-                "Function definition in interface cannot be decorated", node.decorator_list[0]
-            )
-        functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
-
-    return functions
+        return cls(node.name, functions, events)
 
 
 class StructT(_UserType):

@@ -898,12 +898,16 @@ class Tuple(ExprNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
+class NameConstant(Constant):
+    __slots__ = ()
+
+
+class Ellipsis(Constant):
+    __slots__ = ()
+
+
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
-
-
-class NameConstant(Constant):
-    __slots__ = ("value",)
 
 
 class Name(ExprNode):

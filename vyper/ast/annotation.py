@@ -164,6 +164,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Str"
         elif isinstance(node.value, bytes):
             node.ast_type = "Bytes"
+        elif isinstance(node.value, Ellipsis.__class__):
+            node.ast_type = "Ellipsis"
         else:
             raise SyntaxException(
                 "Invalid syntax (unsupported Python Constant AST node).",

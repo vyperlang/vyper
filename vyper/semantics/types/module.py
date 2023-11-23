@@ -3,28 +3,25 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.function import MemberFunctionT
-from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import InterfaceT
 
 
 # Datatype to store all module information.
 class ModuleT(VyperType):
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
+        super().__init__()
+
         self._module = module
 
         self._id = name or module.path
 
         # compute the interface, note this has the side effect of checking
         # for function collisions
-        interface_t = self.interface
-
-        members = {}
+        _ = self.interface
 
         for f in self.functions:
-            members[f.name] = f._metadata["type"]
-
-        super().__init__(members)
+            # note: this checks for collisions
+            self.add_member(f.name, f._metadata["type"])
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
@@ -41,6 +38,10 @@ class ModuleT(VyperType):
     @property
     def functions(self):
         return self._module.get_children(vy_ast.FunctionDef)
+
+    @property
+    def events(self):
+        return self._module.get_children(vy_ast.EventDef)
 
     @cached_property
     def variables(self):
@@ -59,4 +60,4 @@ class ModuleT(VyperType):
 
     @cached_property
     def interface(self):
-        return InterfaceT.from_Module(self._module, name=self._id)
+        return InterfaceT.from_ModuleT(self)
