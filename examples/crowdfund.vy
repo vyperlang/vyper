@@ -1,4 +1,8 @@
-# Setup private variables (only callable from within the contract)
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# example of a crowd funding contract
 
 funders: HashMap[address, uint256]
 beneficiary: address
