@@ -1,8 +1,13 @@
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
 # @version >=0.3.4
 """
-@dev Implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
+@dev example implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
 """
+
 ############### imports ###############
 from vyper.interfaces import ERC165
 
