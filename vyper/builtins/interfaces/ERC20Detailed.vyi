@@ -1,0 +1,14 @@
+@view
+@external
+def name() -> String[...]:
+    ...
+
+@view
+@external
+def symbol() -> String[...]:
+    ...
+
+@view
+@external
+def decimals() -> uint8:
+    ...
