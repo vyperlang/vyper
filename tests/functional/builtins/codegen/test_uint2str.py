@@ -2,7 +2,8 @@ import math
 
 import pytest
 
-from vyper.exceptions import InvalidType
+from vyper.compiler import compile_code
+from vyper.exceptions import InvalidType, OverflowException
 
 VALID_BITS = list(range(8, 257, 8))
 
@@ -41,13 +42,23 @@ def foo(x: uint{bits}) -> uint256:
     assert c.foo(2**bits - 1) == 0, bits
 
 
-def test_int_fails(get_contract):
+def test_bignum_throws():
+    code = """
+@external
+def test():
+    a: String[78] = uint2str(2**256)
+    pass
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+def test_int_fails():
     code = """
 @external
 def test():
     a: String[78] = uint2str(-1)
     pass
     """
-
     with pytest.raises(InvalidType):
-        get_contract(code)
+        compile_code(code)
