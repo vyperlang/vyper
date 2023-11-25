@@ -296,41 +296,41 @@ class Slice(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 3)
-        (lit, st, le) = node.args[:3]
+        literal_value, start, length = node.args
         if (
-            isinstance(lit, (vy_ast.Bytes, vy_ast.Str, vy_ast.Hex))
-            and isinstance(st, vy_ast.Int)
-            and isinstance(le, vy_ast.Int)
+            isinstance(literal_value, (vy_ast.Bytes, vy_ast.Str, vy_ast.Hex))
+            and isinstance(start, vy_ast.Int)
+            and isinstance(length, vy_ast.Int)
         ):
-            (st_val, le_val) = (st.value, le.value)
+            (st_val, le_val) = (start.value, length.value)
 
             if st_val < 0:
-                raise ArgumentException("Start cannot be negative", st)
+                raise ArgumentException("Start cannot be negative", start)
             elif le_val <= 0:
-                raise ArgumentException("Length cannot be negative", le)
+                raise ArgumentException("Length cannot be negative", length)
 
-            if isinstance(lit, vy_ast.Hex):
+            if isinstance(literal_value, vy_ast.Hex):
                 if st_val >= 32:
-                    raise ArgumentException("Start cannot take that value", st)
+                    raise ArgumentException("Start cannot take that value", start)
                 if le_val > 32:
-                    raise ArgumentException("Length cannot take that value", le)
-                length = len(lit.value) // 2 - 1
+                    raise ArgumentException("Length cannot take that value", length)
+                length = len(literal_value.value) // 2 - 1
                 if length != 32:
-                    raise ArgumentException("Length can only be of 32", lit)
+                    raise ArgumentException("Length can only be of 32", literal_value)
                 st_val *= 2
                 le_val *= 2
 
-            if st_val + le_val > len(lit.value):
-                raise ArgumentException("Slice is out of bounds", st)
+            if st_val + le_val > len(literal_value.value):
+                raise ArgumentException("Slice is out of bounds", start)
 
-            if isinstance(lit, vy_ast.Bytes):
-                sublit = lit.value[st_val : (st_val + le_val)]
+            if isinstance(literal_value, vy_ast.Bytes):
+                sublit = literal_value.value[st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=sublit)
-            elif isinstance(lit, vy_ast.Str):
-                sublit = lit.value[st_val : (st_val + le_val)]
+            elif isinstance(literal_value, vy_ast.Str):
+                sublit = literal_value.value[st_val : (st_val + le_val)]
                 return vy_ast.Str.from_node(node, value=sublit)
-            elif isinstance(lit, vy_ast.Hex):
-                sublit = lit.value[2:][st_val : (st_val + le_val)]
+            elif isinstance(literal_value, vy_ast.Hex):
+                sublit = literal_value.value[2:][st_val : (st_val + le_val)]
                 return vy_ast.Bytes.from_node(node, value=f"0x{sublit}")
         raise UnfoldableNode
 
