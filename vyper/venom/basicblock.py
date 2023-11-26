@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, TypeAlias
 
 from vyper.utils import OrderedSet
 
@@ -56,38 +56,19 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-class IRValue:
-    value: int | str  # maybe just Any
-
-    def __init__(self, value: int | str) -> None:
-        assert isinstance(value, str) or isinstance(value, int), "value must be an int | str"
-        self.value = value
-
-    @property
-    def is_literal(self) -> bool:
-        return False
-
-    @property
-    def value_str(self) -> str:
-        return str(self.value)
-
-    def __repr__(self) -> str:
-        return str(self.value)
-
-# REVIEW: consider putting IROperand into the inheritance tree:
-# `IRLiteral | IRVariable`, i.e. something which can live on the operand stack
-
-class IRLiteral(IRValue):
+class IRLiteral:
     """
     IRLiteral represents a literal in IR
     """
 
-    def __init__(self, value: int) -> None:
-        super().__init__(value)
+    value: int
 
-    @property
-    def is_literal(self) -> bool:
-        return True
+    def __init__(self, value: int) -> None:
+        assert isinstance(value, str) or isinstance(value, int), "value must be an int"
+        self.value = value
+
+    def __repr__(self) -> str:
+        return str(self.value)
 
 
 class MemType(Enum):
@@ -95,11 +76,12 @@ class MemType(Enum):
     MEMORY = auto()
 
 
-class IRVariable(IRValue):
+class IRVariable:
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
 
+    value: str
     offset: int = 0
 
     # some variables can be in memory for conversion from legacy IR to venom
@@ -110,13 +92,16 @@ class IRVariable(IRValue):
         self, value: str, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = None
     ) -> None:
         assert isinstance(value, str)
-        super().__init__(value)
+        self.value = value
         self.offset = 0
         self.mem_type = mem_type
         self.mem_addr = mem_addr
 
+    def __repr__(self) -> str:
+        return str(self.value)
 
-class IRLabel(IRValue):
+
+class IRLabel:
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -124,10 +109,18 @@ class IRLabel(IRValue):
     # is_symbol is used to indicate if the label came from upstream
     # (like a function name, try to preserve it in optimization passes)
     is_symbol: bool = False
+    value: str
 
     def __init__(self, value: str, is_symbol: bool = False) -> None:
-        super().__init__(value)
+        assert isinstance(value, str), "value must be an str"
+        self.value = value
         self.is_symbol = is_symbol
+
+    def __repr__(self) -> str:
+        return str(self.value)
+
+
+IROperand: TypeAlias = IRLiteral | IRVariable | IRLabel
 
 
 class IRInstruction:
@@ -140,8 +133,8 @@ class IRInstruction:
 
     opcode: str
     volatile: bool
-    operands: list[IRValue]
-    output: Optional[IRValue]
+    operands: list[IROperand]
+    output: Optional[IROperand]
     # set of live variables at this instruction
     liveness: OrderedSet[IRVariable]
     dup_requirements: OrderedSet[IRVariable]
@@ -150,11 +143,16 @@ class IRInstruction:
     annotation: Optional[str]
 
     def __init__(
-        self, opcode: str, operands: list[IRValue | str | int], output: Optional[IRValue] = None
+        self,
+        opcode: str,
+        operands: list[IROperand] | Iterator[IROperand],
+        output: Optional[IROperand] = None,
     ):
+        assert isinstance(opcode, str), "opcode must be an str"
+        assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
-        self.operands = [op if isinstance(op, IRValue) else IRValue(op) for op in operands]
+        self.operands = [op for op in operands]  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
@@ -168,7 +166,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRLabel)]
 
-    def get_non_label_operands(self) -> list[IRValue]:
+    def get_non_label_operands(self) -> list[IROperand]:
         """
         Get input operands for instruction which are not labels
         """
@@ -180,7 +178,7 @@ class IRInstruction:
         """
         return [op for op in self.operands if isinstance(op, IRVariable)]
 
-    def get_outputs(self) -> list[IRValue]:
+    def get_outputs(self) -> list[IROperand]:
         """
         Get the output item for an instruction.
         (Currently all instructions output at most one item, but write
@@ -204,10 +202,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
         operands = ", ".join(
-            [
-                (f"label %{op}" if isinstance(op, IRLabel) else str(op))
-                for op in reversed(self.operands)
-            ]
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
         )
         s += operands
 

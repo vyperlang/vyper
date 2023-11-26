@@ -12,7 +12,7 @@ from vyper.venom.basicblock import (
     IRInstruction,
     IRLabel,
     IRLiteral,
-    IRValue,
+    IROperand,
     IRVariable,
     MemType,
 )
@@ -72,7 +72,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "balance",
 ]
 
-SymbolTable = dict[str, IRValue]
+SymbolTable = dict[str, IROperand]
 
 
 def _get_symbols_common(a: dict, b: dict) -> dict:
@@ -149,7 +149,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = list[Optional[IRValue]]([IRLabel(str(target_label))])
+    ret_args = list[Optional[IROperand]]([IRLabel(str(target_label))])
 
     for arg in args_ir:
         if arg.is_literal:
@@ -244,12 +244,12 @@ def _get_variable_from_address(
 def _get_return_for_stack_operand(
     ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> IRInstruction:
-    if ret_ir.is_literal:
+    if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
         new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
         ctx.append_instruction("mstore", [sym, new_var], False)  # type: ignore
     else:
-        sym = symbols.get(ret_ir.value_str, None)
+        sym = symbols.get(ret_ir.value, None)
         if sym is None:
             # FIXME: needs real allocations
             new_var = ctx.append_instruction("alloca", [IRLiteral(32), IRLiteral(0)])
@@ -259,13 +259,6 @@ def _get_return_for_stack_operand(
     return IRInstruction("return", [last_ir, new_var])  # type: ignore
 
 
-# def _convert_ir_basicblock(
-#    ctx: IRFunction,
-#    ir: IRnode,
-#    symbols: SymbolTable,
-#    variables: OrderedSet,
-#    allocated_variables: dict[str, IRVariable],
-# ) -> Optional[IRValue]:
 def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     assert isinstance(variables, OrderedSet)
     global _break_target, _continue_target
@@ -357,7 +350,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[idx + 6], symbols, variables, allocated_variables
         )
 
-        if argsOffset and argsOffset.is_literal:
+        if isinstance(argsOffset, IRLiteral):
             offset = int(argsOffset.value)
             addr = offset - 32 + 4 if offset > 0 else 0
             argsOffsetVar = symbols.get(f"&{addr}", None)
@@ -377,10 +370,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         symbols[f"&{retOffsetValue}"] = retVar
 
         if ir.value == "call":
-            args = reversed([gas, address, value, argsOffsetVar, argsSize, retOffset, retSize])
+            args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
             return ctx.append_instruction(str(ir.value), args)
         else:
-            args = reversed([gas, address, argsOffsetVar, argsSize, retOffset, retSize])
+            args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
             return ctx.append_instruction(str(ir.value), args)
     elif ir.value == "if":
         cond = ir.args[0]
@@ -399,7 +392,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             else_ret_val = _convert_ir_basicblock(
                 ctx, ir.args[2], else_syms, variables, allocated_variables.copy()
             )
-            if else_ret_val is not None and else_ret_val.is_literal:
+            if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
                 else_ret_val = ctx.append_instruction("store", [IRLiteral(else_ret_val.value)])
         after_else_syms = else_syms.copy()
@@ -411,7 +404,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         then_ret_val = _convert_ir_basicblock(
             ctx, ir.args[1], symbols, variables, allocated_variables
         )
-        if then_ret_val is not None and then_ret_val.is_literal:
+        if isinstance(then_ret_val, IRLiteral):
             then_ret_val = ctx.append_instruction("store", [IRLiteral(then_ret_val.value)])
 
         inst = IRInstruction("jnz", [cont_ret, then_block.label, else_block.label])
@@ -465,7 +458,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         with_symbols = symbols.copy()
 
         sym = ir.args[0]
-        if ret and ret.is_literal:
+        if isinstance(ret, IRLiteral):
             new_var = ctx.append_instruction("store", [ret])  # type: ignore
             with_symbols[sym.value] = new_var
         else:
@@ -495,7 +488,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         new_v = arg_0
         var = (
             _get_variable_from_address(variables, int(arg_0.value))
-            if arg_0 and arg_0.is_literal
+            if isinstance(arg_0, IRLiteral)
             else None
         )
         if var is not None:
@@ -578,7 +571,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
                 var = (
                     _get_variable_from_address(variables, int(ret_ir.value))
-                    if ret_ir and ret_ir.is_literal
+                    if isinstance(ret_ir, IRLiteral)
                     else None
                 )
                 if var is not None:
@@ -598,7 +591,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     else:
                         inst = _get_return_for_stack_operand(ctx, symbols, new_var, last_ir)
                 else:
-                    if ret_ir and ret_ir.is_literal:
+                    if isinstance(ret_ir, IRLiteral):
                         sym = symbols.get(f"&{ret_ir.value}", None)
                         if sym is None:
                             inst = IRInstruction("return", [last_ir, ret_ir])
@@ -683,7 +676,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                 if sym_ir.is_literal:
                     sym = symbols.get(f"&{sym_ir.value}", None)
                     if sym is None:
-                        new_var = ctx.append_instruction("store", [IRValue(sym_ir.value)])
+                        new_var = ctx.append_instruction("store", [sym_ir])
                         symbols[f"&{sym_ir.value}"] = new_var
                         if allocated_variables.get(var.name, None) is None:
                             allocated_variables[var.name] = new_var
@@ -720,7 +713,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
 
         var = (
-            _get_variable_from_address(variables, int(sym_ir.value)) if sym_ir.is_literal else None
+            _get_variable_from_address(variables, int(sym_ir.value))
+            if isinstance(sym_ir, IRLiteral)
+            else None
         )
 
         if var is not None and var.size is not None:
@@ -738,14 +733,14 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
                 return ctx.append_instruction("mstore", [arg_1, ptr_var], False)
             else:
-                if sym_ir.is_literal:
+                if isinstance(sym_ir, IRLiteral):
                     new_var = ctx.append_instruction("store", [arg_1])
                     symbols[f"&{sym_ir.value}"] = new_var
                     # if allocated_variables.get(var.name, None) is None:
                     allocated_variables[var.name] = new_var
                 return new_var
         else:
-            if sym_ir.is_literal is False:
+            if isinstance(sym_ir, IRLiteral) is False:
                 inst = IRInstruction("mstore", [arg_1, sym_ir])
                 ctx.get_basic_block().append_instruction(inst)
                 return None
@@ -754,11 +749,11 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             if sym is None:
                 inst = IRInstruction("mstore", [arg_1, sym_ir])
                 ctx.get_basic_block().append_instruction(inst)
-                if arg_1 and not arg_1.is_literal:
+                if arg_1 and not isinstance(sym_ir, IRLiteral):
                     symbols[f"&{sym_ir.value}"] = arg_1
                 return None
 
-            if sym_ir.is_literal:
+            if isinstance(sym_ir, IRLiteral):
                 inst = IRInstruction("mstore", [arg_1, sym])
                 ctx.get_basic_block().append_instruction(inst)
                 return None

@@ -7,7 +7,8 @@ from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
     IRLabel,
-    IRValue,
+    IRLiteral,
+    IROperand,
     IRVariable,
     MemType,
 )
@@ -149,7 +150,7 @@ class VenomCompiler:
             self.swap(assembly, stack, final_stack_depth)
 
     def _emit_input_operands(
-        self, assembly: list, inst: IRInstruction, ops: list[IRValue], stack: StackModel
+        self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
     ) -> None:
         # PRE: we already have all the items on the stack that have
         # been scheduled to be killed. now it's just a matter of emitting
@@ -163,7 +164,7 @@ class VenomCompiler:
                     self.swap_op(assembly, stack, op)
                     break
 
-        emitted_ops = OrderedSet[IRValue]()
+        emitted_ops = OrderedSet[IROperand]()
         for op in ops:
             if isinstance(op, IRLabel):
                 # invoke emits the actual instruction itself so we don't need to emit it here
@@ -173,7 +174,7 @@ class VenomCompiler:
                 stack.push(op)
                 continue
 
-            if op.is_literal:
+            if isinstance(op, IRLiteral):
                 assembly.extend([*PUSH(op.value)])
                 stack.push(op)
                 continue
@@ -241,7 +242,7 @@ class VenomCompiler:
             to_pop |= layout.difference(inputs)
 
         for var in to_pop:
-            depth = stack.get_depth(IRValue(var.value))
+            depth = stack.get_depth(var)
             # don't pop phantom phi inputs
             if depth is StackModel.NOT_IN_STACK:
                 continue
