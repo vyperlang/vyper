@@ -245,8 +245,6 @@ class IRBasicBlock:
     cfg_in: OrderedSet["IRBasicBlock"]
     # basic blocks which this basic block can jump to
     cfg_out: OrderedSet["IRBasicBlock"]
-    # Does this basic block have a dirty cfg
-    cfg_dirty: bool
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
 
@@ -255,7 +253,6 @@ class IRBasicBlock:
         self.label = label
         self.parent = parent
         self.instructions = []
-        self.cfg_dirty = False
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
@@ -285,19 +282,14 @@ class IRBasicBlock:
     def append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         instruction.parent = self
-        if instruction.opcode in CFG_ALTERING_OPS:
-            self.cfg_dirty = True
         self.instructions.append(instruction)
 
     def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         instruction.parent = self
-        if instruction.opcode in CFG_ALTERING_OPS:
-            self.cfg_dirty = True
         self.instructions.insert(index, instruction)
 
     def clear_instructions(self) -> None:
-        self.cfg_dirty = True
         self.instructions = []
 
     def replace_operands(self, replacements: dict) -> None:
@@ -306,12 +298,6 @@ class IRBasicBlock:
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
-
-    def cfg_dirty_clear(self) -> None:
-        """
-        Clear CFG dirty flag
-        """
-        self.cfg_dirty = False
 
     @property
     def is_terminated(self) -> bool:
@@ -327,7 +313,6 @@ class IRBasicBlock:
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = self.instructions.copy()
-        bb.cfg_dirty = self.cfg_dirty
         bb.cfg_in = self.cfg_in.copy()
         bb.cfg_out = self.cfg_out.copy()
         bb.out_vars = self.out_vars.copy()

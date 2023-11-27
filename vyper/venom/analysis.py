@@ -59,8 +59,6 @@ def calculate_cfg(ctx: IRFunction) -> None:
         for in_bb in bb.cfg_in:
             in_bb.add_cfg_out(bb)
 
-    ctx.cfg_dirty_clear()
-
 
 def _reset_liveness(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:

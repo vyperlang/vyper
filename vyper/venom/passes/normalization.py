@@ -39,12 +39,8 @@ class NormalizationPass(IRPass):
         self.dfg = DFG.build_dfg(ctx)
         self.changes = 0
 
-        # REVIEW: maybe we can avoid `.cfg_dirty` machinery if we
-        # just recalculate the cfg every time here. is there a performance
-        # consideration?
-        # Calculate control flow graph if needed
-        if ctx.cfg_dirty:
-            calculate_cfg(ctx)
+        # Ensure that the CFG is up to date
+        calculate_cfg(ctx)
 
         for bb in ctx.basic_blocks:
             if len(bb.cfg_in) > 1:

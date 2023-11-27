@@ -116,23 +116,6 @@ class IRFunction:
         self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
 
     @property
-    def cfg_dirty(self) -> bool:
-        """
-        Check if CFG needs to be recalculated
-        """
-        for bb in self.basic_blocks:
-            if bb.cfg_dirty:
-                return True
-        return False
-
-    def cfg_dirty_clear(self) -> None:
-        """
-        Clear CFG dirty flag
-        """
-        for bb in self.basic_blocks:
-            bb.cfg_dirty_clear()
-
-    @property
     def normalized(self) -> bool:
         """
         Check if function is normalized.
