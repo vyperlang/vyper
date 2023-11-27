@@ -3,8 +3,6 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 class StackModel:
     NOT_IN_STACK = object()
-    # REVIEW: maybe this type signature could be clearer -- we
-    # only have IRVariable | IRLiteral on the stack
     _stack: list[IROperand]
 
     def __init__(self):
