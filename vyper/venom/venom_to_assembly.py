@@ -194,13 +194,6 @@ class VenomCompiler:
 
             emitted_ops.add(op)
 
-    # REVIEW: we don't need to thread the stack through this recursion,
-    # because the input stack will depend on CFG traversal order. would
-    # be better to construct a new stack model on entry into this
-    # function, which uses the stack layout calculated by the CFG inputs.
-    # HK: I think we need to thread the stack through the recursion because
-    # we need to ensure that the stack is in the correct state for the next
-    # basic block regardless from where we came from. Let's discuss offline.
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
