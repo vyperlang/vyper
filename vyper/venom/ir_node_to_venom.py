@@ -92,7 +92,7 @@ def convert_ir_basicblock(ir: IRnode) -> IRFunction:
     _convert_ir_basicblock(global_function, ir, {}, OrderedSet(), {})
 
     for i, bb in enumerate(global_function.basic_blocks):
-        if bb.is_terminated is False and i < len(global_function.basic_blocks) - 1:
+        if not bb.is_terminated and i < len(global_function.basic_blocks) - 1:
             bb.append_instruction(IRInstruction("jmp", [global_function.basic_blocks[i + 1].label]))
 
     revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
@@ -439,11 +439,11 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                 IRInstruction("phi", [then_block.label, val[0], else_block.label, val[1]], ret)
             )
 
-        if else_block.is_terminated is False:
+        if not else_block.is_terminated:
             exit_inst = IRInstruction("jmp", [bb.label])
             else_block.append_instruction(exit_inst)
 
-        if then_block.is_terminated is False:
+        if not then_block.is_terminated:
             exit_inst = IRInstruction("jmp", [bb.label])
             then_block.append_instruction(exit_inst)
 
@@ -530,7 +530,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         current_bb.append_instruction(inst)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
-        if ctx.get_basic_block().is_terminated is False:
+        if not ctx.get_basic_block().is_terminated:
             inst = IRInstruction("jmp", [label])
             ctx.get_basic_block().append_instruction(inst)
         bb = IRBasicBlock(label, ctx)
@@ -740,7 +740,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     allocated_variables[var.name] = new_var
                 return new_var
         else:
-            if isinstance(sym_ir, IRLiteral) is False:
+            if not isinstance(sym_ir, IRLiteral):
                 inst = IRInstruction("mstore", [arg_1, sym_ir])
                 ctx.get_basic_block().append_instruction(inst)
                 return None
@@ -852,7 +852,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         body_block.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
-        if body_end.is_terminated is False:
+        if not body_end.is_terminated:
             body_end.append_instruction(IRInstruction("jmp", [jump_up_block.label]))
 
         jump_cond = IRInstruction("jmp", [increment_block.label])
