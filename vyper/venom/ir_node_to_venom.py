@@ -117,7 +117,7 @@ def _convert_binary_op(
 
     ret = ctx.get_next_variable()
 
-    inst = IRInstruction(str(ir.value), args, ret)  # type: ignore
+    inst = IRInstruction(ir.value, args, ret)  # type: ignore
     ctx.get_basic_block().append_instruction(inst)
     return ret
 
@@ -149,7 +149,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = list[Optional[IROperand]]([IRLabel(str(target_label))])
+    ret_args = [IRLabel(target_label)]  # type: ignore
 
     for arg in args_ir:
         if arg.is_literal:
@@ -158,7 +158,7 @@ def _handle_self_call(
                 ret = _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
                 ret_args.append(ret)
             else:
-                ret_args.append(sym)
+                ret_args.append(sym)  # type: ignore
         else:
             ret = _convert_ir_basicblock(
                 ctx, arg._optimized, symbols, variables, allocated_variables
@@ -179,7 +179,7 @@ def _handle_self_call(
 def _handle_internal_func(
     ctx: IRFunction, ir: IRnode, func_t: ContractFunctionT, symbols: SymbolTable
 ) -> IRnode:
-    bb = IRBasicBlock(IRLabel(str(ir.args[0].args[0].value), True), ctx)
+    bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
 
     old_ir_mempos = 0
@@ -277,7 +277,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
     elif ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
         org_value = ir.value
-        ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[str(ir.value)]
+        ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols, variables, allocated_variables)
         ir.value = org_value
         return ctx.append_instruction("iszero", [new_var])
@@ -371,10 +371,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
-            return ctx.append_instruction(str(ir.value), args)
+            return ctx.append_instruction(ir.value, args)
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
-            return ctx.append_instruction(str(ir.value), args)
+            return ctx.append_instruction(ir.value, args)
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
@@ -468,7 +468,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[2], with_symbols, variables, allocated_variables
         )  # body
     elif ir.value == "goto":
-        _append_jmp(ctx, IRLabel(str(ir.args[0].value)))
+        _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "jump":
         arg_1 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         inst = IRInstruction("jmp", [arg_1])
@@ -510,9 +510,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         ctx.append_instruction("codecopy", [size, arg_1, arg_0], False)  # type: ignore
     elif ir.value == "symbol":
-        return IRLabel(str(ir.args[0].value), True)
+        return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
-        label = IRLabel(str(ir.args[0].value))
+        label = IRLabel(ir.args[0].value)
         ctx.append_data("dbname", [label])
         for c in ir.args[1:]:
             if isinstance(c, int):
@@ -529,7 +529,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         inst = IRInstruction("assert", [arg_0])  # type: ignore
         current_bb.append_instruction(inst)
     elif ir.value == "label":
-        label = IRLabel(str(ir.args[0].value), True)
+        label = IRLabel(ir.args[0].value, True)
         if ctx.get_basic_block().is_terminated is False:
             inst = IRInstruction("jmp", [label])
             ctx.get_basic_block().append_instruction(inst)
@@ -543,7 +543,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         if func_t.is_external:
             # Hardcoded contructor special case
             if func_t.name == "__init__":
-                label = IRLabel(str(ir.args[0].value), True)
+                label = IRLabel(ir.args[0].value, True)
                 inst = IRInstruction("jmp", [label])
                 ctx.get_basic_block().append_instruction(inst)
                 return None
@@ -922,7 +922,7 @@ def _convert_ir_opcode(
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
 ) -> None:
-    opcode = str(ir.value).upper()
+    opcode = ir.value.upper()  # type: ignore
     inst_args = []
     for arg in ir.args:
         if isinstance(arg, IRnode):
