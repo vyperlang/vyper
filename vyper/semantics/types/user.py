@@ -463,7 +463,7 @@ class InterfaceT(_UserType):
                 raise StructureException(
                     "Function definition in interface cannot be decorated", node.decorator_list[0]
                 )
-            functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
+            functions[node.name] = ContractFunctionT.from_InterfaceDef(node)
 
         events = {}
 

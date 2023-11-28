@@ -208,7 +208,7 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
@@ -219,7 +219,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant_key=None,
+            nonreentrant=None,
             ast_def=funcdef,
         )
 
@@ -253,12 +253,14 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef)
+        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
         return_type = _parse_return_type(funcdef)
 
         if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
-            raise FunctionDeclarationException("function body in an interface can only be ...!", funcdef)
+            raise FunctionDeclarationException(
+                "function body in an interface can only be ...!", funcdef
+            )
 
         return cls(
             funcdef.name,
@@ -267,7 +269,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant_key,
+            nonreentrant=nonreentrant_key,
             ast_def=funcdef,
         )
 
@@ -328,7 +330,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant_key,
+            nonreentrant=nonreentrant_key,
             ast_def=funcdef,
         )
 
@@ -683,7 +685,9 @@ def _parse_args(
         if arg.annotation is None:
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
-        type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
+        type_ = type_from_annotation(
+            arg.annotation, DataLocation.CALLDATA, is_interface=is_interface
+        )
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))

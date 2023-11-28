@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -67,15 +67,17 @@ def type_from_abi(abi_type: Dict) -> VyperType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
+# TODO: instead of `is_interface`, pass compilation context (ModuleAnalysis) to
+# type_from_annotation
 def type_from_annotation(
-    node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET
+    node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET, is_interface=False
 ) -> VyperType:
     """
     Return a type object for the given AST node after validating its location.
 
     Arguments
     ---------
-    node : VyperNode
+    node: VyperNode
         Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
 
     Returns
@@ -83,7 +85,7 @@ def type_from_annotation(
     VyperType
         Type definition object.
     """
-    typ_ = _type_from_annotation(node)
+    typ_ = _type_from_annotation(node, is_interface)
 
     if location in typ_._invalid_locations:
         location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
@@ -92,7 +94,7 @@ def type_from_annotation(
     return typ_
 
 
-def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+def _type_from_annotation(node: vy_ast.VyperNode, is_interface) -> VyperType:
     namespace = get_namespace()
 
     def _failwith(type_name):
@@ -114,7 +116,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             # like, address[5] or int256[5][5]
             type_ctor = namespace["$SArrayT"]
 
-        return type_ctor.from_annotation(node)
+        return type_ctor.from_annotation(node, is_interface=is_interface)
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
@@ -128,29 +130,32 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # cases where the object in the namespace is an uninstantiated
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
-        typ_.from_annotation(node)
+        typ_.from_annotation(node, is_interface)
 
     return typ_
 
 
-def get_index_value(node: vy_ast.Index) -> int:
+def get_index_value(node: vy_ast.Index) -> Optional[int]:
     """
     Return the literal value for a `Subscript` index.
 
     Arguments
     ---------
-    node : vy_ast.Index
+    node: vy_ast.Index
         Vyper ast node from the `slice` member of a Subscript node. Must be an
         `Index` object (Vyper does not support `Slice` or `ExtSlice`).
 
     Returns
     -------
-    int
-        Literal integer value.
+    Optional[int]
+        Literal integer value. Returns `None` if the subscript is an Ellipsis
     """
     # this is imported to improve error messages
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
+
+    if isinstance(node.get("value"), vy_ast.Ellipsis):
+        return None
 
     if not isinstance(node.get("value"), vy_ast.Int):
         if hasattr(node, "value"):
