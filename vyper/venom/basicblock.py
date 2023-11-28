@@ -274,22 +274,15 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
+        assert bb not in self.cfg_in  # seems malformed
         self.cfg_in.add(bb)
 
-    def union_cfg_in(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
-        self.cfg_in = self.cfg_in.union(bb_set)
-
-    def remove_cfg_in(self, bb: "IRBasicBlock") -> None:
-        self.cfg_in.remove(bb)
-
     def add_cfg_out(self, bb: "IRBasicBlock") -> None:
+        # malformed: jnz condition label1 label1
+        # (we could handle but it makes a lot of code easier
+        # if we have this assumption)
+        assert bb not in in_bb.cfg_out
         self.cfg_out.add(bb)
-
-    def union_cfg_out(self, bb_set: OrderedSet["IRBasicBlock"]) -> None:
-        self.cfg_out = self.cfg_out.union(bb_set)
-
-    def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
-        self.cfg_out.remove(bb)
 
     @property
     def is_reachable(self) -> bool:
