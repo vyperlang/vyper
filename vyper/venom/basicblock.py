@@ -145,6 +145,8 @@ class IRInstruction:
     operands, and return value. For example, the following IR instruction:
         %1 = add %0, 1
     has opcode "add", operands ["%0", "1"], and return value "%1".
+
+    Convention: the rightmost value is the top of the stack.
     """
 
     opcode: str
