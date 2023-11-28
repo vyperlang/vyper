@@ -712,11 +712,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
 
-        var = (
-            _get_variable_from_address(variables, int(sym_ir.value))
-            if isinstance(sym_ir, IRLiteral)
-            else None
-        )
+        var = None
+        if isinstance(sym_ir, IRLiteral):
+            var = _get_variable_from_address(variables, int(sym_ir.value))
 
         if var is not None and var.size is not None:
             if var.size and var.size > 32:

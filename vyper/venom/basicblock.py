@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Iterator, Optional, TypeAlias
+from typing import TYPE_CHECKING, Any, Iterator, Optional
 
 from vyper.utils import OrderedSet
 
@@ -56,7 +56,26 @@ class IRDebugInfo:
         return f"\t# line {self.line_no}: {src}".expandtabs(20)
 
 
-class IRLiteral:
+class IROperand:
+    """
+    IROperand represents an operand in IR. An operand is anything that can
+    be an argument to an IRInstruction
+    """
+
+    value: Any
+
+
+class IRValue(IROperand):
+    """
+    IRValue represents a value in IR. A value is anything that can be
+    operated by non-control flow instructions. That is, IRValues can be
+    IRVariables or IRLiterals.
+    """
+
+    pass
+
+
+class IRLiteral(IRValue):
     """
     IRLiteral represents a literal in IR
     """
@@ -76,7 +95,7 @@ class MemType(Enum):
     MEMORY = auto()
 
 
-class IRVariable:
+class IRVariable(IRValue):
     """
     IRVariable represents a variable in IR. A variable is a string that starts with a %.
     """
@@ -98,10 +117,10 @@ class IRVariable:
         self.mem_addr = mem_addr
 
     def __repr__(self) -> str:
-        return str(self.value)
+        return self.value
 
 
-class IRLabel:
+class IRLabel(IROperand):
     """
     IRLabel represents a label in IR. A label is a string that starts with a %.
     """
@@ -117,10 +136,7 @@ class IRLabel:
         self.is_symbol = is_symbol
 
     def __repr__(self) -> str:
-        return str(self.value)
-
-
-IROperand: TypeAlias = IRLiteral | IRVariable | IRLabel
+        return self.value
 
 
 class IRInstruction:
