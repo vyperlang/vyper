@@ -43,6 +43,8 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
         self.basic_blocks.append(bb)
 
+        # TODO add sanity check somewhere that basic blocks have unique labels
+
         return self.basic_blocks[-1]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
@@ -90,8 +92,6 @@ class IRFunction:
         new_basic_blocks = []
         for bb in self.basic_blocks:
             if not bb.is_reachable and bb.label.value != "global":
-                for bb2 in bb.cfg_out:
-                    bb2.remove_cfg_in(bb)
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
@@ -118,24 +118,21 @@ class IRFunction:
     @property
     def normalized(self) -> bool:
         """
-        Check if function is normalized.
+        Check if function is normalized. A function is normalized if in the
+        CFG, no basic block simultaneously has multiple inputs and outputs.
+        That is, a basic block can be jumped to *from* multiple blocks, or it
+        can jump *to* multiple blocks, but it cannot simultaneously do both.
+        Having a normalized CFG makes calculation of stack layout easier when
+        emitting assembly.
         """
         for bb in self.basic_blocks:
-            # Ignore if there are no multiple predecessors
             if len(bb.cfg_in) <= 1:
                 continue
 
-            # Check if there is a conditional jump at the end
-            # of one of the predecessors
             for in_bb in bb.cfg_in:
-                jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode != "jnz":
-                    continue
+                if len(in_bb.cfg_out) > 1:
+                    return False
 
-                # The function is not normalized
-                return False
-
-        # The function is normalized
         return True
 
     def copy(self):

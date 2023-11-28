@@ -281,7 +281,7 @@ class IRBasicBlock:
         # malformed: jnz condition label1 label1
         # (we could handle but it makes a lot of code easier
         # if we have this assumption)
-        assert bb not in in_bb.cfg_out
+        assert bb not in self.cfg_out
         self.cfg_out.add(bb)
 
     @property

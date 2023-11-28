@@ -101,6 +101,8 @@ class VenomCompiler:
         calculate_cfg(self.ctx)
         calculate_liveness(self.ctx)
 
+        assert self.ctx.normalized, "Non-normalized CFG!"
+
         self._generate_evm_for_basicblock_r(asm, self.ctx.basic_blocks[0], stack)
 
         # Append postambles
