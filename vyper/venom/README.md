@@ -6,11 +6,11 @@ Venom serves as the next-gen intermediate representation language specifically t
 
 ### Venom Form
 
-In Venom, values are denoted as strings commencing with the `'%'` character, referred to as variables. Variables can only be assigned to at declaration (they remain immutable post-assignment). Constants are represented as decimal or hex numbers.
+In Venom, values are denoted as strings commencing with the `'%'` character, referred to as variables. Variables can only be assigned to at declaration (they remain immutable post-assignment). Constants are represented as decimal numbers (hexadecimal may be added in the future).
 
-Reserved words include all the instruction opcodes and 'IRFunction', 'param', 'dbname' and 'db'.
+Reserved words include all the instruction opcodes and `'IRFunction'`, `'param'`, `'dbname'` and `'db'`.
 
-Any content following the ';' character until the line end is treated as a comment.
+Any content following the `';'` character until the line end is treated as a comment.
 
 For instance, an example of incrementing a variable by one is as follows:
 
