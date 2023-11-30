@@ -282,6 +282,7 @@ def compile_files(
             storage_layout_override=storage_layout_override,
             show_gas_estimates=show_gas_estimates,
             no_bytecode_metadata=no_bytecode_metadata,
+            experimental_codegen=experimental_codegen,
         )
 
         ret[file_path] = output
