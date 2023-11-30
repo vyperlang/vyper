@@ -347,9 +347,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
             range_ = node.iter
             validate_call_args(range_, (1, 2), kwargs=["bound"])
-            bound = None
-            if range_.keywords:
-                bound = range_.keywords[0].value  # this is the only kwarg accepted by validation
+            kwargs = {s.arg: s.value for s in range_.keywords or []}
+            bound = kwargs.get("bound")
+            if bound:
                 if not isinstance(bound, vy_ast.Num):
                     raise StateAccessViolation("bound must be a literal", bound)
                 if bound.value <= 0:
