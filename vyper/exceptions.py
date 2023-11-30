@@ -40,7 +40,7 @@ class _BaseVyperException(Exception):
             Error message to display with the exception.
         *items : VyperNode | Tuple[str, VyperNode], optional
             Vyper ast node(s), or tuple of (description, node) indicating where
-            the exception occured. Source annotations are generated in the order
+            the exception occurred. Source annotations are generated in the order
             the nodes are given.
 
             A single tuple of (lineno, col_offset) is also understood to support

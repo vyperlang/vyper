@@ -31,6 +31,46 @@ def repeat(n: uint256) -> uint256:
     assert_tx_failed(lambda: c.repeat(7))
 
 
+def test_range_bound_two_args(get_contract, assert_tx_failed):
+    code = """
+@external
+def repeat(n: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(1, n, bound=6):
+        x += i + 1
+    return x
+    """
+    c = get_contract(code)
+    for n in range(1, 8):
+        assert c.repeat(n) == sum(i + 1 for i in range(1, n))
+
+    # check assertion for n less than start
+    assert_tx_failed(lambda: c.repeat(0))
+
+    # check codegen inserts assertion for n greater than bound
+    assert_tx_failed(lambda: c.repeat(8))
+
+
+def test_range_bound_two_runtime_args(get_contract, assert_tx_failed):
+    code = """
+@external
+def repeat(start: uint256, end: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(start, end, bound=6):
+        x += i + 1
+    return x
+    """
+    c = get_contract(code)
+    for n in range(1, 7):
+        assert c.repeat(1, n) == sum(i + 1 for i in range(1, n))
+
+    # check assertion for n less than start
+    assert_tx_failed(lambda: c.repeat(1, 0))
+
+    # check codegen inserts assertion for n greater than bound
+    assert_tx_failed(lambda: c.repeat(0, 7))
+
+
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @external

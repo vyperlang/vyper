@@ -347,66 +347,62 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 )
             range_ = node.iter
             validate_call_args(range_, (1, 2), kwargs=["bound"])
+            bound = None
+            if range_.keywords:
+                bound = range_.keywords[0].value  # this is the only kwarg accepted by validation
+                if not isinstance(bound, vy_ast.Num):
+                    raise StateAccessViolation("bound must be a literal", bound)
+                if bound.value <= 0:
+                    raise StructureException("bound must be at least 1", bound)
 
             args = range_.args
-            kwargs = {s.arg: s.value for s in range_.keywords or []}
             if len(args) == 1:
-                # range(CONSTANT)
                 n = args[0]
-                bound = kwargs.pop("bound", None)
                 validate_expected_type(n, IntegerT.any())
 
-                if bound is None:
+                if range_.keywords:
+                    # range(x, bound=CONSTANT)
+                    type_list = get_common_types(n, bound)
+                else:
+                    # range(CONSTANT)
                     if not isinstance(n, vy_ast.Num):
                         raise StateAccessViolation("Value must be a literal", n)
                     if n.value <= 0:
-                        raise StructureException("For loop must have at least 1 iteration", args[0])
+                        raise StructureException("For loop must have at least 1 iteration", n)
                     type_list = get_possible_types_from_node(n)
 
-                else:
-                    if not isinstance(bound, vy_ast.Num):
-                        raise StateAccessViolation("bound must be a literal", bound)
-                    if bound.value <= 0:
-                        raise StructureException("bound must be at least 1", args[0])
-                    type_list = get_common_types(n, bound)
-
-            else:
-                if range_.keywords:
-                    raise StructureException(
-                        "Keyword arguments are not supported for `range(N, M)` and"
-                        "`range(x, x + N)` expressions",
-                        range_.keywords[0],
-                    )
-
-                validate_expected_type(args[0], IntegerT.any())
-                type_list = get_common_types(*args)
-                if not isinstance(args[0], vy_ast.Constant):
+            else:  # len(args) == 2 as validated by validate_call_args
+                first, second = args
+                validate_expected_type(first, IntegerT.any())
+                type_list = get_common_types(*args, bound) if bound else get_common_types(*args)
+                if isinstance(first, vy_ast.Constant):
+                    # range(CONSTANT, CONSTANT) or range(CONSTANT, CONSTANT, bound=CONSTANT)
+                    if not bound and not isinstance(second, vy_ast.Int):
+                        raise InvalidType("Value must be a literal integer", second)
+                    validate_expected_type(second, IntegerT.any())
+                    max_range = bound.value if bound else second.value
+                    if first.value >= max_range:
+                        raise StructureException("Second value must be > first value", second)
+                elif not bound:
                     # range(x, x + CONSTANT)
-                    if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
-                        args[1].op, vy_ast.Add
+                    if not isinstance(second, vy_ast.BinOp) or not isinstance(
+                        second.op, vy_ast.Add
                     ):
                         raise StructureException(
-                            "Second element must be the first element plus a literal value", args[0]
+                            "Second element must be the first element plus a literal value", first
                         )
-                    if not vy_ast.compare_nodes(args[0], args[1].left):
+                    if not vy_ast.compare_nodes(first, second.left):
                         raise StructureException(
-                            "First and second variable must be the same", args[1].left
+                            "First and second variable must be the same", second.left
                         )
-                    if not isinstance(args[1].right, vy_ast.Int):
-                        raise InvalidLiteral("Literal must be an integer", args[1].right)
-                    if args[1].right.value < 1:
+                    if not isinstance(second.right, vy_ast.Int):
+                        raise InvalidLiteral("Literal must be an integer", second.right)
+                    if second.right.value < 1:
                         raise StructureException(
-                            f"For loop has invalid number of iterations ({args[1].right.value}),"
+                            f"For loop has invalid number of iterations ({second.right.value}),"
                             " the value must be greater than zero",
-                            args[1].right,
+                            second.right,
                         )
-                else:
-                    # range(CONSTANT, CONSTANT)
-                    if not isinstance(args[1], vy_ast.Int):
-                        raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerT.any())
-                    if args[0].value >= args[1].value:
-                        raise StructureException("Second value must be > first value", args[1])
 
                 if not type_list:
                     raise TypeMismatch("Iterator values are of different types", node.iter)
@@ -479,8 +475,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
-                        for n in node.body:
-                            self.visit(n)
+                        for first in node.body:
+                            self.visit(first)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:

@@ -1,6 +1,7 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
+from vyper.ast import Sub
 from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
@@ -277,13 +278,20 @@ class Stmt:
             rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
-        else:
+        elif "bound" not in kwargs:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
             _, hi = start.typ.int_bounds
             start = clamp("le", start, hi + 1 - rounds)
             rounds_bound = rounds
+
+        # Type 4 for, e.g. for i in range(1, x, bound=4): ...
+        else:
+            start = Expr.parse_value_expr(arg0, self.context)
+            end = Expr.parse_value_expr(self.stmt.iter.args[1], self.context)
+            rounds = IRnode.from_list(["sub", end, start], typ=iter_typ)
+            rounds_bound = kwargs["bound"]
 
         bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
         if bound < 1:
