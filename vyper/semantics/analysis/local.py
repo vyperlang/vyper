@@ -360,7 +360,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 n = args[0]
                 validate_expected_type(n, IntegerT.any())
 
-                if range_.keywords:
+                if bound:
                     # range(x, bound=CONSTANT)
                     type_list = get_common_types(n, bound)
                 else:
@@ -372,36 +372,36 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     type_list = get_possible_types_from_node(n)
 
             else:  # len(args) == 2 as validated by validate_call_args
-                first, second = args
-                validate_expected_type(first, IntegerT.any())
+                start, end = args
+                validate_expected_type(start, IntegerT.any())
                 type_list = get_common_types(*args, bound) if bound else get_common_types(*args)
-                if isinstance(first, vy_ast.Constant):
+                if isinstance(start, vy_ast.Constant):
                     # range(CONSTANT, CONSTANT) or range(CONSTANT, CONSTANT, bound=CONSTANT)
-                    if not bound and not isinstance(second, vy_ast.Int):
-                        raise InvalidType("Value must be a literal integer", second)
-                    validate_expected_type(second, IntegerT.any())
-                    max_range = bound.value if bound else second.value
-                    if first.value >= max_range:
-                        raise StructureException("Second value must be > first value", second)
-                elif not bound:
+                    if not bound and not isinstance(end, vy_ast.Int):
+                        raise InvalidType("Value must be a literal integer", end)
+                    validate_expected_type(end, IntegerT.any())
+                    max_range = bound.value if bound else end.value
+                    if start.value >= max_range:
+                        raise StructureException("Second value must be > first value", end)
+                elif not bound:  # bound is already checked above
                     # range(x, x + CONSTANT)
-                    if not isinstance(second, vy_ast.BinOp) or not isinstance(
-                        second.op, vy_ast.Add
+                    if not isinstance(end, vy_ast.BinOp) or not isinstance(
+                        end.op, vy_ast.Add
                     ):
                         raise StructureException(
-                            "Second element must be the first element plus a literal value", first
+                            "Second element must be the first element plus a literal value", start
                         )
-                    if not vy_ast.compare_nodes(first, second.left):
+                    if not vy_ast.compare_nodes(start, end.left):
                         raise StructureException(
-                            "First and second variable must be the same", second.left
+                            "First and second variable must be the same", end.left
                         )
-                    if not isinstance(second.right, vy_ast.Int):
-                        raise InvalidLiteral("Literal must be an integer", second.right)
-                    if second.right.value < 1:
+                    if not isinstance(end.right, vy_ast.Int):
+                        raise InvalidLiteral("Literal must be an integer", end.right)
+                    if end.right.value < 1:
                         raise StructureException(
-                            f"For loop has invalid number of iterations ({second.right.value}),"
+                            f"For loop has invalid number of iterations ({end.right.value}),"
                             " the value must be greater than zero",
-                            second.right,
+                            end.right,
                         )
 
                 if not type_list:
@@ -475,8 +475,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
-                        for first in node.body:
-                            self.visit(first)
+                        for start in node.body:
+                            self.visit(start)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
