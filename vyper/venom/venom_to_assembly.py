@@ -13,6 +13,7 @@ from vyper.venom.basicblock import (
     MemType,
 )
 from vyper.venom.function import IRFunction
+from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
 # instructions which map one-to-one from venom to EVM
@@ -97,6 +98,8 @@ class VenomCompiler:
 
         stack = StackModel()
         asm: list[str] = []
+
+        NormalizationPass.run_pass(self.ctx)
 
         calculate_cfg(self.ctx)
         calculate_liveness(self.ctx)
