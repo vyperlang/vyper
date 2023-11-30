@@ -290,7 +290,15 @@ class Stmt:
         else:
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(self.stmt.iter.args[1], self.context)
-            rounds = IRnode.from_list(["sub", end, start], typ=iter_typ)
+
+            rounds = IRnode.from_list(
+                IRnode.from_list([
+                    "seq",
+                    IRnode.from_list(["assert", ["gt", end, start]], error_msg="safesub"),
+                    ["sub", end, start]
+                ]),
+                typ=iter_typ
+            )
             rounds_bound = kwargs["bound"]
 
         bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
