@@ -71,7 +71,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 )
 
 
-# REVIEW: "assembly" gets into the recursion due to how the original
+# TODO: "assembly" gets into the recursion due to how the original
 # IR was structured recursively in regards with the deploy instruction.
 # There, recursing into the deploy instruction was by design, and
 # made it easier to make the assembly generated "recursive" (i.e.
