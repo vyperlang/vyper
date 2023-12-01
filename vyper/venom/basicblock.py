@@ -276,7 +276,6 @@ class IRBasicBlock:
         self.out_vars = OrderedSet()
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
-        assert bb not in self.cfg_in  # seems malformed
         self.cfg_in.add(bb)
 
     def remove_cfg_in(self, bb: "IRBasicBlock") -> None:
@@ -287,7 +286,6 @@ class IRBasicBlock:
         # malformed: jnz condition label1 label1
         # (we could handle but it makes a lot of code easier
         # if we have this assumption)
-        assert bb not in self.cfg_out
         self.cfg_out.add(bb)
 
     def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
