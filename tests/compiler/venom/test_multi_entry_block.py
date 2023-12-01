@@ -36,7 +36,6 @@ def test_multi_entry_block_1():
 
     NormalizationPass.run_pass(ctx)
 
-    calculate_cfg(ctx)
     assert ctx.normalized, "CFG should be normalized"
 
     finish_bb = ctx.get_basic_block(finish_label.value)
@@ -88,7 +87,6 @@ def test_multi_entry_block_2():
 
     NormalizationPass.run_pass(ctx)
 
-    calculate_cfg(ctx)
     assert ctx.normalized, "CFG should be normalized"
 
     finish_bb = ctx.get_basic_block(finish_label.value)
