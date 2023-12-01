@@ -21,7 +21,7 @@ def foo():
     for _ in range(10, bound=x):
         pass
     """,
-        StateAccessViolation("bound must be a literal"),
+        StateAccessViolation("Bound must be a literal"),
     ),
     (
         """
@@ -30,7 +30,7 @@ def foo():
     for _ in range(10, 20, bound=0):
         pass
     """,
-        StructureException("bound must be at least 1"),
+        StructureException("Bound must be at least 1"),
     ),
     (
         """
@@ -50,7 +50,7 @@ def bar():
     for i in range(x):
         pass
     """,
-        StateAccessViolation("Value must be a literal"),
+        StateAccessViolation("Value must be a literal integer"),
     ),
     (
         """
@@ -59,7 +59,7 @@ def bar():
     for i in range(0):
         pass
     """,
-        StructureException("For loop must have at least 1 iteration"),
+        StructureException("End must be greater than start"),
     ),
     (
         """
@@ -69,7 +69,7 @@ def bar():
     for i in range(0, x):
         pass
     """,
-        InvalidType("Value must be a literal integer"),
+        StateAccessViolation("Value must be a literal integer"),
     ),
     (
         """
@@ -78,7 +78,7 @@ def bar():
     for i in range(2, 1):
         pass
     """,
-        StructureException("Second value must be > first value")
+        StructureException("End must be greater than start")
     ),
     (
         """
@@ -131,7 +131,7 @@ def bar():
     for i in range(0, x + 1):
         pass
     """,
-        InvalidType("Value must be a literal integer")
+        StateAccessViolation("Value must be a literal integer")
     ),
 ]
 

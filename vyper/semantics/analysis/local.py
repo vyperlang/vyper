@@ -2,12 +2,10 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
-from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidLiteral,
     InvalidOperation,
     InvalidType,
     IteratorException,
@@ -28,8 +26,8 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.analysis.visitor.range_analyser import analyse_range_call
 from vyper.semantics.data_locations import DataLocation
-
 # TODO consolidate some of these imports
 from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
@@ -41,7 +39,6 @@ from vyper.semantics.types import (
     EnumT,
     EventT,
     HashMapT,
-    IntegerT,
     SArrayT,
     StringT,
     StructT,
@@ -345,67 +342,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            range_ = node.iter
-            validate_call_args(range_, (1, 2), kwargs=["bound"])
-            kwargs = {s.arg: s.value for s in range_.keywords or []}
-            bound = kwargs.get("bound")
-            if bound:
-                if not isinstance(bound, vy_ast.Num):
-                    raise StateAccessViolation("bound must be a literal", bound)
-                if bound.value <= 0:
-                    raise StructureException("bound must be at least 1", bound)
-
-            args = range_.args
-            if len(args) == 1:
-                n = args[0]
-                validate_expected_type(n, IntegerT.any())
-
-                if bound:
-                    # range(x, bound=CONSTANT)
-                    type_list = get_common_types(n, bound)
-                else:
-                    # range(CONSTANT)
-                    if not isinstance(n, vy_ast.Num):
-                        raise StateAccessViolation("Value must be a literal", n)
-                    if n.value <= 0:
-                        raise StructureException("For loop must have at least 1 iteration", n)
-                    type_list = get_possible_types_from_node(n)
-
-            else:  # len(args) == 2 as validated by validate_call_args
-                start, end = args
-                validate_expected_type(start, IntegerT.any())
-                type_list = get_common_types(*args, bound) if bound else get_common_types(*args)
-                if isinstance(start, vy_ast.Constant):
-                    # range(CONSTANT, CONSTANT) or range(CONSTANT, CONSTANT, bound=CONSTANT)
-                    if not bound and not isinstance(end, vy_ast.Int):
-                        raise InvalidType("Value must be a literal integer", end)
-                    validate_expected_type(end, IntegerT.any())
-                    max_range = bound.value if bound else end.value
-                    if start.value >= max_range:
-                        raise StructureException("Second value must be > first value", end)
-                elif not bound:  # bound is already checked above
-                    # range(x, x + CONSTANT)
-                    if not isinstance(end, vy_ast.BinOp) or not isinstance(
-                        end.op, vy_ast.Add
-                    ):
-                        raise StructureException(
-                            "Second element must be the first element plus a literal value", start
-                        )
-                    if not vy_ast.compare_nodes(start, end.left):
-                        raise StructureException(
-                            "First and second variable must be the same", end.left
-                        )
-                    if not isinstance(end.right, vy_ast.Int):
-                        raise InvalidLiteral("Literal must be an integer", end.right)
-                    if end.right.value < 1:
-                        raise StructureException(
-                            f"For loop has invalid number of iterations ({end.right.value}),"
-                            " the value must be greater than zero",
-                            end.right,
-                        )
-
-                if not type_list:
-                    raise TypeMismatch("Iterator values are of different types", node.iter)
+            type_list = analyse_range_call(node.iter)
 
         else:
             # iteration over a variable or literal list
