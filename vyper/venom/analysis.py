@@ -19,9 +19,9 @@ def calculate_cfg(ctx: IRFunction) -> None:
         bb.cfg_out = OrderedSet()
         bb.out_vars = OrderedSet()
 
-    # TODO: This is a hack to support the old IR format
-    # where deploy is an instruction. Going directly to the new IR we should
-    # have two entry points, one for the initcode and one for the runtime code.
+    # TODO: This is a hack to support the old IR format where `deploy` is
+    # an instruction. in the future we should have two entry points, one
+    # for the initcode and one for the runtime code.
     deploy_bb = None
     after_deploy_bb = None
     for i, bb in enumerate(ctx.basic_blocks):
@@ -41,13 +41,10 @@ def calculate_cfg(ctx: IRFunction) -> None:
         entry_block = ctx.basic_blocks[0]
 
     # TODO: Special case for the jump table of selector buckets and fallback.
-    # It will be generalized when the dispacher code is directly generated in
-    # Venom. The when directly generating the dispatcher code from the AST we
-    # should be emitting a dynamic jmp instruction with all the posible targets
-    # (this in EOF this will be also a jump via jump table). This will remove
-    # the need for this special case, and will result in cleaner code for
-    # normalization just according to CFG, without the need to examine the
-    # block termination instructions.
+    # this will be cleaner when we introduce an "indirect jump" instruction
+    # for the selector table (which includes all possible targets). it will
+    # also clean up the code for normalization because it will not have to
+    # handle this case specially.
     for bb in ctx.basic_blocks:
         if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
             bb.add_cfg_in(entry_block)
