@@ -6,12 +6,14 @@ import sys
 import time
 import traceback
 import warnings
-from typing import List, Union
+from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
 
+_T = TypeVar("_T")
 
-class OrderedSet(dict):
+
+class OrderedSet(Generic[_T], dict[_T, None]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -20,8 +22,40 @@ class OrderedSet(dict):
     functionality as needed.
     """
 
-    def add(self, item):
+    def __init__(self, iterable=None):
+        super().__init__()
+        if iterable is not None:
+            for item in iterable:
+                self.add(item)
+
+    def __repr__(self):
+        keys = ", ".join(repr(k) for k in self.keys())
+        return f"{{{keys}}}"
+
+    def get(self, *args, **kwargs):
+        raise RuntimeError("can't call get() on OrderedSet!")
+
+    def add(self, item: _T) -> None:
         self[item] = None
+
+    def remove(self, item: _T) -> None:
+        del self[item]
+
+    def difference(self, other):
+        ret = self.copy()
+        for k in other.keys():
+            if k in ret:
+                ret.remove(k)
+        return ret
+
+    def union(self, other):
+        return self | other
+
+    def __or__(self, other):
+        return self.__class__(super().__or__(other))
+
+    def copy(self):
+        return self.__class__(super().copy())
 
 
 class DecimalContextOverride(decimal.Context):
@@ -436,3 +470,25 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def ir_pass(func):
+    """
+    Decorator for IR passes. This decorator will run the pass repeatedly until
+    no more changes are made.
+    """
+
+    def wrapper(*args, **kwargs):
+        count = 0
+
+        while True:
+            changes = func(*args, **kwargs) or 0
+            if isinstance(changes, list) or isinstance(changes, set):
+                changes = len(changes)
+            count += changes
+            if changes == 0:
+                break
+
+        return count
+
+    return wrapper
