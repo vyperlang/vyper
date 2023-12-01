@@ -127,7 +127,7 @@ This pass eliminates all basic blocks that are not reachable from any other basi
 
 ### Normalization
 
-A Venom program may feature basic blocks with multiple CFG inputs and outputs. This currently can occur when multiple blocks direct control to the same target basic block, and the target basic block concludes with a conditional jump. We define a Venom IR as "normalized" when it contains no basic blocks that have multiple inputs and outputs. The normalization transform pass is responsible for converting any Venom IR program to its normalized form. EVM assembly emission operates solely on normalized Venom programs, because the stack layout is not well defined for non-normalized basic blocks.
+A Venom program may feature basic blocks with multiple CFG inputs and outputs. This currently can occur when multiple blocks conditionally direct control to the same target basic block. We define a Venom IR as "normalized" when it contains no basic blocks that have multiple inputs and outputs. The normalization pass is responsible for converting any Venom IR program to its normalized form. EVM assembly emission operates solely on normalized Venom programs, because the stack layout is not well defined for non-normalized basic blocks.
 
 ### Code emission
 
