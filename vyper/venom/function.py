@@ -47,7 +47,7 @@ class IRFunction:
 
         return self.basic_blocks[-1]
 
-    def get_basic_block(self, label: Optional[str] = None) -> Optional[IRBasicBlock]:
+    def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
         If label is None, return the last basic block.
@@ -57,7 +57,7 @@ class IRFunction:
         for bb in self.basic_blocks:
             if bb.label.value == label:
                 return bb
-        return None
+        raise AssertionError(f"Basic block '{label}' not found")
 
     def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
         """

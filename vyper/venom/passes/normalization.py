@@ -1,5 +1,4 @@
 from vyper.exceptions import CompilerPanic
-from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -15,8 +14,6 @@ class NormalizationPass(IRPass):
     changes = 0
 
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
-        ctx = self.ctx
-
         # Iterate over the predecessors of the basic block
         for in_bb in list(bb.cfg_in):
             # We are only splitting on conditional jumps
