@@ -20,9 +20,8 @@ def calculate_cfg(ctx: IRFunction) -> None:
         bb.out_vars = OrderedSet()
 
     # TODO: This is a hack to support the old IR format
-    # where deploy is an instruction. Going directly to the new IR we should have just
-    # one entry for the contructor and one for the runtime core. These will be propertly
-    # linked in the CFG, and the deploy instruction will be removed completely.
+    # where deploy is an instruction. Going directly to the new IR we should
+    # have two entry points, one for the initcode and one for the runtime code.
     deploy_bb = None
     after_deploy_bb = None
     for i, bb in enumerate(ctx.basic_blocks):
@@ -31,10 +30,10 @@ def calculate_cfg(ctx: IRFunction) -> None:
             after_deploy_bb = ctx.basic_blocks[i + 1]
             break
 
-    if deploy_bb:
+    if deploy_bb is not None:
         assert after_deploy_bb is not None, "No block after deploy block"
         entry_block = after_deploy_bb
-        has_constructor = True if ctx.basic_blocks[0].instructions[0].opcode != "deploy" else False
+        has_constructor = ctx.basic_blocks[0].instructions[0].opcode != "deploy"
         if has_constructor:
             deploy_bb.add_cfg_in(ctx.basic_blocks[0])
             entry_block.add_cfg_in(deploy_bb)
@@ -42,12 +41,13 @@ def calculate_cfg(ctx: IRFunction) -> None:
         entry_block = ctx.basic_blocks[0]
 
     # TODO: Special case for the jump table of selector buckets and fallback.
-    # It will be generalized when the dispacher code is directly generated in Venom.
-    # The when directly generating the dispatcher code from the AST we should be emitting
-    # a dynamic jmp instruction with all the posible targets (this in EOF this will be also
-    # a jump via jump table). This will remove the need for this special case, and will result
-    # in cleaner code for normalization just according to CFG, without the need to examine
-    # the block termination instructions.
+    # It will be generalized when the dispacher code is directly generated in
+    # Venom. The when directly generating the dispatcher code from the AST we
+    # should be emitting a dynamic jmp instruction with all the posible targets
+    # (this in EOF this will be also a jump via jump table). This will remove
+    # the need for this special case, and will result in cleaner code for
+    # normalization just according to CFG, without the need to examine the
+    # block termination instructions.
     for bb in ctx.basic_blocks:
         if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
             bb.add_cfg_in(entry_block)
@@ -55,9 +55,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]
-        assert last_inst.opcode in BB_TERMINATORS, "Last instruction should be a terminator" + str(
-            bb
-        )
+        assert last_inst.opcode in BB_TERMINATORS, f"Last instruction should be a terminator {bb}"
 
         for inst in bb.instructions:
             if inst.opcode in CFG_ALTERING_OPS:

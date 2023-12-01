@@ -50,6 +50,8 @@ class NormalizationPass(IRPass):
         split_bb = self._insert_split_basicblock(bb, in_bb)
 
         # Update any affected labels in the data segment
+        # TODO: this DESTROYS the cfg! refactor so the translation of the
+        # selector table produces indirect jumps properly.
         for inst in self.ctx.data_segment:
             if inst.opcode == "db" and inst.operands[0] == bb.label:
                 inst.operands[0] = split_bb.label
@@ -63,6 +65,9 @@ class NormalizationPass(IRPass):
         self.ctx.append_basic_block(split_bb)
 
         # Rewire the CFG
+        # TODO: this is cursed code, it is necessary instead of just running
+        # calculate_cfg() because split_for_dynamic_branch destroys the CFG!
+        # ideally, remove this rewiring and just re-run calculate_cfg().
         split_bb.add_cfg_in(in_bb)
         split_bb.add_cfg_out(bb)
         in_bb.remove_cfg_out(bb)
