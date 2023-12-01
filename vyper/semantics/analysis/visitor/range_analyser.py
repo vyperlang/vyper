@@ -1,33 +1,20 @@
-from vyper import ast as vy_ast, ast
+from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import (
-    InvalidLiteral,
-    InvalidType,
-    StateAccessViolation,
-    StructureException,
-    TypeMismatch,
-)
-from vyper.semantics.analysis.utils import (
-    get_common_types,
-    get_possible_types_from_node,
-    validate_expected_type,
-)
-from vyper.semantics.types import (
-    IntegerT, VyperType,
-)
+from vyper.exceptions import InvalidLiteral, StateAccessViolation, StructureException, TypeMismatch
+from vyper.semantics.analysis.utils import get_common_types, validate_expected_type
+from vyper.semantics.types import IntegerT, VyperType
 
 
-def analyse_range_call(node: ast.Call) -> list[VyperType]:
+def analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
     :return: None
     """
     validate_call_args(node, (1, 2), kwargs=["bound"])
-    args = node.args
     kwargs = {s.arg: s.value for s in node.keywords or []}
 
-    start, end = (vy_ast.Int(value=0), args[0]) if len(args) == 1 else args
+    start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
 
     if "bound" in kwargs:
         return _analyse_range_bound(start, end, kwargs["bound"], node)
@@ -55,7 +42,7 @@ def _analyse_range_bound(
         start: vy_ast.VyperNode,
         end: vy_ast.VyperNode,
         bound: vy_ast.VyperNode,
-        node: ast.Call
+        node: vy_ast.Call
 ) -> list[VyperType]:
     """
     Check that the arguments to a range(x, bound=N) or range(x, y, bound=N) call are valid.
@@ -77,7 +64,7 @@ def _analyse_range_bound(
     return _get_common_argument_types(node)
 
 
-def _analyse_range_sum(start: vy_ast.VyperNode, end: vy_ast.VyperNode, node: ast.Call) -> list[VyperType]:
+def _analyse_range_sum(start: vy_ast.VyperNode, end: vy_ast.VyperNode, node: vy_ast.Call) -> list[VyperType]:
     """
     Check that the arguments to a range(x, x + N) call are valid.
     :param start: first argument to range()
@@ -104,7 +91,7 @@ def _analyse_range_sum(start: vy_ast.VyperNode, end: vy_ast.VyperNode, node: ast
     return _get_common_argument_types(node)
 
 
-def _get_common_argument_types(node: ast.Call) -> list[VyperType]:
+def _get_common_argument_types(node: vy_ast.Call) -> list[VyperType]:
     """
     Gets the common types of all arguments to a function call.
     :param node: range() call node
