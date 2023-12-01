@@ -99,9 +99,15 @@ class VenomCompiler:
         stack = StackModel()
         asm: list[str] = []
 
-        NormalizationPass.run_pass(self.ctx)
-
+        # Before emitting the assembly, we need to make sure that the
+        # CFG is normalized. Calling calculate_cfg() will denormalize IR (reset)
+        # so it should not be called after calling NormalizationPass.run_pass().
+        # Liveness is then computed for the normalized IR, and we can proceed to
+        # assembly generation.
+        # This is a side-effect of how dynamic jumps are temporarily being used
+        # to support the O(1) dispatcher. -> look into calculate_cfg()
         calculate_cfg(self.ctx)
+        NormalizationPass.run_pass(self.ctx)
         calculate_liveness(self.ctx)
 
         assert self.ctx.normalized, "Non-normalized CFG!"
