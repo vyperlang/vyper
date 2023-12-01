@@ -45,19 +45,20 @@ class NormalizationPass(IRPass):
 
         assert edge in (1, 2)  # the arguments which can be labels
 
-        # Create an intermediary basic block and append it
-        source = in_bb.label.value
-        target = bb.label.value
-        split_bb = IRBasicBlock(IRLabel(f"{target}_split_{source}"), self.ctx)
-        split_bb.append_instruction(IRInstruction("jmp", [bb.label]))
-        self.ctx.append_basic_block(split_bb)
+        split_bb = self._insert_split_basicblock(bb, in_bb)
 
         # Redirect the original conditional jump to the intermediary basic block
         jump_inst.operands[edge] = split_bb.label
 
     def _split_for_dynamic_branch(self, bb: IRBasicBlock, in_bb: IRBasicBlock) -> None:
-        in_bb.remove_cfg_out(bb)
+        split_bb = self._insert_split_basicblock(bb, in_bb)
 
+        # Update any affected labels in the data segment
+        for inst in self.ctx.data_segment:
+            if inst.opcode == "db" and inst.operands[0] == bb.label:
+                inst.operands[0] = split_bb.label
+
+    def _insert_split_basicblock(self, bb: IRBasicBlock, in_bb: IRBasicBlock) -> IRBasicBlock:
         # Create an intermediary basic block and append it
         source = in_bb.label.value
         target = bb.label.value
@@ -68,14 +69,11 @@ class NormalizationPass(IRPass):
         # Rewire the CFG
         split_bb.add_cfg_in(in_bb)
         split_bb.add_cfg_out(bb)
+        in_bb.remove_cfg_out(bb)
         in_bb.add_cfg_out(split_bb)
         bb.remove_cfg_in(in_bb)
         bb.add_cfg_in(split_bb)
-
-        # Update any affected labels in the data segment
-        for inst in self.ctx.data_segment:
-            if inst.opcode == "db" and inst.operands[0] == bb.label:
-                inst.operands[0] = split_bb.label
+        return split_bb
 
     def _run_pass(self, ctx: IRFunction) -> int:
         self.ctx = ctx
