@@ -37,6 +37,9 @@ def calculate_cfg(ctx: IRFunction) -> None:
     else:
         entry_block = ctx.basic_blocks[0]
 
+    # Special case for the jump table of selector buckets
+    # and fallback. It will be generalized when the
+    # dispacher code is directly generated in Venom
     for bb in ctx.basic_blocks:
         if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
             bb.add_cfg_in(entry_block)
