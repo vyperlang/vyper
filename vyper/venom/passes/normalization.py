@@ -34,7 +34,7 @@ class NormalizationPass(IRPass):
         ctx = self.ctx
 
         # Iterate over the predecessors of the basic block
-        for in_bb in bb.cfg_in:
+        for in_bb in list(bb.cfg_in):
             # We are only splitting on conditional jumps
             if len(in_bb.cfg_out) <= 1:
                 continue
@@ -70,21 +70,37 @@ class NormalizationPass(IRPass):
         target = bb.label.value
         split_bb = IRBasicBlock(IRLabel(f"{target}_split_{source}"), self.ctx)
         split_bb.append_instruction(IRInstruction("jmp", [bb.label]))
-
         self.ctx.append_basic_block(split_bb)
 
         # Redirect the original conditional jump to the intermediary basic block
         jump_inst.operands[edge] = split_bb.label
 
     def _split_for_dynamic_branch(self, bb: IRBasicBlock, in_bb: IRBasicBlock) -> None:
-        pass
+        in_bb.remove_cfg_out(bb)
+
+        # Create an intermediary basic block and append it
+        source = in_bb.label.value
+        target = bb.label.value
+        split_bb = IRBasicBlock(IRLabel(f"{target}_split_{source}"), self.ctx)
+        split_bb.append_instruction(IRInstruction("jmp", [bb.label]))
+        self.ctx.append_basic_block(split_bb)
+
+        split_bb.add_cfg_in(in_bb)
+        split_bb.add_cfg_out(bb)
+        in_bb.add_cfg_out(split_bb)
+        bb.remove_cfg_in(in_bb)
+        bb.add_cfg_in(split_bb)
+
+        for inst in self.ctx.data_segment:
+            if inst.opcode == "db" and inst.operands[0] == bb.label:
+                inst.operands[0] = split_bb.label
 
     def _run_pass(self, ctx: IRFunction) -> int:
         self.ctx = ctx
         self.changes = 0
 
         # Ensure that the CFG is up to date
-        calculate_cfg(ctx)
+        # calculate_cfg(ctx)
         print(ctx)
         # for bb in ctx.basic_blocks:
         #     if len(bb.cfg_out) > 1:
@@ -96,7 +112,7 @@ class NormalizationPass(IRPass):
 
         # Recalculate control flow graph
         # (perf: could do this only when self.changes > 0, but be paranoid)
-        calculate_cfg(ctx)
+        # calculate_cfg(ctx)
         print("--------------------------")
         print(ctx)
         # Sanity check
