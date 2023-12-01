@@ -14,6 +14,22 @@ class NormalizationPass(IRPass):
 
     changes = 0
 
+    def _normalize_basic_block(self, bb: IRBasicBlock) -> None:
+        for out_bb in bb.cfg_out:
+            if len(out_bb.cfg_in) < 2:
+                continue
+
+            split_label = IRLabel(f"{bb.label.value}_split_{out_bb.label.value}")
+            new_out_bb = self.ctx.get_basic_block(split_label.value)
+            if new_out_bb is None:
+                new_out_bb = IRBasicBlock(
+                    IRLabel(f"{bb.label.value}_split_{out_bb.label.value}"), self.ctx
+                )
+                new_out_bb.instructions = out_bb.instructions
+                self.ctx.append_basic_block(new_out_bb)
+
+            out_bb.instructions = [IRInstruction("jmp", [new_out_bb.label])]
+
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
         ctx = self.ctx
 
@@ -69,15 +85,20 @@ class NormalizationPass(IRPass):
 
         # Ensure that the CFG is up to date
         calculate_cfg(ctx)
+        print(ctx)
+        # for bb in ctx.basic_blocks:
+        #     if len(bb.cfg_out) > 1:
+        #         self._normalize_basic_block(bb)
 
         for bb in ctx.basic_blocks:
-            if len(bb.cfg_in) > 1:  # and len(bb.cfg_out) > 1:
+            if len(bb.cfg_in) > 1:
                 self._split_basic_block(bb)
 
         # Recalculate control flow graph
         # (perf: could do this only when self.changes > 0, but be paranoid)
         calculate_cfg(ctx)
-
+        print("--------------------------")
+        print(ctx)
         # Sanity check
         assert ctx.normalized, "Normalization pass failed"
 
