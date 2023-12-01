@@ -255,7 +255,7 @@ class Stmt:
 
         # Get arg0
         arg0 = self.stmt.iter.args[0]
-        num_of_args = len(self.stmt.iter.args)
+        arg1 = self.stmt.iter.args[1] if len(self.stmt.iter.args) > 1 else None
 
         kwargs = {
             s.arg: Expr.parse_value_expr(s.value, self.context)
@@ -263,42 +263,34 @@ class Stmt:
         }
 
         # Type 1 for, e.g. for i in range(10): ...
-        if num_of_args == 1:
+        if arg1 is None:
             n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
             rounds = n
             rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
+        elif self._check_valid_range_constant(arg1).is_literal:
             arg0_val = self._get_range_const_value(arg0)
-            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
+            arg1_val = self._get_range_const_value(arg1)
             start = IRnode.from_list(arg0_val, typ=iter_typ)
             rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
             rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         elif "bound" not in kwargs:
-            arg1 = self.stmt.iter.args[1]
+            arg1 = arg1
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
             _, hi = start.typ.int_bounds
             start = clamp("le", start, hi + 1 - rounds)
             rounds_bound = rounds
 
-        # Type 4 for, e.g. for i in range(1, x, bound=4): ...
+        # Type 4 for, e.g. for i in range(x, y, bound=N): ...
         else:
             start = Expr.parse_value_expr(arg0, self.context)
-            end = Expr.parse_value_expr(self.stmt.iter.args[1], self.context)
-
-            rounds = IRnode.from_list(
-                IRnode.from_list([
-                    "seq",
-                    IRnode.from_list(["assert", ["gt", end, start]], error_msg="safesub"),
-                    ["sub", end, start]
-                ]),
-                typ=iter_typ
-            )
+            end = Expr.parse_value_expr(arg1, self.context)
+            rounds = IRnode.from_list(["sub", end, clamp("lt", start, end)])
             rounds_bound = kwargs["bound"]
 
         bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
