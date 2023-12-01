@@ -16,10 +16,6 @@ class NormalizationPass(IRPass):
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
         # Iterate over the predecessors of the basic block
         for in_bb in list(bb.cfg_in):
-            # We are only splitting on conditional jumps
-            if len(in_bb.cfg_out) <= 1:
-                continue
-
             jump_inst = in_bb.instructions[-1]
             assert bb in in_bb.cfg_out
 
@@ -29,7 +25,7 @@ class NormalizationPass(IRPass):
             elif jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRVariable):
                 self._split_for_dynamic_branch(bb, in_bb)
             else:
-                raise CompilerPanic("Unexpected termination instruction during normalization")
+                continue
 
             self.changes += 1
 
