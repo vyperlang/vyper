@@ -1,7 +1,12 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException, StateAccessViolation, ArgumentException, InvalidType, InvalidLiteral
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidLiteral,
+    StateAccessViolation,
+    StructureException,
+)
 
 fail_list = [
     (
@@ -22,6 +27,18 @@ def foo():
         pass
     """,
         StateAccessViolation("Bound must be a literal"),
+    ),
+    (
+        """
+@external
+def foo():
+    for _ in range(10, 20, bound=5):
+        pass
+    """,
+        StructureException(
+            "For loop has invalid number of iterations (10), "
+            "the value must be between zero and the bound"
+        ),
     ),
     (
         """
@@ -78,7 +95,7 @@ def bar():
     for i in range(2, 1):
         pass
     """,
-        StructureException("End must be greater than start")
+        StructureException("End must be greater than start"),
     ),
     (
         """
@@ -88,9 +105,8 @@ def bar():
     for i in range(x, x):
         pass
     """,
-        StructureException("Second element must be the first element plus a literal value")
+        StructureException("Second element must be the first element plus a literal value"),
     ),
-
     (
         """
 @external
@@ -100,7 +116,7 @@ def bar():
     for i in range(x, y + 1):
         pass
     """,
-        StructureException("First and second variable must be the same")
+        StructureException("First and second variable must be the same"),
     ),
     (
         """
@@ -111,7 +127,7 @@ def bar():
     for i in range(x, x + y):
         pass
     """,
-        InvalidLiteral("Literal must be an integer")
+        InvalidLiteral("Literal must be an integer"),
     ),
     (
         """
@@ -121,7 +137,9 @@ def bar():
     for i in range(x, x + 0):
         pass
     """,
-        StructureException(f"For loop has invalid number of iterations (0), the value must be greater than zero")
+        StructureException(
+            "For loop has invalid number of iterations (0), the value must be greater than zero"
+        ),
     ),
     (
         """
@@ -131,7 +149,7 @@ def bar():
     for i in range(0, x + 1):
         pass
     """,
-        StateAccessViolation("Value must be a literal integer")
+        StateAccessViolation("Value must be a literal integer"),
     ),
 ]
 

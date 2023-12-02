@@ -41,7 +41,7 @@ def repeat(n: uint256) -> uint256:
     return x
     """
     c = get_contract(code)
-    for n in range(2, 8):
+    for n in range(1, 8):
         assert c.repeat(n) == sum(i + 1 for i in range(1, n))
 
     # check assertion for n less than start
@@ -61,15 +61,13 @@ def repeat(start: uint256, end: uint256) -> uint256:
     return x
     """
     c = get_contract(code)
-    for n in range(1, 7):
+    for n in range(0, 7):
         assert c.repeat(0, n) == sum(range(0, n))
         assert c.repeat(n, n * 2) == sum(range(n, n * 2))
 
     # check assertion for start >= end
-    assert_tx_failed(lambda: c.repeat(0, 0))
     assert_tx_failed(lambda: c.repeat(1, 0))
     assert_tx_failed(lambda: c.repeat(7, 0))
-    assert_tx_failed(lambda: c.repeat(7, 7))
     assert_tx_failed(lambda: c.repeat(8, 7))
 
     # check codegen inserts assertion for n greater than bound
