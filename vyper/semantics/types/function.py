@@ -93,7 +93,7 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
 
         # a list of internal functions this function calls
-        self.called_functions = OrderedSet()
+        self.called_functions = OrderedSet[ContractFunctionT]()
 
         # to be populated during codegen
         self._ir_info: Any = None

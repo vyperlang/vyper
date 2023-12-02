@@ -171,6 +171,10 @@ class IRnode:
     valency: int
     args: List["IRnode"]
     value: Union[str, int]
+    is_self_call: bool
+    passthrough_metadata: dict[str, Any]
+    func_ir: Any
+    common_ir: Any
 
     def __init__(
         self,
@@ -184,6 +188,8 @@ class IRnode:
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
+        is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
     ):
         if args is None:
             args = []
@@ -201,6 +207,10 @@ class IRnode:
         self.add_gas_estimate = add_gas_estimate
         self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
+        self.is_self_call = is_self_call
+        self.passthrough_metadata = passthrough_metadata or {}
+        self.func_ir = None
+        self.common_ir = None
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -585,6 +595,8 @@ class IRnode:
         error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
+        is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):
@@ -617,6 +629,8 @@ class IRnode:
                 source_pos=source_pos,
                 encoding=encoding,
                 error_msg=error_msg,
+                is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )
         else:
             return cls(
@@ -630,4 +644,6 @@ class IRnode:
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
                 error_msg=error_msg,
+                is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )

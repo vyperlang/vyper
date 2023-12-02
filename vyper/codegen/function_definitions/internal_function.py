@@ -68,4 +68,6 @@ def generate_ir_for_internal_function(
         ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
     ]
 
-    return IRnode.from_list(["seq", body, cleanup_routine])
+    ir_node = IRnode.from_list(["seq", body, cleanup_routine])
+    ir_node.passthrough_metadata["func_t"] = func_t
+    return ir_node
