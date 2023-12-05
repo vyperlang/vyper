@@ -75,6 +75,27 @@ def repeat(start: uint256, end: uint256) -> uint256:
     assert_tx_failed(lambda: c.repeat(14, 21))
 
 
+def test_range_overflow(get_contract, assert_tx_failed):
+    code = """
+@external
+def get_last(start: uint256, end: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(start, end, bound=6):
+        x = i
+    return x
+    """
+    c = get_contract(code)
+    UINT_MAX = 2**256 - 1
+    for n in range(6):
+        expected = UINT_MAX - 1 if n > 0 else 0
+        assert c.get_last(UINT_MAX - n, UINT_MAX) == expected
+
+    # check assertion for start >= end
+    for n in range(1, 7):
+        assert_tx_failed(lambda: c.get_last(UINT_MAX - n, 0))
+        assert_tx_failed(lambda: c.get_last(UINT_MAX, UINT_MAX - n))
+
+
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @external
