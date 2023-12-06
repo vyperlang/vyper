@@ -53,6 +53,7 @@ def validate_semantics_r(
         analyzer.analyze()
 
         vy_ast.expansion.expand_annotated_ast(module_ast)
+
         validate_functions(module_ast)
 
 
@@ -70,6 +71,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT):
         fn_t.reachable_internal_functions.add(g)
 
 
+# TODO move into compute_reachable_set
 def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
     path = path or []
 
@@ -393,6 +395,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             pass
 
+        # TODO raise from one of the FileNotFoundErrors?
         raise ModuleNotFoundError(module_str)
 
 

@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
@@ -25,6 +25,9 @@ from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import ModuleT
 
 
 # user defined type
@@ -160,12 +163,20 @@ class EventT(_UserType):
 
     _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
-    def __init__(self, name: str, arguments: dict, indexed: list) -> None:
+    def __init__(
+        self,
+        name: str,
+        arguments: dict,
+        indexed: list,
+        decl_node: Optional[vy_ast.VyperNode] = None,
+    ) -> None:
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+        self.decl_node = decl_node
 
     # backward compatible
     @property
@@ -223,7 +234,7 @@ class EventT(_UserType):
         indexed: list = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return EventT(base_node.name, members, indexed)
+            return cls(base_node.name, members, indexed, base_node)
 
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -252,7 +263,7 @@ class EventT(_UserType):
 
             members[member_name] = type_from_annotation(annotation)
 
-        return cls(base_node.name, members, indexed)
+        return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
@@ -279,10 +290,11 @@ class InterfaceT(_UserType):
     _as_array = True
     _as_hashmap_key = True
 
-    def __init__(self, _id: str, members: dict, events: dict) -> None:
-        validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
-        super().__init__(members)
+    def __init__(self, _id: str, functions: dict, events: dict) -> None:
+        validate_unique_method_ids(list(functions.values()))
 
+        # TODO really, should include events in the super constructor
+        super().__init__(functions)
         self._id = _id
         self.events = events
 
@@ -375,6 +387,25 @@ class InterfaceT(_UserType):
     def functions(self):
         return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunctionT)}
 
+    # helper function which performs namespace collision checking
+    @classmethod
+    def _from_lists(cls, name, function_list, event_list) -> "InterfaceT":
+        functions = {}
+        events = {}
+        for name, function in function_list:
+            if name in functions:
+                raise NamespaceCollision(f"multiple functions named '{name}'!", function.ast_def)
+            functions[name] = function
+
+        for name, event in event_list:
+            if name in functions or name in events:
+                raise NamespaceCollision(
+                    f"multiple functions or events named '{name}'!", event.decl_node
+                )
+            events[name] = event
+
+        return cls(name, functions, events)
+
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
         """
@@ -392,46 +423,32 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        members: dict = {}
-        events: dict = {}
-
-        names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
-        collisions = set(i for i in names if names.count(i) > 1)
-        if collisions:
-            collision_list = ", ".join(sorted(collisions))
-            raise NamespaceCollision(
-                f"ABI '{name}' has multiple functions or events "
-                f"with the same name: {collision_list}"
-            )
+        functions: list = []
+        events: list = []
 
         for item in [i for i in abi if i.get("type") == "function"]:
-            members[item["name"]] = ContractFunctionT.from_abi(item)
+            functions.append((item["name"], ContractFunctionT.from_abi(item)))
         for item in [i for i in abi if i.get("type") == "event"]:
-            events[item["name"]] = EventT.from_abi(item)
+            events.append((item["name"], EventT.from_abi(item)))
 
-        return cls(name, members, events)
+        return cls._from_lists(name, functions, events)
 
     @classmethod
     def from_vyi(cls, module: vy_ast.Module) -> tuple[dict, dict]:
-        functions: dict = {}
-        events: dict = {}
+        functions: list = []
+        events: list = []
         for funcdef in module.get_children(vy_ast.FunctionDef):
             func_t = ContractFunctionT.from_vyi(funcdef)
-            functions[funcdef.name] = func_t
+            functions.append((funcdef.name, func_t))
 
         for eventdef in module.get_children(vy_ast.EventDef):
             name = eventdef.name
-            if name in functions or name in events:
-                raise NamespaceCollision(
-                    f"Interface contains multiple objects named '{name}'", module
-                )
-            events[name] = EventT.from_EventDef(eventdef)
+            events.append((eventdef.name, EventT.from_EventDef(eventdef)))
 
-        return cls(name, functions, events)
+        return cls._from_lists(name, functions, events)
 
     @classmethod
-    # node is `Any` here to avoid an import cycle
-    def from_ModuleT(cls, module_t: Any) -> "InterfaceT":
+    def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
         """
         Generate an `InterfaceT` object from a Vyper ast node.
 
@@ -444,30 +461,34 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        funcs = {node.name: node._metadata["type"] for node in module_t.functions}
-        events = {node.name: node._metadata["type"] for node in module_t.events}
+        funcs = [(node.name, node._metadata["type"]) for node in module_t.functions]
 
-        return cls(module_t._id, funcs, events)
+        # add getters for public variables since they aren't yet in the AST
+        for node in module_t._module.get_children(vy_ast.VariableDecl):
+            if not node.is_public:
+                continue
+            getter = node._metadata["func_type"]
+            funcs.append((node.target.id, getter))
+
+        events = [(node.name, node._metadata["type"]) for node in module_t.events]
+
+        return cls._from_lists(module_t._id, funcs, events)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
-        functions = {}
+        functions = []
         for node in node.body:
             if not isinstance(node, vy_ast.FunctionDef):
                 raise StructureException("Interfaces can only contain function definitions", node)
-            if node.name in functions:
-                raise NamespaceCollision(
-                    f"Interface contains multiple functions named '{node.name}'", node
-                )
             if len(node.decorator_list) > 0:
                 raise StructureException(
                     "Function definition in interface cannot be decorated", node.decorator_list[0]
                 )
-            functions[node.name] = ContractFunctionT.from_InterfaceDef(node)
+            functions.append((node.name, ContractFunctionT.from_InterfaceDef(node)))
 
-        events = {}
+        events = []
 
-        return cls(node.name, functions, events)
+        return cls._from_lists(node.name, functions, events)
 
 
 class StructT(_UserType):
