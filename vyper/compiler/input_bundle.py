@@ -60,15 +60,23 @@ class InputBundle:
     # a list of search paths
     search_paths: list[PathLike]
 
+    _cache: Any
+
     def __init__(self, search_paths):
         self.search_paths = search_paths
         self._source_id_counter = 0
         self._source_ids: dict[PathLike, int] = {}
 
+        # this is a little bit cursed, but it allows consumers to cache data that
+        # share the same lifetime as this input bundle.
+        self._cache = lambda: None
+
     def _load_from_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
     def _generate_source_id(self, path: PathLike) -> int:
+        # Note: it is possible for a file to get in here more than once,
+        # e.g. by symlink
         if path not in self._source_ids:
             self._source_ids[path] = self._source_id_counter
             self._source_id_counter += 1
@@ -134,7 +142,7 @@ class FilesystemInputBundle(InputBundle):
         try:
             with path.open() as f:
                 code = f.read()
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):
             raise _NotFound(path)
 
         source_id = super()._generate_source_id(path)

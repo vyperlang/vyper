@@ -336,7 +336,7 @@ class InterfaceT(_UserType):
                 to_compare = vyper_self.members[fn_name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
-                to_compare = s.decl_node._metadata["func_type"]
+                to_compare = s.decl_node._metadata["getter_type"]
             else:
                 return False
 
@@ -434,7 +434,7 @@ class InterfaceT(_UserType):
         return cls._from_lists(name, functions, events)
 
     @classmethod
-    def from_vyi(cls, module: vy_ast.Module) -> tuple[dict, dict]:
+    def from_vyi(cls, name: str, module: vy_ast.Module) -> tuple[dict, dict]:
         functions: list = []
         events: list = []
         for funcdef in module.get_children(vy_ast.FunctionDef):

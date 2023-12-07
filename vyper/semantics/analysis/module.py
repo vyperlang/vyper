@@ -92,9 +92,6 @@ def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
-    # class object
-    _ast_of: dict[int, vy_ast.Module] = {}
-
     def __init__(
         self,
         module_node: vy_ast.Module,
@@ -108,6 +105,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._import_graph = import_graph
 
         self.module_t = None
+
+        # ast cache, hitchhike onto the input_bundle object
+        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}
 
     def analyze(self) -> ModuleT:
         # generate a `ModuleT` from the top-level node
@@ -180,14 +180,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             _compute_reachable_set(fn_t)
 
-    @classmethod
-    def _ast_from_file(cls, file: FileInput, alias: str):
-        if file.source_id not in cls._ast_of:
-            cls._ast_of[file.source_id] = vy_ast.parse_to_ast(
+    def _ast_from_file(self, file: FileInput):
+        # cache ast if we have seen it before.
+        # this gives us the additional property of object equality on
+        # two ASTs produced from the same source
+        ast_of = self.input_bundle._cache._ast_of
+        if file.source_id not in ast_of:
+            ast_of[file.source_id] = vy_ast.parse_to_ast(
                 file.source_code, module_path=str(file.path)
             )
 
-        return cls._ast_of[file.source_id]
+        return ast_of[file.source_id]
 
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
@@ -365,12 +368,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         path = _import_to_path(level, module_str)
 
+        err = None
+
         try:
             path_vy = path.with_suffix(".vy")
             file = self.input_bundle.load_file(path_vy)
             assert isinstance(file, FileInput)  # mypy hint
 
-            module_ast = self.__class__._ast_from_file(file, alias)
+            module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
                 validate_semantics_r(module_ast, self.input_bundle, import_graph=self._import_graph)
@@ -378,26 +383,28 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 return ModuleInfo(module_t, decl_node=node)
 
-        except FileNotFoundError:
-            pass
+        except FileNotFoundError as e:
+            # escape `e` from the block scope, it can make things
+            # easier to debug.
+            err = e
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vyi"))
             assert isinstance(file, FileInput)  # mypy hint
-            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
-            return InterfaceT.from_vyi(interface_ast)
-        except FileNotFoundError:
-            pass
+            interface_ast = self._ast_from_file(file)
+            return InterfaceT.from_vyi(str(path), interface_ast)
+        except FileNotFoundError as e:
+            err = e
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
             return InterfaceT.from_json_abi(str(file.path), file.abi)
-        except FileNotFoundError:
-            pass
+        except FileNotFoundError as e:
+            err = e
 
-        # TODO raise from one of the FileNotFoundErrors?
-        raise ModuleNotFoundError(module_str)
+        # TODO: maybe raise from one of the FileNotFoundErrors
+        raise ModuleNotFoundError(module_str) from err
 
 
 # convert an import to a path (without suffix)
@@ -449,4 +456,4 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
 
     # TODO: it might be good to cache this computation
     interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path)
-    return InterfaceT.from_vyi(interface_ast)
+    return InterfaceT.from_vyi(str(path), interface_ast)
