@@ -9,7 +9,7 @@ invariant: public(uint256)
 token_address: ERC20
 owner: public(address)
 
-# Sets the on chain market maker with its owner, intial token quantity,
+# Sets the on chain market maker with its owner, initial token quantity,
 # and initial ether quantity
 @external
 @payable
