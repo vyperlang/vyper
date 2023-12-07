@@ -131,7 +131,7 @@ class EnumT(_UserType):
 
         return cls(base_node.name, members)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(self, node: vy_ast.Call, expected_type: Optional[VyperType] = None) -> Optional[VyperType]:
         # TODO
         return None
 

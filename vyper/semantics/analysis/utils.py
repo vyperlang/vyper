@@ -272,7 +272,7 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
-        return_value = var.fetch_call_return(node)
+        return_value = var.get_return_type(node)
         if return_value:
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
@@ -518,7 +518,7 @@ def _validate_literal_array(node, expected):
     for item in node.elements:
         try:
             validate_expected_type(item, expected.value_type)
-        except (InvalidType, TypeMismatch):
+        except TypeMismatch:
             return False
 
     return True
@@ -585,8 +585,7 @@ def validate_expected_type(node, expected_type):
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
+        raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )

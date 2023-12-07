@@ -323,13 +323,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             expr_info = get_expr_info(node.value.func.value)
             expr_info.validate_modification(node, self.func.mutability)
 
-        # NOTE: fetch_call_return validates call args.
-        return_type = fn_type.fetch_call_return(node.value)
-        if (
-            return_type
-            and not isinstance(fn_type, MemberFunctionT)
-            and not isinstance(fn_type, ContractFunctionT)
-        ):
+        # NOTE: get_return_type also validates call args(!).
+        # TODO: refactor into validate_call and get_return_type.
+        return_type = fn_type.get_return_type(node.value)
+
+        if return_type and not isinstance(fn_type, (ContractFunctionT, MemberFunctionT)):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
@@ -543,7 +541,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
-        f.fetch_call_return(node.value)
+        f.get_return_type(node.value, f.typedef)
         node._metadata["type"] = f.typedef
         self.expr_visitor.visit(node.value, f.typedef)
 
@@ -552,18 +550,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self._validate_revert_reason(node.exc)
 
     def visit_Return(self, node):
-        values = node.value
-        if values is None:
-            if self.func.return_type:
-                raise FunctionDeclarationException("Return statement is missing a value", node)
-            return
-        elif self.func.return_type is None:
+        return_value = node.value
+        if return_value is None and self.func.return_type is not None:
+            raise FunctionDeclarationException("Return statement is missing a value", node)
+        if return_value is not None and self.func.return_type is None:
             raise FunctionDeclarationException("Function does not return any values", node)
 
-        if isinstance(values, vy_ast.Tuple):
-            values = values.elements
+        if isinstance(return_value, vy_ast.Tuple):
+            values = return_value.elements
             if not isinstance(self.func.return_type, TupleT):
                 raise FunctionDeclarationException("Function only returns a single value", node)
+
             if self.func.return_type.length != len(values):
                 raise FunctionDeclarationException(
                     f"Incorrect number of return values: "
@@ -573,7 +570,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for given, expected in zip(values, self.func.return_type.member_types):
                 validate_expected_type(given, expected)
         else:
-            validate_expected_type(values, self.func.return_type)
+            validate_expected_type(return_value, self.func.return_type)
+
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
@@ -583,7 +581,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
     def __init__(self, fn_node: ContractFunctionT):
         self.func = fn_node
 
-    def visit(self, node, typ):
+    def visit(self, node, expected_type):
         # recurse and typecheck in case we are being fed the wrong type for
         # some reason. note that `validate_expected_type` is unnecessary
         # for nodes that already call `get_exact_type_from_node` and
@@ -592,10 +590,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # CMC 2023-06-27 would be cleanest to call validate_expected_type()
         # before recursing but maybe needs some refactoring before that
         # can happen.
-        super().visit(node, typ)
+        super().visit(node, expected_type)
 
         # annotate
-        node._metadata["type"] = typ
+        node._metadata["type"] = expected_type
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
@@ -636,9 +634,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
+
         # except for builtin functions, `get_exact_type_from_node`
         # already calls `validate_expected_type` on the call args
-        # and kwargs via `call_type.fetch_call_return`
+        # and kwargs via `call_type.get_return_type`
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -668,8 +667,9 @@ class _ExprVisitor(VyperNodeVisitorBase):
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
         else:
-            # builtin functions
-            arg_types = call_type.infer_arg_types(node)
+            # builtin functions. TODO add a sanity check here
+            # isinstance(call_type, BuiltinFunctionT)
+            arg_types = call_type.infer_arg_types(node, return_type=typ)
             # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)

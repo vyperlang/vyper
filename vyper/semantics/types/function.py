@@ -49,7 +49,7 @@ class ContractFunctionT(VyperType):
     Contract function type.
 
     Functions compare false against all types and so cannot be assigned without
-    being called. Calls are validated by `fetch_call_return`, check the call
+    being called. Calls are validated by `get_return_type`, check the call
     arguments against `positional_args` and `keyword_arg`, and return `return_type`.
 
     Attributes
@@ -491,7 +491,7 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(self, node: vy_ast.Call) -> Optional[VyperType]:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
             raise CallViolation("Cannot call external functions via 'self'", node)
 
@@ -627,7 +627,7 @@ class MemberFunctionT(VyperType):
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(self, node: vy_ast.Call) -> Optional[VyperType]:
         validate_call_args(node, len(self.arg_types))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition

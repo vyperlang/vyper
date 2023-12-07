@@ -134,7 +134,7 @@ class FilesystemInputBundle(InputBundle):
         try:
             with path.open() as f:
                 code = f.read()
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):
             raise _NotFound(path)
 
         source_id = super()._generate_source_id(path)
