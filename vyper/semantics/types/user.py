@@ -461,16 +461,16 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        funcs = [(node.name, node._metadata["type"]) for node in module_t.functions]
+        funcs = [(node.name, node._metadata["func_type"]) for node in module_t.functions]
 
         # add getters for public variables since they aren't yet in the AST
         for node in module_t._module.get_children(vy_ast.VariableDecl):
             if not node.is_public:
                 continue
-            getter = node._metadata["func_type"]
+            getter = node._metadata["getter_type"]
             funcs.append((node.target.id, getter))
 
-        events = [(node.name, node._metadata["type"]) for node in module_t.events]
+        events = [(node.name, node._metadata["event_type"]) for node in module_t.events]
 
         return cls._from_lists(module_t._id, funcs, events)
 

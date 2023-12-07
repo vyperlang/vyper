@@ -208,7 +208,7 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
+        positional_args, keyword_args = _parse_args(funcdef)
 
         return_type = _parse_return_type(funcdef)
 
@@ -255,7 +255,7 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
-        return_type = _parse_return_type(funcdef)
+        return_type = _parse_return_type(funcdef, is_interface=True)
 
         if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
             raise FunctionDeclarationException(
@@ -576,13 +576,15 @@ class ContractFunctionT(VyperType):
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
-def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
+def _parse_return_type(
+    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
         return None
     if isinstance(funcdef.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
         # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
-        return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
+        return type_from_annotation(funcdef.returns, DataLocation.MEMORY, is_interface=is_interface)
 
     raise InvalidType("Function return value must be a type name or tuple", funcdef.returns)
 

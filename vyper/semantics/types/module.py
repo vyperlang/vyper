@@ -21,7 +21,7 @@ class ModuleT(VyperType):
 
         for f in self.functions:
             # note: this checks for collisions
-            self.add_member(f.name, f._metadata["type"])
+            self.add_member(f.name, f._metadata["func_type"])
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)

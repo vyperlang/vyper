@@ -185,7 +185,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.vyper_module = vyper_module
         self.fn_node = fn_node
         self.namespace = namespace
-        self.func = fn_node._metadata["type"]
+        self.func = fn_node._metadata["func_type"]
         self.expr_visitor = _ExprVisitor(self.func)
 
         # allow internal function params to be mutable

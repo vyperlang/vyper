@@ -341,9 +341,9 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
+    def from_annotation(cls, node: vy_ast.Tuple, is_interface: bool = False) -> "TupleT":
         values = node.elements
-        types = tuple(type_from_annotation(v) for v in values)
+        types = tuple(type_from_annotation(v, is_interface=is_interface) for v in values)
         return cls(types)
 
     @property

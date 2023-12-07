@@ -180,7 +180,7 @@ class CompilerData:
         _ = self._ir_output
 
         fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
-        return {f.name: f._metadata["type"] for f in fs}
+        return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
     def assembly(self) -> list:

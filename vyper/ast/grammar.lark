@@ -312,8 +312,10 @@ _number: DEC_NUMBER
 
 BOOL.2: "True" | "False"
 
+ELLIPSIS: "..."
+
 // TODO: Remove Docstring from here, and add to first part of body
-?literal: ( _number | STRING | DOCSTRING | BOOL )
+?literal: ( _number | STRING | DOCSTRING | BOOL | ELLIPSIS)
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT

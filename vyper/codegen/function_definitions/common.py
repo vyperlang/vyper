@@ -103,7 +103,7 @@ def generate_ir_for_function(
         - Clamping and copying of arguments
         - Function body
     """
-    func_t = code._metadata["type"]
+    func_t = code._metadata["func_type"]
 
     # generate _FuncIRInfo
     func_t._ir_info = _FuncIRInfo(func_t)

@@ -85,7 +85,7 @@ def type_from_annotation(
     VyperType
         Type definition object.
     """
-    typ_ = _type_from_annotation(node, is_interface)
+    typ_ = _type_from_annotation(node, is_interface=is_interface)
 
     if location in typ_._invalid_locations:
         location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
@@ -94,7 +94,7 @@ def type_from_annotation(
     return typ_
 
 
-def _type_from_annotation(node: vy_ast.VyperNode, is_interface) -> VyperType:
+def _type_from_annotation(node: vy_ast.VyperNode, is_interface=False) -> VyperType:
     namespace = get_namespace()
 
     def _failwith(type_name):
@@ -105,7 +105,7 @@ def _type_from_annotation(node: vy_ast.VyperNode, is_interface) -> VyperType:
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-        return tuple_t.from_annotation(node)
+        return tuple_t.from_annotation(node, is_interface=is_interface)
 
     if isinstance(node, vy_ast.Subscript):
         # ex. HashMap, DynArray, Bytes, static arrays

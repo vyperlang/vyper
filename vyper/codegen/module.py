@@ -19,7 +19,7 @@ def _topsort(functions):
 
     ret = []
     for f in functions:
-        fn_t = f._metadata["type"]
+        fn_t = f._metadata["func_type"]
         if not fn_t.is_external:
             continue
 
@@ -33,19 +33,19 @@ def _topsort(functions):
 
 
 def _is_constructor(func_ast):
-    return func_ast._metadata["type"].is_constructor
+    return func_ast._metadata["func_type"].is_constructor
 
 
 def _is_fallback(func_ast):
-    return func_ast._metadata["type"].is_fallback
+    return func_ast._metadata["func_type"].is_fallback
 
 
 def _is_internal(func_ast):
-    return func_ast._metadata["type"].is_internal
+    return func_ast._metadata["func_type"].is_internal
 
 
 def _is_payable(func_ast):
-    return func_ast._metadata["type"].is_payable
+    return func_ast._metadata["func_type"].is_payable
 
 
 def _annotated_method_id(abi_sig):
@@ -61,7 +61,7 @@ def label_for_entry_point(abi_sig, entry_point):
 
 # adapt whatever generate_ir_for_function gives us into an IR node
 def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
-    func_t = func_ast._metadata["type"]
+    func_t = func_ast._metadata["func_type"]
     assert func_t.is_fallback or func_t.is_constructor
 
     ret = ["seq"]
@@ -451,7 +451,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
         ctor_internal_func_irs = []
         internal_functions = [f for f in runtime_functions if _is_internal(f)]
         for f in internal_functions:
-            init_func_t = init_function._metadata["type"]
+            init_func_t = init_function._metadata["func_type"]
             if f.name not in init_func_t.reachable_internal_functions:
                 # unreachable code, delete it
                 continue
@@ -467,7 +467,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["type"]._ir_info.frame_info.mem_used
+        init_mem_used = init_function._metadata["func_type"]._ir_info.frame_info.mem_used
 
         # force msize to be initialized past the end of immutables section
         # so that builtins which use `msize` for "dynamic" memory

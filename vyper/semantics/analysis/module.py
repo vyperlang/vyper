@@ -155,7 +155,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         function_defs = self.module_t.functions
 
         for func in function_defs:
-            fn_t = func._metadata["type"]
+            fn_t = func._metadata["func_type"]
 
             function_calls = func.get_descendants(vy_ast.Call)
 
@@ -172,7 +172,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     fn_t.called_functions.add(call_t)
 
         for func in function_defs:
-            fn_t = func._metadata["type"]
+            fn_t = func._metadata["func_type"]
             cyclic_calls = _find_cyclic_call(fn_t)
             if cyclic_calls is not None:
                 message = " -> ".join([f.name for f in cyclic_calls])
@@ -211,7 +211,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = ContractFunctionT.getter_from_VariableDecl(node)
 
         # TODO: move this check to local analysis
         if node.is_immutable:
@@ -316,13 +316,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_EventDef(self, node):
         obj = EventT.from_EventDef(node)
+        node._metadata["event_type"] = obj
         self.namespace[node.name] = obj
 
     def visit_FunctionDef(self, node):
         func = ContractFunctionT.from_FunctionDef(node)
 
         self.namespace["self"].typ.add_member(func.name, func)
-        node._metadata["type"] = func
+        node._metadata["func_type"] = func
 
     def visit_Import(self, node):
         if not node.alias:
