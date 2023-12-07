@@ -30,7 +30,7 @@ def test_invalid_root_path():
         compile_files([], [], root_folder="path/that/does/not/exist")
 
 
-FOO_CODE = """
+CONTRACT_CODE = """
 {}
 
 struct FooStruct:
@@ -45,78 +45,83 @@ def bar(a: address) -> FooStruct:
     return {}(a).bar()
 """
 
-BAR_CODE = """
+INTERFACE_CODE = """
 struct FooStruct:
     foo_: uint256
+
+@external
+def foo() -> FooStruct:
+    ...
+
 @external
 def bar() -> FooStruct:
-    return FooStruct({foo_: 13})
+    ...
 """
 
 
 SAME_FOLDER_IMPORT_STMT = [
-    ("import Bar as Bar", "Bar"),
-    ("import contracts.Bar as Bar", "Bar"),
-    ("from . import Bar", "Bar"),
-    ("from contracts import Bar", "Bar"),
-    ("from ..contracts import Bar", "Bar"),
-    ("from . import Bar as FooBar", "FooBar"),
-    ("from contracts import Bar as FooBar", "FooBar"),
-    ("from ..contracts import Bar as FooBar", "FooBar"),
+    ("import IFoo as IFoo", "IFoo"),
+    ("import contracts.IFoo as IFoo", "IFoo"),
+    ("from . import IFoo", "IFoo"),
+    ("from contracts import IFoo", "IFoo"),
+    ("from ..contracts import IFoo", "IFoo"),
+    ("from . import IFoo as FooBar", "FooBar"),
+    ("from contracts import IFoo as FooBar", "FooBar"),
+    ("from ..contracts import IFoo as FooBar", "FooBar"),
 ]
 
 
 @pytest.mark.parametrize("import_stmt,alias", SAME_FOLDER_IMPORT_STMT)
 def test_import_same_folder(import_stmt, alias, tmp_path, make_file):
     foo = "contracts/foo.vy"
-    make_file("contracts/foo.vy", FOO_CODE.format(import_stmt, alias))
-    make_file("contracts/Bar.vy", BAR_CODE)
+    make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt, alias))
+    make_file("contracts/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
 
 
 SUBFOLDER_IMPORT_STMT = [
-    ("import other.Bar as Bar", "Bar"),
-    ("import contracts.other.Bar as Bar", "Bar"),
-    ("from other import Bar", "Bar"),
-    ("from contracts.other import Bar", "Bar"),
-    ("from .other import Bar", "Bar"),
-    ("from ..contracts.other import Bar", "Bar"),
-    ("from other import Bar as FooBar", "FooBar"),
-    ("from contracts.other import Bar as FooBar", "FooBar"),
-    ("from .other import Bar as FooBar", "FooBar"),
-    ("from ..contracts.other import Bar as FooBar", "FooBar"),
+    ("import other.IFoo as IFoo", "IFoo"),
+    ("import contracts.other.IFoo as IFoo", "IFoo"),
+    ("from other import IFoo", "IFoo"),
+    ("from contracts.other import IFoo", "IFoo"),
+    ("from .other import IFoo", "IFoo"),
+    ("from ..contracts.other import IFoo", "IFoo"),
+    ("from other import IFoo as FooBar", "FooBar"),
+    ("from contracts.other import IFoo as FooBar", "FooBar"),
+    ("from .other import IFoo as FooBar", "FooBar"),
+    ("from ..contracts.other import IFoo as FooBar", "FooBar"),
 ]
 
 
 @pytest.mark.parametrize("import_stmt, alias", SUBFOLDER_IMPORT_STMT)
 def test_import_subfolder(import_stmt, alias, tmp_path, make_file):
-    foo = make_file("contracts/foo.vy", (FOO_CODE.format(import_stmt, alias)))
-    make_file("contracts/other/Bar.vy", BAR_CODE)
+    foo = make_file("contracts/foo.vy", (CONTRACT_CODE.format(import_stmt, alias)))
+    make_file("contracts/other/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
 
 
 OTHER_FOLDER_IMPORT_STMT = [
-    ("import interfaces.Bar as Bar", "Bar"),
-    ("from interfaces import Bar", "Bar"),
-    ("from ..interfaces import Bar", "Bar"),
-    ("from interfaces import Bar as FooBar", "FooBar"),
-    ("from ..interfaces import Bar as FooBar", "FooBar"),
+    ("import interfaces.IFoo as IFoo", "IFoo"),
+    ("from interfaces import IFoo", "IFoo"),
+    ("from ..interfaces import IFoo", "IFoo"),
+    ("from interfaces import IFoo as FooBar", "FooBar"),
+    ("from ..interfaces import IFoo as FooBar", "FooBar"),
 ]
 
 
 @pytest.mark.parametrize("import_stmt, alias", OTHER_FOLDER_IMPORT_STMT)
 def test_import_other_folder(import_stmt, alias, tmp_path, make_file):
-    foo = make_file("contracts/foo.vy", FOO_CODE.format(import_stmt, alias))
-    make_file("interfaces/Bar.vy", BAR_CODE)
+    foo = make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt, alias))
+    make_file("interfaces/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
 
 
 def test_import_parent_folder(tmp_path, make_file):
-    foo = make_file("contracts/baz/foo.vy", FOO_CODE.format("from ... import Bar", "Bar"))
-    make_file("Bar.vy", BAR_CODE)
+    foo = make_file("contracts/baz/foo.vy", CONTRACT_CODE.format("from ... import IFoo", "IFoo"))
+    make_file("IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
 
@@ -125,62 +130,67 @@ def test_import_parent_folder(tmp_path, make_file):
 
 
 META_IMPORT_STMT = [
-    "import Meta as Meta",
-    "import contracts.Meta as Meta",
-    "from . import Meta",
-    "from contracts import Meta",
+    "import ISelf as ISelf",
+    "import contracts.ISelf as ISelf",
+    "from . import ISelf",
+    "from contracts import ISelf",
 ]
 
 
 @pytest.mark.parametrize("import_stmt", META_IMPORT_STMT)
 def test_import_self_interface(import_stmt, tmp_path, make_file):
-    # a contract can access its derived interface by importing itself
-    code = f"""
-{import_stmt}
-
+    interface_code = f"""
 struct FooStruct:
     foo_: uint256
 
 @external
 def know_thyself(a: address) -> FooStruct:
-    return Meta(a).be_known()
+    ...
+
+@external
+def be_known() -> FooStruct:
+    ...
+    """
+    code = f"""
+{import_stmt}
+
+# TODO: use ISelf.FooStruct
+struct FooStruct:
+    foo_: uint256
+
+@external
+def know_thyself(a: address) -> FooStruct:
+    return ISelf(a).be_known()
 
 @external
 def be_known() -> FooStruct:
     return FooStruct({{foo_: 42}})
     """
-    meta = make_file("contracts/Meta.vy", code)
+    make_file("contracts/ISelf.vyi", interface_code)
+    meta = make_file("contracts/Self.vy", code)
 
     assert compile_files([meta], ["combined_json"], root_folder=tmp_path)
 
 
-DERIVED_IMPORT_STMT_BAZ = ["import Foo as Foo", "from . import Foo"]
-
-DERIVED_IMPORT_STMT_FOO = ["import Bar as Bar", "from . import Bar"]
-
-
-@pytest.mark.parametrize("import_stmt_baz", DERIVED_IMPORT_STMT_BAZ)
-@pytest.mark.parametrize("import_stmt_foo", DERIVED_IMPORT_STMT_FOO)
-def test_derived_interface_imports(import_stmt_baz, import_stmt_foo, tmp_path, make_file):
-    # contracts-as-interfaces should be able to contain import statements
+# implement IFoo in another contract for fun
+@pytest.mark.parametrize("import_stmt_foo,alias", SAME_FOLDER_IMPORT_STMT)
+def test_another_interface_implementation(import_stmt_foo, alias, tmp_path, make_file):
     baz_code = f"""
-{import_stmt_baz}
+{import_stmt_foo}
 
 struct FooStruct:
     foo_: uint256
 
 @external
 def foo(a: address) -> FooStruct:
-    return Foo(a).foo()
+    return {alias}(a).foo()
 
 @external
-def bar(_foo: address, _bar: address) -> FooStruct:
-    return Foo(_foo).bar(_bar)
+def bar(_foo: address) -> FooStruct:
+    return {alias}(_foo).bar()
     """
-
-    make_file("Foo.vy", FOO_CODE.format(import_stmt_foo, "Bar"))
-    make_file("Bar.vy", BAR_CODE)
-    baz = make_file("Baz.vy", baz_code)
+    make_file("contracts/IFoo.vyi", INTERFACE_CODE)
+    baz = make_file("contracts/Baz.vy", baz_code)
 
     assert compile_files([baz], ["combined_json"], root_folder=tmp_path)
 
@@ -207,15 +217,15 @@ struct FooStruct:
         make_file(filename, code)
         paths.append(filename)
 
-    for file_name in ("foo.vy", "bar.vy"):
-        make_file(file_name, BAR_CODE)
+    for file_name in ("foo.vyi", "bar.vyi"):
+        make_file(file_name, INTERFACE_CODE)
 
     assert compile_files(paths, ["combined_json"], root_folder=tmp_path)
 
 
 def test_compile_outside_root_path(tmp_path, make_file):
     # absolute paths relative to "."
-    foo = make_file("foo.vy", FOO_CODE.format("import bar as Bar", "Bar"))
-    bar = make_file("bar.vy", BAR_CODE)
+    foo = make_file("foo.vy", CONTRACT_CODE.format("import ifoo as IFoo", "IFoo"))
+    ifoo = make_file("ifoo.vyi", INTERFACE_CODE)
 
-    assert compile_files([foo, bar], ["combined_json"], root_folder=".")
+    assert compile_files([foo], ["combined_json"], root_folder=".")
