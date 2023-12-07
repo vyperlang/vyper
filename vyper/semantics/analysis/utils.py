@@ -260,7 +260,7 @@ class _ExprAnalyser:
                     "Right operand must be Array for membership comparison", node.right
                 )
             types_list = [
-                i for i in left if _is_assignable_to_type(i, [i.value_type for i in right])
+                i for i in left if _any_compare_type(i, [i.value_type for i in right])
             ]
             if not types_list:
                 raise TypeMismatch(
@@ -416,7 +416,7 @@ def _is_empty_list(node):
     return all(_is_empty_list(t) for t in node.elements)
 
 
-def _is_assignable_to_type(obj, types_list):
+def _any_compare_type(obj, types_list):
     # check if an expression of a list of types can be assigned to a type object
     return any(obj.compare_type(i) for i in types_list)
 
@@ -494,10 +494,10 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     for item in nodes[1:]:
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
-        common = [i for i in common_types if _is_assignable_to_type(i, new_types)]
+        common = [i for i in common_types if _any_compare_type(i, new_types)]
 
         rejected = [i for i in common_types if i not in common]
-        common += [i for i in new_types if _is_assignable_to_type(i, rejected)]
+        common += [i for i in new_types if _any_compare_type(i, rejected)]
 
         common_types = common
 
