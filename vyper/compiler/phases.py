@@ -16,6 +16,7 @@ from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.typing import StorageLayout
+from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
 
@@ -60,6 +61,7 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
+        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -78,14 +80,18 @@ class CompilerData:
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
+        experimental_codegen: bool, optional
+            Use experimental codegen. Defaults to False
         """
+        # to force experimental codegen, uncomment:
+        # experimental_codegen = True
         self.contract_path = contract_path
         self.source_code = source_code
         self.source_id = source_id
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-
+        self.experimental_codegen = experimental_codegen
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
@@ -160,7 +166,11 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        if self.experimental_codegen:
+            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
+        else:
+            return nodes
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -183,11 +193,21 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.settings.optimize)
+        if self.experimental_codegen:
+            return generate_assembly_experimental(
+                self.ir_nodes, self.settings.optimize  # type: ignore
+            )
+        else:
+            return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.settings.optimize)
+        if self.experimental_codegen:
+            return generate_assembly_experimental(
+                self.ir_runtime, self.settings.optimize  # type: ignore
+            )
+        else:
+            return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:

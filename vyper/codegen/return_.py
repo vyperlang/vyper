@@ -40,7 +40,9 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         cleanup_loops = "cleanup_repeat" if context.forvars else "seq"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must
         # come after fill_return_buffer otherwise the stack will break
-        return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit])
+        jump_to_exit_ir = IRnode.from_list(jump_to_exit)
+        jump_to_exit_ir.passthrough_metadata["func_t"] = func_t
+        return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit_ir])
 
     if context.return_type is None:
         if context.is_internal:

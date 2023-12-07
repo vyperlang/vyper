@@ -98,14 +98,14 @@ from vyper.utils import (
 )
 
 from ._convert import convert
-from ._signatures import BuiltinFunction, process_inputs
+from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
 SHA256_PER_WORD_GAS = 12
 
 
-class FoldedFunction(BuiltinFunction):
+class FoldedFunctionT(BuiltinFunctionT):
     # Base class for nodes which should always be folded
 
     # Since foldable builtin functions are not folded before semantics validation,
@@ -113,7 +113,7 @@ class FoldedFunction(BuiltinFunction):
     _kwargable = True
 
 
-class TypenameFoldedFunction(FoldedFunction):
+class TypenameFoldedFunctionT(FoldedFunctionT):
     # Base class for builtin functions that:
     # (1) take a typename as the only argument; and
     # (2) should always be folded.
@@ -132,7 +132,7 @@ class TypenameFoldedFunction(FoldedFunction):
         return [input_typedef]
 
 
-class Floor(BuiltinFunction):
+class Floor(BuiltinFunctionT):
     _id = "floor"
     _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
@@ -162,7 +162,7 @@ class Floor(BuiltinFunction):
             return b1.resolve(ret)
 
 
-class Ceil(BuiltinFunction):
+class Ceil(BuiltinFunctionT):
     _id = "ceil"
     _inputs = [("value", DecimalT())]
     # TODO: maybe use int136?
@@ -192,7 +192,7 @@ class Ceil(BuiltinFunction):
             return b1.resolve(ret)
 
 
-class Convert(BuiltinFunction):
+class Convert(BuiltinFunctionT):
     _id = "convert"
 
     def fetch_call_return(self, node):
@@ -285,14 +285,13 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 
 
 # note: this and a lot of other builtins could be refactored to accept any uint type
-class Slice(BuiltinFunction):
+class Slice(BuiltinFunctionT):
     _id = "slice"
     _inputs = [
         ("b", (BYTES32_T, BytesT.any(), StringT.any())),
         ("start", UINT256_T),
         ("length", UINT256_T),
     ]
-    _return_type = None
 
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
@@ -453,7 +452,7 @@ class Slice(BuiltinFunction):
             return b1.resolve(b2.resolve(b3.resolve(ret)))
 
 
-class Len(BuiltinFunction):
+class Len(BuiltinFunctionT):
     _id = "len"
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
@@ -484,7 +483,7 @@ class Len(BuiltinFunction):
         return get_bytearray_length(arg)
 
 
-class Concat(BuiltinFunction):
+class Concat(BuiltinFunctionT):
     _id = "concat"
 
     def fetch_call_return(self, node):
@@ -588,7 +587,7 @@ class Concat(BuiltinFunction):
         )
 
 
-class Keccak256(BuiltinFunction):
+class Keccak256(BuiltinFunctionT):
     _id = "keccak256"
     # TODO allow any BytesM_T
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
@@ -636,7 +635,7 @@ def _make_sha256_call(inp_start, inp_len, out_start, out_len):
     ]
 
 
-class Sha256(BuiltinFunction):
+class Sha256(BuiltinFunctionT):
     _id = "sha256"
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
@@ -708,7 +707,7 @@ class Sha256(BuiltinFunction):
         )
 
 
-class MethodID(FoldedFunction):
+class MethodID(FoldedFunctionT):
     _id = "method_id"
 
     def evaluate(self, node):
@@ -748,7 +747,7 @@ class MethodID(FoldedFunction):
         return BytesT(4)
 
 
-class ECRecover(BuiltinFunction):
+class ECRecover(BuiltinFunctionT):
     _id = "ecrecover"
     _inputs = [
         ("hash", BYTES32_T),
@@ -783,7 +782,7 @@ class ECRecover(BuiltinFunction):
         )
 
 
-class _ECArith(BuiltinFunction):
+class _ECArith(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, _args, kwargs, context):
         args_tuple = ir_tuple_from_args(_args)
@@ -842,14 +841,13 @@ def _storage_element_getter(index):
     return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=INT128_T)
 
 
-class Extract32(BuiltinFunction):
+class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
     # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
     # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
     # (note that it is ignored in _validate_arg_types)
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BYTES32_T)}
-    _return_type = None
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -954,7 +952,7 @@ class Extract32(BuiltinFunction):
         return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
 
-class AsWeiValue(BuiltinFunction):
+class AsWeiValue(BuiltinFunctionT):
     _id = "as_wei_value"
     _inputs = [("value", (IntegerT.any(), DecimalT())), ("unit", StringT.any())]
     _return_type = UINT256_T
@@ -1053,7 +1051,7 @@ zero_value = IRnode.from_list(0, typ=UINT256_T)
 empty_value = IRnode.from_list(0, typ=BYTES32_T)
 
 
-class RawCall(BuiltinFunction):
+class RawCall(BuiltinFunctionT):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
@@ -1064,7 +1062,6 @@ class RawCall(BuiltinFunction):
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
-    _return_type = None
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -1209,12 +1206,11 @@ class RawCall(BuiltinFunction):
         raise CompilerPanic("unreachable!")
 
 
-class Send(BuiltinFunction):
+class Send(BuiltinFunctionT):
     _id = "send"
     _inputs = [("to", AddressT()), ("value", UINT256_T)]
     # default gas stipend is 0
     _kwargs = {"gas": KwargSettings(UINT256_T, 0)}
-    _return_type = None
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1226,10 +1222,9 @@ class Send(BuiltinFunction):
         )
 
 
-class SelfDestruct(BuiltinFunction):
+class SelfDestruct(BuiltinFunctionT):
     _id = "selfdestruct"
     _inputs = [("to", AddressT())]
-    _return_type = None
     _is_terminus = True
     _warned = False
 
@@ -1245,7 +1240,7 @@ class SelfDestruct(BuiltinFunction):
         )
 
 
-class BlockHash(BuiltinFunction):
+class BlockHash(BuiltinFunctionT):
     _id = "blockhash"
     _inputs = [("block_num", UINT256_T)]
     _return_type = BYTES32_T
@@ -1258,7 +1253,7 @@ class BlockHash(BuiltinFunction):
         )
 
 
-class RawRevert(BuiltinFunction):
+class RawRevert(BuiltinFunctionT):
     _id = "raw_revert"
     _inputs = [("data", BytesT.any())]
     _return_type = None
@@ -1280,7 +1275,7 @@ class RawRevert(BuiltinFunction):
             return b.resolve(IRnode.from_list(["revert", data, len_]))
 
 
-class RawLog(BuiltinFunction):
+class RawLog(BuiltinFunctionT):
     _id = "raw_log"
     _inputs = [("topics", DArrayT(BYTES32_T, 4)), ("data", (BYTES32_T, BytesT.any()))]
 
@@ -1331,7 +1326,7 @@ class RawLog(BuiltinFunction):
         )
 
 
-class BitwiseAnd(BuiltinFunction):
+class BitwiseAnd(BuiltinFunctionT):
     _id = "bitwise_and"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1357,7 +1352,7 @@ class BitwiseAnd(BuiltinFunction):
         return IRnode.from_list(["and", args[0], args[1]], typ=UINT256_T)
 
 
-class BitwiseOr(BuiltinFunction):
+class BitwiseOr(BuiltinFunctionT):
     _id = "bitwise_or"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1383,7 +1378,7 @@ class BitwiseOr(BuiltinFunction):
         return IRnode.from_list(["or", args[0], args[1]], typ=UINT256_T)
 
 
-class BitwiseXor(BuiltinFunction):
+class BitwiseXor(BuiltinFunctionT):
     _id = "bitwise_xor"
     _inputs = [("x", UINT256_T), ("y", UINT256_T)]
     _return_type = UINT256_T
@@ -1409,7 +1404,7 @@ class BitwiseXor(BuiltinFunction):
         return IRnode.from_list(["xor", args[0], args[1]], typ=UINT256_T)
 
 
-class BitwiseNot(BuiltinFunction):
+class BitwiseNot(BuiltinFunctionT):
     _id = "bitwise_not"
     _inputs = [("x", UINT256_T)]
     _return_type = UINT256_T
@@ -1436,7 +1431,7 @@ class BitwiseNot(BuiltinFunction):
         return IRnode.from_list(["not", args[0]], typ=UINT256_T)
 
 
-class Shift(BuiltinFunction):
+class Shift(BuiltinFunctionT):
     _id = "shift"
     _inputs = [("x", (UINT256_T, INT256_T)), ("_shift_bits", IntegerT.any())]
     _return_type = UINT256_T
@@ -1490,7 +1485,7 @@ class Shift(BuiltinFunction):
             return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
 
 
-class _AddMulMod(BuiltinFunction):
+class _AddMulMod(BuiltinFunctionT):
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
 
@@ -1531,7 +1526,7 @@ class MulMod(_AddMulMod):
     _opcode = "mulmod"
 
 
-class PowMod256(BuiltinFunction):
+class PowMod256(BuiltinFunctionT):
     _id = "pow_mod256"
     _inputs = [("a", UINT256_T), ("b", UINT256_T)]
     _return_type = UINT256_T
@@ -1554,7 +1549,7 @@ class PowMod256(BuiltinFunction):
         return IRnode.from_list(["exp", left, right], typ=left.typ)
 
 
-class Abs(BuiltinFunction):
+class Abs(BuiltinFunctionT):
     _id = "abs"
     _inputs = [("value", INT256_T)]
     _return_type = INT256_T
@@ -1705,7 +1700,7 @@ def _create_preamble(codesize):
     return ["or", bytes_to_int(evm), shl(shl_bits, codesize)], evm_len
 
 
-class _CreateBase(BuiltinFunction):
+class _CreateBase(BuiltinFunctionT):
     _kwargs = {
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
@@ -1934,7 +1929,7 @@ class CreateFromBlueprint(_CreateBase):
                 return b1.resolve(b2.resolve(ir))
 
 
-class _UnsafeMath(BuiltinFunction):
+class _UnsafeMath(BuiltinFunctionT):
     # TODO add unsafe math for `decimal`s
     _inputs = [("a", IntegerT.any()), ("b", IntegerT.any())]
 
@@ -2000,7 +1995,7 @@ class UnsafeDiv(_UnsafeMath):
     op = "div"
 
 
-class _MinMax(BuiltinFunction):
+class _MinMax(BuiltinFunctionT):
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
     def evaluate(self, node):
@@ -2074,7 +2069,7 @@ class Max(_MinMax):
     _opcode = "gt"
 
 
-class Uint2Str(BuiltinFunction):
+class Uint2Str(BuiltinFunctionT):
     _id = "uint2str"
     _inputs = [("x", IntegerT.unsigneds())]
 
@@ -2146,7 +2141,7 @@ class Uint2Str(BuiltinFunction):
             return b1.resolve(IRnode.from_list(ret, location=MEMORY, typ=return_t))
 
 
-class Sqrt(BuiltinFunction):
+class Sqrt(BuiltinFunctionT):
     _id = "sqrt"
     _inputs = [("d", DecimalT())]
     _return_type = DecimalT()
@@ -2202,7 +2197,7 @@ else:
         )
 
 
-class ISqrt(BuiltinFunction):
+class ISqrt(BuiltinFunctionT):
     _id = "isqrt"
     _inputs = [("d", UINT256_T)]
     _return_type = UINT256_T
@@ -2252,7 +2247,7 @@ class ISqrt(BuiltinFunction):
             return b1.resolve(IRnode.from_list(ret, typ=UINT256_T))
 
 
-class Empty(TypenameFoldedFunction):
+class Empty(TypenameFoldedFunctionT):
     _id = "empty"
 
     def fetch_call_return(self, node):
@@ -2267,7 +2262,7 @@ class Empty(TypenameFoldedFunction):
         return IRnode("~empty", typ=output_type)
 
 
-class Breakpoint(BuiltinFunction):
+class Breakpoint(BuiltinFunctionT):
     _id = "breakpoint"
     _inputs: list = []
 
@@ -2285,7 +2280,7 @@ class Breakpoint(BuiltinFunction):
         return IRnode.from_list("breakpoint", annotation="breakpoint()")
 
 
-class Print(BuiltinFunction):
+class Print(BuiltinFunctionT):
     _id = "print"
     _inputs: list = []
     _has_varargs = True
@@ -2363,7 +2358,7 @@ class Print(BuiltinFunction):
         return IRnode.from_list(ret, annotation="print:" + sig)
 
 
-class ABIEncode(BuiltinFunction):
+class ABIEncode(BuiltinFunctionT):
     _id = "_abi_encode"  # TODO prettier to rename this to abi.encode
     # signature: *, ensure_tuple=<literal_bool> -> Bytes[<calculated len>]
     # explanation of ensure_tuple:
@@ -2478,7 +2473,7 @@ class ABIEncode(BuiltinFunction):
         return IRnode.from_list(ret, location=MEMORY, typ=buf_t)
 
 
-class ABIDecode(BuiltinFunction):
+class ABIDecode(BuiltinFunctionT):
     _id = "_abi_decode"
     _inputs = [("data", BytesT.any()), ("output_type", "TYPE_DEFINITION")]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
@@ -2565,7 +2560,7 @@ class ABIDecode(BuiltinFunction):
             return b1.resolve(ret)
 
 
-class _MinMaxValue(TypenameFoldedFunction):
+class _MinMaxValue(TypenameFoldedFunctionT):
     def evaluate(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
@@ -2599,7 +2594,7 @@ class MaxValue(_MinMaxValue):
         return type_.ast_bounds[1]
 
 
-class Epsilon(TypenameFoldedFunction):
+class Epsilon(TypenameFoldedFunctionT):
     _id = "epsilon"
 
     def evaluate(self, node):

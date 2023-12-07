@@ -75,4 +75,4 @@ If you are making a larger change, please consult first with the `Vyper (Smart C
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 
-Thank you for your help! ​
+Thank you for your help!
