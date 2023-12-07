@@ -259,9 +259,7 @@ class _ExprAnalyser:
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-            types_list = [
-                i for i in left if _any_compare_type(i, [i.value_type for i in right])
-            ]
+            types_list = [i for i in left if _any_compare_type(i, [i.value_type for i in right])]
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
