@@ -93,11 +93,11 @@ def convert_ir_basicblock(ir: IRnode) -> IRFunction:
 
     for i, bb in enumerate(global_function.basic_blocks):
         if not bb.is_terminated and i < len(global_function.basic_blocks) - 1:
-            bb.add_instruction("jmp", global_function.basic_blocks[i + 1].label)
+            bb.append_inst("jmp", global_function.basic_blocks[i + 1].label)
 
     revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
     revert_bb = global_function.append_basic_block(revert_bb)
-    revert_bb.add_instruction_no_return("revert", IRLiteral(0), IRLiteral(0))
+    revert_bb.append_inst_no_ret("revert", IRLiteral(0), IRLiteral(0))
 
     return global_function
 
@@ -114,11 +114,11 @@ def _convert_binary_op(
     arg_0 = _convert_ir_basicblock(ctx, ir_args[0], symbols, variables, allocated_variables)
     arg_1 = _convert_ir_basicblock(ctx, ir_args[1], symbols, variables, allocated_variables)
 
-    return ctx.get_basic_block().add_instruction(ir.value, arg_1, arg_0)
+    return ctx.get_basic_block().append_inst(ir.value, arg_1, arg_0)
 
 
 def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
-    ctx.get_basic_block().add_instruction_no_return("jmp", label)
+    ctx.get_basic_block().append_inst_no_ret("jmp", label)
 
     label = ctx.get_next_label()
     bb = IRBasicBlock(label, ctx)
@@ -159,7 +159,7 @@ def _handle_self_call(
             )
             if arg.location and arg.location.load_op == "calldataload":
                 bb = ctx.get_basic_block()
-                ret = bb.add_instruction(arg.location.load_op, ret)
+                ret = bb.append_inst(arg.location.load_op, ret)
             ret_args.append(ret)
 
     if return_buf.is_literal:
@@ -168,11 +168,11 @@ def _handle_self_call(
     bb = ctx.get_basic_block()
     do_ret = func_t.return_type is not None
     if do_ret:
-        invoke_ret = bb.add_instruction("invoke", *ret_args)
+        invoke_ret = bb.append_inst("invoke", *ret_args)
         allocated_variables["return_buffer"] = invoke_ret  # type: ignore
         return invoke_ret
     else:
-        bb.add_instruction_no_return("invoke", *ret_args)
+        bb.append_inst_no_ret("invoke", *ret_args)
         return None
 
 
@@ -186,17 +186,17 @@ def _handle_internal_func(
     old_ir_mempos += 64
 
     for arg in func_t.arguments:
-        symbols[f"&{old_ir_mempos}"] = bb.add_instruction("param")
+        symbols[f"&{old_ir_mempos}"] = bb.append_inst("param")
         bb.instructions[-1].annotation = arg.name
         old_ir_mempos += 32  # arg.typ.memory_bytes_required
 
     # return buffer
     if func_t.return_type is not None:
-        symbols["return_buffer"] = bb.add_instruction("param")
+        symbols["return_buffer"] = bb.append_inst("param")
         bb.instructions[-1].annotation = "return_buffer"
 
     # return address
-    symbols["return_pc"] = bb.add_instruction("param")
+    symbols["return_pc"] = bb.append_inst("param")
     bb.instructions[-1].annotation = "return_pc"
 
     return ir.args[0].args[2]
@@ -212,7 +212,7 @@ def _convert_ir_simple_node(
     args = [
         _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables) for arg in ir.args
     ]
-    return ctx.get_basic_block().add_instruction(ir.value, *args)  # type: ignore
+    return ctx.get_basic_block().append_inst(ir.value, *args)  # type: ignore
 
 
 _break_target: Optional[IRBasicBlock] = None
@@ -231,23 +231,22 @@ def _get_variable_from_address(
     return None
 
 
-def _get_return_for_stack_operand(
-    ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
+def _append_return_for_stack_operand(
+    bb: IRBasicBlock, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> IRInstruction:
-    bb = ctx.get_basic_block()
     if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
-        new_var = bb.add_instruction("alloca", IRLiteral(32), ret_ir)
-        bb.add_instruction_no_return("mstore", sym, new_var)  # type: ignore
+        new_var = bb.append_inst("alloca", IRLiteral(32), ret_ir)
+        bb.append_inst_no_ret("mstore", sym, new_var)  # type: ignore
     else:
         sym = symbols.get(ret_ir.value, None)
         if sym is None:
             # FIXME: needs real allocations
-            new_var = bb.add_instruction("alloca", IRLiteral(32), IRLiteral(0))
-            bb.add_instruction_no_return("mstore", ret_ir, new_var)  # type: ignore
+            new_var = bb.append_inst("alloca", IRLiteral(32), IRLiteral(0))
+            bb.append_inst_no_ret("mstore", ret_ir, new_var)  # type: ignore
         else:
             new_var = ret_ir
-    return IRInstruction("return", [last_ir, new_var])  # type: ignore
+    bb.append_inst_no_ret("return", last_ir, new_var)  # type: ignore
 
 
 def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
@@ -271,7 +270,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols, variables, allocated_variables)
         ir.value = org_value
-        return ctx.get_basic_block().add_instruction("iszero", new_var)
+        return ctx.get_basic_block().append_inst("iszero", new_var)
 
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
@@ -287,7 +286,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         runtimeLabel = ctx.get_next_label()
 
-        ctx.get_basic_block().add_instruction_no_return(
+        ctx.get_basic_block().append_inst_no_ret(
             "deploy", IRLiteral(memsize), runtimeLabel, IRLiteral(padding)
         )
 
@@ -365,10 +364,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
-            return bb.add_instruction(ir.value, *args)
+            return bb.append_inst(ir.value, *args)
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
-            return bb.add_instruction(ir.value, *args)
+            return bb.append_inst(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
@@ -388,7 +387,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             )
             if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
-                else_ret_val = ctx.get_basic_block().add_instruction(
+                else_ret_val = ctx.get_basic_block().append_inst(
                     "store", IRLiteral(else_ret_val.value)
                 )
         after_else_syms = else_syms.copy()
@@ -401,11 +400,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.get_basic_block().add_instruction(
-                "store", IRLiteral(then_ret_val.value)
-            )
+            then_ret_val = ctx.get_basic_block().append_inst("store", IRLiteral(then_ret_val.value))
 
-        current_bb.add_instruction_no_return("jnz", cont_ret, then_block.label, else_block.label)
+        current_bb.append_inst_no_ret("jnz", cont_ret, then_block.label, else_block.label)
 
         after_then_syms = symbols.copy()
 
@@ -416,13 +413,13 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         if_ret = None
         if then_ret_val is not None and else_ret_val is not None:
-            if_ret = bb.add_instruction(
+            if_ret = bb.append_inst(
                 "phi", then_block.label, then_ret_val, else_block.label, else_ret_val
             )
 
         common_symbols = _get_symbols_common(after_then_syms, after_else_syms)
         for sym, val in common_symbols.items():
-            ret = bb.add_instruction("phi", then_block.label, val[0], else_block.label, val[1])
+            ret = bb.append_inst("phi", then_block.label, val[0], else_block.label, val[1])
             old_var = symbols.get(sym, None)
             symbols[sym] = ret
             if old_var is not None:
@@ -431,10 +428,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                         allocated_variables[idx] = ret  # type: ignore
 
         if not else_block.is_terminated:
-            else_block.add_instruction_no_return("jmp", bb.label)
+            else_block.append_inst_no_ret("jmp", bb.label)
 
         if not then_block.is_terminated:
-            then_block.add_instruction_no_return("jmp", bb.label)
+            then_block.append_inst_no_ret("jmp", bb.label)
 
         return if_ret
 
@@ -448,7 +445,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         sym = ir.args[0]
         if isinstance(ret, IRLiteral):
-            new_var = ctx.get_basic_block().add_instruction("store", ret)  # type: ignore
+            new_var = ctx.get_basic_block().append_inst("store", ret)  # type: ignore
             with_symbols[sym.value] = new_var
         else:
             with_symbols[sym.value] = ret  # type: ignore
@@ -460,12 +457,12 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "jump":
         arg_1 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        ctx.get_basic_block().add_instruction_no_return("jmp", arg_1)
+        ctx.get_basic_block().append_inst_no_ret("jmp", arg_1)
         _new_block(ctx)
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        new_var = ctx.get_basic_block().add_instruction("store", arg_1)  # type: ignore
+        new_var = ctx.get_basic_block().append_inst("store", arg_1)  # type: ignore
         symbols[sym.value] = new_var
 
     elif ir.value == "calldatacopy":
@@ -482,14 +479,14 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         bb = ctx.get_basic_block()
         if var is not None:
             if allocated_variables.get(var.name, None) is None:
-                new_v = bb.add_instruction(
+                new_v = bb.append_inst(
                     "alloca", IRLiteral(var.size), IRLiteral(var.pos)  # type: ignore
                 )
                 allocated_variables[var.name] = new_v  # type: ignore
-            bb.add_instruction_no_return("calldatacopy", size, arg_1, new_v)  # type: ignore
+            bb.append_inst_no_ret("calldatacopy", size, arg_1, new_v)  # type: ignore
             symbols[f"&{var.pos}"] = new_v  # type: ignore
         else:
-            bb.add_instruction_no_return("calldatacopy", size, arg_1, new_v)  # type: ignore
+            bb.append_inst_no_ret("calldatacopy", size, arg_1, new_v)  # type: ignore
 
         return new_v
     elif ir.value == "codecopy":
@@ -497,7 +494,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
 
-        ctx.get_basic_block().add_instruction_no_return("codecopy", size, arg_1, arg_0)  # type: ignore
+        ctx.get_basic_block().append_inst_no_ret("codecopy", size, arg_1, arg_0)  # type: ignore
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
@@ -515,12 +512,12 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "assert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         current_bb = ctx.get_basic_block()
-        current_bb.add_instruction_no_return("assert", arg_0)
+        current_bb.append_inst_no_ret("assert", arg_0)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = ctx.get_basic_block()
         if not bb.is_terminated:
-            bb.add_instruction_no_return("jmp", label)
+            bb.append_inst_no_ret("jmp", label)
         bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
         _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
@@ -533,10 +530,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             bb = ctx.get_basic_block()
             if func_t.name == "__init__":
                 label = IRLabel(ir.args[0].value, True)
-                bb.add_instruction_no_return("jmp", label)
+                bb.append_inst_no_ret("jmp", label)
                 return None
             if func_t.return_type is None:
-                bb.add_instruction_no_return("stop")
+                bb.append_inst_no_ret("stop")
                 return None
             else:
                 last_ir = None
@@ -571,34 +568,32 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     if var.size and int(var.size) > 32:
                         offset = int(ret_ir.value) - var.pos  # type: ignore
                         if offset > 0:
-                            ptr_var = bb.add_instruction(
-                                "add", IRLiteral(var.pos), IRLiteral(offset)
-                            )
+                            ptr_var = bb.append_inst("add", IRLiteral(var.pos), IRLiteral(offset))
                         else:
                             ptr_var = allocated_var
-                        inst = IRInstruction("return", [last_ir, ptr_var])
+                        bb.append_inst_no_ret("return", last_ir, ptr_var)
                     else:
-                        inst = _get_return_for_stack_operand(ctx, symbols, new_var, last_ir)
+                        _append_return_for_stack_operand(ctx, symbols, new_var, last_ir)
                 else:
                     if isinstance(ret_ir, IRLiteral):
                         sym = symbols.get(f"&{ret_ir.value}", None)
                         if sym is None:
-                            bb.add_instruction_no_return("return", last_ir, ret_ir)
+                            bb.append_inst_no_ret("return", last_ir, ret_ir)
                         else:
                             if func_t.return_type.memory_bytes_required > 32:
-                                new_var = bb.add_instruction("alloca", IRLiteral(32), ret_ir)
-                                bb.add_instruction_no_return("mstore", sym, new_var)
-                                bb.add_instruction_no_return("return", last_ir, new_var)
+                                new_var = bb.append_inst("alloca", IRLiteral(32), ret_ir)
+                                bb.append_inst_no_ret("mstore", sym, new_var)
+                                bb.append_inst_no_ret("return", last_ir, new_var)
                             else:
-                                bb.add_instruction_no_return("return", last_ir, ret_ir)
+                                bb.append_inst_no_ret("return", last_ir, ret_ir)
                     else:
                         if last_ir and int(last_ir.value) > 32:
-                            bb.add_instruction_no_return("return", last_ir, ret_ir)
+                            bb.append_inst_no_ret("return", last_ir, ret_ir)
                         else:
                             ret_buf = IRLiteral(128)  # TODO: need allocator
-                            new_var = bb.add_instruction("alloca", IRLiteral(32), ret_buf)
-                            bb.add_instruction_no_return("mstore", ret_ir, new_var)
-                            bb.add_instruction_no_return("return", last_ir, new_var)
+                            new_var = bb.append_inst("alloca", IRLiteral(32), ret_buf)
+                            bb.append_inst_no_ret("mstore", ret_ir, new_var)
+                            bb.append_inst_no_ret("return", last_ir, new_var)
 
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
@@ -606,30 +601,28 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         if func_t.is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
             if func_t.return_type is None:
-                bb.add_instruction_no_return("ret", symbols["return_pc"])
+                bb.append_inst_no_ret("ret", symbols["return_pc"])
             else:
                 if func_t.return_type.memory_bytes_required > 32:
-                    bb.add_instruction_no_return(
-                        "ret", symbols["return_buffer"], symbols["return_pc"]
-                    )
+                    bb.append_inst_no_ret("ret", symbols["return_buffer"], symbols["return_pc"])
                 else:
-                    ret_by_value = bb.add_instruction("mload", symbols["return_buffer"])
-                    bb.add_instruction_no_return("ret", ret_by_value, symbols["return_pc"])
+                    ret_by_value = bb.append_inst("mload", symbols["return_buffer"])
+                    bb.append_inst_no_ret("ret", ret_by_value, symbols["return_pc"])
 
     elif ir.value == "revert":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        ctx.get_basic_block().add_instruction_no_return("revert", arg_1, arg_0)
+        ctx.get_basic_block().append_inst_no_ret("revert", arg_1, arg_0)
 
     elif ir.value == "dload":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         bb = ctx.get_basic_block()
-        src = bb.add_instruction("add", arg_0, IRLabel("code_end"))
+        src = bb.append_inst("add", arg_0, IRLabel("code_end"))
 
-        bb.add_instruction_no_return(
+        bb.append_inst_no_ret(
             "dloadbytes", IRLiteral(32), src, IRLiteral(MemoryPositions.FREE_VAR_SPACE)
         )
-        return bb.add_instruction("mload", IRLiteral(MemoryPositions.FREE_VAR_SPACE))
+        return bb.append_inst("mload", IRLiteral(MemoryPositions.FREE_VAR_SPACE))
 
     elif ir.value == "dloadbytes":
         dst = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
@@ -638,8 +631,8 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         )
         len_ = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
         bb = ctx.get_basic_block()
-        src = bb.add_instruction("add", src_offset, IRLabel("code_end"))
-        bb.add_instruction_no_return("dloadbytes", len_, src, dst)
+        src = bb.append_inst("add", src_offset, IRLabel("code_end"))
+        bb.append_inst_no_ret("dloadbytes", len_, src, dst)
         return None
 
     elif ir.value == "mload":
@@ -651,22 +644,22 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         if var is not None:
             if var.size and var.size > 32:
                 if allocated_variables.get(var.name, None) is None:
-                    allocated_variables[var.name] = bb.add_instruction(
+                    allocated_variables[var.name] = bb.append_inst(
                         "alloca", IRLiteral(var.size), IRLiteral(var.pos)
                     )
 
                 offset = int(sym_ir.value) - var.pos
                 if offset > 0:
-                    ptr_var = bb.add_instruction("add", IRLiteral(var.pos), IRLiteral(offset))
+                    ptr_var = bb.append_inst("add", IRLiteral(var.pos), IRLiteral(offset))
                 else:
                     ptr_var = allocated_variables[var.name]
 
-                return bb.add_instruction("mload", ptr_var)
+                return bb.append_inst("mload", ptr_var)
             else:
                 if sym_ir.is_literal:
                     sym = symbols.get(f"&{sym_ir.value}", None)
                     if sym is None:
-                        new_var = bb.add_instruction("store", sym_ir)
+                        new_var = bb.append_inst("store", sym_ir)
                         symbols[f"&{sym_ir.value}"] = new_var
                         if allocated_variables.get(var.name, None) is None:
                             allocated_variables[var.name] = new_var
@@ -681,9 +674,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             if sym_ir.is_literal:
                 new_var = symbols.get(f"&{sym_ir.value}", None)
                 if new_var is not None:
-                    return bb.add_instruction("mload", new_var)
+                    return bb.append_inst("mload", new_var)
                 else:
-                    return bb.add_instruction("mload", IRLiteral(sym_ir.value))
+                    return bb.append_inst("mload", IRLiteral(sym_ir.value))
             else:
                 new_var = _convert_ir_basicblock(
                     ctx, sym_ir, symbols, variables, allocated_variables
@@ -696,7 +689,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                 #
                 if sym_ir.is_self_call:
                     return new_var
-                return bb.add_instruction("mload", new_var)
+                return bb.append_inst("mload", new_var)
 
     elif ir.value == "mstore":
         sym_ir = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
@@ -711,38 +704,38 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         if var is not None and var.size is not None:
             if var.size and var.size > 32:
                 if allocated_variables.get(var.name, None) is None:
-                    allocated_variables[var.name] = bb.add_instruction(
+                    allocated_variables[var.name] = bb.append_inst(
                         "alloca", IRLiteral(var.size), IRLiteral(var.pos)
                     )
 
                 offset = int(sym_ir.value) - var.pos
                 if offset > 0:
-                    ptr_var = bb.add_instruction("add", IRLiteral(var.pos), IRLiteral(offset))
+                    ptr_var = bb.append_inst("add", IRLiteral(var.pos), IRLiteral(offset))
                 else:
                     ptr_var = allocated_variables[var.name]
 
-                bb.add_instruction_no_return("mstore", arg_1, ptr_var)
+                bb.append_inst_no_ret("mstore", arg_1, ptr_var)
             else:
                 if isinstance(sym_ir, IRLiteral):
-                    new_var = bb.add_instruction("store", arg_1)
+                    new_var = bb.append_inst("store", arg_1)
                     symbols[f"&{sym_ir.value}"] = new_var
                     # if allocated_variables.get(var.name, None) is None:
                     allocated_variables[var.name] = new_var
                 return new_var
         else:
             if not isinstance(sym_ir, IRLiteral):
-                bb.add_instruction_no_return("mstore", arg_1, sym_ir)
+                bb.append_inst_no_ret("mstore", arg_1, sym_ir)
                 return None
 
             sym = symbols.get(f"&{sym_ir.value}", None)
             if sym is None:
-                bb.add_instruction_no_return("mstore", arg_1, sym_ir)
+                bb.append_inst_no_ret("mstore", arg_1, sym_ir)
                 if arg_1 and not isinstance(sym_ir, IRLiteral):
                     symbols[f"&{sym_ir.value}"] = arg_1
                 return None
 
             if isinstance(sym_ir, IRLiteral):
-                bb.add_instruction_no_return("mstore", arg_1, sym)
+                bb.append_inst_no_ret("mstore", arg_1, sym)
                 return None
             else:
                 symbols[sym_ir.value] = arg_1
@@ -750,11 +743,11 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
     elif ir.value in ["sload", "iload"]:
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        return ctx.get_basic_block().add_instruction(ir.value, arg_0)
+        return ctx.get_basic_block().append_inst(ir.value, arg_0)
     elif ir.value in ["sstore", "istore"]:
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        ctx.get_basic_block().add_instruction_no_return(ir.value, arg_1, arg_0)
+        ctx.get_basic_block().append_inst_no_ret(ir.value, arg_1, arg_0)
     elif ir.value == "unique_symbol":
         sym = ir.args[0]
         new_var = ctx.get_next_variable()
@@ -794,17 +787,17 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         counter_inc_var = ctx.get_next_variable()
         ret = ctx.get_next_variable()
 
-        counter_var = ctx.get_basic_block().add_instruction("store", start)
+        counter_var = ctx.get_basic_block().append_inst("store", start)
         symbols[sym.value] = counter_var
-        ctx.get_basic_block().add_instruction_no_return("jmp", cond_block.label)
+        ctx.get_basic_block().append_inst_no_ret("jmp", cond_block.label)
 
-        ret = cond_block.add_instruction(
+        ret = cond_block.append_inst(
             "phi", entry_block.label, counter_var, increment_block.label, counter_inc_var
         )
         symbols[sym.value] = ret
 
-        xor_ret = cond_block.add_instruction("xor", ret, end)
-        cont_ret = cond_block.add_instruction("iszero", xor_ret)
+        xor_ret = cond_block.append_inst("xor", ret, end)
+        cont_ret = cond_block.append_inst("iszero", xor_ret)
         ctx.append_basic_block(cond_block)
 
         # Do a dry run to get the symbols needing phi nodes
@@ -831,45 +824,45 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         body_end = ctx.get_basic_block()
         if not body_end.is_terminated:
-            body_end.add_instruction_no_return("jmp", jump_up_block.label)
+            body_end.append_inst_no_ret("jmp", jump_up_block.label)
 
-        jump_up_block.add_instruction_no_return("jmp", increment_block.label)
+        jump_up_block.append_inst_no_ret("jmp", increment_block.label)
         ctx.append_basic_block(jump_up_block)
 
-        increment_block.add_instruction_no_return(IRInstruction("add", ret, IRLiteral(1)))
+        increment_block.append_inst_no_ret(IRInstruction("add", ret, IRLiteral(1)))
         increment_block.insert_instruction[-1].output = counter_inc_var
 
-        increment_block.add_instruction_no_return("jmp", cond_block.label)
+        increment_block.append_inst_no_ret("jmp", cond_block.label)
         ctx.append_basic_block(increment_block)
 
         ctx.append_basic_block(exit_block)
 
-        cond_block.add_instruction("jnz", cont_ret, exit_block.label, body_block.label)
+        cond_block.append_inst("jnz", cont_ret, exit_block.label, body_block.label)
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
-        ctx.get_basic_block().add_instruction("jmp", _break_target.label)
+        ctx.get_basic_block().append_inst("jmp", _break_target.label)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
     elif ir.value == "continue":
         assert _continue_target is not None, "Continue with no contrinue target"
-        ctx.get_basic_block().add_instruction("jmp", _continue_target.label)
+        ctx.get_basic_block().append_inst("jmp", _continue_target.label)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
     elif ir.value == "gas":
-        return ctx.get_basic_block().add_instruction("gas")
+        return ctx.get_basic_block().append_inst("gas")
     elif ir.value == "returndatasize":
-        return ctx.get_basic_block().add_instruction("returndatasize")
+        return ctx.get_basic_block().append_inst("returndatasize")
     elif ir.value == "returndatacopy":
         assert len(ir.args) == 3, "returndatacopy with wrong number of arguments"
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
 
-        new_var = ctx.get_basic_block().add_instruction("returndatacopy", arg_1, size)
+        new_var = ctx.get_basic_block().append_inst("returndatacopy", arg_1, size)
 
         symbols[f"&{arg_0.value}"] = new_var
         return new_var
     elif ir.value == "selfdestruct":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        ctx.get_basic_block().add_instruction_no_return("selfdestruct", arg_0)
+        ctx.get_basic_block().append_inst_no_ret("selfdestruct", arg_0)
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         args = reversed(
             [
@@ -877,7 +870,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                 for arg in ir.args
             ]
         )
-        ctx.get_basic_block().add_instruction_no_return(ir.value, *args)
+        ctx.get_basic_block().append_inst_no_ret(ir.value, *args)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols, variables, allocated_variables)
     elif isinstance(ir.value, str) and ir.value in symbols:
@@ -904,7 +897,7 @@ def _convert_ir_opcode(
             inst_args.append(
                 _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
             )
-    ctx.get_basic_block().add_instruction(opcode, *inst_args)
+    ctx.get_basic_block().append_inst(opcode, *inst_args)
 
 
 def _data_ofst_of(sym, ofst, height_):
