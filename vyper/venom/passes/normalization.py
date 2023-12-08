@@ -61,7 +61,7 @@ class NormalizationPass(IRPass):
         source = in_bb.label.value
         target = bb.label.value
         split_bb = IRBasicBlock(IRLabel(f"{target}_split_{source}"), self.ctx)
-        split_bb.add_instruction_no_return("jmp", bb.label)
+        split_bb.append_inst_no_ret("jmp", bb.label)
         self.ctx.append_basic_block(split_bb)
 
         # Rewire the CFG
