@@ -31,8 +31,25 @@ VOLATILE_INSTRUCTIONS = frozenset(
     ]
 )
 
-CFG_ALTERING_OPS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
+NO_OUTPUT_INSTRUCTIONS = frozenset(
+    [
+        "mstore",
+        "sstore",
+        "dstore",
+        "calldatacopy",
+        "codecopy",
+        "return",
+        "ret",
+        "revert",
+        "assert",
+        "selfdestruct",
+        "stop",
+        "invalid",
+        "log",
+    ]
+)
 
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -243,8 +260,8 @@ class IRBasicBlock:
         %2 = mul %1, 2
     is represented as:
         bb = IRBasicBlock("bb", function)
-        r1 = bb.append_inst("add", "%0", "1")
-        r2 = bb.append_inst("mul", r1, "2")
+        r1 = bb.append_instruction("add", "%0", "1")
+        r2 = bb.append_instruction("mul", r1, "2")
 
     The label of a basic block is used to refer to it from other basic blocks
     in order to branch to it.
@@ -296,13 +313,29 @@ class IRBasicBlock:
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
 
-    def append_inst_no_ret(self, opcode: str, *args) -> None:
-        inst = IRInstruction(opcode, list(args))
-        inst.parent = self
-        self.instructions.append(inst)
+    def append_instruction(
+        self, opcode: str, *args: IROperand, output: bool = None, force: bool = False
+    ) -> Optional[IRVariable]:
+        """
+        Append an instruction to basic block. If output is True, the instruction
+        produces an output value, which can be used as an operand in other
+        instructions. If output is False, the instruction does not produce an
+        output value, and the return value is None. If output is None, the function
+        will automatically determine if the instruction produces an output value based
+        on the opcode.
 
-    def append_inst(self, opcode: str, *args) -> IRVariable:
-        ret = self.parent.get_next_variable()
+        The method will assert the output value is appropriate for the opcode, unless
+        force is True. This is useful for the case that you want to append an instruction
+        and performa manual manipulations later.
+        """
+        if output is None:
+            output = opcode not in NO_OUTPUT_INSTRUCTIONS
+
+        assert force or not (
+            output is True and opcode in NO_OUTPUT_INSTRUCTIONS
+        ), f"output=={output} without appropriate opcode '{opcode}'"
+
+        ret = self.parent.get_next_variable() if output else None
         inst = IRInstruction(opcode, list(args), ret)
         inst.parent = self
         self.instructions.append(inst)
