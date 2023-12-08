@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
@@ -131,7 +131,9 @@ class EnumT(_UserType):
 
         return cls(base_node.name, members)
 
-    def get_return_type(self, node: vy_ast.Call, expected_type: Optional[VyperType] = None) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         # TODO
         return None
 

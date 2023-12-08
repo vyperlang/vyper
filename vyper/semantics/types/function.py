@@ -491,7 +491,9 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
-    def get_return_type(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
             raise CallViolation("Cannot call external functions via 'self'", node)
 
@@ -627,7 +629,9 @@ class MemberFunctionT(VyperType):
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def get_return_type(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         validate_call_args(node, len(self.arg_types))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition

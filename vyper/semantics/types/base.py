@@ -244,7 +244,10 @@ class VyperType:
         """
         return isinstance(other, type(self))
 
-    def get_return_type(self, node: vy_ast.Call) -> Optional["VyperType"]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: "VyperType" | None = None
+    ) -> "VyperType" | None:
+        # TODO will be cleaner to separate into validate_call and get_return_type
         """
         Validate a call to this type and return the result.
 
@@ -325,7 +328,7 @@ class TYPE_T:
         return f"type({self.typedef})"
 
     # dispatch into ctor if it's called
-    def get_return_type(self, node, expected_type: Optional[VyperType] = None):
+    def get_return_type(self, node, expected_type=None):
         if expected_type is not None:
             if not self.typedef.compare_type(expected_type):
                 raise CompilerPanic("bad type passed to {self.typedef} ctor", node)
@@ -333,7 +336,7 @@ class TYPE_T:
             return self.typedef._ctor_call_return(node)
         raise StructureException("Value is not callable", node)
 
-    def infer_arg_types(self, node, return_type: Optional[VyperType] = None):
+    def infer_arg_types(self, node, return_type=None):
         if hasattr(self.typedef, "_ctor_arg_types"):
             return self.typedef._ctor_arg_types(node)
         raise StructureException("Value is not callable", node)

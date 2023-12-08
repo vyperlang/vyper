@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Optional
+from typing import Any
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -79,7 +79,7 @@ class BuiltinFunctionT(VyperType):
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
-    _return_type: Optional[VyperType] = None
+    _return_type: VyperType | None = None
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -121,7 +121,9 @@ class BuiltinFunctionT(VyperType):
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
 
-    def get_return_type(self, node: vy_ast.Call, expected_type: Optional[VyperType] = None) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         self._validate_arg_types(node)
 
         ret = self._return_type
@@ -131,7 +133,9 @@ class BuiltinFunctionT(VyperType):
 
         return ret
 
-    def infer_arg_types(self, node: vy_ast.Call, return_type: Optional[VyperType] = None) -> list[VyperType]:
+    def infer_arg_types(
+        self, node: vy_ast.Call, return_type: VyperType | None = None
+    ) -> list[VyperType]:
         # validate arg types and sanity check the return type
         self.get_return_type(node, expected_type=return_type)
 
