@@ -228,7 +228,7 @@ def _convert_ir_simple_node(
     args = [
         _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables) for arg in ir.args
     ]
-    return ctx.append_instruction(ir.value, args)  # type: ignore
+    return ctx.get_basic_block().add_instruction(ir.value, *args)  # type: ignore
 
 
 _break_target: Optional[IRBasicBlock] = None
@@ -250,16 +250,17 @@ def _get_variable_from_address(
 def _get_return_for_stack_operand(
     ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> IRInstruction:
+    bb = ctx.get_basic_block()
     if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
-        new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-        ctx.append_instruction("mstore", [sym, new_var], False)  # type: ignore
+        new_var = bb.add_instruction("alloca", IRLiteral(32), ret_ir)
+        bb.add_instruction_no_return("mstore", sym, new_var)  # type: ignore
     else:
         sym = symbols.get(ret_ir.value, None)
         if sym is None:
             # FIXME: needs real allocations
-            new_var = ctx.append_instruction("alloca", [IRLiteral(32), IRLiteral(0)])
-            ctx.append_instruction("mstore", [ret_ir, new_var], False)  # type: ignore
+            new_var = bb.add_instruction("alloca", IRLiteral(32), IRLiteral(0))
+            bb.add_instruction_no_return("mstore", ret_ir, new_var)  # type: ignore
         else:
             new_var = ret_ir
     return IRInstruction("return", [last_ir, new_var])  # type: ignore
@@ -286,7 +287,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols, variables, allocated_variables)
         ir.value = org_value
-        return ctx.append_instruction("iszero", [new_var])
+        return ctx.get_basic_block().add_instruction("iszero", new_var)
 
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
@@ -375,12 +376,14 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         retVar = ctx.get_next_variable(MemType.MEMORY, retOffsetValue)
         symbols[f"&{retOffsetValue}"] = retVar
 
+        bb = ctx.get_basic_block()
+
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
-            return ctx.append_instruction(ir.value, args)
+            return bb.add_instruction(ir.value, *args)
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
-            return ctx.append_instruction(ir.value, args)
+            return bb.add_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
@@ -400,7 +403,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             )
             if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
-                else_ret_val = ctx.append_instruction("store", [IRLiteral(else_ret_val.value)])
+                else_ret_val = ctx.get_basic_block().add_instruction(
+                    "store", IRLiteral(else_ret_val.value)
+                )
         after_else_syms = else_syms.copy()
 
         # convert "then"
@@ -411,10 +416,11 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.append_instruction("store", [IRLiteral(then_ret_val.value)])
+            then_ret_val = ctx.get_basic_block().add_instruction(
+                "store", IRLiteral(then_ret_val.value)
+            )
 
-        inst = IRInstruction("jnz", [cont_ret, then_block.label, else_block.label])
-        current_bb.append_instruction(inst)
+        current_bb.add_instruction_no_return("jnz", cont_ret, then_block.label, else_block.label)
 
         after_then_syms = symbols.copy()
 
