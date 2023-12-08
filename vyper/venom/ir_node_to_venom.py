@@ -471,7 +471,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
 
         sym = ir.args[0]
         if isinstance(ret, IRLiteral):
-            new_var = ctx.append_instruction("store", [ret])  # type: ignore
+            new_var = ctx.get_basic_block().add_instruction("store", ret)  # type: ignore
             with_symbols[sym.value] = new_var
         else:
             with_symbols[sym.value] = ret  # type: ignore
@@ -489,7 +489,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
-        new_var = ctx.append_instruction("store", [arg_1])  # type: ignore
+        new_var = ctx.get_basic_block().add_instruction("store", arg_1)  # type: ignore
         symbols[sym.value] = new_var
 
     elif ir.value == "calldatacopy":
@@ -503,16 +503,17 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             if isinstance(arg_0, IRLiteral)
             else None
         )
+        bb = ctx.get_basic_block()
         if var is not None:
             if allocated_variables.get(var.name, None) is None:
-                new_v = ctx.append_instruction(
-                    "alloca", [IRLiteral(var.size), IRLiteral(var.pos)]  # type: ignore
+                new_v = bb.add_instruction(
+                    "alloca", IRLiteral(var.size), IRLiteral(var.pos)  # type: ignore
                 )
                 allocated_variables[var.name] = new_v  # type: ignore
-            ctx.append_instruction("calldatacopy", [size, arg_1, new_v], False)  # type: ignore
+            bb.add_instruction_no_return("calldatacopy", size, arg_1, new_v)  # type: ignore
             symbols[f"&{var.pos}"] = new_v  # type: ignore
         else:
-            ctx.append_instruction("calldatacopy", [size, arg_1, new_v], False)  # type: ignore
+            bb.add_instruction_no_return("calldatacopy", size, arg_1, new_v)  # type: ignore
 
         return new_v
     elif ir.value == "codecopy":
@@ -520,7 +521,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         arg_1 = _convert_ir_basicblock(ctx, ir.args[1], symbols, variables, allocated_variables)
         size = _convert_ir_basicblock(ctx, ir.args[2], symbols, variables, allocated_variables)
 
-        ctx.append_instruction("codecopy", [size, arg_1, arg_0], False)  # type: ignore
+        ctx.get_basic_block().add_instruction_no_return("codecopy", size, arg_1, arg_0)  # type: ignore
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
@@ -581,6 +582,8 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     ctx, ret_var, symbols, variables, allocated_variables
                 )
 
+                bb = ctx.get_basic_block()
+
                 var = (
                     _get_variable_from_address(variables, int(ret_ir.value))
                     if isinstance(ret_ir, IRLiteral)
@@ -594,8 +597,8 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     if var.size and int(var.size) > 32:
                         offset = int(ret_ir.value) - var.pos  # type: ignore
                         if offset > 0:
-                            ptr_var = ctx.append_instruction(
-                                "add", [IRLiteral(var.pos), IRLiteral(offset)]
+                            ptr_var = bb.add_instruction(
+                                "add", IRLiteral(var.pos), IRLiteral(offset)
                             )
                         else:
                             ptr_var = allocated_var
@@ -606,24 +609,23 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                     if isinstance(ret_ir, IRLiteral):
                         sym = symbols.get(f"&{ret_ir.value}", None)
                         if sym is None:
-                            inst = IRInstruction("return", [last_ir, ret_ir])
+                            bb.add_instruction_no_return("return", last_ir, ret_ir)
                         else:
                             if func_t.return_type.memory_bytes_required > 32:
-                                new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_ir])
-                                ctx.append_instruction("mstore", [sym, new_var], False)
-                                inst = IRInstruction("return", [last_ir, new_var])
+                                new_var = bb.add_instruction("alloca", IRLiteral(32), ret_ir)
+                                bb.append_instruction_no_return("mstore", sym, new_var)
+                                bb.add_instruction_no_return("return", last_ir, new_var)
                             else:
-                                inst = IRInstruction("return", [last_ir, ret_ir])
+                                bb.add_instruction_no_return("return", last_ir, ret_ir)
                     else:
                         if last_ir and int(last_ir.value) > 32:
-                            inst = IRInstruction("return", [last_ir, ret_ir])
+                            bb.add_instruction_no_return("return", last_ir, ret_ir)
                         else:
                             ret_buf = IRLiteral(128)  # TODO: need allocator
-                            new_var = ctx.append_instruction("alloca", [IRLiteral(32), ret_buf])
-                            ctx.append_instruction("mstore", [ret_ir, new_var], False)
-                            inst = IRInstruction("return", [last_ir, new_var])
+                            new_var = bb.add_instruction("alloca", IRLiteral(32), ret_buf)
+                            bb.add_instruction_no_return("mstore", ret_ir, new_var)
+                            bb.add_instruction_no_return("return", last_ir, new_var)
 
-                ctx.get_basic_block().append_instruction(inst)
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
         if func_t.is_internal:
