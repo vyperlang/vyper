@@ -301,16 +301,15 @@ class IRBasicBlock:
         instruction.parent = self
         self.instructions.append(instruction)
 
-    def add_instruction_no_return(self, opcode: str, **args) -> IRInstruction:
-        inst = IRInstruction(opcode, args)
+    def add_instruction_no_return(self, opcode: str, *args) -> None:
+        inst = IRInstruction(opcode, list(args))
         self.append_instruction(inst)
-        return inst
 
-    def add_instruction(self, opcode: str, **args) -> IRInstruction:
+    def add_instruction(self, opcode: str, *args) -> IRVariable:
         ret = self.parent.get_next_variable()
-        inst = IRInstruction(opcode, args, ret)
+        inst = IRInstruction(opcode, list(args), ret)
         self.append_instruction(inst)
-        return inst
+        return ret
 
     def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
