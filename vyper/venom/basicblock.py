@@ -243,8 +243,8 @@ class IRBasicBlock:
         %2 = mul %1, 2
     is represented as:
         bb = IRBasicBlock("bb", function)
-        bb.append_instruction(IRInstruction("add", ["%0", "1"], "%1"))
-        bb.append_instruction(IRInstruction("mul", ["%1", "2"], "%2"))
+        r1 = bb.add_instruction("add", "%0", "1")
+        r2 = bb.add_instruction("mul", r1, "2")
 
     The label of a basic block is used to refer to it from other basic blocks
     in order to branch to it.
@@ -296,19 +296,19 @@ class IRBasicBlock:
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
 
-    def append_instruction(self, instruction: IRInstruction) -> None:
+    def _append_instruction(self, instruction: IRInstruction) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
         instruction.parent = self
         self.instructions.append(instruction)
 
     def add_instruction_no_return(self, opcode: str, *args) -> None:
         inst = IRInstruction(opcode, list(args))
-        self.append_instruction(inst)
+        self._append_instruction(inst)
 
     def add_instruction(self, opcode: str, *args) -> IRVariable:
         ret = self.parent.get_next_variable()
         inst = IRInstruction(opcode, list(args), ret)
-        self.append_instruction(inst)
+        self._append_instruction(inst)
         return ret
 
     def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
