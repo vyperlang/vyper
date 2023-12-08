@@ -164,16 +164,22 @@ def _handle_self_call(
                 ctx, arg._optimized, symbols, variables, allocated_variables
             )
             if arg.location and arg.location.load_op == "calldataload":
-                ret = ctx.append_instruction(arg.location.load_op, [ret])
+                bb = ctx.get_basic_block()
+                ret = bb.add_instruction(arg.location.load_op, ret)
             ret_args.append(ret)
 
     if return_buf.is_literal:
         ret_args.append(IRLiteral(return_buf.value))  # type: ignore
 
+    bb = ctx.get_basic_block()
     do_ret = func_t.return_type is not None
-    invoke_ret = ctx.append_instruction("invoke", ret_args, do_ret)  # type: ignore
-    allocated_variables["return_buffer"] = invoke_ret  # type: ignore
-    return invoke_ret
+    if do_ret:
+        invoke_ret = bb.add_instruction("invoke", *ret_args)
+        allocated_variables["return_buffer"] = invoke_ret  # type: ignore
+        return invoke_ret
+    else:
+        bb.add_instruction_no_return("invoke", *ret_args)
+        return None
 
 
 def _handle_internal_func(
