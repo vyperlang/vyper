@@ -74,7 +74,7 @@ def ir_pass_optimize_unused_variables(ctx: IRFunction) -> int:
 
 
 @ir_pass
-def ir_pass_handle_shadow_event_instructions(ctx: IRFunction, shadow_mode=False) -> None:
+def ir_pass_handle_shadow_event_instructions(ctx: IRFunction, shadow_mode: bool = False) -> None:
     """
     Remove unused variables.
     """
