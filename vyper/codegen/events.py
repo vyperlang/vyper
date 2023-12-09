@@ -57,10 +57,14 @@ def ir_node_for_log(expr, event, topic_nodes, data_nodes, context):
     encode_data = abi_encode(buf, data, context, returns_len=True, bufsz=bufsz)
 
     assert len(topics) <= 4, "too many topics"  # sanity check
-    log_opcode = "log" + str(len(topics))
+
+    if event.is_shadow:
+        opcode = "shadow" + str(len(topics))
+    else:
+        opcode = "log" + str(len(topics))
 
     return IRnode.from_list(
-        [log_opcode, buf, encode_data] + topics,
+        [opcode, buf, encode_data] + topics,
         add_gas_estimate=_gas_bound(len(topics), bufsz),
-        annotation=f"LOG event {event.signature}",
+        annotation=f"{opcode} event {event.signature}",
     )

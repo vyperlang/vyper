@@ -71,3 +71,25 @@ def ir_pass_remove_unreachable_blocks(ctx: IRFunction) -> int:
 @ir_pass
 def ir_pass_optimize_unused_variables(ctx: IRFunction) -> int:
     return len(_optimize_unused_variables(ctx))
+
+
+@ir_pass
+def ir_pass_handle_shadow_event_instructions(ctx: IRFunction, shadow_mode: bool = False) -> None:
+    """
+    Remove unused variables.
+    """
+    for bb in ctx.basic_blocks:
+        instructions = []
+
+        for inst in bb.instructions:
+            if not inst.opcode.startswith("shadow"):
+                instructions.append(inst)
+                continue
+
+            if shadow_mode:
+                inst.opcode = inst.opcode.replace("shadow", "log")
+                instructions.append(inst)
+            else:
+                pass
+
+        bb.instructions = instructions

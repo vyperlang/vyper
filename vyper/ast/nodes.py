@@ -732,6 +732,10 @@ class EventDef(TopLevel):
     __slots__ = ("name", "body")
 
 
+class ShadowDef(TopLevel):
+    __slots__ = ("name", "body")
+
+
 class InterfaceDef(TopLevel):
     __slots__ = ("name", "body")
 

@@ -168,7 +168,7 @@ class CompilerData:
         # fetch both deployment and runtime IR
         nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
         if self.experimental_codegen:
-            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
+            return [generate_ir(nodes[0], self.settings), generate_ir(nodes[1], self.settings)]
         else:
             return nodes
 
@@ -194,18 +194,14 @@ class CompilerData:
     @cached_property
     def assembly(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(
-                self.ir_nodes, self.settings.optimize  # type: ignore
-            )
+            return generate_assembly_experimental(self.ir_nodes, self.settings)  # type: ignore
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
         if self.experimental_codegen:
-            return generate_assembly_experimental(
-                self.ir_runtime, self.settings.optimize  # type: ignore
-            )
+            return generate_assembly_experimental(self.ir_runtime, self.settings)  # type: ignore
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 

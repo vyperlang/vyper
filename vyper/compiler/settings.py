@@ -42,6 +42,7 @@ class Settings:
     compiler_version: Optional[str] = None
     optimize: Optional[OptimizationLevel] = None
     evm_version: Optional[str] = None
+    shadow_mode: bool = False
 
 
 _DEBUG = False

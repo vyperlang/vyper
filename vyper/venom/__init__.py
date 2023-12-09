@@ -4,9 +4,10 @@
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.venom.analysis import DFG, calculate_cfg, calculate_liveness
 from vyper.venom.bb_optimizer import (
+    ir_pass_handle_shadow_event_instructions,
     ir_pass_optimize_empty_blocks,
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
@@ -18,16 +19,16 @@ from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
-def generate_assembly_experimental(
-    ctx: IRFunction, optimize: Optional[OptimizationLevel] = None
-) -> list[str]:
+def generate_assembly_experimental(ctx: IRFunction, settings: Settings) -> list[str]:
     compiler = VenomCompiler(ctx)
-    return compiler.generate_evm(optimize is OptimizationLevel.NONE)
+    return compiler.generate_evm(settings.optimize is OptimizationLevel.NONE)
 
 
-def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> IRFunction:
+def generate_ir(ir: IRnode, settings: Settings) -> IRFunction:
     # Convert "old" IR to "new" IR
     ctx = convert_ir_basicblock(ir)
+
+    ir_pass_handle_shadow_event_instructions(ctx, settings.shadow_mode)
 
     # Run passes on "new" IR
     # TODO: Add support for optimization levels
