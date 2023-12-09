@@ -302,35 +302,35 @@ class Slice(BuiltinFunction):
             and isinstance(start, vy_ast.Int)
             and isinstance(length, vy_ast.Int)
         ):
-            (st_val, le_val) = (start.value, length.value)
+            (start_val, length_val) = (start.value, length.value)
 
-            if st_val < 0:
+            if start_val < 0:
                 raise ArgumentException("Start cannot be negative", start)
-            elif le_val <= 0:
+            elif length_val <= 0:
                 raise ArgumentException("Length cannot be negative", length)
 
             if isinstance(literal_value, vy_ast.Hex):
-                if st_val >= 32:
+                if start_val >= 32:
                     raise ArgumentException("Start cannot take that value", start)
-                if le_val > 32:
+                if length_val > 32:
                     raise ArgumentException("Length cannot take that value", length)
                 length = len(literal_value.value) // 2 - 1
                 if length != 32:
                     raise ArgumentException("Length can only be of 32", literal_value)
-                st_val *= 2
-                le_val *= 2
+                start_val *= 2
+                length_val *= 2
 
-            if st_val + le_val > len(literal_value.value):
+            if start_val + length_val > len(literal_value.value):
                 raise ArgumentException("Slice is out of bounds", start)
 
             if isinstance(literal_value, vy_ast.Bytes):
-                sublit = literal_value.value[st_val : (st_val + le_val)]
+                sublit = literal_value.value[start_val : (start_val + length_val)]
                 return vy_ast.Bytes.from_node(node, value=sublit)
             elif isinstance(literal_value, vy_ast.Str):
-                sublit = literal_value.value[st_val : (st_val + le_val)]
+                sublit = literal_value.value[start_val : (start_val + length_val)]
                 return vy_ast.Str.from_node(node, value=sublit)
             elif isinstance(literal_value, vy_ast.Hex):
-                sublit = literal_value.value[2:][st_val : (st_val + le_val)]
+                sublit = literal_value.value[2:][start_val : (start_val + length_val)]
                 return vy_ast.Bytes.from_node(node, value=f"0x{sublit}")
         raise UnfoldableNode
 

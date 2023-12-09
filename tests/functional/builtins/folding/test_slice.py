@@ -12,50 +12,45 @@ from vyper.exceptions import ArgumentException
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(
-    a=st.integers(min_value=0, max_value=2**256 - 1),
-    s=st.integers(min_value=0, max_value=31),
-    le=st.integers(min_value=1, max_value=32),
+    bytes_in=st.binary(max_size=32),
+    start=st.integers(min_value=0, max_value=31),
+    length=st.integers(min_value=1, max_value=32),
 )
-def test_slice_bytes32(get_contract, a, s, le):
-    a = hex(a)
-    while len(a) < 66:
-        a = f"0x0{a[2:]}"
-    le = min(32, 32 - s, le)
+def test_slice_bytes32(get_contract, bytes_in, start, length):
+    as_hex = "0x" + str.join("", ["00" for _ in range(32 - len(bytes_in))]) + bytes_in.hex()
+    length = min(32 - start, length)
 
     source = f"""
 @external
-def foo(a: bytes32) -> Bytes[{le}]:
-    return slice(a, {s}, {le})
+def foo(bytes_in: bytes32) -> Bytes[{length}]:
+    return slice(bytes_in, {start}, {length})
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"slice({a}, {s}, {le})")
+    vyper_ast = vy_ast.parse_to_ast(f"slice({as_hex}, {start}, {length})")
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
 
-    s *= 2
-    le *= 2
-    assert contract.foo(a) == new_node.value == bytes.fromhex(a[2:][s : (s + le)])
+    start *= 2
+    length *= 2
+    assert contract.foo(as_hex) == new_node.value == bytes.fromhex(as_hex[2:][start : (start + length)])
 
 
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(
-    a=st.integers(min_value=0, max_value=2**256 - 1),
-    s=st.integers(min_value=0, max_value=31),
-    le=st.integers(min_value=1, max_value=32),
+    bytes_in=st.binary(max_size=31),
+    start=st.integers(min_value=0, max_value=31),
+    length=st.integers(min_value=1, max_value=32),
 )
-def test_slice_bytesnot32(a, s, le):
-    a = hex(a)
-    if len(a) == 3:
-        a = f"0x0{a[2:]}"
-    elif len(a) == 66:
-        a = a[:-2]
-    elif len(a) % 2 == 1:
-        a = a[:-1]
-    le = min(32, 32 - s, le)
+def test_slice_bytesnot32(bytes_in, start, length):
+    if not len(bytes_in):
+        as_hex = "0x00"
+    else:
+        as_hex = "0x" + bytes_in.hex()
+    length = min(32, 32 - start, length)
 
-    vyper_ast = vy_ast.parse_to_ast(f"slice({a}, {s}, {le})")
+    vyper_ast = vy_ast.parse_to_ast(f"slice({as_hex}, {start}, {length})")
     old_node = vyper_ast.body[0].value
     with pytest.raises(ArgumentException):
         vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
@@ -64,26 +59,26 @@ def test_slice_bytesnot32(a, s, le):
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(
-    a=st.binary(min_size=1, max_size=100),
-    s=st.integers(min_value=0, max_value=99),
-    le=st.integers(min_value=1, max_value=100),
+    bytes_in=st.binary(min_size=1, max_size=100),
+    start=st.integers(min_value=0, max_value=99),
+    length=st.integers(min_value=1, max_value=100),
 )
-def test_slice_dynbytes(get_contract, a, s, le):
-    s = s % len(a)
-    le = min(len(a), len(a) - s, le)
+def test_slice_dynbytes(get_contract, bytes_in, start, length):
+    start = start % len(bytes_in)
+    length = min(len(bytes_in), len(bytes_in) - start, length)
 
     source = f"""
 @external
-def foo(a: Bytes[100]) -> Bytes[{le}]:
-    return slice(a, {s}, {le})
+def foo(bytes_in: Bytes[100]) -> Bytes[{length}]:
+    return slice(bytes_in, {start}, {length})
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"slice({a}, {s}, {le})")
+    vyper_ast = vy_ast.parse_to_ast(f"slice({bytes_in}, {start}, {length})")
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
 
-    assert contract.foo(a) == new_node.value == a[s : (s + le)]
+    assert contract.foo(bytes_in) == new_node.value == bytes_in[start : (start + length)]
 
 
 valid_char = [
@@ -94,23 +89,23 @@ valid_char = [
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @given(
-    a=st.text(alphabet=valid_char, min_size=1, max_size=100),
-    s=st.integers(min_value=0, max_value=99),
-    le=st.integers(min_value=1, max_value=100),
+    string_in=st.text(alphabet=valid_char, min_size=1, max_size=100),
+    start=st.integers(min_value=0, max_value=99),
+    length=st.integers(min_value=1, max_value=100),
 )
-def test_slice_string(get_contract, a, s, le):
-    s = s % len(a)
-    le = min(len(a), len(a) - s, le)
+def test_slice_string(get_contract, string_in, start, length):
+    start = start % len(string_in)
+    length = min(len(string_in), len(string_in) - start, length)
 
     source = f"""
 @external
-def foo(a: String[100]) -> String[{le}]:
-    return slice(a, {s}, {le})
+def foo(string_in: String[100]) -> String[{length}]:
+    return slice(string_in, {start}, {length})
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f'slice("{a}", {s}, {le})')
+    vyper_ast = vy_ast.parse_to_ast(f'slice("{string_in}", {start}, {length})')
     old_node = vyper_ast.body[0].value
     new_node = vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
 
-    assert contract.foo(a) == new_node.value == a[s : (s + le)]
+    assert contract.foo(string_in) == new_node.value == string_in[start : (start + length)]
