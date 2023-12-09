@@ -44,7 +44,7 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 # compound statements that are replaced with `class`
-VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
+VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct", "shadow"}
 
 # simple statements or expressions that are replaced with `yield`
 VYPER_EXPRESSION_TYPES = {"log"}

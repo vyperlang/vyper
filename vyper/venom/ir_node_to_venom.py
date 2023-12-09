@@ -894,7 +894,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "selfdestruct":
         arg_0 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
         ctx.append_instruction("selfdestruct", [arg_0], False)
-    elif isinstance(ir.value, str) and ir.value.startswith("log"):
+    elif isinstance(ir.value, str) and (
+        ir.value.startswith("log") or ir.value.startswith("shadow")
+    ):
         args = [
             _convert_ir_basicblock(ctx, arg, symbols, variables, allocated_variables)
             for arg in ir.args

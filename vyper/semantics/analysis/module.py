@@ -272,6 +272,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
+    def visit_ShadowDef(self, node):
+        obj = EventT.from_EventDef(node)
+        # TODO: move this into the constructor
+        obj.is_shadow = True
+        try:
+            self.namespace[node.name] = obj
+        except VyperException as exc:
+            raise exc.with_annotation(node) from None
+
     def visit_FunctionDef(self, node):
         func = ContractFunctionT.from_FunctionDef(node)
 

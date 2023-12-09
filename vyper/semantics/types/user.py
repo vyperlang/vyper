@@ -160,12 +160,14 @@ class EventT(_UserType):
 
     _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
-    def __init__(self, name: str, arguments: dict, indexed: list) -> None:
+    def __init__(self, name: str, arguments: dict, indexed: list, is_shadow=False) -> None:
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+        self.is_shadow = is_shadow
 
     # backward compatible
     @property

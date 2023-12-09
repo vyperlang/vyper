@@ -109,6 +109,12 @@ def _parse_args(argv):
         choices=list(EVM_VERSIONS),
         dest="evm_version",
     )
+    parser.add_argument(
+        "--shadow-mode",
+        help="Shadow mode (if true, will emit real events for shadow events, "
+        "otherwise, strip them out",
+        action="store_true",
+    )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
         "--optimize",
@@ -181,6 +187,8 @@ def _parse_args(argv):
 
     if args.evm_version:
         settings.evm_version = args.evm_version
+
+    settings.shadow_mode = args.shadow_mode
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
