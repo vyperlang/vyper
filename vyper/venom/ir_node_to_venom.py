@@ -884,7 +884,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                 for arg in ir.args
             ]
         )
-        ctx.get_basic_block().append_instruction(ir.value, *args, output=False)
+        topic_count = int(ir.value[3:])
+        assert topic_count >= 0 and topic_count <= 4, "invalid topic count"
+        ctx.get_basic_block().append_instruction("log", IRLiteral(topic_count), *args, output=False)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols, variables, allocated_variables)
     elif isinstance(ir.value, str) and ir.value in symbols:

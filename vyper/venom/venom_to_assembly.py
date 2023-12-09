@@ -62,11 +62,6 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "lt",
         "slt",
         "sgt",
-        "log0",
-        "log1",
-        "log2",
-        "log3",
-        "log4",
     ]
 )
 
@@ -274,6 +269,10 @@ class VenomCompiler:
             operands = []
         elif opcode == "istore":
             operands = inst.operands[0:1]
+        elif opcode == "log":
+            log_topic_count = inst.operands[0].value
+            assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
+            operands = inst.operands[1:]
         else:
             operands = inst.operands
 
@@ -417,6 +416,8 @@ class VenomCompiler:
         elif opcode == "istore":
             loc = inst.operands[1].value
             assembly.extend(["_OFST", "_mem_deploy_end", loc, "MSTORE"])
+        elif opcode == "log":
+            assembly.extend([f"LOG{log_topic_count}"])
         else:
             raise Exception(f"Unknown opcode: {opcode}")
 
