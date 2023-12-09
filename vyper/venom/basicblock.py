@@ -33,9 +33,12 @@ VOLATILE_INSTRUCTIONS = frozenset(
 
 NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
+        "deploy",
         "mstore",
         "sstore",
         "dstore",
+        "istore",
+        "dloadbytes",
         "calldatacopy",
         "codecopy",
         "return",
@@ -45,6 +48,9 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "stop",
         "invalid",
+        "invoke",
+        "jmp",
+        "jnz",
         "log",
     ]
 )
@@ -313,29 +319,13 @@ class IRBasicBlock:
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
 
-    def append_instruction(
-        self, opcode: str, *args: IROperand, output: bool = None, force: bool = False
-    ) -> Optional[IRVariable]:
+    def append_instruction(self, opcode: str, *args: IROperand) -> Optional[IRVariable]:
         """
-        Append an instruction to basic block. If output is True, the instruction
-        produces an output value, which can be used as an operand in other
-        instructions. If output is False, the instruction does not produce an
-        output value, and the return value is None. If output is None, the function
-        will automatically determine if the instruction produces an output value based
-        on the opcode.
+        Append an instruction to the basic block
 
-        The method will assert the output value is appropriate for the opcode, unless
-        force is True. This is useful for the case that you want to append an instruction
-        and performa manual manipulations later.
+        Returns the output variable if the instruction supports one
         """
-        if output is None:
-            output = opcode not in NO_OUTPUT_INSTRUCTIONS
-
-        assert force or not (
-            output is True and opcode in NO_OUTPUT_INSTRUCTIONS
-        ), f"output=={output} without appropriate opcode '{opcode}'"
-
-        ret = self.parent.get_next_variable() if output else None
+        ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
         inst = IRInstruction(opcode, list(args), ret)
         inst.parent = self
         self.instructions.append(inst)
