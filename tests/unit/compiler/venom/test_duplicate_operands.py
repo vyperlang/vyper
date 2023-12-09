@@ -21,7 +21,7 @@ def test_duplicate_operands():
     op = bb.append_instruction("store", IRLiteral(10))
     sum = bb.append_instruction("add", op, op)
     bb.append_instruction("mul", sum, op)
-    bb.append_instruction("stop", output=False)
+    bb.append_instruction("stop")
 
     asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
 
