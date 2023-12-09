@@ -33,7 +33,11 @@ def foo(bytes_in: bytes32) -> Bytes[{length}]:
 
     start *= 2
     length *= 2
-    assert contract.foo(as_hex) == new_node.value == bytes.fromhex(as_hex[2:][start : (start + length)])
+    assert (
+        contract.foo(as_hex)
+        == new_node.value
+        == bytes.fromhex(as_hex[2:][start : (start + length)])
+    )
 
 
 @pytest.mark.fuzzing
