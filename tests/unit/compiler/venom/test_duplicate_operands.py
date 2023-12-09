@@ -17,11 +17,11 @@ def test_duplicate_operands():
     Should compile to: [PUSH1, 10, DUP1, DUP1, DUP1, ADD, MUL, STOP]
     """
     ctx = IRFunction()
-
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    sum = ctx.append_instruction("add", [op, op])
-    ctx.append_instruction("mul", [sum, op])
-    ctx.append_instruction("stop", [], False)
+    bb = ctx.get_basic_block()
+    op = bb.append_instruction("store", IRLiteral(10))
+    sum = bb.append_instruction("add", op, op)
+    bb.append_instruction("mul", sum, op)
+    bb.append_instruction("stop", output=False)
 
     asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
 
