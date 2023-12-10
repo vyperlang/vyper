@@ -3,6 +3,7 @@ import pytest
 from vyper import ast as vy_ast
 from vyper import semantics
 from vyper.exceptions import InvalidLiteral
+from vyper.compiler import InputBundle
 
 code_invalid_checksum = [
     """
@@ -40,6 +41,8 @@ foo: constant(bytes4) = 0x12_34_56
 def test_invalid_checksum(code):
     vyper_module = vy_ast.parse_to_ast(code)
 
+    dummy_input_bundle = InputBundle([])
+
     with pytest.raises(InvalidLiteral):
         vy_ast.validation.validate_literal_nodes(vyper_module)
-        semantics.validate_semantics(vyper_module, {})
+        semantics.validate_semantics(vyper_module, dummy_input_bundle)
