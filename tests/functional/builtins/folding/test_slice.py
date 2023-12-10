@@ -17,7 +17,7 @@ from vyper.exceptions import ArgumentException
     length=st.integers(min_value=1, max_value=32),
 )
 def test_slice_bytes32(get_contract, bytes_in, start, length):
-    as_hex = "0x" + str.join("", ["00" for _ in range(32 - len(bytes_in))]) + bytes_in.hex()
+    as_hex = "0x" + str(bytes_in.hex()).zfill(64)
     length = min(32 - start, length)
 
     source = f"""
