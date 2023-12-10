@@ -336,14 +336,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node._metadata["func_type"] = func_t
 
     def visit_Import(self, node):
-        if "." in node.name and not node.alias:
+        # import x.y[name] as y[alias]
+
+        alias = node.alias
+
+        if alias is None:
+            alias = node.name
+
+        # don't handle things like `import x.y`
+        if "." in alias:
             suggested_alias = node.name[node.name.rfind(".") :]
             suggestion = f"hint: try `import {node.name} as {suggested_alias}`"
             raise StructureException(
                 f"import requires an accompanying `as` statement ({suggestion})", node
             )
-        # import x.y[name] as y[alias]
-        self._add_import(node, 0, node.name, node.alias)
+
+        self._add_import(node, 0, node.name, alias)
 
     def visit_ImportFrom(self, node):
         # from m.n[module] import x[name] as y[alias]
