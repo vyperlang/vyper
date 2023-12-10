@@ -70,7 +70,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out = f"{out}@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
+            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
 
     return out
 
