@@ -81,7 +81,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
         _compute_reachable_set(g, path=path)
 
         for h in g.reachable_internal_functions:
-            assert h != fn_t
+            assert h != fn_t  # sanity check
 
             fn_t.reachable_internal_functions.add(h)
 
