@@ -437,6 +437,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         # Check if `iter` is a storage variable. get_descendants` is used to check for
         # nested `self` (e.g. structs)
+        # NOTE: this analysis will be borked once stateful modules are allowed!
         iter_is_storage_var = (
             isinstance(node.iter, vy_ast.Attribute)
             and len(node.iter.get_descendants(vy_ast.Name, {"id": "self"})) > 0
