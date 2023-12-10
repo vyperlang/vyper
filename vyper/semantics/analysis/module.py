@@ -57,11 +57,19 @@ def validate_semantics_r(
         validate_functions(module_ast)
 
 
-def _compute_reachable_set(fn_t: ContractFunctionT):
-    for g in fn_t.called_functions:
-        assert g != fn_t
+# compute reachable set and validate the call graph (detect cycles)
+def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+    path = path or []
 
-        _compute_reachable_set(g)
+    path.append(fn_t)
+    root = path[0]
+
+    for g in fn_t.called_functions:
+        if g == root:
+            message = " -> ".join([f.name for f in path])
+            raise CallViolation(f"Contract contains cyclic function call: {message}")
+
+        _compute_reachable_set(g, path=path)
 
         for h in g.reachable_internal_functions:
             assert h != fn_t
@@ -70,25 +78,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT):
 
         fn_t.reachable_internal_functions.add(g)
 
-
-# TODO move into compute_reachable_set
-def _find_cyclic_call(
-    fn_t: ContractFunctionT, path: list = None
-) -> Optional[list[ContractFunctionT]]:
-    path = path or []
-
-    path.append(fn_t)
-    root = path[0]
-
-    for g in fn_t.called_functions:
-        if g == root:
-            return path
-        if _find_cyclic_call(g, path=path) is not None:
-            return path + [root]
-
     path.pop()
-
-    return None
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -177,11 +167,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         for func in function_defs:
             fn_t = func._metadata["func_type"]
-            cyclic_calls = _find_cyclic_call(fn_t)
-            if cyclic_calls is not None:
-                message = " -> ".join([f.name for f in cyclic_calls])
-                raise CallViolation(f"Contract contains cyclic function call: {message}")
 
+            # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
 
     def _ast_from_file(self, file: FileInput):
