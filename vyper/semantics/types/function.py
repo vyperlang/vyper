@@ -667,9 +667,6 @@ def _parse_args(
     n_total_args = len(funcdef.args.args)
     n_positional_args = n_total_args - len(funcdef.args.defaults)
 
-    # if is_interface and len(funcdef.args.defaults) != 0:
-    #    raise FunctionDeclarationException("function interfaces cannot have kwargs!")
-
     positional_args = []
     keyword_args = []
 
