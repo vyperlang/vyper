@@ -162,11 +162,6 @@ def method_id(method_str: str) -> bytes:
     return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
-# map a string to only-alphanumeric chars
-def mkalphanum(s):
-    return "".join([c if c.isalnum() else "_" for c in s])
-
-
 def round_towards_zero(d: decimal.Decimal) -> int:
     # TODO double check if this can just be int(d)
     # (but either way keep this util function bc it's easier at a glance
