@@ -18,7 +18,6 @@ def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
         Top-level Vyper AST node that has been type-checked and annotated.
     """
     generate_public_variable_getters(vyper_module)
-    remove_unused_statements(vyper_module)
 
 
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
@@ -94,25 +93,3 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             func_type = ContractFunctionT.from_FunctionDef(expanded)
 
         expanded._metadata["func_type"] = func_type
-
-
-def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
-    """
-    Remove statement nodes that are unused after type checking.
-
-    Once type checking is complete, we can remove now-meaningless statements to
-    simplify the AST prior to IR generation.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node.
-    """
-
-    # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
-        vyper_module.remove_from_body(node)
-
-    # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
-        vyper_module.remove_from_body(node)
