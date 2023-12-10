@@ -34,12 +34,15 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast, input_bundle) -> None:
-    return validate_semantics_r(module_ast, input_bundle, ImportGraph())
+def validate_semantics(module_ast, input_bundle, is_interface=False) -> None:
+    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
 
 
 def validate_semantics_r(
-    module_ast: vy_ast.Module, input_bundle: InputBundle, import_graph: ImportGraph, is_interface=False
+    module_ast: vy_ast.Module,
+    input_bundle: InputBundle,
+    import_graph: ImportGraph,
+    is_interface: bool = False,
 ) -> None:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
@@ -93,7 +96,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         input_bundle: InputBundle,
         namespace: Namespace,
         import_graph: ImportGraph,
-        is_interface:bool = False
+        is_interface: bool = False,
     ) -> None:
         self.ast = module_node
         self.input_bundle = input_bundle
@@ -182,13 +185,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # two ASTs produced from the same source
         ast_of = self.input_bundle._cache._ast_of
         if file.source_id not in ast_of:
-            ret = vy_ast.parse_to_ast(
-                file.source_code, module_path=str(file.path)
-            )
-            vy_ast.validation.validate_literal_nodes(ret)
-            vy_ast.folding.fold(ret)
-
-            ast_of[file.source_id] = ret
+            ast_of[file.source_id] = _parse_and_fold_ast(file.source_code, str(file.path))
 
         return ast_of[file.source_id]
 
@@ -328,7 +325,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not func_t.is_external:
                 # TODO test me!
                 raise StructureException(
-                    "Internal functions in `.vyi` files are not allowed!", funcdef
+                    "Internal functions in `.vyi` files are not allowed!", node
                 )
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
@@ -395,8 +392,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_semantics_r(module_ast, self.input_bundle, import_graph=self._import_graph)
-                module_t = module_ast._metadata["type"]
+                module_t = validate_semantics_r(
+                    module_ast, self.input_bundle, import_graph=self._import_graph
+                )
 
                 return ModuleInfo(module_t, decl_node=node)
 
@@ -411,7 +409,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_semantics_r(module_ast, self.input_bundle, import_graph=self._import_graph, is_interface=True)
+                validate_semantics_r(
+                    module_ast,
+                    self.input_bundle,
+                    import_graph=self._import_graph,
+                    is_interface=True,
+                )
                 module_t = module_ast._metadata["type"]
 
                 return module_t.interface
@@ -427,6 +430,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             pass
 
         raise ModuleNotFoundError(module_str) from err
+
+
+def _parse_and_fold_ast(source_code, path=None):
+    ret = vy_ast.parse_to_ast(source_code, module_path=path)
+    vy_ast.validation.validate_literal_nodes(ret)
+    vy_ast.folding.fold(ret)
+
+    return ret
 
 
 # convert an import to a path (without suffix)
@@ -477,5 +488,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = vy_ast.parse_to_ast(file.source_code, module_path=path)
-    return InterfaceT.from_vyi(str(path), interface_ast)
+    interface_ast = _parse_and_fold_ast(file.source_code, module_path=path)
+
+    module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
+    return module_t.interface

@@ -195,7 +195,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
         )
         for arg in self.func.arguments:
-            self.namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable)
+            self.namespace[arg.name] = VarInfo(
+                arg.typ, location=location, is_immutable=is_immutable
+            )
 
         for node in self.fn_node.body:
             self.visit(node)
@@ -203,7 +205,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if self.func.return_type:
             if not check_for_terminus(self.fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node
+                    f"Missing or unmatched return statements in function '{self.fn_node.name}'",
+                    self.fn_node,
                 )
 
         # visit default args
