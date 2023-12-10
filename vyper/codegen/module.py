@@ -448,11 +448,12 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     immutables_len = module_ctx.immutable_section_bytes
     if init_function:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
+        init_func_t = init_function._metadata["func_type"]
         ctor_internal_func_irs = []
         internal_functions = [f for f in runtime_functions if _is_internal(f)]
         for f in internal_functions:
-            init_func_t = init_function._metadata["func_type"]
-            if f.name not in init_func_t.reachable_internal_functions:
+            func_t = f._metadata["func_type"]
+            if func_t not in init_func_t.reachable_internal_functions:
                 # unreachable code, delete it
                 continue
 
