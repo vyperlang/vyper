@@ -1,4 +1,4 @@
-from vyper.ast.utils import parse_to_ast
+from vyper.ast.parse import parse_to_ast
 
 
 def test_ast_equal():
