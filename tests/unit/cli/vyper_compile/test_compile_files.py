@@ -139,7 +139,7 @@ META_IMPORT_STMT = [
 
 @pytest.mark.parametrize("import_stmt", META_IMPORT_STMT)
 def test_import_self_interface(import_stmt, tmp_path, make_file):
-    interface_code = f"""
+    interface_code = """
 struct FooStruct:
     foo_: uint256
 
@@ -225,7 +225,7 @@ struct FooStruct:
 
 def test_compile_outside_root_path(tmp_path, make_file):
     # absolute paths relative to "."
+    make_file("ifoo.vyi", INTERFACE_CODE)
     foo = make_file("foo.vy", CONTRACT_CODE.format("import ifoo as IFoo", "IFoo"))
-    ifoo = make_file("ifoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=".")

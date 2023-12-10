@@ -54,7 +54,7 @@ def safeTransferFrom(_from: address, _to: address, _tokenId: uint256):
 
 @external
 @payable
-def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[...]):
+def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024]):
     ...
 
 @external

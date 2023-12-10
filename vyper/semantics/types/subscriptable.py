@@ -68,7 +68,7 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript, is_interface: bool = False) -> "HashMapT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -197,7 +197,7 @@ class SArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript, is_interface: bool = False) -> "SArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
         if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
@@ -273,7 +273,7 @@ class DArrayT(_SequenceT):
         return self.value_type.compare_type(other.value_type)
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Subscript, is_interface: bool = False) -> "DArrayT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
         # common error message, different ast locations
         err_msg = "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]"
 
@@ -341,9 +341,9 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple, is_interface: bool = False) -> "TupleT":
+    def from_annotation(cls, node: vy_ast.Tuple) -> "TupleT":
         values = node.elements
-        types = tuple(type_from_annotation(v, is_interface=is_interface) for v in values)
+        types = tuple(type_from_annotation(v) for v in values)
         return cls(types)
 
     @property

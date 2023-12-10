@@ -288,8 +288,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Expr(self, node):
         if isinstance(node.value, vy_ast.Ellipsis):
-            raise StructureException("`...` is not allowed in `.vy` files! "
-            "Did you mean to import me as a `.vyi` file?", node)
+            raise StructureException(
+                "`...` is not allowed in `.vy` files! "
+                "Did you mean to import me as a `.vyi` file?",
+                node,
+            )
 
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
