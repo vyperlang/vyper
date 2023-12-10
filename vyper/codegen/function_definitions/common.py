@@ -13,7 +13,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
-from vyper.utils import MemoryPositions, calc_mem_gas, mkalphanum
+from vyper.utils import MemoryPositions, calc_mem_gas
 
 
 @dataclass

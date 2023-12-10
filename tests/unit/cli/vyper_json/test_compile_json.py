@@ -77,9 +77,11 @@ def input_json():
         "settings": {"outputSelection": {"*": ["*"]}},
     }
 
+
 @pytest.fixture(scope="function")
 def input_bundle(make_input_bundle):
     return make_input_bundle({"contracts/ibar.vyi": BAR_VYI, "contracts/library.vy": LIBRARY_CODE})
+
 
 # test string and dict inputs both work
 def test_string_input(input_json):
@@ -122,10 +124,18 @@ def test_compile_json(input_json, input_bundle):
         input_bundle=input_bundle,
     )
 
-    compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo, "contracts/library.vy": library}
+    compile_code_results = {
+        "contracts/bar.vy": bar,
+        "contracts/foo.vy": foo,
+        "contracts/library.vy": library,
+    }
 
     output_json = compile_json(input_json)
-    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/library.vy", "contracts/bar.vy"]
+    assert list(output_json["contracts"].keys()) == [
+        "contracts/foo.vy",
+        "contracts/library.vy",
+        "contracts/bar.vy",
+    ]
 
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
@@ -156,16 +166,18 @@ def test_compile_json(input_json, input_bundle):
 
 def test_compilation_targets(input_json):
     output_json = compile_json(input_json)
-    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/library.vy", "contracts/bar.vy"]
+    assert list(output_json["contracts"].keys()) == [
+        "contracts/foo.vy",
+        "contracts/library.vy",
+        "contracts/bar.vy",
+    ]
     output_json = compile_json(input_json)
 
     # omit library.vy
-    input_json["settings"]["outputSelection"] = {
-        "contracts/foo.vy": "*",
-        "contracts/bar.vy": "*",
-    }
+    input_json["settings"]["outputSelection"] = {"contracts/foo.vy": "*", "contracts/bar.vy": "*"}
     output_json = compile_json(input_json)
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
+
 
 def test_different_outputs(input_bundle, input_json):
     input_json["settings"]["outputSelection"] = {
