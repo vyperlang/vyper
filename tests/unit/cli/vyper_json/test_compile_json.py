@@ -8,11 +8,11 @@ from vyper.compiler import OUTPUT_FORMATS, compile_code
 from vyper.exceptions import InvalidType, JSONError, SyntaxException
 
 FOO_CODE = """
-import contracts.bar as Bar
+import contracts.ibar as IBar
 
 @external
 def foo(a: address) -> bool:
-    return Bar(a).bar(1)
+    return IBar(a).bar(1)
 
 @external
 def baz() -> uint256:
@@ -20,9 +20,19 @@ def baz() -> uint256:
 """
 
 BAR_CODE = """
+import contracts.ibar as IBar
+
+implements: IBar
+
 @external
 def bar(a: uint256) -> bool:
     return True
+"""
+
+BAR_VYI = """
+@external
+def bar(a: uint256) -> bool:
+    ...
 """
 
 BAD_SYNTAX_CODE = """
@@ -78,7 +88,7 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 
 def test_compile_json(input_json, make_input_bundle):
-    input_bundle = make_input_bundle({"contracts/bar.vy": BAR_CODE})
+    input_bundle = make_input_bundle({"contracts/ibar.vyi": BAR_VYI})
 
     foo = compile_code(
         FOO_CODE,
@@ -88,7 +98,7 @@ def test_compile_json(input_json, make_input_bundle):
         input_bundle=input_bundle,
     )
     bar = compile_code(
-        BAR_CODE, source_id=1, contract_name="contracts/bar.vy", output_formats=OUTPUT_FORMATS
+        BAR_CODE, source_id=2, contract_name="contracts/bar.vy", output_formats=OUTPUT_FORMATS, input_bundle=input_bundle,
     )
 
     compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo}
@@ -99,7 +109,7 @@ def test_compile_json(input_json, make_input_bundle):
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
 
-    for source_id, contract_name in enumerate(["foo", "bar"]):
+    for source_id, contract_name in [(0, "foo"), (2, "bar")]:
         path = f"contracts/{contract_name}.vy"
         data = compile_code_results[path]
         assert output_json["sources"][path] == {"id": source_id, "ast": data["ast_dict"]["ast"]}
@@ -143,7 +153,7 @@ def test_different_outputs(make_input_bundle, input_json):
     assert sorted(foo.keys()) == ["evm"]
 
     # check method_identifiers
-    input_bundle = make_input_bundle({"contracts/bar.vy": BAR_CODE})
+    input_bundle = make_input_bundle({"contracts/ibar.vyi": BAR_VYI})
     method_identifiers = compile_code(
         FOO_CODE,
         contract_name="contracts/foo.vy",
@@ -204,11 +214,11 @@ def test_source_ids_increment(input_json):
         return result["contracts"][filename][contractname]["evm"]["deployedBytecode"]["sourceMap"]
 
     assert get("contracts/foo.vy", "foo").startswith("-1:-1:0")
-    assert get("contracts/bar.vy", "bar").startswith("-1:-1:1")
+    assert get("contracts/bar.vy", "bar").startswith("-1:-1:2")
 
 
 def test_relative_import_paths(input_json):
-    input_json["sources"]["contracts/potato/baz/baz.vy"] = {"content": """from ... import foo"""}
-    input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": """from . import baz"""}
-    input_json["sources"]["contracts/potato/footato.vy"] = {"content": """from baz import baz"""}
+    input_json["sources"]["contracts/potato/baz/baz.vy"] = {"content": "from ... import foo"}
+    input_json["sources"]["contracts/potato/baz/potato.vy"] = {"content": "from . import baz"}
+    input_json["sources"]["contracts/potato/footato.vy"] = {"content": "from baz import baz"}
     compile_from_input_dict(input_json)
