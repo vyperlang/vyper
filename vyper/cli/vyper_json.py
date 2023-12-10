@@ -12,7 +12,7 @@ from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.utils import keccak256
+from vyper.utils import keccak256, OrderedSet
 
 TRANSLATE_MAP = {
     "abi": "abi",
@@ -216,9 +216,9 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
-            outputs = set(x for i in outputs.values() for x in i)
+            outputs = OrderedSet(x for i in outputs.values() for x in i)
         else:
-            outputs = set(outputs)
+            outputs = OrderedSet(outputs)
 
         for key in [i for i in ("evm", "evm.bytecode", "evm.deployedBytecode") if i in outputs]:
             outputs.remove(key)
@@ -232,13 +232,13 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
-        outputs = sorted(set(outputs))
+        outputs = list(outputs)
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
         else:
             output_paths = [PurePath(path)]
-            if output_paths[0] not in input_dict["sources"]:
+            if str(output_paths[0]) not in input_dict["sources"]:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
         for output_path in output_paths:
