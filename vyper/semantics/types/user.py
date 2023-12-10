@@ -439,25 +439,6 @@ class InterfaceT(_UserType):
         return cls._from_lists(name, functions, events)
 
     @classmethod
-    def from_vyi(cls, name: str, module: vy_ast.Module) -> "InterfaceT":
-        functions: list = []
-        events: list = []
-        for funcdef in module.get_children(vy_ast.FunctionDef):
-            func_t = ContractFunctionT.from_vyi(funcdef)
-            if not func_t.is_external:
-                # TODO test me!
-                raise StructureException(
-                    "Internal functions in `.vyi` files are not allowed!", funcdef
-                )
-            functions.append((funcdef.name, func_t))
-
-        for eventdef in module.get_children(vy_ast.EventDef):
-            name = eventdef.name
-            events.append((eventdef.name, EventT.from_EventDef(eventdef)))
-
-        return cls._from_lists(name, functions, events)
-
-    @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
         """
         Generate an `InterfaceT` object from a Vyper ast node.

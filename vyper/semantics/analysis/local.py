@@ -55,14 +55,15 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
-    """Analyzes a vyper ast and validates the function-level namespaces."""
+    """Analyzes a vyper ast and validates the function bodies"""
 
     err_list = ExceptionList()
     namespace = get_namespace()
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(vy_module, node, namespace)
+                analyzer = FunctionNodeVisitor(vy_module, node, namespace)
+                analyzer.analyze()
             except VyperException as e:
                 err_list.append(e)
 
@@ -188,6 +189,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.func = fn_node._metadata["func_type"]
         self.expr_visitor = _ExprVisitor(self.func)
 
+    def analyze(self):
         # allow internal function params to be mutable
         location, is_immutable = (
             (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
@@ -195,8 +197,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         for arg in self.func.arguments:
             namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable)
 
-        for node in fn_node.body:
+        for node in self.fn_node.body:
             self.visit(node)
+
         if self.func.return_type:
             if not check_for_terminus(fn_node.body):
                 raise FunctionDeclarationException(

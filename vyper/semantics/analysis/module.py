@@ -39,7 +39,7 @@ def validate_semantics(module_ast, input_bundle) -> None:
 
 
 def validate_semantics_r(
-    module_ast: vy_ast.Module, input_bundle: InputBundle, import_graph: ImportGraph
+    module_ast: vy_ast.Module, input_bundle: InputBundle, import_graph: ImportGraph, is_interface=False
 ) -> None:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
@@ -49,12 +49,15 @@ def validate_semantics_r(
     namespace = get_namespace()
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
-        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph)
+        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
         analyzer.analyze()
 
         vy_ast.expansion.generate_public_variable_getters(module_ast)
 
-        validate_functions(module_ast)
+        # if this is an interface, the function is already validated
+        # in `ContractFunction.from_vyi()`
+        if not is_interface:
+            validate_functions(module_ast)
 
 
 # compute reachable set and validate the call graph (detect cycles)
@@ -90,11 +93,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         input_bundle: InputBundle,
         namespace: Namespace,
         import_graph: ImportGraph,
+        is_interface:bool = False
     ) -> None:
         self.ast = module_node
         self.input_bundle = input_bundle
         self.namespace = namespace
         self._import_graph = import_graph
+        self.is_interface = is_interface
 
         self.module_t: Optional[ModuleT] = None
 
@@ -177,9 +182,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # two ASTs produced from the same source
         ast_of = self.input_bundle._cache._ast_of
         if file.source_id not in ast_of:
-            ast_of[file.source_id] = vy_ast.parse_to_ast(
+            ret = vy_ast.parse_to_ast(
                 file.source_code, module_path=str(file.path)
             )
+            vy_ast.validation.validate_literal_nodes(ret)
+            vy_ast.folding.fold(ret)
+
+            ast_of[file.source_id] = ret
 
         return ast_of[file.source_id]
 
@@ -314,10 +323,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.namespace[node.name] = obj
 
     def visit_FunctionDef(self, node):
-        func = ContractFunctionT.from_FunctionDef(node)
+        if self.is_interface:
+            func_t = ContractFunctionT.from_vyi(node)
+            if not func_t.is_external:
+                # TODO test me!
+                raise StructureException(
+                    "Internal functions in `.vyi` files are not allowed!", funcdef
+                )
+        else:
+            func_t = ContractFunctionT.from_FunctionDef(node)
 
-        self.namespace["self"].typ.add_member(func.name, func)
-        node._metadata["func_type"] = func
+        self.namespace["self"].typ.add_member(func_t.name, func_t)
+        node._metadata["func_type"] = func_t
 
     def visit_Import(self, node):
         if not node.alias:
@@ -391,8 +408,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             file = self.input_bundle.load_file(path.with_suffix(".vyi"))
             assert isinstance(file, FileInput)  # mypy hint
-            interface_ast = self._ast_from_file(file)
-            return InterfaceT.from_vyi(str(path), interface_ast)
+            module_ast = self._ast_from_file(file)
+
+            with override_global_namespace(Namespace()):
+                validate_semantics_r(module_ast, self.input_bundle, import_graph=self._import_graph, is_interface=True)
+                module_t = module_ast._metadata["type"]
+
+                return module_t.interface
+
         except FileNotFoundError:
             pass
 
