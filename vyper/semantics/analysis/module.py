@@ -11,6 +11,7 @@ from vyper.exceptions import (
     ExceptionList,
     InvalidLiteral,
     InvalidType,
+    ModuleNotFound,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
