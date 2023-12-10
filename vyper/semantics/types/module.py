@@ -26,6 +26,7 @@ class ModuleT(VyperType):
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
 
+    # TODO: maybe we don't need this
     # add ctor semantics for modules until we define better semantics
     # for my_module(<address>).
     def _ctor_call_return(self, node):
