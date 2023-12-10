@@ -439,6 +439,9 @@ class InterfaceT(_UserType):
         events: list = []
         for funcdef in module.get_children(vy_ast.FunctionDef):
             func_t = ContractFunctionT.from_vyi(funcdef)
+            if not func_t.is_external:
+                # TODO test me!
+                raise StructureException("Internal functions in `.vyi` files are not allowed!", funcdef)
             functions.append((funcdef.name, func_t))
 
         for eventdef in module.get_children(vy_ast.EventDef):
@@ -461,7 +464,13 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        funcs = [(node.name, node._metadata["func_type"]) for node in module_t.functions]
+        funcs = []
+
+        for node in module_t.functions:
+            func_t = node._metadata["func_type"]
+            if not func_t.is_external:
+                continue
+            funcs.append((node.name, func_t))
 
         # add getters for public variables since they aren't yet in the AST
         for node in module_t._module.get_children(vy_ast.VariableDecl):
