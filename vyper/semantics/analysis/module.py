@@ -34,7 +34,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast, input_bundle, is_interface=False) -> None:
+def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
     return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
 
 
@@ -43,7 +43,7 @@ def validate_semantics_r(
     input_bundle: InputBundle,
     import_graph: ImportGraph,
     is_interface: bool = False,
-) -> None:
+) -> ModuleT:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
@@ -53,7 +53,7 @@ def validate_semantics_r(
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
-        analyzer.analyze()
+        ret = analyzer.analyze()
 
         vy_ast.expansion.generate_public_variable_getters(module_ast)
 
@@ -61,6 +61,8 @@ def validate_semantics_r(
         # in `ContractFunction.from_vyi()`
         if not is_interface:
             validate_functions(module_ast)
+
+    return ret
 
 
 # compute reachable set and validate the call graph (detect cycles)
@@ -488,7 +490,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = _parse_and_fold_ast(file.source_code, module_path=path)
+    interface_ast = _parse_and_fold_ast(file.source_code, path=path)
 
     module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
     return module_t.interface
