@@ -389,7 +389,12 @@ class InterfaceT(_UserType):
 
     # helper function which performs namespace collision checking
     @classmethod
-    def _from_lists(cls, name, function_list, event_list) -> "InterfaceT":
+    def _from_lists(
+        cls,
+        name: str,
+        function_list: list[tuple[str, ContractFunctionT]],
+        event_list: list[tuple[str, EventT]],
+    ) -> "InterfaceT":
         functions = {}
         events = {}
         for name, function in function_list:
@@ -434,7 +439,7 @@ class InterfaceT(_UserType):
         return cls._from_lists(name, functions, events)
 
     @classmethod
-    def from_vyi(cls, name: str, module: vy_ast.Module) -> tuple[dict, dict]:
+    def from_vyi(cls, name: str, module: vy_ast.Module) -> "InterfaceT":
         functions: list = []
         events: list = []
         for funcdef in module.get_children(vy_ast.FunctionDef):
@@ -497,7 +502,7 @@ class InterfaceT(_UserType):
                 )
             functions.append((node.name, ContractFunctionT.from_InterfaceDef(node)))
 
-        events = []
+        events: list = []
 
         return cls._from_lists(node.name, functions, events)
 

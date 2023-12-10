@@ -17,7 +17,7 @@ class ModuleT(VyperType):
 
         # compute the interface, note this has the side effect of checking
         # for function collisions
-        _ = self.interface
+        self._helper = self.interface
 
         for f in self.functions:
             # note: this checks for collisions

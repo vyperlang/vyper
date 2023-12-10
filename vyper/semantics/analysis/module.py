@@ -1,6 +1,6 @@
 import os
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -34,13 +34,13 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast, input_bundle):
+def validate_semantics(module_ast, input_bundle) -> None:
     return validate_semantics_r(module_ast, input_bundle, ImportGraph())
 
 
 def validate_semantics_r(
     module_ast: vy_ast.Module, input_bundle: InputBundle, import_graph: ImportGraph
-):
+) -> None:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
@@ -72,7 +72,9 @@ def _compute_reachable_set(fn_t: ContractFunctionT):
 
 
 # TODO move into compute_reachable_set
-def _find_cyclic_call(fn_t: ContractFunctionT, path: list = None):
+def _find_cyclic_call(
+    fn_t: ContractFunctionT, path: list = None
+) -> Optional[list[ContractFunctionT]]:
     path = path or []
 
     path.append(fn_t)
@@ -104,10 +106,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.namespace = namespace
         self._import_graph = import_graph
 
-        self.module_t = None
+        self.module_t: Optional[ModuleT] = None
 
         # ast cache, hitchhike onto the input_bundle object
-        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}
+        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
 
     def analyze(self) -> ModuleT:
         # generate a `ModuleT` from the top-level node
@@ -149,6 +151,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.ast._metadata["namespace"] = _ns
 
         self.analyze_call_graph()
+
+        return self.module_t
 
     def analyze_call_graph(self):
         # get list of internal function calls made by each function

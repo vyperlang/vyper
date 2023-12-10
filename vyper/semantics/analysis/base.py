@@ -1,7 +1,7 @@
 import contextlib
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -154,7 +154,7 @@ class ImportGraph:
     # the current path in the import graph traversal
     _path: list[vy_ast.Module] = field(default_factory=list)
 
-    def push_path(self, module_ast: vy_ast.Module):
+    def push_path(self, module_ast: vy_ast.Module) -> None:
         if module_ast in self._path:
             cycle = self._path + [module_ast]
             raise ImportCycle(" imports ".join(f'"{t.path}"' for t in cycle))
@@ -165,11 +165,11 @@ class ImportGraph:
 
         self._path.append(module_ast)
 
-    def pop_path(self, expected: vy_ast.Module):
+    def pop_path(self, expected: vy_ast.Module) -> None:
         assert expected == self._path.pop()
 
     @contextlib.contextmanager
-    def enter_path(self, module_ast: vy_ast.Module):
+    def enter_path(self, module_ast: vy_ast.Module) -> Iterator[None]:
         self.push_path(module_ast)
         try:
             yield

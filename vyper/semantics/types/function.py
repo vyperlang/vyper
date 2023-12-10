@@ -98,10 +98,10 @@ class ContractFunctionT(VyperType):
 
         # a list of internal functions this function calls.
         # to be populated during analysis
-        self.called_functions = OrderedSet()
+        self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
-        self.reachable_internal_functions = OrderedSet()
+        self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # to be populated during codegen
         self._ir_info: Any = None
