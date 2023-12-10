@@ -363,6 +363,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
     def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
+        # the directory this (currently being analyzed) module is in
+        self_search_path = Path(self.ast.path).parent
+
+        with self.input_bundle.poke_search_path(self_search_path):
+            return self._load_import_helper(node, level, module_str, alias)
+
+    def _load_import_helper(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -393,17 +400,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assert isinstance(file, FileInput)  # mypy hint
             interface_ast = self._ast_from_file(file)
             return InterfaceT.from_vyi(str(path), interface_ast)
-        except FileNotFoundError as e:
-            err = e
+        except FileNotFoundError:
+            pass
 
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
             return InterfaceT.from_json_abi(str(file.path), file.abi)
-        except FileNotFoundError as e:
-            err = e
+        except FileNotFoundError :
+            pass
 
-        # TODO: maybe raise from one of the FileNotFoundErrors
         raise ModuleNotFoundError(module_str) from err
 
 

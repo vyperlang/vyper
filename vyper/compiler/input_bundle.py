@@ -134,6 +134,18 @@ class InputBundle:
             finally:
                 self.search_paths.pop()
 
+    # temporarily modify the top of the search path (within the
+    # scope of the context manager) with highest precedence to something else
+    @contextlib.contextmanager
+    def poke_search_path(self, path: PathLike) -> Iterator[None]:
+        tmp = self.search_paths[-1]
+        self.search_paths[-1] = path
+        try:
+            yield
+        finally:
+            self.search_paths[-1] = tmp
+
+
 
 # regular input. takes a search path(s), and `load_file()` will search all
 # search paths for the file and read it from the filesystem
