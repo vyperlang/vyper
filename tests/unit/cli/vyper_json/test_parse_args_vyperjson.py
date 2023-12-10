@@ -9,11 +9,11 @@ from vyper.cli.vyper_json import _parse_args
 from vyper.exceptions import JSONError
 
 FOO_CODE = """
-import contracts.bar as Bar
+import contracts.ibar as IBar
 
 @external
 def foo(a: address) -> bool:
-    return Bar(a).bar(1)
+    return IBar(a).bar(1)
 """
 
 BAR_CODE = """
