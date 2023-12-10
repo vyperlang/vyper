@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
 
@@ -319,14 +319,18 @@ class IRBasicBlock:
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
 
-    def append_instruction(self, opcode: str, *args: IROperand) -> Optional[IRVariable]:
+    def append_instruction(self, opcode: str, *args: Union[IROperand, int]) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
 
         Returns the output variable if the instruction supports one
         """
         ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
-        inst = IRInstruction(opcode, list(args), ret)
+
+        # Wrap raw integers in IRLiterals
+        inst_args = [IRLiteral(arg) if isinstance(arg, int) else arg for arg in args]
+
+        inst = IRInstruction(opcode, inst_args, ret)
         inst.parent = self
         self.instructions.append(inst)
         return ret
