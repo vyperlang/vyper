@@ -1,12 +1,93 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import asttokens
 
-from vyper.exceptions import CompilerPanic, SyntaxException
+from vyper.ast import nodes as vy_ast
+from vyper.ast.pre_parser import pre_parse
+from vyper.compiler.settings import Settings
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
+
+
+def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
+    return parse_to_ast_with_settings(*args, **kwargs)[1]
+
+
+def parse_to_ast_with_settings(
+    source_code: str,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    add_fn_node: Optional[str] = None,
+) -> tuple[Settings, vy_ast.Module]:
+    """
+    Parses a Vyper source string and generates basic Vyper AST nodes.
+
+    Parameters
+    ----------
+    source_code : str
+        The Vyper source code to parse.
+    source_id : int, optional
+        Source id to use in the `src` member of each node.
+    contract_name: str, optional
+        Name of contract.
+    add_fn_node: str, optional
+        If not None, adds a dummy Python AST FunctionDef wrapper node.
+
+    Returns
+    -------
+    list
+        Untyped, unoptimized Vyper AST nodes.
+    """
+    if "\x00" in source_code:
+        raise ParserException("No null bytes (\\x00) allowed in the source code.")
+    settings, class_types, reformatted_code = pre_parse(source_code)
+    try:
+        py_ast = python_ast.parse(reformatted_code)
+    except SyntaxError as e:
+        # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
+        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
+
+    # Add dummy function node to ensure local variables are treated as `AnnAssign`
+    # instead of state variables (`VariableDecl`)
+    if add_fn_node:
+        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
+        fn_node.body = py_ast.body
+        fn_node.args = python_ast.arguments(defaults=[])
+        py_ast.body = [fn_node]
+
+    annotate_python_ast(py_ast, source_code, class_types, source_id, module_path=module_path)
+
+    # Convert to Vyper AST.
+    module = vy_ast.get_node(py_ast)
+    assert isinstance(module, vy_ast.Module)  # mypy hint
+    return settings, module
+
+
+def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
+    """
+    Converts a Vyper AST node, or list of nodes, into a dictionary suitable for
+    output to the user.
+    """
+    if isinstance(ast_struct, vy_ast.VyperNode):
+        return ast_struct.to_dict()
+    elif isinstance(ast_struct, list):
+        return [i.to_dict() for i in ast_struct]
+    else:
+        raise CompilerPanic(f'Unknown Vyper AST node provided: "{type(ast_struct)}".')
+
+
+def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
+    """
+    Converts an AST dict, or list of dicts, into Vyper AST node objects.
+    """
+    if isinstance(ast_struct, dict):
+        return vy_ast.get_node(ast_struct)
+    if isinstance(ast_struct, list):
+        return [vy_ast.get_node(i) for i in ast_struct]
+    raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
