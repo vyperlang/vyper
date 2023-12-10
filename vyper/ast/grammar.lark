@@ -291,7 +291,7 @@ special_builtins: empty | abi_decode
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
 NAME: /[a-zA-Z_]\w*/
-COMMENT: /#[^\n]*/
+COMMENT: /#[^\n\r]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
