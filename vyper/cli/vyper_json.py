@@ -12,7 +12,7 @@ from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.utils import keccak256, OrderedSet
+from vyper.utils import OrderedSet, keccak256
 
 TRANSLATE_MAP = {
     "abi": "abi",
