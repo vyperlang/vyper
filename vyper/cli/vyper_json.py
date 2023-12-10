@@ -151,13 +151,6 @@ def get_evm_version(input_dict: dict) -> Optional[str]:
     return evm_version
 
 
-def get_compilation_targets(input_dict: dict) -> list[PurePath]:
-    # TODO: once we have modules, add optional "compilation_targets" key
-    # which specifies which sources we actually want to compile.
-
-    return [PurePath(p) for p in input_dict["sources"].keys()]
-
-
 def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     ret = {}
     seen = {}
@@ -218,7 +211,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
 # get unique output formats for each contract, given the input_dict
 # NOTE: would maybe be nice to raise on duplicated output formats
-def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePath, list[str]]:
+def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
     output_formats: dict[PurePath, list[str]] = {}
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
@@ -242,10 +235,10 @@ def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePa
         outputs = sorted(set(outputs))
 
         if path == "*":
-            output_paths = targets
+            output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
         else:
             output_paths = [PurePath(path)]
-            if output_paths[0] not in targets:
+            if output_paths[0] not in input_dict["sources"]:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
         for output_path in output_paths:
@@ -281,9 +274,9 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
-    compilation_targets = get_compilation_targets(input_dict)
     sources = get_inputs(input_dict)
-    output_formats = get_output_formats(input_dict, compilation_targets)
+    output_formats = get_output_formats(input_dict)
+    compilation_targets = list(output_formats.keys())
 
     input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
 
