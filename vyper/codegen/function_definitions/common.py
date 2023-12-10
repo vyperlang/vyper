@@ -44,7 +44,8 @@ class _FuncIRInfo:
     @cached_property
     def ir_identifier(self) -> str:
         argz = ",".join([str(argtyp) for argtyp in self.func_t.argument_types])
-        return mkalphanum(f"{self.visibility} {self.func_t.name} ({argz})")
+        # PR TODO: fix this! include module name.
+        return f"{self.visibility} {self.func_t.name}({argz})"
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:
