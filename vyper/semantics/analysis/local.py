@@ -457,10 +457,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         call_node,
                     )
 
-                for name in (
+                for reachable_t in (
                     self.namespace["self"].typ.members[fn_name].reachable_internal_functions
                 ):
                     # check for indirect modification
+                    name = reachable_t.name
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
                     if _check_iterator_modification(node.iter, fn_node):
                         raise ImmutableViolation(
