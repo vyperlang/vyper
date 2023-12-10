@@ -17,14 +17,6 @@ class CompilerInput:
     source_id: int
     path: PathLike
 
-    @staticmethod
-    def from_string(source_id: int, path: PathLike, file_contents: str) -> "CompilerInput":
-        try:
-            s = json.loads(file_contents)
-            return ABIInput(source_id, path, s)
-        except (ValueError, TypeError):
-            return FileInput(source_id, path, file_contents)
-
 
 @dataclass
 class FileInput(CompilerInput):
@@ -38,6 +30,14 @@ class ABIInput(CompilerInput):
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
     abi: Any  # something that json.load() returns
+
+
+def try_parse_abi(file_input: FileInput) -> CompilerInput:
+    try:
+        s = json.loads(file_input.source_code)
+        return ABIInput(file_input.source_id, file_input.path, s)
+    except (ValueError, TypeError):
+        return file_input
 
 
 class _NotFound(Exception):
@@ -112,7 +112,7 @@ class InputBundle:
         # try to parse from json, so that return types are consistent
         # across FilesystemInputBundle and JSONInputBundle.
         if isinstance(res, FileInput):
-            return CompilerInput.from_string(res.source_id, res.path, res.source_code)
+            res = try_parse_abi(res)
 
         return res
 
