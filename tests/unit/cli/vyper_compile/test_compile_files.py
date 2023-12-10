@@ -229,3 +229,24 @@ def test_compile_outside_root_path(tmp_path, make_file):
     foo = make_file("foo.vy", CONTRACT_CODE.format("import ifoo as IFoo", "IFoo"))
 
     assert compile_files([foo], ["combined_json"], root_folder=".")
+
+
+def test_import_library(tmp_path, make_file):
+    library_source = """
+@internal
+def foo() -> uint256:
+    return block.number + 1
+    """
+
+    contract_source = """
+import lib
+
+@external
+def foo() -> uint256:
+    return lib.foo()
+    """
+
+    make_file("lib.vy", library_source)
+    contract_file = make_file("contract.vy", contract_source)
+
+    assert compile_files([contract_file], ["combined_json"], root_folder=tmp_path) is not None
