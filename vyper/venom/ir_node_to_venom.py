@@ -97,7 +97,7 @@ def convert_ir_basicblock(ir: IRnode) -> IRFunction:
 
     revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
     revert_bb = global_function.append_basic_block(revert_bb)
-    revert_bb.append_instruction("revert", IRLiteral(0), IRLiteral(0))
+    revert_bb.append_instruction("revert", 0, 0)
 
     return global_function
 
@@ -238,13 +238,13 @@ def _append_return_for_stack_operand(
 ) -> None:
     if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
-        new_var = bb.append_instruction("alloca", IRLiteral(32), ret_ir)
+        new_var = bb.append_instruction("alloca", 32, ret_ir)
         bb.append_instruction("mstore", sym, new_var)  # type: ignore
     else:
         sym = symbols.get(ret_ir.value, None)
         if sym is None:
             # FIXME: needs real allocations
-            new_var = bb.append_instruction("alloca", IRLiteral(32), IRLiteral(0))
+            new_var = bb.append_instruction("alloca", 32, 0)
             bb.append_instruction("mstore", ret_ir, new_var)  # type: ignore
         else:
             new_var = ret_ir
@@ -587,7 +587,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                             bb.append_instruction("return", last_ir, ret_ir)
                         else:
                             if func_t.return_type.memory_bytes_required > 32:
-                                new_var = bb.append_instruction("alloca", IRLiteral(32), ret_ir)
+                                new_var = bb.append_instruction("alloca", 32, ret_ir)
                                 bb.append_instruction("mstore", sym, new_var)
                                 bb.append_instruction("return", last_ir, new_var)
                             else:
@@ -596,8 +596,8 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
                         if last_ir and int(last_ir.value) > 32:
                             bb.append_instruction("return", last_ir, ret_ir)
                         else:
-                            ret_buf = IRLiteral(128)  # TODO: need allocator
-                            new_var = bb.append_instruction("alloca", IRLiteral(32), ret_buf)
+                            ret_buf = 128  # TODO: need allocator
+                            new_var = bb.append_instruction("alloca", 32, ret_buf)
                             bb.append_instruction("mstore", ret_ir, new_var)
                             bb.append_instruction("return", last_ir, new_var)
 
@@ -625,9 +625,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         bb = ctx.get_basic_block()
         src = bb.append_instruction("add", arg_0, IRLabel("code_end"))
 
-        bb.append_instruction(
-            "dloadbytes", IRLiteral(32), src, IRLiteral(MemoryPositions.FREE_VAR_SPACE)
-        )
+        bb.append_instruction("dloadbytes", 32, src, IRLiteral(MemoryPositions.FREE_VAR_SPACE))
         return bb.append_instruction("mload", IRLiteral(MemoryPositions.FREE_VAR_SPACE))
 
     elif ir.value == "dloadbytes":
@@ -835,7 +833,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         jump_up_block.append_instruction("jmp", increment_block.label)
         ctx.append_basic_block(jump_up_block)
 
-        increment_block.append_instruction(IRInstruction("add", ret, IRLiteral(1)))
+        increment_block.append_instruction(IRInstruction("add", ret, 1))
         increment_block.insert_instruction[-1].output = counter_inc_var
 
         increment_block.append_instruction("jmp", cond_block.label)
