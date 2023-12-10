@@ -231,28 +231,6 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_ast(
-    source_code: str, source_id: int, contract_path: str
-) -> tuple[Settings, vy_ast.Module]:
-    """
-    Generate a Vyper AST from source code.
-
-    Arguments
-    ---------
-    source_code : str
-        Vyper source code.
-    source_id : int
-        ID number used to identify this contract in the source map.
-    contract_path: str
-        Name of the contract.
-
-    Returns
-    -------
-    vy_ast.Module
-        Top-level Vyper AST node
-    """
-
-
 # destructive -- mutates module in place!
 def generate_unfolded_ast(
     contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
