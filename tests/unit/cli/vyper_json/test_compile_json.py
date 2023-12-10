@@ -10,13 +10,15 @@ from vyper.exceptions import InvalidType, JSONError, SyntaxException
 FOO_CODE = """
 import contracts.ibar as IBar
 
+import contracts.library as library
+
 @external
 def foo(a: address) -> bool:
     return IBar(a).bar(1)
 
 @external
 def baz() -> uint256:
-    return self.balance
+    return self.balance + library.foo()
 """
 
 BAR_CODE = """
@@ -33,6 +35,12 @@ BAR_VYI = """
 @external
 def bar(a: uint256) -> bool:
     ...
+"""
+
+LIBRARY_CODE = """
+@internal
+def foo() -> uint256:
+    return block.number + 1
 """
 
 BAD_SYNTAX_CODE = """
@@ -62,12 +70,16 @@ def input_json():
         "language": "Vyper",
         "sources": {
             "contracts/foo.vy": {"content": FOO_CODE},
+            "contracts/library.vy": {"content": LIBRARY_CODE},
             "contracts/bar.vy": {"content": BAR_CODE},
         },
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
         "settings": {"outputSelection": {"*": ["*"]}},
     }
 
+@pytest.fixture(scope="function")
+def input_bundle(make_input_bundle):
+    return make_input_bundle({"contracts/ibar.vyi": BAR_VYI, "contracts/library.vy": LIBRARY_CODE})
 
 # test string and dict inputs both work
 def test_string_input(input_json):
@@ -87,9 +99,7 @@ def test_keyerror_becomes_jsonerror(input_json):
         compile_json(input_json)
 
 
-def test_compile_json(input_json, make_input_bundle):
-    input_bundle = make_input_bundle({"contracts/ibar.vyi": BAR_VYI})
-
+def test_compile_json(input_json, input_bundle):
     foo = compile_code(
         FOO_CODE,
         source_id=0,
@@ -97,23 +107,30 @@ def test_compile_json(input_json, make_input_bundle):
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
     )
+    library = compile_code(
+        LIBRARY_CODE,
+        source_id=2,
+        contract_name="contracts/library.vy",
+        output_formats=OUTPUT_FORMATS,
+        input_bundle=input_bundle,
+    )
     bar = compile_code(
         BAR_CODE,
-        source_id=2,
+        source_id=3,
         contract_name="contracts/bar.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
     )
 
-    compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo}
+    compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo, "contracts/library.vy": library}
 
     output_json = compile_json(input_json)
-    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
+    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/library.vy", "contracts/bar.vy"]
 
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
 
-    for source_id, contract_name in [(0, "foo"), (2, "bar")]:
+    for source_id, contract_name in [(0, "foo"), (2, "library"), (3, "bar")]:
         path = f"contracts/{contract_name}.vy"
         data = compile_code_results[path]
         assert output_json["sources"][path] == {"id": source_id, "ast": data["ast_dict"]["ast"]}
@@ -137,13 +154,26 @@ def test_compile_json(input_json, make_input_bundle):
         }
 
 
-def test_different_outputs(make_input_bundle, input_json):
+def test_compilation_targets(input_json):
+    output_json = compile_json(input_json)
+    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/library.vy", "contracts/bar.vy"]
+    output_json = compile_json(input_json)
+
+    # omit library.vy
+    input_json["settings"]["outputSelection"] = {
+        "contracts/foo.vy": "*",
+        "contracts/bar.vy": "*",
+    }
+    output_json = compile_json(input_json)
+    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
+
+def test_different_outputs(input_bundle, input_json):
     input_json["settings"]["outputSelection"] = {
         "contracts/bar.vy": "*",
         "contracts/foo.vy": ["evm.methodIdentifiers"],
     }
     output_json = compile_json(input_json)
-    assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
+    assert list(output_json["contracts"].keys()) == ["contracts/bar.vy", "contracts/foo.vy"]
 
     assert sorted(output_json.keys()) == ["compiler", "contracts", "sources"]
     assert output_json["compiler"] == f"vyper-{vyper.__version__}"
@@ -157,7 +187,6 @@ def test_different_outputs(make_input_bundle, input_json):
     assert sorted(foo.keys()) == ["evm"]
 
     # check method_identifiers
-    input_bundle = make_input_bundle({"contracts/ibar.vyi": BAR_VYI})
     method_identifiers = compile_code(
         FOO_CODE,
         contract_name="contracts/foo.vy",
@@ -218,7 +247,8 @@ def test_source_ids_increment(input_json):
         return result["contracts"][filename][contractname]["evm"]["deployedBytecode"]["sourceMap"]
 
     assert get("contracts/foo.vy", "foo").startswith("-1:-1:0")
-    assert get("contracts/bar.vy", "bar").startswith("-1:-1:2")
+    assert get("contracts/library.vy", "library").startswith("-1:-1:2")
+    assert get("contracts/bar.vy", "bar").startswith("-1:-1:3")
 
 
 def test_relative_import_paths(input_json):
