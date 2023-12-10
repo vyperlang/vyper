@@ -235,6 +235,10 @@ class ImportCycle(VyperException):
     """An import cycle"""
 
 
+class ModuleNotFound(VyperException):
+    """Module was not found"""
+
+
 class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 

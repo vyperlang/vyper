@@ -435,7 +435,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             pass
 
-        raise ModuleNotFoundError(module_str) from err
+        raise ModuleNotFound(module_str, node) from err
 
 
 def _parse_and_fold_ast(source_code, path=None):
