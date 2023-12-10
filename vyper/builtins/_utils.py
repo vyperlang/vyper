@@ -27,7 +27,8 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
         )
         # The FunctionNodeVisitor's constructor performs semantic checks
         # annotate the AST as side effects.
-        FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
+        analyzer = FunctionNodeVisitor(ast_code, ast_code.body[0], namespace)
+        analyzer.analyze()
 
     new_context = Context(
         vars_=variables, module_ctx=ModuleT(ast_code), memory_allocator=memory_allocator
