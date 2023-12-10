@@ -5,21 +5,9 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.function import ContractFunctionT
 
 
-def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
-    """
-    Perform expansion / simplification operations on an annotated Vyper AST.
-
-    This pass uses annotated type information to modify the AST, simplifying
-    logic and expanding subtrees to reduce the compexity during codegen.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node that has been type-checked and annotated.
-    """
-    generate_public_variable_getters(vyper_module)
-
-
+# TODO: remove this function. it causes correctness/performance problems
+# because of copying and mutating the AST - getter generation should be handled
+# during code generation.
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
     Create getter functions for public variables.

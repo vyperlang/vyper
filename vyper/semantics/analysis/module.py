@@ -52,7 +52,7 @@ def validate_semantics_r(
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph)
         analyzer.analyze()
 
-        vy_ast.expansion.expand_annotated_ast(module_ast)
+        vy_ast.expansion.generate_public_variable_getters(module_ast)
 
         validate_functions(module_ast)
 
