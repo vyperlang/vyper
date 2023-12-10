@@ -146,7 +146,6 @@ class InputBundle:
             self.search_paths[-1] = tmp
 
 
-
 # regular input. takes a search path(s), and `load_file()` will search all
 # search paths for the file and read it from the filesystem
 class FilesystemInputBundle(InputBundle):

@@ -28,6 +28,7 @@ def _topsort(functions):
 
     return list(ret)
 
+
 # calculate globally reachable functions to see which
 # ones should make it into the final bytecode.
 # TODO: in the future, this should get obsolesced by IR dead code eliminator.
@@ -44,6 +45,7 @@ def _globally_reachable_functions(functions):
         ret.add(fn_t)
 
     return ret
+
 
 def _is_constructor(func_ast):
     return func_ast._metadata["func_type"].is_constructor

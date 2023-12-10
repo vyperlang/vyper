@@ -685,9 +685,7 @@ def _parse_args(
         if arg.annotation is None:
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
-        type_ = type_from_annotation(
-            arg.annotation, DataLocation.CALLDATA
-        )
+        type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))

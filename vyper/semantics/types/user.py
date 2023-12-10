@@ -441,7 +441,9 @@ class InterfaceT(_UserType):
             func_t = ContractFunctionT.from_vyi(funcdef)
             if not func_t.is_external:
                 # TODO test me!
-                raise StructureException("Internal functions in `.vyi` files are not allowed!", funcdef)
+                raise StructureException(
+                    "Internal functions in `.vyi` files are not allowed!", funcdef
+                )
             functions.append((funcdef.name, func_t))
 
         for eventdef in module.get_children(vy_ast.EventDef):

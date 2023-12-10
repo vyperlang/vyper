@@ -2,8 +2,8 @@ import pytest
 
 from vyper import ast as vy_ast
 from vyper import semantics
-from vyper.exceptions import InvalidLiteral
 from vyper.compiler import InputBundle
+from vyper.exceptions import InvalidLiteral
 
 code_invalid_checksum = [
     """

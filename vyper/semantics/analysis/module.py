@@ -369,7 +369,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         with self.input_bundle.poke_search_path(self_search_path):
             return self._load_import_helper(node, level, module_str, alias)
 
-    def _load_import_helper(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
+    def _load_import_helper(
+        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
+    ) -> Any:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -407,7 +409,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
             return InterfaceT.from_json_abi(str(file.path), file.abi)
-        except FileNotFoundError :
+        except FileNotFoundError:
             pass
 
         raise ModuleNotFoundError(module_str) from err

@@ -665,7 +665,6 @@ class Expr:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
         func_type = self.expr.func._metadata["type"]
-        return_type = self.expr._metadata["type"]
 
         # Struct constructor
         if is_type_t(func_type, StructT):

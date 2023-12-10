@@ -98,7 +98,11 @@ def test_compile_json(input_json, make_input_bundle):
         input_bundle=input_bundle,
     )
     bar = compile_code(
-        BAR_CODE, source_id=2, contract_name="contracts/bar.vy", output_formats=OUTPUT_FORMATS, input_bundle=input_bundle,
+        BAR_CODE,
+        source_id=2,
+        contract_name="contracts/bar.vy",
+        output_formats=OUTPUT_FORMATS,
+        input_bundle=input_bundle,
     )
 
     compile_code_results = {"contracts/bar.vy": bar, "contracts/foo.vy": foo}
