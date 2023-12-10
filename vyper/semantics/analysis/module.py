@@ -492,5 +492,6 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file.source_code, path=path)
 
-    module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
+    with override_global_namespace(Namespace()):
+        module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
     return module_t.interface
