@@ -14,23 +14,36 @@ from vyper.utils import OrderedSet, method_id_int
 
 def _topsort(functions):
     #  single pass to get a global topological sort of functions (so that each
-    # function comes after each of its callees). may have duplicates, which get
-    # filtered out at the end
+    # function comes after each of its callees).
 
-    ret = []
+    ret = OrderedSet()
+    for func_ast in functions:
+        fn_t = func_ast._metadata["func_type"]
+
+        for reachable_t in fn_t.reachable_internal_functions:
+            assert reachable_t.ast_def is not None
+            ret.add(reachable_t.ast_def)
+
+        ret.add(func_ast)
+
+    return list(ret)
+
+# calculate globally reachable functions to see which
+# ones should make it into the final bytecode.
+# TODO: in the future, this should get obsolesced by IR dead code eliminator.
+def _globally_reachable_functions(functions):
+    ret = OrderedSet()
     for f in functions:
         fn_t = f._metadata["func_type"]
+
         if not fn_t.is_external:
             continue
 
-        for internal_fn in fn_t.reachable_internal_functions:
-            assert internal_fn.ast_def is not None
-            ret.append(internal_fn.ast_def)
+        ret |= fn_t.reachable_internal_functions
 
-        ret.append(f)
+        ret.add(fn_t)
 
-    return list(OrderedSet.fromkeys(ret))
-
+    return ret
 
 def _is_constructor(func_ast):
     return func_ast._metadata["func_type"].is_constructor
@@ -405,6 +418,8 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(module_ctx.functions)
 
+    reachable = _globally_reachable_functions(module_ctx.functions)
+
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
 
@@ -419,8 +434,14 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
 
     # compile internal functions first so we have the function info
     for func_ast in internal_functions:
+        # compile it so that _ir_info is populated (whether or not it makes
+        # it into the final IR artifact)
         func_ir = _ir_for_internal_function(func_ast, module_ctx, False)
-        internal_functions_ir.append(IRnode.from_list(func_ir))
+
+        # only include it in the IR if it is reachable from an external
+        # function.
+        if func_ast._metadata["func_type"] in reachable:
+            internal_functions_ir.append(IRnode.from_list(func_ir))
 
     if core._opt_none():
         selector_section = _selector_section_linear(external_functions, module_ctx)
