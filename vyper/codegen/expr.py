@@ -47,6 +47,7 @@ from vyper.semantics.types import (
     StringT,
     StructT,
     TupleT,
+    is_type_t,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
@@ -666,14 +667,14 @@ class Expr:
         func_type = self.expr.func._metadata["type"]
         return_type = self.expr._metadata["type"]
 
-        # Struct constructors do not need `self` prefix.
-        if isinstance(return_type, StructT):
+        # Struct constructor
+        if is_type_t(func_type, StructT):
             args = self.expr.args
             if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
                 return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
-        # Interface assignment. Bar(<address>).
-        if isinstance(return_type, InterfaceT):
+        # Interface constructor. Bar(<address>).
+        if is_type_t(func_type, InterfaceT):
             (arg0,) = self.expr.args
             arg_ir = Expr(arg0, self.context).ir_node
 
