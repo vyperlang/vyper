@@ -182,7 +182,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
 
-    def _ast_from_file(self, file: FileInput):
+    def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
         # this gives us the additional property of object equality on
         # two ASTs produced from the same source
