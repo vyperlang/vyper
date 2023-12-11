@@ -12,7 +12,10 @@ def test_no_outputs():
 
 
 def test_invalid_output():
-    input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"foo.vy": ["abi", "foobar"]}}}
+    input_json = {
+        "sources": {"foo.vy": ""},
+        "settings": {"outputSelection": {"foo.vy": ["abi", "foobar"]}},
+    }
     with pytest.raises(JSONError):
         get_output_formats(input_json)
 
@@ -25,26 +28,38 @@ def test_unknown_contract():
 
 @pytest.mark.parametrize("output", TRANSLATE_MAP.items())
 def test_translate_map(output):
-    input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"foo.vy": [output[0]]}}}
+    input_json = {
+        "sources": {"foo.vy": ""},
+        "settings": {"outputSelection": {"foo.vy": [output[0]]}},
+    }
     assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
 
 
 def test_star():
-    input_json = {"sources": {"foo.vy": "", "bar.vy": ""}, "settings": {"outputSelection": {"*": ["*"]}}}
+    input_json = {
+        "sources": {"foo.vy": "", "bar.vy": ""},
+        "settings": {"outputSelection": {"*": ["*"]}},
+    }
     expected = sorted(set(TRANSLATE_MAP.values()))
     result = get_output_formats(input_json)
     assert result == {PurePath("foo.vy"): expected, PurePath("bar.vy"): expected}
 
 
 def test_evm():
-    input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"foo.vy": ["abi", "evm"]}}}
+    input_json = {
+        "sources": {"foo.vy": ""},
+        "settings": {"outputSelection": {"foo.vy": ["abi", "evm"]}},
+    }
     expected = ["abi"] + sorted(v for k, v in TRANSLATE_MAP.items() if k.startswith("evm"))
     result = get_output_formats(input_json)
     assert result == {PurePath("foo.vy"): expected}
 
 
 def test_solc_style():
-    input_json = {"sources": {"foo.vy": ""}, "settings": {"outputSelection": {"foo.vy": {"": ["abi"], "foo.vy": ["ir"]}}}}
+    input_json = {
+        "sources": {"foo.vy": ""},
+        "settings": {"outputSelection": {"foo.vy": {"": ["abi"], "foo.vy": ["ir"]}}},
+    }
     assert get_output_formats(input_json) == {PurePath("foo.vy"): ["abi", "ir_dict"]}
 
 
