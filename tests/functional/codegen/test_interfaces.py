@@ -4,12 +4,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import (
-    ArgumentException,
-    InterfaceViolation,
-    NamespaceCollision,
-    StructureException,
-)
+from vyper.exceptions import ArgumentException, InterfaceViolation, NamespaceCollision
 
 
 def test_basic_extract_interface():
@@ -31,7 +26,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
 
     out = compile_code(code, output_formats=["interface"])
     out = out["interface"]
-    code_pass = "\n".join(code.split("\n")[:-2] + ["    pass"])  # replace with a pass statement.
+    code_pass = "\n".join(code.split("\n")[:-2] + ["    ..."])  # replace with a pass statement.
 
     assert code_pass.strip() == out.strip()
 
@@ -251,7 +246,6 @@ def test_extract_file_interface_imports(code, filename, make_input_bundle):
 
 
 BAD_IMPORT_CODE = [
-    ("import a", StructureException),  # must alias absolute imports
     ("import a as A\nimport a as A", NamespaceCollision),
     ("from b import a\nfrom . import a", NamespaceCollision),
     ("from . import a\nimport a as a", NamespaceCollision),
@@ -264,7 +258,8 @@ def test_extract_file_interface_imports_raises(
     code, exception_type, assert_compile_failed, make_input_bundle
 ):
     input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": ""})  # dummy
-    assert_compile_failed(lambda: compile_code(code, input_bundle=input_bundle), exception_type)
+    with pytest.raises(exception_type):
+        compile_code(code, input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(w3, get_contract, make_input_bundle):
@@ -535,14 +530,14 @@ def returns_Bytes3() -> Bytes[3]:
     """
 
     should_not_compile = """
-import BadJSONInterface as BadJSONInterface
+import BadJSONInterface
 @external
 def foo(x: BadJSONInterface) -> Bytes[2]:
     return slice(x.returns_Bytes3(), 0, 2)
     """
 
     code = """
-import BadJSONInterface as BadJSONInterface
+import BadJSONInterface
 
 foo: BadJSONInterface
 

@@ -82,7 +82,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
-        ast_def: Optional[vy_ast.FunctionDef] = None,
+        ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
 

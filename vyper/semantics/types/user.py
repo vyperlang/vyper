@@ -41,6 +41,9 @@ class _UserType(VyperType):
         return self is other
 
     def compare_type(self, other):
+        if self is other:
+            return True
+
         # TODO: think about what happens when module is None
         return (
             super().compare_type(other)
@@ -246,7 +249,7 @@ class EventT(_UserType):
         indexed: list = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return cls(base_node.name, members, indexed, base_node, module)
+            return cls(base_node.name, members, indexed, module, base_node)
 
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -275,7 +278,7 @@ class EventT(_UserType):
 
             members[member_name] = type_from_annotation(annotation)
 
-        return cls(base_node.name, members, indexed, base_node, module)
+        return cls(base_node.name, members, indexed, module, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
@@ -302,7 +305,9 @@ class InterfaceT(_UserType):
     _as_array = True
     _as_hashmap_key = True
 
-    def __init__(self, _id: str, functions: dict, events: dict, module: vy_ast.Module) -> None:
+    def __init__(
+        self, _id: str, functions: dict, events: dict, module: Optional[vy_ast.Module]
+    ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
         # TODO include events in the super() constructor
@@ -504,7 +509,7 @@ class InterfaceT(_UserType):
 class StructT(_UserType):
     _as_array = True
 
-    def __init__(self, module, _id, members, ast_def=None):
+    def __init__(self, _id, members, module, ast_def=None):
         super().__init__(module, members)
 
         self._id = _id

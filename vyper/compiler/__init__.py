@@ -97,7 +97,9 @@ def compile_code(
 
     contract_path = Path(contract_name)
 
-    source_id = input_bundle._generate_source_id(contract_path)
+    source_id = 0
+    if input_bundle is not None:
+        input_bundle._generate_source_id(contract_path)
 
     # TODO: maybe at this point we might as well just pass a `FileInput`
     # to `CompilerData`.

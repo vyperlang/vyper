@@ -293,7 +293,6 @@ def compile_from_input_dict(
                     contract_name=str(file.path),
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
-                    source_id=file.source_id,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
