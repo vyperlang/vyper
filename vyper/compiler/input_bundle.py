@@ -44,11 +44,6 @@ class _NotFound(Exception):
     pass
 
 
-# wrap os.path.normpath, but return the same type as the input
-def _normpath(path):
-    return path.__class__(os.path.normpath(path))
-
-
 # an "input bundle" to the compiler, representing the files which are
 # available to the compiler. it is useful because it parametrizes I/O
 # operations over different possible input types. you can think of it
@@ -92,10 +87,7 @@ class InputBundle:
             # Path("/a") / Path("/b") => Path("/b")
             to_try = sp / path
 
-            # normalize the path with os.path.normpath, to break down
-            # things like "foo/bar/../x.vy" => "foo/x.vy", with all
-            # the caveats around symlinks that os.path.normpath comes with.
-            to_try = _normpath(to_try)
+            to_try = self._normalize_path(to_try)
             try:
                 res = self._load_from_path(to_try)
                 break
@@ -149,6 +141,12 @@ class InputBundle:
 # regular input. takes a search path(s), and `load_file()` will search all
 # search paths for the file and read it from the filesystem
 class FilesystemInputBundle(InputBundle):
+    def _normalize_path(self, path: Path) -> Path:
+        # normalize the path with os.path.normpath, to break down
+        # things like "foo/bar/../x.vy" => "foo/x.vy", with all
+        # the caveats around symlinks that os.path.normpath comes with.
+        return path.resolve()
+
     def _load_from_path(self, path: Path) -> CompilerInput:
         try:
             with path.open() as f:
@@ -159,6 +157,11 @@ class FilesystemInputBundle(InputBundle):
         source_id = super()._generate_source_id(path)
 
         return FileInput(source_id, path, code)
+
+
+# wrap os.path.normpath, but return the same type as the input
+def _normpath(path):
+    return path.__class__(os.path.normpath(path))
 
 
 # fake filesystem for JSON inputs. takes a base path, and `load_file()`
@@ -176,6 +179,9 @@ class JSONInputBundle(InputBundle):
             # should be checked by caller
             assert path not in self.input_json
             self.input_json[_normpath(path)] = item
+
+    def _normalize_path(self, path: PurePath) -> PurePath:
+        return _normpath(path)
 
     def _load_from_path(self, path: PurePath) -> CompilerInput:
         try:
