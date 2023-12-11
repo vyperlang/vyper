@@ -64,7 +64,7 @@ class InputBundle:
 
     def __init__(self, search_paths):
         self.search_paths = search_paths
-        self._source_id_counter = 0
+        self._source_id_counter = 1
         self._source_ids: dict[PathLike, int] = {}
 
         # this is a little bit cursed, but it allows consumers to cache data that

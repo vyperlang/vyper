@@ -47,7 +47,6 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 def compile_code(
     contract_source: str,
     contract_name: str = UNKNOWN_CONTRACT_NAME,
-    source_id: int = 0,
     input_bundle: InputBundle = None,
     settings: Settings = None,
     output_formats: Optional[OutputFormats] = None,
@@ -96,10 +95,16 @@ def compile_code(
     # make IR output the same between runs
     codegen.reset_names()
 
+    contract_path = Path(contract_name)
+
+    source_id = input_bundle._generate_source_id(contract_path)
+
+    # TODO: maybe at this point we might as well just pass a `FileInput`
+    # to `CompilerData`.
     compiler_data = CompilerData(
         contract_source,
         input_bundle,
-        Path(contract_name),
+        contract_path,
         source_id,
         settings,
         storage_layout_override,

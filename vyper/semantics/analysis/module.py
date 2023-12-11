@@ -314,11 +314,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         return _finalize()
 
     def visit_EnumDef(self, node):
-        obj = EnumT.from_EnumDef(node)
+        obj = EnumT.from_EnumDef(node, self.ast)
         self.namespace[node.name] = obj
 
     def visit_EventDef(self, node):
-        obj = EventT.from_EventDef(node)
+        obj = EventT.from_EventDef(node, self.ast)
         node._metadata["event_type"] = obj
         self.namespace[node.name] = obj
 
@@ -366,11 +366,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
-        obj = InterfaceT.from_InterfaceDef(node)
+        obj = InterfaceT.from_InterfaceDef(node, self.ast)
         self.namespace[node.name] = obj
 
     def visit_StructDef(self, node):
-        struct_t = StructT.from_ast_def(node)
+        struct_t = StructT.from_ast_def(node, self.ast)
         self.namespace[node.name] = struct_t
 
     def _add_import(

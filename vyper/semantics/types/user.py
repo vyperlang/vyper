@@ -32,12 +32,22 @@ if TYPE_CHECKING:
 
 # user defined type
 class _UserType(VyperType):
+    def __init__(self, module: Optional[vy_ast.Module], members=None):
+        super().__init__(members=members)
+
+        self.module: Optional[vy_ast.Module] = module
+
     def __eq__(self, other):
         return self is other
 
-    # TODO: revisit this once user types can be imported via modules
     def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
+        # TODO: think about what happens when module is None
+        return (
+            super().compare_type(other)
+            and self._id == other._id
+            and self.module is not None
+            and self.module == other.module
+        )
 
     def __hash__(self):
         return hash(id(self))
@@ -51,11 +61,12 @@ class EnumT(_UserType):
     _is_prim_word = True
     _as_hashmap_key = True
 
-    def __init__(self, name: str, members: dict) -> None:
+    def __init__(self, name: str, members: dict, module: Optional[vy_ast.Module]) -> None:
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
-        super().__init__()
+        super().__init__(module, members=None)
+
         self._id = name
 
         self._enum_members = members
@@ -103,7 +114,7 @@ class EnumT(_UserType):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumT":
+    def from_EnumDef(cls, base_node: vy_ast.EnumDef, module: vy_ast.Module) -> "EnumT":
         """
         Generate an `Enum` object from a Vyper ast node.
 
@@ -132,7 +143,7 @@ class EnumT(_UserType):
 
             members[member_name] = i
 
-        return cls(base_node.name, members)
+        return cls(base_node.name, members, module)
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # TODO
@@ -168,9 +179,10 @@ class EventT(_UserType):
         name: str,
         arguments: dict,
         indexed: list,
+        module: Optional[vy_ast.Module],
         decl_node: Optional[vy_ast.VyperNode] = None,
     ) -> None:
-        super().__init__(members=arguments)
+        super().__init__(module, members=arguments)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
@@ -215,10 +227,10 @@ class EventT(_UserType):
         indexed: list = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = type_from_abi(item)
-        return cls(abi["name"], members, indexed)
+        return cls(abi["name"], members, indexed, module=None)
 
     @classmethod
-    def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
+    def from_EventDef(cls, base_node: vy_ast.EventDef, module: vy_ast.Module) -> "EventT":
         """
         Generate an `Event` object from a Vyper ast node.
 
@@ -234,7 +246,7 @@ class EventT(_UserType):
         indexed: list = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return cls(base_node.name, members, indexed, base_node)
+            return cls(base_node.name, members, indexed, base_node, module)
 
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -263,7 +275,7 @@ class EventT(_UserType):
 
             members[member_name] = type_from_annotation(annotation)
 
-        return cls(base_node.name, members, indexed, base_node)
+        return cls(base_node.name, members, indexed, base_node, module)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
@@ -290,11 +302,11 @@ class InterfaceT(_UserType):
     _as_array = True
     _as_hashmap_key = True
 
-    def __init__(self, _id: str, functions: dict, events: dict) -> None:
+    def __init__(self, _id: str, functions: dict, events: dict, module: vy_ast.Module) -> None:
         validate_unique_method_ids(list(functions.values()))
 
-        # TODO really, should include events in the super constructor
-        super().__init__(functions)
+        # TODO include events in the super() constructor
+        super().__init__(module, functions)
         self._id = _id
         self.events = events
 
@@ -394,6 +406,7 @@ class InterfaceT(_UserType):
         name: str,
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: list[tuple[str, EventT]],
+        module: Optional[vy_ast.Module],
     ) -> "InterfaceT":
         functions = {}
         events = {}
@@ -409,7 +422,7 @@ class InterfaceT(_UserType):
                 )
             events[name] = event
 
-        return cls(name, functions, events)
+        return cls(name, functions, events, module)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -436,7 +449,7 @@ class InterfaceT(_UserType):
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
 
-        return cls._from_lists(name, functions, events)
+        return cls._from_lists(name, functions, events, module=None)
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -469,10 +482,10 @@ class InterfaceT(_UserType):
 
         events = [(node.name, node._metadata["event_type"]) for node in module_t.events]
 
-        return cls._from_lists(module_t._id, funcs, events)
+        return cls._from_lists(module_t._id, funcs, events, module_t._module)
 
     @classmethod
-    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
+    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef, module: vy_ast.Module) -> "InterfaceT":
         functions = []
         for node in node.body:
             if not isinstance(node, vy_ast.FunctionDef):
@@ -485,14 +498,14 @@ class InterfaceT(_UserType):
 
         events: list = []
 
-        return cls._from_lists(node.name, functions, events)
+        return cls._from_lists(node.name, functions, events, module)
 
 
 class StructT(_UserType):
     _as_array = True
 
-    def __init__(self, _id, members, ast_def=None):
-        super().__init__(members)
+    def __init__(self, module, _id, members, ast_def=None):
+        super().__init__(module, members)
 
         self._id = _id
 
@@ -522,7 +535,7 @@ class StructT(_UserType):
         return self.members
 
     @classmethod
-    def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
+    def from_ast_def(cls, base_node: vy_ast.StructDef, module: vy_ast.Module) -> "StructT":
         """
         Generate a `StructT` object from a Vyper ast node.
 
@@ -556,7 +569,7 @@ class StructT(_UserType):
 
             members[member_name] = type_from_annotation(node.annotation)
 
-        return cls(struct_name, members, ast_def=base_node)
+        return cls(struct_name, members, ast_def=base_node, module=module)
 
     def __repr__(self):
         return f"{self._id} declaration object"
@@ -611,4 +624,4 @@ class StructT(_UserType):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructT(self._id, self.member_types)
+        return self

@@ -107,6 +107,13 @@ class ContractFunctionT(VyperType):
         self._ir_info: Any = None
 
     @cached_property
+    def _module(self):
+        if self.ast_def is None:
+            return None
+
+        return self.ast_def.get_ancestor(vy_ast.Module)
+
+    @cached_property
     def call_site_kwargs(self):
         # special kwargs that are allowed in call site
         return {
@@ -134,7 +141,7 @@ class ContractFunctionT(VyperType):
         return hash(id(self))
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "ContractFunctionT":
+    def from_abi(cls, abi: dict) -> "ContractFunctionT":
         """
         Generate a `ContractFunctionT` object from an ABI interface.
 
@@ -375,6 +382,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
+            ast_def=node,
         )
 
     @property
