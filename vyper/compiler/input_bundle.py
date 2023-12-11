@@ -93,9 +93,9 @@ class InputBundle:
             # > If the argument is an absolute path, the previous path is ignored.
             # Path("/a") / Path("/b") => Path("/b")
             to_try = sp / path
-            to_try = self._normalize_path(to_try)
 
             try:
+                to_try = self._normalize_path(to_try)
                 res = self._load_from_path(to_try, path)
                 break
             except _NotFound:
@@ -152,7 +152,10 @@ class FilesystemInputBundle(InputBundle):
         # normalize the path with os.path.normpath, to break down
         # things like "foo/bar/../x.vy" => "foo/x.vy", with all
         # the caveats around symlinks that os.path.normpath comes with.
-        return path.resolve(strict=True)
+        try:
+            return path.resolve(strict=True)
+        except FileNotFoundError:
+            raise _NotFound(path)
 
     def _load_from_path(self, resolved_path: Path, original_path: Path) -> CompilerInput:
         try:
