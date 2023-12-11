@@ -288,7 +288,8 @@ class Stmt:
         else:
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(arg1, self.context)
-            rounds = IRnode.from_list(["sub", end, clamp("le", start, end)])
+            with end.cache_when_complex("end") as (b1, end):
+                rounds = b1.resolve(IRnode.from_list(["sub", end, clamp("le", start, end)]))
             rounds_bound = kwargs["bound"]
 
         bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
