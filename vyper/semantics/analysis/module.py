@@ -199,7 +199,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # this is a kludge until we define better semantics for
         # `implements: my_module`
         if isinstance(type_, ModuleInfo):
-            type_ = type_.module.interface
+            type_ = type_.module_t.interface
 
         if not isinstance(type_, InterfaceT):
             raise StructureException("Invalid interface name", node.annotation)

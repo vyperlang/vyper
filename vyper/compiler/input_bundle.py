@@ -66,6 +66,9 @@ class InputBundle:
         # share the same lifetime as this input bundle.
         self._cache = lambda: None
 
+    def _normalize_path(self, path):
+        raise NotImplementedError(f"not implemented! {self.__class__}._normalize_path()")
+
     def _load_from_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 

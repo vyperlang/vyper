@@ -1,7 +1,7 @@
 import contextlib
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional
+from typing import TYPE_CHECKING, Dict, Iterator, List, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -13,6 +13,9 @@ from vyper.exceptions import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import ModuleT
 
 
 class _StringEnum(enum.Enum):
@@ -184,7 +187,7 @@ class AnalysisResult:
 
 @dataclass
 class ModuleInfo(AnalysisResult):
-    module: Any  # ModuleT, but importing that creates an import cycle
+    module_t: "ModuleT"
     decl_node: vy_ast.VyperNode
 
 

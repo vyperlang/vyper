@@ -365,7 +365,7 @@ class _ExprAnalyser:
                 return [TYPE_T(t)]
 
             if isinstance(t, ModuleInfo):
-                return [t.module]
+                return [t.module_t]
 
             if isinstance(t, (VarInfo, ExprInfo)):
                 return [t.typ]
