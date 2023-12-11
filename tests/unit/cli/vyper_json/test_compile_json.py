@@ -1,10 +1,17 @@
 import json
+from pathlib import PurePath
 
 import pytest
 
 import vyper
-from vyper.cli.vyper_json import compile_from_input_dict, compile_json, exc_handler_to_dict
+from vyper.cli.vyper_json import (
+    compile_from_input_dict,
+    compile_json,
+    exc_handler_to_dict,
+    get_inputs,
+)
 from vyper.compiler import OUTPUT_FORMATS, compile_code
+from vyper.compiler.input_bundle import JSONInputBundle
 from vyper.exceptions import InvalidType, JSONError, SyntaxException
 
 FOO_CODE = """
@@ -79,8 +86,11 @@ def input_json():
 
 
 @pytest.fixture(scope="function")
-def input_bundle(make_input_bundle):
-    return make_input_bundle({"contracts/ibar.vyi": BAR_VYI, "contracts/library.vy": LIBRARY_CODE})
+def input_bundle(input_json):
+    # CMC 2023-12-11 maybe input_json -> JSONInputBundle should be a helper
+    # function in `vyper_json.py`.
+    sources = get_inputs(input_json)
+    return JSONInputBundle(sources, search_paths=[PurePath(".")])
 
 
 # test string and dict inputs both work
@@ -107,18 +117,21 @@ def test_compile_json(input_json, input_bundle):
         contract_path="contracts/foo.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
+        source_id=0,
     )
     library = compile_code(
         LIBRARY_CODE,
         contract_path="contracts/library.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
+        source_id=2,
     )
     bar = compile_code(
         BAR_CODE,
         contract_path="contracts/bar.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
+        source_id=3,
     )
 
     compile_code_results = {

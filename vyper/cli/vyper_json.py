@@ -291,6 +291,7 @@ def compile_from_input_dict(
                 data = vyper.compile_code(
                     file.source_code,
                     contract_path=file.path,
+                    source_id=file.source_id,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
                     settings=settings,

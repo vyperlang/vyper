@@ -48,6 +48,7 @@ def compile_code(
     contract_source: str,
     contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
     input_bundle: InputBundle = None,
+    source_id: int = -1,
     settings: Settings = None,
     output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
@@ -71,6 +72,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    source_id: int, optional
+        source_id to tag AST nodes with. -1 if not provided.
     settings: Settings, optional
         Compiler settings.
     show_gas_estimates: bool, optional
@@ -98,10 +101,6 @@ def compile_code(
     if isinstance(contract_path, str):
         contract_path = Path(contract_path)
 
-    source_id = 0
-    if input_bundle is not None:
-        source_id = input_bundle._generate_source_id(input_bundle._normalize_path(contract_path))
-
     # TODO: maybe at this point we might as well just pass a `FileInput`
     # to `CompilerData`.
     compiler_data = CompilerData(
@@ -126,7 +125,7 @@ def compile_code(
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(str(contract_name), exc)
+                    exc_handler(str(contract_path), exc)
                 else:
                     raise exc
 
