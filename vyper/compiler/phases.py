@@ -18,7 +18,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.venom import generate_assembly_experimental, generate_ir
 
-DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
+DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
 class CompilerData:
@@ -53,7 +53,7 @@ class CompilerData:
 
     def __init__(
         self,
-        file_input: FileInput,
+        file_input: FileInput | str,
         input_bundle: InputBundle = None,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -66,8 +66,10 @@ class CompilerData:
 
         Arguments
         ---------
-        file_input: FileInput
-            A FileInput representing the input to the compiler
+        file_input: FileInput | str
+            A FileInput or string representing the input to the compiler.
+            FileInput is preferred, but `str` is accepted as a convenience
+            method (and also for backwards compatibility reasons)
         settings: Settings
             Set optimization mode.
         show_gas_estimates: bool, optional
@@ -79,6 +81,14 @@ class CompilerData:
         """
         # to force experimental codegen, uncomment:
         # experimental_codegen = True
+
+        if isinstance(file_input, str):
+            file_input = FileInput(
+                source_code=file_input,
+                source_id=-1,
+                path=DEFAULT_CONTRACT_PATH,
+                resolved_path=DEFAULT_CONTRACT_PATH,
+            )
         self.file_input = file_input
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
