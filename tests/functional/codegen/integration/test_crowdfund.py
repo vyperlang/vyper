@@ -63,10 +63,13 @@ def refund():
 
     """
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
+
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
+    start_timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
+
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
-    assert c.deadline() - c.block_timestamp() == 59
+    assert c.deadline() - start_timestamp == 60
     assert not c.expired()
     assert not c.reached()
     c.participate(transact={"value": 49})
