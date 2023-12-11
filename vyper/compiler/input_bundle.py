@@ -154,7 +154,7 @@ class FilesystemInputBundle(InputBundle):
         # the caveats around symlinks that os.path.normpath comes with.
         try:
             return path.resolve(strict=True)
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):
             raise _NotFound(path)
 
     def _load_from_path(self, resolved_path: Path, original_path: Path) -> CompilerInput:
