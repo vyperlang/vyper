@@ -477,9 +477,9 @@ class InterfaceT(_UserType):
             vyper_self = namespace["self"].typ
             if fn_name not in vyper_self.members:
                 return False
-            s = vyper_self.functions[fn_name]
+            s = vyper_self.members[fn_name]
             if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.functions[fn_name]
+                to_compare = vyper_self.members[fn_name]
             # this is kludgy, rework order of passes in ModuleNodeVisitor
             elif isinstance(s, VarInfo) and s.is_public:
                 to_compare = s.decl_node._metadata["getter_type"]
