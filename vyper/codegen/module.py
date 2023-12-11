@@ -293,12 +293,6 @@ def _selector_section_sparse(external_functions, global_ctx):
 
         ret.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
-        jumpdest = IRnode.from_list(["mload", 0])
-        # don't particularly like using `jump` here since it can cause
-        # issues for other backends, consider changing `goto` to allow
-        # dynamic jumps, or adding some kind of jumptable instruction
-        ret.append(["jump", jumpdest])
-
         jumptable_data = ["data", "selector_buckets"]
         for i in range(n_buckets):
             if i in buckets:
@@ -307,6 +301,15 @@ def _selector_section_sparse(external_functions, global_ctx):
             else:
                 # empty bucket
                 jumptable_data.append(["symbol", "fallback"])
+
+        jumpdest = IRnode.from_list(["mload", 0])
+
+        # don't particularly like using `jump` here since it can cause
+        # issues for other backends, consider changing `goto` to allow
+        # dynamic jumps, or adding some kind of jumptable instruction
+        jump = IRnode.from_list(["jump", jumpdest])
+        jump.passthrough_metadata["jumptable_data"] = jumptable_data
+        ret.append(jump)
 
         ret.append(jumptable_data)
 
