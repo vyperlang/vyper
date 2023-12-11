@@ -10,7 +10,7 @@ from vyper.cli.vyper_json import (
     exc_handler_to_dict,
     get_inputs,
 )
-from vyper.compiler import OUTPUT_FORMATS, compile_code
+from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
 from vyper.exceptions import InvalidType, JSONError, SyntaxException
 
@@ -112,26 +112,19 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 
 def test_compile_json(input_json, input_bundle):
-    foo = compile_code(
-        FOO_CODE,
-        contract_path="contracts/foo.vy",
-        output_formats=OUTPUT_FORMATS,
-        input_bundle=input_bundle,
-        source_id=0,
+    foo_input = input_bundle.load_file("contracts/foo.vy")
+    foo = compile_from_file_input(
+        foo_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
     )
-    library = compile_code(
-        LIBRARY_CODE,
-        contract_path="contracts/library.vy",
-        output_formats=OUTPUT_FORMATS,
-        input_bundle=input_bundle,
-        source_id=2,
+
+    library_input = input_bundle.load_file("contracts/library.vy")
+    library = compile_from_file_input(
+        library_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
     )
-    bar = compile_code(
-        BAR_CODE,
-        contract_path="contracts/bar.vy",
-        output_formats=OUTPUT_FORMATS,
-        input_bundle=input_bundle,
-        source_id=3,
+
+    bar_input = input_bundle.load_file("contracts/bar.vy")
+    bar = compile_from_file_input(
+        bar_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
     )
 
     compile_code_results = {

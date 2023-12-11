@@ -288,10 +288,8 @@ def compile_from_input_dict(
                 # use load_file to get a unique source_id
                 file = input_bundle.load_file(contract_path)
                 assert isinstance(file, FileInput)  # mypy hint
-                data = vyper.compile_code(
-                    file.source_code,
-                    contract_path=file.path,
-                    source_id=file.source_id,
+                data = vyper.compile_from_file_input(
+                    file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
                     settings=settings,

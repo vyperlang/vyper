@@ -54,9 +54,9 @@ class CompilerData:
     def __init__(
         self,
         source_code: str,
-        input_bundle: InputBundle = None,
         contract_path: Path | PurePath = DEFAULT_CONTRACT_NAME,
         source_id: int = 0,
+        input_bundle: InputBundle = None,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,

@@ -73,7 +73,7 @@ class InputBundle:
     def _normalize_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._normalize_path()")
 
-    def _load_from_path(self, path):
+    def _load_from_path(self, resolved_path, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
     def _generate_source_id(self, path: PathLike) -> int:

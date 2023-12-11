@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Union
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.input_bundle import InputBundle, PathLike
+from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
@@ -44,11 +44,9 @@ OUTPUT_FORMATS = {
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
-def compile_code(
-    contract_source: str,
-    contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
+def compile_from_file_input(
+    file_input: FileInput,
     input_bundle: InputBundle = None,
-    source_id: int = -1,
     settings: Settings = None,
     output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
@@ -58,6 +56,8 @@ def compile_code(
     experimental_codegen: bool = False,
 ) -> dict:
     """
+    Main entry point into the compiler.
+
     Generate consumable compiler output(s) from a single contract source code.
     Basically, a wrapper around CompilerData which munges the output
     data into the requested output formats.
@@ -98,16 +98,13 @@ def compile_code(
     # make IR output the same between runs
     codegen.reset_names()
 
-    if isinstance(contract_path, str):
-        contract_path = Path(contract_path)
-
     # TODO: maybe at this point we might as well just pass a `FileInput`
-    # to `CompilerData`.
+    # directly to `CompilerData`.
     compiler_data = CompilerData(
-        contract_source,
+        file_input.source_code,
+        file_input.path,
+        file_input.source_id,
         input_bundle,
-        contract_path,
-        source_id,
         settings,
         storage_layout_override,
         show_gas_estimates,
@@ -125,8 +122,33 @@ def compile_code(
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(str(contract_path), exc)
+                    exc_handler(str(file_input.path), exc)
                 else:
                     raise exc
 
     return ret
+
+
+def compile_code(
+    source_code: str,
+    contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
+    source_id: int = -1,
+    resolved_path: PathLike | None = None,
+    *args,
+    **kwargs,
+):
+    # this function could be renamed to compile_from_string
+    """
+    Do the same thing as compile_from_file_input but takes a string for source
+    code. This was previously the main entry point into the compiler
+    # (`compile_from_file_input()` is newer)
+    """
+    if isinstance(contract_path, str):
+        contract_path = Path(contract_path)
+    file_input = FileInput(
+        source_id=source_id,
+        source_code=source_code,
+        path=contract_path,
+        resolved_path=resolved_path or contract_path,  # type: ignore
+    )
+    return compile_from_file_input(file_input, *args, **kwargs)
