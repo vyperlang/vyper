@@ -104,19 +104,19 @@ def test_keyerror_becomes_jsonerror(input_json):
 def test_compile_json(input_json, input_bundle):
     foo = compile_code(
         FOO_CODE,
-        contract_name="contracts/foo.vy",
+        contract_path="contracts/foo.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
     )
     library = compile_code(
         LIBRARY_CODE,
-        contract_name="contracts/library.vy",
+        contract_path="contracts/library.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
     )
     bar = compile_code(
         BAR_CODE,
-        contract_name="contracts/bar.vy",
+        contract_path="contracts/bar.vy",
         output_formats=OUTPUT_FORMATS,
         input_bundle=input_bundle,
     )
@@ -198,7 +198,7 @@ def test_different_outputs(input_bundle, input_json):
     # check method_identifiers
     method_identifiers = compile_code(
         FOO_CODE,
-        contract_name="contracts/foo.vy",
+        contract_path="contracts/foo.vy",
         output_formats=["method_identifiers"],
         input_bundle=input_bundle,
     )["method_identifiers"]

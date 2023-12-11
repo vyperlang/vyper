@@ -290,7 +290,7 @@ def compile_from_input_dict(
                 assert isinstance(file, FileInput)  # mypy hint
                 data = vyper.compile_code(
                     file.source_code,
-                    contract_name=str(file.path),
+                    contract_path=file.path,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
                     settings=settings,

@@ -55,7 +55,7 @@ interface One:
     def test(_owner: address): nonpayable
     """
 
-    out = compile_code(code, contract_name="One.vy", output_formats=["external_interface"])[
+    out = compile_code(code, contract_path="One.vy", output_formats=["external_interface"])[
         "external_interface"
     ]
 

@@ -46,7 +46,7 @@ UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 def compile_code(
     contract_source: str,
-    contract_name: str = UNKNOWN_CONTRACT_NAME,
+    contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
     input_bundle: InputBundle = None,
     settings: Settings = None,
     output_formats: Optional[OutputFormats] = None,
@@ -95,7 +95,8 @@ def compile_code(
     # make IR output the same between runs
     codegen.reset_names()
 
-    contract_path = Path(contract_name)
+    if isinstance(contract_path, str):
+        contract_path = Path(contract_path)
 
     source_id = 0
     if input_bundle is not None:
@@ -125,7 +126,7 @@ def compile_code(
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(contract_name, exc)
+                    exc_handler(str(contract_name), exc)
                 else:
                     raise exc
 

@@ -273,7 +273,7 @@ def compile_files(
 
         output = vyper.compile_code(
             file.source_code,
-            contract_name=str(file.path),
+            contract_path=file.path,
             input_bundle=input_bundle,
             output_formats=final_formats,
             exc_handler=exc_handler,
