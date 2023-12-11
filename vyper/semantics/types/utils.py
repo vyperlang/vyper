@@ -11,7 +11,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -115,6 +115,22 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             type_ctor = namespace["$SArrayT"]
 
         return type_ctor.from_annotation(node)
+
+    if isinstance(node, vy_ast.Attribute):
+        # ex. SomeModule.SomeStruct
+
+        # sanity check - we only allow modules/interfaces to be
+        # imported as `Name`s currently.
+        assert isinstance(node.value, vy_ast.Name)
+        module_or_interface = namespace[node.value.id]
+
+        interface = module_or_interface
+        if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
+            interface = module_or_interface.module_t.interface
+
+        type_t = interface.get_type_member(node.attr, node)
+        assert isinstance(type_t, TYPE_T)  # sanity check
+        return type_t.typedef
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation

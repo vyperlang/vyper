@@ -41,6 +41,10 @@ class ModuleT(VyperType):
     def events(self):
         return self._module.get_children(vy_ast.EventDef)
 
+    @property
+    def structs(self):
+        return self._module.get_children(vy_ast.StructDef)
+
     @cached_property
     def variables(self):
         # variables that this module defines, ex.

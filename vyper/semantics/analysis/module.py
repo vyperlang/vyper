@@ -371,6 +371,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_StructDef(node)
+        node._metadata["struct_type"] = struct_t
         self.namespace[node.name] = struct_t
 
     def _add_import(

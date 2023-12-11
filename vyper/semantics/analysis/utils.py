@@ -193,7 +193,7 @@ class _ExprAnalyser:
         try:
             s = t.get_member(name, node)
 
-            if isinstance(s, VyperType):
+            if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             if is_self_reference and (s.is_constant or s.is_immutable):

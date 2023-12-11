@@ -588,11 +588,8 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
         return None
-    if isinstance(funcdef.returns, (vy_ast.Name, vy_ast.Subscript, vy_ast.Tuple)):
-        # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
-        return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-
-    raise InvalidType("Function return value must be a type name or tuple", funcdef.returns)
+    # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
+    return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
 
 
 def _parse_decorators(

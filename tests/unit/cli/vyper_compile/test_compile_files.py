@@ -31,18 +31,15 @@ def test_invalid_root_path():
 
 
 CONTRACT_CODE = """
-{}
-
-struct FooStruct:
-    foo_: uint256
+{import_stmt}
 
 @external
-def foo() -> FooStruct:
-    return FooStruct({{foo_: 13}})
+def foo() -> {alias}.FooStruct:
+    return {alias}.FooStruct({{foo_: 13}})
 
 @external
-def bar(a: address) -> FooStruct:
-    return {}(a).bar()
+def bar(a: address) -> {alias}.FooStruct:
+    return {alias}(a).bar()
 """
 
 INTERFACE_CODE = """
@@ -74,7 +71,7 @@ SAME_FOLDER_IMPORT_STMT = [
 @pytest.mark.parametrize("import_stmt,alias", SAME_FOLDER_IMPORT_STMT)
 def test_import_same_folder(import_stmt, alias, tmp_path, make_file):
     foo = "contracts/foo.vy"
-    make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt, alias))
+    make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
@@ -96,7 +93,9 @@ SUBFOLDER_IMPORT_STMT = [
 
 @pytest.mark.parametrize("import_stmt, alias", SUBFOLDER_IMPORT_STMT)
 def test_import_subfolder(import_stmt, alias, tmp_path, make_file):
-    foo = make_file("contracts/foo.vy", (CONTRACT_CODE.format(import_stmt, alias)))
+    foo = make_file(
+        "contracts/foo.vy", (CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
+    )
     make_file("contracts/other/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
@@ -113,14 +112,17 @@ OTHER_FOLDER_IMPORT_STMT = [
 
 @pytest.mark.parametrize("import_stmt, alias", OTHER_FOLDER_IMPORT_STMT)
 def test_import_other_folder(import_stmt, alias, tmp_path, make_file):
-    foo = make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt, alias))
+    foo = make_file("contracts/foo.vy", CONTRACT_CODE.format(import_stmt=import_stmt, alias=alias))
     make_file("interfaces/IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
 
 
 def test_import_parent_folder(tmp_path, make_file):
-    foo = make_file("contracts/baz/foo.vy", CONTRACT_CODE.format("from ... import IFoo", "IFoo"))
+    foo = make_file(
+        "contracts/baz/foo.vy",
+        CONTRACT_CODE.format(import_stmt="from ... import IFoo", alias="IFoo"),
+    )
     make_file("IFoo.vyi", INTERFACE_CODE)
 
     assert compile_files([foo], ["combined_json"], root_folder=tmp_path)
@@ -154,17 +156,13 @@ def be_known() -> FooStruct:
     code = f"""
 {import_stmt}
 
-# TODO: use ISelf.FooStruct
-struct FooStruct:
-    foo_: uint256
-
 @external
-def know_thyself(a: address) -> FooStruct:
+def know_thyself(a: address) -> ISelf.FooStruct:
     return ISelf(a).be_known()
 
 @external
-def be_known() -> FooStruct:
-    return FooStruct({{foo_: 42}})
+def be_known() -> ISelf.FooStruct:
+    return ISelf.FooStruct({{foo_: 42}})
     """
     make_file("contracts/ISelf.vyi", interface_code)
     meta = make_file("contracts/Self.vy", code)
@@ -178,15 +176,12 @@ def test_another_interface_implementation(import_stmt_foo, alias, tmp_path, make
     baz_code = f"""
 {import_stmt_foo}
 
-struct FooStruct:
-    foo_: uint256
-
 @external
-def foo(a: address) -> FooStruct:
+def foo(a: address) -> {alias}.FooStruct:
     return {alias}(a).foo()
 
 @external
-def bar(_foo: address) -> FooStruct:
+def bar(_foo: address) -> {alias}.FooStruct:
     return {alias}(_foo).bar()
     """
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
@@ -226,7 +221,7 @@ struct FooStruct:
 def test_compile_outside_root_path(tmp_path, make_file):
     # absolute paths relative to "."
     make_file("ifoo.vyi", INTERFACE_CODE)
-    foo = make_file("foo.vy", CONTRACT_CODE.format("import ifoo as IFoo", "IFoo"))
+    foo = make_file("foo.vy", CONTRACT_CODE.format(import_stmt="import ifoo as IFoo", alias="IFoo"))
 
     assert compile_files([foo], ["combined_json"], root_folder=".")
 

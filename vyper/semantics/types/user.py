@@ -19,7 +19,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
@@ -44,7 +44,7 @@ class _UserType(VyperType):
         # only one time. however, the alternative requires reasoning
         # about both the name and source (module or json abi) of
         # the type.
-        return self == other
+        return self is other
 
     def __hash__(self):
         return hash(id(self))
@@ -292,210 +292,6 @@ class EventT(_UserType):
         ]
 
 
-class InterfaceT(_UserType):
-    _type_members = {"address": AddressT()}
-    _is_prim_word = True
-    _as_array = True
-    _as_hashmap_key = True
-
-    def __init__(self, _id: str, functions: dict, events: dict) -> None:
-        validate_unique_method_ids(list(functions.values()))
-
-        # TODO include events in the super() constructor
-        super().__init__(functions)
-        self._id = _id
-        self.events = events
-
-    @property
-    def getter_signature(self):
-        return (), AddressT()
-
-    @property
-    def abi_type(self) -> ABIType:
-        return ABI_Address()
-
-    def __repr__(self):
-        return f"interface {self._id}"
-
-    # when using the type itself (not an instance) in the call position
-    def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
-        self._ctor_arg_types(node)
-        return self
-
-    def _ctor_arg_types(self, node):
-        validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressT())
-        return [AddressT()]
-
-    def _ctor_kwarg_types(self, node):
-        return {}
-
-    # TODO x.validate_implements(other)
-    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
-        namespace = get_namespace()
-        unimplemented = []
-
-        def _is_function_implemented(fn_name, fn_type):
-            vyper_self = namespace["self"].typ
-            if fn_name not in vyper_self.members:
-                return False
-            s = vyper_self.members[fn_name]
-            if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.members[fn_name]
-            # this is kludgy, rework order of passes in ModuleNodeVisitor
-            elif isinstance(s, VarInfo) and s.is_public:
-                to_compare = s.decl_node._metadata["getter_type"]
-            else:
-                return False
-
-            return to_compare.implements(fn_type)
-
-        # check for missing functions
-        for name, type_ in self.members.items():
-            if not isinstance(type_, ContractFunctionT):
-                # ex. address
-                continue
-
-            if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
-
-        # check for missing events
-        for name, event in self.events.items():
-            if name not in namespace:
-                unimplemented.append(name)
-                continue
-
-            if not isinstance(namespace[name], EventT):
-                unimplemented.append(f"{name} is not an event!")
-            if (
-                namespace[name].event_id != event.event_id
-                or namespace[name].indexed != event.indexed
-            ):
-                unimplemented.append(f"{name} is not implemented! (should be {event})")
-
-        if len(unimplemented) > 0:
-            # TODO: improve the error message for cases where the
-            # mismatch is small (like mutability, or just one argument
-            # is off, etc).
-            missing_str = ", ".join(sorted(unimplemented))
-            raise InterfaceViolation(
-                f"Contract does not implement all interface functions or events: {missing_str}",
-                node,
-            )
-
-    def to_toplevel_abi_dict(self) -> list[dict]:
-        abi = []
-        for event in self.events.values():
-            abi += event.to_toplevel_abi_dict()
-        for func in self.functions.values():
-            abi += func.to_toplevel_abi_dict()
-        return abi
-
-    @property
-    def functions(self):
-        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunctionT)}
-
-    # helper function which performs namespace collision checking
-    @classmethod
-    def _from_lists(
-        cls,
-        name: str,
-        function_list: list[tuple[str, ContractFunctionT]],
-        event_list: list[tuple[str, EventT]],
-    ) -> "InterfaceT":
-        functions = {}
-        events = {}
-        for name, function in function_list:
-            if name in functions:
-                raise NamespaceCollision(f"multiple functions named '{name}'!", function.ast_def)
-            functions[name] = function
-
-        for name, event in event_list:
-            if name in functions or name in events:
-                raise NamespaceCollision(
-                    f"multiple functions or events named '{name}'!", event.decl_node
-                )
-            events[name] = event
-
-        return cls(name, functions, events)
-
-    @classmethod
-    def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
-        """
-        Generate an `InterfaceT` object from an ABI.
-
-        Arguments
-        ---------
-        name : str
-            The name of the interface
-        abi : dict
-            Contract ABI
-
-        Returns
-        -------
-        InterfaceT
-            primitive interface type
-        """
-        functions: list = []
-        events: list = []
-
-        for item in [i for i in abi if i.get("type") == "function"]:
-            functions.append((item["name"], ContractFunctionT.from_abi(item)))
-        for item in [i for i in abi if i.get("type") == "event"]:
-            events.append((item["name"], EventT.from_abi(item)))
-
-        return cls._from_lists(name, functions, events)
-
-    @classmethod
-    def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
-        """
-        Generate an `InterfaceT` object from a Vyper ast node.
-
-        Arguments
-        ---------
-        module_t: ModuleT
-            Vyper module type
-        Returns
-        -------
-        InterfaceT
-            primitive interface type
-        """
-        funcs = []
-
-        for node in module_t.functions:
-            func_t = node._metadata["func_type"]
-            if not func_t.is_external:
-                continue
-            funcs.append((node.name, func_t))
-
-        # add getters for public variables since they aren't yet in the AST
-        for node in module_t._module.get_children(vy_ast.VariableDecl):
-            if not node.is_public:
-                continue
-            getter = node._metadata["getter_type"]
-            funcs.append((node.target.id, getter))
-
-        events = [(node.name, node._metadata["event_type"]) for node in module_t.events]
-
-        return cls._from_lists(module_t._id, funcs, events)
-
-    @classmethod
-    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
-        functions = []
-        for node in node.body:
-            if not isinstance(node, vy_ast.FunctionDef):
-                raise StructureException("Interfaces can only contain function definitions", node)
-            if len(node.decorator_list) > 0:
-                raise StructureException(
-                    "Function definition in interface cannot be decorated", node.decorator_list[0]
-                )
-            functions.append((node.name, ContractFunctionT.from_InterfaceDef(node)))
-
-        events: list = []
-
-        return cls._from_lists(node.name, functions, events)
-
-
 class StructT(_UserType):
     _as_array = True
 
@@ -620,3 +416,235 @@ class StructT(_UserType):
             )
 
         return self
+
+
+class InterfaceT(_UserType):
+    _type_members = {"address": AddressT()}
+    _is_prim_word = True
+    _as_array = True
+    _as_hashmap_key = True
+
+    def __init__(self, _id: str, functions: dict, events: dict, structs: dict) -> None:
+        validate_unique_method_ids(list(functions.values()))
+
+        members = functions | events | structs
+
+        # sanity check: by construction, there should be no duplicates.
+        assert len(members) == len(functions) + len(events) + len(structs)
+
+        super().__init__(functions)
+
+        self._helper = VyperType(events | structs)
+        self._id = _id
+        self.functions = functions
+        self.events = events
+        self.structs = structs
+
+    def get_type_member(self, attr, node):
+        # get an event or struct from this interface
+        return TYPE_T(self._helper.get_member(attr, node))
+
+    @property
+    def getter_signature(self):
+        return (), AddressT()
+
+    @property
+    def abi_type(self) -> ABIType:
+        return ABI_Address()
+
+    def __repr__(self):
+        return f"interface {self._id}"
+
+    # when using the type itself (not an instance) in the call position
+    def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
+        self._ctor_arg_types(node)
+        return self
+
+    def _ctor_arg_types(self, node):
+        validate_call_args(node, 1)
+        validate_expected_type(node.args[0], AddressT())
+        return [AddressT()]
+
+    def _ctor_kwarg_types(self, node):
+        return {}
+
+    # TODO x.validate_implements(other)
+    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
+        namespace = get_namespace()
+        unimplemented = []
+
+        def _is_function_implemented(fn_name, fn_type):
+            vyper_self = namespace["self"].typ
+            if fn_name not in vyper_self.members:
+                return False
+            s = vyper_self.functions[fn_name]
+            if isinstance(s, ContractFunctionT):
+                to_compare = vyper_self.functions[fn_name]
+            # this is kludgy, rework order of passes in ModuleNodeVisitor
+            elif isinstance(s, VarInfo) and s.is_public:
+                to_compare = s.decl_node._metadata["getter_type"]
+            else:
+                return False
+
+            return to_compare.implements(fn_type)
+
+        # check for missing functions
+        for name, type_ in self.functions.items():
+            if not isinstance(type_, ContractFunctionT):
+                # ex. address
+                continue
+
+            if not _is_function_implemented(name, type_):
+                unimplemented.append(name)
+
+        # check for missing events
+        for name, event in self.events.items():
+            if name not in namespace:
+                unimplemented.append(name)
+                continue
+
+            if not isinstance(namespace[name], EventT):
+                unimplemented.append(f"{name} is not an event!")
+            if (
+                namespace[name].event_id != event.event_id
+                or namespace[name].indexed != event.indexed
+            ):
+                unimplemented.append(f"{name} is not implemented! (should be {event})")
+
+        if len(unimplemented) > 0:
+            # TODO: improve the error message for cases where the
+            # mismatch is small (like mutability, or just one argument
+            # is off, etc).
+            missing_str = ", ".join(sorted(unimplemented))
+            raise InterfaceViolation(
+                f"Contract does not implement all interface functions or events: {missing_str}",
+                node,
+            )
+
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        abi = []
+        for event in self.events.values():
+            abi += event.to_toplevel_abi_dict()
+        for func in self.functions.values():
+            abi += func.to_toplevel_abi_dict()
+        return abi
+
+    # helper function which performs namespace collision checking
+    @classmethod
+    def _from_lists(
+        cls,
+        name: str,
+        function_list: list[tuple[str, ContractFunctionT]],
+        event_list: list[tuple[str, EventT]],
+        struct_list: list[tuple[str, StructT]],
+    ) -> "InterfaceT":
+        functions = {}
+        events = {}
+        structs = {}
+
+        seen_items = {}
+
+        for name, function in function_list:
+            if name in seen_items:
+                raise NamespaceCollision(f"multiple functions named '{name}'!", function.ast_def)
+            functions[name] = function
+            seen_items[name] = function
+
+        for name, event in event_list:
+            if name in seen_items:
+                raise NamespaceCollision(
+                    f"multiple functions or events named '{name}'!", event.decl_node
+                )
+            events[name] = event
+            seen_items[name] = event
+
+        for name, struct in struct_list:
+            if name in seen_items:
+                raise NamespaceCollision(
+                    f"multiple functions or events named '{name}'!", event.decl_node
+                )
+            structs[name] = struct
+            seen_items[name] = struct
+
+        return cls(name, functions, events, structs)
+
+    @classmethod
+    def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
+        """
+        Generate an `InterfaceT` object from an ABI.
+
+        Arguments
+        ---------
+        name : str
+            The name of the interface
+        abi : dict
+            Contract ABI
+
+        Returns
+        -------
+        InterfaceT
+            primitive interface type
+        """
+        functions: list = []
+        events: list = []
+
+        for item in [i for i in abi if i.get("type") == "function"]:
+            functions.append((item["name"], ContractFunctionT.from_abi(item)))
+        for item in [i for i in abi if i.get("type") == "event"]:
+            events.append((item["name"], EventT.from_abi(item)))
+
+        structs = []  # no structs in json ABI (as of yet)
+        return cls._from_lists(name, functions, events, structs)
+
+    @classmethod
+    def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
+        """
+        Generate an `InterfaceT` object from a Vyper ast node.
+
+        Arguments
+        ---------
+        module_t: ModuleT
+            Vyper module type
+        Returns
+        -------
+        InterfaceT
+            primitive interface type
+        """
+        funcs = []
+
+        for node in module_t.functions:
+            func_t = node._metadata["func_type"]
+            if not func_t.is_external:
+                continue
+            funcs.append((node.name, func_t))
+
+        # add getters for public variables since they aren't yet in the AST
+        for node in module_t._module.get_children(vy_ast.VariableDecl):
+            if not node.is_public:
+                continue
+            getter = node._metadata["getter_type"]
+            funcs.append((node.target.id, getter))
+
+        events = [(node.name, node._metadata["event_type"]) for node in module_t.events]
+
+        structs = [(node.name, node._metadata["struct_type"]) for node in module_t.structs]
+
+        return cls._from_lists(module_t._id, funcs, events, structs)
+
+    @classmethod
+    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
+        functions = []
+        for node in node.body:
+            if not isinstance(node, vy_ast.FunctionDef):
+                raise StructureException("Interfaces can only contain function definitions", node)
+            if len(node.decorator_list) > 0:
+                raise StructureException(
+                    "Function definition in interface cannot be decorated", node.decorator_list[0]
+                )
+            functions.append((node.name, ContractFunctionT.from_InterfaceDef(node)))
+
+        # no structs or events in InterfaceDefs
+        events: list = []
+        structs: list = []
+
+        return cls._from_lists(node.name, functions, events, structs)
