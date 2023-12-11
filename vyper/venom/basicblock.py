@@ -236,6 +236,16 @@ class IRInstruction:
             if operand in replacements:
                 self.operands[i] = replacements[operand]
 
+    def replace_label_operands(self, replacements: dict) -> None:
+        """
+        Update label operands with replacements.
+        replacements are represented using a dict: "key" is replaced by "value".
+        """
+        replacements = {k.value: v for k, v in replacements.items()}
+        for i, operand in enumerate(self.operands):
+            if isinstance(operand, IRLabel) and operand.value in replacements:
+                self.operands[i] = replacements[operand.value]
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
