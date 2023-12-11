@@ -101,9 +101,7 @@ def compile_from_file_input(
     # TODO: maybe at this point we might as well just pass a `FileInput`
     # directly to `CompilerData`.
     compiler_data = CompilerData(
-        file_input.source_code,
-        file_input.path,
-        file_input.source_id,
+        file_input,
         input_bundle,
         settings,
         storage_layout_override,

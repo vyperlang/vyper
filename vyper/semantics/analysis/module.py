@@ -384,7 +384,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     # raises FileNotFoundError
     def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
         # the directory this (currently being analyzed) module is in
-        self_search_path = Path(self.ast.path).parent
+        self_search_path = Path(self.ast.resolved_path).parent
 
         with self.input_bundle.poke_search_path(self_search_path):
             return self._load_import_helper(node, level, module_str, alias)
@@ -444,12 +444,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             pass
 
+        # copy search_paths, makes debugging a bit easier
+        search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, node) from err
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
-    path = str(file.path)
-    ret = vy_ast.parse_to_ast(file.source_code, module_path=path, source_id=file.source_id)
+    ret = vy_ast.parse_to_ast(
+        file.source_code,
+        source_id=file.source_id,
+        module_path=str(file.path),
+        resolved_path=str(file.resolved_path),
+    )
     vy_ast.validation.validate_literal_nodes(ret)
     vy_ast.folding.fold(ret)
 

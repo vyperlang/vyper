@@ -8,7 +8,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
@@ -53,9 +53,7 @@ class CompilerData:
 
     def __init__(
         self,
-        source_code: str,
-        contract_path: Path | PurePath = DEFAULT_CONTRACT_NAME,
-        source_id: int = 0,
+        file_input: FileInput,
         input_bundle: InputBundle = None,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
@@ -68,12 +66,8 @@ class CompilerData:
 
         Arguments
         ---------
-        source_code: str
-            Vyper source code.
-        contract_path: Path, optional
-            The name of the contract being compiled.
-        source_id: int, optional
-            ID number used to identify this contract in the source map.
+        file_input: FileInput
+            A FileInput representing the input to the compiler
         settings: Settings
             Set optimization mode.
         show_gas_estimates: bool, optional
@@ -85,9 +79,7 @@ class CompilerData:
         """
         # to force experimental codegen, uncomment:
         # experimental_codegen = True
-        self.contract_path = contract_path
-        self.source_code = source_code
-        self.source_id = source_id
+        self.file_input = file_input
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
@@ -98,9 +90,24 @@ class CompilerData:
         _ = self._generate_ast  # force settings to be calculated
 
     @cached_property
+    def source_code(self):
+        return self.file_input.source_code
+
+    @cached_property
+    def source_id(self):
+        return self.file_input.source_id
+
+    @cached_property
+    def contract_path(self):
+        return self.file_input.path
+
+    @cached_property
     def _generate_ast(self):
         settings, ast = vy_ast.parse_to_ast_with_settings(
-            self.source_code, self.source_id, module_path=str(self.contract_path)
+            self.source_code,
+            self.source_id,
+            module_path=str(self.contract_path),
+            resolved_path=str(self.file_input.resolved_path),
         )
 
         # validate the compiler settings
@@ -142,12 +149,12 @@ class CompilerData:
         # This phase is intended to generate an AST for tooling use, and is not
         # used in the compilation process.
 
-        return generate_unfolded_ast(self.contract_path, self.vyper_module, self.input_bundle)
+        return generate_unfolded_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.contract_path, self.vyper_module, self.input_bundle, self.storage_layout_override
+            self.vyper_module, self.input_bundle, self.storage_layout_override
         )
 
     @property
@@ -232,13 +239,11 @@ class CompilerData:
 
 
 # destructive -- mutates module in place!
-def generate_unfolded_ast(
-    contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
-) -> vy_ast.Module:
+def generate_unfolded_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
     vy_ast.folding.replace_builtin_functions(vyper_module)
 
-    with input_bundle.search_path(contract_path.parent):
+    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: validate_semantics does type inference on the AST
         validate_semantics(vyper_module, input_bundle)
 
@@ -246,7 +251,6 @@ def generate_unfolded_ast(
 
 
 def generate_folded_ast(
-    contract_path: Path,
     vyper_module: vy_ast.Module,
     input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
@@ -272,7 +276,7 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
-    with input_bundle.search_path(contract_path.parent):
+    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         validate_semantics(vyper_module_folded, input_bundle)
 
     symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
