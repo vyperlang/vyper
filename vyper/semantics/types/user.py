@@ -509,7 +509,7 @@ class InterfaceT(_UserType):
 class StructT(_UserType):
     _as_array = True
 
-    def __init__(self, _id, members, module, ast_def=None):
+    def __init__(self, _id, members, module=None, ast_def=None):
         super().__init__(module, members)
 
         self._id = _id
