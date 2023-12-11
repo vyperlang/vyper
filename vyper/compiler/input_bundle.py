@@ -15,7 +15,11 @@ PathLike = Path | PurePath
 class CompilerInput:
     # an input to the compiler, basically an abstraction for file contents
     source_id: int
-    path: PathLike
+    path: PathLike  # the path that was asked for
+
+    # resolved_path is the real path that was resolved to.
+    # mainly handy for debugging at this point
+    resolved_path: PathLike
 
 
 @dataclass
@@ -35,7 +39,7 @@ class ABIInput(CompilerInput):
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
-        return ABIInput(file_input.source_id, file_input.path, s)
+        return ABIInput(file_input.source_id, file_input.path, file_input.resolved_path, s)
     except (ValueError, TypeError):
         return file_input
 
@@ -89,10 +93,10 @@ class InputBundle:
             # > If the argument is an absolute path, the previous path is ignored.
             # Path("/a") / Path("/b") => Path("/b")
             to_try = sp / path
-
             to_try = self._normalize_path(to_try)
+
             try:
-                res = self._load_from_path(to_try)
+                res = self._load_from_path(to_try, path)
                 break
             except _NotFound:
                 tried.append(to_try)
@@ -148,18 +152,18 @@ class FilesystemInputBundle(InputBundle):
         # normalize the path with os.path.normpath, to break down
         # things like "foo/bar/../x.vy" => "foo/x.vy", with all
         # the caveats around symlinks that os.path.normpath comes with.
-        return path.resolve()
+        return path.resolve(strict=True)
 
-    def _load_from_path(self, path: Path) -> CompilerInput:
+    def _load_from_path(self, resolved_path: Path, original_path: Path) -> CompilerInput:
         try:
-            with path.open() as f:
+            with resolved_path.open() as f:
                 code = f.read()
         except (FileNotFoundError, NotADirectoryError):
-            raise _NotFound(path)
+            raise _NotFound(resolved_path)
 
-        source_id = super()._generate_source_id(path)
+        source_id = super()._generate_source_id(resolved_path)
 
-        return FileInput(source_id, path, code)
+        return FileInput(source_id, original_path, resolved_path, code)
 
 
 # wrap os.path.normpath, but return the same type as the input
@@ -181,28 +185,28 @@ class JSONInputBundle(InputBundle):
 
             # should be checked by caller
             assert path not in self.input_json
-            self.input_json[_normpath(path)] = item
+            self.input_json[path] = item
 
     def _normalize_path(self, path: PurePath) -> PurePath:
         return _normpath(path)
 
-    def _load_from_path(self, path: PurePath) -> CompilerInput:
+    def _load_from_path(self, resolved_path: PurePath, original_path: PurePath) -> CompilerInput:
         try:
-            value = self.input_json[path]
+            value = self.input_json[resolved_path]
         except KeyError:
-            raise _NotFound(path)
+            raise _NotFound(resolved_path)
 
-        source_id = super()._generate_source_id(path)
+        source_id = super()._generate_source_id(resolved_path)
 
         if "content" in value:
-            return FileInput(source_id, path, value["content"])
+            return FileInput(source_id, original_path, resolved_path, value["content"])
 
         if "abi" in value:
-            return ABIInput(source_id, path, value["abi"])
+            return ABIInput(source_id, original_path, resolved_path, value["abi"])
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
 
         # unreachable, based on how JSONInputBundle is constructed in
         # the codebase.
-        raise JSONError(f"Unexpected type in file: '{path}'")  # pragma: nocover
+        raise JSONError(f"Unexpected type in file: '{resolved_path}'")  # pragma: nocover
