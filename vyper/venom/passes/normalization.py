@@ -25,10 +25,8 @@ class NormalizationPass(IRPass):
                 jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRVariable)
             ):
                 self._insert_split_basicblock(bb, in_bb)
-            else:
-                continue
-
-            self.changes += 1
+                self.changes += 1
+                break
 
     def _insert_split_basicblock(self, bb: IRBasicBlock, in_bb: IRBasicBlock) -> IRBasicBlock:
         # Create an intermediary basic block and append it
@@ -37,7 +35,7 @@ class NormalizationPass(IRPass):
 
         split_label = IRLabel(f"{target}_split_{source}")
         in_terminal = in_bb.instructions[-1]
-        in_terminal.replace_operands({bb.label: split_label})
+        in_terminal.replace_label_operands({bb.label: split_label})
 
         split_bb = IRBasicBlock(split_label, self.ctx)
         split_bb.append_instruction("jmp", bb.label)
