@@ -402,9 +402,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.get_basic_block().append_instruction(
-                "store", then_ret_val
-            )
+            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
 
         current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
