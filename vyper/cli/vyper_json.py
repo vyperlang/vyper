@@ -232,7 +232,7 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
-        outputs = list(outputs)
+        outputs = sorted(list(outputs))
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]

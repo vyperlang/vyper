@@ -123,8 +123,8 @@ def test_compile_json(input_json, input_bundle):
 
     compile_code_results = {
         "contracts/bar.vy": bar,
-        "contracts/foo.vy": foo,
         "contracts/library.vy": library,
+        "contracts/foo.vy": foo,
     }
 
     output_json = compile_json(input_json)
