@@ -195,12 +195,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
 
-        # if it's a ModuleInfo, grab the interface from it
-        # this is a kludge until we define better semantics for
-        # `implements: my_module`
-        if isinstance(type_, ModuleInfo):
-            type_ = type_.module_t.interface
-
         if not isinstance(type_, InterfaceT):
             raise StructureException("Invalid interface name", node.annotation)
 
