@@ -188,7 +188,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # two ASTs produced from the same source
         ast_of = self.input_bundle._cache._ast_of
         if file.source_id not in ast_of:
-            ast_of[file.source_id] = _parse_and_fold_ast(file.source_code, str(file.path))
+            ast_of[file.source_id] = _parse_and_fold_ast(file)
 
         return ast_of[file.source_id]
 
@@ -447,8 +447,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         raise ModuleNotFound(module_str, node) from err
 
 
-def _parse_and_fold_ast(source_code, path=None):
-    ret = vy_ast.parse_to_ast(source_code, module_path=path)
+def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
+    path = str(file.path)
+    ret = vy_ast.parse_to_ast(file.source_code, module_path=path, source_id=file.source_id)
     vy_ast.validation.validate_literal_nodes(ret)
     vy_ast.folding.fold(ret)
 
@@ -503,7 +504,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = _parse_and_fold_ast(file.source_code, path=path)
+    interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
         module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
