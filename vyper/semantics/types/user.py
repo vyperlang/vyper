@@ -441,7 +441,7 @@ class InterfaceT(_UserType):
         self.events = events
         self.structs = structs
 
-    def get_type(self, attr, node):
+    def get_type_member(self, attr, node):
         # get an event or struct from this interface
         return TYPE_T(self._helper.get_member(attr, node))
 
