@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
 
@@ -31,8 +31,31 @@ VOLATILE_INSTRUCTIONS = frozenset(
     ]
 )
 
-CFG_ALTERING_OPS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
+NO_OUTPUT_INSTRUCTIONS = frozenset(
+    [
+        "deploy",
+        "mstore",
+        "sstore",
+        "dstore",
+        "istore",
+        "dloadbytes",
+        "calldatacopy",
+        "codecopy",
+        "return",
+        "ret",
+        "revert",
+        "assert",
+        "selfdestruct",
+        "stop",
+        "invalid",
+        "invoke",
+        "jmp",
+        "jnz",
+        "log",
+    ]
+)
 
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -40,8 +63,8 @@ if TYPE_CHECKING:
 
 class IRDebugInfo:
     """
-    IRDebugInfo represents debug information in IR, used to annotate IR instructions
-    with source code information when printing IR.
+    IRDebugInfo represents debug information in IR, used to annotate IR
+    instructions with source code information when printing IR.
     """
 
     line_no: int
@@ -83,7 +106,7 @@ class IRLiteral(IRValue):
     value: int
 
     def __init__(self, value: int) -> None:
-        assert isinstance(value, str) or isinstance(value, int), "value must be an int"
+        assert isinstance(value, int), "value must be an int"
         self.value = value
 
     def __repr__(self) -> str:
@@ -170,7 +193,7 @@ class IRInstruction:
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
-        self.operands = [op for op in operands]  # in case we get an iterator
+        self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
@@ -233,6 +256,14 @@ class IRInstruction:
         return s
 
 
+def _ir_operand_from_value(val: Any) -> IROperand:
+    if isinstance(val, IROperand):
+        return val
+
+    assert isinstance(val, int)
+    return IRLiteral(val)
+
+
 class IRBasicBlock:
     """
     IRBasicBlock represents a basic block in IR. Each basic block has a label and
@@ -243,8 +274,8 @@ class IRBasicBlock:
         %2 = mul %1, 2
     is represented as:
         bb = IRBasicBlock("bb", function)
-        bb.append_instruction(IRInstruction("add", ["%0", "1"], "%1"))
-        bb.append_instruction(IRInstruction("mul", ["%1", "2"], "%2"))
+        r1 = bb.append_instruction("add", "%0", "1")
+        r2 = bb.append_instruction("mul", r1, "2")
 
     The label of a basic block is used to refer to it from other basic blocks
     in order to branch to it.
@@ -296,10 +327,41 @@ class IRBasicBlock:
     def is_reachable(self) -> bool:
         return len(self.cfg_in) > 0
 
-    def append_instruction(self, instruction: IRInstruction) -> None:
-        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
-        instruction.parent = self
-        self.instructions.append(instruction)
+    def append_instruction(self, opcode: str, *args: Union[IROperand, int]) -> Optional[IRVariable]:
+        """
+        Append an instruction to the basic block
+
+        Returns the output variable if the instruction supports one
+        """
+        ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
+
+        # Wrap raw integers in IRLiterals
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
+
+        inst = IRInstruction(opcode, inst_args, ret)
+        inst.parent = self
+        self.instructions.append(inst)
+        return ret
+
+    def append_invoke_instruction(
+        self, args: list[IROperand | int], returns: bool
+    ) -> Optional[IRVariable]:
+        """
+        Append an instruction to the basic block
+
+        Returns the output variable if the instruction supports one
+        """
+        ret = None
+        if returns:
+            ret = self.parent.get_next_variable()
+
+        # Wrap raw integers in IRLiterals
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
+
+        inst = IRInstruction("invoke", inst_args, ret)
+        inst.parent = self
+        self.instructions.append(inst)
+        return ret
 
     def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
