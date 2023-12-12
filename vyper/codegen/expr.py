@@ -81,7 +81,7 @@ class Expr:
 
         self.ir_node = fn()
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.", node)
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
@@ -690,7 +690,7 @@ class Expr:
             return pop_dyn_array(darray, return_popped_item=True)
 
         if isinstance(func_type, ContractFunctionT):
-            if self.expr.func._metadata["type"].is_internal:
+            if func_type.is_internal:
                 return self_call.ir_for_self_call(self.expr, self.context)
             else:
                 return external_call.ir_for_external_call(self.expr, self.context)
