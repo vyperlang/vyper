@@ -778,7 +778,6 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         exit_block = IRBasicBlock(ctx.get_next_label(), ctx)
 
         counter_inc_var = ctx.get_next_variable()
-        ret = ctx.get_next_variable()
 
         counter_var = ctx.get_basic_block().append_instruction("store", start)
         symbols[sym.value] = counter_var
