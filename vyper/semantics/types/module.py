@@ -2,7 +2,7 @@ from functools import cached_property
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import VyperType, TYPE_T
 from vyper.semantics.types.user import InterfaceT
 
 
@@ -22,6 +22,15 @@ class ModuleT(VyperType):
         for f in self.functions:
             # note: this checks for collisions
             self.add_member(f.name, f._metadata["func_type"])
+
+        for e in self.events:
+            # add the type of the event so it can be used in call position
+            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))
+
+        for s in self.structs:
+            # add the type of the struct so it can be used in call position
+            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
+
 
     def __eq__(self, other):
         return self is other

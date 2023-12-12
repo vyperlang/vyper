@@ -138,3 +138,35 @@ def bar():
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     c = get_contract(contract_source, input_bundle=input_bundle)
     assert not hasattr(c, "foo")
+
+def test_library_structs(get_contract, make_input_bundle):
+    library_source = """
+struct SomeStruct:
+    x: uint256
+
+@internal
+def foo() -> SomeStruct:
+    return SomeStruct({x: 1})
+    """
+    contract_source = """
+import library
+
+@external
+def bar(s: library.SomeStruct):
+    pass
+
+@external
+def baz() -> library.SomeStruct:
+    return library.SomeStruct({x: 2})
+
+@external
+def qux() -> library.SomeStruct:
+    return library.foo()
+    """
+    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+    c = get_contract(contract_source, input_bundle=input_bundle)
+
+    assert c.bar((1,)) == []
+
+    assert c.baz() == (2,)
+    assert c.qux() == (1,)
