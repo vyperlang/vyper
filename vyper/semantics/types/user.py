@@ -543,7 +543,7 @@ class InterfaceT(_UserType):
         events = {}
         structs = {}
 
-        seen_items = {}
+        seen_items: dict = {}
 
         for name, function in function_list:
             if name in seen_items:
@@ -594,7 +594,7 @@ class InterfaceT(_UserType):
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
 
-        structs = []  # no structs in json ABI (as of yet)
+        structs: list = []  # no structs in json ABI (as of yet)
         return cls._from_lists(name, functions, events, structs)
 
     @classmethod

@@ -124,10 +124,7 @@ class Stmt:
 
         func_type = self.stmt.func._metadata["type"]
 
-        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in (
-            "append",
-            "pop",
-         ):
+        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":

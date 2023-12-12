@@ -65,6 +65,7 @@ def library_foo() -> uint256:
     assert c.self_foo() == 100
     assert c.library_foo() == 10
 
+
 def test_transitive_import(get_contract, make_input_bundle):
     a = """
 @internal
@@ -119,6 +120,7 @@ def bar():
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     with pytest.raises(CallViolation):
         compiler.compile_code(contract_source, input_bundle=input_bundle)
+
 
 def test_library_external_functions_not_in_abi(get_contract, make_input_bundle):
     library_source = """
