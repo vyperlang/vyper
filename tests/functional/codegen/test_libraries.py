@@ -35,7 +35,9 @@ def test_import_cycle(make_input_bundle):
         compiler.compile_code(code_a, input_bundle=input_bundle)
 
 
-def test_function_name_collision(get_contract, make_input_bundle):
+# test we can have a function in the library with the same name as
+# in the main contract
+def test_library_function_same_name(get_contract, make_input_bundle):
     library = """
 @internal
 def foo() -> uint256:
