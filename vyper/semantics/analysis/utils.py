@@ -200,9 +200,9 @@ class _ExprAnalyser:
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
-        except UnknownAttribute:
+        except UnknownAttribute as e:
             if not is_self_reference:
-                raise
+                raise e from None
             if name in self.namespace:
                 _raise_invalid_reference(name, node)
 
