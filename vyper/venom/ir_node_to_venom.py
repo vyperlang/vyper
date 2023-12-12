@@ -143,7 +143,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = [IRLabel(target_label)]  # type: ignore
+    ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
 
     for arg in args_ir:
         if arg.is_literal:
@@ -166,15 +166,14 @@ def _handle_self_call(
         ret_args.append(IRLiteral(return_buf.value))  # type: ignore
 
     bb = ctx.get_basic_block()
+
     do_ret = func_t.return_type is not None
     if do_ret:
-        invoke_ret = ctx.get_next_variable()
-        bb.append_instruction("invoke", *ret_args)
-        bb.instructions[-1].output = invoke_ret
+        invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
         allocated_variables["return_buffer"] = invoke_ret  # type: ignore
         return invoke_ret
     else:
-        bb.append_instruction("invoke", *ret_args)
+        bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
         return None
 
 
