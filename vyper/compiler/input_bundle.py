@@ -76,14 +76,14 @@ class InputBundle:
     def _load_from_path(self, resolved_path, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
-    def _generate_source_id(self, path: PathLike) -> int:
+    def _generate_source_id(self, resolved_path: PathLike) -> int:
         # Note: it is possible for a file to get in here more than once,
         # e.g. by symlink
-        if path not in self._source_ids:
-            self._source_ids[path] = self._source_id_counter
+        if resolved_path not in self._source_ids:
+            self._source_ids[resolved_path] = self._source_id_counter
             self._source_id_counter += 1
 
-        return self._source_ids[path]
+        return self._source_ids[resolved_path]
 
     def load_file(self, path: PathLike | str) -> CompilerInput:
         # search path precedence
