@@ -174,11 +174,11 @@ def test_compilation_targets(input_json):
         "contracts/library.vy",
         "contracts/bar.vy",
     ]
-    output_json = compile_json(input_json)
 
     # omit library.vy
     input_json["settings"]["outputSelection"] = {"contracts/foo.vy": "*", "contracts/bar.vy": "*"}
     output_json = compile_json(input_json)
+
     assert list(output_json["contracts"].keys()) == ["contracts/foo.vy", "contracts/bar.vy"]
 
 
