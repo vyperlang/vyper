@@ -44,10 +44,13 @@ class VyperType:
         A tuple of invalid `DataLocation`s for this type
     _is_prim_word: bool, optional
         This is a word type like uint256, int8, bytesM or address
-    _supports_external_calls: bool. optional
+    _supports_external_calls: bool, optional
         Whether or not this type supports external calls. Currently
         limited to `InterfaceT`s
-
+    _attribute_in_annotation: bool, optional
+        Whether or not this type can be attributed in a type
+        annotation, like IFoo.SomeType. Currently limited to
+        `InterfaceT`s.
     """
 
     _id: str
@@ -63,6 +66,7 @@ class VyperType:
     _as_hashmap_key: bool = False
 
     _supports_external_calls: bool = False
+    _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
 

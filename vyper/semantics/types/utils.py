@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InstantiationException,
     InvalidType,
     StructureException,
+    UndeclaredDefinition,
     UnknownType,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -96,10 +97,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     namespace = get_namespace()
 
     def _failwith(type_name):
-        suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
-        raise UnknownType(
-            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
-        ) from None
+        raise InvalidType(f"'{node.node_source_code}' is not a type!", node) from None
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
@@ -121,12 +119,19 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
         # sanity check - we only allow modules/interfaces to be
         # imported as `Name`s currently.
-        assert isinstance(node.value, vy_ast.Name)
-        module_or_interface = namespace[node.value.id]
+        if not isinstance(node.value, vy_ast.Name):
+            _failwith(node.node_source_code)
+        try:
+            module_or_interface = namespace[node.value.id]
+        except UndeclaredDefinition:
+            _failwith(node.node_source_code)
 
         interface = module_or_interface
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
             interface = module_or_interface.module_t.interface
+
+        if not interface._attribute_in_annotation:
+            _failwith(node.node_source_code)
 
         type_t = interface.get_type_member(node.attr, node)
         assert isinstance(type_t, TYPE_T)  # sanity check
@@ -134,10 +139,14 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
-        raise InvalidType(f"'{node.node_source_code}' is not a type", node)
+        _failwith(node.node_source_code)
 
     if node.id not in namespace:
-        _failwith(node.node_source_code)
+        suggestions_str = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
+        raise UnknownType(
+            f"No builtin or user-defined type named '{node.node_source_code}'. {suggestions_str}",
+            node,
+        ) from None
 
     typ_ = namespace[node.id]
     if hasattr(typ_, "from_annotation"):
