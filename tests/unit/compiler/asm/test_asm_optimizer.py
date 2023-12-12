@@ -71,33 +71,32 @@ def __init__():
 ]
 
 
+# check dead code eliminator works on unreachable functions
 @pytest.mark.parametrize("code", codes)
 def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
-    initcode_asm = [i for i in c.assembly if not isinstance(i, list)]
-    runtime_asm = c.assembly_runtime
 
-    ctor_only_label = "_sym_internal_ctor_only___"
-    runtime_only_label = "_sym_internal_runtime_only___"
+    # get the labels
+    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
+    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
+
+    ctor_only = "ctor_only()"
+    runtime_only = "runtime_only()"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert ctor_only_label + "_deploy" in initcode_asm
-    assert runtime_only_label + "_deploy" not in initcode_asm
+    assert any(ctor_only in instr for instr in initcode_asm)
+    assert all(runtime_only not in instr for instr in initcode_asm)
 
     # all labels should be in unoptimized runtime asm
-    for s in (ctor_only_label, runtime_only_label):
-        assert s + "_runtime" in runtime_asm
+    for s in (ctor_only, runtime_only):
+        assert any(s in instr for instr in runtime_asm)
 
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.GAS))
-    initcode_asm = [i for i in c.assembly if not isinstance(i, list)]
-    runtime_asm = c.assembly_runtime
+    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
+    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
 
     # ctor only label should not be in runtime code
-    for instr in runtime_asm:
-        if isinstance(instr, str):
-            assert not instr.startswith(ctor_only_label), instr
+    assert all(ctor_only not in instr for instr in runtime_asm)
 
     # runtime only label should not be in initcode asm
-    for instr in initcode_asm:
-        if isinstance(instr, str):
-            assert not instr.startswith(runtime_only_label), instr
+    assert all(runtime_only not in instr for instr in initcode_asm)
