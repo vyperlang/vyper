@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ImportCycle, CallViolation
+from vyper.exceptions import CallViolation, ImportCycle, StructureException
 
 
 def test_simple_library(get_contract, make_input_bundle, w3):
@@ -139,6 +139,7 @@ def bar():
     c = get_contract(contract_source, input_bundle=input_bundle)
     assert not hasattr(c, "foo")
 
+
 def test_library_structs(get_contract, make_input_bundle):
     library_source = """
 struct SomeStruct:
@@ -170,3 +171,47 @@ def qux() -> library.SomeStruct:
 
     assert c.baz() == (2,)
     assert c.qux() == (1,)
+
+
+# test calls to library functions in statement position
+def test_library_statement_calls(get_contract, make_input_bundle, assert_tx_failed):
+    library_source = """
+from vyper.interfaces import ERC20
+@internal
+def check_adds_to_ten(x: uint256, y: uint256):
+    assert x + y == 10
+    """
+    contract_source = """
+import library
+
+counter: public(uint256)
+
+@external
+def foo(x: uint256):
+    library.check_adds_to_ten(3, x)
+    self.counter = x
+    """
+    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+
+    c = get_contract(contract_source, input_bundle=input_bundle)
+
+    c.foo(7, transact={})
+
+    assert c.counter() == 7
+
+    assert_tx_failed(lambda: c.foo(8))
+
+
+def test_library_is_typechecked(make_input_bundle):
+    library_source = """
+@internal
+def foo():
+    asdlkfjasdflkajsdf
+    """
+    contract_source = """
+import library
+    """
+
+    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+    with pytest.raises(StructureException):
+        compiler.compile_code(contract_source, input_bundle=input_bundle)

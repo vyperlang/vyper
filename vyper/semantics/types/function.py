@@ -19,8 +19,8 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
 from vyper.semantics.analysis.utils import (
     check_kwargable,
-    validate_expected_type,
     get_exact_type_from_node,
+    validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType

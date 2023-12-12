@@ -2,7 +2,7 @@ from functools import cached_property
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.semantics.types.base import VyperType, TYPE_T
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.user import InterfaceT
 
 
@@ -30,7 +30,6 @@ class ModuleT(VyperType):
         for s in self.structs:
             # add the type of the struct so it can be used in call position
             self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
-
 
     def __eq__(self, other):
         return self is other
