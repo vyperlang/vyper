@@ -13,9 +13,8 @@ from vyper.utils import OrderedSet, method_id_int
 
 
 def _topsort(functions):
-    #  single pass to get a global topological sort of functions (so that each
+    # single pass to get a global topological sort of functions (so that each
     # function comes after each of its callees).
-
     ret = OrderedSet()
     for func_ast in functions:
         fn_t = func_ast._metadata["func_type"]
@@ -40,7 +39,9 @@ def _globally_reachable_functions(functions):
         if not fn_t.is_external:
             continue
 
-        ret |= fn_t.reachable_internal_functions
+        for reachable_t in fn_t.reachable_internal_functions:
+            assert reachable_t.ast_def is not None
+            ret.add(reachable_t)
 
         ret.add(fn_t)
 
@@ -419,7 +420,6 @@ def _selector_section_linear(external_functions, module_ctx):
 def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(module_ctx.functions)
-
     reachable = _globally_reachable_functions(module_ctx.functions)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
