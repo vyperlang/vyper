@@ -423,6 +423,7 @@ class InterfaceT(_UserType):
     _is_prim_word = True
     _as_array = True
     _as_hashmap_key = True
+    _supports_external_calls = True
 
     def __init__(self, _id: str, functions: dict, events: dict, structs: dict) -> None:
         validate_unique_method_ids(list(functions.values()))

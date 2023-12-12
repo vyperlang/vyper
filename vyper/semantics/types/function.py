@@ -17,7 +17,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
-from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
+from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type, get_exact_type_from_node
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -489,8 +489,9 @@ class ContractFunctionT(VyperType):
         return method_ids
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
-        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannot call external functions via 'self'", node)
+        parent_t = get_exact_type_from_node(node.func.value)
+        if not parent_t._supports_external_calls and self.visibility == FunctionVisibility.EXTERNAL:
+            raise CallViolation("Cannot call external functions via 'self' or via library", node)
 
         kwarg_keys = []
         # for external calls, include gas and value as optional kwargs
