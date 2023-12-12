@@ -294,7 +294,9 @@ Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater
 
 ``a`` is a variable with an integer type and ``N`` is a literal integer greater than zero.  ``i`` begins as ``a`` and increments by one until it is equal to ``a + N``. If ``a + N`` would overflow, execution will revert.
 
+
 Finally, it is possible to use ``range`` with runtime `start` and `stop` values as long as a constant `bound` value is provided.
+In this case, Vyper guarantees that `y - x <= bound`.
 
 .. code-block:: python
 

@@ -415,8 +415,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
-                        for start in node.body:
-                            self.visit(start)
+                        for stmt in node.body:
+                            self.visit(stmt)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
