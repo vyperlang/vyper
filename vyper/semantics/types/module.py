@@ -25,11 +25,11 @@ class ModuleT(VyperType):
 
         for e in self.events:
             # add the type of the event so it can be used in call position
-            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))
+            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
         for s in self.structs:
             # add the type of the struct so it can be used in call position
-            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
+            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
 
     def __eq__(self, other):
         return self is other

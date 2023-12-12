@@ -96,9 +96,6 @@ def type_from_annotation(
 def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     namespace = get_namespace()
 
-    def _failwith(type_name):
-        raise InvalidType(f"'{node.node_source_code}' is not a type!", node) from None
-
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
         return tuple_t.from_annotation(node)
@@ -114,24 +111,28 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
         return type_ctor.from_annotation(node)
 
+    # prepare a common error message
+    err_msg = f"'{node.node_source_code}' is not a type!"
+
     if isinstance(node, vy_ast.Attribute):
         # ex. SomeModule.SomeStruct
 
         # sanity check - we only allow modules/interfaces to be
         # imported as `Name`s currently.
         if not isinstance(node.value, vy_ast.Name):
-            _failwith(node.node_source_code)
+            raise InvalidType(err_msg, node)
+
         try:
-            module_or_interface = namespace[node.value.id]
+            module_or_interface = namespace[node.value.id]  # type: ignore
         except UndeclaredDefinition:
-            _failwith(node.node_source_code)
+            raise InvalidType(err_msg, node) from None
 
         interface = module_or_interface
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
             interface = module_or_interface.module_t.interface
 
         if not interface._attribute_in_annotation:
-            _failwith(node.node_source_code)
+            raise InvalidType(err_msg, node)
 
         type_t = interface.get_type_member(node.attr, node)
         assert isinstance(type_t, TYPE_T)  # sanity check
@@ -139,9 +140,9 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
-        _failwith(node.node_source_code)
+        raise InvalidType(err_msg, node)
 
-    if node.id not in namespace:
+    if node.id not in namespace:  # type: ignore
         suggestions_str = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
             f"No builtin or user-defined type named '{node.node_source_code}'. {suggestions_str}",
