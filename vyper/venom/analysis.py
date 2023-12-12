@@ -2,7 +2,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
     BB_TERMINATORS,
-    CFG_ALTERING_OPS,
+    CFG_ALTERING_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRVariable,
@@ -55,7 +55,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
         assert last_inst.opcode in BB_TERMINATORS, f"Last instruction should be a terminator {bb}"
 
         for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_OPS:
+            if inst.opcode in CFG_ALTERING_INSTRUCTIONS:
                 ops = inst.get_label_operands()
                 for op in ops:
                     ctx.get_basic_block(op.value).add_cfg_in(bb)

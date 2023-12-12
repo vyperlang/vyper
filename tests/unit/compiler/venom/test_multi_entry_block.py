@@ -1,5 +1,4 @@
 from vyper.venom.analysis import calculate_cfg
-from vyper.venom.basicblock import IRLiteral
 from vyper.venom.function import IRBasicBlock, IRFunction, IRLabel
 from vyper.venom.passes.normalization import NormalizationPass
 
@@ -11,25 +10,26 @@ def test_multi_entry_block_1():
     target_label = IRLabel("target")
     block_1_label = IRLabel("block_1", ctx)
 
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    acc = ctx.append_instruction("add", [op, op])
-    ctx.append_instruction("jnz", [acc, finish_label, block_1_label], False)
+    bb = ctx.get_basic_block()
+    op = bb.append_instruction("store", 10)
+    acc = bb.append_instruction("add", op, op)
+    bb.append_instruction("jnz", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, ctx)
     ctx.append_basic_block(block_1)
-    acc = ctx.append_instruction("add", [acc, op])
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    ctx.append_instruction("mstore", [acc, op], False)
-    ctx.append_instruction("jnz", [acc, finish_label, target_label], False)
+    acc = block_1.append_instruction("add", acc, op)
+    op = block_1.append_instruction("store", 10)
+    block_1.append_instruction("mstore", acc, op)
+    block_1.append_instruction("jnz", acc, finish_label, target_label)
 
     target_bb = IRBasicBlock(target_label, ctx)
     ctx.append_basic_block(target_bb)
-    ctx.append_instruction("mul", [acc, acc])
-    ctx.append_instruction("jmp", [finish_label], False)
+    target_bb.append_instruction("mul", acc, acc)
+    target_bb.append_instruction("jmp", finish_label)
 
     finish_bb = IRBasicBlock(finish_label, ctx)
     ctx.append_basic_block(finish_bb)
-    ctx.append_instruction("stop", [], False)
+    finish_bb.append_instruction("stop")
 
     calculate_cfg(ctx)
     assert not ctx.normalized, "CFG should not be normalized"
@@ -54,33 +54,34 @@ def test_multi_entry_block_2():
     block_1_label = IRLabel("block_1", ctx)
     block_2_label = IRLabel("block_2", ctx)
 
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    acc = ctx.append_instruction("add", [op, op])
-    ctx.append_instruction("jnz", [acc, finish_label, block_1_label], False)
+    bb = ctx.get_basic_block()
+    op = bb.append_instruction("store", 10)
+    acc = bb.append_instruction("add", op, op)
+    bb.append_instruction("jnz", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, ctx)
     ctx.append_basic_block(block_1)
-    acc = ctx.append_instruction("add", [acc, op])
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    ctx.append_instruction("mstore", [acc, op], False)
-    ctx.append_instruction("jnz", [acc, target_label, finish_label], False)
+    acc = block_1.append_instruction("add", acc, op)
+    op = block_1.append_instruction("store", 10)
+    block_1.append_instruction("mstore", acc, op)
+    block_1.append_instruction("jnz", acc, target_label, finish_label)
 
     block_2 = IRBasicBlock(block_2_label, ctx)
     ctx.append_basic_block(block_2)
-    acc = ctx.append_instruction("add", [acc, op])
-    op = ctx.append_instruction("store", [IRLiteral(10)])
-    ctx.append_instruction("mstore", [acc, op], False)
-    # switch the order of the labels, for fun
-    ctx.append_instruction("jnz", [acc, finish_label, target_label], False)
+    acc = block_2.append_instruction("add", acc, op)
+    op = block_2.append_instruction("store", 10)
+    block_2.append_instruction("mstore", acc, op)
+    # switch the order of the labels, for fun and profit
+    block_2.append_instruction("jnz", acc, finish_label, target_label)
 
     target_bb = IRBasicBlock(target_label, ctx)
     ctx.append_basic_block(target_bb)
-    ctx.append_instruction("mul", [acc, acc])
-    ctx.append_instruction("jmp", [finish_label], False)
+    target_bb.append_instruction("mul", acc, acc)
+    target_bb.append_instruction("jmp", finish_label)
 
     finish_bb = IRBasicBlock(finish_label, ctx)
     ctx.append_basic_block(finish_bb)
-    ctx.append_instruction("stop", [], False)
+    finish_bb.append_instruction("stop")
 
     calculate_cfg(ctx)
     assert not ctx.normalized, "CFG should not be normalized"

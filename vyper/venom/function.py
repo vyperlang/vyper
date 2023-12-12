@@ -98,17 +98,6 @@ class IRFunction:
         self.basic_blocks = new_basic_blocks
         return removed
 
-    def append_instruction(
-        self, opcode: str, args: list[IROperand], do_ret: bool = True
-    ) -> Optional[IRVariable]:
-        """
-        Append instruction to last basic block.
-        """
-        ret = self.get_next_variable() if do_ret else None
-        inst = IRInstruction(opcode, args, ret)  # type: ignore
-        self.get_basic_block().append_instruction(inst)
-        return ret
-
     def append_data(self, opcode: str, args: list[IROperand]) -> None:
         """
         Append data
