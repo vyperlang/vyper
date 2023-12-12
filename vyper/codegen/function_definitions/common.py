@@ -44,15 +44,14 @@ class _FuncIRInfo:
     @cached_property
     def ir_identifier(self) -> str:
         argz = ",".join([str(argtyp) for argtyp in self.func_t.argument_types])
-        module = self.func_t._module
 
-        module_id = "unknown module"
-        if module is not None:
-            module_id = f"module{module.source_id}"
+        name = self.func_t.name
+        function_id = self.func_t._function_id
+        assert function_id is not None
 
         # include module id in the ir identifier to disambiguate functions
         # with the same name but which come from different modules
-        return f"{self.visibility} {module_id} {self.func_t.name}({argz})"
+        return f"{self.visibility} {function_id} {name}({argz})"
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:

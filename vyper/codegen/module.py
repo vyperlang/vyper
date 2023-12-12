@@ -25,6 +25,10 @@ def _topsort(functions):
 
         ret.add(func_ast)
 
+    # create globally unique IDs for each function
+    for idx, func in enumerate(ret):
+        func._metadata["func_type"]._function_id = idx
+
     return list(ret)
 
 

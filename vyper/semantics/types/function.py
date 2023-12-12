@@ -105,13 +105,7 @@ class ContractFunctionT(VyperType):
 
         # to be populated during codegen
         self._ir_info: Any = None
-
-    @cached_property
-    def _module(self):
-        if self.ast_def is None:
-            return None
-
-        return self.ast_def.get_ancestor(vy_ast.Module)
+        self._function_id: Optional[int] = None
 
     @cached_property
     def call_site_kwargs(self):
