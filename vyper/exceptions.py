@@ -235,6 +235,10 @@ class ImportCycle(VyperException):
     """An import cycle"""
 
 
+class DuplicateImport(VyperException):
+    """A module was imported twice from the same module"""
+
+
 class ModuleNotFound(VyperException):
     """Module was not found"""
 

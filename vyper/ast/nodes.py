@@ -1412,7 +1412,7 @@ class Pass(Stmt):
     __slots__ = ()
 
 
-class _Import(Stmt):
+class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
@@ -1424,11 +1424,11 @@ class _Import(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class Import(_Import):
+class Import(_ImportStmt):
     __slots__ = ()
 
 
-class ImportFrom(_Import):
+class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
 
 

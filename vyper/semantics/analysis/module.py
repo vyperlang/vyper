@@ -8,6 +8,7 @@ from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBund
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
+    DuplicateImport,
     ExceptionList,
     InvalidLiteral,
     InvalidType,
@@ -19,8 +20,9 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportGraph, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import validate_functions
 from vyper.semantics.analysis.utils import (
     check_constant,
@@ -43,7 +45,7 @@ def validate_semantics_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph,
-    is_interface: bool = False,
+    is_interface: bool,
 ) -> ModuleT:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
@@ -106,6 +108,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.namespace = namespace
         self._import_graph = import_graph
         self.is_interface = is_interface
+
+        # keep track of imported modules to prevent duplicate imports
+        self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
         self.module_t: Optional[ModuleT] = None
 
@@ -372,9 +377,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        type_ = self._load_import(node, level, qualified_module_name, alias)
+        module_info = self._load_import(node, level, qualified_module_name, alias)
 
-        self.namespace[alias] = type_
+        self.namespace[alias] = module_info
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
@@ -393,6 +398,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         path = _import_to_path(level, module_str)
 
+        # this could conceivably be in the ImportGraph but no need at this point
+        if path in self._imported_modules:
+            previous_import_stmt = self._imported_modules[path]
+            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
+
+        self._imported_modules[path] = node
+
         err = None
 
         try:
@@ -404,7 +416,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             with override_global_namespace(Namespace()):
                 module_t = validate_semantics_r(
-                    module_ast, self.input_bundle, import_graph=self._import_graph
+                    module_ast,
+                    self.input_bundle,
+                    import_graph=self._import_graph,
+                    is_interface=False,
                 )
 
                 return ModuleInfo(module_t, decl_node=node)

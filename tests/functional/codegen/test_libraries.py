@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CallViolation, ImportCycle, StructureException
+from vyper.exceptions import CallViolation, DuplicateImport, ImportCycle, StructureException
 
 
 def test_simple_library(get_contract, make_input_bundle, w3):
@@ -216,4 +216,17 @@ import library
 
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     with pytest.raises(StructureException):
+        compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+
+def test_reject_duplicate_imports(make_input_bundle):
+    library_source = """
+    """
+
+    contract_source = """
+import library
+import library as library2
+    """
+    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+    with pytest.raises(DuplicateImport):
         compiler.compile_code(contract_source, input_bundle=input_bundle)
