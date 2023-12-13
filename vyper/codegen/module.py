@@ -12,41 +12,34 @@ from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
 
 
-def _topsort(functions):
+def _functions_to_compile(module_t):
     # single pass to get a global topological sort of functions (so that each
     # function comes after each of its callees).
     ret = OrderedSet()
-    for func_ast in functions:
-        fn_t = func_ast._metadata["func_type"]
 
-        for reachable_t in fn_t.reachable_internal_functions:
-            assert reachable_t.ast_def is not None
-            ret.add(reachable_t.ast_def)
+    # external functions + exports
+    for fn_t in module_t.exported_functions:
+        ret |= fn_t.reachable_internal_functions
+        ret.add(fn_t)
 
-        ret.add(func_ast)
+    for fn_t in module_t.internal_functions:
+        ret |= fn_t.reachable_internal_functions
+        ret.add(fn_t)
 
     # create globally unique IDs for each function
-    for idx, func in enumerate(ret):
-        func._metadata["func_type"]._function_id = idx
+    for idx, fn_t in enumerate(ret):
+        fn_t._function_id = idx
 
-    return list(ret)
+    return [fn_t.ast_def for fn_t in ret]
 
 
 # calculate globally reachable functions to see which
 # ones should make it into the final bytecode.
 # TODO: in the future, this should get obsolesced by IR dead code eliminator.
-def _globally_reachable_functions(functions):
+def _globally_reachable_functions(module_t):
     ret = OrderedSet()
-    for f in functions:
-        fn_t = f._metadata["func_type"]
-
-        if not fn_t.is_external:
-            continue
-
-        for reachable_t in fn_t.reachable_internal_functions:
-            assert reachable_t.ast_def is not None
-            ret.add(reachable_t)
-
+    for fn_t in module_t.exported_functions:
+        ret |= fn_t.reachable_internal_functions
         ret.add(fn_t)
 
     return ret
@@ -423,8 +416,8 @@ def _selector_section_linear(external_functions, module_ctx):
 # take a ModuleT, and generate the runtime and deploy IR
 def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
-    function_defs = _topsort(module_ctx.functions)
-    reachable = _globally_reachable_functions(module_ctx.functions)
+    function_defs = _functions_to_compile(module_ctx)
+    reachable = _globally_reachable_functions(module_ctx)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)

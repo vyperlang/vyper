@@ -67,14 +67,23 @@ def get_node(
             ast_struct = copy.copy(ast_struct)
             del ast_struct["parent"]
 
+    # Replace special top-level `AnnAssign` nodes:
+    # - variable declarations
+    # - implements declarations
+    # - exports declarations
     if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
-        # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
+        # Replace `implements` AnnAssign nodes with `ImplementsDecl`
         if getattr(ast_struct["target"], "id", None) == "implements":
             if ast_struct["value"] is not None:
-                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
+                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct["value"])
             ast_struct["ast_type"] = "ImplementsDecl"
-        # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-        # Parent node is required for context to determine whether replacement should happen.
+
+        # Replace `exports` AnnAssign nodes with `ExportsDecl`
+        if getattr(ast_struct["target"], "id", None) == "exports":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`exports` cannot have a value assigned", ast_struct["value"])
+            ast_struct["ast_type"] = "ExportsDecl"
+
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
@@ -1453,6 +1462,26 @@ class ImplementsDecl(Stmt):
 
         if not isinstance(self.annotation, Name):
             raise StructureException("not an identifier", self.annotation)
+
+
+class ExportsDecl(Stmt):
+    """
+    An `exports` declaration.
+
+    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+
+    Attributes
+    ----------
+    target : Name
+        Name node for the `implements` keyword
+    annotation : Name
+        Name node for the interface to be implemented
+    """
+
+    __slots__ = ("target", "annotation")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class If(Stmt):
