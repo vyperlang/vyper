@@ -219,6 +219,27 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         type_.validate_implements(node)
 
+    def visit_ExportsDecl(self, node):
+        if isinstance(node.annotation, vy_ast.Tuple):
+            exports = node.annotation.elements
+        else:
+            exports = (node.annotation,)
+
+        funcs = []
+        for export in exports:
+            func_t = get_exact_type_from_node(export)
+
+            if not isinstance(func_t, ContractFunctionT):
+                raise StructureException("Not a function!", export)
+
+            if not func_t.is_external:
+                raise StructureException("{func_t.name} must be external!", export)
+
+            funcs.append(func_t)
+
+        # tag the entire ExportDecl with the exported functions
+        node._metadata["exported_functions"] = funcs
+
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
         if name is None:

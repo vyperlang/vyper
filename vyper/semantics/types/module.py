@@ -283,6 +283,11 @@ class ModuleT(VyperType):
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
     # search path, symlinked vs normalized path, etc.)
+        for export_decl in self.export_decls:
+            for func_t in export_decl._metadata["exported_functions"]:
+                assert isinstance(func_t, ContractFunctionT)
+                self.add_member(func_t.name, func_t)
+
     def __eq__(self, other):
         return self is other
 
@@ -293,14 +298,17 @@ class ModuleT(VyperType):
         return self._helper.get_member(key, node)
 
     # this is a property, because the function set changes after AST expansion
+    # TODO: rename to function_defs
     @property
     def function_defs(self):
         return self._module.get_children(vy_ast.FunctionDef)
 
+    # TODO: rename to event_defs
     @property
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
 
+    # TODO: rename to struct_defs
     @property
     def struct_defs(self):
         return self._module.get_children(vy_ast.StructDef)
@@ -313,11 +321,41 @@ class ModuleT(VyperType):
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
 
+    @property
+    def export_decls(self):
+        return self._module.get_children(vy_ast.ExportsDecl)
+
     @cached_property
     def variables(self):
         # variables that this module defines, ex.
         # `x: uint256` is a private storage variable named x
         return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
+
+    # TODO maybe rename me to functions
+    @property
+    def function_types(self):
+        return [f._metadata["func_type"] for f in self.functions]
+
+    @property
+    def external_functions(self):
+        return [f for f in self.function_types if f.is_external]
+
+    @property
+    def internal_functions(self):
+        return [f for f in self.function_types if f.is_internal]
+
+    # functions that are exposed in the ABI of this contract
+    # i.e., external functions + all exported functions
+    @cached_property
+    def exported_functions(self):
+        ret = []
+
+        for export_decl in self.export_decls:
+            ret.extend(export_decl._metadata["exported_functions"])
+
+        ret.extend(self.external_functions)
+
+        return ret
 
     @cached_property
     def immutables(self):
