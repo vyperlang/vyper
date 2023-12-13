@@ -408,3 +408,14 @@ class StructT(_UserType):
             )
 
         return self
+
+
+class BundleT(_UserType):
+    def __init__(self, _id: str):
+        self._id = _id
+
+        self.functions: list = []
+
+    @property
+    def name(self):
+        return self._id

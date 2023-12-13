@@ -210,11 +210,9 @@ class InterfaceT(_UserType):
         """
         funcs = []
 
-        for node in module_t.function_defs:
-            func_t = node._metadata["func_type"]
-            if not func_t.is_external:
-                continue
-            funcs.append((node.name, func_t))
+        for func_t in module_t.exported_functions:
+            assert func_t.is_external  # sanity check
+            funcs.append((func_t.name, func_t))
 
         # add getters for public variables since they aren't yet in the AST
         for node in module_t._module.get_children(vy_ast.VariableDecl):
@@ -261,17 +259,34 @@ class ModuleT(VyperType):
         # for function collisions
         self._helper = self.interface
 
+        decls: dict[str, vy_ast.VyperNode] = {}
+
+        # helper function which tries to locate where something was already
+        # defined if there is a collision
+        def _add_member(name, type_, node):
+            if name in decls:
+                raise NamespaceCollision(
+                    f"{name} already exists! (hint - already defined here):\n{decls[name]}\n\n",
+                    node,
+                )
+            decls[name] = node
+            self.add_member(name, type_, node)
+
         for f in self.function_defs:
             # note: this checks for collisions
-            self.add_member(f.name, f._metadata["func_type"])
+            _add_member(f.name, f._metadata["func_type"], f)
 
         for e in self.event_defs:
             # add the type of the event so it can be used in call position
-            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
+            _add_member(e.name, TYPE_T(e._metadata["event_type"]), e)  # type: ignore
 
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
-            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+            _add_member(s.name, TYPE_T(s._metadata["struct_type"]), s)  # type: ignore
+
+        for bundle_decl in self.bundle_decls:
+            bundle_t = bundle_decl._metadata["bundle_type"]
+            _add_member(bundle_t._id, bundle_t, bundle_decl)
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])
@@ -285,8 +300,7 @@ class ModuleT(VyperType):
     # search path, symlinked vs normalized path, etc.)
         for export_decl in self.export_decls:
             for func_t in export_decl._metadata["exported_functions"]:
-                assert isinstance(func_t, ContractFunctionT)
-                self.add_member(func_t.name, func_t)
+                _add_member(func_t.name, func_t, export_decl)
 
     def __eq__(self, other):
         return self is other
@@ -324,6 +338,10 @@ class ModuleT(VyperType):
     @property
     def export_decls(self):
         return self._module.get_children(vy_ast.ExportsDecl)
+
+    @property
+    def bundle_decls(self):
+        return self._module.get_children(vy_ast.BundleDecl)
 
     @cached_property
     def variables(self):

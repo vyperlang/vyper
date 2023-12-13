@@ -290,10 +290,12 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(self, name: str, type_: "VyperType") -> None:
+    def add_member(
+        self, name: str, type_: "VyperType", source: Optional[vy_ast.VyperNode] = None
+    ) -> None:
         validate_identifier(name)
         if name in self.members:
-            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
+            raise NamespaceCollision(f"Member '{name}' already exists in {self}", source)
         self.members[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
@@ -308,7 +310,7 @@ class VyperType:
         raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
 
     def __repr__(self):
-        return self._id
+        return getattr(self, "_id", str(type(self)))
 
 
 class KwargSettings:

@@ -79,10 +79,16 @@ def get_node(
             ast_struct["ast_type"] = "ImplementsDecl"
 
         # Replace `exports` AnnAssign nodes with `ExportsDecl`
-        if getattr(ast_struct["target"], "id", None) == "exports":
+        elif getattr(ast_struct["target"], "id", None) == "exports":
             if ast_struct["value"] is not None:
                 _raise_syntax_exc("`exports` cannot have a value assigned", ast_struct["value"])
             ast_struct["ast_type"] = "ExportsDecl"
+
+        # Replace `bundle` AnnAssign nodes with `BundleDecl`
+        elif getattr(ast_struct["target"], "id", None) == "bundle":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`exports` cannot have a value assigned", ast_struct["value"])
+            ast_struct["ast_type"] = "BundleDecl"
 
         else:
             ast_struct["ast_type"] = "VariableDecl"
@@ -907,6 +913,7 @@ class Tuple(ExprNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
+# bool (in python ast, can also be `None`)
 class NameConstant(Constant):
     __slots__ = ()
 
@@ -1445,17 +1452,13 @@ class ImplementsDecl(Stmt):
     """
     An `implements` declaration.
 
-    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
-
     Attributes
     ----------
-    target : Name
-        Name node for the `implements` keyword
-    annotation : Name
+    annotation: Name
         Name node for the interface to be implemented
     """
 
-    __slots__ = ("target", "annotation")
+    __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1468,17 +1471,29 @@ class ExportsDecl(Stmt):
     """
     An `exports` declaration.
 
-    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
+    Attributes
+    ----------
+    annotation: Attribute | Tuple
+        Attribute | Tuple of functions to be exported
+    """
+
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class BundleDecl(Stmt):
+    """
+    A `bundle` declaration.
 
     Attributes
     ----------
-    target : Name
-        Name node for the `implements` keyword
     annotation : Name
-        Name node for the interface to be implemented
+        Name of the bundle
     """
 
-    __slots__ = ("target", "annotation")
+    __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

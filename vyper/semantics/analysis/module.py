@@ -4,10 +4,12 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.ast.identifiers import validate_identifier
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
+    CompilerPanic,
     DuplicateImport,
     ExceptionList,
     InvalidLiteral,
@@ -31,7 +33,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
+from vyper.semantics.types import BundleT, EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -227,18 +229,49 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         funcs = []
         for export in exports:
-            func_t = get_exact_type_from_node(export)
+            export_t = get_exact_type_from_node(export)
 
-            if not isinstance(func_t, ContractFunctionT):
-                raise StructureException("Not a function!", export)
+            # export a single function
+            if isinstance(export_t, ContractFunctionT):
+                if not export_t.is_external:
+                    raise StructureException("{export_t.name} must be external!", export)
 
-            if not func_t.is_external:
-                raise StructureException("{func_t.name} must be external!", export)
+                for bundle_info in export_t.bundles:
+                    if bundle_info.is_bound:
+                        bundle_name = bundle_info.bundle_t.name
+                        raise StructureException(
+                            f"Cannot export {export_t.name} on its own - "
+                            f"it is bound to {bundle_name}!",
+                            export,
+                        )
 
-            funcs.append(func_t)
+                funcs.append(export_t)
+
+            # export a bundle
+            elif isinstance(export_t, BundleT):
+                # the bundle already has .functions populated from when
+                # the module it came from was analyzed it.
+                assert len(export_t.functions) > 0  # sanity check
+                for fn_t in export_t.functions:
+                    assert fn_t.is_external  # sanity check
+                    funcs.append(fn_t)
+
+            else:  # pragma: nocover
+                raise CompilerPanic("unreachable", export)
 
         # tag the entire ExportDecl with the exported functions
         node._metadata["exported_functions"] = funcs
+
+    def visit_BundleDecl(self, node):
+        if not isinstance(node.annotation, vy_ast.Name):
+            raise StructureException("Invalid bundle name!", node.annotation)
+
+        bundle_name = node.annotation.id
+        validate_identifier(bundle_name)
+
+        node._metadata["bundle_type"] = BundleT(bundle_name)
+
+        self.namespace[bundle_name] = node
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
@@ -366,6 +399,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
+
+            for bundle_info in func_t.bundles:
+                bundle_info.bundle_t.functions.append(func_t)
 
         self.namespace["self"].typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t

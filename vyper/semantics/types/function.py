@@ -23,10 +23,12 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
+from vyper.semantics.types.user import BundleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 
@@ -46,6 +48,12 @@ class PositionalArg(_FunctionArg):
 class KeywordArg(_FunctionArg):
     default_value: vy_ast.VyperNode
     ast_source: Optional[vy_ast.VyperNode] = None
+
+
+@dataclass
+class BundleInfo:
+    bundle_t: BundleT
+    is_bound: bool = False
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -87,6 +95,7 @@ class ContractFunctionT(VyperType):
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
         ast_def: Optional[vy_ast.VyperNode] = None,
+        bundles: Optional[list[BundleInfo]] = None,
     ) -> None:
         super().__init__()
 
@@ -97,6 +106,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.bundles = bundles or []
 
         self.ast_def = ast_def
 
@@ -243,7 +253,12 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant_key = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant_key, bundles = _parse_decorators(
+            funcdef
+        )
+
+        if len(bundles) > 0:
+            raise FunctionDeclarationException("bundles not allowed in interfaces!", funcdef)
 
         if nonreentrant_key is not None:
             raise FunctionDeclarationException(
@@ -292,7 +307,9 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant_key = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant_key, bundles = _parse_decorators(
+            funcdef
+        )
 
         positional_args, keyword_args = _parse_args(funcdef)
 
@@ -337,6 +354,7 @@ class ContractFunctionT(VyperType):
             state_mutability,
             nonreentrant=nonreentrant_key,
             ast_def=funcdef,
+            bundles=bundles,
         )
 
     def set_reentrancy_key_position(self, position: StorageSlot) -> None:
@@ -594,34 +612,76 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
 
 
+def _parse_nonreentrant_decorator(decorator):
+    validate_call_args(decorator, 1)
+    nonreentrant_key = decorator.args[0]
+    if not isinstance(nonreentrant_key, vy_ast.Str):
+        raise StructureException(
+            "@nonreentrant name must be given as a single string literal", decorator
+        )
+    ret = nonreentrant_key.value
+    validate_identifier(ret, nonreentrant_key)
+    return ret
+
+
+def _parse_bundle_decorator(decorator):
+    namespace = get_namespace()
+
+    validate_call_args(decorator, arg_count=1, kwargs=["bind"])
+
+    bundle_id = decorator.args[0]
+    if not isinstance(bundle_id, vy_ast.Name):
+        raise StructureException("invalid bundle id!", bundle_id)
+
+    validate_identifier(bundle_id.id, bundle_id)
+
+    bundle_decl = namespace[bundle_id.id]
+    if not isinstance(namespace[bundle_id.id], vy_ast.BundleDecl):
+        raise StructureException("not a bundle!", bundle_id)
+    bundle_t = bundle_decl._metadata["bundle_type"]
+
+    bound_to_bundle = False
+    kwargs = {kwarg.arg: kwarg.value for kwarg in decorator.keywords}
+    if "bind" in kwargs:
+        if not isinstance(kwargs["bind"].get("value"), bool):
+            raise StructureException("`bind=` requires a bool!", kwargs["bind"])
+        bound_to_bundle = kwargs["bind"].value
+
+    return BundleInfo(bundle_t, bound_to_bundle)
+
+
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[FunctionVisibility, StateMutability, Optional[str]]:
+) -> tuple[FunctionVisibility, StateMutability, Optional[str], list[BundleInfo]]:
     function_visibility = None
     state_mutability = None
     nonreentrant_key = None
+    bundles: list = []
 
     for decorator in funcdef.decorator_list:
         if isinstance(decorator, vy_ast.Call):
-            if nonreentrant_key is not None:
-                raise StructureException(
-                    "nonreentrant decorator is already set with key: " f"{nonreentrant_key}",
-                    funcdef,
-                )
+            if decorator.get("func.id") == "nonreentrant":
+                if nonreentrant_key is not None:
+                    raise StructureException(
+                        "nonreentrant decorator is already set with key: " f"{nonreentrant_key}",
+                        funcdef,
+                    )
+                if funcdef.name == "__init__":
+                    msg = "Nonreentrant decorator disallowed on `__init__`"
+                    raise FunctionDeclarationException(msg, decorator)
 
-            if decorator.get("func.id") != "nonreentrant":
+                nonreentrant_key = _parse_nonreentrant_decorator(decorator)
+
+            elif decorator.get("func.id") == "bundle":
+                bundle_info = _parse_bundle_decorator(decorator)
+                if bundle_info.bundle_t in [b.bundle_t for b in bundles]:
+                    bundle_name = bundle_info.bundle_t._id
+                    raise StructureException(
+                        f"bundle {bundle_name} specified multiple times!", decorator
+                    )
+                bundles.append(bundle_info)
+            else:
                 raise StructureException("Decorator is not callable", decorator)
-            if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
-                raise StructureException(
-                    "@nonreentrant name must be given as a single string literal", decorator
-                )
-
-            if funcdef.name == "__init__":
-                msg = "Nonreentrant decorator disallowed on `__init__`"
-                raise FunctionDeclarationException(msg, decorator)
-
-            nonreentrant_key = decorator.args[0].value
-            validate_identifier(nonreentrant_key, decorator.args[0])
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):
@@ -664,7 +724,7 @@ def _parse_decorators(
 
     # assert function_visibility is not None  # mypy
     # assert state_mutability is not None  # mypy
-    return function_visibility, state_mutability, nonreentrant_key
+    return function_visibility, state_mutability, nonreentrant_key, bundles
 
 
 def _parse_args(
