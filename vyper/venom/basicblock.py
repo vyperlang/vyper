@@ -63,8 +63,8 @@ if TYPE_CHECKING:
 
 class IRDebugInfo:
     """
-    IRDebugInfo represents debug information in IR, used to annotate IR instructions
-    with source code information when printing IR.
+    IRDebugInfo represents debug information in IR, used to annotate IR
+    instructions with source code information when printing IR.
     """
 
     line_no: int
@@ -106,7 +106,7 @@ class IRLiteral(IRValue):
     value: int
 
     def __init__(self, value: int) -> None:
-        assert isinstance(value, str) or isinstance(value, int), "value must be an int"
+        assert isinstance(value, int), "value must be an int"
         self.value = value
 
     def __repr__(self) -> str:
@@ -193,7 +193,7 @@ class IRInstruction:
         assert isinstance(operands, list | Iterator), "operands must be a list"
         self.opcode = opcode
         self.volatile = opcode in VOLATILE_INSTRUCTIONS
-        self.operands = [op for op in operands]  # in case we get an iterator
+        self.operands = list(operands)  # in case we get an iterator
         self.output = output
         self.liveness = OrderedSet()
         self.dup_requirements = OrderedSet()
@@ -264,6 +264,14 @@ class IRInstruction:
         #     return f"{s: <30} # {self.liveness}"
 
         return s
+
+
+def _ir_operand_from_value(val: Any) -> IROperand:
+    if isinstance(val, IROperand):
+        return val
+
+    assert isinstance(val, int)
+    return IRLiteral(val)
 
 
 class IRBasicBlock:
@@ -338,9 +346,29 @@ class IRBasicBlock:
         ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
         # Wrap raw integers in IRLiterals
-        inst_args = [IRLiteral(arg) if isinstance(arg, int) else arg for arg in args]
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
 
         inst = IRInstruction(opcode, inst_args, ret)
+        inst.parent = self
+        self.instructions.append(inst)
+        return ret
+
+    def append_invoke_instruction(
+        self, args: list[IROperand | int], returns: bool
+    ) -> Optional[IRVariable]:
+        """
+        Append an instruction to the basic block
+
+        Returns the output variable if the instruction supports one
+        """
+        ret = None
+        if returns:
+            ret = self.parent.get_next_variable()
+
+        # Wrap raw integers in IRLiterals
+        inst_args = [_ir_operand_from_value(arg) for arg in args]
+
+        inst = IRInstruction("invoke", inst_args, ret)
         inst.parent = self
         self.instructions.append(inst)
         return ret

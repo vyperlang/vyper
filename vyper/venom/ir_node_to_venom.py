@@ -143,7 +143,7 @@ def _handle_self_call(
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
-    ret_args = [IRLabel(target_label)]  # type: ignore
+    ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
 
     for arg in args_ir:
         if arg.is_literal:
@@ -168,13 +168,11 @@ def _handle_self_call(
     bb = ctx.get_basic_block()
     do_ret = func_t.return_type is not None
     if do_ret:
-        invoke_ret = ctx.get_next_variable()
-        bb.append_instruction("invoke", *ret_args)
-        bb.instructions[-1].output = invoke_ret
+        invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
         allocated_variables["return_buffer"] = invoke_ret  # type: ignore
         return invoke_ret
     else:
-        bb.append_instruction("invoke", *ret_args)
+        bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
         return None
 
 
@@ -398,7 +396,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val.value)
+            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
 
         current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
@@ -783,7 +781,6 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         exit_block = IRBasicBlock(ctx.get_next_label(), ctx)
 
         counter_inc_var = ctx.get_next_variable()
-        ret = ctx.get_next_variable()
 
         counter_var = ctx.get_basic_block().append_instruction("store", start)
         symbols[sym.value] = counter_var

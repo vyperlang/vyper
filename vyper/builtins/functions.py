@@ -2090,7 +2090,10 @@ class Uint2Str(BuiltinFunctionT):
         if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
 
-        value = str(node.args[0].value)
+        value = node.args[0].value
+        if value < 0:
+            raise InvalidType("Only unsigned ints allowed", node)
+        value = str(value)
         return vy_ast.Str.from_node(node, value=value)
 
     def infer_arg_types(self, node):
