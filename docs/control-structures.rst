@@ -296,9 +296,9 @@ Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater
 
 
 Finally, it is possible to use ``range`` with runtime `start` and `stop` values as long as a constant `bound` value is provided.
-In this case, Vyper guarantees that `y - x <= bound`.
+In this case, Vyper checks at runtime that `end - start <= bound`.
 
 .. code-block:: python
 
-    for i in range(x, y, bound=CONSTANT):
+    for i in range(start, end, bound=CONSTANT):
         ...

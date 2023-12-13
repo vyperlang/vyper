@@ -741,8 +741,10 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
 
     if "bound" in kwargs:
         return _analyse_range_bound(start, end, kwargs["bound"], node)
+
     if isinstance(start, vy_ast.Num):
         return _analyse_range_constant(start, end, node)
+
     return _analyse_range_sum(start, end, node)
 
 
