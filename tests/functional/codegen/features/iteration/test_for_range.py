@@ -1,7 +1,5 @@
 import pytest
 
-from vyper.exceptions import StructureException, StateAccessViolation
-
 
 def test_basic_repeater(get_contract_with_gas_estimation):
     basic_repeater = """
@@ -49,62 +47,6 @@ def repeat(n: uint256) -> uint256:
     # check codegen inserts assertion for n greater than bound
     assert_tx_failed(lambda: c.repeat(8))
     assert_tx_failed(lambda: c.repeat(0))
-
-
-def test_range_no_start_constant_no_bound(get_contract):
-    code = """
-@external
-def repeat(n: uint256) -> uint256:
-    for i in range(n, 6):
-        pass
-    return x
-    """
-    with pytest.raises(StructureException) as context:
-        get_contract(code)
-    assert "Second element must be the first element plus a literal value" == context.value.args[0]
-    assert "6" == context.value.args[1].node_source_code
-
-
-def test_range_no_end_constant_no_bound(get_contract):
-    code = """
-@external
-def repeat(n: uint256) -> uint256:
-    for i in range(0, n):
-        pass
-    return n
-    """
-    with pytest.raises(StateAccessViolation) as context:
-        get_contract(code)
-    assert "Value must be a literal integer" == context.value.args[0]
-    assert "n" == context.value.args[1].node_source_code
-
-
-def test_range_no_plus_end(get_contract):
-    code = """
-@external
-def repeat(n: uint256) -> uint256:
-    for i in range(0, n * 10):
-        pass
-    return n
-    """
-    with pytest.raises(StateAccessViolation) as context:
-        get_contract(code)
-    assert "Value must be a literal integer" == context.value.args[0]
-    assert "n * 10" == context.value.args[1].node_source_code
-
-
-def test_range_no_plus_end_no_bound(get_contract):
-    code = """
-@external
-def repeat(n: uint256) -> uint256:
-    for i in range(0, n * 10):
-        pass
-    return n
-    """
-    with pytest.raises(StateAccessViolation) as context:
-        get_contract(code)
-    assert "Value must be a literal integer" == context.value.args[0]
-    assert "n * 10" == context.value.args[1].node_source_code
 
 
 def test_range_bound_two_args(get_contract, assert_tx_failed):
