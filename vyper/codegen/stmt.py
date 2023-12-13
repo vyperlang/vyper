@@ -128,9 +128,7 @@ class Stmt:
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
+                (arg,) = args
                 assert isinstance(darray.typ, DArrayT)
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)

@@ -13,7 +13,8 @@ from vyper.typing import ModificationOffsets
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
-    return parse_to_ast_with_settings(*args, **kwargs)[1]
+    _settings, ast = parse_to_ast_with_settings(*args, **kwargs)
+    return ast
 
 
 def parse_to_ast_with_settings(
@@ -90,10 +91,11 @@ def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
     """
     if isinstance(ast_struct, vy_ast.VyperNode):
         return ast_struct.to_dict()
-    elif isinstance(ast_struct, list):
+
+    if isinstance(ast_struct, list):
         return [i.to_dict() for i in ast_struct]
-    else:
-        raise CompilerPanic(f'Unknown Vyper AST node provided: "{type(ast_struct)}".')
+
+    raise CompilerPanic(f'Unknown Vyper AST node provided: "{type(ast_struct)}".')
 
 
 def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
