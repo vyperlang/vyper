@@ -1254,7 +1254,7 @@ class NotIn(Operator):
 
 
 class Call(ExprNode):
-    __slots__ = ("func", "args", "keywords", "keyword")
+    __slots__ = ("func", "args", "keywords")
 
 
 class keyword(VyperNode):
