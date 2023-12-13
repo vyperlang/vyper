@@ -253,13 +253,9 @@ class Stmt:
             iter_typ = INT256_T
 
         # Get arg0
-        arg0 = self.stmt.iter.args[0]
-        arg1 = self.stmt.iter.args[1] if len(self.stmt.iter.args) > 1 else None
-
-        kwargs = {
-            s.arg: Expr.parse_value_expr(s.value, self.context)
-            for s in self.stmt.iter.keywords or []
-        }
+        for_iter: vy_ast.Call = self.stmt.iter
+        arg0, arg1 = (for_iter.args + [None])[:2]
+        kwargs = {s.arg: self._get_range_const_value(s.value) for s in for_iter.keywords}
 
         # Type 1 for, e.g. for i in range(10): ...
         if arg1 is None:
