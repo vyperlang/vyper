@@ -127,24 +127,37 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.module_t = self.ast._metadata["type"]
             return self.module_t
 
-        module_nodes = self.ast.body.copy()
-        while module_nodes:
-            count = len(module_nodes)
+        to_visit = self.ast.body.copy()
+
+        # handle imports linearly
+        # (do this instead of handling in the next block so that
+        # `self._imported_modules` does not end up with garbage in it after
+        # exception swallowing).
+        import_stmts = self.ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
+        for node in import_stmts:
+            self.visit(node)
+            to_visit.remove(node)
+
+        # keep trying to process all the nodes until we finish or can
+        # no longer progress. this makes it so we don't need to
+        # calculate a dependency tree between top-level items.
+        while len(to_visit) > 0:
+            count = len(to_visit)
             err_list = ExceptionList()
-            for node in list(module_nodes):
+            for node in to_visit.copy():
                 try:
                     self.visit(node)
-                    module_nodes.remove(node)
-                except (InvalidLiteral, InvalidType, VariableDeclarationException):
+                    to_visit.remove(node)
+                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
                     # these exceptions cannot be caused by another statement not yet being
                     # parsed, so we raise them immediately
-                    raise
+                    raise e from None
                 except VyperException as e:
                     err_list.append(e)
 
             # Only raise if no nodes were successfully processed. This allows module
             # level logic to parse regardless of the ordering of code elements.
-            if count == len(module_nodes):
+            if count == len(to_visit):
                 err_list.raise_if_not_empty()
 
         self.module_t = ModuleT(self.ast)

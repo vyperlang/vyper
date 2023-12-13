@@ -4,7 +4,12 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ArgumentException, InterfaceViolation, NamespaceCollision
+from vyper.exceptions import (
+    ArgumentException,
+    DuplicateImport,
+    InterfaceViolation,
+    NamespaceCollision,
+)
 
 
 def test_basic_extract_interface():
@@ -246,10 +251,12 @@ def test_extract_file_interface_imports(code, filename, make_input_bundle):
 
 
 BAD_IMPORT_CODE = [
-    ("import a as A\nimport a as A", NamespaceCollision),
+    ("import a as A\nimport a as A", DuplicateImport),
+    ("import a as A\nimport a as a", DuplicateImport),
+    ("from . import a\nimport a as a", DuplicateImport),
+    ("import a as a\nfrom . import a", DuplicateImport),
     ("from b import a\nfrom . import a", NamespaceCollision),
-    ("from . import a\nimport a as a", NamespaceCollision),
-    ("import a as a\nfrom . import a", NamespaceCollision),
+    ("import a\nimport c as a", NamespaceCollision),
 ]
 
 
@@ -257,7 +264,8 @@ BAD_IMPORT_CODE = [
 def test_extract_file_interface_imports_raises(
     code, exception_type, assert_compile_failed, make_input_bundle
 ):
-    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": ""})  # dummy
+    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
+    print("ENTER", code)
     with pytest.raises(exception_type):
         compile_code(code, input_bundle=input_bundle)
 
