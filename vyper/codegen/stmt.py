@@ -269,7 +269,7 @@ class Stmt:
             rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(arg1).is_literal:
+        elif all(self._check_valid_range_constant(arg).is_literal for arg in [arg0, arg1]):
             arg0_val = self._get_range_const_value(arg0)
             arg1_val = self._get_range_const_value(arg1)
             start = IRnode.from_list(arg0_val, typ=iter_typ)
