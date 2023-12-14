@@ -20,7 +20,7 @@ def foo():
     """,
         StructureException,
         "Invalid syntax for loop iterator",
-        "a[1]"
+        "a[1]",
     ),
     (
         """
@@ -32,7 +32,7 @@ def foo():
     """,
         StateAccessViolation,
         "Bound must be a literal",
-        "x"
+        "x",
     ),
     (
         """
@@ -44,7 +44,7 @@ def foo():
         StructureException,
         "For loop has invalid number of iterations (10), "
         "the value must be between zero and the bound",
-        "range(10, 20, bound=5)"
+        "range(10, 20, bound=5)",
     ),
     (
         """
@@ -55,7 +55,7 @@ def foo():
     """,
         StructureException,
         "Bound must be at least 1",
-        "0"
+        "0",
     ),
     (
         """
@@ -67,7 +67,7 @@ def bar():
     """,
         ArgumentException,
         "Invalid keyword argument 'extra'",
-        "extra=3"
+        "extra=3",
     ),
     (
         """
@@ -78,7 +78,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
-        "0"
+        "0",
     ),
     (
         """
@@ -90,7 +90,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer",
-        "x"
+        "x",
     ),
     (
         """
@@ -102,7 +102,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer",
-        "x"
+        "x",
     ),
     (
         """
@@ -114,7 +114,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StateAccessViolation,
         "Value must be a literal integer",
-        "n * 10"
+        "n * 10",
     ),
     (
         """
@@ -126,7 +126,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer",
-        "x + 1"
+        "x + 1",
     ),
     (
         """
@@ -137,7 +137,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
-        "1"
+        "1",
     ),
     (
         """
@@ -149,7 +149,7 @@ def bar():
     """,
         StructureException,
         "Second element must be the first element plus a literal value",
-        "x"
+        "x",
     ),
     (
         """
@@ -162,7 +162,7 @@ def bar():
     """,
         StructureException,
         "First and second variable must be the same",
-        "y"
+        "y",
     ),
     (
         """
@@ -175,7 +175,7 @@ def bar():
     """,
         InvalidLiteral,
         "Literal must be an integer",
-        "y"
+        "y",
     ),
     (
         """
@@ -187,7 +187,7 @@ def bar():
     """,
         StructureException,
         "For loop has invalid number of iterations (0), the value must be greater than zero",
-        "0"
+        "0",
     ),
     (
         """
@@ -199,7 +199,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StructureException,
         "Second element must be the first element plus a literal value",
-        "6"
+        "6",
     ),
 ]
 
