@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
 
@@ -100,3 +101,32 @@ def test_dead_code_eliminator(code):
 
     # runtime only label should not be in initcode asm
     assert all(runtime_only not in instr for instr in initcode_asm)
+
+
+def test_library_code_eliminator(make_input_bundle):
+    library = """
+@internal
+def unused1():
+    pass
+
+@internal
+def unused2():
+    self.unused1()
+
+@internal
+def some_function():
+    pass
+    """
+    code = """
+import library
+
+@external
+def foo():
+    library.some_function()
+    """
+    input_bundle = make_input_bundle({"library.vy": library})
+    res = compile_code(code, input_bundle=input_bundle, output_formats=["asm"])
+    asm = res["asm"]
+    assert "some_function()" in asm
+    assert "unused1()" not in asm
+    assert "unused2()" not in asm
