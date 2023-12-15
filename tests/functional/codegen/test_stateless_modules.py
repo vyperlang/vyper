@@ -1,7 +1,15 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CallViolation, DuplicateImport, ImportCycle, StructureException
+from vyper.exceptions import (
+    CallViolation,
+    DuplicateImport,
+    ImportCycle,
+    StructureException,
+    TypeMismatch,
+)
+
+# test modules which have no variables - "libraries"
 
 
 def test_simple_library(get_contract, make_input_bundle, w3):
@@ -219,6 +227,26 @@ import library
         compiler.compile_code(contract_source, input_bundle=input_bundle)
 
 
+def test_library_is_typechecked2(make_input_bundle):
+    # check that we typecheck against imported function signatures
+    library_source = """
+@internal
+def foo() -> uint256:
+    return 1
+    """
+    contract_source = """
+import library
+
+@external
+def foo() -> bytes32:
+    return library.foo()
+    """
+
+    input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+
 def test_reject_duplicate_imports(make_input_bundle):
     library_source = """
     """
@@ -230,3 +258,35 @@ import library as library2
     input_bundle = make_input_bundle({"library.vy": library_source, "contract.vy": contract_source})
     with pytest.raises(DuplicateImport):
         compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+
+def test_nested_module_access(get_contract, make_input_bundle):
+    lib1 = """
+import lib2
+
+@internal
+def lib2_foo() -> uint256:
+    return lib2.foo()
+    """
+    lib2 = """
+@internal
+def foo() -> uint256:
+    return 1337
+    """
+
+    main = """
+import lib1
+import lib2
+
+@external
+def lib1_foo() -> uint256:
+    return lib1.lib2_foo()
+
+@external
+def lib2_foo() -> uint256:
+    return lib1.lib2.foo()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.lib1_foo() == c.lib2_foo() == 1337

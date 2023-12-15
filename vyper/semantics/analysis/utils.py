@@ -67,7 +67,14 @@ class _ExprAnalyser:
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
             info = self.namespace[node.id]
-            return ExprInfo.from_varinfo(info)
+
+            if isinstance(info, VarInfo):
+                return ExprInfo.from_varinfo(info)
+
+            if isinstance(info, ModuleInfo):
+                return ExprInfo.from_moduleinfo(info)
+
+            raise CompilerPanic("unreachable!", node)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
@@ -364,13 +371,7 @@ class _ExprAnalyser:
                 # attribute conditions, like Enum.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
-            if isinstance(t, ModuleInfo):
-                return [t.module_t]
-
-            if isinstance(t, (VarInfo, ExprInfo)):
-                return [t.typ]
-
-            raise CompilerPanic("unreachable")  # pragma: nocover
+            return [t.typ]
 
         except VyperException as exc:
             raise exc.with_annotation(node) from None

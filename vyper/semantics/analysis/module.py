@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import validate_functions
@@ -176,7 +176,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def analyze_call_graph(self):
         # get list of internal function calls made by each function
-        function_defs = self.module_t.functions
+        function_defs = self.module_t.function_defs
 
         for func in function_defs:
             fn_t = func._metadata["func_type"]
@@ -391,7 +391,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
         module_info = self._load_import(node, level, qualified_module_name, alias)
-
+        node._metadata["import_info"] = ImportInfo(
+            module_info, alias, qualified_module_name, self.input_bundle, node
+        )
         self.namespace[alias] = module_info
 
     # load an InterfaceT or ModuleInfo from an import.
@@ -435,7 +437,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t, decl_node=node)
+                return ModuleInfo(module_t)
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things

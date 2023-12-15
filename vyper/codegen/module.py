@@ -423,8 +423,8 @@ def _selector_section_linear(external_functions, module_ctx):
 # take a ModuleT, and generate the runtime and deploy IR
 def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
-    function_defs = _topsort(module_ctx.functions)
-    reachable = _globally_reachable_functions(module_ctx.functions)
+    function_defs = _topsort(module_ctx.function_defs)
+    reachable = _globally_reachable_functions(module_ctx.function_defs)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)

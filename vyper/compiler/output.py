@@ -156,7 +156,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     module_t = compiler_data.vyper_module_folded._metadata["type"]
-    functions = module_t.functions
+    functions = module_t.function_defs
 
     return {
         k: hex(v) for func in functions for k, v in func._metadata["func_type"].method_ids.items()

@@ -210,7 +210,7 @@ class InterfaceT(_UserType):
         """
         funcs = []
 
-        for node in module_t.functions:
+        for node in module_t.function_defs:
             func_t = node._metadata["func_type"]
             if not func_t.is_external:
                 continue
@@ -223,9 +223,9 @@ class InterfaceT(_UserType):
             getter = node._metadata["getter_type"]
             funcs.append((node.target.id, getter))
 
-        events = [(node.name, node._metadata["event_type"]) for node in module_t.events]
+        events = [(node.name, node._metadata["event_type"]) for node in module_t.event_defs]
 
-        structs = [(node.name, node._metadata["struct_type"]) for node in module_t.structs]
+        structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
 
         return cls._from_lists(module_t._id, funcs, events, structs)
 
@@ -261,17 +261,24 @@ class ModuleT(VyperType):
         # for function collisions
         self._helper = self.interface
 
-        for f in self.functions:
+        for f in self.function_defs:
             # note: this checks for collisions
             self.add_member(f.name, f._metadata["func_type"])
 
-        for e in self.events:
+        for e in self.event_defs:
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
-        for s in self.structs:
+        for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
             self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+
+        for v in self.variable_decls:
+            self.add_member(v.target.id, v.target._metadata["varinfo"])
+
+        for i in self.import_stmts:
+            import_info = i._metadata["import_info"]
+            self.add_member(import_info.alias, import_info.typ)
 
     def __eq__(self, other):
         return self is other
@@ -284,23 +291,30 @@ class ModuleT(VyperType):
 
     # this is a property, because the function set changes after AST expansion
     @property
-    def functions(self):
+    def function_defs(self):
         return self._module.get_children(vy_ast.FunctionDef)
 
     @property
-    def events(self):
+    def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
 
     @property
-    def structs(self):
+    def struct_defs(self):
         return self._module.get_children(vy_ast.StructDef)
+
+    @property
+    def import_stmts(self):
+        return self._module.get_children((vy_ast.Import, vy_ast.ImportFrom))
+
+    @property
+    def variable_decls(self):
+        return self._module.get_children(vy_ast.VariableDecl)
 
     @cached_property
     def variables(self):
         # variables that this module defines, ex.
         # `x: uint256` is a private storage variable named x
-        variable_decls = self._module.get_children(vy_ast.VariableDecl)
-        return {s.target.id: s.target._metadata["varinfo"] for s in variable_decls}
+        return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
 
     @cached_property
     def immutables(self):
