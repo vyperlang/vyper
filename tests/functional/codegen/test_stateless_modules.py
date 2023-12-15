@@ -1,4 +1,6 @@
+import hypothesis.strategies as st
 import pytest
+from hypothesis import given, settings
 
 from vyper import compiler
 from vyper.exceptions import (
@@ -290,3 +292,44 @@ def lib2_foo() -> uint256:
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.lib1_foo() == c.lib2_foo() == 1337
+
+
+_int_127 = st.integers(min_value=0, max_value=127)
+_bytes_128 = st.binary(min_size=0, max_size=128)
+
+
+def test_slice_builtin(get_contract, make_input_bundle):
+    lib = """
+@internal
+def slice_input(x: Bytes[128], start: uint256, length: uint256) -> Bytes[128]:
+    return slice(x, start, length)
+    """
+
+    main = """
+import lib
+@external
+def lib_slice_input(x: Bytes[128], start: uint256, length: uint256) -> Bytes[128]:
+    return lib.slice_input(x, start, length)
+
+@external
+def slice_input(x: Bytes[128], start: uint256, length: uint256) -> Bytes[128]:
+    return slice(x, start, length)
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    # use an inner test so that we can cache the result of get_contract()
+    @given(start=_int_127, length=_int_127, bytesdata=_bytes_128)
+    @settings(max_examples=100)
+    def _test(bytesdata, start, length):
+        # surjectively map start into allowable range
+        if start > len(bytesdata):
+            start = start % (len(bytesdata) or 1)
+        # surjectively map length into allowable range
+        if length > (len(bytesdata) - start):
+            length = length % ((len(bytesdata) - start) or 1)
+        main_result = c.slice_input(bytesdata, start, length)
+        library_result = c.lib_slice_input(bytesdata, start, length)
+        assert main_result == library_result == bytesdata[start : start + length]
+
+    _test()
