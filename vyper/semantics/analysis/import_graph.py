@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Iterator
 
 from vyper import ast as vy_ast
-from vyper.exceptions import ImportCycle
+from vyper.exceptions import CompilerPanic, ImportCycle
 
 """
 data structure for collecting import statements and validating the
