@@ -24,7 +24,9 @@ class ImportGraph:
         self._path.append(module_ast)
 
     def pop_path(self, expected: vy_ast.Module) -> None:
-        assert expected == self._path.pop()
+        popped = self._path.pop()
+        if expected != popped:
+            raise CompilerPanic("unreachable")
 
     @contextlib.contextmanager
     def enter_path(self, module_ast: vy_ast.Module) -> Iterator[None]:
