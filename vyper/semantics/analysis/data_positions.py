@@ -6,6 +6,7 @@ from vyper.exceptions import StorageLayoutException
 from vyper.semantics.analysis.base import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
 from vyper.utils import ceil32
+from vyper.semantics.analysis.base import ImportedVariable
 
 
 def set_data_positions(
@@ -111,12 +112,11 @@ def set_storage_slots_with_overrides(
             )
 
     # Iterate through variables
-    for node in vyper_module.get_children(vy_ast.VariableDecl):
-        # Ignore immutable parameters
-        if node.get("annotation.func.id") == "immutable":
+    for varinfo in vyper_module._metadata["type"].variables.values():
+        if varinfo.is_immutable:
             continue
 
-        varinfo = node.target._metadata["varinfo"]
+        assert isinstance((node := varinfo.decl_node), vy_ast.VariableDecl)
 
         # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
@@ -127,6 +127,7 @@ def set_storage_slots_with_overrides(
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
             varinfo.set_position(StorageSlot(var_slot))
 
+            # TODO: FIXME!
             ret[node.target.id] = {"type": str(varinfo.typ), "slot": var_slot}
         else:
             raise StorageLayoutException(
@@ -164,52 +165,58 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
     ret: Dict[str, Dict] = {}
 
-    for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["func_type"]
+    for funcdef in vyper_module.get_children(vy_ast.FunctionDef):
+        type_ = funcdef._metadata["func_type"]
         if type_.nonreentrant is None:
             continue
 
-        variable_name = f"nonreentrant.{type_.nonreentrant}"
+        keyname = f"nonreentrant.{type_.nonreentrant}"
 
         # a nonreentrant key can appear many times in a module but it
         # only takes one slot. after the first time we see it, do not
         # increment the storage slot.
-        if variable_name in ret:
-            _slot = ret[variable_name]["slot"]
+        if keyname in ret:
+            _slot = ret[keyname]["slot"]
             type_.set_reentrancy_key_position(StorageSlot(_slot))
             continue
 
         # TODO use one byte - or bit - per reentrancy key
         # requires either an extra SLOAD or caching the value of the
         # location in memory at entrance
-        slot = allocator.allocate_slot(1, variable_name)
+        slot = allocator.allocate_slot(1, keyname)
 
         type_.set_reentrancy_key_position(StorageSlot(slot))
 
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
-        ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
+        ret[keyname] = {"type": "nonreentrant lock", "slot": slot}
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl):
+    for varinfo in vyper_module._metadata["type"].variables.values():
         # skip non-storage variables
-        if node.is_constant or node.is_immutable:
+        if varinfo.is_constant or varinfo.is_immutable:
             continue
 
-        varinfo = node.target._metadata["varinfo"]
         type_ = varinfo.typ
+
+        assert isinstance((vardecl := varinfo.decl_node), vy_ast.VariableDecl)
+
+        varname = vardecl.target.id
 
         # CMC 2021-07-23 note that HashMaps get assigned a slot here.
         # I'm not sure if it's safe to avoid allocating that slot
         # for HashMaps because downstream code might use the slot
         # ID as a salt.
         n_slots = type_.storage_size_in_words
-        slot = allocator.allocate_slot(n_slots, node.target.id)
+        slot = allocator.allocate_slot(n_slots, varname)
 
         varinfo.set_position(StorageSlot(slot))
 
+        if isinstance(varinfo, ImportedVariable):
+            varname = varinfo.import_info.qualified_module_name + "." + varname
+        assert varname not in ret
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "slot": slot}
+        ret[varname] = {"type": str(type_), "slot": slot}
 
     return ret
 
@@ -226,8 +233,10 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
     ret = {}
     offset = 0
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl, filters={"is_immutable": True}):
-        varinfo = node.target._metadata["varinfo"]
+    for varinfo in vyper_module._metadata["type"].variables.values():
+        if not varinfo.is_immutable:
+            continue
+
         type_ = varinfo.typ
         varinfo.set_position(CodeOffset(offset))
 
@@ -235,7 +244,21 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
 
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "offset": offset, "length": len_}
+        output_dict = {"type": str(type_), "offset": offset, "length": len_}
+
+        # put it into the storage layout
+
+        # sanity check. there are ways to construct varinfo with no
+        # decl_node but they shouldn't make it here
+        assert isinstance(varinfo.decl_node, vy_ast.VariableDecl)
+        name = varinfo.decl_node.target.id
+
+        # XXX: FIXME
+        if isinstance(varinfo, ImportedVariable):
+            name = varinfo.import_info.qualified_module_name + "." + name
+
+        assert name not in ret
+        ret[name] = output_dict
 
         offset += len_
 

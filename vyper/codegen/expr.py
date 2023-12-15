@@ -36,6 +36,8 @@ from vyper.exceptions import (
     VyperException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.utils import get_expr_info
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -231,8 +233,9 @@ class Expr:
                 else:
                     seq = ["balance", addr]
                 return IRnode.from_list(seq, typ=UINT256_T)
+
         # x.codesize: codesize of address x
-        elif self.expr.attr == "codesize" or self.expr.attr == "is_contract":
+        if self.expr.attr == "codesize" or self.expr.attr == "is_contract":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if addr.typ == AddressT():
                 if self.expr.attr == "codesize":
@@ -246,13 +249,15 @@ class Expr:
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = BoolT()
                 return IRnode.from_list(eval_code, typ=output_type)
+
         # x.codehash: keccak of address x
-        elif self.expr.attr == "codehash":
+        if self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if addr.typ == AddressT():
                 return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
+
         # x.code: codecopy/extcodecopy of address x
-        elif self.expr.attr == "code":
+        if self.expr.attr == "code":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if addr.typ == AddressT():
                 # These adhoc nodes will be replaced with a valid node in `Slice.build_IR`
@@ -261,7 +266,7 @@ class Expr:
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
 
         # Reserved keywords
-        elif (
+        if (
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
@@ -315,26 +320,32 @@ class Expr:
                     )
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
 
-        # Other variables
-
-        # self.x: module-level variable
-        if isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            varinfo = self.context.globals[self.expr.attr]
+        # self.x: global storage variable or immutable
+        if (varinfo := self.expr._metadata.get("variable_access")) is not None:
+            assert isinstance(varinfo, VarInfo)
+            # TODO: handle immutables
             location = TRANSIENT if varinfo.is_transient else STORAGE
 
-            ret = IRnode.from_list(varinfo.position.position, typ=varinfo.typ, location=location)
+            module_t = self.context.module_ctx
+            ret = IRnode.from_list(
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation=self.expr.node_source_code,
+            )
             ret._referenced_variables = {varinfo}
 
             return ret
 
+        # if we have gotten here, it's an instance of an interface or struct
         sub = Expr(self.expr.value, self.context).ir_node
 
-        # interface type
         if isinstance(sub.typ, InterfaceT):
             # MyInterface.address
             assert self.expr.attr == "address"
             sub.typ = typ
             return sub
+
         if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
             return get_element_ptr(sub, self.expr.attr)
 

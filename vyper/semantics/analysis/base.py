@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from vyper import ast as vy_ast
@@ -128,7 +128,6 @@ class MemoryOffset(DataPosition):
 
 
 class StorageSlot(DataPosition):
-    __slots__ = ("position",)
     _location = DataLocation.STORAGE
 
     def __init__(self, position):
@@ -163,6 +162,9 @@ class ImportInfo(AnalysisResult):
     input_bundle: InputBundle
     node: vy_ast.VyperNode
 
+    def __eq__(self, other):
+        return self is other
+
 
 @dataclass
 class VarInfo:
@@ -189,18 +191,30 @@ class VarInfo:
         return hash(id(self))
 
     def __post_init__(self):
-        self._modification_count = 0
+        self._reads = []
+        self._writes = []
+        self.position = None  # the location provided by the allocator
 
     def set_position(self, position: DataPosition) -> None:
-        if hasattr(self, "position"):
+        if self.position is not None:
             raise CompilerPanic("Position was already assigned")
         if self.location != position._location:
-            if self.location == DataLocation.UNSET:
-                self.location = position._location
-            else:
-                raise CompilerPanic("Incompatible locations")
+            raise CompilerPanic(f"Incompatible locations: {self.location}, {position._location}")
         self.position = position
 
+
+# class for imported variables. this is important for distinguishing
+# how in the import graph variables were imported.
+@dataclass(kw_only=True)
+class ImportedVariable(VarInfo):
+    import_info: ImportInfo  # a reference to how this variable was imported
+
+    @classmethod
+    def from_varinfo(cls, var_info: Union["ImportedVariable",VarInfo], import_info: ImportInfo):
+        dict_fields = asdict(var_info)
+
+        dict_fields["import_info"] = import_info
+        return cls(**dict_fields)
 
 @dataclass
 class ExprInfo:
@@ -209,26 +223,26 @@ class ExprInfo:
     """
 
     typ: VyperType
-    var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
     is_constant: bool = False
     is_immutable: bool = False
+    _var_info: Optional[VarInfo] = None
 
     def __post_init__(self):
         should_match = ("typ", "location", "is_constant", "is_immutable")
-        if self.var_info is not None:
+        if self._var_info is not None:
             for attr in should_match:
-                if getattr(self.var_info, attr) != getattr(self, attr):
+                if getattr(self._var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo) -> "ExprInfo":
         return cls(
             var_info.typ,
-            var_info=var_info,
             location=var_info.location,
             is_constant=var_info.is_constant,
             is_immutable=var_info.is_immutable,
+            _var_info=var_info,
         )
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
@@ -264,12 +278,15 @@ class ExprInfo:
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
-            # TODO: we probably want to remove this restriction.
-            if self.var_info._modification_count:  # type: ignore
+
+            if len(self._var_info._writes) > 0:
                 raise ImmutableViolation(
                     "Immutable value cannot be modified after assignment", node
                 )
-            self.var_info._modification_count += 1  # type: ignore
+            self._var_info._writes.append(node)
+
+        if self.location == DataLocation.STORAGE:
+            self._var_info._writes.append(node)
 
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)

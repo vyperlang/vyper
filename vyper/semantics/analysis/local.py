@@ -608,6 +608,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # annotate
         node._metadata["type"] = typ
 
+        # tag variable accesses
+        info = get_expr_info(node)
+        if (var_info := info._var_info) is not None:
+            node._metadata["variable_access"] = var_info
+            var_info._reads.append(node)
+
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
 
