@@ -265,7 +265,6 @@ def test_extract_file_interface_imports_raises(
     code, exception_type, assert_compile_failed, make_input_bundle
 ):
     input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
-    print("ENTER", code)
     with pytest.raises(exception_type):
         compile_code(code, input_bundle=input_bundle)
 
