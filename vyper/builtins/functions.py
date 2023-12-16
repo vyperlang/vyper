@@ -2499,9 +2499,9 @@ class ABIDecode(BuiltinFunctionT):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
-        output_typedef = TYPE_T(type_from_annotation(node.args[1]))
+        output_type = type_from_annotation(node.args[1])
 
-        return [data_type, output_typedef]
+        return [data_type, TYPE_T(output_type)]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):

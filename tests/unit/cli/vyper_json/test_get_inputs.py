@@ -2,7 +2,7 @@ from pathlib import PurePath
 
 import pytest
 
-from vyper.cli.vyper_json import get_compilation_targets, get_inputs
+from vyper.cli.vyper_json import get_inputs
 from vyper.exceptions import JSONError
 from vyper.utils import keccak256
 
@@ -122,9 +122,6 @@ def test_interfaces_output():
             "interface.folder/bar2.vy": {"content": BAR_CODE},
         },
     }
-    targets = get_compilation_targets(input_json)
-    assert targets == [PurePath("foo.vy")]
-
     result = get_inputs(input_json)
     assert result == {
         PurePath("foo.vy"): {"content": FOO_CODE},

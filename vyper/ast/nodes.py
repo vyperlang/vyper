@@ -589,7 +589,8 @@ class TopLevel(VyperNode):
 
 
 class Module(TopLevel):
-    __slots__ = ()
+    # metadata
+    __slots__ = ("path", "resolved_path", "source_id")
 
     def replace_in_tree(self, old_node: VyperNode, new_node: VyperNode) -> None:
         """
@@ -897,12 +898,16 @@ class Tuple(ExprNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
+class NameConstant(Constant):
+    __slots__ = ()
+
+
+class Ellipsis(Constant):
+    __slots__ = ()
+
+
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
-
-
-class NameConstant(Constant):
-    __slots__ = ("value",)
 
 
 class Name(ExprNode):
@@ -1407,7 +1412,7 @@ class Pass(Stmt):
     __slots__ = ()
 
 
-class _Import(Stmt):
+class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
@@ -1419,11 +1424,11 @@ class _Import(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class Import(_Import):
+class Import(_ImportStmt):
     __slots__ = ()
 
 
-class ImportFrom(_Import):
+class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
 
 

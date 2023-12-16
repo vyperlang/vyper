@@ -271,10 +271,8 @@ def compile_files(
             with open(storage_file_path) as sfh:
                 storage_layout_override = json.load(sfh)
 
-        output = vyper.compile_code(
-            file.source_code,
-            contract_name=str(file.path),
-            source_id=file.source_id,
+        output = vyper.compile_from_file_input(
+            file,
             input_bundle=input_bundle,
             output_formats=final_formats,
             exc_handler=exc_handler,
