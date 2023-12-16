@@ -279,8 +279,8 @@ def _get_contract(
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
-        # test that metadata and natspecs get generated
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
+        # test that all output formats can get generated
+        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
@@ -352,7 +352,7 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
+        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
