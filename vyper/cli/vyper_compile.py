@@ -111,6 +111,7 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "-O",
         "--optimize",
         help="Optimization flag (defaults to 'gas')",
         choices=["gas", "codesize", "none"],
@@ -125,6 +126,7 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
