@@ -1,10 +1,9 @@
-import contextlib
 import json
-import os
 from pathlib import Path, PurePath
 
 import pytest
 
+from tests.utils import working_directory
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, JSONInputBundle
 
 
@@ -81,16 +80,6 @@ def test_load_abi(make_file, input_bundle, tmp_path):
     file = input_bundle.load_file("foo.txt")
     assert isinstance(file, ABIInput)
     assert file == ABIInput(1, "foo.txt", path, "some string")
-
-
-@contextlib.contextmanager
-def working_directory(directory):
-    tmp = os.getcwd()
-    try:
-        os.chdir(directory)
-        yield
-    finally:
-        os.chdir(tmp)
 
 
 # check that unique paths give unique source ids
