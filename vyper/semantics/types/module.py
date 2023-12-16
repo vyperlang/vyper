@@ -289,11 +289,11 @@ class ModuleT(VyperType):
             _add_member(bundle_t._id, bundle_t, bundle_decl)
 
         for v in self.variable_decls:
-            self.add_member(v.target.id, v.target._metadata["varinfo"])
+            _add_member(v.target.id, v.target._metadata["varinfo"], v)
 
         for i in self.import_stmts:
             import_info = i._metadata["import_info"]
-            self.add_member(import_info.alias, import_info.typ)
+            _add_member(import_info.alias, import_info.typ, i)
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
@@ -352,7 +352,7 @@ class ModuleT(VyperType):
     # TODO maybe rename me to functions
     @property
     def function_types(self):
-        return [f._metadata["func_type"] for f in self.functions]
+        return [f._metadata["func_type"] for f in self.function_defs]
 
     @property
     def external_functions(self):
