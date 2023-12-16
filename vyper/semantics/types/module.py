@@ -280,6 +280,9 @@ class ModuleT(VyperType):
             import_info = i._metadata["import_info"]
             self.add_member(import_info.alias, import_info.typ)
 
+    # __eq__ is very strict on ModuleT - object equality! this is because we
+    # don't want to reason about where a module came from (i.e. input bundle,
+    # search path, symlinked vs normalized path, etc.)
     def __eq__(self, other):
         return self is other
 
