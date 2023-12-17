@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
-    EnumDeclarationException,
+    FlagDeclarationException,
     EventDeclarationException,
     InvalidAttribute,
     NamespaceCollision,
@@ -52,7 +52,7 @@ class FlagT(_UserType):
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
-            raise EnumDeclarationException("Enums are limited to 256 members!")
+            raise FlagDeclarationException("Enums are limited to 256 members!")
 
         super().__init__(members=None)
 
@@ -118,15 +118,15 @@ class FlagT(_UserType):
         members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise EnumDeclarationException("Enum must have members", base_node)
+            raise FlagDeclarationException("Enum must have members", base_node)
 
         for i, node in enumerate(base_node.body):
             if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
-                raise EnumDeclarationException("Invalid syntax for enum member", node)
+                raise FlagDeclarationException("Invalid syntax for enum member", node)
 
             member_name = node.value.id
             if member_name in members:
-                raise EnumDeclarationException(
+                raise FlagDeclarationException(
                     f"Enum member '{member_name}' has already been declared", node.value
                 )
 
