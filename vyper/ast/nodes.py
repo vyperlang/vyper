@@ -4,6 +4,7 @@ import copy
 import decimal
 import operator
 import sys
+import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
@@ -79,6 +80,7 @@ def get_node(
             ast_struct["ast_type"] = "VariableDecl"
 
     if ast_struct["ast_type"] == "EnumDef":
+        warnings.warn("enum will be deprecated in a future release, use flag instead")
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
