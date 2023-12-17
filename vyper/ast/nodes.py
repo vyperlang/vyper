@@ -78,6 +78,9 @@ def get_node(
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
+    if ast_struct["ast_type"] == "EnumDef":
+        ast_struct["ast_type"] = "FlagDef"
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
