@@ -451,12 +451,10 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         )  # body
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
-    elif ir.value == "jump":
+    elif ir.value in ["jump", "djump"]:
         args = [_convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)]
-        jump_table = ir.passthrough_metadata.get("jumptable_data", [])
-        for data in jump_table:
-            if isinstance(data, list) and data[0] == "symbol":
-                args.append(IRLabel(data[1], True))
+        for target in ir.args[1:]:
+            args.append(IRLabel(target.value))
         ctx.get_basic_block().append_instruction("jmp", *args)
         _new_block(ctx)
     elif ir.value == "set":

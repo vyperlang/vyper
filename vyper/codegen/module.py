@@ -11,6 +11,8 @@ from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
 from vyper.utils import method_id_int
 
+experimental_codegen = True
+
 
 def _topsort_helper(functions, lookup):
     #  single pass to get a global topological sort of functions (so that each
@@ -307,8 +309,11 @@ def _selector_section_sparse(external_functions, global_ctx):
         # don't particularly like using `jump` here since it can cause
         # issues for other backends, consider changing `goto` to allow
         # dynamic jumps, or adding some kind of jumptable instruction
-        jump = IRnode.from_list(["jump", jumpdest])
-        jump.passthrough_metadata["jumptable_data"] = jumptable_data
+        if experimental_codegen:
+            jump_targets = [data[1] for data in jumptable_data[2:]]
+            jump = IRnode.from_list(["djump", jumpdest, *jump_targets])
+        else:
+            jump = IRnode.from_list(["jump", jumpdest])
         ret.append(jump)
 
         ret.append(jumptable_data)
