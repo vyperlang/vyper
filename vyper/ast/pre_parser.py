@@ -44,7 +44,8 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 # compound statements that are replaced with `class`
-VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
+# TODO remove enum in favor of flag
+VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 
 # simple statements or expressions that are replaced with `yield`
 VYPER_EXPRESSION_TYPES = {"log"}
@@ -138,7 +139,10 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = f"{string.capitalize()}Def"
+                    if string == "flag":
+                        modification_offsets[start] = f"EnumDef"
+                    else:
+                        modification_offsets[start] = f"{string.capitalize()}Def"
                 elif string in VYPER_EXPRESSION_TYPES:
                     toks = [TokenInfo(NAME, "yield", start, end, line)]
                     modification_offsets[start] = string.capitalize()

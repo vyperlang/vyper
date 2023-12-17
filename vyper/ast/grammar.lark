@@ -10,7 +10,8 @@ module: ( DOCSTRING
         | interface_def
         | constant_def
         | variable_def
-        | enum_def
+        | enum_def // TODO deprecate at some point in favor of flag
+        | flag_def
         | event_def
         | function_def
         | immutable_def
@@ -76,11 +77,18 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 event_body: _NEWLINE _INDENT (((event_member | indexed_event_arg ) _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
+// TODO deprecate in favor of flag
 // Enums
 _ENUM_DECL: "enum"
 enum_member: NAME
 enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
+
+// Flags
+_FLAG_DECL: "flag"
+flag_member: NAME
+flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
+flag_def: _ENUM_DECL NAME ":" flag_body
 
 // Types
 array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"

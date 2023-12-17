@@ -729,6 +729,10 @@ class EnumDef(TopLevel):
     __slots__ = ("name", "body")
 
 
+class FlagDef(TopLevel):
+    __slots__ = ("name", "body")
+
+
 class EventDef(TopLevel):
     __slots__ = ("name", "body")
 
