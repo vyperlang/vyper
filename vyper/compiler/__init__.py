@@ -55,7 +55,6 @@ def compile_code(
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
-    experimental_codegen: bool = False,
 ) -> dict:
     """
     Generate consumable compiler output(s) from a single contract source code.
@@ -105,7 +104,6 @@ def compile_code(
         storage_layout_override,
         show_gas_estimates,
         no_bytecode_metadata,
-        experimental_codegen,
     )
 
     ret = {}

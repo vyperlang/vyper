@@ -145,6 +145,7 @@ def _parse_args(argv):
         "--experimental-codegen",
         help="The compiler use the new IR codegen. This is an experimental feature.",
         action="store_true",
+        dest="experimental_codegen",
     )
 
     args = parser.parse_args(argv)
@@ -182,6 +183,9 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
+    if args.experimental_codegen:
+        settings.experimental_codegen = args.experimental_codegen
+
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
 
@@ -193,7 +197,6 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
-        args.experimental_codegen,
     )
 
     if args.output_path:
@@ -231,7 +234,6 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
-    experimental_codegen: bool = False,
 ) -> dict:
     root_path = Path(root_folder).resolve()
     if not root_path.exists():
@@ -282,7 +284,6 @@ def compile_files(
             storage_layout_override=storage_layout_override,
             show_gas_estimates=show_gas_estimates,
             no_bytecode_metadata=no_bytecode_metadata,
-            experimental_codegen=experimental_codegen,
         )
 
         ret[file_path] = output

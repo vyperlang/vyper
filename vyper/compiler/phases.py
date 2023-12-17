@@ -61,7 +61,6 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
-        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -80,18 +79,15 @@ class CompilerData:
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
-        experimental_codegen: bool, optional
-            Use experimental codegen. Defaults to False
         """
         # to force experimental codegen, uncomment:
-        # experimental_codegen = True
+        # settings.experimental_codegen = True
         self.contract_path = contract_path
         self.source_code = source_code
         self.source_id = source_id
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.experimental_codegen = experimental_codegen
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
@@ -124,9 +120,24 @@ class CompilerData:
                 )
             self.settings.optimize = settings.optimize
 
+        if settings.experimental_codegen is not None:
+            if (
+                self.settings.experimental_codegen is not None
+                and self.settings.experimental_codegen != settings.experimental_codegen
+            ):
+                raise StructureException(
+                    f"compiler options indicate experimental codegen mode "
+                    f"{self.settings.experimental_codegen}, "
+                    f"but source pragma indicates {settings.experimental_codegen}."
+                )
+            self.settings.experimental_codegen = settings.experimental_codegen
+
         # ensure defaults
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
+
+        if self.settings.experimental_codegen is None:
+            self.settings.experimental_codegen = False
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
@@ -167,7 +178,7 @@ class CompilerData:
     def _ir_output(self):
         # fetch both deployment and runtime IR
         nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
             return [generate_ir(nodes[0]), generate_ir(nodes[1])]
         else:
             return nodes
@@ -193,7 +204,7 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
             return generate_assembly_experimental(
                 self.ir_nodes, self.settings.optimize  # type: ignore
             )
@@ -202,7 +213,7 @@ class CompilerData:
 
     @cached_property
     def assembly_runtime(self) -> list:
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
             return generate_assembly_experimental(
                 self.ir_runtime, self.settings.optimize  # type: ignore
             )
