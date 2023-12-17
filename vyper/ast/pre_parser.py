@@ -139,10 +139,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
-                    if string == "flag":
-                        modification_offsets[start] = f"EnumDef"
-                    else:
-                        modification_offsets[start] = f"{string.capitalize()}Def"
+                    modification_offsets[start] = f"{string.capitalize()}Def"
                 elif string in VYPER_EXPRESSION_TYPES:
                     toks = [TokenInfo(NAME, "yield", start, end, line)]
                     modification_offsets[start] = string.capitalize()
