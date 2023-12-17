@@ -43,7 +43,7 @@ class _UserType(VyperType):
 
 
 # note: enum behaves a lot like uint256, or uints in general.
-class EnumT(_UserType):
+class FlagT(_UserType):
     # this is a carveout because currently we allow dynamic arrays of
     # enums, but not static arrays of enums
     _as_darray = True
@@ -103,7 +103,7 @@ class EnumT(_UserType):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumT":
+    def from_FlagDef(cls, base_node: vy_ast.FlagDef) -> "FlagT":
         """
         Generate an `Enum` object from a Vyper ast node.
 

@@ -40,7 +40,7 @@ from vyper.semantics.types import (
     BytesT,
     DArrayT,
     DecimalT,
-    EnumT,
+    FlagT,
     HashMapT,
     InterfaceT,
     SArrayT,
@@ -205,7 +205,7 @@ class Expr:
 
         # MyEnum.foo
         if (
-            isinstance(typ, EnumT)
+            isinstance(typ, FlagT)
             and isinstance(self.expr.value, vy_ast.Name)
             and typ.name == self.expr.value.id
         ):
@@ -512,7 +512,7 @@ class Expr:
             if is_array_like(right.typ):
                 return self.build_in_comparator()
             else:
-                assert isinstance(right.typ, EnumT), right.typ
+                assert isinstance(right.typ, FlagT), right.typ
                 intersection = ["and", left, right]
                 if isinstance(self.expr.op, vy_ast.In):
                     return IRnode.from_list(["iszero", ["iszero", intersection]], typ=BoolT())
@@ -629,7 +629,7 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Invert):
-            if isinstance(operand.typ, EnumT):
+            if isinstance(operand.typ, FlagT):
                 n_members = len(operand.typ._enum_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and

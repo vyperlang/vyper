@@ -23,7 +23,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
-from vyper.semantics.types.user import EnumT
+from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
@@ -46,7 +46,7 @@ def is_decimal_type(typ):
 
 
 def is_enum_type(typ):
-    return isinstance(typ, EnumT)
+    return isinstance(typ, FlagT)
 
 
 def is_tuple_like(typ):
@@ -829,7 +829,7 @@ def needs_clamp(t, encoding):
         raise CompilerPanic("unreachable")  # pragma: notest
     if isinstance(t, (_BytestringT, DArrayT)):
         return True
-    if isinstance(t, EnumT):
+    if isinstance(t, FlagT):
         return len(t._enum_members) < 256
     if isinstance(t, SArrayT):
         return needs_clamp(t.value_type, encoding)
@@ -1136,7 +1136,7 @@ def clamp_basetype(ir_node):
     # copy of the input
     ir_node = unwrap_location(ir_node)
 
-    if isinstance(t, EnumT):
+    if isinstance(t, FlagT):
         bits = len(t._enum_members)
         # assert x >> bits == 0
         ret = int_clamp(ir_node, bits, signed=False)

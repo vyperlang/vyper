@@ -725,10 +725,6 @@ class Log(Stmt):
     __slots__ = ("value",)
 
 
-class EnumDef(TopLevel):
-    __slots__ = ("name", "body")
-
-
 class FlagDef(TopLevel):
     __slots__ = ("name", "body")
 

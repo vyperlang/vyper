@@ -38,7 +38,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
-    EnumT,
+    FlagT,
     EventT,
     HashMapT,
     IntegerT,
@@ -700,7 +700,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 validate_expected_type(node.right, rtyp)
             else:
                 rtyp = get_exact_type_from_node(node.right)
-                if isinstance(rtyp, EnumT):
+                if isinstance(rtyp, FlagT):
                     # enum membership - `some_enum in other_enum`
                     ltyp = rtyp
                 else:

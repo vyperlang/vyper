@@ -35,7 +35,7 @@ from vyper.semantics.types import (
     BytesM_T,
     BytesT,
     DecimalT,
-    EnumT,
+    FlagT,
     IntegerT,
     StringT,
 )
@@ -277,7 +277,7 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT, BytesT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT)
 def to_int(expr, arg, out_typ):
     return _to_int(expr, arg, out_typ)
 
