@@ -4,15 +4,6 @@ from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
-_label_counter = 0
-
-
-# TODO a more general way of doing this
-def _generate_label(name: str) -> str:
-    global _label_counter
-    _label_counter += 1
-    return f"label{_label_counter}"
-
 
 def _align_kwargs(func_t, args_ir):
     """
@@ -63,7 +54,7 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: internal_function_label asserts `func_t.is_internal`.
     _label = func_t._ir_info.internal_function_label(context.is_ctor_context)
-    return_label = _generate_label(f"{_label}_call")
+    return_label = _freshname(f"{_label}_call")
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py

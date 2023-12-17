@@ -48,7 +48,7 @@ class VariableRecord:
 class Context:
     def __init__(
         self,
-        global_ctx,
+        module_ctx,
         memory_allocator,
         vars_=None,
         forvars=None,
@@ -60,7 +60,7 @@ class Context:
         self.vars = vars_ or {}
 
         # Global variables, in the form (name, storage location, type)
-        self.globals = global_ctx.variables
+        self.globals = module_ctx.variables
 
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
@@ -75,8 +75,8 @@ class Context:
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
-        # store global context
-        self.global_ctx = global_ctx
+        # store module context
+        self.module_ctx = module_ctx
 
         # full function type
         self.func_t = func_t

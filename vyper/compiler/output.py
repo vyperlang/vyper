@@ -1,5 +1,6 @@
 import warnings
 from collections import OrderedDict, deque
+from pathlib import PurePath
 
 import asttokens
 
@@ -33,8 +34,8 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
-    stem = compiler_data.contract_path.stem
+    interface = compiler_data.vyper_module_folded._metadata["type"].interface
+    stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
     name = "".join([x.capitalize() for x in stem.split("_")])
@@ -52,7 +53,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
+    interface = compiler_data.vyper_module_folded._metadata["type"].interface
     out = ""
 
     if interface.events:
@@ -70,7 +71,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out = f"{out}@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
+            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
 
     return out
 
@@ -154,14 +155,19 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.functions.values()
+    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    functions = module_t.function_defs
 
-    return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
+    return {
+        k: hex(v) for func in functions for k, v in func._metadata["func_type"].method_ids.items()
+    }
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
+    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+
+    abi = module_t.interface.to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)

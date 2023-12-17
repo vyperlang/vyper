@@ -55,14 +55,15 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
-    """Analyzes a vyper ast and validates the function-level namespaces."""
+    """Analyzes a vyper ast and validates the function bodies"""
 
     err_list = ExceptionList()
     namespace = get_namespace()
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                FunctionNodeVisitor(vy_module, node, namespace)
+                analyzer = FunctionNodeVisitor(vy_module, node, namespace)
+                analyzer.analyze()
             except VyperException as e:
                 err_list.append(e)
 
@@ -185,26 +186,31 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.vyper_module = vyper_module
         self.fn_node = fn_node
         self.namespace = namespace
-        self.func = fn_node._metadata["type"]
+        self.func = fn_node._metadata["func_type"]
         self.expr_visitor = _ExprVisitor(self.func)
 
+    def analyze(self):
         # allow internal function params to be mutable
         location, is_immutable = (
             (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
         )
         for arg in self.func.arguments:
-            namespace[arg.name] = VarInfo(arg.typ, location=location, is_immutable=is_immutable)
+            self.namespace[arg.name] = VarInfo(
+                arg.typ, location=location, is_immutable=is_immutable
+            )
 
-        for node in fn_node.body:
+        for node in self.fn_node.body:
             self.visit(node)
+
         if self.func.return_type:
-            if not check_for_terminus(fn_node.body):
+            if not check_for_terminus(self.fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{fn_node.name}'", fn_node
+                    f"Missing or unmatched return statements in function '{self.fn_node.name}'",
+                    self.fn_node,
                 )
 
         # visit default args
-        assert self.func.n_keyword_args == len(fn_node.args.defaults)
+        assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
@@ -224,10 +230,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, typ)
 
-        try:
-            self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
         self.expr_visitor.visit(node.target, typ)
         self.expr_visitor.visit(node.value, typ)
@@ -290,6 +293,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("`continue` must be enclosed in a `for` loop", node)
 
     def visit_Expr(self, node):
+        if isinstance(node.value, vy_ast.Ellipsis):
+            raise StructureException(
+                "`...` is not allowed in `.vy` files! "
+                "Did you mean to import me as a `.vyi` file?",
+                node,
+            )
+
         if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
 
@@ -433,6 +443,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         # Check if `iter` is a storage variable. get_descendants` is used to check for
         # nested `self` (e.g. structs)
+        # NOTE: this analysis will be borked once stateful modules are allowed!
         iter_is_storage_var = (
             isinstance(node.iter, vy_ast.Attribute)
             and len(node.iter.get_descendants(vy_ast.Name, {"id": "self"})) > 0
@@ -453,8 +464,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                         call_node,
                     )
 
-                for name in self.namespace["self"].typ.members[fn_name].recursive_calls:
+                for reachable_t in (
+                    self.namespace["self"].typ.members[fn_name].reachable_internal_functions
+                ):
                     # check for indirect modification
+                    name = reachable_t.name
                     fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
                     if _check_iterator_modification(node.iter, fn_node):
                         raise ImmutableViolation(
@@ -472,10 +486,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # type check the for loop body using each possible type for iterator value
 
             with self.namespace.enter_scope():
-                try:
-                    self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
-                except VyperException as exc:
-                    raise exc.with_annotation(node) from None
+                self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
