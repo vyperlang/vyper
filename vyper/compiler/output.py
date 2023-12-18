@@ -89,6 +89,9 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
 
 
 def _ir_to_dict(ir_node):
+    # Currently only supported with IRnode and not VenomIR
+    if not isinstance(ir_node, IRnode):
+        return
     args = ir_node.args
     if len(args) > 0 or ir_node.value == "seq":
         return {ir_node.value: [_ir_to_dict(x) for x in args]}
