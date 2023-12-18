@@ -11,8 +11,6 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
 
-experimental_codegen = True
-
 
 def _topsort(functions):
     # single pass to get a global topological sort of functions (so that each
@@ -327,7 +325,7 @@ def _selector_section_sparse(external_functions, module_ctx):
         # don't particularly like using `jump` here since it can cause
         # issues for other backends, consider changing `goto` to allow
         # dynamic jumps, or adding some kind of jumptable instruction
-        if experimental_codegen:
+        if core._opt_experimental_codegen:
             jump_targets = [data[1] for data in jumptable_data[2:]]
             jump = IRnode.from_list(["djump", jumpdest, *jump_targets])
         else:

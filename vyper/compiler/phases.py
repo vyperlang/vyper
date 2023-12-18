@@ -195,7 +195,9 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        nodes = generate_ir_nodes(
+            self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
+        )
         if self.settings.experimental_codegen:
             return [generate_ir(nodes[0]), generate_ir(nodes[1])]
         else:
@@ -305,7 +307,9 @@ def generate_folded_ast(
     return vyper_module_folded, symbol_tables
 
 
-def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(
+    global_ctx: ModuleT, optimize: OptimizationLevel, experimental_codegen: bool
+) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -325,7 +329,7 @@ def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    with anchor_opt_level(optimize):
+    with anchor_opt_level(optimize, experimental_codegen):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
