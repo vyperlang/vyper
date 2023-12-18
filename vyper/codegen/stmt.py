@@ -24,7 +24,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, InvalidOperation
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
@@ -254,39 +254,28 @@ class Stmt:
 
         # Get arg0
         for_iter: vy_ast.Call = self.stmt.iter
-        arg0, arg1 = (for_iter.args + [None])[:2]
+        args_len = len(for_iter.args)
+        if args_len == 1:
+            arg0, arg1 = (IRnode.from_list(0, typ=iter_typ), for_iter.args[0])
+        elif args_len == 2:
+            arg0, arg1 = for_iter.args
+        else:
+            raise InvalidOperation("Invalid number of arguments to range()")
+
         kwargs = {s.arg: self._get_range_const_value(s.value) for s in for_iter.keywords}
 
-        # Type 1 for, e.g. for i in range(10): ...
-        if arg1 is None:
-            n = Expr.parse_value_expr(arg0, self.context)
-            start = IRnode.from_list(0, typ=iter_typ)
-            rounds = n
-            rounds_bound = kwargs.get("bound", rounds)
-
-        # Type 2 for, e.g. for i in range(100, 110): ...
-        elif all(self._check_valid_range_constant(arg).is_literal for arg in [arg0, arg1]):
-            arg0_val = self._get_range_const_value(arg0)
-            arg1_val = self._get_range_const_value(arg1)
-            start = IRnode.from_list(arg0_val, typ=iter_typ)
-            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
-            rounds_bound = rounds
-
-        # Type 3 for, e.g. for i in range(x, x + 10): ...
-        elif "bound" not in kwargs:
-            rounds = self._get_range_const_value(arg1.right)
-            start = Expr.parse_value_expr(arg0, self.context)
-            _, hi = start.typ.int_bounds
-            start = clamp("le", start, hi + 1 - rounds)
-            rounds_bound = rounds
-
-        # Type 4 for, e.g. for i in range(x, y, bound=N): ...
-        else:
+        if "bound" in kwargs:
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(arg1, self.context)
-            with end.cache_when_complex("end") as (b1, end):
-                rounds = b1.resolve(IRnode.from_list(["sub", end, clamp("le", start, end)]))
+            with end.cache_when_complex("end") as (builder, end):
+                rounds = builder.resolve(IRnode.from_list(["sub", end, clamp("le", start, end)]))
             rounds_bound = kwargs["bound"]
+        else:
+            start_val = self._get_range_const_value(arg0)
+            end_val = self._get_range_const_value(arg1)
+            start = IRnode.from_list(start_val, typ=iter_typ)
+            rounds = IRnode.from_list(end_val - start_val, typ=iter_typ)
+            rounds_bound = rounds
 
         bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
         if bound < 1:
@@ -298,10 +287,12 @@ class Stmt:
 
         self.context.forvars[varname] = True
 
-        loop_body = ["seq"]
-        # store the current value of i so it is accessible to userland
-        loop_body.append(["mstore", iptr, i])
-        loop_body.append(parse_body(self.stmt.body, self.context))
+        loop_body = [
+            "seq",
+            # store the current value of i, so it is accessible to userland
+            ["mstore", iptr, i],
+            parse_body(self.stmt.body, self.context),
+        ]
 
         # NOTE: codegen for `repeat` inserts an assertion that
         # (gt rounds_bound rounds). note this also covers the case where
