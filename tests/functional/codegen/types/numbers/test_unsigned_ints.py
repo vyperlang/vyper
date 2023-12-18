@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
+from vyper.exceptions import InvalidOperation, TypeMismatch, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
 from vyper.utils import evm_div, evm_mod
 
@@ -156,7 +156,7 @@ def foo() -> {typ}:
             assert_tx_failed(lambda: c.foo(x, y))
             assert_tx_failed(lambda: get_contract(code_2).foo(x))
             assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (InvalidType, OverflowException))
+            assert_compile_failed(lambda: get_contract(code_4), (TypeMismatch, OverflowException))
 
 
 COMPARISON_OPS = {
