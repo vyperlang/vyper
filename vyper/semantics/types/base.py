@@ -255,8 +255,8 @@ class VyperType:
         return isinstance(other, type(self))
 
     def get_return_type(
-        self, node: vy_ast.Call, expected_type: "VyperType" | None = None
-    ) -> "VyperType" | None:
+        self, node: vy_ast.Call, expected_type: Optional["VyperType"] = None
+    ) -> Optional["VyperType"]:
         # TODO will be cleaner to separate into validate_call and get_return_type
         """
         Validate a call to this type and return the result.
