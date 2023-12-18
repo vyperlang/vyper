@@ -30,7 +30,7 @@ event Test:
 @external
 def test():
     log Test(-7)
-   """
+   """,
 ]
 
 
