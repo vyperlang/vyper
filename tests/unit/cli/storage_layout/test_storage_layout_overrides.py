@@ -103,7 +103,7 @@ x: uint256[2]
     storage_layout_override = {"x": {"slot": 2**256 - 1, "type": "uint256[2]"}}
 
     with pytest.raises(
-        StorageLayoutException, match=f"Invalid storage slot for var x, out of bounds: {2**256}\n"
+        StorageLayoutException, match=f"Invalid storage slot for var x, out of bounds: {2**256}"
     ):
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override

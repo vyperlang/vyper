@@ -17,7 +17,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
 
@@ -101,6 +101,12 @@ def make_input_bundle(tmp_path, make_file):
         return FilesystemInputBundle([tmp_path])
 
     return fn
+
+
+# for tests which just need an input bundle, doesn't matter what it is
+@pytest.fixture
+def dummy_input_bundle():
+    return InputBundle([])
 
 
 # TODO: remove me, this is just string.encode("utf-8").ljust()
@@ -255,9 +261,11 @@ def get_contract_from_ir(w3, optimize):
         ir = IRnode.from_list(ir)
         if optimize != OptimizationLevel.NONE:
             ir = optimizer.optimize(ir)
+
         bytecode, _ = compile_ir.assembly_to_evm(
             compile_ir.compile_to_assembly(ir, optimize=optimize)
         )
+
         abi = kwargs.get("abi") or []
         c = w3.eth.contract(abi=abi, bytecode=bytecode)
         deploy_transaction = c.constructor()
@@ -279,8 +287,8 @@ def _get_contract(
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
-        # test that metadata and natspecs get generated
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
+        # test that all output formats can get generated
+        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
@@ -352,7 +360,7 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
-        output_formats=["abi", "bytecode", "metadata", "userdoc", "devdoc"],
+        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )

@@ -111,6 +111,7 @@ def _parse_args(argv):
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
     parser.add_argument(
+        "-O",
         "--optimize",
         help="Optimization flag (defaults to 'gas')",
         choices=["gas", "codesize", "none"],
@@ -125,6 +126,7 @@ def _parse_args(argv):
         type=int,
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         help="Turn on compiler verbose output. "
         "Currently an alias for --traceback-limit but "
@@ -138,7 +140,7 @@ def _parse_args(argv):
     )
     parser.add_argument("--hex-ir", action="store_true")
     parser.add_argument(
-        "-p", help="Set the root path for contract imports", default=".", dest="root_folder"
+        "--path", "-p", help="Set the root path for contract imports", action="append", dest="paths"
     )
     parser.add_argument("-o", help="Set the output path", dest="output_path")
     parser.add_argument(
@@ -188,7 +190,7 @@ def _parse_args(argv):
     compiled = compile_files(
         args.input_files,
         output_formats,
-        args.root_folder,
+        args.paths,
         args.show_gas_estimates,
         settings,
         args.storage_layout,
@@ -226,18 +228,23 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
-    root_folder: str = ".",
+    paths: list[str] = None,
     show_gas_estimates: bool = False,
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
     experimental_codegen: bool = False,
 ) -> dict:
-    root_path = Path(root_folder).resolve()
-    if not root_path.exists():
-        raise FileNotFoundError(f"Invalid root path - '{root_path.as_posix()}' does not exist")
+    paths = paths or []
 
-    input_bundle = FilesystemInputBundle([root_path])
+    # lowest precedence search path is always `.`
+    search_paths = [Path(".")]
+
+    for p in paths:
+        path = Path(p).resolve(strict=True)
+        search_paths.append(path)
+
+    input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
     if "combined_json" in output_formats:
@@ -271,10 +278,8 @@ def compile_files(
             with open(storage_file_path) as sfh:
                 storage_layout_override = json.load(sfh)
 
-        output = vyper.compile_code(
-            file.source_code,
-            contract_name=str(file.path),
-            source_id=file.source_id,
+        output = vyper.compile_from_file_input(
+            file,
             input_bundle=input_bundle,
             output_formats=final_formats,
             exc_handler=exc_handler,

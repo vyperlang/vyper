@@ -1,12 +1,112 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import asttokens
 
-from vyper.exceptions import CompilerPanic, SyntaxException
+from vyper.ast import nodes as vy_ast
+from vyper.ast.pre_parser import pre_parse
+from vyper.compiler.settings import Settings
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
+
+
+def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
+    _settings, ast = parse_to_ast_with_settings(*args, **kwargs)
+    return ast
+
+
+def parse_to_ast_with_settings(
+    source_code: str,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
+    add_fn_node: Optional[str] = None,
+) -> tuple[Settings, vy_ast.Module]:
+    """
+    Parses a Vyper source string and generates basic Vyper AST nodes.
+
+    Parameters
+    ----------
+    source_code : str
+        The Vyper source code to parse.
+    source_id : int, optional
+        Source id to use in the `src` member of each node.
+    contract_name: str, optional
+        Name of contract.
+    add_fn_node: str, optional
+        If not None, adds a dummy Python AST FunctionDef wrapper node.
+    source_id: int, optional
+        The source ID generated for this source code.
+        Corresponds to FileInput.source_id
+    module_path: str, optional
+        The path of the source code
+        Corresponds to FileInput.path
+    resolved_path: str, optional
+        The resolved path of the source code
+        Corresponds to FileInput.resolved_path
+
+    Returns
+    -------
+    list
+        Untyped, unoptimized Vyper AST nodes.
+    """
+    if "\x00" in source_code:
+        raise ParserException("No null bytes (\\x00) allowed in the source code.")
+    settings, class_types, reformatted_code = pre_parse(source_code)
+    try:
+        py_ast = python_ast.parse(reformatted_code)
+    except SyntaxError as e:
+        # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
+        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
+
+    # Add dummy function node to ensure local variables are treated as `AnnAssign`
+    # instead of state variables (`VariableDecl`)
+    if add_fn_node:
+        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
+        fn_node.body = py_ast.body
+        fn_node.args = python_ast.arguments(defaults=[])
+        py_ast.body = [fn_node]
+
+    annotate_python_ast(
+        py_ast,
+        source_code,
+        class_types,
+        source_id,
+        module_path=module_path,
+        resolved_path=resolved_path,
+    )
+
+    # Convert to Vyper AST.
+    module = vy_ast.get_node(py_ast)
+    assert isinstance(module, vy_ast.Module)  # mypy hint
+    return settings, module
+
+
+def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
+    """
+    Converts a Vyper AST node, or list of nodes, into a dictionary suitable for
+    output to the user.
+    """
+    if isinstance(ast_struct, vy_ast.VyperNode):
+        return ast_struct.to_dict()
+
+    if isinstance(ast_struct, list):
+        return [i.to_dict() for i in ast_struct]
+
+    raise CompilerPanic(f'Unknown Vyper AST node provided: "{type(ast_struct)}".')
+
+
+def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
+    """
+    Converts an AST dict, or list of dicts, into Vyper AST node objects.
+    """
+    if isinstance(ast_struct, dict):
+        return vy_ast.get_node(ast_struct)
+    if isinstance(ast_struct, list):
+        return [vy_ast.get_node(i) for i in ast_struct]
+    raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
 class AnnotatingVisitor(python_ast.NodeTransformer):
@@ -19,11 +119,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         modification_offsets: Optional[ModificationOffsets],
         tokens: asttokens.ASTTokens,
         source_id: int,
-        contract_name: Optional[str],
+        module_path: Optional[str] = None,
+        resolved_path: Optional[str] = None,
     ):
         self._tokens = tokens
         self._source_id = source_id
-        self._contract_name = contract_name
+        self._module_path = module_path
+        self._resolved_path = resolved_path
         self._source_code: str = source_code
         self.counter: int = 0
         self._modification_offsets = {}
@@ -83,7 +185,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
-        node.name = self._contract_name
+        node.path = self._module_path
+        node.resolved_path = self._resolved_path
+        node.source_id = self._source_id
         return self._visit_docstring(node)
 
     def visit_FunctionDef(self, node):
@@ -163,6 +267,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Str"
         elif isinstance(node.value, bytes):
             node.ast_type = "Bytes"
+        elif isinstance(node.value, Ellipsis.__class__):
+            node.ast_type = "Ellipsis"
         else:
             raise SyntaxException(
                 "Invalid syntax (unsupported Python Constant AST node).",
@@ -250,7 +356,8 @@ def annotate_python_ast(
     source_code: str,
     modification_offsets: Optional[ModificationOffsets] = None,
     source_id: int = 0,
-    contract_name: Optional[str] = None,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
 ) -> python_ast.AST:
     """
     Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
@@ -270,7 +377,14 @@ def annotate_python_ast(
     """
 
     tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
-    visitor = AnnotatingVisitor(source_code, modification_offsets, tokens, source_id, contract_name)
+    visitor = AnnotatingVisitor(
+        source_code,
+        modification_offsets,
+        tokens,
+        source_id,
+        module_path=module_path,
+        resolved_path=resolved_path,
+    )
     visitor.visit(parsed_ast)
 
     return parsed_ast

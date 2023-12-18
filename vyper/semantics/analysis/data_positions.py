@@ -79,7 +79,7 @@ def set_storage_slots_with_overrides(
 
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["type"]
+        type_ = node._metadata["func_type"]
 
         # Ignore functions without non-reentrant
         if type_.nonreentrant is None:
@@ -165,7 +165,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
     ret: Dict[str, Dict] = {}
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["type"]
+        type_ = node._metadata["func_type"]
         if type_.nonreentrant is None:
             continue
 

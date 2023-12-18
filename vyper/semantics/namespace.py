@@ -95,7 +95,7 @@ class Namespace(dict):
 
 def get_namespace():
     """
-    Get the active namespace object.
+    Get the global namespace object.
     """
     global _namespace
     try:
