@@ -562,8 +562,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def visit_Return(self, node):
         return_value = node.value
-        if return_value is None and self.func.return_type is not None:
-            raise FunctionDeclarationException("Return statement is missing a value", node)
+        if return_value is None:
+            if self.func.return_type is not None:
+                raise FunctionDeclarationException("Return statement is missing a value", node)
+            return
         if return_value is not None and self.func.return_type is None:
             raise FunctionDeclarationException("Function does not return any values", node)
 
