@@ -287,18 +287,11 @@ Another use of range can be with ``START`` and ``STOP`` bounds.
 
 Here, ``START`` and ``STOP`` are literal integers, with ``STOP`` being a greater value than ``START``. ``i`` begins as ``START`` and increments by one until it is equal to ``STOP``.
 
-.. code-block:: python
-
-    for i in range(a, a + N):
-        ...
-
-``a`` is a variable with an integer type and ``N`` is a literal integer greater than zero.  ``i`` begins as ``a`` and increments by one until it is equal to ``a + N``. If ``a + N`` would overflow, execution will revert.
-
-
 Finally, it is possible to use ``range`` with runtime `start` and `stop` values as long as a constant `bound` value is provided.
 In this case, Vyper checks at runtime that `end - start <= bound`.
+``N`` must be a compile-time constant.
 
 .. code-block:: python
 
-    for i in range(start, end, bound=CONSTANT):
+    for i in range(start, end, bound=N):
         ...

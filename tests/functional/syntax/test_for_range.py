@@ -3,12 +3,7 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    ArgumentException,
-    InvalidLiteral,
-    StateAccessViolation,
-    StructureException,
-)
+from vyper.exceptions import ArgumentException, StateAccessViolation, StructureException
 
 fail_list = [
     (
@@ -89,7 +84,7 @@ def bar():
         pass
     """,
         StateAccessViolation,
-        "Value must be a literal integer",
+        "Value must be a literal integer, unless a bound is specified",
         "x",
     ),
     (
@@ -101,7 +96,7 @@ def bar():
         pass
     """,
         StateAccessViolation,
-        "Value must be a literal integer",
+        "Value must be a literal integer, unless a bound is specified",
         "x",
     ),
     (
@@ -113,7 +108,7 @@ def repeat(n: uint256) -> uint256:
     return n
     """,
         StateAccessViolation,
-        "Value must be a literal integer",
+        "Value must be a literal integer, unless a bound is specified",
         "n * 10",
     ),
     (
@@ -125,7 +120,7 @@ def bar():
         pass
     """,
         StateAccessViolation,
-        "Value must be a literal integer",
+        "Value must be a literal integer, unless a bound is specified",
         "x + 1",
     ),
     (
@@ -147,47 +142,21 @@ def bar():
     for i in range(x, x):
         pass
     """,
-        StructureException,
-        "Second element must be the first element plus a literal value",
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
         "x",
     ),
     (
         """
 @external
-def bar():
-    x:uint256 = 1
-    y:uint256 = 1
-    for i in range(x, y + 1):
+def foo():
+    x: int128 = 5
+    for i in range(x, x + 10):
         pass
     """,
-        StructureException,
-        "First and second variable must be the same",
-        "y",
-    ),
-    (
-        """
-@external
-def bar():
-    x:uint256 = 1
-    y:uint256 = 1
-    for i in range(x, x + y):
-        pass
-    """,
-        InvalidLiteral,
-        "Literal must be an integer",
-        "y",
-    ),
-    (
-        """
-@external
-def bar():
-    x:uint256 = 1
-    for i in range(x, x + 0):
-        pass
-    """,
-        StructureException,
-        "For loop has invalid number of iterations (0), the value must be greater than zero",
-        "0",
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
+        "x",
     ),
     (
         """
@@ -197,9 +166,9 @@ def repeat(n: uint256) -> uint256:
         pass
     return x
     """,
-        StructureException,
-        "Second element must be the first element plus a literal value",
-        "6",
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
+        "n",
     ),
 ]
 
@@ -229,13 +198,6 @@ def foo():
 @external
 def foo():
     for i in range(10, 20):
-        pass
-    """,
-    """
-@external
-def foo():
-    x: int128 = 5
-    for i in range(x, x + 10):
         pass
     """,
     """

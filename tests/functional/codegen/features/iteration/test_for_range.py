@@ -171,7 +171,7 @@ def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
 @external
 def sum(frm: {typ}, to: {typ}) -> {typ}:
     out: {typ} = 0
-    for i in range(frm, frm + 101):
+    for i in range(frm, frm + 101, bound=101):
         if i == to:
             break
         out = out + i
@@ -228,39 +228,13 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(100) == 31337
 
 
-# test that we can get to the upper range of an integer
-@pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
-def test_for_range_edge(get_contract, typ):
-    code = f"""
-@external
-def test():
-    found: bool = False
-    x: {typ} = max_value({typ})
-    for i in range(x, x + 1):
-        if i == max_value({typ}):
-            found = True
-
-    assert found
-
-    found = False
-    x = max_value({typ}) - 1
-    for i in range(x, x + 2):
-        if i == max_value({typ}):
-            found = True
-
-    assert found
-    """
-    c = get_contract(code)
-    c.test()
-
-
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_oob_check(get_contract, assert_tx_failed, typ):
     code = f"""
 @external
 def test():
     x: {typ} = max_value({typ})
-    for i in range(x, x+2):
+    for i in range(x, x + 2, bound=2):
         pass
     """
     c = get_contract(code)

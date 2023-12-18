@@ -7,7 +7,6 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidLiteral,
     InvalidOperation,
     InvalidType,
     IteratorException,
@@ -753,10 +752,7 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     if "bound" in kwargs:
         return _analyse_range_bound(start, end, kwargs["bound"], node)
 
-    if isinstance(start, vy_ast.Num):
-        return _analyse_range_constant(start, end, node)
-
-    return _analyse_range_sum(start, end, node)
+    return _analyse_range_constant(start, end, node)
 
 
 def _analyse_range_constant(
@@ -769,8 +765,11 @@ def _analyse_range_constant(
     :param node: range() call node
     :return: The common types of the arguments
     """
-    if not isinstance(end, vy_ast.Num):
-        raise StateAccessViolation("Value must be a literal integer", end)
+    for arg in [start, end]:
+        if not isinstance(arg, vy_ast.Num):
+            error = "Value must be a literal integer, unless a bound is specified"
+            raise StateAccessViolation(error, arg)
+
     if end.value <= start.value:
         raise StructureException("End must be greater than start", end)
     return _get_common_argument_types(node)
@@ -799,33 +798,6 @@ def _analyse_range_bound(
             f"For loop has invalid number of iterations ({end.value - start.value}),"
             " the value must be between zero and the bound",
             node,
-        )
-    return _get_common_argument_types(node)
-
-
-def _analyse_range_sum(
-    start: vy_ast.VyperNode, end: vy_ast.VyperNode, node: vy_ast.Call
-) -> list[VyperType]:
-    """
-    Check that the arguments to a range(x, x + N) call are valid.
-    :param start: first argument to range()
-    :param end: second argument to range()
-    :param node: range() call node
-    :return: The common types of the arguments
-    """
-    if not isinstance(end, vy_ast.BinOp) or not isinstance(end.op, vy_ast.Add):
-        raise StructureException(
-            "Second element must be the first element plus a literal value", end
-        )
-    if not vy_ast.compare_nodes(start, end.left):
-        raise StructureException("First and second variable must be the same", end.left)
-    if not isinstance(end.right, vy_ast.Int):
-        raise InvalidLiteral("Literal must be an integer", end.right)
-    if end.right.value < 1:
-        raise StructureException(
-            f"For loop has invalid number of iterations ({end.right.value}),"
-            " the value must be greater than zero",
-            end.right,
         )
     return _get_common_argument_types(node)
 
