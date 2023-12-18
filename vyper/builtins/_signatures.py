@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Optional
+from typing import Any
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -45,6 +45,7 @@ def process_inputs(wrapped_fn):
     @functools.wraps(wrapped_fn)
     def decorator_fn(self, node, context):
         subs = []
+
         for arg in node.args:
             arg_ir = process_arg(arg, arg._metadata["type"], context)
             # TODO annotate arg_ir with argname from self._inputs?
@@ -78,7 +79,7 @@ class BuiltinFunctionT(VyperType):
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
-    _return_type: Optional[VyperType] = None
+    _return_type: VyperType | None = None
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -120,13 +121,24 @@ class BuiltinFunctionT(VyperType):
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         self._validate_arg_types(node)
 
-        return self._return_type
+        ret = self._return_type
 
-    def infer_arg_types(self, node: vy_ast.Call) -> list[VyperType]:
-        self._validate_arg_types(node)
+        if expected_type is not None and not expected_type.compare_type(ret):
+            raise TypeMismatch("{self._id}() returns {ret}, but expected {expected_type}", node)
+
+        return ret
+
+    def infer_arg_types(
+        self, node: vy_ast.Call, return_type: VyperType | None = None
+    ) -> list[VyperType]:
+        # validate arg types and sanity check the return type
+        self.get_return_type(node, expected_type=return_type)
+
         ret = [expected for (_, expected) in self._inputs]
 
         # handle varargs.
@@ -135,6 +147,7 @@ class BuiltinFunctionT(VyperType):
         if len(varargs) > 0:
             assert self._has_varargs
         ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+
         return ret
 
     def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:

@@ -74,33 +74,21 @@ class _BytestringT(VyperType):
         # of giving it a size that is not cleanly divisble by 32
         return 32 + ceil32(self.length)
 
+    # note: definition of compare_type is:
+    # expr of type `other` can be assigned to expr of type `self`
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
 
-        self_length_known = self._length is not UNKNOWN_LENGTH
-        other_length_known = other._length is not UNKNOWN_LENGTH
-
-        # when comparing two literals, or two bytestrings of non-zero lengths,
-        # ensure that the other length fits within self
-        if self_length_known and other_length_known:
-            return self._length >= other._length
-
-        # if both are non-literals and zero/None length, then the bytestring
-        # length cannot be derived and it is likely to be a syntax error,
-        # so we defer the syntax error to be handled downstream for better
-        # error messages
-        if not self_length_known and not other_length_known:
-            # TODO raise here?
-            return True
-
-        # relax typechecking if length has not been set for other type
+        # relax typechecking if length has not been set for either type
         # (e.g. JSON ABI import, `address.code`) so that it can be updated in
         # annotation phase
-        if not self_length_known or not other_length_known:
+        # note that if both lengths are unknown, there is an exception
+        # but it will be handled elsewhere.
+        if self._length is UNKNOWN_LENGTH or other._length is UNKNOWN_LENGTH:
             return True
 
-        return False
+        return self._length >= other._length
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":

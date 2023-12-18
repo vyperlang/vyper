@@ -153,7 +153,12 @@ class FilesystemInputBundle(InputBundle):
         # things like "foo/bar/../x.vy" => "foo/x.vy", with all
         # the caveats around symlinks that os.path.normpath comes with.
         try:
+<<<<<<< HEAD
             return path.resolve(strict=True)
+=======
+            with path.open() as f:
+                code = f.read()
+>>>>>>> 23ef9d1682d4bc581de30ba1688be851907d063e
         except (FileNotFoundError, NotADirectoryError):
             raise _NotFound(path)
 

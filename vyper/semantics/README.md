@@ -192,7 +192,7 @@ bar: bytes32 = sha256(b"hash me!")
 
 1. We look up `sha256` in `namespace` and retrieve the definition for the builtin
 function.
-2. We call `fetch_call_return` on the function definition object, with the AST
+2. We call `get_return_type` on the function definition object, with the AST
 node representing the call. This method validates the input arguments, and returns
 a `BytesM_T` with `m=32`.
 3. We validation of the delcaration of `bar` in the same manner as the first
