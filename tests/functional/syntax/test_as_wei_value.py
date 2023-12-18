@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, StructureException
+from vyper.exceptions import ArgumentException, StructureException, TypeMismatch
 
 fail_list = [
     (
