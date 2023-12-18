@@ -3,7 +3,6 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     InvalidOperation,
-    InvalidType,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -56,24 +55,18 @@ def foo(x: Bytes[100]) -> int128:
 def foo(x: int128) -> Bytes[75]:
     return x
     """,
-    (
-        """
+    """
 @external
 def foo() -> Bytes[10]:
     x: Bytes[10] = '0x1234567890123456789012345678901234567890'
     x = 0x1234567890123456789012345678901234567890
     return x
     """,
-        InvalidType,
-    ),
-    (
-        """
+    """
 @external
 def foo() -> Bytes[10]:
     return "badmintonzz"
     """,
-        InvalidType,
-    ),
     (
         """
 @external

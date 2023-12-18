@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, InvalidType, StructureException
+from vyper.exceptions import ArgumentException, StructureException
 
 fail_list = [
     (
@@ -26,7 +26,7 @@ def foo() -> int128:
 def foo():
     x: int128 = as_wei_value(0xf5, "szabo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 
