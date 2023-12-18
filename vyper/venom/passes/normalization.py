@@ -1,5 +1,5 @@
 from vyper.exceptions import CompilerPanic
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -61,7 +61,7 @@ class NormalizationPass(IRPass):
         source = in_bb.label.value
         target = bb.label.value
         split_bb = IRBasicBlock(IRLabel(f"{target}_split_{source}"), self.ctx)
-        split_bb.append_instruction(IRInstruction("jmp", [bb.label]))
+        split_bb.append_instruction("jmp", bb.label)
         self.ctx.append_basic_block(split_bb)
 
         # Rewire the CFG

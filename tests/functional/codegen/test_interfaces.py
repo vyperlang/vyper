@@ -6,9 +6,9 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
+    DuplicateImport,
     InterfaceViolation,
     NamespaceCollision,
-    StructureException,
 )
 
 
@@ -31,7 +31,7 @@ def allowance(_owner: address, _spender: address) -> (uint256, uint256):
 
     out = compile_code(code, output_formats=["interface"])
     out = out["interface"]
-    code_pass = "\n".join(code.split("\n")[:-2] + ["    pass"])  # replace with a pass statement.
+    code_pass = "\n".join(code.split("\n")[:-2] + ["    ..."])  # replace with a pass statement.
 
     assert code_pass.strip() == out.strip()
 
@@ -60,7 +60,7 @@ interface One:
     def test(_owner: address): nonpayable
     """
 
-    out = compile_code(code, contract_name="One.vy", output_formats=["external_interface"])[
+    out = compile_code(code, contract_path="One.vy", output_formats=["external_interface"])[
         "external_interface"
     ]
 
@@ -85,14 +85,14 @@ def test_external_interface_parsing(make_input_bundle, assert_compile_failed):
     interface_code = """
 @external
 def foo() -> uint256:
-    pass
+    ...
 
 @external
 def bar() -> uint256:
-    pass
+    ...
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     code = """
 import a as FooBarInterface
@@ -121,9 +121,8 @@ def foo() -> uint256:
 
     """
 
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
+    with pytest.raises(InterfaceViolation):
+        compile_code(not_implemented_code, input_bundle=input_bundle)
 
 
 def test_missing_event(make_input_bundle, assert_compile_failed):
@@ -132,7 +131,7 @@ event Foo:
     a: uint256
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     not_implemented_code = """
 import a as FooBarInterface
@@ -156,7 +155,7 @@ event Foo:
     a: uint256
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     not_implemented_code = """
 import a as FooBarInterface
@@ -183,7 +182,7 @@ event Foo:
     a: uint256
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     not_implemented_code = """
 import a as FooBarInterface
@@ -211,7 +210,7 @@ event Foo:
     a: indexed(uint256)
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     not_implemented_code = """
 import a as FooBarInterface
@@ -234,13 +233,13 @@ def bar() -> uint256:
 
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
-    ("import a as Foo", "a.vy"),
-    ("import b.a as Foo", "b/a.vy"),
-    ("import Foo as Foo", "Foo.vy"),
-    ("from a import Foo", "a/Foo.vy"),
-    ("from b.a import Foo", "b/a/Foo.vy"),
-    ("from .a import Foo", "./a/Foo.vy"),
-    ("from ..a import Foo", "../a/Foo.vy"),
+    ("import a as Foo", "a.vyi"),
+    ("import b.a as Foo", "b/a.vyi"),
+    ("import Foo as Foo", "Foo.vyi"),
+    ("from a import Foo", "a/Foo.vyi"),
+    ("from b.a import Foo", "b/a/Foo.vyi"),
+    ("from .a import Foo", "./a/Foo.vyi"),
+    ("from ..a import Foo", "../a/Foo.vyi"),
 ]
 
 
@@ -252,11 +251,12 @@ def test_extract_file_interface_imports(code, filename, make_input_bundle):
 
 
 BAD_IMPORT_CODE = [
-    ("import a", StructureException),  # must alias absolute imports
-    ("import a as A\nimport a as A", NamespaceCollision),
+    ("import a as A\nimport a as A", DuplicateImport),
+    ("import a as A\nimport a as a", DuplicateImport),
+    ("from . import a\nimport a as a", DuplicateImport),
+    ("import a as a\nfrom . import a", DuplicateImport),
     ("from b import a\nfrom . import a", NamespaceCollision),
-    ("from . import a\nimport a as a", NamespaceCollision),
-    ("import a as a\nfrom . import a", NamespaceCollision),
+    ("import a\nimport c as a", NamespaceCollision),
 ]
 
 
@@ -264,34 +264,50 @@ BAD_IMPORT_CODE = [
 def test_extract_file_interface_imports_raises(
     code, exception_type, assert_compile_failed, make_input_bundle
 ):
-    input_bundle = make_input_bundle({"a.vy": "", "b/a.vy": ""})  # dummy
-    assert_compile_failed(lambda: compile_code(code, input_bundle=input_bundle), exception_type)
+    input_bundle = make_input_bundle({"a.vyi": "", "b/a.vyi": "", "c.vyi": ""})
+    with pytest.raises(exception_type):
+        compile_code(code, input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(w3, get_contract, make_input_bundle):
+    token_interface = """
+@view
+@external
+def balanceOf(addr: address) -> uint256:
+    ...
+
+@external
+def transfer(to: address, amount: uint256):
+    ...
+    """
+
     token_code = """
+import itoken as IToken
+
+implements: IToken
+
 balanceOf: public(HashMap[address, uint256])
 
 @external
-def transfer(to: address, _value: uint256):
-    self.balanceOf[to] += _value
+def transfer(to: address, amount: uint256):
+    self.balanceOf[to] += amount
     """
 
-    input_bundle = make_input_bundle({"one.vy": token_code})
+    input_bundle = make_input_bundle({"token.vy": token_code, "itoken.vyi": token_interface})
 
     code = """
-import one as TokenCode
+import itoken as IToken
 
 interface EPI:
     def test() -> uint256: view
 
 
-token_address: TokenCode
+token_address: IToken
 
 
 @external
 def __init__(_token_address: address):
-    self.token_address = TokenCode(_token_address)
+    self.token_address = IToken(_token_address)
 
 
 @external
@@ -299,14 +315,15 @@ def test():
     self.token_address.transfer(msg.sender, 1000)
     """
 
-    erc20 = get_contract(token_code)
-    test_c = get_contract(code, *[erc20.address], input_bundle=input_bundle)
+    token = get_contract(token_code, input_bundle=input_bundle)
+
+    test_c = get_contract(code, *[token.address], input_bundle=input_bundle)
 
     sender = w3.eth.accounts[0]
-    assert erc20.balanceOf(sender) == 0
+    assert token.balanceOf(sender) == 0
 
     test_c.test(transact={})
-    assert erc20.balanceOf(sender) == 1000
+    assert token.balanceOf(sender) == 1000
 
 
 @pytest.mark.parametrize(
@@ -320,26 +337,36 @@ def test():
     ],
 )
 def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected, make_input_bundle):
-    code_a = f"""
+    interface_code = f"""
+@external
+@view
+def foo(_max: {typ} = {kwarg}) -> {typ}:
+    ...
+    """
+    code1 = f"""
+import one as IContract
+
+implements: IContract
+
 @external
 @view
 def foo(_max: {typ} = {kwarg}) -> {typ}:
     return _max
     """
 
-    input_bundle = make_input_bundle({"one.vy": code_a})
+    input_bundle = make_input_bundle({"one.vyi": interface_code})
 
-    code_b = f"""
-import one as ContractA
+    code2 = f"""
+import one as IContract
 
 @external
 @view
 def bar(a_address: address) -> {typ}:
-    return ContractA(a_address).foo()
+    return IContract(a_address).foo()
     """
 
-    contract_a = get_contract(code_a)
-    contract_b = get_contract(code_b, *[contract_a.address], input_bundle=input_bundle)
+    contract_a = get_contract(code1, input_bundle=input_bundle)
+    contract_b = get_contract(code2, *[contract_a.address], input_bundle=input_bundle)
 
     assert contract_b.bar(contract_a.address) == expected
 
@@ -349,8 +376,8 @@ def test_external_call_to_builtin_interface(w3, get_contract):
 balanceOf: public(HashMap[address, uint256])
 
 @external
-def transfer(to: address, _value: uint256) -> bool:
-    self.balanceOf[to] += _value
+def transfer(to: address, amount: uint256) -> bool:
+    self.balanceOf[to] += amount
     return True
     """
 
@@ -510,14 +537,14 @@ def returns_Bytes3() -> Bytes[3]:
     """
 
     should_not_compile = """
-import BadJSONInterface as BadJSONInterface
+import BadJSONInterface
 @external
 def foo(x: BadJSONInterface) -> Bytes[2]:
     return slice(x.returns_Bytes3(), 0, 2)
     """
 
     code = """
-import BadJSONInterface as BadJSONInterface
+import BadJSONInterface
 
 foo: BadJSONInterface
 
@@ -575,10 +602,10 @@ def balanceOf(owner: address) -> uint256:
 @external
 @view
 def balanceOf(owner: address) -> uint256:
-    pass
+    ...
     """
 
-    input_bundle = make_input_bundle({"balanceof.vy": interface_code})
+    input_bundle = make_input_bundle({"balanceof.vyi": interface_code})
 
     c = get_contract(code, input_bundle=input_bundle)
 
@@ -589,7 +616,7 @@ def test_simple_implements(make_input_bundle):
     interface_code = """
 @external
 def foo() -> uint256:
-    pass
+    ...
     """
 
     code = """
@@ -602,7 +629,7 @@ def foo() -> uint256:
     return 1
     """
 
-    input_bundle = make_input_bundle({"a.vy": interface_code})
+    input_bundle = make_input_bundle({"a.vyi": interface_code})
 
     assert compile_code(code, input_bundle=input_bundle) is not None
 

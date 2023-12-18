@@ -10,7 +10,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis import validate_semantics
 
 
-def test_modify_iterator_function_outside_loop(namespace):
+def test_modify_iterator_function_outside_loop(dummy_input_bundle):
     code = """
 
 a: uint256[3]
@@ -26,10 +26,10 @@ def bar():
         pass
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, {})
+    validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_pass_memory_var_to_other_function(namespace):
+def test_pass_memory_var_to_other_function(dummy_input_bundle):
     code = """
 
 @internal
@@ -46,10 +46,10 @@ def bar():
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, {})
+    validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_modify_iterator(namespace):
+def test_modify_iterator(dummy_input_bundle):
     code = """
 
 a: uint256[3]
@@ -61,10 +61,10 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_bad_keywords(namespace):
+def test_bad_keywords(dummy_input_bundle):
     code = """
 
 @internal
@@ -75,10 +75,10 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArgumentException):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_bad_bound(namespace):
+def test_bad_bound(dummy_input_bundle):
     code = """
 
 @internal
@@ -89,10 +89,10 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StateAccessViolation):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_modify_iterator_function_call(namespace):
+def test_modify_iterator_function_call(dummy_input_bundle):
     code = """
 
 a: uint256[3]
@@ -108,10 +108,10 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_modify_iterator_recursive_function_call(namespace):
+def test_modify_iterator_recursive_function_call(dummy_input_bundle):
     code = """
 
 a: uint256[3]
@@ -131,7 +131,7 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
 iterator_inference_codes = [
@@ -169,7 +169,7 @@ def foo():
 
 
 @pytest.mark.parametrize("code", iterator_inference_codes)
-def test_iterator_type_inference_checker(namespace, code):
+def test_iterator_type_inference_checker(code, dummy_input_bundle):
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)

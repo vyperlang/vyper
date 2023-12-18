@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -66,8 +66,15 @@ class _ExprAnalyser:
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
-            varinfo = self.namespace[node.id]
-            return ExprInfo.from_varinfo(varinfo)
+            info = self.namespace[node.id]
+
+            if isinstance(info, VarInfo):
+                return ExprInfo.from_varinfo(info)
+
+            if isinstance(info, ModuleInfo):
+                return ExprInfo.from_moduleinfo(info)
+
+            raise CompilerPanic("unreachable!", node)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
@@ -192,16 +199,17 @@ class _ExprAnalyser:
 
         try:
             s = t.get_member(name, node)
-            if isinstance(s, VyperType):
+
+            if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
             if is_self_reference and (s.is_constant or s.is_immutable):
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
-        except UnknownAttribute:
+        except UnknownAttribute as e:
             if not is_self_reference:
-                raise
+                raise e from None
             if name in self.namespace:
                 _raise_invalid_reference(name, node)
 
@@ -364,6 +372,7 @@ class _ExprAnalyser:
                 return [TYPE_T(t)]
 
             return [t.typ]
+
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 

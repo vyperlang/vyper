@@ -112,7 +112,16 @@ class _BytestringT(VyperType):
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
-        length = get_index_value(node.slice)
+        length = get_index_value(node.slice)  # type: ignore
+
+        if length is None:
+            raise StructureException(
+                f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
+            )
+
+        # TODO: pass None to constructor after we redo length inference on bytestrings
+        length = length or 0
+
         return cls(length)
 
     @classmethod

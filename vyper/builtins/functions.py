@@ -2084,7 +2084,10 @@ class Uint2Str(BuiltinFunctionT):
         if not isinstance(node.args[0], vy_ast.Int):
             raise UnfoldableNode
 
-        value = str(node.args[0].value)
+        value = node.args[0].value
+        if value < 0:
+            raise InvalidType("Only unsigned ints allowed", node)
+        value = str(value)
         return vy_ast.Str.from_node(node, value=value)
 
     def infer_arg_types(self, node):
@@ -2488,9 +2491,9 @@ class ABIDecode(BuiltinFunctionT):
         validate_call_args(node, 2, ["unwrap_tuple"])
 
         data_type = get_exact_type_from_node(node.args[0])
-        output_typedef = TYPE_T(type_from_annotation(node.args[1]))
+        output_type = type_from_annotation(node.args[1])
 
-        return [data_type, output_typedef]
+        return [data_type, TYPE_T(output_type)]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):

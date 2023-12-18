@@ -376,17 +376,12 @@ def test_interfaces_success(good_code):
 
 def test_imports_and_implements_within_interface(make_input_bundle):
     interface_code = """
-from vyper.interfaces import ERC20
-import foo.bar as Baz
-
-implements: Baz
-
 @external
 def foobar():
-    pass
+    ...
 """
 
-    input_bundle = make_input_bundle({"foo.vy": interface_code})
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
 
     code = """
 import foo as Foo
