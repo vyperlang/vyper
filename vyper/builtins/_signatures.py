@@ -137,7 +137,8 @@ class BuiltinFunctionT(VyperType):
         self, node: vy_ast.Call, return_type: VyperType | None = None
     ) -> list[VyperType]:
         # validate arg types and sanity check the return type
-        self.get_return_type(node, expected_type=return_type)
+        # TODO: circular call with some `infer_arg_types`
+        #self.get_return_type(node, expected_type=return_type)
 
         ret = [expected for (_, expected) in self._inputs]
 
