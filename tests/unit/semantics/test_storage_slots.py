@@ -110,6 +110,6 @@ y: uint256[max_value(uint256)]
     """
     with pytest.raises(
         StorageLayoutException,
-        match=f"Invalid storage slot for var y, tried to allocate slots 1 through {2**256}\n",
+        match=f"Invalid storage slot for var y, tried to allocate slots 1 through {2**256}",
     ):
         get_contract(code)

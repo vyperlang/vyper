@@ -92,7 +92,7 @@ def from_grammar() -> st.SearchStrategy[str]:
 
 
 # Avoid examples with *only* single or double quote docstrings
-# because they trigger a trivial compiler bug
+# because they trigger a trivial parser bug
 SINGLE_QUOTE_DOCSTRING = re.compile(r"^'''.*'''$")
 DOUBLE_QUOTE_DOCSTRING = re.compile(r'^""".*"""$')
 

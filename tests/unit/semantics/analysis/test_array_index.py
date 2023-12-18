@@ -12,7 +12,7 @@ from vyper.semantics.analysis import validate_semantics
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])
-def test_type_mismatch(namespace, value):
+def test_type_mismatch(namespace, value, dummy_input_bundle):
     code = f"""
 
 a: uint256[3]
@@ -23,11 +23,11 @@ def foo(b: {value}):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "0x00", "b'\x01'", "False"])
-def test_invalid_literal(namespace, value):
+def test_invalid_literal(namespace, value, dummy_input_bundle):
     code = f"""
 
 a: uint256[3]
@@ -38,11 +38,11 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(InvalidType):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", [-1, 3, -(2**127), 2**127 - 1, 2**256 - 1])
-def test_out_of_bounds(namespace, value):
+def test_out_of_bounds(namespace, value, dummy_input_bundle):
     code = f"""
 
 a: uint256[3]
@@ -53,11 +53,11 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArrayIndexException):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["b", "self.b"])
-def test_undeclared_definition(namespace, value):
+def test_undeclared_definition(namespace, value, dummy_input_bundle):
     code = f"""
 
 a: uint256[3]
@@ -68,11 +68,11 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(UndeclaredDefinition):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["a", "foo", "int128"])
-def test_invalid_reference(namespace, value):
+def test_invalid_reference(namespace, value, dummy_input_bundle):
     code = f"""
 
 a: uint256[3]
@@ -83,4 +83,4 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(InvalidReference):
-        validate_semantics(vyper_module, {})
+        validate_semantics(vyper_module, dummy_input_bundle)

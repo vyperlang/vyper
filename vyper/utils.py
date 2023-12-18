@@ -51,6 +51,10 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def union(self, other):
         return self | other
 
+    def update(self, other):
+        for item in other:
+            self.add(item)
+
     def __or__(self, other):
         return self.__class__(super().__or__(other))
 
@@ -160,11 +164,6 @@ def method_id_int(method_sig: str) -> int:
 
 def method_id(method_str: str) -> bytes:
     return keccak256(bytes(method_str, "utf-8"))[:4]
-
-
-# map a string to only-alphanumeric chars
-def mkalphanum(s):
-    return "".join([c if c.isalnum() else "_" for c in s])
 
 
 def round_towards_zero(d: decimal.Decimal) -> int:

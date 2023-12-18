@@ -3,22 +3,20 @@ import pytest
 from vyper.ast import parse_to_ast
 from vyper.exceptions import CallViolation, StructureException
 from vyper.semantics.analysis import validate_semantics
-from vyper.semantics.analysis.module import ModuleAnalyzer
 
 
-def test_self_function_call(namespace):
+def test_self_function_call(dummy_input_bundle):
     code = """
 @internal
 def foo():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with namespace.enter_scope():
-        with pytest.raises(CallViolation):
-            ModuleAnalyzer(vyper_module, {}, namespace)
+    with pytest.raises(CallViolation):
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_cyclic_function_call(namespace):
+def test_cyclic_function_call(dummy_input_bundle):
     code = """
 @internal
 def foo():
@@ -29,12 +27,11 @@ def bar():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with namespace.enter_scope():
-        with pytest.raises(CallViolation):
-            ModuleAnalyzer(vyper_module, {}, namespace)
+    with pytest.raises(CallViolation):
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_multi_cyclic_function_call(namespace):
+def test_multi_cyclic_function_call(dummy_input_bundle):
     code = """
 @internal
 def foo():
@@ -53,12 +50,11 @@ def potato():
     self.foo()
     """
     vyper_module = parse_to_ast(code)
-    with namespace.enter_scope():
-        with pytest.raises(CallViolation):
-            ModuleAnalyzer(vyper_module, {}, namespace)
+    with pytest.raises(CallViolation):
+        validate_semantics(vyper_module, dummy_input_bundle)
 
 
-def test_global_ann_assign_callable_no_crash():
+def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
     code = """
 balanceOf: public(HashMap[address, uint256])
 
@@ -68,5 +64,5 @@ def foo(to : address):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException) as excinfo:
-        validate_semantics(vyper_module, {})
-    assert excinfo.value.message == "Value is not callable"
+        validate_semantics(vyper_module, dummy_input_bundle)
+    assert excinfo.value.message == "HashMap[address, uint256] is not callable"

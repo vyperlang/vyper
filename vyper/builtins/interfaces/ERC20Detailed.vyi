@@ -5,14 +5,14 @@
 @view
 @external
 def name() -> String[1]:
-    pass
+    ...
 
 @view
 @external
 def symbol() -> String[1]:
-    pass
+    ...
 
 @view
 @external
 def decimals() -> uint8:
-    pass
+    ...

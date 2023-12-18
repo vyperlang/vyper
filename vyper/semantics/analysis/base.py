@@ -1,8 +1,9 @@
 import enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import InputBundle
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
@@ -11,6 +12,9 @@ from vyper.exceptions import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
 class _StringEnum(enum.Enum):
@@ -145,6 +149,35 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
+# base class for things that are the "result" of analysis
+class AnalysisResult:
+    pass
+
+
+@dataclass
+class ModuleInfo(AnalysisResult):
+    module_t: "ModuleT"
+
+    @property
+    def module_node(self):
+        return self.module_t._module
+
+    # duck type, conform to interface of VarInfo and ExprInfo
+    @property
+    def typ(self):
+        return self.module_t
+
+
+@dataclass
+class ImportInfo(AnalysisResult):
+    typ: Union[ModuleInfo, "InterfaceT"]
+    alias: str  # the name in the namespace
+    qualified_module_name: str  # for error messages
+    # source_id: int
+    input_bundle: InputBundle
+    node: vy_ast.VyperNode
+
+
 @dataclass
 class VarInfo:
     """
@@ -211,6 +244,10 @@ class ExprInfo:
             is_constant=var_info.is_constant,
             is_immutable=var_info.is_immutable,
         )
+
+    @classmethod
+    def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
+        return cls(module_info.module_t)
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """
