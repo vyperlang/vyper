@@ -4,7 +4,12 @@ import random
 
 import pytest
 
-from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, TypeMismatch, ZeroDivisionException
+from vyper.exceptions import (
+    InvalidOperation,
+    OverflowException,
+    TypeMismatch,
+    ZeroDivisionException,
+)
 from vyper.semantics.types import IntegerT
 from vyper.utils import evm_div, evm_mod
 
