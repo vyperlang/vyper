@@ -5,9 +5,8 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
-    InvalidLiteral,
     StateAccessViolation,
-    StructureException, TypeCheckFailure, SyntaxException, InvalidOperation,
+    StructureException,
 )
 
 fail_list = [
@@ -20,7 +19,7 @@ def foo():
     """,
         StructureException,
         "Invalid syntax for loop iterator",
-        "a[1]"
+        "a[1]",
     ),
     (
         """
@@ -32,7 +31,7 @@ def foo():
     """,
         StateAccessViolation,
         "Bound must be a literal",
-        "x"
+        "x",
     ),
     (
         """
@@ -44,7 +43,7 @@ def foo():
         StructureException,
         "For loop has invalid number of iterations (10), "
         "the value must be between zero and the bound",
-        "range(10, 20, bound=5)"
+        "range(10, 20, bound=5)",
     ),
     (
         """
@@ -55,7 +54,7 @@ def foo():
     """,
         StructureException,
         "Bound must be at least 1",
-        "0"
+        "0",
     ),
     (
         """
@@ -67,7 +66,7 @@ def bar():
     """,
         ArgumentException,
         "Invalid keyword argument 'extra'",
-        "extra=3"
+        "extra=3",
     ),
     (
         """
@@ -78,7 +77,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
-        "0"
+        "0",
     ),
     (
         """
@@ -90,7 +89,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "x"
+        "x",
     ),
     (
         """
@@ -102,7 +101,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "x"
+        "x",
     ),
     (
         """
@@ -114,7 +113,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "n * 10"
+        "n * 10",
     ),
     (
         """
@@ -126,7 +125,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "x + 1"
+        "x + 1",
     ),
     (
         """
@@ -137,7 +136,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
-        "1"
+        "1",
     ),
     (
         """
@@ -149,7 +148,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "x"
+        "x",
     ),
     (
         """
@@ -161,7 +160,7 @@ def foo():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "x"
+        "x",
     ),
     (
         """
@@ -173,7 +172,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
-        "n"
+        "n",
     ),
 ]
 
