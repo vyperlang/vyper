@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 from vyper.utils import MemoryPositions
 
 
@@ -151,7 +151,7 @@ MY_CONSTANT: constant({storage_type}) = 1
 def foo() -> {return_type}:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 def test_constant_address(get_contract):
