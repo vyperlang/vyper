@@ -326,7 +326,7 @@ def _selector_section_sparse(external_functions, module_ctx):
 
         jumpdest = IRnode.from_list(["mload", 0])
 
-        jump_instr = IRnode.from_list(["mjump", jumpdest, *jump_targets])
+        jump_instr = IRnode.from_list(["djump", jumpdest, *jump_targets])
         ret.append(jump_instr)
         ret.append(jumptable_data)
 

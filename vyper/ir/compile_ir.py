@@ -702,9 +702,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.extend(["_sym_" + code.args[0].value, "JUMP"])
         return o
-    elif code.value == "mjump":
+    elif code.value == "djump":
         o = []
-        # "mjump" compiles to a raw EVM jump instruction
+        # "djump" compiles to a raw EVM jump instruction
         jump_target = code.args[0]
         o.extend(_compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height))
         o.append("JUMP")

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "mjmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -50,14 +50,14 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "invalid",
         "invoke",
         "jmp",
-        "mjmp",
+        "djmp",
         "jnz",
         "log",
     ]
 )
 
 CFG_ALTERING_INSTRUCTIONS = frozenset(
-    ["jmp", "mjmp", "jnz", "call", "staticcall", "invoke", "deploy"]
+    ["jmp", "djmp", "jnz", "call", "staticcall", "invoke", "deploy"]
 )
 
 if TYPE_CHECKING:

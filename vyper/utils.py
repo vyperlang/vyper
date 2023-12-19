@@ -331,7 +331,7 @@ VALID_IR_MACROS = {
     "with",
     "label",
     "goto",
-    "mjump",  # "multi-destination jump"
+    "djump",  # "dynamic jump", i.e. constrained, multi-destination jump
     "~extcode",
     "~selfcode",
     "~calldata",

@@ -20,7 +20,7 @@ class NormalizationPass(IRPass):
             assert bb in in_bb.cfg_out
 
             # Handle branching
-            if jump_inst.opcode in ("jnz", "mjmp"):
+            if jump_inst.opcode in ("jnz", "djmp"):
                 self._insert_split_basicblock(bb, in_bb)
                 self.changes += 1
                 break

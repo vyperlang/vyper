@@ -107,7 +107,7 @@ def test_multi_entry_block_with_dynamic_jump():
     bb = ctx.get_basic_block()
     op = bb.append_instruction("store", 10)
     acc = bb.append_instruction("add", op, op)
-    bb.append_instruction("mjmp", acc, finish_label, block_1_label)
+    bb.append_instruction("djmp", acc, finish_label, block_1_label)
 
     block_1 = IRBasicBlock(block_1_label, ctx)
     ctx.append_basic_block(block_1)

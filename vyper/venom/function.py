@@ -129,7 +129,7 @@ class IRFunction:
             # selector table indirect jumps).
             for in_bb in bb.cfg_in:
                 jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode in ("jnz", "mjmp"):
+                if jump_inst.opcode in ("jnz", "djmp"):
                     return False
 
         # The function is normalized
