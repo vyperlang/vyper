@@ -229,6 +229,34 @@ def foo(a: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
+def test_for_range_edge(get_contract, typ):
+    """
+    Check that we can get to the upper range of an integer.
+    Note that to avoid overflow, given the semantics of range(),
+    we need to calculate i+1 inside the loop.
+    """
+    code = f"""
+@external
+def test():
+    found: bool = False
+    x: {typ} = max_value({typ})
+    for i in range(x - 1, x, bound=1):
+        if i + 1 == max_value({typ}):
+            found = True
+    assert found
+
+    found = False
+    x = max_value({typ}) - 1
+    for i in range(x - 1, x + 1, bound=2):
+        if i + 1 == max_value({typ}):
+            found = True
+    assert found
+    """
+    c = get_contract(code)
+    c.test()
+
+
+@pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_oob_check(get_contract, assert_tx_failed, typ):
     code = f"""
 @external

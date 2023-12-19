@@ -251,14 +251,14 @@ class Stmt:
         else:
             raise InvalidOperation("Invalid number of arguments to range()")
 
-        kwargs = {s.arg: self._get_range_const_value(s.value) for s in for_iter.keywords}
+        kwargs = {s.arg: s.value for s in for_iter.keywords}
 
         if "bound" in kwargs:
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(arg1, self.context)
             with end.cache_when_complex("end") as (builder, end):
                 rounds = builder.resolve(IRnode.from_list(["sub", end, clamp("le", start, end)]))
-            rounds_bound = kwargs["bound"]
+            rounds_bound = self._get_range_const_value(kwargs["bound"])
         else:
             start_val = self._get_range_const_value(arg0)
             end_val = self._get_range_const_value(arg1)
@@ -276,12 +276,10 @@ class Stmt:
 
         self.context.forvars[varname] = True
 
-        loop_body = [
-            "seq",
-            # store the current value of i, so it is accessible to userland
-            ["mstore", iptr, i],
-            parse_body(self.stmt.body, self.context),
-        ]
+        loop_body = ["seq"]
+        # store the current value of i so it is accessible to userland
+        loop_body.append(["mstore", iptr, i])
+        loop_body.append(parse_body(self.stmt.body, self.context))
 
         # NOTE: codegen for `repeat` inserts an assertion that
         # (gt rounds_bound rounds). note this also covers the case where
