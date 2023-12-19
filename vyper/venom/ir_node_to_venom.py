@@ -455,7 +455,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         args = [_convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)]
         for target in ir.args[1:]:
             args.append(IRLabel(target.value))
-        ctx.get_basic_block().append_instruction("jmp", *args)
+        ctx.get_basic_block().append_instruction("mjmp", *args)
         _new_block(ctx)
     elif ir.value == "set":
         sym = ir.args[0]

@@ -129,13 +129,8 @@ class IRFunction:
             # selector table indirect jumps).
             for in_bb in bb.cfg_in:
                 jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode != "jnz":
-                    continue
-                if jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRLabel):
-                    continue
-
-                # The function is not normalized
-                return False
+                if jump_inst.opcode in ("jnz", "mjmp"):
+                    return False
 
         # The function is normalized
         return True

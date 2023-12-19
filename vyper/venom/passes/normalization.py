@@ -1,5 +1,5 @@
 from vyper.venom.analysis import calculate_cfg
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -20,9 +20,7 @@ class NormalizationPass(IRPass):
             assert bb in in_bb.cfg_out
 
             # Handle branching
-            if jump_inst.opcode == "jnz" or (
-                jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRVariable)
-            ):
+            if jump_inst.opcode in ("jnz", "mjmp"):
                 self._insert_split_basicblock(bb, in_bb)
                 self.changes += 1
                 break

@@ -261,7 +261,7 @@ class VenomCompiler:
 
         # Step 1: Apply instruction special stack manipulations
 
-        if opcode in ["jmp", "jnz", "invoke"]:
+        if opcode in ["jmp", "mjmp", "jnz", "invoke"]:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
@@ -296,7 +296,7 @@ class VenomCompiler:
         self._emit_input_operands(assembly, inst, operands, stack)
 
         # Step 3: Reorder stack
-        if opcode in ["jnz", "jmp"]:
+        if opcode in ["jnz", "mjmp", "jmp"]:
             # prepare stack for jump into another basic block
             assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
@@ -344,11 +344,12 @@ class VenomCompiler:
             assembly.append("JUMP")
 
         elif opcode == "jmp":
-            if isinstance(inst.operands[0], IRLabel):
-                assembly.append(f"_sym_{inst.operands[0].value}")
-                assembly.append("JUMP")
-            else:
-                assembly.append("JUMP")
+            assert isinstance(inst.operands[0], IRLabel)
+            assembly.append(f"_sym_{inst.operands[0].value}")
+            assembly.append("JUMP")
+        elif opcode == "mjmp":
+            assert isinstance(inst.operands[0], IRVariable)
+            assembly.append("JUMP")
         elif opcode == "gt":
             assembly.append("GT")
         elif opcode == "lt":
