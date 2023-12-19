@@ -331,6 +331,7 @@ VALID_IR_MACROS = {
     "with",
     "label",
     "goto",
+    "mjump",  # "multi-destination jump"
     "~extcode",
     "~selfcode",
     "~calldata",

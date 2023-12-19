@@ -890,14 +890,12 @@ def make_setter(left, right):
 
 
 _opt_level = OptimizationLevel.GAS
-_opt_experimental_codegen = False
 
 
 # FIXME: this is to get around the fact that we don't have a
-# proper context object in the IR generation phase. experimental_codegen is
-# temporary until it become mainstream, when it will go away
+# proper context object in the IR generation phase.
 @contextlib.contextmanager
-def anchor_opt_level(new_level: OptimizationLevel, experimental_codegen: bool) -> Generator:
+def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
     """
     Set the global optimization level variable for the duration of this
     context manager.
@@ -905,17 +903,12 @@ def anchor_opt_level(new_level: OptimizationLevel, experimental_codegen: bool) -
     assert isinstance(new_level, OptimizationLevel)
 
     global _opt_level
-    global _opt_experimental_codegen
     try:
         tmp = _opt_level
         _opt_level = new_level
-
-        tmp_codegen = _opt_experimental_codegen
-        _opt_experimental_codegen = experimental_codegen
         yield
     finally:
         _opt_level = tmp
-        _opt_experimental_codegen = tmp_codegen
 
 
 def _opt_codesize():

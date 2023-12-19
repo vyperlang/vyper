@@ -329,7 +329,7 @@ def generate_ir_nodes(
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    with anchor_opt_level(optimize, experimental_codegen):
+    with anchor_opt_level(optimize):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)

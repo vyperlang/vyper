@@ -451,7 +451,7 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         )  # body
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
-    elif ir.value in ["jump", "djump"]:
+    elif ir.value == "mjump":
         args = [_convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)]
         for target in ir.args[1:]:
             args.append(IRLabel(target.value))
