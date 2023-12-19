@@ -296,10 +296,9 @@ way are, by default, private.
   ``private()`` function. Variables simply default to private if initiated
   without the ``public()`` function.
 
-The ``funders`` variable is initiated as a mapping where the key is a number,
-and the value is a struct representing the contribution of each participant.
-This struct contains each participant's public address and their respective
-value contributed to the fund. The ``beneficiary`` will be the final receiver of the funds
+The ``funders`` variable is initiated as a mapping where the key is an address,
+and the value is a number representing the contribution of each participant.
+The ``beneficiary`` will be the final receiver of the funds
 once the crowdfunding period is over—as determined by the ``deadline`` and
 ``timelimit`` variables. The ``goal`` variable is the target total contribution
 of all participants.
@@ -359,12 +358,8 @@ all the participants.
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with
-the  ``assert`` statement . If those two conditions pass, we then loop through
-every participant and call ``send()`` to send each participant their respective
-contribution. For the sake of gas limits, we group the number of contributors
-in batches of 30 and refund them one at a time. Unfortunately, if there's a
-large number of participants, multiple calls to ``refund()`` may be
-necessary.
+the  ``assert`` statement . If those two conditions pass, we let users get their
+funds back using the withdraw pattern.
 
 .. index:: voting, ballot
 

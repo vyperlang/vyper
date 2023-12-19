@@ -8,6 +8,7 @@ from vyper.utils import (
     ceil32,
     evm_div,
     evm_mod,
+    evm_pow,
     int_bounds,
     int_log2,
     is_power_of_two,
@@ -30,7 +31,7 @@ def _evm_int(node: IRnode, unsigned: bool = True) -> Optional[int]:
 
     if unsigned and ret < 0:
         return signed_to_unsigned(ret, 256, strict=True)
-    elif not unsigned and ret > 2 ** 255 - 1:
+    elif not unsigned and ret > 2**255 - 1:
         return unsigned_to_signed(ret, 256, strict=True)
 
     return ret
@@ -54,7 +55,7 @@ arith = {
     "sdiv": (evm_div, "/", SIGNED),
     "mod": (evm_mod, "%", UNSIGNED),
     "smod": (evm_mod, "%", SIGNED),
-    "exp": (operator.pow, "**", UNSIGNED),
+    "exp": (evm_pow, "**", UNSIGNED),
     "eq": (operator.eq, "==", UNSIGNED),
     "ne": (operator.ne, "!=", UNSIGNED),
     "lt": (operator.lt, "<", UNSIGNED),
@@ -77,6 +78,11 @@ IRArgs = List[IRnode]
 
 COMMUTATIVE_OPS = {"add", "mul", "eq", "ne", "and", "or", "xor"}
 COMPARISON_OPS = {"gt", "sgt", "ge", "sge", "lt", "slt", "le", "sle"}
+STRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("t")}
+UNSTRICT_COMPARISON_OPS = {t for t in COMPARISON_OPS if t.endswith("e")}
+
+assert not (STRICT_COMPARISON_OPS & UNSTRICT_COMPARISON_OPS)
+assert STRICT_COMPARISON_OPS | UNSTRICT_COMPARISON_OPS == COMPARISON_OPS
 
 
 def _flip_comparison_op(opname):
@@ -96,7 +102,7 @@ def _shorten_annotation(annotation):
 
 
 def _wrap256(x, unsigned=UNSIGNED):
-    x %= 2 ** 256
+    x %= 2**256
     # wrap in a signed way.
     if not unsigned:
         x = unsigned_to_signed(x, 256, strict=True)
@@ -226,6 +232,9 @@ def _optimize_binop(binop, args, ann, parent_op):
         # compile-time arithmetic
         left, right = _int(args[0]), _int(args[1])
         new_val = fn(left, right)
+        # wrap the result, since `fn` generally does not wrap.
+        # (note: do not rely on wrapping/non-wrapping behavior for `fn`!
+        # some ops, like evm_pow, ALWAYS wrap).
         new_val = _wrap(new_val)
         return finalize(new_val, [])
 
@@ -249,14 +258,18 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     if binop in {"add", "sub", "xor", "or"} and _int(args[1]) == 0:
         # x + 0 == x - 0 == x | 0 == x ^ 0 == x
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     if binop in {"sub", "xor", "ne"} and _conservative_eq(args[0], args[1]):
-        # x - x == x ^ x == x != x == 0
+        # (x - x) == (x ^ x) == (x != x) == 0
         return finalize(0, [])
 
-    if binop == "eq" and _conservative_eq(args[0], args[1]):
-        # (x == x) == 1
+    if binop in STRICT_COMPARISON_OPS and _conservative_eq(args[0], args[1]):
+        # (x < x) == (x > x) == 0
+        return finalize(0, [])
+
+    if binop in {"eq"} | UNSTRICT_COMPARISON_OPS and _conservative_eq(args[0], args[1]):
+        # (x == x) == (x >= x) == (x <= x) == 1
         return finalize(1, [])
 
     # TODO associativity rules
@@ -271,7 +284,7 @@ def _optimize_binop(binop, args, ann, parent_op):
 
     # x * 1 == x / 1 == x
     if binop in {"mul", "div", "sdiv"} and _int(args[1]) == 1:
-        return finalize(args[0].value, args[0].args)
+        return finalize("seq", [args[0]])
 
     # x * -1 == 0 - x
     if binop in {"mul", "sdiv"} and _int(args[1], SIGNED) == -1:
@@ -281,7 +294,7 @@ def _optimize_binop(binop, args, ann, parent_op):
         assert unsigned == UNSIGNED
         if binop == "and":
             # -1 & x == x
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
         if binop == "xor":
             # -1 ^ x == ~x
@@ -307,7 +320,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             return finalize("iszero", [args[1]])
         # n ** 1 == n
         if _int(args[1]) == 1:
-            return finalize(args[0].value, args[0].args)
+            return finalize("seq", [args[0]])
 
     # TODO: check me! reduce codesize for negative numbers
     # if binop in {"add", "sub"} and _int(args[1], SIGNED) < 0:
@@ -327,19 +340,17 @@ def _optimize_binop(binop, args, ann, parent_op):
         if binop == "mod":
             return finalize("and", [args[0], _int(args[1]) - 1])
 
-        if binop == "div" and version_check(begin="constantinople"):
+        if binop == "div":
             # x / 2**n == x >> n
             # recall shr/shl have unintuitive arg order
             return finalize("shr", [int_log2(_int(args[1])), args[0]])
 
         # note: no rule for sdiv since it rounds differently from sar
-        if binop == "mul" and version_check(begin="constantinople"):
+        if binop == "mul":
             # x * 2**n == x << n
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-        # reachable but only before constantinople
-        if version_check(begin="constantinople"):  # pragma: nocover
-            raise CompilerPanic("unreachable")
+        raise CompilerPanic("unreachable")  # pragma: no cover
 
     ##
     # COMPARISONS
@@ -372,8 +383,10 @@ def _optimize_binop(binop, args, ann, parent_op):
             # note that (xor (-1) x) has its own rule
             return finalize("iszero", [["xor", args[0], args[1]]])
 
-        if binop == "ne":
-            # trigger other optimizations
+        if binop == "ne" and parent_op == "iszero":
+            # for iszero, trigger other optimizations
+            # (for `if` and `assert`, `ne` will generate two ISZEROs
+            # which will get optimized out during assembly)
             return finalize("iszero", [["eq", *args]])
 
         # TODO can we do this?
@@ -424,8 +437,11 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     typ = node.typ
     location = node.location
     source_pos = node.source_pos
+    error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+    is_self_call = node.is_self_call
+    passthrough_metadata = node.passthrough_metadata
 
     changed = False
 
@@ -445,8 +461,11 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             typ=typ,
             location=location,
             source_pos=source_pos,
+            error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
+            is_self_call=is_self_call,
+            passthrough_metadata=passthrough_metadata,
         )
 
         if should_check_symbols:
@@ -458,6 +477,9 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value == "seq":
         changed |= _merge_memzero(argz)
         changed |= _merge_calldataload(argz)
+        changed |= _merge_dload(argz)
+        changed |= _rewrite_mstore_dload(argz)
+        changed |= _merge_mload(argz)
         changed |= _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
@@ -511,9 +533,9 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             # if true
             else:
                 # return the first branch
-                return finalize("seq", argz[1])
+                return finalize("seq", [argz[1]])
 
-        elif len(argz) == 3 and argz[0].value != "iszero":
+        elif len(argz) == 3 and argz[0].value not in ("iszero", "ne"):
             # if(x) compiles to jumpi(_, iszero(x))
             # there is an asm optimization for the sequence ISZERO ISZERO..JUMPI
             # so we swap the branches here to activate that optimization.
@@ -546,7 +568,10 @@ def _merge_memzero(argz):
     initial_offset = 0
     total_length = 0
     changed = False
-    for ir_node in argz:
+    idx = None
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
+
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
@@ -555,11 +580,15 @@ def _merge_memzero(argz):
             # mstore of a zero value
             offset = ir_node.args[0].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         if (
             ir_node.value == "calldatacopy"
@@ -570,11 +599,15 @@ def _merge_memzero(argz):
             # calldatacopy from the end of calldata - efficient zero'ing via `empty()`
             offset, length = ir_node.args[0].value, ir_node.args[2].value
             if not mstore_nodes:
+                idx = i
                 initial_offset = offset
             if initial_offset + total_length == offset:
                 mstore_nodes.append(ir_node)
                 total_length += length
-                continue
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is not a zero'ing operation
         # it's time to apply the optimization if possible
@@ -585,10 +618,9 @@ def _merge_memzero(argz):
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first zero'ing operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
         initial_offset = 0
         total_length = 0
@@ -612,50 +644,87 @@ def _remove_empty_seqs(argz):
 
 
 def _merge_calldataload(argz):
-    # look for sequential operations copying from calldata to memory
-    # and merge them into a single calldatacopy operation
+    return _merge_load(argz, "calldataload", "calldatacopy")
+
+
+def _merge_dload(argz):
+    return _merge_load(argz, "dload", "dloadbytes")
+
+
+def _rewrite_mstore_dload(argz):
+    changed = False
+    for i, arg in enumerate(argz):
+        if arg.value == "mstore" and arg.args[1].value == "dload":
+            dst = arg.args[0]
+            src = arg.args[1].args[0]
+            len_ = 32
+            argz[i] = IRnode.from_list(["dloadbytes", dst, src, len_], source_pos=arg.source_pos)
+            changed = True
+    return changed
+
+
+def _merge_mload(argz):
+    if not version_check(begin="cancun"):
+        return False
+    return _merge_load(argz, "mload", "mcopy", allow_overlap=False)
+
+
+def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
+    # look for sequential operations copying from X to Y
+    # and merge them into a single copy operation
     changed = False
     mstore_nodes: List = []
-    initial_mem_offset = 0
-    initial_calldata_offset = 0
+    initial_dst_offset = 0
+    initial_src_offset = 0
     total_length = 0
-    for ir_node in argz:
+    idx = None
+    for i, ir_node in enumerate(argz):
+        is_last_iteration = i == len(argz) - 1
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
-            and ir_node.args[1].value == "calldataload"
+            and ir_node.args[1].value == _LOAD
             and isinstance(ir_node.args[1].args[0].value, int)
         ):
             # mstore of a zero value
-            mem_offset = ir_node.args[0].value
-            calldata_offset = ir_node.args[1].args[0].value
+            dst_offset = ir_node.args[0].value
+            src_offset = ir_node.args[1].args[0].value
             if not mstore_nodes:
-                initial_mem_offset = mem_offset
-                initial_calldata_offset = calldata_offset
+                initial_dst_offset = dst_offset
+                initial_src_offset = src_offset
+                idx = i
+
+            # dst and src overlap, discontinue the optimization
+            has_overlap = initial_src_offset < initial_dst_offset < src_offset + 32
+
             if (
-                initial_mem_offset + total_length == mem_offset
-                and initial_calldata_offset + total_length == calldata_offset
+                initial_dst_offset + total_length == dst_offset
+                and initial_src_offset + total_length == src_offset
+                and (allow_overlap or not has_overlap)
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
-                continue
+
+                # do not block the optimization if it continues thru
+                # the end of the (seq) block
+                if not is_last_iteration:
+                    continue
 
         # if we get this far, the current node is a different operation
         # it's time to apply the optimization if possible
         if len(mstore_nodes) > 1:
             changed = True
             new_ir = IRnode.from_list(
-                ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
+                [_COPY, initial_dst_offset, initial_src_offset, total_length],
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
-            idx = argz.index(mstore_nodes[0])
             argz[idx] = new_ir
-            for i in mstore_nodes[1:]:
-                argz.remove(i)
+            # note: del xs[k:l] deletes l - k items
+            del argz[idx + 1 : idx + len(mstore_nodes)]
 
-        initial_mem_offset = 0
-        initial_calldata_offset = 0
+        initial_dst_offset = 0
+        initial_src_offset = 0
         total_length = 0
         mstore_nodes.clear()
 

@@ -1,4 +1,8 @@
-# @dev Implementation of ERC-20 token standard.
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# @dev example implementation of an ERC20 token
 # @author Takayuki Jimba (@yudetamago)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 
@@ -43,7 +47,7 @@ def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: 
     self.balanceOf[msg.sender] = init_supply
     self.totalSupply = init_supply
     self.minter = msg.sender
-    log Transfer(ZERO_ADDRESS, msg.sender, init_supply)
+    log Transfer(empty(address), msg.sender, init_supply)
 
 
 
@@ -107,10 +111,10 @@ def mint(_to: address, _value: uint256):
     @param _value The amount that will be created.
     """
     assert msg.sender == self.minter
-    assert _to != ZERO_ADDRESS
+    assert _to != empty(address)
     self.totalSupply += _value
     self.balanceOf[_to] += _value
-    log Transfer(ZERO_ADDRESS, _to, _value)
+    log Transfer(empty(address), _to, _value)
 
 
 @internal
@@ -121,10 +125,10 @@ def _burn(_to: address, _value: uint256):
     @param _to The account whose tokens will be burned.
     @param _value The amount that will be burned.
     """
-    assert _to != ZERO_ADDRESS
+    assert _to != empty(address)
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
-    log Transfer(_to, ZERO_ADDRESS, _value)
+    log Transfer(_to, empty(address), _value)
 
 
 @external

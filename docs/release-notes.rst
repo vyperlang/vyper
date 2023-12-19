@@ -3,6 +3,299 @@
 Release Notes
 #############
 
+..
+    vim regexes:
+    first convert all single backticks to double backticks:
+    :'<,'>s/`/``/g
+    to convert links to nice rst links:
+    :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/pull\/)(\d+)/(`#\2 <\1\2>`_)/g
+    ex. in: https://github.com/vyperlang/vyper/pull/3373
+    ex. out: (`#3373 <https://github.com/vyperlang/vyper/pull/3373>`_)
+    for advisory links:
+    :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
+
+v0.3.10 ("Black Adder")
+***********************
+
+Date released: 2023-10-04
+=========================
+
+v0.3.10 is a performance focused release that additionally ships numerous bugfixes. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
+
+Breaking changes:
+-----------------
+
+- add runtime code layout to initcode (`#3584 <https://github.com/vyperlang/vyper/pull/3584>`_)
+- drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
+- remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
+- only allow valid identifiers to be nonreentrant keys (`#3605 <https://github.com/vyperlang/vyper/pull/3605>`_)
+
+Non-breaking changes and improvements:
+--------------------------------------
+
+- O(1) selector tables (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_)
+- implement bound= in ranges (`#3537 <https://github.com/vyperlang/vyper/pull/3537>`_, `#3551 <https://github.com/vyperlang/vyper/pull/3551>`_)
+- add optimization mode to vyper compiler (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_)
+- improve batch copy performance (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_, `#3499 <https://github.com/vyperlang/vyper/pull/3499>`_, `#3525 <https://github.com/vyperlang/vyper/pull/3525>`_)
+
+Notable fixes:
+--------------
+
+- fix ``ecrecover()`` behavior when signature is invalid (`GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_, `#3586 <https://github.com/vyperlang/vyper/pull/3586>`_)
+- fix: order of evaluation for some builtins (`#3583 <https://github.com/vyperlang/vyper/pull/3583>`_, `#3587 <https://github.com/vyperlang/vyper/pull/3587>`_)
+- fix: memory allocation in certain builtins using ``msize`` (`#3610 <https://github.com/vyperlang/vyper/pull/3610>`_)
+- fix: ``_abi_decode()`` input validation in certain complex expressions (`#3626 <https://github.com/vyperlang/vyper/pull/3626>`_)
+- fix: pycryptodome for arm builds (`#3485 <https://github.com/vyperlang/vyper/pull/3485>`_)
+- let params of internal functions be mutable (`#3473 <https://github.com/vyperlang/vyper/pull/3473>`_)
+- typechecking of folded builtins in (`#3490 <https://github.com/vyperlang/vyper/pull/3490>`_)
+- update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
+- fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
+- fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`_)
+
+Other docs updates, chores and fixes:
+-------------------------------------
+
+- relax restrictions on internal function signatures (`#3573 <https://github.com/vyperlang/vyper/pull/3573>`_)
+- note on security advisory in release notes for versions ``0.2.15``, ``0.2.16``, and ``0.3.0`` (`#3553 <https://github.com/vyperlang/vyper/pull/3553>`_)
+- fix: yanked version in release notes (`#3545 <https://github.com/vyperlang/vyper/pull/3545>`_)
+- update release notes on yanked versions (`#3547 <https://github.com/vyperlang/vyper/pull/3547>`_)
+- improve error message for conflicting methods IDs (`#3491 <https://github.com/vyperlang/vyper/pull/3491>`_)
+- document epsilon builtin (`#3552 <https://github.com/vyperlang/vyper/pull/3552>`_)
+- relax version pragma parsing (`#3511 <https://github.com/vyperlang/vyper/pull/3511>`_)
+- fix: issue with finding installed packages in editable mode (`#3510 <https://github.com/vyperlang/vyper/pull/3510>`_)
+- add note on security advisory for ``ecrecover`` in docs (`#3539 <https://github.com/vyperlang/vyper/pull/3539>`_)
+- add ``asm`` option to cli help (`#3585 <https://github.com/vyperlang/vyper/pull/3585>`_)
+- add message to error map for repeat range check (`#3542 <https://github.com/vyperlang/vyper/pull/3542>`_)
+- fix: public constant arrays (`#3536 <https://github.com/vyperlang/vyper/pull/3536>`_)
+
+
+v0.3.9 ("Common Adder")
+***********************
+
+Date released: 2023-05-29
+
+This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release. @bout3fiddy also discovered a runtime performance (gas) regression for default functions in v0.3.8 which is fixed in this release.
+
+Fixes:
+
+- initcode codesize blowup (`#3450 <https://github.com/vyperlang/vyper/pull/3450>`_)
+- add back global calldatasize check for contracts with default fn (`#3463 <https://github.com/vyperlang/vyper/pull/3463>`_)
+
+
+v0.3.8
+******
+
+Date released: 2023-05-23
+
+Non-breaking changes and improvements:
+
+- ``transient`` storage keyword (`#3373 <https://github.com/vyperlang/vyper/pull/3373>`_)
+- ternary operators (`#3398 <https://github.com/vyperlang/vyper/pull/3398>`_)
+- ``raw_revert()`` builtin (`#3136 <https://github.com/vyperlang/vyper/pull/3136>`_)
+- shift operators (`#3019 <https://github.com/vyperlang/vyper/pull/3019>`_)
+- make ``send()`` gas stipend configurable (`#3158 <https://github.com/vyperlang/vyper/pull/3158>`_)
+- use new ``push0`` opcode (`#3361 <https://github.com/vyperlang/vyper/pull/3361>`_)
+- python 3.11 support (`#3129 <https://github.com/vyperlang/vyper/pull/3129>`_)
+- drop support for python 3.8 and 3.9 (`#3325 <https://github.com/vyperlang/vyper/pull/3325>`_)
+- build for ``aarch64`` (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
+
+Note that with the addition of ``push0`` opcode, ``shanghai`` is now the default compilation target for vyper. When deploying to a chain which does not support ``shanghai``, it is recommended to set ``--evm-version`` to ``paris``, otherwise it could result in hard-to-debug errors.
+
+Major refactoring PRs:
+
+- refactor front-end type system (`#2974 <https://github.com/vyperlang/vyper/pull/2974>`_)
+- merge front-end and codegen type systems (`#3182 <https://github.com/vyperlang/vyper/pull/3182>`_)
+- simplify ``GlobalContext`` (`#3209 <https://github.com/vyperlang/vyper/pull/3209>`_)
+- remove ``FunctionSignature`` (`#3390 <https://github.com/vyperlang/vyper/pull/3390>`_)
+
+Notable fixes:
+
+- assignment when rhs is complex type and references lhs (`#3410 <https://github.com/vyperlang/vyper/pull/3410>`_)
+- uninitialized immutable values (`#3409 <https://github.com/vyperlang/vyper/pull/3409>`_)
+- success value when mixing ``max_outsize=0`` and ``revert_on_failure=False`` (`GHSA-w9g2-3w7p-72g9 <https://github.com/vyperlang/vyper/security/advisories/GHSA-w9g2-3w7p-72g9>`_)
+- block certain kinds of storage allocator overflows (`GHSA-mgv8-gggw-mrg6 <https://github.com/vyperlang/vyper/security/advisories/GHSA-mgv8-gggw-mrg6>`_) 
+- store-before-load when a dynarray appears on both sides of an assignment (`GHSA-3p37-3636-q8wv <https://github.com/vyperlang/vyper/security/advisories/GHSA-3p37-3636-q8wv>`_)
+- bounds check for loops of the form ``for i in range(x, x+N)`` (`GHSA-6r8q-pfpv-7cgj <https://github.com/vyperlang/vyper/security/advisories/GHSA-6r8q-pfpv-7cgj>`_)
+- alignment of call-site posargs and kwargs for internal functions (`GHSA-ph9x-4vc9-m39g <https://github.com/vyperlang/vyper/security/advisories/GHSA-ph9x-4vc9-m39g>`_)
+- batch nonpayable check for default functions calldatasize < 4 (`#3104 <https://github.com/vyperlang/vyper/pull/3104>`_, `#3408 <https://github.com/vyperlang/vyper/pull/3408>`_, cf. `GHSA-vxmm-cwh2-q762 <https://github.com/vyperlang/vyper/security/advisories/GHSA-vxmm-cwh2-q762>`_)
+
+Other docs updates, chores and fixes:
+
+- call graph stability (`#3370 <https://github.com/vyperlang/vyper/pull/3370>`_)
+- fix ``vyper-serve`` output (`#3338 <https://github.com/vyperlang/vyper/pull/3338>`_)
+- add ``custom:`` natspec tags (`#3403 <https://github.com/vyperlang/vyper/pull/3403>`_)
+- add missing pc maps to ``vyper_json`` output (`#3333 <https://github.com/vyperlang/vyper/pull/3333>`_)
+- fix constructor context for internal functions (`#3388 <https://github.com/vyperlang/vyper/pull/3388>`_)
+- add deprecation warning for ``selfdestruct`` usage (`#3372 <https://github.com/vyperlang/vyper/pull/3372>`_)
+- add bytecode metadata option to vyper-json (`#3117 <https://github.com/vyperlang/vyper/pull/3117>`_)
+- fix compiler panic when a ``break`` is outside of a loop (`#3177 <https://github.com/vyperlang/vyper/pull/3177>`_)
+- fix complex arguments to builtin functions (`#3167 <https://github.com/vyperlang/vyper/pull/3167>`_)
+- add support for all types in ABI imports (`#3154 <https://github.com/vyperlang/vyper/pull/3154>`_)
+- disable uadd operator (`#3174 <https://github.com/vyperlang/vyper/pull/3174>`_)
+- block bitwise ops on decimals (`#3219 <https://github.com/vyperlang/vyper/pull/3219>`_)
+- raise ``UNREACHABLE`` (`#3194 <https://github.com/vyperlang/vyper/pull/3194>`_)
+- allow enum as mapping key (`#3256 <https://github.com/vyperlang/vyper/pull/3256>`_)
+- block boolean ``not`` operator on numeric types (`#3231 <https://github.com/vyperlang/vyper/pull/3231>`_)
+- enforce that loop's iterators are valid names (`#3242 <https://github.com/vyperlang/vyper/pull/3242>`_)
+- fix typechecker hotspot (`#3318 <https://github.com/vyperlang/vyper/pull/3318>`_)
+- rewrite typechecker journal to handle nested commits (`#3375 <https://github.com/vyperlang/vyper/pull/3375>`_)
+- fix missing pc map for empty functions (`#3202 <https://github.com/vyperlang/vyper/pull/3202>`_)
+- guard against iterating over empty list in for loop (`#3197 <https://github.com/vyperlang/vyper/pull/3197>`_)
+- skip enum members during constant folding (`#3235 <https://github.com/vyperlang/vyper/pull/3235>`_)
+- bitwise ``not`` constant folding (`#3222 <https://github.com/vyperlang/vyper/pull/3222>`_)
+- allow accessing members of constant address (`#3261 <https://github.com/vyperlang/vyper/pull/3261>`_)
+- guard against decorators in interface (`#3266 <https://github.com/vyperlang/vyper/pull/3266>`_)
+- fix bounds for decimals in some builtins (`#3283 <https://github.com/vyperlang/vyper/pull/3283>`_)
+- length of literal empty bytestrings (`#3276 <https://github.com/vyperlang/vyper/pull/3276>`_)
+- block ``empty()`` for HashMaps (`#3303 <https://github.com/vyperlang/vyper/pull/3303>`_)
+- fix type inference for empty lists (`#3377 <https://github.com/vyperlang/vyper/pull/3377>`_)
+- disallow logging from ``pure``, ``view`` functions (`#3424 <https://github.com/vyperlang/vyper/pull/3424>`_)
+- improve optimizer rules for comparison operators (`#3412 <https://github.com/vyperlang/vyper/pull/3412>`_)
+- deploy to ghcr on push (`#3435 <https://github.com/vyperlang/vyper/pull/3435>`_)
+- add note on return value bounds in interfaces (`#3205 <https://github.com/vyperlang/vyper/pull/3205>`_)
+- index ``id`` param in ``URI`` event of ``ERC1155ownable`` (`#3203 <https://github.com/vyperlang/vyper/pull/3203>`_)
+- add missing ``asset`` function to ``ERC4626`` built-in interface (`#3295 <https://github.com/vyperlang/vyper/pull/3295>`_)
+- clarify ``skip_contract_check=True`` can result in undefined behavior (`#3386 <https://github.com/vyperlang/vyper/pull/3386>`_)
+- add ``custom`` NatSpec tag to docs (`#3404 <https://github.com/vyperlang/vyper/pull/3404>`_)
+- fix ``uint256_addmod`` doc (`#3300 <https://github.com/vyperlang/vyper/pull/3300>`_)
+- document optional kwargs for external calls (`#3122 <https://github.com/vyperlang/vyper/pull/3122>`_)
+- remove ``slice()`` length documentation caveats (`#3152 <https://github.com/vyperlang/vyper/pull/3152>`_)
+- fix docs of ``blockhash`` to reflect revert behaviour (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
+- improvements to compiler error messages (`#3121 <https://github.com/vyperlang/vyper/pull/3121>`_, `#3134 <https://github.com/vyperlang/vyper/pull/3134>`_, `#3312 <https://github.com/vyperlang/vyper/pull/3312>`_, `#3304 <https://github.com/vyperlang/vyper/pull/3304>`_, `#3240 <https://github.com/vyperlang/vyper/pull/3240>`_, `#3264 <https://github.com/vyperlang/vyper/pull/3264>`_, `#3343 <https://github.com/vyperlang/vyper/pull/3343>`_, `#3307 <https://github.com/vyperlang/vyper/pull/3307>`_, `#3313 <https://github.com/vyperlang/vyper/pull/3313>`_ and `#3215 <https://github.com/vyperlang/vyper/pull/3215>`_)
+
+These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
+
+New Contributors:
+
+- @omahs made their first contribution in (`#3128 <https://github.com/vyperlang/vyper/pull/3128>`_)
+- @ObiajuluM made their first contribution in (`#3124 <https://github.com/vyperlang/vyper/pull/3124>`_)
+- @trocher made their first contribution in (`#3134 <https://github.com/vyperlang/vyper/pull/3134>`_)
+- @ozmium22 made their first contribution in (`#3149 <https://github.com/vyperlang/vyper/pull/3149>`_)
+- @ToonVanHove made their first contribution in (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
+- @emc415 made their first contribution in (`#3158 <https://github.com/vyperlang/vyper/pull/3158>`_)
+- @lgtm-com made their first contribution in (`#3147 <https://github.com/vyperlang/vyper/pull/3147>`_)
+- @tdurieux made their first contribution in (`#3224 <https://github.com/vyperlang/vyper/pull/3224>`_)
+- @victor-ego made their first contribution in (`#3263 <https://github.com/vyperlang/vyper/pull/3263>`_)
+- @miohtama made their first contribution in (`#3257 <https://github.com/vyperlang/vyper/pull/3257>`_)
+- @kelvinfan001 made their first contribution in (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
+
+
+v0.3.7
+******
+
+Date released: 2022-09-26
+
+Breaking changes:
+
+- chore: drop python 3.7 support (`#3071 <https://github.com/vyperlang/vyper/pull/3071>`_)
+- fix: relax check for statically sized calldata (`#3090 <https://github.com/vyperlang/vyper/pull/3090>`_)
+
+Non-breaking changes and improvements:
+
+- fix: assert description in ``Crowdfund.finalize()`` (`#3058 <https://github.com/vyperlang/vyper/pull/3058>`_)
+- fix: change mutability of example ERC721 interface (`#3076 <https://github.com/vyperlang/vyper/pull/3076>`_)
+- chore: improve error message for non-checksummed address literal (`#3065 <https://github.com/vyperlang/vyper/pull/3065>`_)
+- feat: ``isqrt()`` builtin (`#3074 <https://github.com/vyperlang/vyper/pull/3074>`_) (`#3069 <https://github.com/vyperlang/vyper/pull/3069>`_)
+- feat: add ``block.prevrandao`` as alias for ``block.difficulty`` (`#3085 <https://github.com/vyperlang/vyper/pull/3085>`_)
+- feat: ``epsilon()`` builtin (`#3057 <https://github.com/vyperlang/vyper/pull/3057>`_)
+- feat: extend ecrecover signature to accept additional parameter types (`#3084 <https://github.com/vyperlang/vyper/pull/3084>`_)
+- feat: allow constant and immutable variables to be declared public (`#3024 <https://github.com/vyperlang/vyper/pull/3024>`_)
+- feat: optionally disable metadata in bytecode (`#3107 <https://github.com/vyperlang/vyper/pull/3107>`_)
+    
+Bugfixes:
+
+- fix: empty nested dynamic arrays (`#3061 <https://github.com/vyperlang/vyper/pull/3061>`_)
+- fix: foldable builtin default args in imports (`#3079 <https://github.com/vyperlang/vyper/pull/3079>`_) (`#3077 <https://github.com/vyperlang/vyper/pull/3077>`_)
+
+Additional changes and improvements:
+
+- doc: update broken links in SECURITY.md (`#3095 <https://github.com/vyperlang/vyper/pull/3095>`_)
+- chore: update discord link in docs (`#3031 <https://github.com/vyperlang/vyper/pull/3031>`_)
+- fix: broken links in various READMEs (`#3072 <https://github.com/vyperlang/vyper/pull/3072>`_)
+- chore: fix compile warnings in examples (`#3033 <https://github.com/vyperlang/vyper/pull/3033>`_)
+- feat: append lineno to the filename in error messages (`#3092 <https://github.com/vyperlang/vyper/pull/3092>`_)
+- chore: migrate lark grammar (`#3082 <https://github.com/vyperlang/vyper/pull/3082>`_)
+- chore: loosen and upgrade semantic version (`#3106 <https://github.com/vyperlang/vyper/pull/3106>`_)
+
+New Contributors
+
+- @emilianobonassi made their first contribution in `#3107 <https://github.com/vyperlang/vyper/pull/3107>`_
+- @unparalleled-js made their first contribution in `#3106 <https://github.com/vyperlang/vyper/pull/3106>`_
+- @pcaversaccio made their first contribution in `#3085 <https://github.com/vyperlang/vyper/pull/3085>`_
+- @nfwsncked made their first contribution in `#3058 <https://github.com/vyperlang/vyper/pull/3058>`_
+- @z80 made their first contribution in `#3057 <https://github.com/vyperlang/vyper/pull/3057>`_
+- @Benny made their first contribution in `#3024 <https://github.com/vyperlang/vyper/pull/3024>`_
+- @cairo made their first contribution in `#3072 <https://github.com/vyperlang/vyper/pull/3072>`_
+- @fiddy made their first contribution in `#3069 <https://github.com/vyperlang/vyper/pull/3069>`_
+
+Special thanks to returning contributors @tserg, @pandadefi, and @delaaxe.
+
+v0.3.6
+******
+
+Date released: 2022-08-07
+
+Bugfixes:
+
+* Fix ``in`` expressions when list members are variables (`#3035 <https://github.com/vyperlang/vyper/pull/3035>`_)
+
+
+v0.3.5
+******
+**THIS RELEASE HAS BEEN PULLED**
+
+Date released: 2022-08-05
+
+Non-breaking changes and improvements:
+
+* Add blueprint deployer output format (`#3001 <https://github.com/vyperlang/vyper/pull/3001>`_)
+* Allow arbitrary data to be passed to ``create_from_blueprint`` (`#2996 <https://github.com/vyperlang/vyper/pull/2996>`_)
+* Add CBOR length to bytecode for decoders (`#3010 <https://github.com/vyperlang/vyper/pull/3010>`_)
+* Fix compiler panic when accessing enum storage vars via ``self`` (`#2998 <https://github.com/vyperlang/vyper/pull/2998>`_)
+* Fix: allow ``empty()`` in constant definitions and in default argument position (`#3008 <https://github.com/vyperlang/vyper/pull/3008>`_)
+* Fix: disallow ``self`` address in pure functions (`#3027 <https://github.com/vyperlang/vyper/pull/3027>`_)
+
+v0.3.4
+******
+
+Date released: 2022-07-27
+
+Non-breaking changes and improvements:
+
+* Add enum types (`#2874 <https://github.com/vyperlang/vyper/pull/2874>`_, `#2915 <https://github.com/vyperlang/vyper/pull/2915>`_, `#2925 <https://github.com/vyperlang/vyper/pull/2925>`_, `#2977 <https://github.com/vyperlang/vyper/pull/2977>`_)
+* Add ``_abi_decode`` builtin (`#2882 <https://github.com/vyperlang/vyper/pull/2882>`_)
+* Add ``create_from_blueprint`` and ``create_copy_of`` builtins (`#2895 <https://github.com/vyperlang/vyper/pull/2895>`_)
+* Add ``default_return_value`` kwarg for calls (`#2839 <https://github.com/vyperlang/vyper/pull/2839>`_)
+* Add ``min_value`` and ``max_value`` builtins for numeric types (`#2935 <https://github.com/vyperlang/vyper/pull/2935>`_)
+* Add ``uint2str`` builtin (`#2879 <https://github.com/vyperlang/vyper/pull/2879>`_)
+* Add vyper signature to bytecode (`#2860 <https://github.com/vyperlang/vyper/pull/2860>`_)
+
+
+Other fixes and improvements:
+
+* Call internal functions from constructor (`#2496 <https://github.com/vyperlang/vyper/pull/2496>`_)
+* Arithmetic for new int types (`#2843 <https://github.com/vyperlang/vyper/pull/2843>`_)
+* Allow ``msg.data`` in ``raw_call`` without ``slice`` (`#2902 <https://github.com/vyperlang/vyper/pull/2902>`_)
+* Per-method calldatasize checks (`#2911 <https://github.com/vyperlang/vyper/pull/2911>`_)
+* Type inference and annotation of arguments for builtin functions (`#2817 <https://github.com/vyperlang/vyper/pull/2817>`_)
+* Allow varargs for ``print`` (`#2833 <https://github.com/vyperlang/vyper/pull/2833>`_)
+* Add ``error_map`` output format for tooling consumption (`#2939 <https://github.com/vyperlang/vyper/pull/2939>`_)
+* Multiple evaluation of contract address in call (`GHSA-4v9q-cgpw-cf38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-4v9q-cgpw-cf38>`_)
+* Improve ast output (`#2824 <https://github.com/vyperlang/vyper/pull/2824>`_)
+* Allow ``@nonreentrant`` on view functions (`#2921 <https://github.com/vyperlang/vyper/pull/2921>`_)
+* Add ``shift()`` support for signed integers (`#2964 <https://github.com/vyperlang/vyper/pull/2964>`_)
+* Enable dynarrays of strings (`#2922 <https://github.com/vyperlang/vyper/pull/2922>`_)
+* Fix off-by-one bounds check in certain safepow cases (`#2983 <https://github.com/vyperlang/vyper/pull/2983>`_)
+* Optimizer improvements (`#2647 <https://github.com/vyperlang/vyper/pull/2647>`_, `#2868 <https://github.com/vyperlang/vyper/pull/2868>`_, `#2914 <https://github.com/vyperlang/vyper/pull/2914>`_, `#2843 <https://github.com/vyperlang/vyper/pull/2843>`_, `#2944 <https://github.com/vyperlang/vyper/pull/2944>`_)
+* Reverse order in which exceptions are reported (`#2838 <https://github.com/vyperlang/vyper/pull/2838>`_)
+* Fix compile-time blowup for large contracts (`#2981 <https://github.com/vyperlang/vyper/pull/2981>`_)
+* Rename ``vyper-ir`` binary to ``fang`` (`#2936 <https://github.com/vyperlang/vyper/pull/2936>`_)
+
+
+Many other small bugfixes, optimizations and refactoring also made it into this release! Special thanks to @tserg and @pandadefi for contributing several important bugfixes, refactoring and features to this release!
+
+
 v0.3.3
 ******
 
@@ -99,6 +392,7 @@ Special thanks to @skellet0r for some major features in this release!
 
 v0.3.0
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-10-04
 
@@ -131,6 +425,7 @@ Special thanks to contributions from @skellet0r and @benjyz for this release!
 
 v0.2.16
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-08-27
 
@@ -155,6 +450,7 @@ Special thanks to contributions from @skellet0r, @sambacha and @milancermak for 
 
 v0.2.15
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 23-07-2021
 
@@ -167,6 +463,7 @@ Fixes:
 
 v0.2.14
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 20-07-2021
 
@@ -285,6 +582,7 @@ Fixes:
 
 v0.2.6
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 10-10-2020
 
@@ -538,7 +836,7 @@ The following VIPs were implemented for Beta 13:
 
 - Add ``vyper-json`` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/vyperlang/vyper/issues/1525>`_)
-- Require unitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
+- Require uninitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
 
 Some of the bug and stability fixes:
 

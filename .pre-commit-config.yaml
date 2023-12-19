@@ -11,7 +11,7 @@ repos:
       - id: black
         name: black
 
--   repo: https://gitlab.com/pycqa/flake8
+-   repo: https://github.com/PyCQA/flake8
     rev: 3.9.2
     hooks:
     -   id: flake8
@@ -24,4 +24,4 @@ repos:
           - "types-setuptools"
 
 default_language_version:
-    python: python3.8
+    python: python3.10

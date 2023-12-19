@@ -1,28 +1,27 @@
 from typing import Any, Optional
 
-from vyper.address_space import MEMORY
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
     dummy_node_for_type,
+    get_type_for_exact_size,
     make_setter,
     needs_clamp,
     wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.codegen.types import get_type_for_exact_size
+from vyper.evm.address_space import MEMORY
 
 Stmt = Any  # mypy kludge
 
 
 # Generate code for return stmt
 def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IRnode]:
+    func_t = context.func_t
 
-    sig = context.sig
-
-    jump_to_exit = ["exit_to", f"_sym_{sig.exit_sequence_label}"]
+    jump_to_exit = ["exit_to", func_t._ir_info.exit_sequence_label]
 
     if context.return_type is None:
         if stmt.value is not None:
@@ -36,15 +35,18 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     # do NOT bypass this. jump_to_exit may do important function cleanup.
     def finalize(fill_return_buffer):
         fill_return_buffer = IRnode.from_list(
-            fill_return_buffer, annotation=f"fill return buffer {sig._ir_identifier}"
+            fill_return_buffer, annotation=f"fill return buffer {func_t._ir_info.ir_identifier}"
         )
         cleanup_loops = "cleanup_repeat" if context.forvars else "seq"
         # NOTE: because stack analysis is incomplete, cleanup_repeat must
         # come after fill_return_buffer otherwise the stack will break
-        return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit])
+        jump_to_exit_ir = IRnode.from_list(jump_to_exit)
+        jump_to_exit_ir.passthrough_metadata["func_t"] = func_t
+        return IRnode.from_list(["seq", fill_return_buffer, cleanup_loops, jump_to_exit_ir])
 
     if context.return_type is None:
-        jump_to_exit += ["return_pc"]
+        if context.is_internal:
+            jump_to_exit += ["return_pc"]
         return finalize(["seq"])
 
     if context.is_internal:
@@ -55,7 +57,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return finalize(fill_return_buffer)
 
     else:  # return from external function
-
         external_return_type = calculate_type_for_external_return(context.return_type)
         maxlen = external_return_type.abi_type.size_bound()
 

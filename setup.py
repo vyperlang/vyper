@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 extras_require = {
     "test": [
@@ -13,24 +13,23 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=2.5,<3.0",
         "pytest-split>=0.7.0,<1.0",
-        "pytest-rerunfailures>=10.2,<11",
-        "eth-tester[py-evm]>=0.6.0b6,<0.7",
-        "py-evm>=0.5.0a3,<0.6",
-        "web3==5.27.0",
+        "eth-tester[py-evm]>=0.9.0b1,<0.10",
+        "py-evm>=0.7.0a1,<0.8",
+        "web3==6.0.0",
         "tox>=3.15,<4.0",
-        "lark-parser==0.10.0",
+        "lark==1.1.2",
         "hypothesis[lark]>=5.37.1,<6.0",
+        "eth-stdlib==0.2.6",
     ],
     "lint": [
-        "black==21.9b0",
-        "click<8.1.0",  # temporary pin - black21.9b0 fails with 8.1.0
+        "black==23.3.0",
         "flake8==3.9.2",
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
         "isort==5.9.3",
-        "mypy==0.910",
+        "mypy==0.982",
     ],
-    "docs": ["recommonmark", "sphinx>=3.0,<4.0", "sphinx_rtd_theme>=0.5,<0.6"],
+    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
@@ -88,35 +87,34 @@ setup(
     license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
-    packages=find_packages(exclude=("tests", "docs")),
-    python_requires=">=3.7,<3.11",
+    packages=["vyper"],
+    python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
-        "asttokens==2.0.5",
+        "cbor2>=5.4.6,<6",
+        "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
-        "semantic-version==2.8.5",
-        "cached-property==1.5.2 ; python_version<'3.8'",
-        "importlib-metadata ; python_version<'3.8'",
+        "packaging>=23.1,<24",
+        "importlib-metadata",
         "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={
         "console_scripts": [
             "vyper=vyper.cli.vyper_compile:_parse_cli_args",
             "vyper-serve=vyper.cli.vyper_serve:_parse_cli_args",
-            "vyper-ir=vyper.cli.vyper_ir:_parse_cli_args",
+            "fang=vyper.cli.vyper_ir:_parse_cli_args",
             "vyper-json=vyper.cli.vyper_json:_parse_cli_args",
         ]
     },
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
+    package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],
 )

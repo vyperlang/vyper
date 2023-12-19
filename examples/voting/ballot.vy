@@ -28,7 +28,7 @@ int128Proposals: public(int128)
 @view
 @internal
 def _delegated(addr: address) -> bool:
-    return self.voters[addr].delegate != ZERO_ADDRESS
+    return self.voters[addr].delegate != empty(address)
 
 
 @view
@@ -40,7 +40,7 @@ def delegated(addr: address) -> bool:
 @view
 @internal
 def _directlyVoted(addr: address) -> bool:
-    return self.voters[addr].voted and (self.voters[addr].delegate == ZERO_ADDRESS)
+    return self.voters[addr].voted and (self.voters[addr].delegate == empty(address))
 
 
 @view
@@ -125,7 +125,7 @@ def delegate(to: address):
     # the default address value of 0x0000000000000000000000000000000000000000
     # (the latter might not be problematic, but I don't want to think about it).
     assert to != msg.sender
-    assert to != ZERO_ADDRESS
+    assert to != empty(address)
 
     self.voters[msg.sender].voted = True
     self.voters[msg.sender].delegate = to

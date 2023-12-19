@@ -1,4 +1,8 @@
-# Setup private variables (only callable from within the contract)
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# example of a crowd funding contract
 
 funders: HashMap[address, uint256]
 beneficiary: address
@@ -18,15 +22,15 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 @external
 @payable
 def participate():
-    assert block.timestamp < self.deadline, "deadline not met (yet)"
+    assert block.timestamp < self.deadline, "deadline has expired"
 
     self.funders[msg.sender] += msg.value
 
 # Enough money was raised! Send funds to the beneficiary
 @external
 def finalize():
-    assert block.timestamp >= self.deadline, "deadline has passed"
-    assert self.balance >= self.goal, "the goal has been reached"
+    assert block.timestamp >= self.deadline, "deadline has not expired yet"
+    assert self.balance >= self.goal, "goal has not been reached"
 
     selfdestruct(self.beneficiary)
 

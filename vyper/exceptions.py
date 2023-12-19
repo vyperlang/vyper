@@ -22,7 +22,7 @@ class ExceptionList(list):
             raise VyperException("\n\n".join(err_msg))
 
 
-class VyperException(Exception):
+class _BaseVyperException(Exception):
     """
     Base Vyper exception class.
 
@@ -49,12 +49,15 @@ class VyperException(Exception):
         self.message = message
         self.lineno = None
         self.col_offset = None
+        self.annotations = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
             self.lineno, self.col_offset = items[0][:2]
         else:
-            self.annotations = items
+            # strip out None sources so that None can be passed as a valid
+            # annotation (in case it is only available optionally)
+            self.annotations = [k for k in items if k is not None]
 
     def with_annotation(self, *annotations):
         """
@@ -77,7 +80,7 @@ class VyperException(Exception):
         from vyper import ast as vy_ast
         from vyper.utils import annotate_source_code
 
-        if not hasattr(self, "annotations"):
+        if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
             else:
@@ -103,8 +106,9 @@ class VyperException(Exception):
 
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
-                if module_node.get("name") not in (None, "<unknown>"):
-                    node_msg = f'{node_msg}contract "{module_node.name}", '
+
+                if module_node.get("path") not in (None, "<unknown>"):
+                    node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
@@ -123,6 +127,10 @@ class VyperException(Exception):
 
         annotation_msg = "\n".join(annotation_list)
         return f"{self.message}\n{annotation_msg}"
+
+
+class VyperException(_BaseVyperException):
+    pass
 
 
 class SyntaxException(VyperException):
@@ -149,6 +157,10 @@ class NatSpecSyntaxException(SyntaxException):
 
 class StructureException(VyperException):
     """Invalid structure for parsable syntax."""
+
+
+class InstantiationException(StructureException):
+    """Variable or expression cannot be instantiated"""
 
 
 class VersionException(VyperException):
@@ -219,6 +231,18 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
+class ImportCycle(VyperException):
+    """An import cycle"""
+
+
+class DuplicateImport(VyperException):
+    """A module was imported twice from the same module"""
+
+
+class ModuleNotFound(VyperException):
+    """Module was not found"""
+
+
 class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 
@@ -259,6 +283,10 @@ class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
 
 
+class MemoryAllocationException(VyperException):
+    """Tried to allocate too much memory"""
+
+
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
@@ -281,7 +309,7 @@ class StaticAssertionException(VyperException):
     """An assertion is proven to fail at compile-time."""
 
 
-class VyperInternalException(Exception):
+class VyperInternalException(_BaseVyperException):
     """
     Base Vyper internal exception class.
 
@@ -291,9 +319,6 @@ class VyperInternalException(Exception):
     Internal exceptions are raised as a means of telling the user that the
     compiler has panicked, and that filing a bug report would be appropriate.
     """
-
-    def __init__(self, message=""):
-        self.message = message
 
     def __str__(self):
         return (
@@ -325,3 +350,7 @@ class UnfoldableNode(VyperInternalException):
 
 class TypeCheckFailure(VyperInternalException):
     """An issue was not caught during type checking that should have been."""
+
+
+class InvalidABIType(VyperInternalException):
+    """An internal routine constructed an invalid ABI type"""

@@ -146,25 +146,27 @@ Values that are declared in the module scope of a contract, such as storage vari
 Name Shadowing
 **************
 
-It is not permitted for a memory or calldata variable to shadow the name of a storage variable. The following examples will not compile:
+It is not permitted for a memory or calldata variable to shadow the name of an immutable or constant value. The following examples will not compile:
 
 .. code-block:: python
 
-    a: int128
+    a: constant(bool) = True
 
     @external
-    def foo() -> int128:
-        # memory variable cannot have the same name as a storage variable
-        a: int128 = self.a
+    def foo() -> bool:
+        # memory variable cannot have the same name as a constant or immutable variable
+        a: bool = False
         return a
-
 .. code-block:: python
 
-    a: int128
+    a: immutable(bool)
 
     @external
-    def foo(a: int128) -> int128:
-        # input argument cannot have the same name as a storage variable
+    def __init__():
+        a = True
+    @external
+    def foo(a:bool) -> bool:
+        # input argument cannot have the same name as a constant or immutable variable
         return a
 
 Function Scope

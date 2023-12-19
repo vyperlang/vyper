@@ -1,50 +1,51 @@
-from . import indexable, user, value
-from .abstract import ArrayValueAbstractType, SignedIntegerAbstractType, UnsignedIntegerAbstractType
-from .bases import BasePrimitive, BaseTypeDefinition, DataLocation, ValueTypeDefinition
-from .indexable.mapping import MappingDefinition
-from .indexable.sequence import (
-    ArrayDefinition,
-    DynamicArrayDefinition,
-    DynamicArrayPrimitive,
-    TupleDefinition,
-)
-from .user.enum import EnumDefinition
-from .user.event import Event
-from .user.interface import InterfaceDefinition
-from .user.struct import StructDefinition
-from .value.address import AddressDefinition
-from .value.array_value import BytesArrayDefinition, StringDefinition
-from .value.boolean import BoolDefinition
-from .value.bytes_fixed import Bytes32Definition, BytesMDefinition
-from .value.numeric import Int128Definition  # type: ignore
-from .value.numeric import Uint256Definition  # type: ignore
-from .value.numeric import AbstractNumericDefinition, DecimalDefinition
-
-# any more?
+from . import primitives, subscriptable, user
+from .base import TYPE_T, KwargSettings, VyperType, is_type_t
+from .bytestrings import BytesT, StringT, _BytestringT
+from .function import MemberFunctionT
+from .module import InterfaceT
+from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
+from .user import EnumT, EventT, StructT
 
 
-def get_primitive_types():
-    result = {}
+def _get_primitive_types():
+    res = [BoolT(), DecimalT()]
 
-    for module in (indexable, value):
-        submodules = [
-            v
-            for v in module.__dict__.values()
-            if getattr(v, "__package__", None) == module.__package__
-        ]
-        for item in submodules:
-            result.update(
-                (v._id, v)
-                for v in item.__dict__.values()
-                if isinstance(getattr(v, "_id", None), str) and issubclass(v, BasePrimitive)
-            )
+    res.extend(IntegerT.all())
+    res.extend(BytesM_T.all())
 
-    return result
+    # order of the types matters!
+    # parsing of literal hex: prefer address over bytes20
+    res.append(AddressT())
+
+    # note: since bytestrings are parametrizable, the *class* objects
+    # are in the namespace instead of concrete type objects.
+    res.extend([BytesT, StringT])
+
+    ret = {t._id: t for t in res}
+    ret.update(_get_sequence_types())
+
+    return ret
 
 
-def get_types():
-    result = {}
-    result.update(user.USER_TYPES)
-    result.update(get_primitive_types())
+def _get_sequence_types():
+    # since these guys are parametrizable, the *class* objects
+    # are in the namespace instead of concrete type objects.
 
-    return result
+    res = [HashMapT, DArrayT]
+
+    ret = {t._id: t for t in res}
+
+    # (static) arrays and tuples are special types which don't show up
+    # in the type annotation itself.
+    # since we don't have special handling of annotations in the parser,
+    # break a dependency cycle by injecting these into the namespace with
+    # mangled names (that no user can create).
+    ret["$SArrayT"] = SArrayT
+    ret["$TupleT"] = TupleT
+
+    return ret
+
+
+# note: it might be good to make this a frozen dict of some sort
+PRIMITIVE_TYPES = _get_primitive_types()

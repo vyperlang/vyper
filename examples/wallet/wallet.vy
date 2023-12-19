@@ -1,5 +1,8 @@
-# An example of how you can do a wallet in Vyper.
-# Warning: NOT AUDITED. Do not use to store substantial quantities of funds.
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# An example of how you can implement a wallet in Vyper.
 
 # A list of the owners addresses (there are a maximum of 5 owners)
 owners: public(address[5])
@@ -12,13 +15,13 @@ seq: public(int128)
 @external
 def __init__(_owners: address[5], _threshold: int128):
     for i in range(5):
-        if _owners[i] != ZERO_ADDRESS:
+        if _owners[i] != empty(address):
             self.owners[i] = _owners[i]
     self.threshold = _threshold
 
 
 @external
-def testEcrecover(h: bytes32, v:uint256, r:uint256, s:uint256) -> address:
+def testEcrecover(h: bytes32, v:uint8, r:bytes32, s:bytes32) -> address:
     return ecrecover(h, v, r, s)
 
 
@@ -48,6 +51,8 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
         if sigdata[i][0] != 0:
             # If an invalid signature is given for an owner then the contract throws
             assert ecrecover(h2, sigdata[i][0], sigdata[i][1], sigdata[i][2]) == self.owners[i]
+            # ecrecover handles multiple types
+            assert ecrecover(h2, convert(sigdata[i][0], uint8), convert(sigdata[i][1], bytes32), convert(sigdata[i][2], bytes32)) == self.owners[i]
             # For every valid signature increase the number of approvals by 1
             approvals += 1
     # Throw if the number of approvals is less then the number of approvals required (the threshold)
