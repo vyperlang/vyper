@@ -43,7 +43,7 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
 
     for node in [i for i in vyper_module_folded.body if i.get("doc_string.value")]:
         docstring = node.doc_string.value
-        func_type = node._metadata["type"]
+        func_type = node._metadata["func_type"]
         if func_type.visibility != FunctionVisibility.EXTERNAL:
             continue
 
@@ -88,7 +88,7 @@ def _parse_docstring(
         tag, value = match.groups()
         err_args = (source, *line_no.offset_to_line(start + match.start(1)))
 
-        if tag not in SINGLE_FIELDS + PARAM_FIELDS:
+        if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
         if tag in invalid_fields:
             raise NatSpecSyntaxException(

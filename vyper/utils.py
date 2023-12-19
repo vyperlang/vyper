@@ -6,9 +6,60 @@ import sys
 import time
 import traceback
 import warnings
-from typing import List, Union
+from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+
+_T = TypeVar("_T")
+
+
+class OrderedSet(Generic[_T], dict[_T, None]):
+    """
+    a minimal "ordered set" class. this is needed in some places
+    because, while dict guarantees you can recover insertion order
+    vanilla sets do not.
+    no attempt is made to fully implement the set API, will add
+    functionality as needed.
+    """
+
+    def __init__(self, iterable=None):
+        super().__init__()
+        if iterable is not None:
+            for item in iterable:
+                self.add(item)
+
+    def __repr__(self):
+        keys = ", ".join(repr(k) for k in self.keys())
+        return f"{{{keys}}}"
+
+    def get(self, *args, **kwargs):
+        raise RuntimeError("can't call get() on OrderedSet!")
+
+    def add(self, item: _T) -> None:
+        self[item] = None
+
+    def remove(self, item: _T) -> None:
+        del self[item]
+
+    def difference(self, other):
+        ret = self.copy()
+        for k in other.keys():
+            if k in ret:
+                ret.remove(k)
+        return ret
+
+    def union(self, other):
+        return self | other
+
+    def update(self, other):
+        for item in other:
+            self.add(item)
+
+    def __or__(self, other):
+        return self.__class__(super().__or__(other))
+
+    def copy(self):
+        return self.__class__(super().copy())
 
 
 class DecimalContextOverride(decimal.Context):
@@ -115,11 +166,6 @@ def method_id(method_str: str) -> bytes:
     return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
-# map a string to only-alphanumeric chars
-def mkalphanum(s):
-    return "".join([c if c.isalnum() else "_" for c in s])
-
-
 def round_towards_zero(d: decimal.Decimal) -> int:
     # TODO double check if this can just be int(d)
     # (but either way keep this util function bc it's easier at a glance
@@ -183,8 +229,7 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
-GAS_CODECOPY_WORD = 3
-GAS_CALLDATACOPY_WORD = 3
+GAS_COPY_WORD = 3  # i.e., W_copy from YP
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
@@ -256,9 +301,6 @@ class SizeLimits:
     MAX_UINT8 = 2**8 - 1
     MAX_UINT256 = 2**256 - 1
 
-
-# Otherwise reserved words that are whitelisted for function declarations
-FUNCTION_WHITELIST = {"send"}
 
 # List of valid IR macros.
 # TODO move this somewhere else, like ir_node.py
@@ -427,3 +469,25 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def ir_pass(func):
+    """
+    Decorator for IR passes. This decorator will run the pass repeatedly until
+    no more changes are made.
+    """
+
+    def wrapper(*args, **kwargs):
+        count = 0
+
+        while True:
+            changes = func(*args, **kwargs) or 0
+            if isinstance(changes, list) or isinstance(changes, set):
+                changes = len(changes)
+            count += changes
+            if changes == 0:
+                break
+
+        return count
+
+    return wrapper

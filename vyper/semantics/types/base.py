@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -12,7 +13,6 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -40,13 +40,23 @@ class VyperType:
         If `True`, this type can be used as the base member for an array.
     _valid_literal : Tuple
         A tuple of Vyper ast classes that may be assigned this type.
+    _invalid_locations : Tuple
+        A tuple of invalid `DataLocation`s for this type
     _is_prim_word: bool, optional
         This is a word type like uint256, int8, bytesM or address
+    _supports_external_calls: bool, optional
+        Whether or not this type supports external calls. Currently
+        limited to `InterfaceT`s
+    _attribute_in_annotation: bool, optional
+        Whether or not this type can be attributed in a type
+        annotation, like IFoo.SomeType. Currently limited to
+        `InterfaceT`s.
     """
 
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
+    _invalid_locations: Tuple = ()
     _is_prim_word: bool = False
     _equality_attrs: Optional[Tuple] = None
     _is_array_type: bool = False
@@ -54,6 +64,9 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
+
+    _supports_external_calls: bool = False
+    _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
 
@@ -65,7 +78,7 @@ class VyperType:
             for k, v in self._type_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
-                self.add_member(k, v, skip_namespace_validation=True)
+                self.add_member(k, v)
 
         members = members or {}
         for k, v in members.items():
@@ -258,7 +271,7 @@ class VyperType:
         VyperType, optional
             Type generated as a result of the call.
         """
-        raise StructureException("Value is not callable", node)
+        raise StructureException(f"{self} is not callable", node)
 
     @classmethod
     def get_subscripted_type(self, node: vy_ast.Index) -> None:
@@ -277,13 +290,8 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
-    def add_member(
-        self, name: str, type_: "VyperType", skip_namespace_validation: bool = False
-    ) -> None:
-        # skip_namespace_validation provides a way of bypassing validate_identifier, which
-        # introduces a dependency cycle with the builtin_functions module
-        if not skip_namespace_validation:
-            validate_identifier(name)
+    def add_member(self, name: str, type_: "VyperType") -> None:
+        validate_identifier(name)
         if name in self.members:
             raise NamespaceCollision(f"Member '{name}' already exists in {self}")
         self.members[name] = type_
@@ -316,7 +324,9 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
-# A type type. Only used internally for builtins
+# A type type. Used internally for types which can live in expression
+# position, ex. constructors (events, interfaces and structs), and also
+# certain builtins which take types as parameters
 class TYPE_T:
     def __init__(self, typedef):
         self.typedef = typedef

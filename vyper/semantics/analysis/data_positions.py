@@ -1,11 +1,11 @@
-# TODO this doesn't really belong in "validation"
-import math
+# TODO this module doesn't really belong in "validation"
 from typing import Dict, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StorageLayoutException
 from vyper.semantics.analysis.base import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
+from vyper.utils import ceil32
 
 
 def set_data_positions(
@@ -79,7 +79,7 @@ def set_storage_slots_with_overrides(
 
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["type"]
+        type_ = node._metadata["func_type"]
 
         # Ignore functions without non-reentrant
         if type_.nonreentrant is None:
@@ -121,8 +121,7 @@ def set_storage_slots_with_overrides(
         # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
-            # Calculate how many storage slots are required
-            storage_length = math.ceil(varinfo.typ.size_in_bytes / 32)
+            storage_length = varinfo.typ.storage_size_in_words
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
@@ -139,6 +138,21 @@ def set_storage_slots_with_overrides(
     return ret
 
 
+class SimpleStorageAllocator:
+    def __init__(self, starting_slot: int = 0):
+        self._slot = starting_slot
+
+    def allocate_slot(self, n, var_name):
+        ret = self._slot
+        if self._slot + n >= 2**256:
+            raise StorageLayoutException(
+                f"Invalid storage slot for var {var_name}, tried to allocate"
+                f" slots {self._slot} through {self._slot + n}"
+            )
+        self._slot += n
+        return ret
+
+
 def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
     """
     Parse module-level Vyper AST to calculate the layout of storage variables.
@@ -146,12 +160,12 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
     """
     # Allocate storage slots from 0
     # note storage is word-addressable, not byte-addressable
-    storage_slot = 0
+    allocator = SimpleStorageAllocator()
 
     ret: Dict[str, Dict] = {}
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
-        type_ = node._metadata["type"]
+        type_ = node._metadata["func_type"]
         if type_.nonreentrant is None:
             continue
 
@@ -165,16 +179,16 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
             type_.set_reentrancy_key_position(StorageSlot(_slot))
             continue
 
-        type_.set_reentrancy_key_position(StorageSlot(storage_slot))
-
-        # TODO this could have better typing but leave it untyped until
-        # we nail down the format better
-        ret[variable_name] = {"type": "nonreentrant lock", "slot": storage_slot}
-
         # TODO use one byte - or bit - per reentrancy key
         # requires either an extra SLOAD or caching the value of the
         # location in memory at entrance
-        storage_slot += 1
+        slot = allocator.allocate_slot(1, variable_name)
+
+        type_.set_reentrancy_key_position(StorageSlot(slot))
+
+        # TODO this could have better typing but leave it untyped until
+        # we nail down the format better
+        ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
 
     for node in vyper_module.get_children(vy_ast.VariableDecl):
         # skip non-storage variables
@@ -182,19 +196,20 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
             continue
 
         varinfo = node.target._metadata["varinfo"]
-        varinfo.set_position(StorageSlot(storage_slot))
-
         type_ = varinfo.typ
-
-        # this could have better typing but leave it untyped until
-        # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "slot": storage_slot}
 
         # CMC 2021-07-23 note that HashMaps get assigned a slot here.
         # I'm not sure if it's safe to avoid allocating that slot
         # for HashMaps because downstream code might use the slot
         # ID as a salt.
-        storage_slot += math.ceil(type_.size_in_bytes / 32)
+        n_slots = type_.storage_size_in_words
+        slot = allocator.allocate_slot(n_slots, node.target.id)
+
+        varinfo.set_position(StorageSlot(slot))
+
+        # this could have better typing but leave it untyped until
+        # we understand the use case better
+        ret[node.target.id] = {"type": str(type_), "slot": slot}
 
     return ret
 
@@ -216,7 +231,7 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
         type_ = varinfo.typ
         varinfo.set_position(CodeOffset(offset))
 
-        len_ = math.ceil(type_.size_in_bytes / 32) * 32
+        len_ = ceil32(type_.size_in_bytes)
 
         # this could have better typing but leave it untyped until
         # we understand the use case better

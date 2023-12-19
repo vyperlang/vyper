@@ -3,7 +3,6 @@ import math
 
 import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
-from vyper.address_space import DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
@@ -17,10 +16,14 @@ from vyper.codegen.core import (
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
+    sar,
+    shl,
+    shr,
     unwrap_location,
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CompilerPanic,
@@ -44,8 +47,10 @@ from vyper.semantics.types import (
     StringT,
     StructT,
     TupleT,
+    is_type_t,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -72,11 +77,11 @@ class Expr:
 
         fn = getattr(self, f"parse_{type(node).__name__}", None)
         if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
+            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
 
         self.ir_node = fn()
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR. {self.expr}")
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
@@ -163,7 +168,7 @@ class Expr:
             return IRnode.from_list(["address"], typ=AddressT())
         elif self.expr.id in self.context.vars:
             var = self.context.vars[self.expr.id]
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 var.pos,
                 typ=var.typ,
                 location=var.location,  # either 'memory' or 'calldata' storage is handled above.
@@ -171,6 +176,8 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
+            ret._referenced_variables = {var}
+            return ret
 
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
@@ -179,16 +186,18 @@ class Expr:
 
             ofst = varinfo.position.offset
 
-            if self.context.sig.is_init_func:
+            if self.context.is_ctor_context:
                 mutable = True
                 location = IMMUTABLES
             else:
                 mutable = False
                 location = DATA
 
-            return IRnode.from_list(
+            ret = IRnode.from_list(
                 ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
             )
+            ret._referenced_variables = {varinfo}
+            return ret
 
     # x.y or x[5]
     def parse_Attribute(self):
@@ -235,10 +244,6 @@ class Expr:
         # x.codehash: keccak of address x
         elif self.expr.attr == "codehash":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
-            if not version_check(begin="constantinople"):
-                raise EvmVersionException(
-                    "address.codehash is unavailable prior to constantinople ruleset", self.expr
-                )
             if addr.typ == AddressT():
                 return IRnode.from_list(["extcodehash", addr], typ=BYTES32_T)
         # x.code: codecopy/extcodecopy of address x
@@ -252,12 +257,18 @@ class Expr:
         # self.x: global attribute
         elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
             varinfo = self.context.globals[self.expr.attr]
-            return IRnode.from_list(
+            location = TRANSIENT if varinfo.is_transient else STORAGE
+
+            ret = IRnode.from_list(
                 varinfo.position.position,
                 typ=varinfo.typ,
-                location=STORAGE,
+                location=location,
                 annotation="self." + self.expr.attr,
             )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
         # Reserved keywords
         elif (
             isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
@@ -317,6 +328,9 @@ class Expr:
             sub = Expr(self.expr.value, self.context).ir_node
             # contract type
             if isinstance(sub.typ, InterfaceT):
+                # MyInterface.address
+                assert self.expr.attr == "address"
+                sub.typ = typ
                 return sub
             if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
                 return get_element_ptr(sub, self.expr.attr)
@@ -332,11 +346,10 @@ class Expr:
 
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
-            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
-            if isinstance(index.typ, BytesT):
+            index = Expr(self.expr.slice.value, self.context).ir_node
+            if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
-                assert len(index.args) == 1
-                index = keccak256_helper(self.expr.slice.value, index.args[0], self.context)
+                index = keccak256_helper(index, self.context)
 
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice.value, self.context)
@@ -357,10 +370,17 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        # Sanity check - ensure that we aren't dealing with different types
-        # This should be unreachable due to the type check pass
-        assert left.typ == right.typ, f"unreachable, {left.typ}!={right.typ}"
-        assert is_numeric_type(left.typ) or is_enum_type(left.typ)
+        is_shift_op = isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift))
+
+        if is_shift_op:
+            assert is_numeric_type(left.typ)
+            assert is_numeric_type(right.typ)
+        else:
+            # Sanity check - ensure that we aren't dealing with different types
+            # This should be unreachable due to the type check pass
+            if left.typ != right.typ:
+                raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
+            assert is_numeric_type(left.typ) or is_enum_type(left.typ)
 
         out_typ = left.typ
 
@@ -370,6 +390,20 @@ class Expr:
             return IRnode.from_list(["or", left, right], typ=out_typ)
         if isinstance(self.expr.op, vy_ast.BitXor):
             return IRnode.from_list(["xor", left, right], typ=out_typ)
+
+        if isinstance(self.expr.op, vy_ast.LShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
+                return
+            return IRnode.from_list(shl(right, left), typ=new_typ)
+        if isinstance(self.expr.op, vy_ast.RShift):
+            new_typ = left.typ
+            if new_typ.bits != 256:
+                # TODO implement me. promote_signed_int(op(right, left), bits)
+                return
+            op = shr if not left.typ.is_signed else sar
+            return IRnode.from_list(op(right, left), typ=new_typ)
 
         # enums can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
@@ -505,8 +539,8 @@ class Expr:
             left = Expr(self.expr.left, self.context).ir_node
             right = Expr(self.expr.right, self.context).ir_node
 
-            left_keccak = keccak256_helper(self.expr, left, self.context)
-            right_keccak = keccak256_helper(self.expr, right, self.context)
+            left_keccak = keccak256_helper(left, self.context)
+            right_keccak = keccak256_helper(right, self.context)
 
             if op not in ("eq", "ne"):
                 return  # raises
@@ -633,39 +667,38 @@ class Expr:
             if function_name in DISPATCH_TABLE:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
-            # Struct constructors do not need `self` prefix.
-            elif isinstance(self.expr._metadata["type"], StructT):
-                args = self.expr.args
-                if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], function_name, self.context)
+        func_type = self.expr.func._metadata["type"]
 
-            # Interface assignment. Bar(<address>).
-            elif isinstance(self.expr._metadata["type"], InterfaceT):
-                (arg0,) = self.expr.args
-                arg_ir = Expr(arg0, self.context).ir_node
+        # Struct constructor
+        if is_type_t(func_type, StructT):
+            args = self.expr.args
+            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
-                assert arg_ir.typ == AddressT()
-                arg_ir.typ = self.expr._metadata["type"]
+        # Interface constructor. Bar(<address>).
+        if is_type_t(func_type, InterfaceT):
+            (arg0,) = self.expr.args
+            arg_ir = Expr(arg0, self.context).ir_node
 
-                return arg_ir
+            assert arg_ir.typ == AddressT()
+            arg_ir.typ = self.expr._metadata["type"]
 
-        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            return arg_ir
+
+        if isinstance(func_type, MemberFunctionT) and self.expr.func.attr == "pop":
             # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayT)
             return pop_dyn_array(darray, return_popped_item=True)
 
-        elif (
-            # TODO use expr.func.type.is_internal once
-            # type annotations are consistently available
-            isinstance(self.expr.func, vy_ast.Attribute)
-            and isinstance(self.expr.func.value, vy_ast.Name)
-            and self.expr.func.value.id == "self"
-        ):
-            return self_call.ir_for_self_call(self.expr, self.context)
-        else:
-            return external_call.ir_for_external_call(self.expr, self.context)
+        if isinstance(func_type, ContractFunctionT):
+            if func_type.is_internal:
+                return self_call.ir_for_self_call(self.expr, self.context)
+            else:
+                return external_call.ir_for_external_call(self.expr, self.context)
+
+        raise CompilerPanic("unreachable", self.expr)
 
     def parse_List(self):
         typ = self.expr._metadata["type"]
@@ -682,8 +715,31 @@ class Expr:
         multi_ir = IRnode.from_list(["multi"] + tuple_elements, typ=typ)
         return multi_ir
 
+    def parse_IfExp(self):
+        test = Expr.parse_value_expr(self.expr.test, self.context)
+        assert test.typ == BoolT()  # sanity check
+
+        body = Expr(self.expr.body, self.context).ir_node
+        orelse = Expr(self.expr.orelse, self.context).ir_node
+
+        # if they are in the same location, we can skip copying
+        # into memory. also for the case where either body or orelse are
+        # literal `multi` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter, XXX fixme).
+        if body.location != orelse.location or body.value == "multi":
+            body = ensure_in_memory(body, self.context)
+            orelse = ensure_in_memory(orelse, self.context)
+
+        assert body.location == orelse.location
+        # check this once compare_type has no side effects:
+        # assert body.typ.compare_type(orelse.typ)
+
+        typ = self.expr._metadata["type"]
+        location = body.location
+        return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
+
     @staticmethod
-    def struct_literals(expr, name, context):
+    def struct_literals(expr, context, typ):
         member_subs = {}
         member_typs = {}
         for key, value in zip(expr.keys, expr.values):
@@ -694,10 +750,8 @@ class Expr:
             member_subs[key.id] = sub
             member_typs[key.id] = sub.typ
 
-        # TODO: get struct type from context.global_ctx.parse_type(name)
         return IRnode.from_list(
-            ["multi"] + [member_subs[key] for key in member_subs.keys()],
-            typ=StructT(name, member_typs),
+            ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
         )
 
     # Parse an expression that results in a value

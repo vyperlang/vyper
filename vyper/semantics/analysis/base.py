@@ -1,15 +1,20 @@
 import enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import InputBundle
 from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     StateAccessViolation,
     VyperInternalException,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
 class _StringEnum(enum.Enum):
@@ -92,15 +97,6 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-# TODO: move me to locations.py?
-class DataLocation(enum.Enum):
-    UNSET = 0
-    MEMORY = 1
-    STORAGE = 2
-    CALLDATA = 3
-    CODE = 4
-
-
 class DataPosition:
     _location: DataLocation
 
@@ -153,6 +149,35 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
+# base class for things that are the "result" of analysis
+class AnalysisResult:
+    pass
+
+
+@dataclass
+class ModuleInfo(AnalysisResult):
+    module_t: "ModuleT"
+
+    @property
+    def module_node(self):
+        return self.module_t._module
+
+    # duck type, conform to interface of VarInfo and ExprInfo
+    @property
+    def typ(self):
+        return self.module_t
+
+
+@dataclass
+class ImportInfo(AnalysisResult):
+    typ: Union[ModuleInfo, "InterfaceT"]
+    alias: str  # the name in the namespace
+    qualified_module_name: str  # for error messages
+    # source_id: int
+    input_bundle: InputBundle
+    node: vy_ast.VyperNode
+
+
 @dataclass
 class VarInfo:
     """
@@ -170,8 +195,12 @@ class VarInfo:
     is_constant: bool = False
     is_public: bool = False
     is_immutable: bool = False
+    is_transient: bool = False
     is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
+
+    def __hash__(self):
+        return hash(id(self))
 
     def __post_init__(self):
         self._modification_count = 0
@@ -215,6 +244,10 @@ class ExprInfo:
             is_constant=var_info.is_constant,
             is_immutable=var_info.is_immutable,
         )
+
+    @classmethod
+    def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
+        return cls(module_info.module_t)
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """

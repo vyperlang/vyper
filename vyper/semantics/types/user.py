@@ -1,26 +1,22 @@
 from functools import cached_property
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.abi_types import ABI_Address, ABI_GIntM, ABI_Tuple, ABIType
+from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EnumDeclarationException,
     EventDeclarationException,
-    InterfaceViolation,
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
     UnknownAttribute,
     VariableDeclarationException,
 )
-from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.analysis.utils import validate_expected_type
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256
@@ -28,7 +24,18 @@ from vyper.utils import keccak256
 
 # user defined type
 class _UserType(VyperType):
+    def __init__(self, members=None):
+        super().__init__(members=members)
+
     def __eq__(self, other):
+        return self is other
+
+    def compare_type(self, other):
+        # object exact comparison is a bit tricky here since we have
+        # to be careful to construct any given user type exactly
+        # only one time. however, the alternative requires reasoning
+        # about both the name and source (module or json abi) of
+        # the type.
         return self is other
 
     def __hash__(self):
@@ -47,7 +54,8 @@ class EnumT(_UserType):
         if len(members.keys()) > 256:
             raise EnumDeclarationException("Enums are limited to 256 members!")
 
-        super().__init__()
+        super().__init__(members=None)
+
         self._id = name
 
         self._enum_members = members
@@ -107,7 +115,7 @@ class EnumT(_UserType):
         -------
         Enum
         """
-        members: Dict = {}
+        members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
             raise EnumDeclarationException("Enum must have members", base_node)
@@ -130,7 +138,7 @@ class EnumT(_UserType):
         # TODO
         return None
 
-    def to_toplevel_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> list[dict]:
         # TODO
         return []
 
@@ -153,11 +161,22 @@ class EventT(_UserType):
         Name of the event.
     """
 
-    def __init__(self, name: str, arguments: dict, indexed: list) -> None:
+    _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
+
+    def __init__(
+        self,
+        name: str,
+        arguments: dict,
+        indexed: list,
+        decl_node: Optional[vy_ast.VyperNode] = None,
+    ) -> None:
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
+        assert len(self.indexed) == len(self.arguments)
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
+
+        self.decl_node = decl_node
 
     # backward compatible
     @property
@@ -165,8 +184,13 @@ class EventT(_UserType):
         return self.members
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self.arguments.values())
-        return f"event {self.name}({arg_types})"
+        args = []
+        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items()):
+            argtype_str = repr(argtype)
+            if is_indexed:
+                argtype_str = f"indexed({argtype_str})"
+            args.append(f"{argtype_str}")
+        return f"event {self.name}({','.join(args)})"
 
     # TODO rename to abi_signature
     @property
@@ -174,7 +198,7 @@ class EventT(_UserType):
         return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments.values())})"
 
     @classmethod
-    def from_abi(cls, abi: Dict) -> "EventT":
+    def from_abi(cls, abi: dict) -> "EventT":
         """
         Generate an `Event` object from an ABI interface.
 
@@ -188,7 +212,7 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: List = [i["indexed"] for i in abi["inputs"]]
+        indexed: list = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
@@ -206,11 +230,11 @@ class EventT(_UserType):
         -------
         Event
         """
-        members: Dict = {}
-        indexed: List = []
+        members: dict = {}
+        indexed: list = []
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            return EventT(base_node.name, members, indexed)
+            return cls(base_node.name, members, indexed, base_node)
 
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
@@ -239,14 +263,14 @@ class EventT(_UserType):
 
             members[member_name] = type_from_annotation(annotation)
 
-        return cls(base_node.name, members, indexed)
+        return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
 
-    def to_toplevel_abi_dict(self) -> List[Dict]:
+    def to_toplevel_abi_dict(self) -> list[dict]:
         return [
             {
                 "name": self.name,
@@ -260,207 +284,6 @@ class EventT(_UserType):
         ]
 
 
-class InterfaceT(_UserType):
-    _type_members = {"address": AddressT()}
-    _is_prim_word = True
-    _as_array = True
-    _as_hashmap_key = True
-
-    def __init__(self, _id: str, members: dict, events: dict) -> None:
-        validate_unique_method_ids(list(members.values()))  # explicit list cast for mypy
-        super().__init__(members)
-
-        self._id = _id
-        self.events = events
-
-    @property
-    def getter_signature(self):
-        return (), AddressT()
-
-    @property
-    def abi_type(self) -> ABIType:
-        return ABI_Address()
-
-    def __repr__(self):
-        return f"{self._id}"
-
-    # when using the type itself (not an instance) in the call position
-    # maybe rename to _ctor_call_return
-    def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
-        self._ctor_arg_types(node)
-
-        return self
-
-    def _ctor_arg_types(self, node):
-        validate_call_args(node, 1)
-        validate_expected_type(node.args[0], AddressT())
-        return [AddressT()]
-
-    def _ctor_kwarg_types(self, node):
-        return {}
-
-    # TODO x.validate_implements(other)
-    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
-        namespace = get_namespace()
-        unimplemented = []
-
-        def _is_function_implemented(fn_name, fn_type):
-            vyper_self = namespace["self"].typ
-            if name not in vyper_self.members:
-                return False
-            s = vyper_self.members[name]
-            if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.members[name]
-            # this is kludgy, rework order of passes in ModuleNodeVisitor
-            elif isinstance(s, VarInfo) and s.is_public:
-                to_compare = s.decl_node._metadata["func_type"]
-            else:
-                return False
-
-            return to_compare.compare_signature(fn_type)
-
-        # check for missing functions
-        for name, type_ in self.members.items():
-            if not isinstance(type_, ContractFunctionT):
-                # ex. address
-                continue
-
-            if not _is_function_implemented(name, type_):
-                unimplemented.append(name)
-
-        # check for missing events
-        for name, event in self.events.items():
-            if (
-                name not in namespace
-                or not isinstance(namespace[name], EventT)
-                or namespace[name].event_id != event.event_id
-            ):
-                unimplemented.append(name)
-
-        if len(unimplemented) > 0:
-            missing_str = ", ".join(sorted(unimplemented))
-            raise InterfaceViolation(
-                f"Contract does not implement all interface functions or events: {missing_str}",
-                node,
-            )
-
-    def to_toplevel_abi_dict(self) -> List[Dict]:
-        abi = []
-        for event in self.events.values():
-            abi += event.to_toplevel_abi_dict()
-        for func in self.functions.values():
-            abi += func.to_toplevel_abi_dict()
-        return abi
-
-    @property
-    def functions(self):
-        return {k: v for (k, v) in self.members.items() if isinstance(v, ContractFunctionT)}
-
-    @classmethod
-    def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
-        """
-        Generate an `InterfaceT` object from an ABI.
-
-        Arguments
-        ---------
-        name : str
-            The name of the interface
-        abi : dict
-            Contract ABI
-
-        Returns
-        -------
-        InterfaceT
-            primitive interface type
-        """
-        members: Dict = {}
-        events: Dict = {}
-
-        names = [i["name"] for i in abi if i.get("type") in ("event", "function")]
-        collisions = set(i for i in names if names.count(i) > 1)
-        if collisions:
-            collision_list = ", ".join(sorted(collisions))
-            raise NamespaceCollision(
-                f"ABI '{name}' has multiple functions or events "
-                f"with the same name: {collision_list}"
-            )
-
-        for item in [i for i in abi if i.get("type") == "function"]:
-            members[item["name"]] = ContractFunctionT.from_abi(item)
-        for item in [i for i in abi if i.get("type") == "event"]:
-            events[item["name"]] = EventT.from_abi(item)
-
-        return cls(name, members, events)
-
-    # TODO: split me into from_InterfaceDef and from_Module
-    @classmethod
-    def from_ast(cls, node: Union[vy_ast.InterfaceDef, vy_ast.Module]) -> "InterfaceT":
-        """
-        Generate an `InterfacePrimitive` object from a Vyper ast node.
-
-        Arguments
-        ---------
-        node : InterfaceDef | Module
-            Vyper ast node defining the interface
-        Returns
-        -------
-        InterfacePrimitive
-            primitive interface type
-        """
-        if isinstance(node, vy_ast.Module):
-            members, events = _get_module_definitions(node)
-        elif isinstance(node, vy_ast.InterfaceDef):
-            members = _get_class_functions(node)
-            events = {}
-        else:
-            raise StructureException("Invalid syntax for interface definition", node)
-
-        return cls(node.name, members, events)
-
-
-def _get_module_definitions(base_node: vy_ast.Module) -> Tuple[Dict, Dict]:
-    functions: Dict = {}
-    events: Dict = {}
-    for node in base_node.get_children(vy_ast.FunctionDef):
-        if "external" in [i.id for i in node.decorator_list if isinstance(i, vy_ast.Name)]:
-            func = ContractFunctionT.from_FunctionDef(node)
-            functions[node.name] = func
-    for node in base_node.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        name = node.target.id
-        if name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{name}'", base_node
-            )
-        functions[name] = ContractFunctionT.getter_from_VariableDecl(node)
-    for node in base_node.get_children(vy_ast.EventDef):
-        name = node.name
-        if name in functions or name in events:
-            raise NamespaceCollision(
-                f"Interface contains multiple objects named '{name}'", base_node
-            )
-        events[name] = EventT.from_EventDef(node)
-
-    return functions, events
-
-
-def _get_class_functions(base_node: vy_ast.InterfaceDef) -> Dict[str, ContractFunctionT]:
-    functions = {}
-    for node in base_node.body:
-        if not isinstance(node, vy_ast.FunctionDef):
-            raise StructureException("Interfaces can only contain function definitions", node)
-        if node.name in functions:
-            raise NamespaceCollision(
-                f"Interface contains multiple functions named '{node.name}'", node
-            )
-        if len(node.decorator_list) > 0:
-            raise StructureException(
-                "Function definition in interface cannot be decorated", node.decorator_list[0]
-            )
-        functions[node.name] = ContractFunctionT.from_FunctionDef(node, is_interface=True)
-
-    return functions
-
-
 class StructT(_UserType):
     _as_array = True
 
@@ -470,10 +293,6 @@ class StructT(_UserType):
         self._id = _id
 
         self.ast_def = ast_def
-
-        for n, t in self.members.items():
-            if isinstance(t, HashMapT):
-                raise StructureException(f"Struct contains a mapping '{n}'", ast_def)
 
     @cached_property
     def name(self) -> str:
@@ -499,7 +318,7 @@ class StructT(_UserType):
         return self.members
 
     @classmethod
-    def from_ast_def(cls, base_node: vy_ast.StructDef) -> "StructT":
+    def from_StructDef(cls, base_node: vy_ast.StructDef) -> "StructT":
         """
         Generate a `StructT` object from a Vyper ast node.
 
@@ -514,7 +333,7 @@ class StructT(_UserType):
         """
 
         struct_name = base_node.name
-        members: Dict[str, VyperType] = {}
+        members: dict[str, VyperType] = {}
         for node in base_node.body:
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException(
@@ -537,10 +356,6 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
-
-    # TODO check me
-    def compare_type(self, other):
-        return super().compare_type(other) and self._id == other._id
 
     @property
     def size_in_bytes(self):
@@ -592,4 +407,4 @@ class StructT(_UserType):
                 f"Struct declaration does not define all fields: {', '.join(list(members))}", node
             )
 
-        return StructT(self._id, self.member_types)
+        return self

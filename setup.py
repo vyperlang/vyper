@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 extras_require = {
     "test": [
@@ -13,9 +13,8 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=2.5,<3.0",
         "pytest-split>=0.7.0,<1.0",
-        "pytest-rerunfailures>=10.2,<11",
-        "eth-tester[py-evm]>=0.8.0b3,<0.9",
-        "py-evm>=0.6.1a2,<0.7",
+        "eth-tester[py-evm]>=0.9.0b1,<0.10",
+        "py-evm>=0.7.0a1,<0.8",
         "web3==6.0.0",
         "tox>=3.15,<4.0",
         "lark==1.1.2",
@@ -28,7 +27,7 @@ extras_require = {
         "flake8-bugbear==20.1.4",
         "flake8-use-fstring==1.1",
         "isort==5.9.3",
-        "mypy==0.910",
+        "mypy==0.982",
     ],
     "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
@@ -88,17 +87,18 @@ setup(
     license="Apache License 2.0",
     keywords="ethereum evm smart contract language",
     include_package_data=True,
-    packages=find_packages(exclude=("tests", "docs")),
+    packages=["vyper"],
     python_requires=">=3.10,<4",
     py_modules=["vyper"],
     install_requires=[
+        "cbor2>=5.4.6,<6",
         "asttokens>=2.0.5,<3",
         "pycryptodome>=3.5.1,<4",
-        "semantic-version>=2.10,<3",
+        "packaging>=23.1,<24",
         "importlib-metadata",
         "wheel",
     ],
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["pytest-runner", "setuptools_scm>=7.1.0,<8.0.0"],
     tests_require=extras_require["test"],
     extras_require=extras_require,
     entry_points={

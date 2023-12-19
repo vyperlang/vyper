@@ -1,7 +1,6 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.address_space import MEMORY, STORAGE
 from vyper.builtins.functions import STMT_DISPATCH_TABLE
 from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
@@ -11,6 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
+    clamp,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,8 +23,10 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
+from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
-from vyper.semantics.types import DArrayT
+from vyper.semantics.types import DArrayT, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
@@ -62,7 +64,7 @@ class Stmt:
             raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
-        ltyp = self.context.parse_type(self.stmt.annotation)
+        ltyp = self.stmt.target._metadata["type"]
         varname = self.stmt.target.id
         alloced = self.context.new_variable(varname, ltyp)
 
@@ -75,24 +77,33 @@ class Stmt:
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
-        sub = Expr(self.stmt.value, self.context).ir_node
-        target = self._get_target(self.stmt.target)
+        src = Expr(self.stmt.value, self.context).ir_node
+        dst = self._get_target(self.stmt.target)
 
-        ir_node = make_setter(target, sub)
-        return ir_node
+        ret = ["seq"]
+        overlap = len(dst.referenced_variables & src.referenced_variables) > 0
+        if overlap and not dst.typ._is_prim_word:
+            # there is overlap between the lhs and rhs, and the type is
+            # complex - i.e., it spans multiple words. for safety, we
+            # copy to a temporary buffer before copying to the destination.
+            tmp = self.context.new_internal_variable(src.typ)
+            tmp = IRnode.from_list(tmp, typ=src.typ, location=MEMORY)
+            ret.append(make_setter(tmp, src))
+            src = tmp
+
+        ret.append(make_setter(dst, src))
+        return IRnode.from_list(ret)
 
     def parse_If(self):
-        if self.stmt.orelse:
-            with self.context.block_scope():
-                add_on = [parse_body(self.stmt.orelse, self.context)]
-        else:
-            add_on = []
-
         with self.context.block_scope():
             test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
-            body = ["if", test_expr, parse_body(self.stmt.body, self.context)] + add_on
-            ir_node = IRnode.from_list(body)
-        return ir_node
+            body = ["if", test_expr, parse_body(self.stmt.body, self.context)]
+
+        if self.stmt.orelse:
+            with self.context.block_scope():
+                body.extend([parse_body(self.stmt.orelse, self.context)])
+
+        return IRnode.from_list(body)
 
     def parse_Log(self):
         event = self.stmt._metadata["type"]
@@ -110,29 +121,17 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
-        # TODO use expr.func.type.is_internal once type annotations
-        # are consistently available.
-        is_self_function = (
-            (isinstance(self.stmt.func, vy_ast.Attribute))
-            and isinstance(self.stmt.func.value, vy_ast.Name)
-            and self.stmt.func.value.id == "self"
-        )
-
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
 
-        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
-            "append",
-            "pop",
-        ):
-            # TODO: consider moving this to builtins
+        func_type = self.stmt.func._metadata["type"]
+
+        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
             darray = Expr(self.stmt.func.value, self.context).ir_node
             args = [Expr(x, self.context).ir_node for x in self.stmt.args]
             if self.stmt.func.attr == "append":
-                # sanity checks
-                assert len(args) == 1
-                arg = args[0]
+                (arg,) = args
                 assert isinstance(darray.typ, DArrayT)
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
@@ -143,10 +142,11 @@ class Stmt:
                 assert len(args) == 0
                 return pop_dyn_array(darray, return_popped_item=False)
 
-        elif is_self_function:
-            return self_call.ir_for_self_call(self.stmt, self.context)
-        else:
-            return external_call.ir_for_external_call(self.stmt, self.context)
+        if isinstance(func_type, ContractFunctionT):
+            if func_type.is_internal:
+                return self_call.ir_for_self_call(self.stmt, self.context)
+            else:
+                return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
         # from parse_Raise: None passed as the assert condition
@@ -248,11 +248,17 @@ class Stmt:
         arg0 = self.stmt.iter.args[0]
         num_of_args = len(self.stmt.iter.args)
 
+        kwargs = {
+            s.arg: Expr.parse_value_expr(s.value, self.context)
+            for s in self.stmt.iter.keywords or []
+        }
+
         # Type 1 for, e.g. for i in range(10): ...
         if num_of_args == 1:
-            arg0_val = self._get_range_const_value(arg0)
+            n = Expr.parse_value_expr(arg0, self.context)
             start = IRnode.from_list(0, typ=iter_typ)
-            rounds = arg0_val
+            rounds = n
+            rounds_bound = kwargs.get("bound", rounds)
 
         # Type 2 for, e.g. for i in range(100, 110): ...
         elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
@@ -260,15 +266,19 @@ class Stmt:
             arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
             start = IRnode.from_list(arg0_val, typ=iter_typ)
             rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
+            rounds_bound = rounds
 
         # Type 3 for, e.g. for i in range(x, x + 10): ...
         else:
             arg1 = self.stmt.iter.args[1]
             rounds = self._get_range_const_value(arg1.right)
             start = Expr.parse_value_expr(arg0, self.context)
+            _, hi = start.typ.int_bounds
+            start = clamp("le", start, hi + 1 - rounds)
+            rounds_bound = rounds
 
-        r = rounds if isinstance(rounds, int) else rounds.value
-        if r < 1:
+        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
+        if bound < 1:
             return
 
         varname = self.stmt.target.id
@@ -282,7 +292,14 @@ class Stmt:
         loop_body.append(["mstore", iptr, i])
         loop_body.append(parse_body(self.stmt.body, self.context))
 
-        ir_node = IRnode.from_list(["repeat", i, start, rounds, rounds, loop_body])
+        # NOTE: codegen for `repeat` inserts an assertion that
+        # (gt rounds_bound rounds). note this also covers the case where
+        # rounds < 0.
+        # if we ever want to remove that, we need to manually add the assertion
+        # where it makes sense.
+        ir_node = IRnode.from_list(
+            ["repeat", i, start, rounds, rounds_bound, loop_body], error_msg="range() bounds check"
+        )
         del self.context.forvars[varname]
 
         return ir_node
@@ -291,10 +308,8 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        # override with type inferred at typechecking time
-        # TODO investigate why stmt.target.type != stmt.iter.type.value_type
         target_type = self.stmt.target._metadata["type"]
-        iter_list.typ.value_type = target_type
+        assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
         varname = self.stmt.target.id
@@ -335,8 +350,12 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+
         sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not target.typ._is_prim_word:
+            # because of this check, we do not need to check for
+            # make_setter references lhs<->rhs as in parse_Assign -
+            # single word load/stores are atomic.
             return
 
         with target.cache_when_complex("_loc") as (b, target):

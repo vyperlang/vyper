@@ -1,10 +1,18 @@
 from typing import Dict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import ArrayIndexException, InvalidType, StructureException, UnknownType
+from vyper.exceptions import (
+    ArrayIndexException,
+    InstantiationException,
+    InvalidType,
+    StructureException,
+    UndeclaredDefinition,
+    UnknownType,
+)
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -60,13 +68,15 @@ def type_from_abi(abi_type: Dict) -> VyperType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
 
 
-def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+def type_from_annotation(
+    node: vy_ast.VyperNode, location: DataLocation = DataLocation.UNSET
+) -> VyperType:
     """
-    Return a type object for the given AST node.
+    Return a type object for the given AST node after validating its location.
 
     Arguments
     ---------
-    node : VyperNode
+    node: VyperNode
         Vyper ast node from the `annotation` member of a `VariableDecl` or `AnnAssign` node.
 
     Returns
@@ -74,17 +84,20 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     VyperType
         Type definition object.
     """
-    namespace = get_namespace()
+    typ_ = _type_from_annotation(node)
 
-    def _failwith(type_name):
-        suggestions_str = get_levenshtein_error_suggestions(type_name, namespace, 0.3)
-        raise UnknownType(
-            f"No builtin or user-defined type named '{type_name}'. {suggestions_str}", node
-        ) from None
+    if location in typ_._invalid_locations:
+        location_str = "" if location is DataLocation.UNSET else f"in {location.name.lower()}"
+        raise InstantiationException(f"{typ_} is not instantiable {location_str}", node)
+
+    return typ_
+
+
+def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
+    namespace = get_namespace()
 
     if isinstance(node, vy_ast.Tuple):
         tuple_t = namespace["$TupleT"]
-
         return tuple_t.from_annotation(node)
 
     if isinstance(node, vy_ast.Subscript):
@@ -98,13 +111,52 @@ def type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
 
         return type_ctor.from_annotation(node)
 
+    # prepare a common error message
+    err_msg = f"'{node.node_source_code}' is not a type!"
+
+    if isinstance(node, vy_ast.Attribute):
+        # ex. SomeModule.SomeStruct
+
+        # sanity check - we only allow modules/interfaces to be
+        # imported as `Name`s currently.
+        if not isinstance(node.value, vy_ast.Name):
+            raise InvalidType(err_msg, node)
+
+        try:
+            module_or_interface = namespace[node.value.id]  # type: ignore
+        except UndeclaredDefinition:
+            raise InvalidType(err_msg, node) from None
+
+        interface = module_or_interface
+        if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
+            interface = module_or_interface.module_t.interface
+
+        if not interface._attribute_in_annotation:
+            raise InvalidType(err_msg, node)
+
+        type_t = interface.get_type_member(node.attr, node)
+        assert isinstance(type_t, TYPE_T)  # sanity check
+        return type_t.typedef
+
     if not isinstance(node, vy_ast.Name):
         # maybe handle this somewhere upstream in ast validation
-        raise InvalidType(f"'{node.node_source_code}' is not a type", node)
-    if node.id not in namespace:
-        _failwith(node.node_source_code)
+        raise InvalidType(err_msg, node)
 
-    return namespace[node.id]
+    if node.id not in namespace:  # type: ignore
+        suggestions_str = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
+        raise UnknownType(
+            f"No builtin or user-defined type named '{node.node_source_code}'. {suggestions_str}",
+            node,
+        ) from None
+
+    typ_ = namespace[node.id]
+    if hasattr(typ_, "from_annotation"):
+        # cases where the object in the namespace is an uninstantiated
+        # type object, ex. Bytestring or DynArray (with no length provided).
+        # call from_annotation to produce a better error message.
+        typ_.from_annotation(node)
+
+    return typ_
 
 
 def get_index_value(node: vy_ast.Index) -> int:
@@ -113,7 +165,7 @@ def get_index_value(node: vy_ast.Index) -> int:
 
     Arguments
     ---------
-    node : vy_ast.Index
+    node: vy_ast.Index
         Vyper ast node from the `slice` member of a Subscript node. Must be an
         `Index` object (Vyper does not support `Slice` or `ExtSlice`).
 
@@ -121,6 +173,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     -------
     int
         Literal integer value.
+        In the future, will return `None` if the subscript is an Ellipsis
     """
     # this is imported to improve error messages
     # TODO: revisit this!

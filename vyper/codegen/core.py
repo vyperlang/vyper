@@ -1,6 +1,10 @@
+import contextlib
+from typing import Generator
+
 from vyper import ast as vy_ast
-from vyper.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE
 from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.compiler.settings import OptimizationLevel
+from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
@@ -20,13 +24,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import EnumT
-from vyper.utils import (
-    GAS_CALLDATACOPY_WORD,
-    GAS_CODECOPY_WORD,
-    GAS_IDENTITY,
-    GAS_IDENTITYWORD,
-    ceil32,
-)
+from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
 
@@ -91,12 +89,16 @@ def _identity_gas_bound(num_bytes):
     return GAS_IDENTITY + GAS_IDENTITYWORD * (ceil32(num_bytes) // 32)
 
 
+def _mcopy_gas_bound(num_bytes):
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
+
+
 def _calldatacopy_gas_bound(num_bytes):
-    return GAS_CALLDATACOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 def _codecopy_gas_bound(num_bytes):
-    return GAS_CODECOPY_WORD * ceil32(num_bytes) // 32
+    return GAS_COPY_WORD * ceil32(num_bytes) // 32
 
 
 # Copy byte array word-for-word (including layout)
@@ -108,23 +110,33 @@ def make_byte_array_copier(dst, src):
     _check_assign_bytes(dst, src)
 
     # TODO: remove this branch, copy_bytes and get_bytearray_length should handle
-    if src.value == "~empty":
+    if src.value == "~empty" or src.typ.maxlen == 0:
         # set length word to 0.
         return STORE(dst, 0)
 
     with src.cache_when_complex("src") as (b1, src):
-        with get_bytearray_length(src).cache_when_complex("len") as (b2, len_):
-            max_bytes = src.typ.maxlen
+        has_storage = STORAGE in (src.location, dst.location)
+        is_memory_copy = dst.location == src.location == MEMORY
+        batch_uses_identity = is_memory_copy and not version_check(begin="cancun")
+        if src.typ.maxlen <= 32 and (has_storage or batch_uses_identity):
+            # it's cheaper to run two load/stores instead of copy_bytes
 
             ret = ["seq"]
-            # store length
+            # store length word
+            len_ = get_bytearray_length(src)
             ret.append(STORE(dst, len_))
 
-            dst = bytes_data_ptr(dst)
-            src = bytes_data_ptr(src)
+            # store the single data word.
+            dst_data_ptr = bytes_data_ptr(dst)
+            src_data_ptr = bytes_data_ptr(src)
+            ret.append(STORE(dst_data_ptr, LOAD(src_data_ptr)))
+            return b1.resolve(ret)
 
-            ret.append(copy_bytes(dst, src, len_, max_bytes))
-            return b1.resolve(b2.resolve(ret))
+        # batch copy the bytearray (including length word) using copy_bytes
+        len_ = add_ofst(get_bytearray_length(src), 32)
+        max_bytes = src.typ.maxlen + 32
+        ret = copy_bytes(dst, src, len_, max_bytes)
+        return b1.resolve(ret)
 
 
 def bytes_data_ptr(ptr):
@@ -148,24 +160,33 @@ def _dynarray_make_setter(dst, src):
     if src.value == "~empty":
         return IRnode.from_list(STORE(dst, 0))
 
+    # copy contents of src dynarray to dst.
+    # note that in case src and dst refer to the same dynarray,
+    # in order for get_element_ptr oob checks on the src dynarray
+    # to work, we need to wait until after the data is copied
+    # before we clobber the length word.
+
     if src.value == "multi":
         ret = ["seq"]
         # handle literals
 
-        # write the length word
-        store_length = STORE(dst, len(src.args))
-        ann = None
-        if src.annotation is not None:
-            ann = f"len({src.annotation})"
-        store_length = IRnode.from_list(store_length, annotation=ann)
-        ret.append(store_length)
-
+        # copy each item
         n_items = len(src.args)
+
         for i in range(n_items):
             k = IRnode.from_list(i, typ=UINT256_T)
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
             ret.append(make_setter(dst_i, src_i))
+
+        # write the length word after data is copied
+        store_length = STORE(dst, n_items)
+        ann = None
+        if src.annotation is not None:
+            ann = f"len({src.annotation})"
+        store_length = IRnode.from_list(store_length, annotation=ann)
+
+        ret.append(store_length)
 
         return ret
 
@@ -190,8 +211,6 @@ def _dynarray_make_setter(dst, src):
         with get_dyn_array_count(src).cache_when_complex("darray_count") as (b2, count):
             ret = ["seq"]
 
-            ret.append(STORE(dst, count))
-
             if should_loop:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ=UINT256_T)
 
@@ -202,16 +221,17 @@ def _dynarray_make_setter(dst, src):
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
                 ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
+                # write the length word after data is copied
+                ret.append(STORE(dst, count))
 
             else:
                 element_size = src.typ.value_type.memory_bytes_required
-                # number of elements * size of element in bytes
-                n_bytes = _mul(count, element_size)
-                max_bytes = src.typ.count * element_size
+                # number of elements * size of element in bytes + length word
+                n_bytes = add_ofst(_mul(count, element_size), 32)
+                max_bytes = 32 + src.typ.count * element_size
 
-                src_ = dynarray_data_ptr(src)
-                dst_ = dynarray_data_ptr(dst)
-                ret.append(copy_bytes(dst_, src_, n_bytes, max_bytes))
+                # batch copy the entire dynarray, including length word
+                ret.append(copy_bytes(dst, src, n_bytes, max_bytes))
 
             return b1.resolve(b2.resolve(ret))
 
@@ -247,7 +267,6 @@ def copy_bytes(dst, src, length, length_bound):
         assert src.is_pointer and dst.is_pointer
 
         # fast code for common case where num bytes is small
-        # TODO expand this for more cases where num words is less than ~8
         if length_bound <= 32:
             copy_op = STORE(dst, LOAD(src))
             ret = IRnode.from_list(copy_op, annotation=annotation)
@@ -257,8 +276,12 @@ def copy_bytes(dst, src, length, length_bound):
             # special cases: batch copy to memory
             # TODO: iloadbytes
             if src.location == MEMORY:
-                copy_op = ["staticcall", "gas", 4, src, length, dst, length]
-                gas_bound = _identity_gas_bound(length_bound)
+                if version_check(begin="cancun"):
+                    copy_op = ["mcopy", dst, src, length]
+                    gas_bound = _mcopy_gas_bound(length_bound)
+                else:
+                    copy_op = ["staticcall", "gas", 4, src, length, dst, length]
+                    gas_bound = _identity_gas_bound(length_bound)
             elif src.location == CALLDATA:
                 copy_op = ["calldatacopy", dst, src, length]
                 gas_bound = _calldatacopy_gas_bound(length_bound)
@@ -336,12 +359,14 @@ def append_dyn_array(darray_node, elem_node):
         with len_.cache_when_complex("old_darray_len") as (b2, len_):
             assertion = ["assert", ["lt", len_, darray_node.typ.count]]
             ret.append(IRnode.from_list(assertion, error_msg=f"{darray_node.typ} bounds check"))
-            ret.append(STORE(darray_node, ["add", len_, 1]))
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
                 make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
             )
+
+            # store new length
+            ret.append(STORE(darray_node, ["add", len_, 1]))
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
@@ -354,6 +379,7 @@ def pop_dyn_array(darray_node, return_popped_item):
         new_len = IRnode.from_list(["sub", old_len, 1], typ=UINT256_T)
 
         with new_len.cache_when_complex("new_len") as (b2, new_len):
+            # store new length
             ret.append(STORE(darray_node, new_len))
 
             # NOTE skip array bounds check bc we already asserted len two lines up
@@ -364,6 +390,7 @@ def pop_dyn_array(darray_node, return_popped_item):
                 location = popped_item.location
             else:
                 typ, location = None, None
+
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
@@ -512,6 +539,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         # an array index, and the clamp will throw an error.
         # NOTE: there are optimization rules for this when ix or bound is literal
         ix = clamp("lt", ix, bound)
+        ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
         if parent.location == STORAGE:
@@ -546,10 +574,10 @@ def _get_element_ptr_mapping(parent, key):
     key = unwrap_location(key)
 
     # TODO when is key None?
-    if key is None or parent.location != STORAGE:
-        raise TypeCheckFailure(f"bad dereference on mapping {parent}[{key}]")
+    if key is None or parent.location not in (STORAGE, TRANSIENT):
+        raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
 
-    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=STORAGE)
+    return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
 
 
 # Take a value representing a memory or storage location, and descend down to
@@ -861,6 +889,38 @@ def make_setter(left, right):
     return _complex_make_setter(left, right)
 
 
+_opt_level = OptimizationLevel.GAS
+
+
+@contextlib.contextmanager
+def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
+    """
+    Set the global optimization level variable for the duration of this
+    context manager.
+    """
+    assert isinstance(new_level, OptimizationLevel)
+
+    global _opt_level
+    try:
+        tmp = _opt_level
+        _opt_level = new_level
+        yield
+    finally:
+        _opt_level = tmp
+
+
+def _opt_codesize():
+    return _opt_level == OptimizationLevel.CODESIZE
+
+
+def _opt_gas():
+    return _opt_level == OptimizationLevel.GAS
+
+
+def _opt_none():
+    return _opt_level == OptimizationLevel.NONE
+
+
 def _complex_make_setter(left, right):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
@@ -876,11 +936,69 @@ def _complex_make_setter(left, right):
         assert is_tuple_like(left.typ)
         keys = left.typ.tuple_keys()
 
-    # if len(keyz) == 0:
-    #    return IRnode.from_list(["pass"])
+    if left.is_pointer and right.is_pointer and right.encoding == Encoding.VYPER:
+        # both left and right are pointers, see if we want to batch copy
+        # instead of unrolling the loop.
+        assert left.encoding == Encoding.VYPER
+        len_ = left.typ.memory_bytes_required
 
-    # general case
-    # TODO use copy_bytes when the generated code is above a certain size
+        has_storage = STORAGE in (left.location, right.location)
+        if has_storage:
+            if _opt_codesize():
+                # assuming PUSH2, a single sstore(dst (sload src)) is 8 bytes,
+                # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
+                # whereas loop overhead is 16-17 bytes.
+                base_cost = 3
+                if left._optimized.is_literal:
+                    # code size is smaller since add is performed at compile-time
+                    base_cost += 1
+                if right._optimized.is_literal:
+                    base_cost += 1
+                # the formula is a heuristic, but it works.
+                # (CMC 2023-07-14 could get more detailed for PUSH1 vs
+                # PUSH2 etc but not worried about that too much now,
+                # it's probably better to add a proper unroll rule in the
+                # optimizer.)
+                should_batch_copy = len_ >= 32 * base_cost
+            elif _opt_gas():
+                # kind of arbitrary, but cut off when code used > ~160 bytes
+                should_batch_copy = len_ >= 32 * 10
+            else:
+                assert _opt_none()
+                # don't care, just generate the most readable version
+                should_batch_copy = True
+        else:
+            # find a cutoff for memory copy where identity is cheaper
+            # than unrolled mloads/mstores
+            # if MCOPY is available, mcopy is *always* better (except in
+            # the 1 word case, but that is already handled by copy_bytes).
+            if right.location == MEMORY and _opt_gas() and not version_check(begin="cancun"):
+                # cost for 0th word - (mstore dst (mload src))
+                base_unroll_cost = 12
+                nth_word_cost = base_unroll_cost
+                if not left._optimized.is_literal:
+                    # (mstore (add N dst) (mload src))
+                    nth_word_cost += 6
+                if not right._optimized.is_literal:
+                    # (mstore dst (mload (add N src)))
+                    nth_word_cost += 6
+
+                identity_base_cost = 115  # staticcall 4 gas dst len src len
+
+                n_words = ceil32(len_) // 32
+                should_batch_copy = (
+                    base_unroll_cost + (nth_word_cost * (n_words - 1)) >= identity_base_cost
+                )
+
+            # calldata to memory, code to memory, cancun, or codesize -
+            # batch copy is always better.
+            else:
+                should_batch_copy = True
+
+        if should_batch_copy:
+            return copy_bytes(left, right, len_, len_)
+
+    # general case, unroll
     with left.cache_when_complex("_L") as (b1, left), right.cache_when_complex("_R") as (b2, right):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
@@ -915,7 +1033,6 @@ def eval_seq(ir_node):
     return None
 
 
-# TODO move return checks to vyper/semantics/validation
 def is_return_from_function(node):
     if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
         "raw_revert",
@@ -927,6 +1044,8 @@ def is_return_from_function(node):
     return False
 
 
+# TODO this is almost certainly duplicated with check_terminus_node
+# in vyper/semantics/analysis/local.py
 def check_single_exit(fn_node):
     _check_return_body(fn_node, fn_node.body)
     for node in fn_node.get_descendants(vy_ast.If):
@@ -981,23 +1100,16 @@ def zero_pad(bytez_placeholder):
 
 # convenience rewrites for shr/sar/shl
 def shr(bits, x):
-    if version_check(begin="constantinople"):
-        return ["shr", bits, x]
-    return ["div", x, ["exp", 2, bits]]
+    return ["shr", bits, x]
 
 
 # convenience rewrites for shr/sar/shl
 def shl(bits, x):
-    if version_check(begin="constantinople"):
-        return ["shl", bits, x]
-    return ["mul", x, ["exp", 2, bits]]
+    return ["shl", bits, x]
 
 
 def sar(bits, x):
-    if version_check(begin="constantinople"):
-        return ["sar", bits, x]
-
-    raise NotImplementedError("no SAR emulation for pre-constantinople EVM")
+    return ["sar", bits, x]
 
 
 def clamp_bytestring(ir_node):

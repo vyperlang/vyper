@@ -106,6 +106,11 @@ Bitwise Operations
         >>> ExampleContract.foo(2, 8)
         512
 
+.. note::
+
+  This function has been deprecated from version 0.3.8 onwards. Please use the ``<<`` and ``>>`` operators instead.
+
+
 Chain Interaction
 =================
 
@@ -179,13 +184,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, code_offset=0, [, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 0, [, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
     * ``target``: Address of the blueprint to invoke
     * ``*args``: Constructor arguments to forward to the initcode.
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``raw_args``: If ``True``, ``*args`` must be a single ``Bytes[...]`` argument, which will be interpreted as a raw bytes buffer to forward to the create operation (which is useful for instance, if pre- ABI-encoded data is passed in from elsewhere). (Optional, default ``False``)
     * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
@@ -196,16 +202,16 @@ Vyper has three built-ins for contract creation; all three contract creation bui
         @external
         def foo(blueprint: address) -> address:
             arg1: uint256 = 18
-            arg2: String = "some string"
+            arg2: String[32] = "some string"
             return create_from_blueprint(blueprint, arg1, arg2, code_offset=1)
 
 .. note::
 
-    To properly deploy a blueprint contract, special deploy bytecode must be used. Deploying blueprint contracts is generally out of scope of this article, but the following preamble, prepended to regular deploy bytecode (output of ``vyper -f bytecode``), should deploy the blueprint in an ordinary contract creation transaction: ``deploy_preamble = "61" + <bytecode len in 4 hex characters> + "3d81600a3d39f3"``. To see an example of this, please see `the setup code for testing create_from_blueprint <https://github.com/vyperlang/vyper/blob/2adc34ffd3bee8b6dee90f552bbd9bb844509e19/tests/base_conftest.py#L130-L160>`_.
+    To properly deploy a blueprint contract, special deploy bytecode must be used. The output of ``vyper -f blueprint_bytecode`` will produce bytecode which deploys an ERC-5202 compatible blueprint.
 
 .. warning::
 
-    It is recommended to deploy blueprints with the ERC5202 preamble ``0xfe7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
+    It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
 
     .. code-block:: python
 
@@ -214,14 +220,14 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             # `blueprint` is a blueprint contract with some known preamble b"abcd..."
             return create_from_blueprint(blueprint, code_offset=<preamble length>)
 
-.. py:function:: raw_call(to: address, data: Bytes, max_outsize: int = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
+.. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
 
     Call to the specified Ethereum address.
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned.
-    * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
+    * ``gas``: The amount of gas to attach to the call. (Optional, defaults to ``msg.gas``).
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
@@ -259,6 +265,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             assert success
             return response
 
+    .. note::
+
+        Regarding "forwarding all gas", note that, while Vyper will provide ``msg.gas`` to the call, in practice, there are some subtleties around forwarding all remaining gas on the EVM which are out of scope of this documentation and could be subject to change. For instance, see the language in EIP-150 around "all but one 64th".
+
 .. py:function:: raw_log(topics: bytes32[4], data: Union[Bytes, bytes32]) -> None
 
     Provides low level access to the ``LOG`` opcodes, emitting a log without having to specify an ABI type.
@@ -293,6 +303,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     .. warning::
 
         This method deletes the contract from the blockchain. All non-ether assets associated with this contract are "burned" and the contract is no longer accessible.
+
+    .. note::
+
+        This function has been deprecated from version 0.3.8 onwards. The underlying opcode will eventually undergo breaking changes, and its use is not recommended.
 
     .. code-block:: python
 
@@ -370,7 +384,11 @@ Cryptography
     * ``s``: second 32 bytes of signature
     * ``v``: final 1 byte of signature
 
-    Returns the associated address, or ``0`` on error.
+    Returns the associated address, or ``empty(address)`` on error.
+
+    .. note::
+
+         Prior to Vyper ``0.3.10``, the ``ecrecover`` function could return an undefined (possibly nonzero) value for invalid inputs to ``ecrecover``. For more information, please see `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
 
     .. code-block:: python
 
@@ -487,7 +505,7 @@ Data Manipulation
 
     * ``b``: ``Bytes`` list to extract from
     * ``start``: Start point to extract from
-    * ``output_type``: Type of output (``bytes32``, ``integer``, or ``address``). Defaults to ``bytes32``.
+    * ``output_type``: Type of output (``bytesM``, ``integer``, or ``address``). Defaults to ``bytes32``.
 
     Returns a value of the type specified by ``output_type``.
 
@@ -563,6 +581,24 @@ Math
 
         >>> ExampleContract.foo(3.1337)
         4
+
+.. py:function:: epsilon(typename) -> Any
+
+    Returns the smallest non-zero value for a decimal type.
+
+    * ``typename``: Name of the decimal type (currently only ``decimal``)
+
+    .. code-block:: python
+
+        @external
+        @view
+        def foo() -> decimal:
+            return epsilon(decimal)
+
+    .. code-block:: python
+
+        >>> ExampleContract.foo()
+        Decimal('1E-10')
 
 .. py:function:: floor(value: decimal) -> int256
 

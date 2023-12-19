@@ -1,10 +1,12 @@
 import ast as python_ast
+import contextlib
 import copy
 import decimal
 import operator
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
@@ -254,7 +256,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: set = set()
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -337,7 +339,7 @@ class VyperNode:
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        if other.node_id != self.node_id:
+        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
             return False
         for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
@@ -587,7 +589,8 @@ class TopLevel(VyperNode):
 
 
 class Module(TopLevel):
-    __slots__ = ()
+    # metadata
+    __slots__ = ("path", "resolved_path", "source_id")
 
     def replace_in_tree(self, old_node: VyperNode, new_node: VyperNode) -> None:
         """
@@ -663,6 +666,19 @@ class Module(TopLevel):
         self.body.remove(node)
         self._children.remove(node)
 
+    @contextlib.contextmanager
+    def namespace(self):
+        from vyper.semantics.namespace import get_namespace, override_global_namespace
+
+        # kludge implementation for backwards compatibility.
+        # TODO: replace with type_from_ast
+        try:
+            ns = self._metadata["namespace"]
+        except AttributeError:
+            ns = get_namespace()
+        with override_global_namespace(ns):
+            yield
+
 
 class FunctionDef(TopLevel):
     __slots__ = ("args", "returns", "decorator_list", "pos")
@@ -684,7 +700,7 @@ class DocStr(VyperNode):
 
 class arguments(VyperNode):
     __slots__ = ("args", "defaults", "default")
-    _only_empty_fields = ("vararg", "kwonlyargs", "kwarg", "kw_defaults")
+    _only_empty_fields = ("posonlyargs", "vararg", "kwonlyargs", "kwarg", "kw_defaults")
 
 
 class arg(VyperNode):
@@ -886,12 +902,16 @@ class Tuple(ExprNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
+class NameConstant(Constant):
+    __slots__ = ()
+
+
+class Ellipsis(Constant):
+    __slots__ = ()
+
+
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
-
-
-class NameConstant(Constant):
-    __slots__ = ("value",)
 
 
 class Name(ExprNode):
@@ -963,6 +983,12 @@ class BinOp(ExprNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
 
         value = self.op._op(left.value, right.value)
         _validate_numeric_bounds(self, value)
@@ -1074,6 +1100,20 @@ class BitXor(Operator):
     _description = "bitwise xor"
     _pretty = "^"
     _op = operator.xor
+
+
+class LShift(Operator):
+    __slots__ = ()
+    _description = "bitwise left shift"
+    _pretty = "<<"
+    _op = operator.lshift
+
+
+class RShift(Operator):
+    __slots__ = ()
+    _description = "bitwise right shift"
+    _pretty = ">>"
+    _op = operator.rshift
 
 
 class BoolOp(ExprNode):
@@ -1223,7 +1263,7 @@ class NotIn(Operator):
 
 
 class Call(ExprNode):
-    __slots__ = ("func", "args", "keywords", "keyword")
+    __slots__ = ("func", "args", "keywords")
 
 
 class keyword(VyperNode):
@@ -1313,7 +1353,15 @@ class VariableDecl(VyperNode):
         If true, indicates that the variable is an immutable variable.
     """
 
-    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+    __slots__ = (
+        "target",
+        "annotation",
+        "value",
+        "is_constant",
+        "is_public",
+        "is_immutable",
+        "is_transient",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1321,6 +1369,7 @@ class VariableDecl(VyperNode):
         self.is_constant = False
         self.is_public = False
         self.is_immutable = False
+        self.is_transient = False
 
         def _check_args(annotation, call_name):
             # do the same thing as `validate_call_args`
@@ -1338,9 +1387,10 @@ class VariableDecl(VyperNode):
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
-        if self.annotation.get("func.id") in ("immutable", "constant"):
-            _check_args(self.annotation, self.annotation.func.id)
-            setattr(self, f"is_{self.annotation.func.id}", True)
+        func_id = self.annotation.get("func.id")
+        if func_id in ("immutable", "constant", "transient"):
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
@@ -1366,7 +1416,7 @@ class Pass(Stmt):
     __slots__ = ()
 
 
-class _Import(Stmt):
+class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
@@ -1378,11 +1428,11 @@ class _Import(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class Import(_Import):
+class Import(_ImportStmt):
     __slots__ = ()
 
 
-class ImportFrom(_Import):
+class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
 
 
@@ -1410,6 +1460,10 @@ class ImplementsDecl(Stmt):
 
 
 class If(Stmt):
+    __slots__ = ("test", "body", "orelse")
+
+
+class IfExp(ExprNode):
     __slots__ = ("test", "body", "orelse")
 
 
