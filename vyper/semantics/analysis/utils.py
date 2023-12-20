@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -70,9 +70,6 @@ class _ExprAnalyser:
 
             if isinstance(info, VarInfo):
                 return ExprInfo.from_varinfo(info)
-
-            if isinstance(info, ModuleInfo):
-                return ExprInfo.from_moduleinfo(info)
 
             raise CompilerPanic("unreachable!", node)
 

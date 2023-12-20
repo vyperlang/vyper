@@ -70,6 +70,11 @@ class InputBundle:
         # share the same lifetime as this input bundle.
         self._cache = lambda: None
 
+    # very strict equality! we don't want to accidentally compare
+    # two input bundles as being equal when they aren't the same.
+    def __eq__(self, other):
+        return self is other
+
     def _normalize_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._normalize_path()")
 

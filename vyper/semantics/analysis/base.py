@@ -155,22 +155,8 @@ class AnalysisResult:
 
 
 @dataclass
-class ModuleInfo(AnalysisResult):
-    module_t: "ModuleT"
-
-    @property
-    def module_node(self):
-        return self.module_t._module
-
-    # duck type, conform to interface of VarInfo and ExprInfo
-    @property
-    def typ(self):
-        return self.module_t
-
-
-@dataclass
 class ImportInfo(AnalysisResult):
-    typ: Union[ModuleInfo, "InterfaceT"]
+    typ: Union["ModuleT", "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
     # source_id: int
@@ -244,10 +230,6 @@ class ExprInfo:
             is_constant=var_info.is_constant,
             is_immutable=var_info.is_immutable,
         )
-
-    @classmethod
-    def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
-        return cls(module_info.module_t)
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """

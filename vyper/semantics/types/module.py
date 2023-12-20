@@ -1,6 +1,7 @@
 from functools import cached_property
 from typing import Optional
 
+from vyper.semantics.data_locations import DataLocation
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
@@ -250,6 +251,16 @@ class InterfaceT(_UserType):
 
 # Datatype to store all module information.
 class ModuleT(VyperType):
+    _attribute_in_annotation = True
+
+    # disallow everything but storage
+    _invalid_locations = (
+        DataLocation.UNSET,
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+    )
+
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         super().__init__()
 
@@ -289,8 +300,15 @@ class ModuleT(VyperType):
     def __hash__(self):
         return hash(id(self))
 
-    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        return self._helper.get_member(key, node)
+    def __repr__(self):
+        resolved_path = self._module.resolved_path
+        if self._id == resolved_path:
+            return f"module {self._id}"
+        else:
+            return f"module {self._id} (loaded from '{self._module.resolved_path}')"
+
+    def get_type_member(self, attr: str, node: vy_ast.VyperNode) -> VyperType:
+        return self._helper.get_type_member(attr, node)
 
     # this is a property, because the function set changes after AST expansion
     @property

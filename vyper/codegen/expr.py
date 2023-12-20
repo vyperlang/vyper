@@ -242,6 +242,7 @@ class Expr:
                         eval_code = ["extcodesize", addr]
                     output_type = UINT256_T
                 else:
+                    assert self.expr.attr == "is_contract"
                     eval_code = ["gt", ["extcodesize", addr], 0]
                     output_type = BoolT()
                 return IRnode.from_list(eval_code, typ=output_type)
@@ -258,20 +259,6 @@ class Expr:
                 if addr.value == "address":  # for `self.code`
                     return IRnode.from_list(["~selfcode"], typ=BytesT(0))
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
-        # self.x: global attribute
-        elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            varinfo = self.context.globals[self.expr.attr]
-            location = TRANSIENT if varinfo.is_transient else STORAGE
-
-            ret = IRnode.from_list(
-                varinfo.position.position,
-                typ=varinfo.typ,
-                location=location,
-                annotation="self." + self.expr.attr,
-            )
-            ret._referenced_variables = {varinfo}
-
-            return ret
 
         # Reserved keywords
         elif (
@@ -327,17 +314,29 @@ class Expr:
                         "chain.id is unavailable prior to istanbul ruleset", self.expr
                     )
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
+
         # Other variables
-        else:
-            sub = Expr(self.expr.value, self.context).ir_node
-            # contract type
-            if isinstance(sub.typ, InterfaceT):
-                # MyInterface.address
-                assert self.expr.attr == "address"
-                sub.typ = typ
-                return sub
-            if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
-                return get_element_ptr(sub, self.expr.attr)
+
+        # self.x: module-level variable
+        if isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
+            varinfo = self.context.globals[self.expr.attr]
+            location = TRANSIENT if varinfo.is_transient else STORAGE
+
+            ret = IRnode.from_list(varinfo.position.position, typ=varinfo.typ, location=location)
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
+        sub = Expr(self.expr.value, self.context).ir_node
+
+        # interface type
+        if isinstance(sub.typ, InterfaceT):
+            # MyInterface.address
+            assert self.expr.attr == "address"
+            sub.typ = typ
+            return sub
+        if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
+            return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).ir_node

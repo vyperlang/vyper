@@ -355,7 +355,8 @@ class StructT(_UserType):
         return cls(struct_name, members, ast_def=base_node)
 
     def __repr__(self):
-        return f"{self._id} declaration object"
+        arg_types = ",".join(repr(t) for t in self.members.values())
+        return f"struct {self._id}({arg_types})"
 
     @property
     def size_in_bytes(self):

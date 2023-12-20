@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import validate_functions
@@ -277,6 +277,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 
+        # TODO: maybe this code can be removed
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
             # 1. a public constant or immutable; or
@@ -396,7 +397,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
         self.namespace[alias] = module_info
 
-    # load an InterfaceT or ModuleInfo from an import.
+    # load an InterfaceT or ModuleT from an import.
     # raises FileNotFoundError
     def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
         # the directory this (currently being analyzed) module is in
@@ -437,7 +438,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t)
+                return module_t
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things
