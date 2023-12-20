@@ -290,24 +290,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value in ["pass", "stop", "return"]:
         pass
     elif ir.value == "deploy":
-        ir_runtime = ir.args[1]
-
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
-
         return None
-        # assert isinstance(memsize, int), "non-int memsize"
-        # assert isinstance(padding, int), "non-int padding"
-
-        # runtimeLabel = IRLabel("__runtime_entry")
-        # ctx.add_entry_point(runtimeLabel)
-
-        # # ctx.get_basic_block().append_instruction("deploy", memsize, runtimeLabel, padding)
-
-        # bb = IRBasicBlock(runtimeLabel, ctx)
-        # ctx.append_basic_block(bb)
-
-        # _convert_ir_basicblock(ctx, ir_runtime, symbols, variables, allocated_variables)
     elif ir.value == "seq":
         func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:

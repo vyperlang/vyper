@@ -131,10 +131,6 @@ class VenomCompiler:
             else:
                 asm.extend(_REVERT_POSTAMBLE)
 
-            # ctx = self.ctxs[1]
-            # self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
-            # asm.extend(_REVERT_POSTAMBLE)
-
             # Append data segment
             data_segments: dict[Any, list[Any]] = dict()
             for inst in ctx.data_segment:
@@ -412,20 +408,6 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
-        elif opcode == "deploy":
-            memsize = inst.operands[0].value
-            padding = inst.operands[2].value
-            # TODO: fix this by removing deploy opcode altogether me move emition to ir translation
-            while assembly[-1] != "JUMPDEST":
-                assembly.pop()
-            assembly.extend(
-                ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
-            )
-            assembly.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
-            assembly.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-            assembly.extend(["RETURN"])
-            assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])  # type: ignore
-            assembly = assembly[-1]
         elif opcode == "iload":
             loc = inst.operands[0].value
             assembly.extend(["_OFST", "_mem_deploy_end", loc, "MLOAD"])
