@@ -88,7 +88,7 @@ enum_def: _ENUM_DECL NAME ":" enum_body
 _FLAG_DECL: "flag"
 flag_member: NAME
 flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
-flag_def: _ENUM_DECL NAME ":" flag_body
+flag_def: _FLAG_DECL NAME ":" flag_body
 
 // Types
 array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"
