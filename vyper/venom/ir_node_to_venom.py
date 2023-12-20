@@ -232,8 +232,9 @@ def _get_variable_from_address(
 
 
 def _append_return_for_stack_operand(
-    bb: IRBasicBlock, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
+    ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> None:
+    bb = ctx.get_basic_block()
     if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
         new_var = bb.append_instruction("alloca", 32, ret_ir)
