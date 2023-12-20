@@ -285,7 +285,8 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         assert isinstance(memsize, int), "non-int memsize"
         assert isinstance(padding, int), "non-int padding"
 
-        runtimeLabel = ctx.get_next_label()
+        runtimeLabel = IRLabel("__runtime_entry")
+        ctx.add_entry_point(runtimeLabel)
 
         ctx.get_basic_block().append_instruction("deploy", memsize, runtimeLabel, padding)
 
