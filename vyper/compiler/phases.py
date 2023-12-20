@@ -154,6 +154,9 @@ class CompilerData:
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
 
+        if self.settings.experimental_codegen is None:
+            self.settings.experimental_codegen = False
+
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
         return ast
