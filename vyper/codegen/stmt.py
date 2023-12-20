@@ -24,7 +24,13 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeCheckFailure,
+    tag_exceptions,
+)
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
@@ -39,7 +45,8 @@ class Stmt:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
 
         with context.internal_memory_scope():
-            self.ir_node = fn()
+            with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+                self.ir_node = fn()
 
         if self.ir_node is None:
             raise TypeCheckFailure("Statement node did not produce IR")
