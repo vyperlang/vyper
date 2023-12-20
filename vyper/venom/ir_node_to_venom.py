@@ -115,7 +115,7 @@ def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
         if not bb.is_terminated and i < len(runtime_code.basic_blocks) - 1:
             bb.append_instruction("jmp", runtime_code.basic_blocks[i + 1].label)
 
-    return deploy_code, runtime_code
+    return deploy_code, runtime_code  # type: ignore
 
 
 def _convert_binary_op(
