@@ -18,13 +18,6 @@ def foo():
     """,
     """
 @external
-def foo(x: int128):
-    y: int128 = 7
-    for i in range(x, x + y):
-        pass
-    """,
-    """
-@external
 def foo():
     x: String[100] = "these bytes are nо gооd because the o's are from the Russian alphabet"
     """,

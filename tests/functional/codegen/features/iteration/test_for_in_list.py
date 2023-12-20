@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 import pytest
@@ -700,13 +701,16 @@ def foo():
     """,
         StateAccessViolation,
     ),
-    """
+    (
+        """
 @external
 def foo():
     a: int128 = 6
     for i in range(a,a-3):
         pass
     """,
+        StateAccessViolation,
+    ),
     # invalid argument length
     (
         """
@@ -789,10 +793,13 @@ def test_for() -> int128:
     ),
 ]
 
+BAD_CODE = [code if isinstance(code, tuple) else (code, StructureException) for code in BAD_CODE]
+for_code_regex = re.compile(r"for .+ in (.*):")
+bad_code_names = [
+    f"{i} {for_code_regex.search(code).group(1)}" for i, (code, _) in enumerate(BAD_CODE)
+]
 
-@pytest.mark.parametrize("code", BAD_CODE)
-def test_bad_code(assert_compile_failed, get_contract, code):
-    err = StructureException
-    if not isinstance(code, str):
-        code, err = code
+
+@pytest.mark.parametrize("code,err", BAD_CODE, ids=bad_code_names)
+def test_bad_code(assert_compile_failed, get_contract, code, err):
     assert_compile_failed(lambda: get_contract(code), err)

@@ -52,7 +52,7 @@ def finalize():
 @external
 def refund():
     ind: int128 = self.refundIndex
-    for i in range(ind, ind + 30):
+    for i in range(ind, ind + 30, bound=30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
             return
