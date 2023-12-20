@@ -196,7 +196,8 @@ class CompilerData:
             self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
         )
         if self.settings.experimental_codegen:
-            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
+            ir, ir_runtime = generate_ir(nodes[0])
+            return [(ir, ir_runtime), (None, ir_runtime)]
         else:
             return nodes
 
