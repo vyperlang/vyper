@@ -37,9 +37,8 @@ def foo():
         pass
     """,
         StructureException,
-        "For loop has invalid number of iterations (10), "
-        "the value must be between zero and the bound",
-        "range(10, 20, bound=5)",
+        "Please remove the range argument when using range with constants",
+        "5",
     ),
     (
         """

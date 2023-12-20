@@ -762,15 +762,10 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
             raise StateAccessViolation("Bound must be a literal", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
-        if (
-            isinstance(start, vy_ast.Num)
-            and isinstance(end, vy_ast.Num)
-            and end.value - start.value > bound.value
-        ):
+        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
             raise StructureException(
-                f"For loop has invalid number of iterations ({end.value - start.value}), "
-                f"the value must be between zero and the bound",
-                node,
+                f"Please remove the range argument when using range with constants",
+                bound,
             )
     else:
         for arg in (start, end):
