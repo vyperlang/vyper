@@ -290,10 +290,12 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value in ["pass", "stop", "return"]:
         pass
     elif ir.value == "deploy":
+        ir_runtime = ir.args[1]
+
+        ctx.ctor_mem_size = ir.args[0].value
+        ctx.immutables_len = ir.args[2].value
+
         return None
-        # memsize = ir.args[0].value
-        # ir_runtime = ir.args[1]
-        # padding = ir.args[2].value
         # assert isinstance(memsize, int), "non-int memsize"
         # assert isinstance(padding, int), "non-int padding"
 
