@@ -22,6 +22,6 @@ def test_duplicate_operands():
     bb.append_instruction("mul", sum, op)
     bb.append_instruction("stop")
 
-    asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
+    asm = generate_assembly_experimental((None, ctx), OptimizationLevel.CODESIZE)
 
     assert asm == ["PUSH1", 10, "DUP1", "DUP1", "DUP1", "ADD", "MUL", "STOP", "REVERT"]
