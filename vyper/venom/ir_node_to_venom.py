@@ -100,6 +100,7 @@ def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
 
 def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
     deploy_node = _findIRnode(ir, "deploy")
+    deploy_code = None
     if deploy_node is not None:
         deploy_code = IRFunction()
         _convert_ir_basicblock(deploy_code, ir, {}, OrderedSet(), {})
@@ -108,11 +109,6 @@ def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
 
     runtime_code = IRFunction()
     _convert_ir_basicblock(runtime_code, ir, {}, OrderedSet(), {})
-
-    # Add revert block
-    # revert_bb = IRBasicBlock(IRLabel("__revert"), runtime_code)
-    # revert_bb = runtime_code.append_basic_block(revert_bb)
-    # revert_bb.append_instruction("revert", 0, 0)
 
     # Connect unterminated blocks to the next with a jump
     for i, bb in enumerate(runtime_code.basic_blocks):
