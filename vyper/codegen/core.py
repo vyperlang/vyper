@@ -45,7 +45,7 @@ def is_decimal_type(typ):
     return isinstance(typ, DecimalT)
 
 
-def is_enum_type(typ):
+def is_flag_type(typ):
     return isinstance(typ, FlagT)
 
 

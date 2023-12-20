@@ -12,7 +12,7 @@ from vyper.codegen.core import (
     getpos,
     is_array_like,
     is_bytes_m_type,
-    is_enum_type,
+    is_flag_type,
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
@@ -380,7 +380,7 @@ class Expr:
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
-            assert is_numeric_type(left.typ) or is_enum_type(left.typ)
+            assert is_numeric_type(left.typ) or is_flag_type(left.typ)
 
         out_typ = left.typ
 
