@@ -296,43 +296,45 @@ class Slice(BuiltinFunction):
 
     def evaluate(self, node):
         validate_call_args(node, 3)
-        literal_value, start, length = node.args
-        if (
-            isinstance(literal_value, (vy_ast.Bytes, vy_ast.Str, vy_ast.Hex))
-            and isinstance(start, vy_ast.Int)
-            and isinstance(length, vy_ast.Int)
+        bytestring, start_node, length_node = node.args
+        if not (
+            isinstance(bytestring, (vy_ast.Bytes, vy_ast.Str, vy_ast.Hex))
+            and isinstance(start_node, vy_ast.Int)
+            and isinstance(length_node, vy_ast.Int)
         ):
-            (start_val, length_val) = (start.value, length.value)
+            raise UnfoldableNode
 
-            if start_val < 0:
-                raise ArgumentException("Start cannot be negative", start)
-            elif length_val <= 0:
-                raise ArgumentException("Length cannot be negative", length)
+        (start, length) = (start_node.value, length_node.value)
 
-            if isinstance(literal_value, vy_ast.Hex):
-                if start_val >= 32:
-                    raise ArgumentException("Start cannot take that value", start)
-                if length_val > 32:
-                    raise ArgumentException("Length cannot take that value", length)
-                length = len(literal_value.value) // 2 - 1
-                if length != 32:
-                    raise ArgumentException("Length can only be of 32", literal_value)
-                start_val *= 2
-                length_val *= 2
+        if start < 0:
+            raise ArgumentException("Start cannot be negative", start_node)
+        elif length <= 0:
+            raise ArgumentException("Length must be positive", length_node)
 
-            if start_val + length_val > len(literal_value.value):
-                raise ArgumentException("Slice is out of bounds", start)
+        if isinstance(bytestring, vy_ast.Hex):
+            bytes_value = bytes.fromhex(bytestring.value.removeprefix("0x"))
+            if start >= 32:
+                raise ArgumentException("Start cannot take that value", start_node)
+            if length > 32:
+                raise ArgumentException("Length cannot take that value", length_node)
+            if len(bytes_value) != 32:
+                raise ArgumentException("Length can only be of 32", bytestring)
+        elif isinstance(bytestring, vy_ast.Str):
+            bytes_value = bytestring.value
+        else:
+            bytes_value = bytes.fromhex(bytestring.value.hex().removeprefix("0x"))
 
-            if isinstance(literal_value, vy_ast.Bytes):
-                sublit = literal_value.value[start_val : (start_val + length_val)]
-                return vy_ast.Bytes.from_node(node, value=sublit)
-            elif isinstance(literal_value, vy_ast.Str):
-                sublit = literal_value.value[start_val : (start_val + length_val)]
-                return vy_ast.Str.from_node(node, value=sublit)
-            elif isinstance(literal_value, vy_ast.Hex):
-                sublit = literal_value.value[2:][start_val : (start_val + length_val)]
-                return vy_ast.Bytes.from_node(node, value=f"0x{sublit}")
-        raise UnfoldableNode
+        if start + length > len(bytes_value):
+            raise ArgumentException("Slice is out of bounds", start_node)
+
+        end = start + length
+        res = bytes_value[start : end]
+        if isinstance(bytestring, vy_ast.Bytes):
+            return vy_ast.Bytes.from_node(node, value=res)
+        if isinstance(bytestring, vy_ast.Str):
+            return vy_ast.Str.from_node(node, value=res)
+        if isinstance(bytestring, vy_ast.Hex):
+            return vy_ast.Bytes.from_node(node, value=res)
 
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)

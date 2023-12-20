@@ -471,7 +471,7 @@ def baz() -> Bytes[6]:
 def test_comptime(get_contract, code, result):
     c = get_contract(code)
     ret = c.baz()
-    if hasattr(ret, "hex"):
+    if isinstance(ret, bytes):
         assert ret.hex() == result
     else:
         assert ret == result
