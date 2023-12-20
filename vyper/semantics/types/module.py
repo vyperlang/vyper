@@ -307,6 +307,10 @@ class ModuleT(VyperType):
         else:
             return f"module {self._id} (loaded from '{self._module.resolved_path}')"
 
+    @property
+    def size_in_bytes(self):
+        return sum(v.typ.size_in_bytes for v in self.variables.values())
+
     def get_type_member(self, attr: str, node: vy_ast.VyperNode) -> VyperType:
         return self._helper.get_type_member(attr, node)
 
