@@ -36,7 +36,20 @@ class IRFunction:
         self.last_label = 0
         self.last_variable = 0
 
+        self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
+
+    def add_entry_point(self, label: IRLabel) -> None:
+        """
+        Add entry point.
+        """
+        self.entry_points.append(label)
+
+    def remove_entry_point(self, label: IRLabel) -> None:
+        """
+        Remove entry point.
+        """
+        self.entry_points.remove(label)
 
     def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
         """
@@ -93,11 +106,7 @@ class IRFunction:
         removed = 0
         new_basic_blocks = []
         for bb in self.basic_blocks:
-            if (
-                not bb.is_reachable
-                and bb.label.value != "global"
-                and bb.label not in self.entry_points
-            ):
+            if not bb.is_reachable and bb.label not in self.entry_points:
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
