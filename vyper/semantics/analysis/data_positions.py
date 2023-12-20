@@ -6,7 +6,6 @@ from vyper.exceptions import StorageLayoutException
 from vyper.semantics.analysis.base import CodeOffset, StorageSlot
 from vyper.typing import StorageLayout
 from vyper.utils import ceil32
-from vyper.semantics.analysis.base import ImportedVariable
 
 
 def set_data_positions(
@@ -211,8 +210,6 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
 
         varinfo.set_position(StorageSlot(slot))
 
-        if isinstance(varinfo, ImportedVariable):
-            varname = varinfo.import_info.qualified_module_name + "." + varname
         assert varname not in ret
         # this could have better typing but leave it untyped until
         # we understand the use case better
@@ -252,10 +249,6 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
         # decl_node but they shouldn't make it here
         assert isinstance(varinfo.decl_node, vy_ast.VariableDecl)
         name = varinfo.decl_node.target.id
-
-        # XXX: FIXME
-        if isinstance(varinfo, ImportedVariable):
-            name = varinfo.import_info.qualified_module_name + "." + name
 
         assert name not in ret
         ret[name] = output_dict

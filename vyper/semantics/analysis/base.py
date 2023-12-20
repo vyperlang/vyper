@@ -203,19 +203,6 @@ class VarInfo:
         self.position = position
 
 
-# class for imported variables. this is important for distinguishing
-# how in the import graph variables were imported.
-@dataclass(kw_only=True)
-class ImportedVariable(VarInfo):
-    import_info: ImportInfo  # a reference to how this variable was imported
-
-    @classmethod
-    def from_varinfo(cls, var_info: Union["ImportedVariable",VarInfo], import_info: ImportInfo):
-        dict_fields = asdict(var_info)
-
-        dict_fields["import_info"] = import_info
-        return cls(**dict_fields)
-
 @dataclass
 class ExprInfo:
     """
