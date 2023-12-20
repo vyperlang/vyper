@@ -93,7 +93,7 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
-        asm: list[str] = []
+        asm: list[Any] = []
         top_asm = asm
 
         # Before emitting the assembly, we need to make sure that the

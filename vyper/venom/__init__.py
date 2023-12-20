@@ -1,7 +1,7 @@
 # maybe rename this `main.py` or `venom.py`
 # (can have an `__init__.py` which exposes the API).
 
-from typing import Optional
+from typing import Any, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
@@ -19,9 +19,9 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 
 
 def generate_assembly_experimental(
-    ctxs: tuple[IRFunction], optimize: Optional[OptimizationLevel] = None
+    ctxs: tuple[IRFunction, IRFunction], optimize: Optional[OptimizationLevel] = None
 ) -> list[str]:
-    compiler = VenomCompiler(ctxs)
+    compiler = VenomCompiler(list(ctxs))
     return compiler.generate_evm(optimize is OptimizationLevel.NONE)
 
 
@@ -51,7 +51,9 @@ def _run_passes(ctx: IRFunction, optimize: Optional[OptimizationLevel] = None) -
             break
 
 
-def generate_ir(ir: IRnode, optimize: Optional[OptimizationLevel] = None) -> tuple[IRFunction]:
+def generate_ir(
+    ir: IRnode, optimize: Optional[OptimizationLevel] = None
+) -> tuple[IRFunction, IRFunction]:
     # Convert "old" IR to "new" IR
     ctx, ctx_runtime = convert_ir_basicblock(ir)
 

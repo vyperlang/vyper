@@ -98,7 +98,7 @@ def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
     return None
 
 
-def convert_ir_basicblock(ir: IRnode) -> IRFunction:
+def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
     deploy_node = _findIRnode(ir, "deploy")
     if deploy_node is not None:
         deploy_code = IRFunction()
