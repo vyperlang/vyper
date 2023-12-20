@@ -125,7 +125,7 @@ def test_address_code_compile_error(
 ):
     with pytest.raises(error_type) as excinfo:
         compiler.compile_code(bad_code)
-    assert type(excinfo.value) == error_type
+    assert excinfo.value is error_type
     assert excinfo.value.message == error_message
 
 

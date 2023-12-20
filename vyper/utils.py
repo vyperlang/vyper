@@ -70,7 +70,9 @@ class DecimalContextOverride(decimal.Context):
                 raise DecimalOverrideException("Overriding decimal precision disabled")
             elif value > 78:
                 # not sure it's incorrect, might not be end of the world
-                warnings.warn("Changing decimals precision could have unintended side effects!")
+                warnings.warn(
+                    "Changing decimals precision could have unintended side effects!", stacklevel=2
+                )
             # else: no-op, is ok
 
         super().__setattr__(name, value)

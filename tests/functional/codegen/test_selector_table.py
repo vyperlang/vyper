@@ -600,7 +600,7 @@ event _Return:
                 else:
                     hexstr = (method_id + argsdata).hex()
                     txdata = {"to": c.address, "data": hexstr, "value": 1}
-                    assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
+                    assert_tx_failed(lambda d=txdata: w3.eth.send_transaction(d))
 
                 # now do calldatasize check
                 # strip some bytes
@@ -610,7 +610,7 @@ event _Return:
                 if n_calldata_words == 0 and j == 0:
                     # no args, hit default function
                     if default_fn_mutability == "":
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        assert_tx_failed(lambda p=tx_params: w3.eth.send_transaction(p))
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
@@ -628,8 +628,8 @@ event _Return:
 
                         # check default function reverts
                         tx_params["value"] = 1
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        assert_tx_failed(lambda p=tx_params: w3.eth.send_transaction(p))
                 else:
-                    assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                    assert_tx_failed(lambda p=tx_params: w3.eth.send_transaction(p))
 
     _test()

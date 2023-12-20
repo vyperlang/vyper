@@ -91,9 +91,7 @@ class VyperType:
         return hash(self._get_equality_attrs())
 
     def __eq__(self, other):
-        return (
-            type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
-        )
+        return self is type(other) and self._get_equality_attrs() == other._get_equality_attrs()
 
     def __lt__(self, other):
         return self.abi_type.selector_name() < other.abi_type.selector_name()
