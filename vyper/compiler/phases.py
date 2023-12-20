@@ -21,6 +21,26 @@ from vyper.venom import generate_assembly_experimental, generate_ir
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
+def _merge_one(lhs, rhs, helpstr):
+    if lhs is not None and rhs is not None:
+        raise StructureException(
+            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
+        )
+    return lhs if rhs is None else rhs
+
+
+# TODO: does this belong as a method under Settings?
+def _merge_settings(cli: Settings, pragma: Settings):
+    ret = Settings()
+    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
+    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
+    ret.experimental_codegen = _merge_one(
+        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
+    )
+
+    return ret
+
+
 class CompilerData:
     """
     Object for fetching and storing compiler data for a Vyper contract.
@@ -116,41 +136,7 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        # validate the compiler settings
-        # XXX: this is a bit ugly, clean up later
-        if settings.evm_version is not None:
-            if (
-                self.settings.evm_version is not None
-                and self.settings.evm_version != settings.evm_version
-            ):
-                raise StructureException(
-                    f"compiler settings indicate evm version {self.settings.evm_version}, "
-                    f"but source pragma indicates {settings.evm_version}."
-                )
-
-            self.settings.evm_version = settings.evm_version
-
-        if settings.optimize is not None:
-            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
-                raise StructureException(
-                    f"compiler options indicate optimization mode {self.settings.optimize}, "
-                    f"but source pragma indicates {settings.optimize}."
-                )
-            self.settings.optimize = settings.optimize
-
-        if settings.experimental_codegen is not None:
-            if (
-                self.settings.experimental_codegen is not None
-                and self.settings.experimental_codegen != settings.experimental_codegen
-            ):
-                raise StructureException(
-                    f"compiler options indicate experimental codegen mode "
-                    f"{self.settings.experimental_codegen}, "
-                    f"but source pragma indicates {settings.experimental_codegen}."
-                )
-            self.settings.experimental_codegen = settings.experimental_codegen
-
-        # ensure defaults
+        self.settings = _merge_settings(self.settings, settings)
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
 
