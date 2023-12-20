@@ -108,7 +108,16 @@ def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
 
     runtime_code = IRFunction()
     _convert_ir_basicblock(runtime_code, ir, {}, OrderedSet(), {})
-    runtime_code.addPostamples()
+
+    # Add revert block
+    # revert_bb = IRBasicBlock(IRLabel("__revert"), runtime_code)
+    # revert_bb = runtime_code.append_basic_block(revert_bb)
+    # revert_bb.append_instruction("revert", 0, 0)
+
+    # Connect unterminated blocks to the next with a jump
+    for i, bb in enumerate(runtime_code.basic_blocks):
+        if not bb.is_terminated and i < len(runtime_code.basic_blocks) - 1:
+            bb.append_instruction("jmp", runtime_code.basic_blocks[i + 1].label)
 
     return deploy_code, runtime_code
 

@@ -123,20 +123,6 @@ class IRFunction:
         """
         self.data_segment.append(IRInstruction(opcode, args))  # type: ignore
 
-    def addPostamples(self) -> None:
-        """
-        Add postample instructions to function.
-        """
-        # Add revert block
-        revert_bb = IRBasicBlock(IRLabel("__revert"), self)
-        revert_bb = self.append_basic_block(revert_bb)
-        revert_bb.append_instruction("revert", 0, 0)
-
-        # Connect unterminated blocks to the next with a jump
-        for i, bb in enumerate(self.basic_blocks):
-            if not bb.is_terminated and i < len(self.basic_blocks) - 1:
-                bb.append_instruction("jmp", self.basic_blocks[i + 1].label)
-
     @property
     def normalized(self) -> bool:
         """
