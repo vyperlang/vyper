@@ -328,7 +328,7 @@ class Slice(BuiltinFunction):
             raise ArgumentException("Slice is out of bounds", start_node)
 
         end = start + length
-        res = bytes_value[start : end]
+        res = bytes_value[start:end]
         if isinstance(bytestring, vy_ast.Bytes):
             return vy_ast.Bytes.from_node(node, value=res)
         if isinstance(bytestring, vy_ast.Str):
