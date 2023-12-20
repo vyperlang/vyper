@@ -20,6 +20,8 @@ class IRFunction:
     name: IRLabel  # symbol name
     entry_points: list[IRLabel]  # entry points
     args: list
+    ctor_mem_size: Optional[int]
+    immutables_len: Optional[int]
     basic_blocks: list[IRBasicBlock]
     data_segment: list[IRInstruction]
     last_label: int
@@ -31,6 +33,8 @@ class IRFunction:
         self.name = name
         self.entry_points = []
         self.args = []
+        self.ctor_mem_size = None
+        self.immutables_len = None
         self.basic_blocks = []
         self.data_segment = []
         self.last_label = 0
