@@ -18,6 +18,7 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
+    entry_points: list[IRLabel]  # entry points
     args: list
     basic_blocks: list[IRBasicBlock]
     data_segment: list[IRInstruction]
@@ -28,6 +29,7 @@ class IRFunction:
         if name is None:
             name = GLOBAL_LABEL
         self.name = name
+        self.entry_points = []
         self.args = []
         self.basic_blocks = []
         self.data_segment = []
@@ -91,7 +93,11 @@ class IRFunction:
         removed = 0
         new_basic_blocks = []
         for bb in self.basic_blocks:
-            if not bb.is_reachable and bb.label.value != "global":
+            if (
+                not bb.is_reachable
+                and bb.label.value != "global"
+                and bb.label not in self.entry_points
+            ):
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
