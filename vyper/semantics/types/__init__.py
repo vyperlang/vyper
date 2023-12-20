@@ -2,7 +2,7 @@ from . import primitives, subscriptable, user
 from .base import TYPE_T, KwargSettings, VyperType, is_type_t
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import MemberFunctionT
-from .module import InterfaceT
+from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from .user import EnumT, EventT, StructT

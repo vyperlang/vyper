@@ -12,6 +12,7 @@ from vyper.semantics.types import (
     BoolT,
     BytesM_T,
     BytesT,
+    ModuleT,
     DArrayT,
     DecimalT,
     HashMapT,
@@ -441,6 +442,35 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
         annotation=f"{parent}{ofst}",
     )
 
+# get a variable out of a module
+def _get_element_ptr_module(parent, key):
+    # note that this implementation is substantially similar to
+    # the StructT pathway through get_element_ptr_tuplelike and
+    # has potential to be refactored.
+    module_t = parent.typ
+    assert isinstance(module_t, ModuleT)
+
+    assert isinstance(key, str)
+    typ = module_t.variables[key].typ
+    attrs = list(module_t.variables.keys())
+    index = attrs.index(key)
+    annotation = key
+
+    ofst = 0  # offset from parent start
+
+    assert parent.location == STORAGE, parent.location
+
+    for i in range(index):
+        ofst += module_t.variables[attrs[i]].typ.storage_size_in_words
+
+    return IRnode.from_list(
+        add_ofst(parent, ofst),
+        typ=typ,
+        location=parent.location,
+        encoding=parent.encoding,
+        annotation=annotation,
+    )
+
 
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_tuplelike(parent, key):
@@ -589,6 +619,9 @@ def get_element_ptr(parent, key, array_bounds_check=True):
 
         if is_tuple_like(typ):
             ret = _get_element_ptr_tuplelike(parent, key)
+
+        elif isinstance(typ, ModuleT):
+            ret = _get_element_ptr_module(parent, key)
 
         elif isinstance(typ, HashMapT):
             ret = _get_element_ptr_mapping(parent, key)

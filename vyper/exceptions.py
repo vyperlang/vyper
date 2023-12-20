@@ -366,7 +366,7 @@ def tag_exceptions(
         yield
     except _BaseVyperException as e:
         if not e.annotations and not e.lineno:
-            raise e.with_annotation(node) from None
-        raise e from None
+            raise e.with_annotation(node)
+        raise e
     except Exception as e:
         raise fallback_exception_type(fallback_message, node) from e

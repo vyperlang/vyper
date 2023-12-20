@@ -76,6 +76,7 @@ class Context:
         self.in_range_expr = False
 
         # store module context
+        # note the module_ctx is the type of the current compilation target!
         self.module_ctx = module_ctx
 
         # full function type
