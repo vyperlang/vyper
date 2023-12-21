@@ -8,6 +8,13 @@ from vyper.exceptions import InvalidType
 from vyper.utils import MemoryPositions
 
 
+def search_for_sublist(ir, sublist):
+    _list = ir.to_list() if hasattr(ir, "to_list") else ir
+    if _list == sublist:
+        return True
+    return isinstance(_list, list) and any(search_for_sublist(i, sublist) for i in _list)
+
+
 def test_builtin_constants(get_contract_with_gas_estimation):
     code = """
 @external
@@ -205,13 +212,6 @@ def test() -> uint256:
     ret: uint256 = 2**SOME_CONSTANT * SOME_PRIME
     return ret
     """
-
-    def search_for_sublist(ir, sublist):
-        _list = ir.to_list() if hasattr(ir, "to_list") else ir
-        if _list == sublist:
-            return True
-        return isinstance(_list, list) and any(search_for_sublist(i, sublist) for i in _list)
-
     compiled_code = compile_code(code, output_formats=["ir"])["ir"]
     search = ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
     assert search_for_sublist(compiled_code, search)
