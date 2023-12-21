@@ -22,7 +22,7 @@ DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
 def _merge_one(lhs, rhs, helpstr):
-    if lhs is not None and rhs is not None:
+    if lhs is not None and rhs is not None and lhs != rhs:
         raise StructureException(
             f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
         )
