@@ -24,8 +24,15 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeCheckFailure,
+    tag_exceptions,
+)
 from vyper.semantics.types import DArrayT, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
@@ -38,7 +45,8 @@ class Stmt:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
 
         with context.internal_memory_scope():
-            self.ir_node = fn()
+            with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+                self.ir_node = fn()
 
         if self.ir_node is None:
             raise TypeCheckFailure("Statement node did not produce IR")
@@ -117,44 +125,32 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
-        # TODO use expr.func.type.is_internal once type annotations
-        # are consistently available.
-        is_self_function = (
-            (isinstance(self.stmt.func, vy_ast.Attribute))
-            and isinstance(self.stmt.func.value, vy_ast.Name)
-            and self.stmt.func.value.id == "self"
-        )
-
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
 
-        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
-            "append",
-            "pop",
-        ):
-            func_type = self.stmt.func._metadata["type"]
-            if isinstance(func_type, MemberFunctionT):
-                darray = Expr(self.stmt.func.value, self.context).ir_node
-                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-                if self.stmt.func.attr == "append":
-                    # sanity checks
-                    assert len(args) == 1
-                    arg = args[0]
-                    assert isinstance(darray.typ, DArrayT)
-                    check_assign(
-                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                    )
+        func_type = self.stmt.func._metadata["type"]
 
-                    return append_dyn_array(darray, arg)
-                else:
-                    assert len(args) == 0
-                    return pop_dyn_array(darray, return_popped_item=False)
+        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
+            darray = Expr(self.stmt.func.value, self.context).ir_node
+            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+            if self.stmt.func.attr == "append":
+                (arg,) = args
+                assert isinstance(darray.typ, DArrayT)
+                check_assign(
+                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                )
 
-        if is_self_function:
-            return self_call.ir_for_self_call(self.stmt, self.context)
-        else:
-            return external_call.ir_for_external_call(self.stmt, self.context)
+                return append_dyn_array(darray, arg)
+            else:
+                assert len(args) == 0
+                return pop_dyn_array(darray, return_popped_item=False)
+
+        if isinstance(func_type, ContractFunctionT):
+            if func_type.is_internal:
+                return self_call.ir_for_self_call(self.stmt, self.context)
+            else:
+                return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
         # from parse_Raise: None passed as the assert condition

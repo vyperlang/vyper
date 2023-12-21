@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
@@ -68,7 +68,7 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
             or not isinstance(node.slice, vy_ast.Index)
@@ -274,31 +274,32 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
+        # common error message, different ast locations
+        err_msg = "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]"
+
+        if not isinstance(node, vy_ast.Subscript):
+            raise StructureException(err_msg, node)
+
         if (
-            not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
+            not isinstance(node.slice, vy_ast.Index)
             or not isinstance(node.slice.value, vy_ast.Tuple)
             or len(node.slice.value.elements) != 2
         ):
-            raise StructureException(
-                "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]",
-                node,
-            )
+            raise StructureException(err_msg, node.slice)
 
-        length = node.slice.value.elements[1]._metadata.get("folded_value")
-        if not isinstance(length, vy_ast.Int):
-            raise StructureException(
-                "DynArray must have a max length of integer type, e.g. DynArray[bool, 5]", node
-            )
+        length_node = node.slice.value.elements[1]._metadata.get("folded_value")
 
-        value_type = type_from_annotation(node.slice.value.elements[0])
+        if not isinstance(length_node, vy_ast.Int):
+            raise StructureException(err_msg, length_node)
+
+        length = length_node.value
+
+        value_node = node.slice.value.elements[0]
+        value_type = type_from_annotation(value_node)
         if not value_type._as_darray:
-            # TODO: this is currently not reachable because all instantiable types are set to True
-            #       and non-instantiable types like events are caught by `type_from_annotation`
-            raise StructureException(f"Arrays of {value_type} are not allowed", node)
+            raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        max_length = length.value
-        return cls(value_type, max_length)
+        return cls(value_type, length)
 
 
 class TupleT(VyperType):
@@ -340,7 +341,7 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
+    def from_annotation(cls, node: vy_ast.Tuple) -> "TupleT":
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

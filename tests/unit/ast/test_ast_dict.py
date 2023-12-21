@@ -1,7 +1,8 @@
 import json
 
 from vyper import compiler
-from vyper.ast.utils import ast_to_dict, dict_to_ast, parse_to_ast
+from vyper.ast.parse import parse_to_ast
+from vyper.ast.utils import ast_to_dict, dict_to_ast
 
 
 def get_node_ids(ast_struct, ids=None):
@@ -40,7 +41,7 @@ def test_basic_ast():
     code = """
 a: int128
     """
-    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][0] == {
         "annotation": {
             "ast_type": "Name",
@@ -91,7 +92,7 @@ implements: Foo
 def foo() -> uint256:
     return 1
     """
-    dict_out = compiler.compile_code(code, output_formats=["ast_dict"])
+    dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
     assert dict_out["ast_dict"]["ast"]["body"][1] == {
         "col_offset": 0,
         "annotation": {

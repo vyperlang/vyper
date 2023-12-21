@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import textwrap
 import types
@@ -49,6 +50,7 @@ class _BaseVyperException(Exception):
         self.message = message
         self.lineno = None
         self.col_offset = None
+        self.annotations = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
@@ -79,7 +81,7 @@ class _BaseVyperException(Exception):
         from vyper import ast as vy_ast
         from vyper.utils import annotate_source_code
 
-        if not hasattr(self, "annotations"):
+        if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
             else:
@@ -105,8 +107,9 @@ class _BaseVyperException(Exception):
 
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
-                if module_node and module_node.get("name") not in (None, "<unknown>"):
-                    node_msg = f'{node_msg}contract "{module_node.name}:{node.lineno}", '
+
+                if module_node.get("path") not in (None, "<unknown>"):
+                    node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
@@ -229,6 +232,18 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
+class ImportCycle(VyperException):
+    """An import cycle"""
+
+
+class DuplicateImport(VyperException):
+    """A module was imported twice from the same module"""
+
+
+class ModuleNotFound(VyperException):
+    """Module was not found"""
+
+
 class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 
@@ -308,8 +323,9 @@ class VyperInternalException(_BaseVyperException):
 
     def __str__(self):
         return (
-            f"{self.message}\n\nThis is an unhandled internal compiler error. "
-            "Please create an issue on Github to notify the developers.\n"
+            f"{super().__str__()}\n\n"
+            "This is an unhandled internal compiler error. "
+            "Please create an issue on Github to notify the developers!\n"
             "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
         )
 
@@ -340,3 +356,17 @@ class TypeCheckFailure(VyperInternalException):
 
 class InvalidABIType(VyperInternalException):
     """An internal routine constructed an invalid ABI type"""
+
+
+@contextlib.contextmanager
+def tag_exceptions(
+    node, fallback_exception_type=CompilerPanic, fallback_message="unhandled exception"
+):
+    try:
+        yield
+    except _BaseVyperException as e:
+        if not e.annotations and not e.lineno:
+            raise e.with_annotation(node) from None
+        raise e from None
+    except Exception as e:
+        raise fallback_exception_type(fallback_message, node) from e

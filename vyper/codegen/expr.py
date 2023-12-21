@@ -26,6 +26,7 @@ from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     StructureException,
@@ -33,6 +34,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UnimplementedException,
     VyperException,
+    tag_exceptions,
 )
 from vyper.semantics.types import (
     AddressT,
@@ -47,8 +49,10 @@ from vyper.semantics.types import (
     StringT,
     StructT,
     TupleT,
+    is_type_t,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -77,9 +81,11 @@ class Expr:
         if fn is None:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
 
-        self.ir_node = fn()
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+            self.ir_node = fn()
+
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.", node)
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
@@ -662,39 +668,38 @@ class Expr:
             if function_name in DISPATCH_TABLE:
                 return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
 
-            # Struct constructors do not need `self` prefix.
-            elif isinstance(self.expr._metadata["type"], StructT):
-                args = self.expr.args
-                if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                    return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
+        func_type = self.expr.func._metadata["type"]
 
-            # Interface assignment. Bar(<address>).
-            elif isinstance(self.expr._metadata["type"], InterfaceT):
-                (arg0,) = self.expr.args
-                arg_ir = Expr(arg0, self.context).ir_node
+        # Struct constructor
+        if is_type_t(func_type, StructT):
+            args = self.expr.args
+            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
+                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
 
-                assert arg_ir.typ == AddressT()
-                arg_ir.typ = self.expr._metadata["type"]
+        # Interface constructor. Bar(<address>).
+        if is_type_t(func_type, InterfaceT):
+            (arg0,) = self.expr.args
+            arg_ir = Expr(arg0, self.context).ir_node
 
-                return arg_ir
+            assert arg_ir.typ == AddressT()
+            arg_ir.typ = self.expr._metadata["type"]
 
-        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
+            return arg_ir
+
+        if isinstance(func_type, MemberFunctionT) and self.expr.func.attr == "pop":
             # TODO consider moving this to builtins
             darray = Expr(self.expr.func.value, self.context).ir_node
             assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayT)
             return pop_dyn_array(darray, return_popped_item=True)
 
-        elif (
-            # TODO use expr.func.type.is_internal once
-            # type annotations are consistently available
-            isinstance(self.expr.func, vy_ast.Attribute)
-            and isinstance(self.expr.func.value, vy_ast.Name)
-            and self.expr.func.value.id == "self"
-        ):
-            return self_call.ir_for_self_call(self.expr, self.context)
-        else:
-            return external_call.ir_for_external_call(self.expr, self.context)
+        if isinstance(func_type, ContractFunctionT):
+            if func_type.is_internal:
+                return self_call.ir_for_self_call(self.expr, self.context)
+            else:
+                return external_call.ir_for_external_call(self.expr, self.context)
+
+        raise CompilerPanic("unreachable", self.expr)
 
     def parse_List(self):
         typ = self.expr._metadata["type"]

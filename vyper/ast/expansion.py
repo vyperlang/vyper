@@ -5,6 +5,9 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.function import ContractFunctionT
 
 
+# TODO: remove this function. it causes correctness/performance problems
+# because of copying and mutating the AST - getter generation should be handled
+# during code generation.
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
     Create getter functions for public variables.
@@ -16,7 +19,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        func_type = node._metadata["func_type"]
+        func_type = node._metadata["getter_type"]
         input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
@@ -70,31 +73,11 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
 
+        # update pointers
+        vyper_module.add_to_body(expanded)
+        return_node.set_parent(expanded)
+
         with vyper_module.namespace():
             func_type = ContractFunctionT.from_FunctionDef(expanded)
 
-        expanded._metadata["type"] = func_type
-        return_node.set_parent(expanded)
-        vyper_module.add_to_body(expanded)
-
-
-def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
-    """
-    Remove statement nodes that are unused after type checking.
-
-    Once type checking is complete, we can remove now-meaningless statements to
-    simplify the AST prior to IR generation.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node.
-    """
-
-    # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
-        vyper_module.remove_from_body(node)
-
-    # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
-        vyper_module.remove_from_body(node)
+        expanded._metadata["func_type"] = func_type

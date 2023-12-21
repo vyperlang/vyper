@@ -1,6 +1,6 @@
 import os
 from pathlib import Path, PurePath
-from typing import Optional
+from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -8,9 +8,11 @@ from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBund
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CallViolation,
+    DuplicateImport,
     ExceptionList,
     InvalidLiteral,
     InvalidType,
+    ModuleNotFound,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
@@ -18,129 +20,202 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VariableConstancy, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, ModuleInfo, VariableConstancy, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.local import ExprVisitor
-from vyper.semantics.analysis.utils import check_variable_constancy, validate_expected_type
+from vyper.semantics.analysis.import_graph import ImportGraph
+from vyper.semantics.analysis.local import ExprVisitor, validate_functions
+from vyper.semantics.analysis.pre_typecheck import pre_typecheck
+from vyper.semantics.analysis.utils import (
+    check_variable_constancy,
+    get_exact_type_from_node,
+    validate_expected_type,
+)
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import Namespace, get_namespace
+from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EnumT, EventT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def add_module_namespace(vy_module: vy_ast.Module, input_bundle: InputBundle) -> None:
+def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
+    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
+
+
+def validate_semantics_r(
+    module_ast: vy_ast.Module,
+    input_bundle: InputBundle,
+    import_graph: ImportGraph,
+    is_interface: bool,
+) -> ModuleT:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
-    namespace and validate top-level correctness
+    namespace, type-check/validate semantics and annotate with type and analysis info
     """
-
+    # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
-    ModuleAnalyzer(vy_module, input_bundle, namespace)
+
+    with namespace.enter_scope(), import_graph.enter_path(module_ast):
+        pre_typecheck(module_ast)
+        analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
+        ret = analyzer.analyze()
+
+        vy_ast.expansion.generate_public_variable_getters(module_ast)
+
+        # if this is an interface, the function is already validated
+        # in `ContractFunction.from_vyi()`
+        if not is_interface:
+            validate_functions(module_ast)
+
+    return ret
 
 
-def _find_cyclic_call(fn_names: list, self_members: dict) -> Optional[list]:
-    if fn_names[-1] not in self_members:
-        return None
-    internal_calls = self_members[fn_names[-1]].internal_calls
-    for name in internal_calls:
-        if name in fn_names:
-            return fn_names + [name]
-        sequence = _find_cyclic_call(fn_names + [name], self_members)
-        if sequence:
-            return sequence
-    return None
+# compute reachable set and validate the call graph (detect cycles)
+def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
+    path = path or []
+
+    path.append(fn_t)
+    root = path[0]
+
+    for g in fn_t.called_functions:
+        if g == root:
+            message = " -> ".join([f.name for f in path])
+            raise CallViolation(f"Contract contains cyclic function call: {message}")
+
+        _compute_reachable_set(g, path=path)
+
+        for h in g.reachable_internal_functions:
+            assert h != fn_t  # sanity check
+
+            fn_t.reachable_internal_functions.add(h)
+
+        fn_t.reachable_internal_functions.add(g)
+
+    path.pop()
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
     def __init__(
-        self, module_node: vy_ast.Module, input_bundle: InputBundle, namespace: Namespace
+        self,
+        module_node: vy_ast.Module,
+        input_bundle: InputBundle,
+        namespace: Namespace,
+        import_graph: ImportGraph,
+        is_interface: bool = False,
     ) -> None:
         self.ast = module_node
         self.input_bundle = input_bundle
         self.namespace = namespace
+        self._import_graph = import_graph
+        self.is_interface = is_interface
 
-        # TODO: Move computation out of constructor
-        module_nodes = module_node.body.copy()
-        while module_nodes:
-            count = len(module_nodes)
+        # keep track of imported modules to prevent duplicate imports
+        self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
+
+        self.module_t: Optional[ModuleT] = None
+
+        # ast cache, hitchhike onto the input_bundle object
+        if not hasattr(self.input_bundle._cache, "_ast_of"):
+            self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
+
+    def analyze(self) -> ModuleT:
+        # generate a `ModuleT` from the top-level node
+        # note: also validates unique method ids
+        if "type" in self.ast._metadata:
+            assert isinstance(self.ast._metadata["type"], ModuleT)
+            # we don't need to analyse again, skip out
+            self.module_t = self.ast._metadata["type"]
+            return self.module_t
+
+        to_visit = self.ast.body.copy()
+
+        # handle imports linearly
+        # (do this instead of handling in the next block so that
+        # `self._imported_modules` does not end up with garbage in it after
+        # exception swallowing).
+        import_stmts = self.ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
+        for node in import_stmts:
+            self.visit(node)
+            to_visit.remove(node)
+
+        # keep trying to process all the nodes until we finish or can
+        # no longer progress. this makes it so we don't need to
+        # calculate a dependency tree between top-level items.
+        while len(to_visit) > 0:
+            count = len(to_visit)
             err_list = ExceptionList()
-            for node in list(module_nodes):
+            for node in to_visit.copy():
                 try:
                     self.visit(node)
-                    module_nodes.remove(node)
-                except (InvalidLiteral, InvalidType, VariableDeclarationException):
+                    to_visit.remove(node)
+                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
                     # these exceptions cannot be caused by another statement not yet being
                     # parsed, so we raise them immediately
-                    raise
+                    raise e from None
                 except VyperException as e:
                     err_list.append(e)
 
             # Only raise if no nodes were successfully processed. This allows module
             # level logic to parse regardless of the ordering of code elements.
-            if count == len(module_nodes):
+            if count == len(to_visit):
                 err_list.raise_if_not_empty()
 
-        # generate an `InterfaceT` from the top-level node - used for building the ABI
-        # note: also validates unique method ids
-        interface = InterfaceT.from_ast(module_node)
-        module_node._metadata["type"] = interface
-        self.interface = interface  # this is useful downstream
+        self.module_t = ModuleT(self.ast)
+        self.ast._metadata["type"] = self.module_t
 
         # attach namespace to the module for downstream use.
         _ns = Namespace()
         # note that we don't just copy the namespace because
         # there are constructor issues.
-        _ns.update({k: namespace[k] for k in namespace._scopes[-1]})  # type: ignore
-        module_node._metadata["namespace"] = _ns
+        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
+        self.ast._metadata["namespace"] = _ns
 
-        self_members = namespace["self"].typ.members
+        self.analyze_call_graph()
 
+        return self.module_t
+
+    def analyze_call_graph(self):
         # get list of internal function calls made by each function
-        function_defs = self.ast.get_children(vy_ast.FunctionDef)
-        function_names = set(node.name for node in function_defs)
-        for node in function_defs:
-            calls_to_self = set(
-                i.func.attr for i in node.get_descendants(vy_ast.Call, {"func.value.id": "self"})
-            )
-            # anything that is not a function call will get semantically checked later
-            calls_to_self = calls_to_self.intersection(function_names)
-            self_members[node.name].internal_calls = calls_to_self
+        function_defs = self.module_t.function_defs
 
-        for fn_name in sorted(function_names):
-            if fn_name not in self_members:
-                # the referenced function does not exist - this is an issue, but we'll report
-                # it later when parsing the function so we can give more meaningful output
-                continue
+        for func in function_defs:
+            fn_t = func._metadata["func_type"]
 
-            # check for circular function calls
-            sequence = _find_cyclic_call([fn_name], self_members)
-            if sequence is not None:
-                nodes = []
-                for i in range(len(sequence) - 1):
-                    fn_node = self.ast.get_children(vy_ast.FunctionDef, {"name": sequence[i]})[0]
-                    call_node = fn_node.get_descendants(
-                        vy_ast.Attribute, {"value.id": "self", "attr": sequence[i + 1]}
-                    )[0]
-                    nodes.append(call_node)
+            function_calls = func.get_descendants(vy_ast.Call)
 
-                raise CallViolation("Contract contains cyclic function call", *nodes)
+            for call in function_calls:
+                try:
+                    call_t = get_exact_type_from_node(call.func)
+                except VyperException:
+                    # either there is a problem getting the call type. this is
+                    # an issue, but it will be handled properly later. right now
+                    # we just want to be able to construct the call graph.
+                    continue
 
-            # get complete list of functions that are reachable from this function
-            function_set = set(i for i in self_members[fn_name].internal_calls if i in self_members)
-            while True:
-                expanded = set(x for i in function_set for x in self_members[i].internal_calls)
-                expanded |= function_set
-                if expanded == function_set:
-                    break
-                function_set = expanded
+                if isinstance(call_t, ContractFunctionT) and call_t.is_internal:
+                    fn_t.called_functions.add(call_t)
 
-            self_members[fn_name].recursive_calls = function_set
+        for func in function_defs:
+            fn_t = func._metadata["func_type"]
+
+            # compute reachable set and validate the call graph
+            _compute_reachable_set(fn_t)
+
+    def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
+        # cache ast if we have seen it before.
+        # this gives us the additional property of object equality on
+        # two ASTs produced from the same source
+        ast_of = self.input_bundle._cache._ast_of
+        if file.source_id not in ast_of:
+            ast_of[file.source_id] = _parse_and_fold_ast(file)
+
+        return ast_of[file.source_id]
 
     def visit_ImplementsDecl(self, node):
         type_ = type_from_annotation(node.annotation)
+
         if not isinstance(type_, InterfaceT):
             raise StructureException("Invalid interface name", node.annotation)
 
@@ -154,8 +229,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["func_type"] = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = ContractFunctionT.getter_from_VariableDecl(node)
 
+        # TODO: move this check to local analysis
         if node.is_immutable:
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
@@ -222,22 +298,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 self.namespace["self"].typ.add_member(name, var_info)
                 node.target._metadata["type"] = type_
             except NamespaceCollision:
+                # rewrite the error message to be slightly more helpful
                 raise NamespaceCollision(
                     f"Value '{name}' has already been declared", node
                 ) from None
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
 
         def _validate_self_namespace():
             # block globals if storage variable already exists
-            try:
-                if name in self.namespace["self"].typ.members:
-                    raise NamespaceCollision(
-                        f"Value '{name}' has already been declared", node
-                    ) from None
-                self.namespace[name] = var_info
-            except VyperException as exc:
-                raise exc.with_annotation(node) from None
+            if name in self.namespace["self"].typ.members:
+                raise NamespaceCollision(
+                    f"Value '{name}' has already been declared", node
+                ) from None
+            self.namespace[name] = var_info
 
         if node.is_constant:
             if not node.value:
@@ -263,41 +335,50 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             _validate_self_namespace()
             return _finalize()
 
-        try:
-            self.namespace.validate_assignment(name)
-        except NamespaceCollision as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace.validate_assignment(name)
 
         return _finalize()
 
     def visit_EnumDef(self, node):
         obj = EnumT.from_EnumDef(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace[node.name] = obj
 
     def visit_EventDef(self, node):
         obj = EventT.from_EventDef(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        node._metadata["event_type"] = obj
+        self.namespace[node.name] = obj
 
     def visit_FunctionDef(self, node):
-        func = ContractFunctionT.from_FunctionDef(node)
+        if self.is_interface:
+            func_t = ContractFunctionT.from_vyi(node)
+            if not func_t.is_external:
+                # TODO test me!
+                raise StructureException(
+                    "Internal functions in `.vyi` files are not allowed!", node
+                )
+        else:
+            func_t = ContractFunctionT.from_FunctionDef(node)
 
-        try:
-            self.namespace["self"].typ.add_member(func.name, func)
-            node._metadata["type"] = func
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        self.namespace["self"].typ.add_member(func_t.name, func_t)
+        node._metadata["func_type"] = func_t
 
     def visit_Import(self, node):
-        if not node.alias:
-            raise StructureException("Import requires an accompanying `as` statement", node)
         # import x.y[name] as y[alias]
-        self._add_import(node, 0, node.name, node.alias)
+
+        alias = node.alias
+
+        if alias is None:
+            alias = node.name
+
+        # don't handle things like `import x.y`
+        if "." in alias:
+            suggested_alias = node.name[node.name.rfind(".") :]
+            suggestion = f"hint: try `import {node.name} as {suggested_alias}`"
+            raise StructureException(
+                f"import requires an accompanying `as` statement ({suggestion})", node
+            )
+
+        self._add_import(node, 0, node.name, alias)
 
     def visit_ImportFrom(self, node):
         # from m.n[module] import x[name] as y[alias]
@@ -311,42 +392,87 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
-        obj = InterfaceT.from_ast(node)
-        try:
-            self.namespace[node.name] = obj
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        obj = InterfaceT.from_InterfaceDef(node)
+        self.namespace[node.name] = obj
 
     def visit_StructDef(self, node):
-        struct_t = StructT.from_ast_def(node)
-        try:
-            self.namespace[node.name] = struct_t
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
+        struct_t = StructT.from_StructDef(node)
+        node._metadata["struct_type"] = struct_t
+        self.namespace[node.name] = struct_t
 
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        type_ = self._load_import(level, qualified_module_name)
+        module_info = self._load_import(node, level, qualified_module_name, alias)
+        node._metadata["import_info"] = ImportInfo(
+            module_info, alias, qualified_module_name, self.input_bundle, node
+        )
+        self.namespace[alias] = module_info
 
-        try:
-            self.namespace[alias] = type_
-        except VyperException as exc:
-            raise exc.with_annotation(node) from None
-
-    # load an InterfaceT from an import.
+    # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(self, level: int, module_str: str) -> InterfaceT:
+    def _load_import(self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str) -> Any:
+        # the directory this (currently being analyzed) module is in
+        self_search_path = Path(self.ast.resolved_path).parent
+
+        with self.input_bundle.poke_search_path(self_search_path):
+            return self._load_import_helper(node, level, module_str, alias)
+
+    def _load_import_helper(
+        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
+    ) -> Any:
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
 
+        # this could conceivably be in the ImportGraph but no need at this point
+        if path in self._imported_modules:
+            previous_import_stmt = self._imported_modules[path]
+            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
+
+        self._imported_modules[path] = node
+
+        err = None
+
         try:
-            file = self.input_bundle.load_file(path.with_suffix(".vy"))
+            path_vy = path.with_suffix(".vy")
+            file = self.input_bundle.load_file(path_vy)
             assert isinstance(file, FileInput)  # mypy hint
-            interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=str(file.path))
-            return InterfaceT.from_ast(interface_ast)
+
+            module_ast = self._ast_from_file(file)
+
+            with override_global_namespace(Namespace()):
+                module_t = validate_semantics_r(
+                    module_ast,
+                    self.input_bundle,
+                    import_graph=self._import_graph,
+                    is_interface=False,
+                )
+
+                return ModuleInfo(module_t)
+
+        except FileNotFoundError as e:
+            # escape `e` from the block scope, it can make things
+            # easier to debug.
+            err = e
+
+        try:
+            file = self.input_bundle.load_file(path.with_suffix(".vyi"))
+            assert isinstance(file, FileInput)  # mypy hint
+            module_ast = self._ast_from_file(file)
+
+            with override_global_namespace(Namespace()):
+                validate_semantics_r(
+                    module_ast,
+                    self.input_bundle,
+                    import_graph=self._import_graph,
+                    is_interface=True,
+                )
+                module_t = module_ast._metadata["type"]
+
+                return module_t.interface
+
         except FileNotFoundError:
             pass
 
@@ -355,7 +481,24 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assert isinstance(file, ABIInput)  # mypy hint
             return InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
-            raise ModuleNotFoundError(module_str)
+            pass
+
+        # copy search_paths, makes debugging a bit easier
+        search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
+        raise ModuleNotFound(module_str, node) from err
+
+
+def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
+    ret = vy_ast.parse_to_ast(
+        file.source_code,
+        source_id=file.source_id,
+        module_path=str(file.path),
+        resolved_path=str(file.resolved_path),
+    )
+    vy_ast.validation.validate_literal_nodes(ret)
+    vy_ast.folding.fold(ret)
+
+    return ret
 
 
 # convert an import to a path (without suffix)
@@ -397,7 +540,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         remapped_module = remapped_module.removeprefix("vyper.interfaces")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
 
-    path = _import_to_path(level, remapped_module).with_suffix(".vy")
+    path = _import_to_path(level, remapped_module).with_suffix(".vyi")
 
     try:
         file = input_bundle.load_file(path)
@@ -406,5 +549,8 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast = vy_ast.parse_to_ast(file.source_code, contract_name=module_str)
-    return InterfaceT.from_ast(interface_ast)
+    interface_ast = _parse_and_fold_ast(file)
+
+    with override_global_namespace(Namespace()):
+        module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
+    return module_t.interface

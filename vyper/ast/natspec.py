@@ -43,7 +43,7 @@ def parse_natspec(vyper_module_folded: vy_ast.Module) -> Tuple[dict, dict]:
 
     for node in [i for i in vyper_module_folded.body if i.get("doc_string.value")]:
         docstring = node.doc_string.value
-        func_type = node._metadata["type"]
+        func_type = node._metadata["func_type"]
         if func_type.visibility != FunctionVisibility.EXTERNAL:
             continue
 

@@ -7,17 +7,38 @@ from typing import Optional, Tuple
 from vyper import ast as vy_ast
 from vyper.codegen import module
 from vyper.codegen.core import anchor_opt_level
-from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
+from vyper.venom import generate_assembly_experimental, generate_ir
 
-DEFAULT_CONTRACT_NAME = PurePath("VyperContract.vy")
+DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
+
+
+def _merge_one(lhs, rhs, helpstr):
+    if lhs is not None and rhs is not None and lhs != rhs:
+        raise StructureException(
+            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
+        )
+    return lhs if rhs is None else rhs
+
+
+# TODO: does this belong as a method under Settings?
+def _merge_settings(cli: Settings, pragma: Settings):
+    ret = Settings()
+    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
+    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
+    ret.experimental_codegen = _merge_one(
+        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
+    )
+
+    return ret
 
 
 class CompilerData:
@@ -36,7 +57,7 @@ class CompilerData:
         Annotated but unfolded Vyper AST
     vyper_module_folded : vy_ast.Module
         Annotated and folded Vyper AST
-    global_ctx : GlobalContext
+    global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
         IR used to generate deployment bytecode
@@ -54,10 +75,8 @@ class CompilerData:
 
     def __init__(
         self,
-        source_code: str,
+        file_input: FileInput | str,
         input_bundle: InputBundle = None,
-        contract_path: Path | PurePath = DEFAULT_CONTRACT_NAME,
-        source_id: int = 0,
         settings: Settings = None,
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
@@ -68,12 +87,10 @@ class CompilerData:
 
         Arguments
         ---------
-        source_code: str
-            Vyper source code.
-        contract_path: Path, optional
-            The name of the contract being compiled.
-        source_id: int, optional
-            ID number used to identify this contract in the source map.
+        file_input: FileInput | str
+            A FileInput or string representing the input to the compiler.
+            FileInput is preferred, but `str` is accepted as a convenience
+            method (and also for backwards compatibility reasons)
         settings: Settings
             Set optimization mode.
         show_gas_estimates: bool, optional
@@ -81,48 +98,52 @@ class CompilerData:
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
         """
-        self.contract_path = contract_path
-        self.source_code = source_code
-        self.source_id = source_id
+        # to force experimental codegen, uncomment:
+        # settings.experimental_codegen = True
+
+        if isinstance(file_input, str):
+            file_input = FileInput(
+                source_code=file_input,
+                source_id=-1,
+                path=DEFAULT_CONTRACT_PATH,
+                resolved_path=DEFAULT_CONTRACT_PATH,
+            )
+        self.file_input = file_input
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
         _ = self._generate_ast  # force settings to be calculated
 
     @cached_property
+    def source_code(self):
+        return self.file_input.source_code
+
+    @cached_property
+    def source_id(self):
+        return self.file_input.source_id
+
+    @cached_property
+    def contract_path(self):
+        return self.file_input.path
+
+    @cached_property
     def _generate_ast(self):
-        contract_name = str(self.contract_path)
-        settings, ast = generate_ast(self.source_code, self.source_id, contract_name)
+        settings, ast = vy_ast.parse_to_ast_with_settings(
+            self.source_code,
+            self.source_id,
+            module_path=str(self.contract_path),
+            resolved_path=str(self.file_input.resolved_path),
+        )
 
-        # validate the compiler settings
-        # XXX: this is a bit ugly, clean up later
-        if settings.evm_version is not None:
-            if (
-                self.settings.evm_version is not None
-                and self.settings.evm_version != settings.evm_version
-            ):
-                raise StructureException(
-                    f"compiler settings indicate evm version {self.settings.evm_version}, "
-                    f"but source pragma indicates {settings.evm_version}."
-                )
-
-            self.settings.evm_version = settings.evm_version
-
-        if settings.optimize is not None:
-            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
-                raise StructureException(
-                    f"compiler options indicate optimization mode {self.settings.optimize}, "
-                    f"but source pragma indicates {settings.optimize}."
-                )
-            self.settings.optimize = settings.optimize
-
-        # ensure defaults
+        self.settings = _merge_settings(self.settings, settings)
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
+
+        if self.settings.experimental_codegen is None:
+            self.settings.experimental_codegen = False
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
@@ -134,15 +155,12 @@ class CompilerData:
 
     @cached_property
     def vyper_module_annotated(self) -> vy_ast.Module:
-        return generate_annotated_ast(self.contract_path, self.vyper_module, self.input_bundle)
+        return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
     def _folded_module(self):
         return generate_folded_ast(
-            self.contract_path,
-            self.vyper_module_annotated,
-            self.input_bundle,
-            self.storage_layout_override,
+            self.vyper_module_annotated, self.input_bundle, self.storage_layout_override
         )
 
     @property
@@ -156,13 +174,19 @@ class CompilerData:
         return storage_layout
 
     @property
-    def global_ctx(self) -> GlobalContext:
-        return GlobalContext(self.vyper_module_folded)
+    def global_ctx(self) -> ModuleT:
+        return self.vyper_module_folded._metadata["type"]
 
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
+        nodes = generate_ir_nodes(
+            self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
+        )
+        if self.settings.experimental_codegen:
+            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
+        else:
+            return nodes
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -181,15 +205,25 @@ class CompilerData:
         _ = self._ir_output
 
         fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
-        return {f.name: f._metadata["type"] for f in fs}
+        return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
     def assembly(self) -> list:
-        return generate_assembly(self.ir_nodes, self.settings.optimize)
+        if self.settings.experimental_codegen:
+            return generate_assembly_experimental(
+                self.ir_nodes, self.settings.optimize  # type: ignore
+            )
+        else:
+            return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        return generate_assembly(self.ir_runtime, self.settings.optimize)
+        if self.settings.experimental_codegen:
+            return generate_assembly_experimental(
+                self.ir_runtime, self.settings.optimize  # type: ignore
+            )
+        else:
+            return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
     def bytecode(self) -> bytes:
@@ -212,36 +246,11 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_ast(
-    source_code: str, source_id: int, contract_name: str
-) -> tuple[Settings, vy_ast.Module]:
-    """
-    Generate a Vyper AST from source code.
-
-    Arguments
-    ---------
-    source_code : str
-        Vyper source code.
-    source_id : int
-        ID number used to identify this contract in the source map.
-    contract_name: str
-        Name of the contract.
-
-    Returns
-    -------
-    vy_ast.Module
-        Top-level Vyper AST node
-    """
-    return vy_ast.parse_to_ast_with_settings(source_code, source_id, contract_name)
-
-
 # destructive -- mutates module in place!
-def generate_annotated_ast(
-    contract_path: Path | PurePath, vyper_module: vy_ast.Module, input_bundle: InputBundle
-) -> vy_ast.Module:
+def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     vy_ast.validation.validate_literal_nodes(vyper_module)
 
-    with input_bundle.search_path(contract_path.parent):
+    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: validate_semantics does type inference on the AST
         validate_semantics(vyper_module, input_bundle)
 
@@ -249,7 +258,6 @@ def generate_annotated_ast(
 
 
 def generate_folded_ast(
-    contract_path: Path,
     vyper_module: vy_ast.Module,
     input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
@@ -274,13 +282,14 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
-    vy_ast.expansion.remove_unused_statements(vyper_module_folded)
+    # with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
+    #    validate_semantics(vyper_module_folded, input_bundle)
 
     return vyper_module_folded, symbol_tables
 
 
 def generate_ir_nodes(
-    global_ctx: GlobalContext, optimize: OptimizationLevel
+    global_ctx: ModuleT, optimize: OptimizationLevel, experimental_codegen: bool
 ) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
@@ -292,7 +301,7 @@ def generate_ir_nodes(
 
     Arguments
     ---------
-    global_ctx : GlobalContext
+    global_ctx: ModuleT
         Contextualized Vyper AST
 
     Returns

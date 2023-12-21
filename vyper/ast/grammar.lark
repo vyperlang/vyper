@@ -89,7 +89,8 @@ tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | a
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
 map_def: _MAP "[" ( NAME | array_def ) "," type "]"
-type: ( NAME | array_def | tuple_def | map_def | dyn_array_def )
+imported_type: NAME "." NAME
+type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
 _STRUCT_DECL: "struct"
@@ -291,7 +292,7 @@ special_builtins: empty | abi_decode
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
 NAME: /[a-zA-Z_]\w*/
-COMMENT: /#[^\n]*/
+COMMENT: /#[^\n\r]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
@@ -312,8 +313,10 @@ _number: DEC_NUMBER
 
 BOOL.2: "True" | "False"
 
+ELLIPSIS: "..."
+
 // TODO: Remove Docstring from here, and add to first part of body
-?literal: ( _number | STRING | DOCSTRING | BOOL )
+?literal: ( _number | STRING | DOCSTRING | BOOL | ELLIPSIS)
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT
