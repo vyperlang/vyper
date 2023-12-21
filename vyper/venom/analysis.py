@@ -40,15 +40,6 @@ def calculate_cfg(ctx: IRFunction) -> None:
     else:
         entry_block = ctx.basic_blocks[0]
 
-    # TODO: Special case for the jump table of selector buckets and fallback.
-    # this will be cleaner when we introduce an "indirect jump" instruction
-    # for the selector table (which includes all possible targets). it will
-    # also clean up the code for normalization because it will not have to
-    # handle this case specially.
-    for bb in ctx.basic_blocks:
-        if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
-            bb.add_cfg_in(entry_block)
-
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]

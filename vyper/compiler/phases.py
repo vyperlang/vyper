@@ -21,6 +21,26 @@ from vyper.venom import generate_assembly_experimental, generate_ir
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
+def _merge_one(lhs, rhs, helpstr):
+    if lhs is not None and rhs is not None and lhs != rhs:
+        raise StructureException(
+            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
+        )
+    return lhs if rhs is None else rhs
+
+
+# TODO: does this belong as a method under Settings?
+def _merge_settings(cli: Settings, pragma: Settings):
+    ret = Settings()
+    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
+    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
+    ret.experimental_codegen = _merge_one(
+        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
+    )
+
+    return ret
+
+
 class CompilerData:
     """
     Object for fetching and storing compiler data for a Vyper contract.
@@ -59,7 +79,6 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
-        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -76,11 +95,9 @@ class CompilerData:
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
-        experimental_codegen: bool, optional
-            Use experimental codegen. Defaults to False
         """
         # to force experimental codegen, uncomment:
-        # experimental_codegen = True
+        # settings.experimental_codegen = True
 
         if isinstance(file_input, str):
             file_input = FileInput(
@@ -93,7 +110,6 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.experimental_codegen = experimental_codegen
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
@@ -120,31 +136,12 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        # validate the compiler settings
-        # XXX: this is a bit ugly, clean up later
-        if settings.evm_version is not None:
-            if (
-                self.settings.evm_version is not None
-                and self.settings.evm_version != settings.evm_version
-            ):
-                raise StructureException(
-                    f"compiler settings indicate evm version {self.settings.evm_version}, "
-                    f"but source pragma indicates {settings.evm_version}."
-                )
-
-            self.settings.evm_version = settings.evm_version
-
-        if settings.optimize is not None:
-            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
-                raise StructureException(
-                    f"compiler options indicate optimization mode {self.settings.optimize}, "
-                    f"but source pragma indicates {settings.optimize}."
-                )
-            self.settings.optimize = settings.optimize
-
-        # ensure defaults
+        self.settings = _merge_settings(self.settings, settings)
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
+
+        if self.settings.experimental_codegen is None:
+            self.settings.experimental_codegen = False
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
@@ -179,8 +176,10 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
-        if self.experimental_codegen:
+        nodes = generate_ir_nodes(
+            self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
+        )
+        if self.settings.experimental_codegen:
             return [generate_ir(nodes[0]), generate_ir(nodes[1])]
         else:
             return nodes
@@ -206,7 +205,7 @@ class CompilerData:
 
     @cached_property
     def assembly(self) -> list:
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
             return generate_assembly_experimental(
                 self.ir_nodes, self.settings.optimize  # type: ignore
             )
@@ -215,7 +214,7 @@ class CompilerData:
 
     @cached_property
     def assembly_runtime(self) -> list:
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
             return generate_assembly_experimental(
                 self.ir_runtime, self.settings.optimize  # type: ignore
             )
@@ -285,7 +284,9 @@ def generate_folded_ast(
     return vyper_module_folded
 
 
-def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(
+    global_ctx: ModuleT, optimize: OptimizationLevel, experimental_codegen: bool
+) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 
@@ -333,7 +334,8 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
             "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!"
+            "a supported EVM! It will FAIL on all other nodes!",
+            stacklevel=2,
         )
     return assembly
 

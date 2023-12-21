@@ -64,5 +64,5 @@ def test_type_storage_sizes():
     assert struct_.storage_slots_required == 2
 
     # Don't allow unknown types.
-    with raises(Exception):
+    with raises(AttributeError):
         _ = int.storage_slots_required

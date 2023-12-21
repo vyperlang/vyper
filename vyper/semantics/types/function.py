@@ -644,6 +644,7 @@ def _parse_decorators(
                         "'@constant' decorator has been removed (see VIP2040). "
                         "Use `@view` instead.",
                         DeprecationWarning,
+                        stacklevel=2,
                     )
                 raise FunctionDeclarationException(f"Unknown decorator: {decorator.id}", decorator)
 
