@@ -2,7 +2,7 @@ import copy
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Optional, Tuple
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
@@ -12,7 +12,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics import validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -161,21 +161,16 @@ class CompilerData:
 
         return generate_unfolded_ast(self.vyper_module, self.input_bundle)
 
-    @cached_property
-    def _folded_module(self):
+    @property
+    def vyper_module_folded(self) -> vy_ast.Module:
         return generate_folded_ast(
             self.vyper_module, self.input_bundle, self.storage_layout_override
         )
 
     @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        module, storage_layout = self._folded_module
-        return module
-
-    @property
     def storage_layout(self) -> StorageLayout:
-        module, storage_layout = self._folded_module
-        return storage_layout
+        module = self.vyper_module_folded
+        return module._metadata["variables_layout"]
 
     @property
     def global_ctx(self) -> ModuleT:
@@ -264,7 +259,7 @@ def generate_folded_ast(
     vyper_module: vy_ast.Module,
     input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
-) -> Tuple[vy_ast.Module, StorageLayout]:
+) -> vy_ast.Module:
     """
     Perform constant folding operations on the Vyper AST.
 
@@ -277,8 +272,6 @@ def generate_folded_ast(
     -------
     vy_ast.Module
         Folded Vyper AST
-    StorageLayout
-        Layout of variables in storage
     """
 
     vy_ast.validation.validate_literal_nodes(vyper_module)
@@ -287,11 +280,9 @@ def generate_folded_ast(
     vy_ast.folding.fold(vyper_module_folded)
 
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        validate_semantics(vyper_module_folded, input_bundle)
+        validate_semantics(vyper_module_folded, input_bundle, storage_layout_overrides)
 
-    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
-
-    return vyper_module_folded, symbol_tables
+    return vyper_module_folded
 
 
 def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:

@@ -37,7 +37,6 @@ from vyper.exceptions import (
     tag_exceptions,
 )
 from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.analysis.utils import get_expr_info
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -269,7 +268,8 @@ class Expr:
         # Reserved keywords
         elif (
             # TODO: use type information here
-            isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id in ENVIRONMENT_VARIABLES
+            isinstance(self.expr.value, vy_ast.Name)
+            and self.expr.value.id in ENVIRONMENT_VARIABLES
         ):
             key = f"{self.expr.value.id}.{self.expr.attr}"
             if key == "msg.sender":
@@ -334,7 +334,7 @@ class Expr:
             global_t = self.context.module_ctx
             if module_ptr.value == "self":
                 # TODO: self.context.self_ptr
-                module_ptr = IRnode.from_list(0, typ=global_t, location=STORAGE)
+                module_ptr = IRnode.from_list(0, typ=global_t, location=location)
 
             ret = get_element_ptr(module_ptr, self.expr.attr)
             ret._referenced_variables = {varinfo}

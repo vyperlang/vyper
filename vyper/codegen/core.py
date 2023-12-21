@@ -12,12 +12,12 @@ from vyper.semantics.types import (
     BoolT,
     BytesM_T,
     BytesT,
-    ModuleT,
     DArrayT,
     DecimalT,
     HashMapT,
     IntegerT,
     InterfaceT,
+    ModuleT,
     StructT,
     TupleT,
     _BytestringT,
@@ -441,6 +441,7 @@ def _getelemptr_abi_helper(parent, member_t, ofst, clamp=True):
         encoding=parent.encoding,
         annotation=f"{parent}{ofst}",
     )
+
 
 # get a variable out of a module
 def _get_element_ptr_module(parent, key):
