@@ -472,7 +472,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     runtime.extend(internal_functions_ir)
 
     deploy_code: List[Any] = ["seq"]
-    immutables_len = module_ctx.immutable_section_bytes
+    immutables_len = module_ctx.immutable_bytes_required
     if init_function:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
         init_func_t = init_function._metadata["func_type"]

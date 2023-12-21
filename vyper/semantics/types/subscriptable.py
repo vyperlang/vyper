@@ -174,10 +174,9 @@ class SArrayT(_SequenceT):
         ret["type"] += f"[{self.length}]"
         return _set_first_key(ret, "name", name)
 
-    # TODO rename to `memory_bytes_required`
     @property
-    def size_in_bytes(self):
-        return self.value_type.size_in_bytes * self.length
+    def _size_in_bytes(self):
+        return self.value_type._size_in_bytes * self.length
 
     @property
     def subtype(self):
@@ -257,11 +256,10 @@ class DArrayT(_SequenceT):
         ret["type"] += "[]"
         return _set_first_key(ret, "name", name)
 
-    # TODO rename me to memory_bytes_required
     @property
-    def size_in_bytes(self):
+    def _size_in_bytes(self):
         # one length word + size of the array items
-        return 32 + self.value_type.size_in_bytes * self.length
+        return 32 + self.value_type._size_in_bytes * self.length
 
     def compare_type(self, other):
         # TODO allow static array to be assigned to dyn array?
@@ -355,8 +353,8 @@ class TupleT(VyperType):
         return {"name": name, "type": "tuple", "components": components}
 
     @property
-    def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.member_types)
+    def _size_in_bytes(self):
+        return sum(i._size_in_bytes for i in self.member_types)
 
     def validate_index_type(self, node):
         if not isinstance(node, vy_ast.Int):

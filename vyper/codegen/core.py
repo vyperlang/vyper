@@ -462,7 +462,7 @@ def _get_element_ptr_module(parent, key):
     assert parent.location == STORAGE, parent.location
 
     for i in range(index):
-        ofst += module_t.variables[attrs[i]].typ.storage_size_in_words
+        ofst += module_t.variables[attrs[i]].typ.storage_slots_required
 
     # calculated the same way both ways
     assert ofst == module_t.variables[key].position.position
@@ -519,7 +519,7 @@ def _get_element_ptr_tuplelike(parent, key):
 
     if parent.location.word_addressable:
         for i in range(index):
-            ofst += typ.member_types[attrs[i]].storage_size_in_words
+            ofst += typ.member_types[attrs[i]].storage_slots_required
     elif parent.location.byte_addressable:
         for i in range(index):
             ofst += typ.member_types[attrs[i]].memory_bytes_required
@@ -586,7 +586,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         return _getelemptr_abi_helper(parent, subtype, ofst)
 
     if parent.location.word_addressable:
-        element_size = subtype.storage_size_in_words
+        element_size = subtype.storage_slots_required
     elif parent.location.byte_addressable:
         element_size = subtype.memory_bytes_required
     else:

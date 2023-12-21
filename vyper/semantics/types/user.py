@@ -359,8 +359,8 @@ class StructT(_UserType):
         return f"struct {self._id}({arg_types})"
 
     @property
-    def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.member_types.values())
+    def _size_in_bytes(self):
+        return sum(i._size_in_bytes for i in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:

@@ -120,7 +120,7 @@ def set_storage_slots_with_overrides(
         # Expect to find this variable within the storage layout overrides
         if node.target.id in storage_layout_overrides:
             var_slot = storage_layout_overrides[node.target.id]["slot"]
-            storage_length = varinfo.typ.storage_size_in_words
+            storage_length = varinfo.typ.storage_slots_required
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
@@ -205,7 +205,7 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         # I'm not sure if it's safe to avoid allocating that slot
         # for HashMaps because downstream code might use the slot
         # ID as a salt.
-        n_slots = type_.storage_size_in_words
+        n_slots = type_.storage_slots_required
         slot = allocator.allocate_slot(n_slots, varname)
 
         varinfo.set_position(StorageSlot(slot))
@@ -234,10 +234,10 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
         if not varinfo.is_immutable:
             continue
 
+        len_ = ceil32(type_.immutable_bytes_required)
+
         type_ = varinfo.typ
         varinfo.set_position(CodeOffset(offset))
-
-        len_ = ceil32(type_.size_in_bytes)
 
         # this could have better typing but leave it untyped until
         # we understand the use case better

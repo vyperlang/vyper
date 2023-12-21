@@ -307,10 +307,6 @@ class ModuleT(VyperType):
         else:
             return f"module {self._id} (loaded from '{self._module.resolved_path}')"
 
-    @property
-    def size_in_bytes(self):
-        return sum(v.typ.size_in_bytes for v in self.variables.values())
-
     def get_type_member(self, attr: str, node: vy_ast.VyperNode) -> VyperType:
         return self._helper.get_type_member(attr, node)
 
@@ -342,12 +338,20 @@ class ModuleT(VyperType):
         return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
 
     @cached_property
+    def storage_slots_required(self):
+        return sum(v.typ.storage_slots_required for v in self.variables.values())
+
+    @cached_property
     def immutables(self):
         return [t for t in self.variables.values() if t.is_immutable]
 
     @cached_property
-    def immutable_section_bytes(self):
-        return sum([imm.typ.memory_bytes_required for imm in self.immutables])
+    def immutable_bytes_required(self):
+        # note: super().immutable_bytes_required checks that
+        # `DataLocations.CODE not in self._invalid_locations`; this is ok because
+        # ModuleT is a bit of a hybrid - it can't be declared as an immutable, but
+        # it can have immutable members.
+        return sum(imm.typ.immutable_bytes_required for imm in self.immutables)
 
     @cached_property
     def interface(self):

@@ -12,6 +12,7 @@ from vyper.semantics.types import (
 )
 
 # TODO: this module should be merged in with other tests/functional/semantics/types/ tests.
+# and moved to tests/unit/!
 
 
 def test_bytearray_node_type():
@@ -51,17 +52,17 @@ def test_canonicalize_type():
 
 
 def test_type_storage_sizes():
-    assert IntegerT(True, 128).storage_size_in_words == 1
-    assert BytesT(12).storage_size_in_words == 2
-    assert BytesT(33).storage_size_in_words == 3
-    assert SArrayT(IntegerT(True, 128), 10).storage_size_in_words == 10
+    assert IntegerT(True, 128).storage_slots_required == 1
+    assert BytesT(12).storage_slots_required == 2
+    assert BytesT(33).storage_slots_required == 3
+    assert SArrayT(IntegerT(True, 128), 10).storage_slots_required == 10
 
     tuple_ = TupleT([IntegerT(True, 128), DecimalT()])
-    assert tuple_.storage_size_in_words == 2
+    assert tuple_.storage_slots_required == 2
 
     struct_ = StructT("Foo", {"a": IntegerT(True, 128), "b": DecimalT()})
-    assert struct_.storage_size_in_words == 2
+    assert struct_.storage_slots_required == 2
 
     # Don't allow unknown types.
     with raises(Exception):
-        _ = int.storage_size_in_words
+        _ = int.storage_slots_required

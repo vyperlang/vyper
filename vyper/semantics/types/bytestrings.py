@@ -67,7 +67,7 @@ class _BytestringT(VyperType):
             raise CompilerPanic("unreachable")
 
     @property
-    def size_in_bytes(self):
+    def _size_in_bytes(self):
         # the first slot (32 bytes) stores the actual length, and then we reserve
         # enough additional slots to store the data if it uses the max available length
         # because this data type is single-bytes, we make it so it takes the max 32 byte

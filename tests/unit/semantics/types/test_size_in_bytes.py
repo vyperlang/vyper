@@ -11,7 +11,7 @@ def test_base_types(build_node, type_str):
     node = build_node(type_str)
     type_definition = type_from_annotation(node)
 
-    assert type_definition.size_in_bytes == 32
+    assert type_definition._size_in_bytes == 32
 
 
 @pytest.mark.parametrize("type_str", BYTESTRING_TYPES)
@@ -20,7 +20,7 @@ def test_array_value_types(build_node, type_str, length, size):
     node = build_node(f"{type_str}[{length}]")
     type_definition = type_from_annotation(node)
 
-    assert type_definition.size_in_bytes == size
+    assert type_definition._size_in_bytes == size
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
@@ -29,7 +29,7 @@ def test_dynamic_array_lengths(build_node, type_str, length):
     node = build_node(f"DynArray[{type_str}, {length}]")
     type_definition = type_from_annotation(node)
 
-    assert type_definition.size_in_bytes == 32 + length * 32
+    assert type_definition._size_in_bytes == 32 + length * 32
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
@@ -38,7 +38,7 @@ def test_base_types_as_arrays(build_node, type_str, length):
     node = build_node(f"{type_str}[{length}]")
     type_definition = type_from_annotation(node)
 
-    assert type_definition.size_in_bytes == length * 32
+    assert type_definition._size_in_bytes == length * 32
 
 
 @pytest.mark.parametrize("type_str", BASE_TYPES)
@@ -49,4 +49,4 @@ def test_base_types_as_multidimensional_arrays(build_node, type_str, first, seco
 
     type_definition = type_from_annotation(node)
 
-    assert type_definition.size_in_bytes == first * second * 32
+    assert type_definition._size_in_bytes == first * second * 32

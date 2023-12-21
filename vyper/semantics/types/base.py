@@ -13,6 +13,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -68,7 +69,7 @@ class VyperType:
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
 
-    size_in_bytes = 32  # default; override for larger types
+    _size_in_bytes = 32  # default; override for larger types
 
     def __init__(self, members: Optional[Dict] = None) -> None:
         self.members: Dict = {}
@@ -120,21 +121,38 @@ class VyperType:
 
     @property
     def memory_bytes_required(self) -> int:
+        if DataLocation.MEMORY in self._invalid_locations:
+            raise CompilerPanic(f"{self} cannot be instantiated in memory!")
         # alias for API compatibility with codegen
-        return self.size_in_bytes
+        return self._size_in_bytes
 
     @property
-    def storage_size_in_words(self) -> int:
+    def storage_slots_required(self) -> int:
         # consider renaming if other word-addressable address spaces are
         # added to EVM or exist in other arches
         """
         Returns the number of words required to allocate in storage for
         this type
         """
-        r = self.memory_bytes_required
+        if DataLocation.STORAGE in self._invalid_locations:
+            raise CompilerPanic(f"{self} cannot be instantiated in storage!")
+
+        r = self._size_in_bytes
         if r % 32 != 0:
             raise CompilerPanic("Memory bytes must be multiple of 32")
         return r // 32
+
+    @property
+    def immutable_bytes_required(self) -> int:
+        """
+        Returns the number of bytes required when instantiating this type
+        in the immutables section
+        """
+        # sanity check the type can actually be instantiated as an immutable
+        if DataLocation.CODE in self._invalid_locations:
+            raise CompilerPanic(f"{self} cannot be an immutable!")
+
+        return self._size_in_bytes
 
     @property
     def canonical_abi_type(self) -> str:
