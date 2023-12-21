@@ -331,7 +331,7 @@ class Expr:
 
             module_ptr = Expr(self.expr.value, self.context).ir_node
             if module_ptr.value == "self":
-                module_ptr = self.context.self_ptr
+                module_ptr = self.context.self_ptr(location)
 
             ret = get_element_ptr(module_ptr, self.expr.attr)
             ret._referenced_variables = {varinfo}

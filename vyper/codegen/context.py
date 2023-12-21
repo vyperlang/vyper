@@ -3,8 +3,10 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.codegen.ir_node import Encoding
-from vyper.evm.address_space import MEMORY, AddrSpace
+import vyper.ast as vy_ast
+
+from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.evm.address_space import MEMORY, AddrSpace, STORAGE, IMMUTABLES
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType, ModuleT
 
@@ -91,7 +93,7 @@ class Context:
         # either the constructor, or called from the constructor
         self.is_ctor_context = is_ctor_context
 
-    def self_ptr(self):
+    def self_ptr(self, location):
         func_module = self.func_t.ast_def._parent
         assert isinstance(func_module, vy_ast.Module)
 
@@ -100,13 +102,14 @@ class Context:
 
         if module_is_compilation_target:
             # return 0 for the special case where compilation target is self
-            return IRnode.from_list(0, typ=module_t)
+            return IRnode.from_list(0, typ=module_t, location=location)
 
         # otherwise, the function compilation context takes a `self_ptr`
         # argument in the calling convention
-        # TODO: probably need to track immutables and storage variables
-        # separately
-        return IRnode.from_list("self_ptr", typ=module_t)
+        if location == STORAGE:
+            return IRnode.from_list("self_ptr_storage", typ=module_t, location=location)
+        if location == IMMUTABLES:
+            return IRnode.from_list("self_ptr_code", typ=module_t, location=location)
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
