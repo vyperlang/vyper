@@ -121,7 +121,8 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
         except UnfoldableNode:
             continue
 
-        new_node._metadata["type"] = node._metadata["type"]
+        if "type" in node._metadata:
+            new_node._metadata["type"] = node._metadata["type"]
 
         changed_nodes += 1
         vyper_module.replace_in_tree(node, new_node)
