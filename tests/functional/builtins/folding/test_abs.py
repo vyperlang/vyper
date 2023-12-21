@@ -21,7 +21,7 @@ def foo(a: int256) -> int256:
 
     vyper_ast = vy_ast.parse_to_ast(f"abs({a})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE["abs"].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE["abs"].fold(old_node)
 
     assert contract.foo(a) == new_node.value == abs(a)
 

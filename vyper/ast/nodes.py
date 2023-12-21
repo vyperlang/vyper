@@ -366,15 +366,15 @@ class VyperNode:
         """
         return None
 
-    def evaluate(self) -> "VyperNode":
+    def fold(self) -> "VyperNode":
         """
         Attempt to evaluate the content of a node and generate a new node from it.
 
-        If a node cannot be evaluated it should raise `UnfoldableNode`. This base
+        If a node cannot be evaluated, it should raise `UnfoldableNode`. This base
         method acts as a catch-all to raise on any inherited classes that do not
         implement the method.
         """
-        raise UnfoldableNode(f"{type(self)} cannot be evaluated")
+        raise UnfoldableNode(f"{type(self)} cannot be folded")
 
     def validate(self) -> None:
         """
@@ -929,7 +929,7 @@ class UnaryOp(ExprNode):
 
         return None
 
-    def evaluate(self) -> ExprNode:
+    def fold(self) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
 
@@ -992,7 +992,7 @@ class BinOp(ExprNode):
         value = self.op._op(left.value, right.value)
         return type(left).from_node(self, value=value)
 
-    def evaluate(self) -> ExprNode:
+    def fold(self) -> ExprNode:
         """
         Attempt to evaluate the arithmetic operation.
 
@@ -1143,7 +1143,7 @@ class BoolOp(ExprNode):
         value = self.op._op(values)
         return NameConstant.from_node(self, value=value)
 
-    def evaluate(self) -> ExprNode:
+    def fold(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
 
@@ -1209,7 +1209,7 @@ class Compare(ExprNode):
         value = self.op._op(left.value, right.value)
         return NameConstant.from_node(self, value=value)
 
-    def evaluate(self) -> ExprNode:
+    def fold(self) -> ExprNode:
         """
         Attempt to evaluate the comparison.
 
@@ -1320,7 +1320,7 @@ class Subscript(ExprNode):
 
         return value.elements[slice_.value]
 
-    def evaluate(self) -> ExprNode:
+    def fold(self) -> ExprNode:
         """
         Attempt to evaluate the subscript.
 

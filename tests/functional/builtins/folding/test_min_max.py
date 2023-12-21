@@ -31,7 +31,7 @@ def foo(a: decimal, b: decimal) -> decimal:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name].fold(old_node)
 
     assert contract.foo(left, right) == new_node.value
 
@@ -50,7 +50,7 @@ def foo(a: int128, b: int128) -> int128:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name].fold(old_node)
 
     assert contract.foo(left, right) == new_node.value
 
@@ -69,6 +69,6 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({left}, {right})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name].fold(old_node)
 
     assert contract.foo(left, right) == new_node.value

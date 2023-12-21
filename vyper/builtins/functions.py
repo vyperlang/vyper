@@ -135,7 +135,7 @@ class Floor(BuiltinFunctionT):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Decimal):
@@ -166,7 +166,7 @@ class Ceil(BuiltinFunctionT):
     # TODO: maybe use int136?
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Decimal):
@@ -460,7 +460,7 @@ class Len(BuiltinFunctionT):
     _inputs = [("b", (StringT.any(), BytesT.any(), DArrayT.any()))]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         arg = node.args[0]._metadata.get("folded_value")
         if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
@@ -597,7 +597,7 @@ class Keccak256(BuiltinFunctionT):
     _inputs = [("value", (BytesT.any(), BYTES32_T, StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if isinstance(value, vy_ast.Bytes):
@@ -645,7 +645,7 @@ class Sha256(BuiltinFunctionT):
     _inputs = [("value", (BYTES32_T, BytesT.any(), StringT.any()))]
     _return_type = BYTES32_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if isinstance(value, vy_ast.Bytes):
@@ -718,7 +718,7 @@ class MethodID(FoldedFunctionT):
     _inputs = [("value", StringT.any())]
     _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BytesT(4))}
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1, ["output_type"])
 
         value = node.args[0]._metadata.get("folded_value")
@@ -742,8 +742,8 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `evaluate` for its typechecking side effects
-        self.evaluate(node)
+        # call `fold` for its typechecking side effects
+        self.fold(node)
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
@@ -993,7 +993,7 @@ class AsWeiValue(BuiltinFunctionT):
 
         return denom
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 2)
         denom = self.get_denomination(node)
 
@@ -1012,9 +1012,9 @@ class AsWeiValue(BuiltinFunctionT):
         return self._return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `evaluate` for its typechecking side effects`
+        # call `fold` for its typechecking side effects`
         try:
-            self.evaluate(node)
+            self.fold(node)
         except UnfoldableNode:
             pass
 
@@ -1350,7 +1350,7 @@ class BitwiseAnd(BuiltinFunctionT):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def fold(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
             self.__class__._warned = True
@@ -1375,7 +1375,7 @@ class BitwiseOr(BuiltinFunctionT):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def fold(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
             self.__class__._warned = True
@@ -1400,7 +1400,7 @@ class BitwiseXor(BuiltinFunctionT):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def fold(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
             self.__class__._warned = True
@@ -1425,7 +1425,7 @@ class BitwiseNot(BuiltinFunctionT):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def fold(self, node):
         if not self.__class__._warned:
             vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
             self.__class__._warned = True
@@ -1451,7 +1451,7 @@ class Shift(BuiltinFunctionT):
     _return_type = UINT256_T
     _warned = False
 
-    def evaluate(self, node):
+    def fold(self, node):
         if not self.__class__._warned:
             vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
             self.__class__._warned = True
@@ -1502,7 +1502,7 @@ class _AddMulMod(BuiltinFunctionT):
     _inputs = [("a", UINT256_T), ("b", UINT256_T), ("c", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 3)
         args = [i._metadata.get("folded_value") for i in node.args]
         if isinstance(args[2], vy_ast.Int) and args[2].value == 0:
@@ -1543,7 +1543,7 @@ class PowMod256(BuiltinFunctionT):
     _inputs = [("a", UINT256_T), ("b", UINT256_T)]
     _return_type = UINT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 2)
         values = [i._metadata.get("folded_value") for i in node.args]
         if any(not isinstance(i, vy_ast.Int) for i in values):
@@ -1564,7 +1564,7 @@ class Abs(BuiltinFunctionT):
     _inputs = [("value", INT256_T)]
     _return_type = INT256_T
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Int):
@@ -2003,7 +2003,7 @@ class UnsafeDiv(_UnsafeMath):
 class _MinMax(BuiltinFunctionT):
     _inputs = [("a", (DecimalT(), IntegerT.any())), ("b", (DecimalT(), IntegerT.any()))]
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 2)
 
         left = node.args[0]._metadata.get("folded_value")
@@ -2081,7 +2081,7 @@ class Uint2Str(BuiltinFunctionT):
         len_needed = math.ceil(bits * math.log(2) / math.log(10))
         return StringT(len_needed)
 
-    def evaluate(self, node):
+    def fold(self, node):
         validate_call_args(node, 1)
         value = node.args[0]._metadata.get("folded_value")
         if not isinstance(value, vy_ast.Int):
@@ -2569,7 +2569,7 @@ class ABIDecode(BuiltinFunctionT):
 
 
 class _MinMaxValue(TypenameFoldedFunctionT):
-    def evaluate(self, node):
+    def fold(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
@@ -2588,8 +2588,8 @@ class _MinMaxValue(TypenameFoldedFunctionT):
         return ret
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `evaluate` for its typechecking side effects
-        self.evaluate(node)
+        # call `fold` for its typechecking side effects
+        self.fold(node)
         input_typedef = TYPE_T(type_from_annotation(node.args[0]))
         return [input_typedef]
 
@@ -2611,7 +2611,7 @@ class MaxValue(_MinMaxValue):
 class Epsilon(TypenameFoldedFunctionT):
     _id = "epsilon"
 
-    def evaluate(self, node):
+    def fold(self, node):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 

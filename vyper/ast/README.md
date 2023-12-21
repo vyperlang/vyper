@@ -82,8 +82,7 @@ folding include:
 
 The process of literal folding includes:
 
-1. Foldable node classes are evaluated via their `evaluate` method, which attempts
-to create a new `Constant` from the content of the given node.
+1. Foldable node classes are evaluated via their `fold` method, which attempts to create a new `Constant` from the content of the given node.
 2. Replacement nodes are generated using the `from_node` class method within the new
 node class.
 3. The modification of the tree is handled by `Module.replace_in_tree`, which locates

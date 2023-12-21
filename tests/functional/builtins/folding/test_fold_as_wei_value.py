@@ -32,7 +32,7 @@ def foo(a: decimal) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value:.10f}, '{denom}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.AsWeiValue().evaluate(old_node)
+    new_node = vy_fn.AsWeiValue().fold(old_node)
 
     assert contract.foo(value) == new_node.value
 
@@ -51,6 +51,6 @@ def foo(a: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value}, '{denom}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.AsWeiValue().evaluate(old_node)
+    new_node = vy_fn.AsWeiValue().fold(old_node)
 
     assert contract.foo(value) == new_node.value

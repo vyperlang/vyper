@@ -128,11 +128,11 @@ class BuiltinFunctionT(VyperType):
             get_exact_type_from_node(arg)
 
     def prefold(self, node):
-        if not hasattr(self, "evaluate"):
+        if not hasattr(self, "fold"):
             return None
 
         try:
-            return self.evaluate(node)
+            return self.fold(node)
         except (UnfoldableNode, VyperException):
             return None
 

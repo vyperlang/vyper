@@ -31,7 +31,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.fold()
         is_valid = True
     except ZeroDivisionException:
         is_valid = False
@@ -48,7 +48,7 @@ def test_binop_pow():
     old_node = vyper_ast.body[0].value
 
     with pytest.raises(TypeMismatch):
-        old_node.evaluate()
+        old_node.fold()
 
 
 @pytest.mark.fuzzing

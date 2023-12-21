@@ -44,7 +44,7 @@ def replace_literal_ops(vyper_module: vy_ast.Module) -> int:
     node_types = (vy_ast.BoolOp, vy_ast.BinOp, vy_ast.UnaryOp, vy_ast.Compare)
     for node in vyper_module.get_descendants(node_types, reverse=True):
         try:
-            new_node = node.evaluate()
+            new_node = node.fold()
         except UnfoldableNode:
             continue
 
@@ -79,7 +79,7 @@ def replace_subscripts(vyper_module: vy_ast.Module) -> int:
 
     for node in vyper_module.get_descendants(vy_ast.Subscript, reverse=True):
         try:
-            new_node = node.evaluate()
+            new_node = node.fold()
         except UnfoldableNode:
             continue
 
@@ -114,10 +114,10 @@ def replace_builtin_functions(vyper_module: vy_ast.Module) -> int:
 
         name = node.func.id
         func = DISPATCH_TABLE.get(name)
-        if func is None or not hasattr(func, "evaluate"):
+        if func is None or not hasattr(func, "fold"):
             continue
         try:
-            new_node = func.evaluate(node)  # type: ignore
+            new_node = func.fold(node)  # type: ignore
         except UnfoldableNode:
             continue
 
