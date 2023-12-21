@@ -464,6 +464,9 @@ def _get_element_ptr_module(parent, key):
     for i in range(index):
         ofst += module_t.variables[attrs[i]].typ.storage_size_in_words
 
+    # calculated the same way both ways
+    assert ofst == module_t.variables[key].position.position
+
     return IRnode.from_list(
         add_ofst(parent, ofst),
         typ=typ,
