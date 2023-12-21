@@ -172,6 +172,7 @@ def _validate_pure_access(node: vy_ast.Attribute, typ: VyperType) -> None:
 
 def _validate_self_reference(node: vy_ast.Name) -> None:
     # CMC 2023-10-19 this detector seems sus, things like `a.b(self)` could slip through
+    # TODO: this is now wrong, we can have things like `self.module.foo`
     if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
