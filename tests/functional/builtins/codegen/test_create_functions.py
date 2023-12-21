@@ -150,13 +150,7 @@ def test(_salt: bytes32) -> address:
 # contract, and 0xfe7100 is ERC5202 magic
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
 def test_create_from_blueprint(
-    get_contract,
-    deploy_blueprint_for,
-    w3,
-    keccak,
-    create2_address_of,
-    tx_failed,
-    blueprint_prefix,
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed, blueprint_prefix
 ):
     code = """
 @external

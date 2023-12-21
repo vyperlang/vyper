@@ -212,9 +212,9 @@ def test() -> uint256:
     ret: uint256 = 2**SOME_CONSTANT * SOME_PRIME
     return ret
     """
-    compiled_code = compile_code(code, output_formats=["ir"])["ir"]
+    ir = compile_code(code, output_formats=["ir"])["ir"]
     search = ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
-    assert search_for_sublist(compiled_code, search)
+    assert search_for_sublist(ir, search)
 
 
 def test_constant_lists(get_contract):
