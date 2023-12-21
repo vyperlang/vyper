@@ -148,15 +148,17 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
+            assert_tx_failed(lambda p=(x, y): c.foo(*p))
+            assert_compile_failed(lambda code=code_2: get_contract(code), ZeroDivisionException)
+            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
+            assert_compile_failed(lambda code=code_4: get_contract(code), ZeroDivisionException)
         else:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_tx_failed(lambda: get_contract(code_2).foo(x))
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (InvalidType, OverflowException))
+            assert_tx_failed(lambda p=(x, y): c.foo(*p))
+            assert_tx_failed(lambda code=code_2, p=x: get_contract(code).foo(p))
+            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
+            assert_compile_failed(
+                lambda code=code_4: get_contract(code), (InvalidType, OverflowException)
+            )
 
 
 COMPARISON_OPS = {
@@ -213,7 +215,7 @@ def test() -> {typ}:
         assert c.test() == val
 
     for val in bad_cases:
-        assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+        assert_compile_failed(lambda v=val: get_contract(code_template.format(typ=typ, val=v)))
 
 
 @pytest.mark.parametrize("typ", types)
