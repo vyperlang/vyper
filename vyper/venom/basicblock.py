@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -50,12 +50,15 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "invalid",
         "invoke",
         "jmp",
+        "djmp",
         "jnz",
         "log",
     ]
 )
 
-CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
+CFG_ALTERING_INSTRUCTIONS = frozenset(
+    ["jmp", "djmp", "jnz", "call", "staticcall", "invoke", "deploy"]
+)
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -235,6 +238,16 @@ class IRInstruction:
         for i, operand in enumerate(self.operands):
             if operand in replacements:
                 self.operands[i] = replacements[operand]
+
+    def replace_label_operands(self, replacements: dict) -> None:
+        """
+        Update label operands with replacements.
+        replacements are represented using a dict: "key" is replaced by "value".
+        """
+        replacements = {k.value: v for k, v in replacements.items()}
+        for i, operand in enumerate(self.operands):
+            if isinstance(operand, IRLabel) and operand.value in replacements:
+                self.operands[i] = replacements[operand.value]
 
     def __repr__(self) -> str:
         s = ""

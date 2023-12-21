@@ -892,6 +892,8 @@ def make_setter(left, right):
 _opt_level = OptimizationLevel.GAS
 
 
+# FIXME: this is to get around the fact that we don't have a
+# proper context object in the IR generation phase.
 @contextlib.contextmanager
 def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
     """
