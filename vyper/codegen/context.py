@@ -6,7 +6,7 @@ from typing import Any, Optional
 from vyper.codegen.ir_node import Encoding
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
-from vyper.semantics.types import VyperType
+from vyper.semantics.types import VyperType, ModuleT
 
 
 class Constancy(enum.Enum):
@@ -48,7 +48,7 @@ class VariableRecord:
 class Context:
     def __init__(
         self,
-        module_ctx,
+        compilation_target,
         memory_allocator,
         vars_=None,
         forvars=None,
@@ -58,9 +58,6 @@ class Context:
     ):
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars_ or {}
-
-        # Global variables, in the form (name, storage location, type)
-        self.globals = module_ctx.variables
 
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
@@ -75,9 +72,8 @@ class Context:
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
-        # store module context
-        # note the module_ctx is the type of the current compilation target!
-        self.module_ctx = module_ctx
+        # the type information for the current compilation target
+        self.compilation_target: ModuleT = compilation_target
 
         # full function type
         self.func_t = func_t
@@ -94,6 +90,23 @@ class Context:
 
         # either the constructor, or called from the constructor
         self.is_ctor_context = is_ctor_context
+
+    def self_ptr(self):
+        func_module = self.func_t.ast_def._parent
+        assert isinstance(func_module, vy_ast.Module)
+
+        module_t = func_module._metadata["type"]
+        module_is_compilation_target = (module_t == self.compilation_target)
+
+        if module_is_compilation_target:
+            # return 0 for the special case where compilation target is self
+            return IRnode.from_list(0, typ=module_t)
+
+        # otherwise, the function compilation context takes a `self_ptr`
+        # argument in the calling convention
+        # TODO: probably need to track immutables and storage variables
+        # separately
+        return IRnode.from_list("self_ptr", typ=module_t)
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr

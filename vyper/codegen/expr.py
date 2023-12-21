@@ -330,11 +330,8 @@ class Expr:
             location = TRANSIENT if varinfo.is_transient else STORAGE
 
             module_ptr = Expr(self.expr.value, self.context).ir_node
-
-            global_t = self.context.module_ctx
             if module_ptr.value == "self":
-                # TODO: self.context.self_ptr
-                module_ptr = IRnode.from_list(0, typ=global_t, location=location)
+                module_ptr = self.context.self_ptr
 
             ret = get_element_ptr(module_ptr, self.expr.attr)
             ret._referenced_variables = {varinfo}

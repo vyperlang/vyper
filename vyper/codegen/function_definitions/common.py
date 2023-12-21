@@ -101,7 +101,7 @@ class InternalFuncIR(FuncIR):
 
 # TODO: should split this into external and internal ir generation?
 def generate_ir_for_function(
-    code: vy_ast.FunctionDef, module_ctx: ModuleT, is_ctor_context: bool = False
+    code: vy_ast.FunctionDef, compilation_target: ModuleT, is_ctor_context: bool = False
 ) -> FuncIR:
     """
     Parse a function and produce IR code for the function, includes:
@@ -133,7 +133,7 @@ def generate_ir_for_function(
 
     context = Context(
         vars_=None,
-        module_ctx=module_ctx,
+        compilation_target=compilation_target,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,

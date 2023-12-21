@@ -15,6 +15,8 @@ from vyper.utils import OrderedSet, method_id_int
 def _topsort(functions):
     # single pass to get a global topological sort of functions (so that each
     # function comes after each of its callees).
+    # note this function can return functions from other modules if
+    # they are reachable!
     ret = OrderedSet()
     for func_ast in functions:
         fn_t = func_ast._metadata["func_type"]
@@ -104,12 +106,12 @@ def _ir_for_internal_function(func_ast, *args, **kwargs):
     return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
 
 
-def _generate_external_entry_points(external_functions, module_ctx):
+def _generate_external_entry_points(external_functions, compilation_target):
     entry_points = {}  # map from ABI sigs to ir code
     sig_of = {}  # reverse map from method ids to abi sig
 
     for code in external_functions:
-        func_ir = generate_ir_for_function(code, module_ctx)
+        func_ir = generate_ir_for_function(code, compilation_target)
         for abi_sig, entry_point in func_ir.entry_points.items():
             method_id = method_id_int(abi_sig)
             assert abi_sig not in entry_points
@@ -131,13 +133,13 @@ def _generate_external_entry_points(external_functions, module_ctx):
 # into a bucket (of about 8-10 items), and then uses perfect hash
 # to select the final function.
 # costs about 212 gas for typical function and 8 bytes of code (+ ~87 bytes of global overhead)
-def _selector_section_dense(external_functions, module_ctx):
+def _selector_section_dense(external_functions, compilation_target):
     function_irs = []
 
     if len(external_functions) == 0:
         return IRnode.from_list(["seq"])
 
-    entry_points, sig_of = _generate_external_entry_points(external_functions, module_ctx)
+    entry_points, sig_of = _generate_external_entry_points(external_functions, compilation_target)
 
     # generate the label so the jumptable works
     for abi_sig, entry_point in entry_points.items():
@@ -282,13 +284,13 @@ def _selector_section_dense(external_functions, module_ctx):
 # a bucket, and then descends into linear search from there.
 # costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
 # function and 24 bytes of code (+ ~23 bytes of global overhead)
-def _selector_section_sparse(external_functions, module_ctx):
+def _selector_section_sparse(external_functions, compilation_target):
     ret = ["seq"]
 
     if len(external_functions) == 0:
         return ret
 
-    entry_points, sig_of = _generate_external_entry_points(external_functions, module_ctx)
+    entry_points, sig_of = _generate_external_entry_points(external_functions, compilation_target)
 
     n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(entry_points.keys())
 
@@ -385,14 +387,14 @@ def _selector_section_sparse(external_functions, module_ctx):
 # O(n) linear search for the method id
 # mainly keep this in for backends which cannot handle the indirect jump
 # in selector_section_dense and selector_section_sparse
-def _selector_section_linear(external_functions, module_ctx):
+def _selector_section_linear(external_functions, compilation_target):
     ret = ["seq"]
     if len(external_functions) == 0:
         return ret
 
     ret.append(["if", ["lt", "calldatasize", 4], ["goto", "fallback"]])
 
-    entry_points, sig_of = _generate_external_entry_points(external_functions, module_ctx)
+    entry_points, sig_of = _generate_external_entry_points(external_functions, compilation_target)
 
     dispatcher = ["seq"]
 
@@ -421,10 +423,10 @@ def _selector_section_linear(external_functions, module_ctx):
 
 
 # take a ModuleT, and generate the runtime and deploy IR
-def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
+def generate_ir_for_module(compilation_target: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
-    function_defs = _topsort(module_ctx.function_defs)
-    reachable = _globally_reachable_functions(module_ctx.function_defs)
+    function_defs = _topsort(compilation_target.function_defs)
+    reachable = _globally_reachable_functions(compilation_target.function_defs)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     init_function = next((f for f in function_defs if _is_constructor(f)), None)
@@ -442,7 +444,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     for func_ast in internal_functions:
         # compile it so that _ir_info is populated (whether or not it makes
         # it into the final IR artifact)
-        func_ir = _ir_for_internal_function(func_ast, module_ctx, False)
+        func_ir = _ir_for_internal_function(func_ast, compilation_target, False)
 
         # only include it in the IR if it is reachable from an external
         # function.
@@ -450,16 +452,16 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
             internal_functions_ir.append(IRnode.from_list(func_ir))
 
     if core._opt_none():
-        selector_section = _selector_section_linear(external_functions, module_ctx)
+        selector_section = _selector_section_linear(external_functions, compilation_target)
     # dense vs sparse global overhead is amortized after about 4 methods.
     # (--debug will force dense selector table anyway if _opt_codesize is selected.)
     elif core._opt_codesize() and (len(external_functions) > 4 or _is_debug_mode()):
-        selector_section = _selector_section_dense(external_functions, module_ctx)
+        selector_section = _selector_section_dense(external_functions, compilation_target)
     else:
-        selector_section = _selector_section_sparse(external_functions, module_ctx)
+        selector_section = _selector_section_sparse(external_functions, compilation_target)
 
     if default_function:
-        fallback_ir = _ir_for_fallback_or_ctor(default_function, module_ctx)
+        fallback_ir = _ir_for_fallback_or_ctor(default_function, compilation_target)
     else:
         fallback_ir = IRnode.from_list(
             ["revert", 0, 0], annotation="Default function", error_msg="fallback function"
@@ -472,7 +474,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
     runtime.extend(internal_functions_ir)
 
     deploy_code: List[Any] = ["seq"]
-    immutables_len = module_ctx.immutable_bytes_required
+    immutables_len = compilation_target.immutable_bytes_required
     if init_function:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
         init_func_t = init_function._metadata["func_type"]
@@ -484,13 +486,13 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
                 # unreachable code, delete it
                 continue
 
-            func_ir = _ir_for_internal_function(f, module_ctx, is_ctor_context=True)
+            func_ir = _ir_for_internal_function(f, compilation_target, is_ctor_context=True)
             ctor_internal_func_irs.append(func_ir)
 
         # generate init_func_ir after callees to ensure they have analyzed
         # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_ctx, is_ctor_context=True)
+        init_func_ir = _ir_for_fallback_or_ctor(init_function, compilation_target, is_ctor_context=True)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
