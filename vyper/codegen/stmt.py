@@ -218,14 +218,9 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
-    def _check_valid_range_constant(self, arg_ast_node):
-        with self.context.range_scope():
-            arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-        return arg_expr
-
     def _get_range_const_value(self, arg_ast_node):
-        arg_expr = self._check_valid_range_constant(arg_ast_node)
-        return arg_expr.value
+        with self.context.range_scope():
+            return Expr.parse_value_expr(arg_ast_node, self.context)
 
     def parse_For(self):
         with self.context.block_scope():
