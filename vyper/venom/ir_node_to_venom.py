@@ -166,7 +166,6 @@ def _handle_self_call(
         ret_args.append(return_buf.value)  # type: ignore
 
     bb = ctx.get_basic_block()
-
     do_ret = func_t.return_type is not None
     if do_ret:
         invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
@@ -233,8 +232,9 @@ def _get_variable_from_address(
 
 
 def _append_return_for_stack_operand(
-    bb: IRBasicBlock, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
+    ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> None:
+    bb = ctx.get_basic_block()
     if isinstance(ret_ir, IRLiteral):
         sym = symbols.get(f"&{ret_ir.value}", None)
         new_var = bb.append_instruction("alloca", 32, ret_ir)
@@ -452,9 +452,11 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
         )  # body
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
-    elif ir.value == "jump":
-        arg_1 = _convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)
-        ctx.get_basic_block().append_instruction("jmp", arg_1)
+    elif ir.value == "djump":
+        args = [_convert_ir_basicblock(ctx, ir.args[0], symbols, variables, allocated_variables)]
+        for target in ir.args[1:]:
+            args.append(IRLabel(target.value))
+        ctx.get_basic_block().append_instruction("djmp", *args)
         _new_block(ctx)
     elif ir.value == "set":
         sym = ir.args[0]

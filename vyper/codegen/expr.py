@@ -26,6 +26,7 @@ from vyper.codegen.keccak256_helper import keccak256_helper
 from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     StructureException,
@@ -33,6 +34,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UnimplementedException,
     VyperException,
+    tag_exceptions,
 )
 from vyper.semantics.types import (
     AddressT,
@@ -79,7 +81,9 @@ class Expr:
         if fn is None:
             raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
 
-        self.ir_node = fn()
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+            self.ir_node = fn()
+
         if self.ir_node is None:
             raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
 

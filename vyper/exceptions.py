@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import textwrap
 import types
@@ -322,8 +323,9 @@ class VyperInternalException(_BaseVyperException):
 
     def __str__(self):
         return (
-            f"{self.message}\n\nThis is an unhandled internal compiler error. "
-            "Please create an issue on Github to notify the developers.\n"
+            f"{super().__str__()}\n\n"
+            "This is an unhandled internal compiler error. "
+            "Please create an issue on Github to notify the developers!\n"
             "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
         )
 
@@ -354,3 +356,17 @@ class TypeCheckFailure(VyperInternalException):
 
 class InvalidABIType(VyperInternalException):
     """An internal routine constructed an invalid ABI type"""
+
+
+@contextlib.contextmanager
+def tag_exceptions(
+    node, fallback_exception_type=CompilerPanic, fallback_message="unhandled exception"
+):
+    try:
+        yield
+    except _BaseVyperException as e:
+        if not e.annotations and not e.lineno:
+            raise e.with_annotation(node) from None
+        raise e from None
+    except Exception as e:
+        raise fallback_exception_type(fallback_message, node) from e
