@@ -125,17 +125,11 @@ class IRFunction:
             # TODO: this check could be:
             #  `if len(in_bb.cfg_out) > 1: return False`
             # but the cfg is currently not calculated "correctly" for
-            # certain special instructions (deploy instruction and
-            # selector table indirect jumps).
+            # the special deploy instruction.
             for in_bb in bb.cfg_in:
                 jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode != "jnz":
-                    continue
-                if jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRLabel):
-                    continue
-
-                # The function is not normalized
-                return False
+                if jump_inst.opcode in ("jnz", "djmp"):
+                    return False
 
         # The function is normalized
         return True

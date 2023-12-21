@@ -311,21 +311,23 @@ def _selector_section_sparse(external_functions, module_ctx):
 
         ret.append(["codecopy", dst, bucket_hdr_location, SZ_BUCKET_HEADER])
 
-        jumpdest = IRnode.from_list(["mload", 0])
-        # don't particularly like using `jump` here since it can cause
-        # issues for other backends, consider changing `goto` to allow
-        # dynamic jumps, or adding some kind of jumptable instruction
-        ret.append(["jump", jumpdest])
+        jump_targets = []
 
-        jumptable_data = ["data", "selector_buckets"]
         for i in range(n_buckets):
             if i in buckets:
                 bucket_label = f"selector_bucket_{i}"
-                jumptable_data.append(["symbol", bucket_label])
+                jump_targets.append(bucket_label)
             else:
                 # empty bucket
-                jumptable_data.append(["symbol", "fallback"])
+                jump_targets.append("fallback")
 
+        jumptable_data = ["data", "selector_buckets"]
+        jumptable_data.extend(["symbol", label] for label in jump_targets)
+
+        jumpdest = IRnode.from_list(["mload", 0])
+
+        jump_instr = IRnode.from_list(["djump", jumpdest, *jump_targets])
+        ret.append(jump_instr)
         ret.append(jumptable_data)
 
     for bucket_id, bucket in buckets.items():
