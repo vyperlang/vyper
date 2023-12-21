@@ -39,10 +39,9 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
             assert c.extrakt32(S, i) == expected_result
             assert c.extrakt32_mem(S, i) == expected_result
             assert c.extrakt32_storage(i, S) == expected_result
-            continue
-
-        with tx_failed():
-            c.extrakt32(S, i)
+        else:
+            with tx_failed():
+                c.extrakt32(S, i)
 
     print("Passed bytes32 extraction test")
 
