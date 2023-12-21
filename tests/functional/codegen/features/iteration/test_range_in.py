@@ -155,5 +155,5 @@ def testin(x: address) -> bool:
         return True
     return False
 """
-    with tx_failed():
-        get_contract_with_gas_estimation(code), TypeMismatch
+    with tx_failed(TypeMismatch):
+        get_contract_with_gas_estimation(code)
