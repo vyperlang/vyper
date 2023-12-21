@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from eth.codecs import abi
 
+from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
     InvalidType,
@@ -1158,8 +1159,8 @@ def test_invalid_contract_reference_call(tx_failed, get_contract):
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
-    with tx_failed(exception=UndeclaredDefinition):
-        get_contract(contract)
+    with pytest.raises(UndeclaredDefinition):
+        compile_code(contract)
 
 
 def test_invalid_contract_reference_return_type(tx_failed, get_contract):
@@ -1171,8 +1172,8 @@ interface Foo:
 def bar(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).foo(arg2)
 """
-    with tx_failed(exception=UnknownType):
-        get_contract(contract)
+    with pytest.raises(UnknownType):
+        compile_code(contract)
 
 
 def test_external_contract_call_declaration_expr(get_contract):
