@@ -282,9 +282,6 @@ def generate_folded_ast(
     vyper_module_folded = copy.deepcopy(vyper_module)
     vy_ast.folding.fold(vyper_module_folded)
 
-    # with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-    #    validate_semantics(vyper_module_folded, input_bundle)
-
     return vyper_module_folded, symbol_tables
 
 
