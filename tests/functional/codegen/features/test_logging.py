@@ -204,7 +204,7 @@ event MyLog:
     """
 
     with tx_failed(EventDeclarationException):
-        lambda: get_contract_with_gas_estimation(loggy_code)
+        get_contract_with_gas_estimation(loggy_code)
 
 
 def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
