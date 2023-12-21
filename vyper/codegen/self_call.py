@@ -93,7 +93,8 @@ def ir_for_self_call(stmt_expr, context):
     goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
     # pass return buffer to subroutine
     if return_buffer is not None:
-        goto_op += [return_buffer]
+        goto_op.append(return_buffer)
+
     # pass return label to subroutine
     goto_op.append(["symbol", return_label])
 

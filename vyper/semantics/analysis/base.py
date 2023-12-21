@@ -262,18 +262,23 @@ class ExprInfo:
             raise ImmutableViolation("Cannot write to calldata", node)
         if self.is_constant:
             raise ImmutableViolation("Constant value cannot be written to", node)
+
+        func_node = node.get_ancestor(vy_ast.FunctionDef)
+        func_t = func_node._metadata["func_type"]
+
         if self.is_immutable:
-            if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+            if func_node.name != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
 
             if len(self._var_info._writes) > 0:
                 raise ImmutableViolation(
                     "Immutable value cannot be modified after assignment", node
                 )
-            self._var_info._writes.append(node)
 
-        if self.location == DataLocation.STORAGE:
-            self._var_info._writes.append(node)
+        # tag it in the metadata
+        node._metadata["variable_write"] = self._var_info
+        self._var_info._writes.append(node)
+        func_t._variable_writes.append(node)
 
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)

@@ -264,17 +264,17 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
-        target = get_expr_info(node.target)
-        if isinstance(target.typ, HashMapT):
+        target_info = get_expr_info(node.target)
+        if isinstance(target_info.typ, HashMapT):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        validate_expected_type(node.value, target.typ)
-        target.validate_modification(node, self.func.mutability)
+        validate_expected_type(node.value, target_info.typ)
+        target_info.validate_modification(node, self.func.mutability)
 
-        self.expr_visitor.visit(node.value, target.typ)
-        self.expr_visitor.visit(node.target, target.typ)
+        self.expr_visitor.visit(node.value, target_info.typ)
+        self.expr_visitor.visit(node.target, target_info.typ)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -614,6 +614,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         if (var_info := info._var_info) is not None:
             node._metadata["variable_access"] = var_info
             var_info._reads.append(node)
+            self.func._variable_reads.append(node)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)

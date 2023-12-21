@@ -107,9 +107,33 @@ class ContractFunctionT(VyperType):
         # recursively reachable from this function
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
+        # list of variables read in this function
+        self._variable_reads: list[vy_ast.VyperNode] = []
+        # list of variables written in this function
+        self._variable_writes: list[vy_ast.VyperNode] = []
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
+
+    def touches_location(self, location):
+        for r in self._variable_reads:
+            if r._metadata["variable_access"].location == location:
+                return True
+        for w in self._variable_writes:
+            if w._metadata["variable_write"].location == location:
+                return True
+        return False
+
+    @property
+    def touched_locations(self):
+        # return the DataLocations of touched module variables
+        ret = []
+        possible_locations = [DataLocation.STORAGE, DataLocation.CODE]
+        for location in possible_locations:
+            if self.touches_location(location):
+                ret.append(location)
+        return ret
 
     @cached_property
     def call_site_kwargs(self):
