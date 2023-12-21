@@ -114,7 +114,8 @@ def create_and_return_proxy(inp: address) -> address:
 
     c2 = get_contract_with_gas_estimation(outer_code)
 
-    assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
+    with assert_tx_failed():
+        c2.create_and_call_returnten(c.address)
 
     print("Passed minimal proxy exception test")
 
@@ -202,7 +203,8 @@ def foo_call(_addr: address):
 
     # manually specifying an insufficient amount should fail
     outer_contract = get_contract(outer_code.format(", gas=15000"))
-    assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
+    with assert_tx_failed():
+        outer_contract.foo_call(inner_contract.address)
 
 
 def test_static_call(get_contract):
@@ -349,7 +351,8 @@ def foo(_addr: address) -> int128:
     target = get_contract(target_source)
     caller = get_contract(caller_source)
 
-    assert_tx_failed(lambda: caller.foo(target.address))
+    with assert_tx_failed():
+        caller.foo(target.address)
 
 
 def test_checkable_raw_call(get_contract, assert_tx_failed):

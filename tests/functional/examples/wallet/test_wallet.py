@@ -45,24 +45,20 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     c.approve(0, "0x" + to.hex(), value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with assert_tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if an invalid signature is given
     sigs = pack_and_sign(1, k1, 0, k7, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with assert_tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if transaction number is incorrect (the first argument should be 1)
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with assert_tx_failed():
+        c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
-    )  # noqa: E501
+    with assert_tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
 
     # this call should succeed

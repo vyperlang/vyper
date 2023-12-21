@@ -39,7 +39,8 @@ def foo(a: decimal, b: decimal) -> decimal:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        assert_tx_failed(lambda: contract.foo(left, right))
+        with assert_tx_failed():
+            contract.foo(left, right)
 
 
 def test_binop_pow():
@@ -83,4 +84,5 @@ def foo({input_value}) -> decimal:
     if is_valid:
         assert contract.foo(*values) == expected
     else:
-        assert_tx_failed(lambda: contract.foo(*values))
+        with assert_tx_failed():
+            contract.foo(*values)

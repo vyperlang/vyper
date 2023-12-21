@@ -35,7 +35,8 @@ def foo(a: int128, b: int128) -> int128:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        assert_tx_failed(lambda: contract.foo(left, right))
+        with assert_tx_failed():
+            contract.foo(left, right)
 
 
 st_uint64 = st.integers(min_value=0, max_value=2**64)
@@ -64,7 +65,8 @@ def foo(a: uint256, b: uint256) -> uint256:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        assert_tx_failed(lambda: contract.foo(left, right))
+        with assert_tx_failed():
+            contract.foo(left, right)
 
 
 @pytest.mark.xfail(reason="need to implement safe exponentiation logic")
@@ -122,4 +124,5 @@ def foo({input_value}) -> int128:
     if is_valid:
         assert contract.foo(*values) == expected
     else:
-        assert_tx_failed(lambda: contract.foo(*values))
+        with assert_tx_failed():
+            contract.foo(*values)

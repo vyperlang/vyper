@@ -5,4 +5,5 @@ def test_name_registry(w3, get_contract, assert_tx_failed):
     c = get_contract(code)
     c.register(b"jacques", a0, transact={})
     assert c.lookup(b"jacques") == a0
-    assert_tx_failed(lambda: c.register(b"jacques", a1))
+    with assert_tx_failed():
+        c.register(b"jacques", a1)

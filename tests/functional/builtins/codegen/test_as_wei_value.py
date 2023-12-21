@@ -36,7 +36,8 @@ def foo(a: uint256) -> uint256:
     assert c.foo(value) == value * (10**multiplier)
 
     value = (2**256 - 1) // (10 ** (multiplier - 1))
-    assert_tx_failed(lambda: c.foo(value))
+    with assert_tx_failed():
+        c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
@@ -77,7 +78,8 @@ def foo(a: {data_type}) -> uint256:
     """
 
     c = get_contract(code)
-    assert_tx_failed(lambda: c.foo(value))
+    with assert_tx_failed():
+        c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())

@@ -31,7 +31,8 @@ def get_50_blockhash() -> bytes32:
     return blockhash(block.number - 257)
 """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.get_50_blockhash())
+    with assert_tx_failed():
+        c.get_50_blockhash()
 
 
 def test_non_existing_blockhash(assert_tx_failed, get_contract_with_gas_estimation):
@@ -41,4 +42,5 @@ def get_future_blockhash() -> bytes32:
     return blockhash(block.number + 1)
 """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.get_future_blockhash())
+    with assert_tx_failed():
+        c.get_future_blockhash()

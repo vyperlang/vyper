@@ -158,5 +158,5 @@ def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimati
 def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """
-
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    with assert_tx_failed(TypeMismatch):
+        get_contract_with_gas_estimation(code)

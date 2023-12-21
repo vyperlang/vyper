@@ -25,8 +25,10 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 0
     assert c.foo(hi) == 0
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))  # note: lo < 0
+    with assert_tx_failed():
+        c.foo(-1)
+    with assert_tx_failed():
+        c.foo(lo)  # note: lo < 0
 
 
 @pytest.mark.parametrize("typ", types)
@@ -43,8 +45,10 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 1
     assert c.foo(hi) == 1
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))
+    with assert_tx_failed():
+        c.foo(-1)
+    with assert_tx_failed():
+        c.foo(lo)
 
 
 def test_exponent_base_minus_one(get_contract):
@@ -73,7 +77,8 @@ def bar() -> int16:
     """
     c = get_contract(code)
     # known bug: 2985
-    assert_tx_failed(lambda: c.bar())
+    with assert_tx_failed():
+        c.bar()
 
 
 def test_exponent_min_int16(get_contract):
@@ -116,7 +121,8 @@ def foo(x: {typ}) -> {typ}:
     test_cases = [0, 1, 3, 4, 126, 127, -1, lo, hi]
     for x in test_cases:
         if x * 2 >= typ.bits or x < 0:  # out of bounds
-            assert_tx_failed(lambda p=x: c.foo(p))
+            with assert_tx_failed():
+                c.foo(x)
         else:
             assert c.foo(x) == 4**x
 
@@ -180,16 +186,22 @@ def _num_min() -> {typ}:
     assert c._num_sub(lo, 0) == lo
     assert c._num_add(hi - 1, 1) == hi
     assert c._num_sub(lo + 1, 1) == lo
-    assert_tx_failed(lambda: c._num_add(hi, 1))
-    assert_tx_failed(lambda: c._num_sub(lo, 1))
-    assert_tx_failed(lambda: c._num_add(hi - 1, 2))
-    assert_tx_failed(lambda: c._num_sub(lo + 1, 2))
+    with assert_tx_failed():
+        c._num_add(hi, 1)
+    with assert_tx_failed():
+        c._num_sub(lo, 1)
+    with assert_tx_failed():
+        c._num_add(hi - 1, 2)
+    with assert_tx_failed():
+        c._num_sub(lo + 1, 2)
     assert c._num_max() == hi
     assert c._num_min() == lo
 
-    assert_tx_failed(lambda: c._num_add3(hi, 1, -1))
+    with assert_tx_failed():
+        c._num_add3(hi, 1, -1)
     assert c._num_add3(hi, -1, 1) == hi - 1 + 1
-    assert_tx_failed(lambda: c._num_add3(lo, -1, 1))
+    with assert_tx_failed():
+        c._num_add3(lo, -1, 1)
     assert c._num_add3(lo, 1, -1) == lo + 1 - 1
 
 
@@ -304,14 +316,19 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda p=(x, y): c.foo(*p))
+            with assert_tx_failed():
+                c.foo(x, y)
             assert_compile_failed(lambda code=code_2: get_contract(code), ZeroDivisionException)
-            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
+            with assert_tx_failed():
+                get_contract(code_3).foo(y)
             assert_compile_failed(lambda code=code_4: get_contract(code), ZeroDivisionException)
         else:
-            assert_tx_failed(lambda p=(x, y): c.foo(*p))
-            assert_tx_failed(lambda p=x, code=code_2: get_contract(code).foo(p))
-            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
+            with assert_tx_failed():
+                c.foo(x, y)
+            with assert_tx_failed():
+                get_contract(code_2).foo(x)
+            with assert_tx_failed():
+                get_contract(code_3).foo(y)
             assert_compile_failed(
                 lambda code=code_4: get_contract(code), (InvalidType, OverflowException)
             )
@@ -390,7 +407,8 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(2) == -2
     assert c.foo(-2) == 2
 
-    assert_tx_failed(lambda: c.foo(lo))
+    with assert_tx_failed():
+        c.foo(lo)
 
 
 @pytest.mark.parametrize("typ", types)

@@ -766,14 +766,17 @@ def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
     return xs[ix]
     """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.bounds_check_uint256([], 0))
+    with assert_tx_failed():
+        c.bounds_check_uint256([], 0)
 
     assert c.bounds_check_uint256([1], 0) == 1
-    assert_tx_failed(lambda: c.bounds_check_uint256([1], 1))
+    with assert_tx_failed():
+        c.bounds_check_uint256([1], 1)
 
     assert c.bounds_check_uint256([1, 2, 3], 0) == 1
     assert c.bounds_check_uint256([1, 2, 3], 2) == 3
-    assert_tx_failed(lambda: c.bounds_check_uint256([1, 2, 3], 3))
+    with assert_tx_failed():
+        c.bounds_check_uint256([1, 2, 3], 3)
 
     # TODO do bounds checks for nested darrays
 
@@ -798,7 +801,8 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.darray_len([1, 2, 3, 4]))
+    with assert_tx_failed():
+        c.darray_len([1, 2, 3, 4])
 
 
 def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
@@ -811,8 +815,10 @@ def bounds_check_int128(ix: int128) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check_int128(0) == 1
     assert c.bounds_check_int128(2) == 3
-    assert_tx_failed(lambda: c.bounds_check_int128(3))
-    assert_tx_failed(lambda: c.bounds_check_int128(-1))
+    with assert_tx_failed():
+        c.bounds_check_int128(3)
+    with assert_tx_failed():
+        c.bounds_check_int128(-1)
 
 
 def test_index_exception(get_contract_with_gas_estimation, assert_compile_failed):
@@ -1169,7 +1175,8 @@ def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_dat
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicate txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with assert_tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
@@ -1260,7 +1267,8 @@ enum Foobar:
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicate txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with assert_tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
@@ -1351,7 +1359,8 @@ def foo(x: uint8) -> uint8:
     """
     c = get_contract(code)
     assert c.foo(17) == 98
-    assert_tx_failed(lambda: c.foo(241))
+    with assert_tx_failed():
+        c.foo(241)
 
 
 def test_list_of_nested_struct_arrays(get_contract):
@@ -1634,7 +1643,8 @@ def ix(i: uint256) -> decimal:
     for i, p in enumerate(some_good_primes):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+    with assert_tx_failed():
+        c.ix(len(some_good_primes) + 1)
 
 
 def test_public_dynarray(get_contract):
@@ -1834,4 +1844,5 @@ def should_revert() -> DynArray[String[65], 2]:
 def test_dynarray_length_no_clobber(get_contract, assert_tx_failed, code):
     # check that length is not clobbered before dynarray data copy happens
     c = get_contract(code)
-    assert_tx_failed(lambda: c.should_revert())
+    with assert_tx_failed():
+        c.should_revert()

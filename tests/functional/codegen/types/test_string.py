@@ -76,10 +76,14 @@ def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
     assert c.foo("badminton", 1, 0) == ""
     assert c.foo("badminton", 9, 0) == ""
 
-    assert_tx_failed(lambda: c.foo("badminton", 0, 10))
-    assert_tx_failed(lambda: c.foo("badminton", 1, 9))
-    assert_tx_failed(lambda: c.foo("badminton", 9, 1))
-    assert_tx_failed(lambda: c.foo("badminton", 10, 0))
+    with assert_tx_failed():
+        c.foo("badminton", 0, 10)
+    with assert_tx_failed():
+        c.foo("badminton", 1, 9)
+    with assert_tx_failed():
+        c.foo("badminton", 9, 1)
+    with assert_tx_failed():
+        c.foo("badminton", 10, 0)
 
 
 def test_private_string(get_contract_with_gas_estimation):

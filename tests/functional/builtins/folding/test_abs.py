@@ -47,7 +47,8 @@ def foo(a: int256) -> int256:
     """
     contract = get_contract(source)
 
-    assert_tx_failed(lambda: contract.foo(-(2**255)))
+    with assert_tx_failed():
+        contract.foo(-(2**255))
 
 
 def test_abs_lower_bound_folded(get_contract, assert_tx_failed):

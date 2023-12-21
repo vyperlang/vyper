@@ -111,7 +111,8 @@ def test2(a: uint256) -> Bytes[100]:
     c.test(transact={})
     assert c.test2(1) == b"hello world!"
 
-    assert_tx_failed(lambda: c.test2(0))
+    with assert_tx_failed():
+        c.test2(0)
 
     GAS_SENT = 30000
     tx_hash = c.test2(0, transact={"gas": GAS_SENT})
@@ -143,7 +144,8 @@ def test(_salt: bytes32) -> address:
 
     c.test(salt, transact={})
     # revert on collision
-    assert_tx_failed(lambda: c.test(salt, transact={}))
+    with assert_tx_failed():
+        c.test(salt, transact={})
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
@@ -193,7 +195,8 @@ def test2(target: address, salt: bytes32):
 
     # extcodesize check
     zero_address = "0x" + "00" * 20
-    assert_tx_failed(lambda: d.test(zero_address))
+    with assert_tx_failed():
+        d.test(zero_address)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -209,7 +212,8 @@ def test2(target: address, salt: bytes32):
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, salt))
+    with assert_tx_failed():
+        d.test2(f.address, salt)
 
 
 def test_create_from_blueprint_bad_code_offset(
@@ -254,10 +258,12 @@ def test(code_ofst: uint256) -> address:
     d.test(initcode_len - 1)
 
     # code_offset=len(blueprint) NOT fine! would EXTCODECOPY empty initcode
-    assert_tx_failed(lambda: d.test(initcode_len))
+    with assert_tx_failed():
+        d.test(initcode_len)
 
     # code_offset=EIP_170_LIMIT definitely not fine!
-    assert_tx_failed(lambda: d.test(EIP_170_LIMIT))
+    with assert_tx_failed():
+        d.test(EIP_170_LIMIT)
 
 
 # test create_from_blueprint with args
@@ -332,7 +338,8 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.bar() == BAR
 
     # extcodesize check
-    assert_tx_failed(lambda: d.test("0x" + "00" * 20, FOO, BAR))
+    with assert_tx_failed():
+        d.test("0x" + "00" * 20, FOO, BAR)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -359,9 +366,11 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.bar() == BAR
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, FOO, BAR, salt))
+    with assert_tx_failed():
+        d.test2(f.address, FOO, BAR, salt)
     # ditto - with raw_args
-    assert_tx_failed(lambda: d.test4(f.address, encoded_args, salt))
+    with assert_tx_failed():
+        d.test4(f.address, encoded_args, salt)
 
     # but creating a contract with different args is ok
     FOO = "bar"
@@ -375,7 +384,8 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     BAR = ("",)
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"}))
+    with assert_tx_failed():
+        w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"})
 
 
 def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
@@ -412,7 +422,8 @@ def test2(target: address, salt: bytes32) -> address:
     assert w3.eth.get_code(test1) == bytecode
 
     # extcodesize check
-    assert_tx_failed(lambda: c.test("0x" + "00" * 20))
+    with assert_tx_failed():
+        c.test("0x" + "00" * 20)
 
     # test1 = c.test(b"\x01")
     # assert w3.eth.get_code(test1) == b"\x01"
@@ -425,12 +436,14 @@ def test2(target: address, salt: bytes32) -> address:
     assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(bytecode))
 
     # can't create2 where contract already exists
-    assert_tx_failed(lambda: c.test2(c.address, salt, transact={}))
+    with assert_tx_failed():
+        c.test2(c.address, salt, transact={})
 
     # test single byte contract
     # test2 = c.test2(b"\x01", salt)
     # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # assert_tx_failed(lambda: c.test2(bytecode, salt))
+    # with assert_tx_failed():
+    #     c.test2(bytecode, salt)
 
 
 # XXX: these various tests to check the msize allocator for

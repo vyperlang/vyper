@@ -148,17 +148,23 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda p=(x, y): c.foo(*p))
-            assert_compile_failed(lambda code=code_2: get_contract(code), ZeroDivisionException)
-            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
-            assert_compile_failed(lambda code=code_4: get_contract(code), ZeroDivisionException)
+            with assert_tx_failed():
+                c.foo(x, y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_2)
+            with assert_tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_4)
         else:
-            assert_tx_failed(lambda p=(x, y): c.foo(*p))
-            assert_tx_failed(lambda code=code_2, p=x: get_contract(code).foo(p))
-            assert_tx_failed(lambda p=y, code=code_3: get_contract(code).foo(p))
-            assert_compile_failed(
-                lambda code=code_4: get_contract(code), (InvalidType, OverflowException)
-            )
+            with assert_tx_failed():
+                c.foo(x, y)
+            with assert_tx_failed():
+                get_contract(code_2).foo(x)
+            with assert_tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises((InvalidType, OverflowException)):
+                get_contract(code_4)
 
 
 COMPARISON_OPS = {

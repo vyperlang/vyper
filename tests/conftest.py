@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import contextmanager
 from functools import wraps
 
 import hypothesis
@@ -484,13 +485,13 @@ def get_logs(w3):
     return get_logs
 
 
-# TODO replace me with function like `with anchor_state()`
 @pytest.fixture(scope="module")
 def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
+    @contextmanager
+    def assert_tx_failed(exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
-            function_to_test()
+            yield excinfo
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
             # TODO test equality

@@ -39,9 +39,11 @@ def test_crowdfund_example2(c, w3, assert_tx_failed):
     # assert c.expired()
     # assert not c.reached()
     pre_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
-    assert_tx_failed(lambda: c.refund(transact={"from": a0}))
+    with assert_tx_failed():
+        c.refund(transact={"from": a0})
     c.refund(transact={"from": a3})
-    assert_tx_failed(lambda: c.refund(transact={"from": a3}))
+    with assert_tx_failed():
+        c.refund(transact={"from": a3})
     c.refund(transact={"from": a4})
     c.refund(transact={"from": a5})
     c.refund(transact={"from": a6})

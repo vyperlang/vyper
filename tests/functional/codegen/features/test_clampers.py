@@ -43,7 +43,8 @@ def foo(s: Bytes[3]) -> Bytes[3]:
     c = get_contract_with_gas_estimation(clamper_test_code)
     assert c.foo(b"ca") == b"ca"
     assert c.foo(b"cat") == b"cat"
-    assert_tx_failed(lambda: c.foo(b"cate"))
+    with assert_tx_failed():
+        c.foo(b"cate")
 
 
 def test_bytes_clamper_multiple_slots(assert_tx_failed, get_contract_with_gas_estimation):
@@ -58,7 +59,8 @@ def foo(s: Bytes[40]) -> Bytes[40]:
 
     assert c.foo(data[:30]) == data[:30]
     assert c.foo(data) == data
-    assert_tx_failed(lambda: c.foo(data + b"!"))
+    with assert_tx_failed():
+        c.foo(data + b"!")
 
 
 def test_bytes_clamper_on_init(assert_tx_failed, get_contract_with_gas_estimation):
@@ -77,7 +79,8 @@ def get_foo() -> Bytes[3]:
     c = get_contract_with_gas_estimation(clamper_test_code, *[b"cat"])
     assert c.get_foo() == b"cat"
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(clamper_test_code, *[b"cats"]))
+    with assert_tx_failed():
+        get_contract_with_gas_estimation(clamper_test_code, *[b"cats"])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -118,11 +121,9 @@ def foo(s: bytes{n}) -> bytes{n}:
     c = get_contract(code, evm_version=evm_version)
     for v in values:
         # munge for `_make_tx`
-        assert_tx_failed(
-            lambda val=int.from_bytes(v, byteorder="big"): _make_tx(
-                w3, c.address, f"foo(bytes{n})", [val]
-            )
-        )
+        with assert_tx_failed():
+            int_value = int.from_bytes(v, byteorder="big")
+            _make_tx(w3, c.address, f"foo(bytes{n})", [int_value])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -156,7 +157,8 @@ def foo(s: int{bits}) -> int{bits}:
 
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert_tx_failed(lambda val=v: _make_tx(w3, c.address, f"foo(int{bits})", [val]))
+        with assert_tx_failed():
+            _make_tx(w3, c.address, f"foo(int{bits})", [v])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -182,7 +184,8 @@ def foo(s: bool) -> bool:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(bool)", [value]))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(bool)", [value])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -222,7 +225,8 @@ def foo(s: Roles) -> Roles:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(uint256)", [value]))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(uint256)", [value])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -253,7 +257,8 @@ def foo(s: uint{bits}) -> uint{bits}:
     """
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert_tx_failed(lambda val=v: _make_tx(w3, c.address, f"foo(uint{bits})", [val]))
+        with assert_tx_failed():
+            _make_tx(w3, c.address, f"foo(uint{bits})", [v])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -292,7 +297,8 @@ def foo(s: address) -> address:
     """
 
     c = get_contract(code, evm_version=evm_version)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(address)", [value]))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(address)", [value])
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -346,7 +352,8 @@ def foo(s: decimal) -> decimal:
 
     c = get_contract(code, evm_version=evm_version)
 
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(fixed168x10)", [value]))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(fixed168x10)", [value])
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -378,7 +385,8 @@ def foo(b: int128[5]) -> int128[5]:
     values[idx] = bad_value
 
     c = get_contract(code)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128[5])", values))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(int128[5])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -408,7 +416,8 @@ def foo(b: int128[10]) -> int128[10]:
     values[idx] = bad_value
 
     c = get_contract(code)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128[10])", values))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(int128[10])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -438,7 +447,8 @@ def foo(b: int128[6][1][2]) -> int128[6][1][2]:
     values[idx] = bad_value
 
     c = get_contract(code)
-    assert_tx_failed(lambda: _make_tx(w3, c.address, "foo(int128[6][1][2]])", values))
+    with assert_tx_failed():
+        _make_tx(w3, c.address, "foo(int128[6][1][2]])", values)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -473,7 +483,8 @@ def foo(b: int128[5]) -> int128[5]:
     c = get_contract(code)
 
     data = _make_dynarray_data(32, 5, values)
-    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+    with assert_tx_failed():
+        _make_invalid_dynarray_tx(w3, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -505,7 +516,8 @@ def foo(b: DynArray[int128, 10]) -> DynArray[int128, 10]:
 
     data = _make_dynarray_data(32, 10, values)
     signature = "foo(int128[])"
-    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+    with assert_tx_failed():
+        _make_invalid_dynarray_tx(w3, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -549,7 +561,8 @@ def foo(b: DynArray[DynArray[int128, 2], 2]) -> DynArray[DynArray[int128, 2], 2]
     signature = "foo(int128[][])"
 
     c = get_contract(code)
-    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+    with assert_tx_failed():
+        _make_invalid_dynarray_tx(w3, c.address, signature, data)
 
 
 @pytest.mark.parametrize("value", [0, 1, -1, 2**127 - 1, -(2**127)])
@@ -588,4 +601,5 @@ def foo(b: DynArray[int128[5], 2]) -> DynArray[int128[5], 2]:
 
     c = get_contract(code)
     signature = "foo(int128[5][])"
-    assert_tx_failed(lambda: _make_invalid_dynarray_tx(w3, c.address, signature, data))
+    with assert_tx_failed():
+        _make_invalid_dynarray_tx(w3, c.address, signature, data)

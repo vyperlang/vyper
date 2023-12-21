@@ -34,13 +34,15 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
     )
 
     for S, i in test_cases:
-        expected_result = S[i : i + 32] if 0 <= i <= len(S) - 32 else None
-        if expected_result is None:
-            assert_tx_failed(lambda p=(S, i): c.extrakt32(*p))
-        else:
-            assert c.extrakt32(S, i) == expected_result
-            assert c.extrakt32_mem(S, i) == expected_result
-            assert c.extrakt32_storage(i, S) == expected_result
+        if i < 0 or i > len(S) - 32:
+            with assert_tx_failed():
+                c.extrakt32(S, i)
+            continue
+
+        expected_result = S[i : i + 32]
+        assert c.extrakt32(S, i) == expected_result
+        assert c.extrakt32_mem(S, i) == expected_result
+        assert c.extrakt32_storage(i, S) == expected_result
 
     print("Passed bytes32 extraction test")
 
@@ -72,7 +74,8 @@ def foq(inp: Bytes[32]) -> address:
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
 
-    assert_tx_failed(lambda: c.foo(b"\x80" + b"\x00" * 30))
+    with assert_tx_failed():
+        c.foo(b"\x80" + b"\x00" * 30)
 
     assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
 
@@ -80,6 +83,7 @@ def foq(inp: Bytes[32]) -> address:
     assert c.fop(b"crow" * 8) == b"crow" * 8
     assert c.foq(b"\x00" * 12 + b"3" * 20) == "0x" + "3" * 40
 
-    assert_tx_failed(lambda: c.foq(b"crow" * 8))
+    with assert_tx_failed():
+        c.foq(b"crow" * 8)
 
     print("Passed extract32 test")

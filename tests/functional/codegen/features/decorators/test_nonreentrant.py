@@ -98,17 +98,20 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "some value"
     assert reentrant_contract.protected_view_fn() == "some value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))
+    with assert_tx_failed():
+        reentrant_contract.protected_function("zzz value", True, transact={})
 
     reentrant_contract.protected_function2("another value", False, transact={})
     assert reentrant_contract.special_value() == "another value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function2("zzz value", True, transact={}))
+    with assert_tx_failed():
+        reentrant_contract.protected_function2("zzz value", True, transact={})
 
     reentrant_contract.protected_function3("another value", False, transact={})
     assert reentrant_contract.special_value() == "another value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function3("zzz value", True, transact={}))
+    with assert_tx_failed():
+        reentrant_contract.protected_function3("zzz value", True, transact={})
 
 
 def test_nonreentrant_decorator_for_default(w3, get_contract, assert_tx_failed):
@@ -196,9 +199,8 @@ def __default__():
     assert w3.eth.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
-    assert_tx_failed(
-        lambda: reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
-    )
+    with assert_tx_failed():
+        reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
 
 
 def test_disallow_on_init_function(get_contract):

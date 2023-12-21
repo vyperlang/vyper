@@ -38,7 +38,8 @@ def foo(a: decimal, b: decimal) -> decimal:
     return a % b
 """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.foo(Decimal("1"), Decimal("0")))
+    with assert_tx_failed():
+        c.foo(Decimal("1"), Decimal("0"))
 
 
 def test_literals_vs_evm(get_contract):

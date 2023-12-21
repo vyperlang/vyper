@@ -363,7 +363,8 @@ def bounds_check(ix: {type_}) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
-    assert_tx_failed(lambda: c.bounds_check(3))
+    with assert_tx_failed():
+        c.bounds_check(3)
 
 
 @pytest.mark.parametrize("type_", ["int128", "int256"])
@@ -377,8 +378,10 @@ def bounds_check(ix: {type_}) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
-    assert_tx_failed(lambda: c.bounds_check(3))
-    assert_tx_failed(lambda: c.bounds_check(-1))
+    with assert_tx_failed():
+        c.bounds_check(3)
+    with assert_tx_failed():
+        c.bounds_check(-1)
 
 
 def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
@@ -673,7 +676,8 @@ def ix(i: uint256) -> {type}:
     for i, p in enumerate(value):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(value) + 1))
+    with assert_tx_failed():
+        c.ix(len(value) + 1)
 
 
 def test_nested_constant_list_accessor(get_contract):
@@ -754,7 +758,8 @@ def ix(i: uint256) -> address:
     for i, p in enumerate(some_good_address):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
+    with assert_tx_failed():
+        c.ix(len(some_good_address) + 1)
 
 
 def test_list_index_complex_expr(get_contract, assert_tx_failed):
@@ -771,7 +776,8 @@ def foo(xs: uint256[257], i: uint8) -> uint256:
         assert c.foo(xs, ix) == xs[ix + 1]
 
     # safemath should fail for uint8: 255 + 1.
-    assert_tx_failed(lambda: c.foo(xs, 255))
+    with assert_tx_failed():
+        c.foo(xs, 255)
 
 
 @pytest.mark.parametrize(
@@ -805,7 +811,8 @@ def ix(i: uint256, j: uint256) -> {type}:
         for j, q in enumerate(p):
             assert c.ix(i, j) == q
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(value) + 1, len(value[0]) + 1))
+    with assert_tx_failed():
+        c.ix(len(value) + 1, len(value[0]) + 1)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))

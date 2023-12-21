@@ -135,7 +135,8 @@ def is_owner() -> bool:
     assert c.is_owner(call={"from": a1}) is False  # no one else is.
 
     # only an owner may set another owner.
-    assert_tx_failed(lambda: c.set_owner(1, a1, call={"from": a1}))
+    with assert_tx_failed():
+        c.set_owner(1, a1, call={"from": a1})
 
     c.set_owner(1, a1, transact={})
     assert c.is_owner(call={"from": a1}) is True
@@ -154,4 +155,5 @@ def testin(x: address) -> bool:
         return True
     return False
 """
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    with assert_tx_failed():
+        get_contract_with_gas_estimation(code), TypeMismatch

@@ -151,7 +151,8 @@ def test():
     c1 = get_contract(foreign_code)
     c2 = get_contract(code, *[c1.address])
     # static call prohibits state change
-    assert_tx_failed(lambda: c2.test())
+    with assert_tx_failed():
+        c2.test()
 
 
 def test_assert_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
@@ -166,9 +167,12 @@ def test(x: uint256[3]) -> bool:
     c = get_contract(code)
 
     c.test([1, 2, 3])
-    assert_tx_failed(lambda: c.test([5, 1, 3]))
-    assert_tx_failed(lambda: c.test([1, 5, 3]))
-    assert_tx_failed(lambda: c.test([1, 3, 5]))
+    with assert_tx_failed():
+        c.test([5, 1, 3])
+    with assert_tx_failed():
+        c.test([1, 5, 3])
+    with assert_tx_failed():
+        c.test([1, 3, 5])
 
 
 def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
@@ -183,9 +187,12 @@ def test(x: uint256[3]) -> bool:
     c = get_contract(code)
 
     c.test([1, 2, 3])
-    assert_tx_failed(lambda: c.test([5, 1, 3]))
-    assert_tx_failed(lambda: c.test([1, 5, 3]))
-    assert_tx_failed(lambda: c.test([1, 3, 5]))
+    with assert_tx_failed():
+        c.test([5, 1, 3])
+    with assert_tx_failed():
+        c.test([1, 5, 3])
+    with assert_tx_failed():
+        c.test([1, 3, 5])
 
 
 def test_assert_reason_revert_length(w3, get_contract, assert_tx_failed, memory_mocker):
@@ -196,4 +203,5 @@ def test() -> int128:
     return 1
 """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.test(), exc_text="oops")
+    with assert_tx_failed(exc_text="oops"):
+        c.test()

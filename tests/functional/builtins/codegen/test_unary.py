@@ -20,7 +20,8 @@ def negate(a: int128) -> int128:
     """
     c = get_contract(code)
     # This test should revert on overflow condition
-    assert_tx_failed(lambda: c.negate(-(2**127)))
+    with assert_tx_failed():
+        c.negate(-(2**127))
 
 
 @pytest.mark.parametrize("val", [-(2**127) + 1, 0, 2**127 - 1])

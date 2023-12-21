@@ -211,7 +211,8 @@ def foo(x: uint256):
 
     assert c.counter() == 7
 
-    assert_tx_failed(lambda: c.foo(8))
+    with assert_tx_failed():
+        c.foo(8)
 
 
 def test_library_is_typechecked(make_input_bundle):

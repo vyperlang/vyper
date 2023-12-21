@@ -28,7 +28,8 @@ def repeat(n: uint256) -> uint256:
         assert c.repeat(n) == sum(i + 1 for i in range(n))
 
     # check codegen inserts assertion for n greater than bound
-    assert_tx_failed(lambda: c.repeat(7))
+    with assert_tx_failed():
+        c.repeat(7)
 
 
 def test_digit_reverser(get_contract_with_gas_estimation):
@@ -181,7 +182,8 @@ def test():
         pass
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.test())
+    with assert_tx_failed():
+        c.test()
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])

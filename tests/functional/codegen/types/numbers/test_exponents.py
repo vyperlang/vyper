@@ -20,7 +20,8 @@ def foo(a: uint256) -> uint256:
     c = get_contract(code)
 
     c.foo(max_base)
-    assert_tx_failed(lambda: c.foo(max_base + 1))
+    with assert_tx_failed():
+        c.foo(max_base + 1)
 
 
 @pytest.mark.fuzzing
@@ -44,8 +45,10 @@ def foo(a: int128) -> int128:
     c.foo(max_base)
     c.foo(min_base)
 
-    assert_tx_failed(lambda: c.foo(max_base + 1))
-    assert_tx_failed(lambda: c.foo(min_base - 1))
+    with assert_tx_failed():
+        c.foo(max_base + 1)
+    with assert_tx_failed():
+        c.foo(min_base - 1)
 
 
 @pytest.mark.fuzzing
@@ -69,8 +72,10 @@ def foo(a: int16) -> int16:
     c.foo(max_base)
     c.foo(min_base)
 
-    assert_tx_failed(lambda: c.foo(max_base + 1))
-    assert_tx_failed(lambda: c.foo(min_base - 1))
+    with assert_tx_failed():
+        c.foo(max_base + 1)
+    with assert_tx_failed():
+        c.foo(min_base - 1)
 
 
 @pytest.mark.fuzzing
@@ -108,7 +113,8 @@ def foo(b: uint256) -> uint256:
     assert a ** (max_power + 1) >= 2**256
 
     c.foo(max_power)
-    assert_tx_failed(lambda: c.foo(max_power + 1))
+    with assert_tx_failed():
+        c.foo(max_power + 1)
 
 
 @pytest.mark.fuzzing
@@ -143,4 +149,5 @@ def foo(b: int128) -> int128:
     assert not -(2**127) <= a ** (max_power + 1) < 2**127
 
     c.foo(max_power)
-    assert_tx_failed(lambda: c.foo(max_power + 1))
+    with assert_tx_failed():
+        c.foo(max_power + 1)

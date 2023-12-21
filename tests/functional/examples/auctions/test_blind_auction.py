@@ -40,8 +40,8 @@ def test_late_bid(w3, auction_contract, assert_tx_failed):
     w3.testing.mine(BIDDING_TIME + TEST_INCREMENT)
 
     # Try to bid after bidding has ended
-    assert_tx_failed(
-        lambda: auction_contract.bid(
+    with assert_tx_failed():
+        auction_contract.bid(
             w3.keccak(
                 b"".join(
                     [
@@ -53,7 +53,6 @@ def test_late_bid(w3, auction_contract, assert_tx_failed):
             ),
             transact={"value": 200, "from": k1},
         )
-    )
 
 
 def test_too_many_bids(w3, auction_contract, assert_tx_failed):
@@ -75,8 +74,8 @@ def test_too_many_bids(w3, auction_contract, assert_tx_failed):
         )
 
     # 129th bid should fail
-    assert_tx_failed(
-        lambda: auction_contract.bid(
+    with assert_tx_failed():
+        auction_contract.bid(
             w3.keccak(
                 b"".join(
                     [
@@ -88,7 +87,6 @@ def test_too_many_bids(w3, auction_contract, assert_tx_failed):
             ),
             transact={"value": 128, "from": k1},
         )
-    )
 
 
 def test_early_reval(w3, auction_contract, assert_tx_failed):
@@ -119,11 +117,10 @@ def test_early_reval(w3, auction_contract, assert_tx_failed):
     _values[0] = 100
     _fakes[0] = False
     _secrets[0] = (8675309).to_bytes(32, byteorder="big")
-    assert_tx_failed(
-        lambda: auction_contract.reveal(
+    with assert_tx_failed():
+        auction_contract.reveal(
             _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
         )
-    )
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() is None
@@ -159,11 +156,10 @@ def test_late_reveal(w3, auction_contract, assert_tx_failed):
     _values[0] = 100
     _fakes[0] = False
     _secrets[0] = (8675309).to_bytes(32, byteorder="big")
-    assert_tx_failed(
-        lambda: auction_contract.reveal(
+    with assert_tx_failed():
+        auction_contract.reveal(
             _numBids, _values, _fakes, _secrets, transact={"value": 0, "from": k1}
         )
-    )
 
     # Check highest bidder is still empty
     assert auction_contract.highestBidder() is None
@@ -175,7 +171,8 @@ def test_early_end(w3, auction_contract, assert_tx_failed):
     k0 = w3.eth.accounts[0]
 
     # Should not be able to end auction before reveal time has ended
-    assert_tx_failed(lambda: auction_contract.auctionEnd(transact={"value": 0, "from": k0}))
+    with assert_tx_failed():
+        auction_contract.auctionEnd(transact={"value": 0, "from": k0})
 
 
 def test_double_end(w3, auction_contract, assert_tx_failed):
@@ -188,7 +185,8 @@ def test_double_end(w3, auction_contract, assert_tx_failed):
     auction_contract.auctionEnd(transact={"value": 0, "from": k0})
 
     # Should not be able to end auction twice
-    assert_tx_failed(lambda: auction_contract.auctionEnd(transact={"value": 0, "from": k0}))
+    with assert_tx_failed():
+        auction_contract.auctionEnd(transact={"value": 0, "from": k0})
 
 
 def test_blind_auction(w3, auction_contract):

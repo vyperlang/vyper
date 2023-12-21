@@ -46,7 +46,8 @@ def baz() -> uint8:
     n = 6
     c = get_contract(code, n)
     assert c.foo() == n * 7
-    assert_tx_failed(lambda: c.baz())
+    with assert_tx_failed():
+        c.baz()
 
     n = 255
     assert_compile_failed(lambda: get_contract(code, n))

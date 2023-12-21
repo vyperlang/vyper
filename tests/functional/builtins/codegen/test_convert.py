@@ -529,7 +529,8 @@ def foo(a: {typ}) -> Status:
         if lo <= val <= hi:
             assert c.foo(val) == val
         else:
-            assert_tx_failed(lambda: c.foo(val))
+            with assert_tx_failed():
+                c.foo(val)
     else:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
 
@@ -650,7 +651,8 @@ def foo():
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    assert_tx_failed(lambda: c2.foo())
+    with assert_tx_failed():
+        c2.foo()
 
     contract_3 = f"""
 @external
@@ -659,4 +661,5 @@ def foo(bar: {i_typ}) -> {o_typ}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    assert_tx_failed(lambda: c3.foo(val))
+    with assert_tx_failed():
+        c3.foo(val)

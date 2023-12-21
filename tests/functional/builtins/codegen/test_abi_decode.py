@@ -341,7 +341,8 @@ def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with assert_tx_failed():
+        c.abi_decode(input_)
 
 
 def test_clamper_nested_uint8(get_contract, assert_tx_failed):
@@ -355,7 +356,8 @@ def abi_decode(x: uint256) -> uint256:
     """
     c = get_contract(contract)
     assert c.abi_decode(255) == 255
-    assert_tx_failed(lambda: c.abi_decode(256))
+    with assert_tx_failed():
+        c.abi_decode(256)
 
 
 def test_clamper_nested_bytes(get_contract, assert_tx_failed):
@@ -369,7 +371,8 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
     """
     c = get_contract(contract)
     assert c.abi_decode(abi.encode("(bytes)", (b"bc",))) == b"abc"
-    assert_tx_failed(lambda: c.abi_decode(abi.encode("(bytes)", (b"a" * 22,))))
+    with assert_tx_failed():
+        c.abi_decode(abi.encode("(bytes)", (b"a" * 22,)))
 
 
 @pytest.mark.parametrize(
@@ -390,7 +393,8 @@ def abi_decode(x: Bytes[192]) -> {output_typ}:
     return a
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with assert_tx_failed():
+        c.abi_decode(input_)
 
 
 @pytest.mark.parametrize(
@@ -432,7 +436,8 @@ def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
     return a, b
     """
     c = get_contract(contract)
-    assert_tx_failed(lambda: c.abi_decode(input_))
+    with assert_tx_failed():
+        c.abi_decode(input_)
 
 
 FAIL_LIST = [

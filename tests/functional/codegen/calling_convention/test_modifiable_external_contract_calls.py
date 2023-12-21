@@ -39,7 +39,8 @@ def static_set_lucky(_lucky: int128):
     c2.modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
-    assert_tx_failed(lambda: c2.static_set_lucky(5, transact={}))
+    with assert_tx_failed():
+        c2.static_set_lucky(5, transact={})
     assert c1.lucky() == 7
 
 
@@ -83,7 +84,8 @@ def static_set_lucky(_lucky: int128):
     c2.modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
     # Fails attempting a state change after a call to a static address
-    assert_tx_failed(lambda: c2.static_set_lucky(5, transact={}))
+    with assert_tx_failed():
+        c2.static_set_lucky(5, transact={})
     assert c1.lucky() == 7
 
 
@@ -161,9 +163,12 @@ def static_modifiable_set_lucky(_lucky: int128):
     assert c1.lucky() == 0
     c3.modifiable_modifiable_set_lucky(7, transact={})
     assert c1.lucky() == 7
-    assert_tx_failed(lambda: c3.modifiable_static_set_lucky(6, transact={}))
-    assert_tx_failed(lambda: c3.static_modifiable_set_lucky(6, transact={}))
-    assert_tx_failed(lambda: c3.static_static_set_lucky(6, transact={}))
+    with assert_tx_failed():
+        c3.modifiable_static_set_lucky(6, transact={})
+    with assert_tx_failed():
+        c3.static_modifiable_set_lucky(6, transact={})
+    with assert_tx_failed():
+        c3.static_static_set_lucky(6, transact={})
     assert c1.lucky() == 7
 
 
