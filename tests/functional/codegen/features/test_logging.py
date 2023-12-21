@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from eth.codecs import abi
 
+from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
     EventDeclarationException,
@@ -203,8 +204,8 @@ event MyLog:
     arg4: indexed(int128)
     """
 
-    with tx_failed(EventDeclarationException):
-        get_contract_with_gas_estimation(loggy_code)
+    with pytest.raises(EventDeclarationException):
+        compile_code(loggy_code)
 
 
 def test_event_logging_with_data(w3, tester, keccak, get_logs, get_contract_with_gas_estimation):
