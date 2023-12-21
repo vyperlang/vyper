@@ -118,8 +118,11 @@ def foo(s: bytes{n}) -> bytes{n}:
     c = get_contract(code, evm_version=evm_version)
     for v in values:
         # munge for `_make_tx`
-        v = int.from_bytes(v, byteorder="big")
-        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(bytes{n})", [v]))
+        assert_tx_failed(
+            lambda val=int.from_bytes(v, byteorder="big"): _make_tx(
+                w3, c.address, f"foo(bytes{n})", [val]
+            )
+        )
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -153,7 +156,7 @@ def foo(s: int{bits}) -> int{bits}:
 
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(int{bits})", [v]))
+        assert_tx_failed(lambda val=v: _make_tx(w3, c.address, f"foo(int{bits})", [val]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -250,7 +253,7 @@ def foo(s: uint{bits}) -> uint{bits}:
     """
     c = get_contract(code, evm_version=evm_version)
     for v in values:
-        assert_tx_failed(lambda: _make_tx(w3, c.address, f"foo(uint{bits})", [v]))
+        assert_tx_failed(lambda val=v: _make_tx(w3, c.address, f"foo(uint{bits})", [val]))
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))

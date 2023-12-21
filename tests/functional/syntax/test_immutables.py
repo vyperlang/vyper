@@ -63,7 +63,7 @@ def __init__(_value: uint256):
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_compilation_fails_with_exception(bad_code):
-    with pytest.raises(Exception):
+    with pytest.raises(VyperException):
         compile_code(bad_code)
 
 
