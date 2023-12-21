@@ -763,7 +763,7 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
         if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
-            error = "Please remove the range argument when using range with constants"
+            error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
         for arg in (start, end):

@@ -37,7 +37,7 @@ def foo():
         pass
     """,
         StructureException,
-        "Please remove the range argument when using range with constants",
+        "Please remove the `bound=` kwarg when using range with constants",
         "5",
     ),
     (

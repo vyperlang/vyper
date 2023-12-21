@@ -232,7 +232,7 @@ def foo(a: {typ}) -> {typ}:
 def test_for_range_edge(get_contract, typ):
     """
     Check that we can get to the upper range of an integer.
-    Note that to avoid overflow, given the semantics of range(),
+    Note that to avoid overflow in the bounds check for range(),
     we need to calculate i+1 inside the loop.
     """
     code = f"""
