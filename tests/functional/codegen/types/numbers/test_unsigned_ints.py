@@ -85,7 +85,7 @@ ARITHMETIC_OPS = {
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, assert_compile_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -148,20 +148,20 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            with assert_tx_failed():
+            with tx_failed():
                 c.foo(x, y)
             with pytest.raises(ZeroDivisionException):
                 get_contract(code_2)
-            with assert_tx_failed():
+            with tx_failed():
                 get_contract(code_3).foo(y)
             with pytest.raises(ZeroDivisionException):
                 get_contract(code_4)
         else:
-            with assert_tx_failed():
+            with tx_failed():
                 c.foo(x, y)
-            with assert_tx_failed():
+            with tx_failed():
                 get_contract(code_2).foo(x)
-            with assert_tx_failed():
+            with tx_failed():
                 get_contract(code_3).foo(y)
             with pytest.raises((InvalidType, OverflowException)):
                 get_contract(code_4)

@@ -16,7 +16,7 @@ st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
 @example(left=-1, right=1)
 @example(left=-1, right=-1)
 @pytest.mark.parametrize("op", "+-*/%")
-def test_binop_int128(get_contract, assert_tx_failed, op, left, right):
+def test_binop_int128(get_contract, tx_failed, op, left, right):
     source = f"""
 @external
 def foo(a: int128, b: int128) -> int128:
@@ -35,7 +35,7 @@ def foo(a: int128, b: int128) -> int128:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        with assert_tx_failed():
+        with tx_failed():
             contract.foo(left, right)
 
 
@@ -46,7 +46,7 @@ st_uint64 = st.integers(min_value=0, max_value=2**64)
 @settings(max_examples=50)
 @given(left=st_uint64, right=st_uint64)
 @pytest.mark.parametrize("op", "+-*/%")
-def test_binop_uint256(get_contract, assert_tx_failed, op, left, right):
+def test_binop_uint256(get_contract, tx_failed, op, left, right):
     source = f"""
 @external
 def foo(a: uint256, b: uint256) -> uint256:
@@ -65,7 +65,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        with assert_tx_failed():
+        with tx_failed():
             contract.foo(left, right)
 
 
@@ -96,7 +96,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     values=st.lists(st.integers(min_value=-256, max_value=256), min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
 )
-def test_binop_nested(get_contract, assert_tx_failed, values, ops):
+def test_binop_nested(get_contract, tx_failed, values, ops):
     variables = "abcdefghij"
     input_value = ",".join(f"{i}: int128" for i in variables[: len(values)])
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))
@@ -124,5 +124,5 @@ def foo({input_value}) -> int128:
     if is_valid:
         assert contract.foo(*values) == expected
     else:
-        with assert_tx_failed():
+        with tx_failed():
             contract.foo(*values)

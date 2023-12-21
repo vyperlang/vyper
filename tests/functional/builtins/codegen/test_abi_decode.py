@@ -331,7 +331,7 @@ def abi_decode(x: Bytes[32]) -> uint256:
         b"\x01" * 96,  # Length of byte array is beyond size bound of output type
     ],
 )
-def test_clamper(get_contract, assert_tx_failed, input_):
+def test_clamper(get_contract, tx_failed, input_):
     contract = """
 @external
 def abi_decode(x: Bytes[96]) -> (uint256, uint256):
@@ -341,11 +341,11 @@ def abi_decode(x: Bytes[96]) -> (uint256, uint256):
     return a, b
     """
     c = get_contract(contract)
-    with assert_tx_failed():
+    with tx_failed():
         c.abi_decode(input_)
 
 
-def test_clamper_nested_uint8(get_contract, assert_tx_failed):
+def test_clamper_nested_uint8(get_contract, tx_failed):
     # check that _abi_decode clamps on word-types even when it is in a nested expression
     # decode -> validate uint8 -> revert if input >= 256 -> cast back to uint256
     contract = """
@@ -356,11 +356,11 @@ def abi_decode(x: uint256) -> uint256:
     """
     c = get_contract(contract)
     assert c.abi_decode(255) == 255
-    with assert_tx_failed():
+    with tx_failed():
         c.abi_decode(256)
 
 
-def test_clamper_nested_bytes(get_contract, assert_tx_failed):
+def test_clamper_nested_bytes(get_contract, tx_failed):
     # check that _abi_decode clamps dynamic even when it is in a nested expression
     # decode -> validate Bytes[20] -> revert if len(input) > 20 -> convert back to -> add 1
     contract = """
@@ -371,7 +371,7 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
     """
     c = get_contract(contract)
     assert c.abi_decode(abi.encode("(bytes)", (b"bc",))) == b"abc"
-    with assert_tx_failed():
+    with tx_failed():
         c.abi_decode(abi.encode("(bytes)", (b"a" * 22,)))
 
 
@@ -384,7 +384,7 @@ def abi_decode(x: Bytes[96]) -> Bytes[21]:
         ("Bytes[5]", b"\x01" * 192),
     ],
 )
-def test_clamper_dynamic(get_contract, assert_tx_failed, output_typ, input_):
+def test_clamper_dynamic(get_contract, tx_failed, output_typ, input_):
     contract = f"""
 @external
 def abi_decode(x: Bytes[192]) -> {output_typ}:
@@ -393,7 +393,7 @@ def abi_decode(x: Bytes[192]) -> {output_typ}:
     return a
     """
     c = get_contract(contract)
-    with assert_tx_failed():
+    with tx_failed():
         c.abi_decode(input_)
 
 
@@ -426,7 +426,7 @@ def abi_decode(x: Bytes[160]) -> uint256:
         ("Bytes[5]", "address", b"\x01" * 128),
     ],
 )
-def test_clamper_dynamic_tuple(get_contract, assert_tx_failed, output_typ1, output_typ2, input_):
+def test_clamper_dynamic_tuple(get_contract, tx_failed, output_typ1, output_typ2, input_):
     contract = f"""
 @external
 def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
@@ -436,7 +436,7 @@ def abi_decode(x: Bytes[224]) -> ({output_typ1}, {output_typ2}):
     return a, b
     """
     c = get_contract(contract)
-    with assert_tx_failed():
+    with tx_failed():
         c.abi_decode(input_)
 
 

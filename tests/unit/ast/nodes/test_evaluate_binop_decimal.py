@@ -20,7 +20,7 @@ st_decimals = st.decimals(
 @example(left=Decimal("0.9999999999"), right=Decimal("0.9999999999"))
 @example(left=Decimal("0.0000000001"), right=Decimal("0.0000000001"))
 @pytest.mark.parametrize("op", "+-*/%")
-def test_binop_decimal(get_contract, assert_tx_failed, op, left, right):
+def test_binop_decimal(get_contract, tx_failed, op, left, right):
     source = f"""
 @external
 def foo(a: decimal, b: decimal) -> decimal:
@@ -39,7 +39,7 @@ def foo(a: decimal, b: decimal) -> decimal:
     if is_valid:
         assert contract.foo(left, right) == new_node.value
     else:
-        with assert_tx_failed():
+        with tx_failed():
             contract.foo(left, right)
 
 
@@ -58,7 +58,7 @@ def test_binop_pow():
     values=st.lists(st_decimals, min_size=2, max_size=10),
     ops=st.lists(st.sampled_from("+-*/%"), min_size=11, max_size=11),
 )
-def test_nested(get_contract, assert_tx_failed, values, ops):
+def test_nested(get_contract, tx_failed, values, ops):
     variables = "abcdefghij"
     input_value = ",".join(f"{i}: decimal" for i in variables[: len(values)])
     return_value = " ".join(f"{a} {b}" for a, b in zip(variables[: len(values)], ops))
@@ -84,5 +84,5 @@ def foo({input_value}) -> decimal:
     if is_valid:
         assert contract.foo(*values) == expected
     else:
-        with assert_tx_failed():
+        with tx_failed():
             contract.foo(*values)

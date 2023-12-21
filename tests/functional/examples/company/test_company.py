@@ -9,7 +9,7 @@ def c(w3, get_contract):
     return contract
 
 
-def test_overbuy(w3, c, assert_tx_failed):
+def test_overbuy(w3, c, tx_failed):
     # If all the stock has been bought, no one can buy more
     a1, a2 = w3.eth.accounts[1:3]
     test_shares = int(c.totalShares() / 2)
@@ -19,18 +19,18 @@ def test_overbuy(w3, c, assert_tx_failed):
     assert c.stockAvailable() == 0
     assert c.getHolding(a1) == (test_shares * 2)
     one_stock = c.price()
-    with assert_tx_failed():
+    with tx_failed():
         c.buyStock(transact={"from": a1, "value": one_stock})
-    with assert_tx_failed():
+    with tx_failed():
         c.buyStock(transact={"from": a2, "value": one_stock})
 
 
-def test_sell_without_stock(w3, c, assert_tx_failed):
+def test_sell_without_stock(w3, c, tx_failed):
     a1, a2 = w3.eth.accounts[1:3]
     # If you don't have any stock, you can't sell
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(1, transact={"from": a2})
     # But if you do, you can!
     test_shares = int(c.totalShares())
@@ -39,26 +39,26 @@ def test_sell_without_stock(w3, c, assert_tx_failed):
     assert c.getHolding(a1) == test_shares
     c.sellStock(test_shares, transact={"from": a1})
     # But only until you run out
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(1, transact={"from": a1})
 
 
-def test_oversell(w3, c, assert_tx_failed):
+def test_oversell(w3, c, tx_failed):
     a0, a1, a2 = w3.eth.accounts[:3]
     # You can't sell more than you own
     test_shares = int(c.totalShares())
     test_value = int(test_shares * c.price())
     c.buyStock(transact={"from": a1, "value": test_value})
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(test_shares + 1, transact={"from": a1})
 
 
-def test_transfer(w3, c, assert_tx_failed):
+def test_transfer(w3, c, tx_failed):
     # If you don't have any stock, you can't transfer
     a1, a2 = w3.eth.accounts[1:3]
-    with assert_tx_failed():
+    with tx_failed():
         c.transferStock(a2, 1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.transferStock(a1, 1, transact={"from": a2})
     # If you transfer, you don't have the stock anymore
     test_shares = int(c.totalShares())
@@ -66,29 +66,29 @@ def test_transfer(w3, c, assert_tx_failed):
     c.buyStock(transact={"from": a1, "value": test_value})
     assert c.getHolding(a1) == test_shares
     c.transferStock(a2, test_shares, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(1, transact={"from": a1})
     # But the other person does
     c.sellStock(test_shares, transact={"from": a2})
 
 
-def test_paybill(w3, c, assert_tx_failed):
+def test_paybill(w3, c, tx_failed):
     a0, a1, a2, a3 = w3.eth.accounts[:4]
     # Only the company can authorize payments
-    with assert_tx_failed():
+    with tx_failed():
         c.payBill(a2, 1, transact={"from": a1})
     # A company can only pay someone if it has the money
-    with assert_tx_failed():
+    with tx_failed():
         c.payBill(a2, 1, transact={"from": a0})
     # If it has the money, it can pay someone
     test_value = int(c.totalShares() * c.price())
     c.buyStock(transact={"from": a1, "value": test_value})
     c.payBill(a2, test_value, transact={"from": a0})
     # Until it runs out of money
-    with assert_tx_failed():
+    with tx_failed():
         c.payBill(a3, 1, transact={"from": a0})
     # Then no stockholders can sell their stock either
-    with assert_tx_failed():
+    with tx_failed():
         c.sellStock(1, transact={"from": a1})
 
 

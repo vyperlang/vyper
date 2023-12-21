@@ -33,10 +33,10 @@ def test_initial_state(w3, tester, auction_contract, auction_start):
     assert auction_contract.auctionEnd() >= tester.get_block_by_number("latest")["timestamp"]
 
 
-def test_bid(w3, tester, auction_contract, assert_tx_failed):
+def test_bid(w3, tester, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
     # Bidder cannot bid 0
-    with assert_tx_failed():
+    with tx_failed():
         auction_contract.bid(transact={"value": 0, "from": k1})
     # Bidder can bid
     auction_contract.bid(transact={"value": 1, "from": k1})
@@ -44,7 +44,7 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert auction_contract.highestBidder() == k1
     assert auction_contract.highestBid() == 1
     # Bidder bid cannot equal current highest bid
-    with assert_tx_failed():
+    with tx_failed():
         auction_contract.bid(transact={"value": 1, "from": k1})
     # Higher bid can replace current highest bid
     auction_contract.bid(transact={"value": 2, "from": k2})
@@ -74,10 +74,10 @@ def test_bid(w3, tester, auction_contract, assert_tx_failed):
     assert auction_contract.pendingReturns(k1) == 0
 
 
-def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
+def test_end_auction(w3, tester, auction_contract, tx_failed):
     k1, k2, k3, k4, k5 = w3.eth.accounts[:5]
     # Fails if auction end time has not been reached
-    with assert_tx_failed():
+    with tx_failed():
         auction_contract.endAuction()
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
     # Move block timestamp foreward to reach auction end time
@@ -89,8 +89,8 @@ def test_end_auction(w3, tester, auction_contract, assert_tx_failed):
     # Beneficiary receives the highest bid
     assert balance_after_end == balance_before_end + 1 * 10**10
     # Bidder cannot bid after auction end time has been reached
-    with assert_tx_failed():
+    with tx_failed():
         auction_contract.bid(transact={"value": 10, "from": k1})
     # Auction cannot be ended twice
-    with assert_tx_failed():
+    with tx_failed():
         auction_contract.endAuction()

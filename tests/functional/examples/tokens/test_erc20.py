@@ -61,7 +61,7 @@ def test_initial_state(c, w3):
     assert c.allowance(a2, a3) == 0
 
 
-def test_mint_and_burn(c, w3, assert_tx_failed):
+def test_mint_and_burn(c, w3, tx_failed):
     minter, a1, a2 = w3.eth.accounts[0:3]
 
     # Test scenario were mints 2 to a1, burns twice (check balance consistency)
@@ -70,30 +70,30 @@ def test_mint_and_burn(c, w3, assert_tx_failed):
     assert c.balanceOf(a1) == 2
     c.burn(2, transact={"from": a1})
     assert c.balanceOf(a1) == 0
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(2, transact={"from": a1})
     assert c.balanceOf(a1) == 0
     # Test scenario were mintes 0 to a2, burns (check balance consistency, false burn)
     c.mint(a2, 0, transact={"from": minter})
     assert c.balanceOf(a2) == 0
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(2, transact={"from": a2})
     # Check that a1 cannot burn after depleting their balance
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a1})
     # Check that a1, a2 cannot mint
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a1, 1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a2, 1, transact={"from": a2})
     # Check that mint to ZERO_ADDRESS failed
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(ZERO_ADDRESS, 1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(ZERO_ADDRESS, 1, transact={"from": minter})
 
 
-def test_totalSupply(c, w3, assert_tx_failed):
+def test_totalSupply(c, w3, tx_failed):
     # Test total supply initially, after mint, between two burns, and after failed burn
     minter, a1 = w3.eth.accounts[0:2]
     assert c.totalSupply() == 0
@@ -103,7 +103,7 @@ def test_totalSupply(c, w3, assert_tx_failed):
     assert c.totalSupply() == 1
     c.burn(1, transact={"from": a1})
     assert c.totalSupply() == 0
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a1})
     assert c.totalSupply() == 0
     # Test that 0-valued mint can't affect supply
@@ -111,40 +111,40 @@ def test_totalSupply(c, w3, assert_tx_failed):
     assert c.totalSupply() == 0
 
 
-def test_transfer(c, w3, assert_tx_failed):
+def test_transfer(c, w3, tx_failed):
     minter, a1, a2 = w3.eth.accounts[0:3]
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 2, transact={"from": minter})
     c.burn(1, transact={"from": a1})
     c.transfer(a2, 1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a1})
     c.burn(1, transact={"from": a2})
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a2})
     # Ensure transfer fails with insufficient balance
-    with assert_tx_failed():
+    with tx_failed():
         c.transfer(a1, 1, transact={"from": a2})
     # Ensure 0-transfer always succeeds
     c.transfer(a1, 0, transact={"from": a2})
 
 
-def test_maxInts(c, w3, assert_tx_failed):
+def test_maxInts(c, w3, tx_failed):
     minter, a1, a2 = w3.eth.accounts[0:3]
     c.mint(a1, MAX_UINT256, transact={"from": minter})
     assert c.balanceOf(a1) == MAX_UINT256
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a1, 1, transact={"from": a1})
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a1, MAX_UINT256, transact={"from": a1})
     # Check that totalSupply cannot overflow, even when mint to other account
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a2, 1, transact={"from": minter})
     # Check that corresponding mint is allowed after burn
     c.burn(1, transact={"from": a1})
     c.mint(a2, 1, transact={"from": minter})
-    with assert_tx_failed():
+    with tx_failed():
         c.mint(a2, 1, transact={"from": minter})
     c.transfer(a1, 1, transact={"from": a2})
     # Assert that after obtaining max number of tokens, a1 can transfer those but no more
@@ -166,15 +166,15 @@ def test_maxInts(c, w3, assert_tx_failed):
     assert c.balanceOf(a1) == 0
 
 
-def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
+def test_transferFrom_and_Allowance(c, w3, tx_failed):
     minter, a1, a2, a3 = w3.eth.accounts[0:4]
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 1, transact={"from": minter})
     c.mint(a2, 1, transact={"from": minter})
     c.burn(1, transact={"from": a1})
     # This should fail; no allowance or balance (0 always succeeds)
-    with assert_tx_failed():
+    with tx_failed():
         c.transferFrom(a1, a3, 1, transact={"from": a2})
     c.transferFrom(a1, a3, 0, transact={"from": a2})
     # Correct call to approval should update allowance (but not for reverse pair)
@@ -182,7 +182,7 @@ def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
     assert c.allowance(a1, a2) == 1
     assert c.allowance(a2, a1) == 0
     # transferFrom should succeed when allowed, fail with wrong sender
-    with assert_tx_failed():
+    with tx_failed():
         c.transferFrom(a1, a3, 1, transact={"from": a3})
     assert c.balanceOf(a2) == 1
     c.approve(a1, 1, transact={"from": a2})
@@ -192,7 +192,7 @@ def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
     # transferFrom with no funds should fail despite approval
     c.approve(a1, 1, transact={"from": a2})
     assert c.allowance(a2, a1) == 1
-    with assert_tx_failed():
+    with tx_failed():
         c.transferFrom(a2, a3, 1, transact={"from": a1})
     # 0-approve should not change balance or allow transferFrom to change balance
     c.mint(a2, 1, transact={"from": minter})
@@ -201,7 +201,7 @@ def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
     assert c.allowance(a2, a1) == 0
     c.approve(a1, 0, transact={"from": a2})
     assert c.allowance(a2, a1) == 0
-    with assert_tx_failed():
+    with tx_failed():
         c.transferFrom(a2, a3, 1, transact={"from": a1})
     # Test that if non-zero approval exists, 0-approval is NOT required to proceed
     # a non-conformant implementation is described in countermeasures at
@@ -219,15 +219,15 @@ def test_transferFrom_and_Allowance(c, w3, assert_tx_failed):
     assert c.allowance(a2, a1) == 5
 
 
-def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
+def test_burnFrom_and_Allowance(c, w3, tx_failed):
     minter, a1, a2, a3 = w3.eth.accounts[0:4]
-    with assert_tx_failed():
+    with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 1, transact={"from": minter})
     c.mint(a2, 1, transact={"from": minter})
     c.burn(1, transact={"from": a1})
     # This should fail; no allowance or balance (0 always succeeds)
-    with assert_tx_failed():
+    with tx_failed():
         c.burnFrom(a1, 1, transact={"from": a2})
     c.burnFrom(a1, 0, transact={"from": a2})
     # Correct call to approval should update allowance (but not for reverse pair)
@@ -235,7 +235,7 @@ def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
     assert c.allowance(a1, a2) == 1
     assert c.allowance(a2, a1) == 0
     # transferFrom should succeed when allowed, fail with wrong sender
-    with assert_tx_failed():
+    with tx_failed():
         c.burnFrom(a2, 1, transact={"from": a3})
     assert c.balanceOf(a2) == 1
     c.approve(a1, 1, transact={"from": a2})
@@ -245,7 +245,7 @@ def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
     # transferFrom with no funds should fail despite approval
     c.approve(a1, 1, transact={"from": a2})
     assert c.allowance(a2, a1) == 1
-    with assert_tx_failed():
+    with tx_failed():
         c.burnFrom(a2, 1, transact={"from": a1})
     # 0-approve should not change balance or allow transferFrom to change balance
     c.mint(a2, 1, transact={"from": minter})
@@ -254,7 +254,7 @@ def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
     assert c.allowance(a2, a1) == 0
     c.approve(a1, 0, transact={"from": a2})
     assert c.allowance(a2, a1) == 0
-    with assert_tx_failed():
+    with tx_failed():
         c.burnFrom(a2, 1, transact={"from": a1})
     # Test that if non-zero approval exists, 0-approval is NOT required to proceed
     # a non-conformant implementation is described in countermeasures at
@@ -271,7 +271,7 @@ def test_burnFrom_and_Allowance(c, w3, assert_tx_failed):
     c.approve(a1, 5, transact={"from": a2})
     assert c.allowance(a2, a1) == 5
     # Check that burnFrom to ZERO_ADDRESS failed
-    with assert_tx_failed():
+    with tx_failed():
         c.burnFrom(ZERO_ADDRESS, 0, transact={"from": a1})
 
 
@@ -334,35 +334,35 @@ def test_raw_logs(c, w3, get_log_args):
     assert args.value == 0
 
 
-def test_bad_transfer(c_bad, w3, assert_tx_failed):
+def test_bad_transfer(c_bad, w3, tx_failed):
     # Ensure transfer fails if it would otherwise overflow balance when totalSupply is corrupted
     minter, a1, a2 = w3.eth.accounts[0:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
-    with assert_tx_failed():
+    with tx_failed():
         c_bad.transfer(a1, 1, transact={"from": a2})
     c_bad.transfer(a2, MAX_UINT256 - 1, transact={"from": a1})
     assert c_bad.balanceOf(a1) == 1
     assert c_bad.balanceOf(a2) == MAX_UINT256
 
 
-def test_bad_burn(c_bad, w3, assert_tx_failed):
+def test_bad_burn(c_bad, w3, tx_failed):
     # Ensure burn fails if it would otherwise underflow balance when totalSupply is corrupted
     minter, a1 = w3.eth.accounts[0:2]
     assert c_bad.balanceOf(a1) == 0
     c_bad.mint(a1, 2, transact={"from": minter})
     assert c_bad.balanceOf(a1) == 2
-    with assert_tx_failed():
+    with tx_failed():
         c_bad.burn(3, transact={"from": a1})
 
 
-def test_bad_transferFrom(c_bad, w3, assert_tx_failed):
+def test_bad_transferFrom(c_bad, w3, tx_failed):
     # Ensure transferFrom fails if it would otherwise overflow balance when totalSupply is corrupted
     minter, a1, a2 = w3.eth.accounts[0:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
     c_bad.approve(a1, 1, transact={"from": a2})
-    with assert_tx_failed():
+    with tx_failed():
         c_bad.transferFrom(a2, a1, 1, transact={"from": a1})
     c_bad.approve(a2, MAX_UINT256 - 1, transact={"from": a1})
     assert c_bad.allowance(a1, a2) == MAX_UINT256 - 1

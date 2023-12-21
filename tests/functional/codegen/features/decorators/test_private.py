@@ -449,7 +449,7 @@ def whoami() -> address:
     assert logged_addr == addr, "oh no"
 
 
-def test_nested_static_params_only(get_contract, assert_tx_failed):
+def test_nested_static_params_only(get_contract, tx_failed):
     code1 = """
 @internal
 @view

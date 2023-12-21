@@ -1,4 +1,4 @@
-def test_extract32_extraction(assert_tx_failed, get_contract_with_gas_estimation):
+def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
 y: Bytes[100]
 @external
@@ -35,7 +35,7 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
 
     for S, i in test_cases:
         if i < 0 or i > len(S) - 32:
-            with assert_tx_failed():
+            with tx_failed():
                 c.extrakt32(S, i)
             continue
 
@@ -47,7 +47,7 @@ def extrakt32_storage(index: uint256, inp: Bytes[100]) -> bytes32:
     print("Passed bytes32 extraction test")
 
 
-def test_extract32_code(assert_tx_failed, get_contract_with_gas_estimation):
+def test_extract32_code(tx_failed, get_contract_with_gas_estimation):
     extract32_code = """
 @external
 def foo(inp: Bytes[32]) -> int128:
@@ -74,7 +74,7 @@ def foq(inp: Bytes[32]) -> address:
     assert c.foo(b"\x00" * 30 + b"\x01\x01") == 257
     assert c.bar(b"\x00" * 30 + b"\x01\x01") == 257
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(b"\x80" + b"\x00" * 30)
 
     assert c.bar(b"\x80" + b"\x00" * 31) == 2**255
@@ -83,7 +83,7 @@ def foq(inp: Bytes[32]) -> address:
     assert c.fop(b"crow" * 8) == b"crow" * 8
     assert c.foq(b"\x00" * 12 + b"3" * 20) == "0x" + "3" * 40
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foq(b"crow" * 8)
 
     print("Passed extract32 test")

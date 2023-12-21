@@ -23,7 +23,7 @@ def foo() -> bytes32:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
-def test_too_old_blockhash(assert_tx_failed, get_contract_with_gas_estimation, w3):
+def test_too_old_blockhash(tx_failed, get_contract_with_gas_estimation, w3):
     w3.testing.mine(257)
     code = """
 @external
@@ -31,16 +31,16 @@ def get_50_blockhash() -> bytes32:
     return blockhash(block.number - 257)
 """
     c = get_contract_with_gas_estimation(code)
-    with assert_tx_failed():
+    with tx_failed():
         c.get_50_blockhash()
 
 
-def test_non_existing_blockhash(assert_tx_failed, get_contract_with_gas_estimation):
+def test_non_existing_blockhash(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def get_future_blockhash() -> bytes32:
     return blockhash(block.number + 1)
 """
     c = get_contract_with_gas_estimation(code)
-    with assert_tx_failed():
+    with tx_failed():
         c.get_future_blockhash()

@@ -511,7 +511,7 @@ def bar(a: uint256) -> Roles:
 @pytest.mark.parametrize("typ", ["uint8", "int128", "int256", "uint256"])
 @pytest.mark.parametrize("val", [1, 2, 3, 4, 2**128, 2**256 - 1, 2**256 - 2])
 def test_enum_conversion_2(
-    get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, val, typ
+    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, val, typ
 ):
     contract = f"""
 enum Status:
@@ -529,7 +529,7 @@ def foo(a: {typ}) -> Status:
         if lo <= val <= hi:
             assert c.foo(val) == val
         else:
-            with assert_tx_failed():
+            with tx_failed():
                 c.foo(val)
     else:
         assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), TypeMismatch)
@@ -609,7 +609,7 @@ def foo() -> {t_bytes}:
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
 def test_conversion_failures(
-    get_contract_with_gas_estimation, assert_compile_failed, assert_tx_failed, i_typ, o_typ, val
+    get_contract_with_gas_estimation, assert_compile_failed, tx_failed, i_typ, o_typ, val
 ):
     """
     Test multiple contracts and check for a specific exception.
@@ -651,7 +651,7 @@ def foo():
     """
 
     c2 = get_contract_with_gas_estimation(contract_2)
-    with assert_tx_failed():
+    with tx_failed():
         c2.foo()
 
     contract_3 = f"""
@@ -661,5 +661,5 @@ def foo(bar: {i_typ}) -> {o_typ}:
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    with assert_tx_failed():
+    with tx_failed():
         c3.foo(val)

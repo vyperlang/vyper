@@ -1,4 +1,4 @@
-def test_uint256_mulmod(assert_tx_failed, get_contract_with_gas_estimation):
+def test_uint256_mulmod(tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @external
 def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
@@ -11,7 +11,7 @@ def _uint256_mulmod(x: uint256, y: uint256, z: uint256) -> uint256:
     assert c._uint256_mulmod(200, 3, 601) == 600
     assert c._uint256_mulmod(2**255, 1, 3) == 2
     assert c._uint256_mulmod(2**255, 2, 6) == 4
-    with assert_tx_failed():
+    with tx_failed():
         c._uint256_mulmod(2, 2, 0)
 
 

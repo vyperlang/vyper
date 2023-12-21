@@ -427,7 +427,7 @@ def test(addr: address):
 
 # test data returned from external interface gets clamped
 @pytest.mark.parametrize("typ", ("int128", "uint8"))
-def test_external_interface_int_clampers(get_contract, assert_tx_failed, typ):
+def test_external_interface_int_clampers(get_contract, tx_failed, typ):
     external_contract = f"""
 @external
 def ok() -> {typ}:
@@ -474,16 +474,16 @@ def test_fail3() -> int256:
     assert bad_c.should_fail() == -(2**255)
 
     assert c.test_ok() == 1
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail()
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail2()
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail3()
 
 
 # test data returned from external interface gets clamped
-def test_external_interface_bytes_clampers(get_contract, assert_tx_failed):
+def test_external_interface_bytes_clampers(get_contract, tx_failed):
     external_contract = """
 @external
 def ok() -> Bytes[2]:
@@ -525,16 +525,14 @@ def test_fail2() -> Bytes[3]:
     assert bad_c.should_fail() == b"123"
 
     assert c.test_ok() == b"12"
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail1()
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail2()
 
 
 # test data returned from external interface gets clamped
-def test_json_abi_bytes_clampers(
-    get_contract, assert_tx_failed, assert_compile_failed, make_input_bundle
-):
+def test_json_abi_bytes_clampers(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
@@ -589,11 +587,11 @@ def test_fail3() -> Bytes[3]:
     c = get_contract(code, bad_c.address, input_bundle=input_bundle)
     assert bad_c.returns_Bytes3() == b"123"
 
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail1()
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail2()
-    with assert_tx_failed():
+    with tx_failed():
         c.test_fail3()
 
 

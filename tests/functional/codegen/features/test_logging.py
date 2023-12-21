@@ -193,7 +193,7 @@ def bar():
 
 
 def test_event_logging_cannot_have_more_than_three_topics(
-    assert_tx_failed, get_contract_with_gas_estimation
+    tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -203,7 +203,7 @@ event MyLog:
     arg4: indexed(int128)
     """
 
-    with assert_tx_failed(EventDeclarationException):
+    with tx_failed(EventDeclarationException):
         lambda: get_contract_with_gas_estimation(loggy_code)
 
 
@@ -554,7 +554,7 @@ def foo():
     assert args.arg2 == {"x": 1, "y": b"abc", "z": {"t": "house", "w": Decimal("13.5")}}
 
 
-def test_fails_when_input_is_the_wrong_type(assert_tx_failed, get_contract_with_gas_estimation):
+def test_fails_when_input_is_the_wrong_type(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(int128)
@@ -564,11 +564,11 @@ def foo_():
     log MyLog(b'yo')
 """
 
-    with assert_tx_failed(InvalidType):
+    with tx_failed(InvalidType):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
+def test_fails_when_topic_is_the_wrong_size(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[3])
@@ -579,13 +579,11 @@ def foo():
     log MyLog(b'bars')
 """
 
-    with assert_tx_failed(InvalidType):
+    with tx_failed(InvalidType):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_fails_when_input_topic_is_the_wrong_size(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
+def test_fails_when_input_topic_is_the_wrong_size(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[3])
@@ -595,11 +593,11 @@ def foo(arg1: Bytes[4]):
     log MyLog(arg1)
 """
 
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_fails_when_data_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
+def test_fails_when_data_is_the_wrong_size(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: Bytes[3]
@@ -609,13 +607,11 @@ def foo():
     log MyLog(b'bars')
 """
 
-    with assert_tx_failed(InvalidType):
+    with tx_failed(InvalidType):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_fails_when_input_data_is_the_wrong_size(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
+def test_fails_when_input_data_is_the_wrong_size(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: Bytes[3]
@@ -625,7 +621,7 @@ def foo(arg1: Bytes[4]):
     log MyLog(arg1)
 """
 
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
@@ -641,7 +637,7 @@ def foo():
     get_contract_with_gas_estimation(loggy_code)
 
 
-def test_logging_fails_with_over_three_topics(assert_tx_failed, get_contract_with_gas_estimation):
+def test_logging_fails_with_over_three_topics(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(int128)
@@ -654,11 +650,11 @@ def __init__():
     log MyLog(1, 2, 3, 4)
     """
 
-    with assert_tx_failed(EventDeclarationException):
+    with tx_failed(EventDeclarationException):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_logging_fails_with_duplicate_log_names(assert_tx_failed, get_contract_with_gas_estimation):
+def test_logging_fails_with_duplicate_log_names(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog: pass
 event MyLog: pass
@@ -668,13 +664,11 @@ def foo():
     log MyLog()
     """
 
-    with assert_tx_failed(NamespaceCollision):
+    with tx_failed(NamespaceCollision):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_logging_fails_with_when_log_is_undeclared(
-    assert_tx_failed, get_contract_with_gas_estimation
-):
+def test_logging_fails_with_when_log_is_undeclared(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 
 @external
@@ -682,11 +676,11 @@ def foo():
     log MyLog()
     """
 
-    with assert_tx_failed(UndeclaredDefinition):
+    with tx_failed(UndeclaredDefinition):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_logging_fails_with_topic_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
+def test_logging_fails_with_topic_type_mismatch(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: indexed(int128)
@@ -696,11 +690,11 @@ def foo():
     log MyLog(self)
     """
 
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_logging_fails_with_data_type_mismatch(assert_tx_failed, get_contract_with_gas_estimation):
+def test_logging_fails_with_data_type_mismatch(tx_failed, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: Bytes[3]
@@ -710,12 +704,12 @@ def foo():
     log MyLog(self)
     """
 
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
 def test_logging_fails_when_number_of_arguments_is_greater_than_declaration(
-    assert_tx_failed, get_contract_with_gas_estimation
+    tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -725,12 +719,12 @@ event MyLog:
 def foo():
     log MyLog(1, 2)
 """
-    with assert_tx_failed(ArgumentException):
+    with tx_failed(ArgumentException):
         get_contract_with_gas_estimation(loggy_code)
 
 
 def test_logging_fails_when_number_of_arguments_is_less_than_declaration(
-    assert_tx_failed, get_contract_with_gas_estimation
+    tx_failed, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -741,7 +735,7 @@ event MyLog:
 def foo():
     log MyLog(1)
 """
-    with assert_tx_failed(ArgumentException):
+    with tx_failed(ArgumentException):
         get_contract_with_gas_estimation(loggy_code)
 
 
@@ -971,7 +965,7 @@ def set_list():
     ]
 
 
-def test_logging_fails_when_input_is_too_big(assert_tx_failed, get_contract_with_gas_estimation):
+def test_logging_fails_when_input_is_too_big(tx_failed, get_contract_with_gas_estimation):
     code = """
 event Bar:
     _value: indexed(Bytes[32])
@@ -980,7 +974,7 @@ event Bar:
 def foo(inp: Bytes[33]):
     log Bar(inp)
 """
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(code)
 
 

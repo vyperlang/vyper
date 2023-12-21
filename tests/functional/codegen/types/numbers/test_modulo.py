@@ -31,14 +31,14 @@ def num_modulo_decimal() -> decimal:
     assert c.num_modulo_decimal() == Decimal(".5")
 
 
-def test_modulo_with_input_of_zero(assert_tx_failed, get_contract_with_gas_estimation):
+def test_modulo_with_input_of_zero(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def foo(a: decimal, b: decimal) -> decimal:
     return a % b
 """
     c = get_contract_with_gas_estimation(code)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(Decimal("1"), Decimal("0"))
 
 

@@ -469,7 +469,7 @@ def get_logs(w3):
 
 
 @pytest.fixture(scope="module")
-def assert_tx_failed(tester):
+def tx_failed(tester):
     @contextmanager
     def assert_tx_failed(exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()

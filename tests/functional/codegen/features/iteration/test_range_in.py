@@ -110,7 +110,7 @@ def testin() -> bool:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
-def test_ownership(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_ownership(w3, tx_failed, get_contract_with_gas_estimation):
     code = """
 
 owners: address[2]
@@ -135,7 +135,7 @@ def is_owner() -> bool:
     assert c.is_owner(call={"from": a1}) is False  # no one else is.
 
     # only an owner may set another owner.
-    with assert_tx_failed():
+    with tx_failed():
         c.set_owner(1, a1, call={"from": a1})
 
     c.set_owner(1, a1, transact={})
@@ -146,7 +146,7 @@ def is_owner() -> bool:
     assert c.is_owner() is False
 
 
-def test_in_fails_when_types_dont_match(get_contract_with_gas_estimation, assert_tx_failed):
+def test_in_fails_when_types_dont_match(get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def testin(x: address) -> bool:
@@ -155,5 +155,5 @@ def testin(x: address) -> bool:
         return True
     return False
 """
-    with assert_tx_failed():
+    with tx_failed():
         get_contract_with_gas_estimation(code), TypeMismatch

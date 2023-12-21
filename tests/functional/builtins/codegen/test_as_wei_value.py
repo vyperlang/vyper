@@ -23,7 +23,7 @@ wei_denoms = {
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_uint256(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_uint256(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: uint256) -> uint256:
@@ -36,12 +36,12 @@ def foo(a: uint256) -> uint256:
     assert c.foo(value) == value * (10**multiplier)
 
     value = (2**256 - 1) // (10 ** (multiplier - 1))
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_int128(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_int128(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: int128) -> uint256:
@@ -55,7 +55,7 @@ def foo(a: int128) -> uint256:
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_decimal(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_decimal(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: decimal) -> uint256:
@@ -70,7 +70,7 @@ def foo(a: decimal) -> uint256:
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
 @pytest.mark.parametrize("data_type", ["decimal", "int128"])
-def test_negative_value_reverts(get_contract, assert_tx_failed, value, data_type):
+def test_negative_value_reverts(get_contract, tx_failed, value, data_type):
     code = f"""
 @external
 def foo(a: {data_type}) -> uint256:
@@ -78,13 +78,13 @@ def foo(a: {data_type}) -> uint256:
     """
 
     c = get_contract(code)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
 @pytest.mark.parametrize("data_type", ["decimal", "int128", "uint256"])
-def test_zero_value(get_contract, assert_tx_failed, denom, multiplier, data_type):
+def test_zero_value(get_contract, tx_failed, denom, multiplier, data_type):
     code = f"""
 @external
 def foo(a: {data_type}) -> uint256:

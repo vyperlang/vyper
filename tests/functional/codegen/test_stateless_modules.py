@@ -186,7 +186,7 @@ def qux() -> library.SomeStruct:
 
 
 # test calls to library functions in statement position
-def test_library_statement_calls(get_contract, make_input_bundle, assert_tx_failed):
+def test_library_statement_calls(get_contract, make_input_bundle, tx_failed):
     library_source = """
 from vyper.interfaces import ERC20
 @internal
@@ -211,7 +211,7 @@ def foo(x: uint256):
 
     assert c.counter() == 7
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(8)
 
 

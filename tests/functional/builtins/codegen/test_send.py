@@ -1,4 +1,4 @@
-def test_send(assert_tx_failed, get_contract):
+def test_send(tx_failed, get_contract):
     send_test = """
 @external
 def foo():
@@ -9,10 +9,10 @@ def fop():
     send(msg.sender, 10)
     """
     c = get_contract(send_test, value=10)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(transact={})
     c.fop(transact={})
-    with assert_tx_failed():
+    with tx_failed():
         c.fop(transact={})
 
 

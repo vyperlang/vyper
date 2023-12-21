@@ -41,7 +41,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     bytesdata,
     start,
@@ -79,7 +79,7 @@ def do_splice() -> Bytes[{length_bound}]:
         assert_compile_failed(lambda: _get_contract(), ArgumentException)
     elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
         # deploy fail
-        with assert_tx_failed():
+        with tx_failed():
             _get_contract()
     else:
         c = _get_contract()
@@ -96,7 +96,7 @@ def do_splice() -> Bytes[{length_bound}]:
 def test_slice_bytes_fuzz(
     get_contract,
     assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     location,
     bytesdata,
@@ -176,11 +176,11 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
     elif location == "code" and len(bytesdata) > length_bound:
         # deploy fail
-        with assert_tx_failed():
+        with tx_failed():
             _get_contract()
     elif end > len(bytesdata) or len(bytesdata) > length_bound:
         c = _get_contract()
-        with assert_tx_failed():
+        with tx_failed():
             c.do_slice(bytesdata, start, length)
     else:
         c = _get_contract()

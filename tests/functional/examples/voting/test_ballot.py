@@ -33,7 +33,7 @@ def test_initial_state(w3, c):
     assert c.voters(z0)[0] == 0  # Voter.weight
 
 
-def test_give_the_right_to_vote(w3, c, assert_tx_failed):
+def test_give_the_right_to_vote(w3, c, tx_failed):
     a0, a1, a2, a3, a4, a5 = w3.eth.accounts[:6]
     c.giveRightToVote(a1, transact={})
     # Check voter given right has weight of 1
@@ -56,7 +56,7 @@ def test_give_the_right_to_vote(w3, c, assert_tx_failed):
     # Check voter_acount is now 6
     assert c.voterCount() == 6
     # Check chairperson cannot give the right to vote twice to the same voter
-    with assert_tx_failed():
+    with tx_failed():
         c.giveRightToVote(a5, transact={})
     # Check voters weight didn't change
     assert c.voters(a5)[0] == 1  # Voter.weight
@@ -128,7 +128,7 @@ def test_forward_weight(w3, c):
     assert c.voters(a9)[0] == 10  # Voter.weight
 
 
-def test_block_short_cycle(w3, c, assert_tx_failed):
+def test_block_short_cycle(w3, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = w3.eth.accounts[:10]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
@@ -142,7 +142,7 @@ def test_block_short_cycle(w3, c, assert_tx_failed):
     c.delegate(a3, transact={"from": a2})
     c.delegate(a4, transact={"from": a3})
     # would create a length 5 cycle:
-    with assert_tx_failed():
+    with tx_failed():
         c.delegate(a0, transact={"from": a4})
 
     c.delegate(a5, transact={"from": a4})
@@ -152,7 +152,7 @@ def test_block_short_cycle(w3, c, assert_tx_failed):
     # but this is something the frontend should prevent for user friendliness
 
 
-def test_delegate(w3, c, assert_tx_failed):
+def test_delegate(w3, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
@@ -169,10 +169,10 @@ def test_delegate(w3, c, assert_tx_failed):
     # Delegate's weight is 2
     assert c.voters(a0)[0] == 2  # Voter.weight
     # Voter cannot delegate twice
-    with assert_tx_failed():
+    with tx_failed():
         c.delegate(a2, transact={"from": a1})
     # Voter cannot delegate to themselves
-    with assert_tx_failed():
+    with tx_failed():
         c.delegate(a2, transact={"from": a2})
     # Voter CAN delegate to someone who hasn't been granted right to vote
     # Exercise: prevent that
@@ -184,7 +184,7 @@ def test_delegate(w3, c, assert_tx_failed):
     assert c.voters(a0)[0] == 3  # Voter.weight
 
 
-def test_vote(w3, c, assert_tx_failed):
+def test_vote(w3, c, tx_failed):
     a0, a1, a2, a3, a4, a5, a6, a7, a8, a9 = w3.eth.accounts[:10]
     c.giveRightToVote(a0, transact={})
     c.giveRightToVote(a1, transact={})
@@ -201,10 +201,10 @@ def test_vote(w3, c, assert_tx_failed):
     # Vote count changes based on voters weight
     assert c.proposals(0)[1] == 3  # Proposal.voteCount
     # Voter cannot vote twice
-    with assert_tx_failed():
+    with tx_failed():
         c.vote(0)
     # Voter cannot vote if they've delegated
-    with assert_tx_failed():
+    with tx_failed():
         c.vote(0, transact={"from": a1})
     # Several voters can vote
     c.vote(1, transact={"from": a4})
@@ -213,7 +213,7 @@ def test_vote(w3, c, assert_tx_failed):
     c.vote(1, transact={"from": a6})
     assert c.proposals(1)[1] == 4  # Proposal.voteCount
     # Can't vote on a non-proposal
-    with assert_tx_failed():
+    with tx_failed():
         c.vote(2, transact={"from": a7})
 
 

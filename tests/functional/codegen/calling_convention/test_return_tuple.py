@@ -152,11 +152,11 @@ def test3() -> (address, int128):
     assert c.test3() == [c.out_literals()[2], 1]
 
 
-def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
+def test_tuple_return_typecheck(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """
-    with assert_tx_failed(TypeMismatch):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(code)

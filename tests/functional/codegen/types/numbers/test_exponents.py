@@ -7,7 +7,7 @@ from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_p
 
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 255))
-def test_exp_uint256(get_contract, assert_tx_failed, power):
+def test_exp_uint256(get_contract, tx_failed, power):
     code = f"""
 @external
 def foo(a: uint256) -> uint256:
@@ -20,13 +20,13 @@ def foo(a: uint256) -> uint256:
     c = get_contract(code)
 
     c.foo(max_base)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(max_base + 1)
 
 
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 127))
-def test_exp_int128(get_contract, assert_tx_failed, power):
+def test_exp_int128(get_contract, tx_failed, power):
     code = f"""
 @external
 def foo(a: int128) -> int128:
@@ -45,15 +45,15 @@ def foo(a: int128) -> int128:
     c.foo(max_base)
     c.foo(min_base)
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(max_base + 1)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(min_base - 1)
 
 
 @pytest.mark.fuzzing
 @pytest.mark.parametrize("power", range(2, 15))
-def test_exp_int16(get_contract, assert_tx_failed, power):
+def test_exp_int16(get_contract, tx_failed, power):
     code = f"""
 @external
 def foo(a: int16) -> int16:
@@ -72,9 +72,9 @@ def foo(a: int16) -> int16:
     c.foo(max_base)
     c.foo(min_base)
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(max_base + 1)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(min_base - 1)
 
 
@@ -98,7 +98,7 @@ def foo(a: int16) -> int16:
 # 256 bits
 @example(a=2**256 - 1)
 @settings(max_examples=200)
-def test_max_exp(get_contract, assert_tx_failed, a):
+def test_max_exp(get_contract, tx_failed, a):
     code = f"""
 @external
 def foo(b: uint256) -> uint256:
@@ -113,7 +113,7 @@ def foo(b: uint256) -> uint256:
     assert a ** (max_power + 1) >= 2**256
 
     c.foo(max_power)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(max_power + 1)
 
 
@@ -134,7 +134,7 @@ def foo(b: uint256) -> uint256:
 # 128 bits
 @example(a=2**127 - 1)
 @settings(max_examples=200)
-def test_max_exp_int128(get_contract, assert_tx_failed, a):
+def test_max_exp_int128(get_contract, tx_failed, a):
     code = f"""
 @external
 def foo(b: int128) -> int128:
@@ -149,5 +149,5 @@ def foo(b: int128) -> int128:
     assert not -(2**127) <= a ** (max_power + 1) < 2**127
 
     c.foo(max_power)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo(max_power + 1)

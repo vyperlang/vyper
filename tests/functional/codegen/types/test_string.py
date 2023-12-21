@@ -61,7 +61,7 @@ def get(k: String[34]) -> int128:
     assert c.get("a" * 34) == 6789
 
 
-def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
+def test_string_slice(get_contract_with_gas_estimation, tx_failed):
     test_slice4 = """
 @external
 def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
@@ -76,13 +76,13 @@ def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
     assert c.foo("badminton", 1, 0) == ""
     assert c.foo("badminton", 9, 0) == ""
 
-    with assert_tx_failed():
+    with tx_failed():
         c.foo("badminton", 0, 10)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo("badminton", 1, 9)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo("badminton", 9, 1)
-    with assert_tx_failed():
+    with tx_failed():
         c.foo("badminton", 10, 0)
 
 
