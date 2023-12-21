@@ -192,7 +192,7 @@ def test() -> Bytes[100]:
     assert c.test() == test_str
 
 
-def test_constant_folds(search_for_sublist):
+def test_constant_folds():
     some_prime = 10013677
     code = f"""
 SOME_CONSTANT: constant(uint256) = 11 + 1
@@ -206,10 +206,15 @@ def test() -> uint256:
     return ret
     """
 
-    ir = compile_code(code, output_formats=["ir"])["ir"]
-    assert search_for_sublist(
-        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
-    )
+    def search_for_sublist(ir, sublist):
+        _list = ir.to_list() if hasattr(ir, "to_list") else ir
+        if _list == sublist:
+            return True
+        return isinstance(_list, list) and any(search_for_sublist(i, sublist) for i in _list)
+
+    compiled_code = compile_code(code, output_formats=["ir"])["ir"]
+    search = ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
+    assert search_for_sublist(compiled_code, search)
 
 
 def test_constant_lists(get_contract):

@@ -412,23 +412,6 @@ def assert_compile_failed():
     return assert_compile_failed
 
 
-# TODO this should not be a fixture
-@pytest.fixture
-def search_for_sublist():
-    def search_for_sublist(ir, sublist):
-        _list = ir.to_list() if hasattr(ir, "to_list") else ir
-        if _list == sublist:
-            return True
-        if isinstance(_list, list):
-            for i in _list:
-                ret = search_for_sublist(i, sublist)
-                if ret is True:
-                    return ret
-        return False
-
-    return search_for_sublist
-
-
 @pytest.fixture
 def create2_address_of(keccak):
     def _f(_addr, _salt, _initcode):
