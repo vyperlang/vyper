@@ -69,6 +69,10 @@ class VyperType:
     _supports_external_calls: bool = False
     _attribute_in_annotation: bool = False
 
+    # _size_in_bytes is an internal property that is used
+    # to calculate sizes required in various locations. it can
+    # be used by subclasses, but does not have to be. it should
+    # *not* by used by external consumers of VyperType!
     _size_in_bytes = 32  # default; override for larger types
 
     def __init__(self, members: Optional[Dict] = None) -> None:
