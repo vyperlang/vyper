@@ -4,7 +4,6 @@ from vyper.ast import parse_to_ast
 from vyper.exceptions import (
     ArrayIndexException,
     InvalidReference,
-    InvalidType,
     TypeMismatch,
     UndeclaredDefinition,
 )
@@ -37,7 +36,7 @@ def foo():
     self.a[{value}] = 12
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         validate_semantics(vyper_module, dummy_input_bundle)
 
 

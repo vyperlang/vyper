@@ -17,11 +17,7 @@ from vyper.exceptions import (
     StructureException,
 )
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
-from vyper.semantics.analysis.utils import (
-    check_kwargable,
-    get_exact_type_from_node,
-    validate_expected_type,
-)
+from vyper.semantics.analysis.utils import check_kwargable, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -54,7 +50,7 @@ class ContractFunctionT(VyperType):
     Contract function type.
 
     Functions compare false against all types and so cannot be assigned without
-    being called. Calls are validated by `fetch_call_return`, check the call
+    being called. Calls are validated by `get_return_type`, check the call
     arguments against `positional_args` and `keyword_arg`, and return `return_type`.
 
     Attributes
@@ -86,6 +82,7 @@ class ContractFunctionT(VyperType):
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
         nonreentrant: Optional[str] = None,
+        is_from_abi: Optional[bool] = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
@@ -97,6 +94,7 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.is_from_abi = is_from_abi
 
         self.ast_def = ast_def
 
@@ -167,6 +165,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
+            is_from_abi=True,
         )
 
     @classmethod
@@ -486,13 +485,11 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
-        # mypy hint - right now, the only way a ContractFunctionT can be
-        # called is via `Attribute`, e.x. self.foo() or library.bar()
-        assert isinstance(node.func, vy_ast.Attribute)
-        parent_t = get_exact_type_from_node(node.func.value)
-        if not parent_t._supports_external_calls and self.visibility == FunctionVisibility.EXTERNAL:
-            raise CallViolation("Cannot call external functions via 'self' or via library", node)
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
+        if node.get("func.value.id") == "self" and self.visibility == FunctionVisibility.EXTERNAL:
+            raise CallViolation("Cannot call external functions via 'self'", node)
 
         kwarg_keys = []
         # for external calls, include gas and value as optional kwargs
@@ -745,7 +742,9 @@ class MemberFunctionT(VyperType):
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
 
-    def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
+    def get_return_type(
+        self, node: vy_ast.Call, expected_type: VyperType | None = None
+    ) -> VyperType | None:
         validate_call_args(node, len(self.arg_types))
 
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition

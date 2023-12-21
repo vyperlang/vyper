@@ -565,11 +565,8 @@ def test_fail2() -> Bytes[2]:
     return x
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_pass1() -> Bytes[3]:
     return self.foo.returns_Bytes3()
-
     """
 
     bad_c = get_contract(external_contract)
@@ -586,7 +583,7 @@ def test_fail3() -> Bytes[3]:
 
     assert_tx_failed(lambda: c.test_fail1())
     assert_tx_failed(lambda: c.test_fail2())
-    assert_tx_failed(lambda: c.test_fail3())
+    assert c.test_pass1() == b"123"
 
 
 def test_units_interface(w3, get_contract, make_input_bundle):
@@ -780,3 +777,68 @@ def test_call(a: address, b: {type_str}) -> {type_str}:
     make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
     c3 = get_contract(code, input_bundle=input_bundle)
     assert c3.test_call(c1.address, value) == value
+
+
+interface_tuple_return_test_code = """
+@external
+@view
+def test_json(a: {0}) -> (uint256, {0}):
+    return 1, a
+    """
+
+
+@pytest.mark.parametrize("type_str,value", type_str_params)
+def test_json_interface_calls_tuple_return(
+    get_contract, type_str, value, make_input_bundle, make_file
+):
+    code = interface_tuple_return_test_code.format(type_str)
+
+    abi = compile_code(code, output_formats=["abi"])["abi"]
+    c1 = get_contract(code)
+
+    code = f"""
+import jsonabi as jsonabi
+
+@external
+@view
+def test_call(a: address, b: {type_str}) -> (uint256, {type_str}):
+    return jsonabi(a).test_json(b)
+    """
+    input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
+    c2 = get_contract(code, input_bundle=input_bundle)
+    assert c2.test_call(c1.address, value) == [1, value]
+
+    make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
+    c3 = get_contract(code, input_bundle=input_bundle)
+    assert c3.test_call(c1.address, value) == [1, value]
+
+
+@pytest.mark.parametrize("typ,length,value", [("Bytes", 4, b"newp"), ("String", 6, "potato")])
+def test_json_interface_calls_bytestring_widening(
+    get_contract, typ, length, value, make_input_bundle, make_file
+):
+    type_str = f"{typ}[{length}]"
+    code = interface_test_code.format(type_str)
+
+    abi = compile_code(code, output_formats=["abi"])["abi"]
+    c1 = get_contract(code)
+
+    widened_typ1_str = f"{typ}[{length + 1}]"
+    widened_typ2_str = f"{typ}[{length + 2}]"
+    code = f"""
+import jsonabi as jsonabi
+
+@external
+@view
+def test_call(a: address, b: {type_str}) -> ({widened_typ1_str}, {widened_typ2_str}):
+    x: {widened_typ1_str} = jsonabi(a).test_json(b)
+    y: {widened_typ2_str} = jsonabi(a).test_json(b)
+    return x, y
+    """
+    input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
+    c2 = get_contract(code, input_bundle=input_bundle)
+    assert c2.test_call(c1.address, value) == [value, value]
+
+    make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
+    c3 = get_contract(code, input_bundle=input_bundle)
+    assert c3.test_call(c1.address, value) == [value, value]

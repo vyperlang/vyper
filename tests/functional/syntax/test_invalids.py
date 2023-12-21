@@ -4,7 +4,6 @@ from vyper import compiler
 from vyper.exceptions import (
     FunctionDeclarationException,
     InvalidOperation,
-    InvalidType,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -67,7 +66,7 @@ def foo():
     x: int128 = 5
     x = 0x1234567890123456789012345678901234567890
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_fail(
@@ -77,7 +76,7 @@ def foo():
     x: int128 = 5
     x = 3.5
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -105,7 +104,7 @@ b: int128
 def foo():
     self.b = 7.5
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -133,7 +132,7 @@ b: int128[5]
 def foo():
     self.b = 7
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -152,7 +151,7 @@ b: HashMap[uint256, uint256]
 def foo():
     x: int128 = self.b[-5]
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_fail(
@@ -162,7 +161,7 @@ b: HashMap[int128, int128]
 def foo():
     x: int128 = self.b[5.7]
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -181,7 +180,7 @@ b: HashMap[int128, int128]
 def foo():
     self.b[3] = 5.6
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -236,7 +235,7 @@ bar: int128[3]
 def foo():
     self.bar = 5
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_succeed(
@@ -254,7 +253,7 @@ must_fail(
 def foo() -> address:
     return [1, 2, 3]
 """,
-    InvalidType,
+    TypeMismatch,
 )
 
 must_fail(

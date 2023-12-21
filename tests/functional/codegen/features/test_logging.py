@@ -565,7 +565,7 @@ def foo_():
     log MyLog(b'yo')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_topic_is_the_wrong_size(assert_tx_failed, get_contract_with_gas_estimation):
@@ -579,7 +579,7 @@ def foo():
     log MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_input_topic_is_the_wrong_size(
@@ -607,7 +607,7 @@ def foo():
     log MyLog(b'bars')
 """
 
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), InvalidType)
+    assert_tx_failed(lambda: get_contract_with_gas_estimation(loggy_code), TypeMismatch)
 
 
 def test_fails_when_input_data_is_the_wrong_size(
@@ -1236,7 +1236,7 @@ fail_list = [
 def foo():
     raw_log([1, 2], b"moo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -1244,7 +1244,7 @@ def foo():
 def foo():
     raw_log([1, 2], b"moo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -1261,7 +1261,7 @@ def foo():
 def foo():
     raw_log([b"cow"], b"dog")
     """,
-        (StructureException, InvalidType),
+        (StructureException, TypeMismatch),
     ),
     (
         """
@@ -1270,7 +1270,7 @@ def foo():
     # bytes20 instead of bytes32
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

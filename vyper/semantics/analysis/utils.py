@@ -267,7 +267,7 @@ class _ExprAnalyser:
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-            types_list = [i for i in left if _is_type_in_list(i, [i.value_type for i in right])]
+            types_list = [i for i in left if _any_compare_type(i, [i.value_type for i in right])]
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
@@ -280,7 +280,7 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
-        return_value = var.fetch_call_return(node)
+        return_value = var.get_return_type(node)
         if return_value:
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
@@ -423,9 +423,9 @@ def _is_empty_list(node):
     return all(_is_empty_list(t) for t in node.elements)
 
 
-def _is_type_in_list(obj, types_list):
-    # check if a type object is in a list of types
-    return any(i.compare_type(obj) for i in types_list)
+def _any_compare_type(obj, types_list):
+    # check if an expression of a list of types can be assigned to a type object
+    return any(obj.compare_type(i) for i in types_list)
 
 
 # NOTE: dead fn
@@ -501,10 +501,10 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     for item in nodes[1:]:
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
-        common = [i for i in common_types if _is_type_in_list(i, new_types)]
+        common = [i for i in common_types if _any_compare_type(i, new_types)]
 
         rejected = [i for i in common_types if i not in common]
-        common += [i for i in new_types if _is_type_in_list(i, rejected)]
+        common += [i for i in new_types if _any_compare_type(i, rejected)]
 
         common_types = common
 
@@ -527,7 +527,7 @@ def _validate_literal_array(node, expected):
     for item in node.elements:
         try:
             validate_expected_type(item, expected.value_type)
-        except (InvalidType, TypeMismatch):
+        except TypeMismatch:
             return False
 
     return True
@@ -594,8 +594,7 @@ def validate_expected_type(node, expected_type):
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
+        raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )

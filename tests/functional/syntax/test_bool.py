@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import InvalidOperation, SyntaxException, TypeMismatch
 
 fail_list = [
     (
@@ -12,7 +12,7 @@ def foo():
     x: bool = True
     x = 5
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -29,7 +29,7 @@ def foo():
     x: bool = True
     x = 129
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

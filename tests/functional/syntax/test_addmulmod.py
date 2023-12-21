@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (  # bad AST nodes given as arguments
@@ -9,7 +9,7 @@ fail_list = [
 def foo() -> uint256:
     return uint256_addmod(1.1, 1.2, 3.0)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (  # bad AST nodes given as arguments
         """
@@ -17,7 +17,7 @@ def foo() -> uint256:
 def foo() -> uint256:
     return uint256_mulmod(1.1, 1.2, 3.0)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

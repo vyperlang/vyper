@@ -5,11 +5,11 @@ from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
-    InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
     SyntaxException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -33,16 +33,16 @@ VAL: constant(uint256, int128) = 12
         """
 VAL: constant(uint256) = "test"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     # invalid range
     (
         """
 VAL: constant(uint256) = -1
     """,
-        InvalidType,
+        TypeMismatch,
     ),
-    # reserverd keyword
+    # reserved keyword
     (
         """
 wei: constant(uint256) = 1
@@ -62,7 +62,7 @@ VAL: constant(uint256) = 11
         """
 VAL: constant(Bytes[4]) = b"testtest"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     # global with same name
     (

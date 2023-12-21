@@ -3,7 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -19,14 +19,11 @@ def foo():
 
 
 fail_list = [
-    (
-        """
+    """
 @external
 def foo() -> int128[2]:
     return [3,chain.id]
     """,
-        InvalidType,
-    ),
     """
 @external
 def foo() -> decimal:
@@ -54,25 +51,18 @@ a: HashMap[int128, uint256]
 def add_record():
     self.a[chain.id] = chain.id + 20
     """,
-    (
-        """
+    """
 @external
 def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, chain.id, -3)
     """,
-        InvalidType,
-    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_chain_fail(bad_code):
-    if isinstance(bad_code, tuple):
-        with pytest.raises(bad_code[1]):
-            compiler.compile_code(bad_code[0])
-    else:
-        with pytest.raises(TypeMismatch):
-            compiler.compile_code(bad_code)
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(bad_code)
 
 
 valid_list = [
