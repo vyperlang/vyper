@@ -18,9 +18,9 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
+    Modifiability,
     StateMutability,
     StorageSlot,
-    VariableConstancy,
 )
 from vyper.semantics.analysis.utils import (
     check_variable_constancy,
@@ -702,7 +702,7 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
-            if not check_variable_constancy(value, VariableConstancy.RUNTIME_CONSTANT):
+            if not check_variable_constancy(value, Modifiability.IMMUTABLE):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))

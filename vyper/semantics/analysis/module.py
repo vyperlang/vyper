@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, ModuleInfo, VariableConstancy, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
@@ -263,11 +263,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         constancy = (
-            VariableConstancy.RUNTIME_CONSTANT
+            Modifiability.IMMUTABLE
             if node.is_immutable
-            else VariableConstancy.COMPILE_TIME_CONSTANT
+            else Modifiability.ALWAYS_CONSTANT
             if node.is_constant
-            else VariableConstancy.MUTABLE
+            else Modifiability.MODIFIABLE
         )
 
         type_ = type_from_annotation(node.annotation, data_loc)
@@ -317,7 +317,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             ExprVisitor().visit(node.value, type_)
 
-            if not check_variable_constancy(node.value, VariableConstancy.COMPILE_TIME_CONSTANT):
+            if not check_variable_constancy(node.value, Modifiability.ALWAYS_CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

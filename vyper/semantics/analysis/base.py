@@ -97,10 +97,12 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-class VariableConstancy(enum.IntEnum):
-    MUTABLE = enum.auto()
-    RUNTIME_CONSTANT = enum.auto()
-    COMPILE_TIME_CONSTANT = enum.auto()
+class Modifiability(enum.IntEnum):
+    MODIFIABLE = enum.auto()
+    IMMUTABLE = enum.auto()
+    NOT_MODIFIABLE = enum.auto()
+    CONSTANT_IN_CURRENT_TX = enum.auto()
+    ALWAYS_CONSTANT = enum.auto()
 
 
 class DataPosition:
@@ -198,7 +200,7 @@ class VarInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    constancy: VariableConstancy = VariableConstancy.MUTABLE
+    constancy: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
     is_immutable: bool = False
     is_transient: bool = False
@@ -231,7 +233,7 @@ class ExprInfo:
     typ: VyperType
     var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
-    constancy: VariableConstancy = VariableConstancy.MUTABLE
+    constancy: Modifiability = Modifiability.MODIFIABLE
     is_immutable: bool = False
 
     def __post_init__(self):
@@ -283,7 +285,7 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.constancy == VariableConstancy.COMPILE_TIME_CONSTANT:
+        if self.constancy == Modifiability.ALWAYS_CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
         if self.is_immutable:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":

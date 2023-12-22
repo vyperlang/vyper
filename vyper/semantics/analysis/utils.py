@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, ModuleInfo, VariableConstancy, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -201,7 +201,7 @@ class _ExprAnalyser:
             if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and s.constancy >= VariableConstancy.RUNTIME_CONSTANT:
+            if is_self_reference and s.constancy >= Modifiability.IMMUTABLE:
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -639,7 +639,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def check_variable_constancy(node: vy_ast.VyperNode, constancy: VariableConstancy) -> bool:
+def check_variable_constancy(node: vy_ast.VyperNode, constancy: Modifiability) -> bool:
     """
     Check if the given node is a literal or constant value.
     """

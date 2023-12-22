@@ -6,7 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode, VyperException
-from vyper.semantics.analysis.base import VariableConstancy
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_variable_constancy,
     get_exact_type_from_node,
@@ -112,7 +112,7 @@ class BuiltinFunctionT(VyperType):
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
             if kwarg_settings.require_literal and not check_variable_constancy(
-                kwarg.value, VariableConstancy.RUNTIME_CONSTANT
+                kwarg.value, Modifiability.IMMUTABLE
             ):
                 raise TypeMismatch("Value must be literal or environment variable", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)

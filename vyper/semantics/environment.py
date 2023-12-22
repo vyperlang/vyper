@@ -1,6 +1,6 @@
 from typing import Dict
 
-from vyper.semantics.analysis.base import VariableConstancy, VarInfo
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.types import AddressT, BytesT, VyperType
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
@@ -52,7 +52,7 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, constancy=VariableConstancy.RUNTIME_CONSTANT)
+        result[k] = VarInfo(v, constancy=Modifiability.CONSTANT_IN_CURRENT_TX)
 
     return result
 

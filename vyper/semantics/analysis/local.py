@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VariableConstancy, VarInfo
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -192,9 +192,9 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
     def analyze(self):
         # allow internal function params to be mutable
         location, is_immutable, constancy = (
-            (DataLocation.MEMORY, False, VariableConstancy.MUTABLE)
+            (DataLocation.MEMORY, False, Modifiability.MODIFIABLE)
             if self.func.is_internal
-            else (DataLocation.CALLDATA, True, VariableConstancy.RUNTIME_CONSTANT)
+            else (DataLocation.CALLDATA, True, Modifiability.NOT_MODIFIABLE)
         )
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
@@ -494,7 +494,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             with self.namespace.enter_scope():
                 self.namespace[iter_name] = VarInfo(
-                    possible_target_type, constancy=VariableConstancy.COMPILE_TIME_CONSTANT
+                    possible_target_type, constancy=Modifiability.ALWAYS_CONSTANT
                 )
 
                 try:
