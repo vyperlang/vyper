@@ -19,6 +19,7 @@ from vyper.exceptions import (
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
+    VyperException,
     ZeroDivisionException,
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
@@ -79,8 +80,9 @@ def get_node(
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
+    enum_warn = False
     if ast_struct["ast_type"] == "EnumDef":
-        warnings.warn("enum will be deprecated in a future release, use flag instead")
+        enum_warn = True
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
@@ -97,7 +99,16 @@ def get_node(
                 ast_struct,
             )
 
-    return vy_class(parent=parent, **ast_struct)
+    node = vy_class(parent=parent, **ast_struct)
+
+    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
+    if enum_warn:
+        # TODO: hack to pretty print, logic should be factored out of exception
+        pretty_printed_node = str(VyperException("", node))
+        warnings.warn(
+            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}"
+        )
+    return node
 
 
 def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
