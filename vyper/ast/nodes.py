@@ -208,11 +208,13 @@ class VyperNode:
     _description : str, optional
         A human-readable description of the node. Used to give more verbose error
         messages.
+    _is_prefoldable : str, optional
+        If `True`, indicates that pre-folding should be attempted on the node.
     _only_empty_fields : Tuple, optional
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
         but not in Vyper.
-    _terminus : bool, optional
+    _is_terminus : bool, optional
         If `True`, indicates that execution halts upon reaching this node.
     _translated_fields : Dict, optional
         Field names that are reassigned if encountered. Used to normalize fields
@@ -883,6 +885,7 @@ class Bytes(Constant):
 
 class List(ExprNode):
     __slots__ = ("elements",)
+    _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
 
     def prefold(self) -> Optional[ExprNode]:
@@ -920,6 +923,7 @@ class Name(ExprNode):
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
+    _is_prefoldable = True
 
     def prefold(self) -> Optional[ExprNode]:
         operand = self.operand._metadata.get("folded_value")
@@ -975,6 +979,7 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
+    _is_prefoldable = True
 
     def prefold(self) -> Optional[ExprNode]:
         left = self.left._metadata.get("folded_value")
@@ -1134,6 +1139,7 @@ class RShift(Operator):
 
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
+    _is_prefoldable = True
 
     def prefold(self) -> Optional[ExprNode]:
         values = [i._metadata.get("folded_value") for i in self.values]
@@ -1190,6 +1196,7 @@ class Compare(ExprNode):
     """
 
     __slots__ = ("left", "op", "right")
+    _is_prefoldable = True
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["ops"]) > 1 or len(kwargs["comparators"]) > 1:
@@ -1310,6 +1317,7 @@ class Attribute(ExprNode):
 
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
+    _is_prefoldable = True
 
     def prefold(self) -> Optional[ExprNode]:
         slice_ = self.slice.value._metadata.get("folded_value")
