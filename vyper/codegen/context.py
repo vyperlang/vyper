@@ -4,11 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import vyper.ast as vy_ast
-
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.evm.address_space import MEMORY, AddrSpace, STORAGE, IMMUTABLES
+from vyper.evm.address_space import IMMUTABLES, MEMORY, STORAGE, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
-from vyper.semantics.types import VyperType, ModuleT
+from vyper.semantics.types import ModuleT, VyperType
 
 
 class Constancy(enum.Enum):
@@ -98,7 +97,7 @@ class Context:
         assert isinstance(func_module, vy_ast.Module)
 
         module_t = func_module._metadata["type"]
-        module_is_compilation_target = (module_t == self.compilation_target)
+        module_is_compilation_target = module_t == self.compilation_target
 
         if module_is_compilation_target:
             # return 0 for the special case where compilation target is self

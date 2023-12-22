@@ -323,7 +323,7 @@ class Expr:
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
 
         # self.x: global storage variable or immutable
-        elif (varinfo := self.expr._metadata.get("variable_access")) is not None:
+        if (varinfo := self.expr._metadata.get("variable_access")) is not None:
             assert isinstance(varinfo, VarInfo)
 
             # TODO: handle immutables
@@ -334,6 +334,7 @@ class Expr:
                 module_ptr = self.context.self_ptr(location)
 
             ret = get_element_ptr(module_ptr, self.expr.attr)
+            # TODO: take referenced variables info from analysis
             ret._referenced_variables = {varinfo}
             return ret
 

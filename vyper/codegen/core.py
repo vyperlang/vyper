@@ -7,6 +7,7 @@ from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -63,6 +64,17 @@ def is_array_like(typ):
     ret = isinstance(typ, (DArrayT, SArrayT))
     assert ret == typ._is_array_type
     return ret
+
+
+def data_location_to_addr_space(s: DataLocation):
+    if s == DataLocation.STORAGE:
+        return STORAGE
+    if s == DataLocation.MEMORY:
+        return MEMORY
+    if s == DataLocation.CODE:
+        return IMMUTABLES
+
+    raise CompilerPanic("unreachable")  # pragma: nocover
 
 
 def get_type_for_exact_size(n_bytes):

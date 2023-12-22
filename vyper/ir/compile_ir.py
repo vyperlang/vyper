@@ -112,6 +112,9 @@ def calc_mem_ofst_size(ctor_mem_size):
 def _rewrite_return_sequences(ir_node, label_params=None):
     args = ir_node.args
 
+    # special values which should be popped at the end of function execution
+    POPPABLE_PARAMS = ("return_buffer", "self_ptr_storage", "self_ptr_immutables")
+
     if ir_node.value == "return":
         if args[0].value == "ret_ofst" and args[1].value == "ret_len":
             ir_node.args[0].value = "pass"
@@ -126,8 +129,10 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             ir_node.value = "seq"
 
             _t = ["seq"]
-            if "return_buffer" in label_params:
-                _t.append(["pop", "pass"])
+
+            for s in POPPABLE_PARAMS:
+                if s in label_params:
+                    _t.append(["pop", "pass"])
 
             dest = args[0].value
             # works for both internal and external exit_to

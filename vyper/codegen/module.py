@@ -494,7 +494,9 @@ def generate_ir_for_module(compilation_target: ModuleT) -> tuple[IRnode, IRnode]
         # generate init_func_ir after callees to ensure they have analyzed
         # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_fallback_or_ctor(init_function, compilation_target, is_ctor_context=True)
+        init_func_ir = _ir_for_fallback_or_ctor(
+            init_function, compilation_target, is_ctor_context=True
+        )
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables

@@ -234,9 +234,10 @@ def set_code_offsets(vyper_module: vy_ast.Module) -> Dict:
         if not varinfo.is_immutable:
             continue
 
+        type_ = varinfo.typ
+
         len_ = ceil32(type_.immutable_bytes_required)
 
-        type_ = varinfo.typ
         varinfo.set_position(CodeOffset(offset))
 
         # this could have better typing but leave it untyped until

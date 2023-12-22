@@ -50,6 +50,11 @@ def generate_ir_for_internal_function(
     cleanup_label = func_t._ir_info.exit_sequence_label
 
     stack_args = ["var_list"]
+
+    for location in func_t.touched_locations:
+        location_name = location.name.lower()
+        stack_args.append(f"self_ptr_{location_name}")
+
     if func_t.return_type:
         stack_args += ["return_buffer"]
     stack_args += ["return_pc"]

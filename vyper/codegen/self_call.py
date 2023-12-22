@@ -1,7 +1,14 @@
-from vyper.codegen.core import _freshname, eval_once_check, make_setter
+from vyper import ast as vy_ast
+from vyper.codegen.core import (
+    _freshname,
+    data_location_to_addr_space,
+    eval_once_check,
+    get_element_ptr,
+    make_setter,
+)
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
-from vyper.exceptions import StateAccessViolation
+from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
 
@@ -20,7 +27,42 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def _get_self_ptr_for_location(node: vy_ast.Attribute, context, location):
+    # resolve something like self.x.y.z to a pointer
+    if isinstance(node.value, vy_ast.Name):
+        # base case
+        if node.value.id == "self":
+            ptr = context.self_ptr(location)
+        else:  # pragma: nocover
+            raise CompilerPanic("unreachable!", node.value)
+    else:
+        # recurse
+        ptr = _get_self_ptr_for_location(node.value, context, location)
+
+    return get_element_ptr(ptr, node.attr)
+
+
+def _calculate_self_ptr_requirements(call_expr, func_t, context):
+    ret = []
+
+    module_t = func_t.ast_def._parent._metadata["type"]
+    if module_t == context.compilation_target:
+        # we don't need to pass a pointer
+        return ret
+
+    func_expr = call_expr.func
+    assert isinstance(func_expr, vy_ast.Attribute)
+    pointer_expr = func_expr.value
+    for location in func_t.touched_locations:
+        codegen_location = data_location_to_addr_space(location)
+
+        # self.foo.bar.baz() => pointer_expr == `self.foo.bar`
+        ret.append(_get_self_ptr_for_location(pointer_expr, context, codegen_location))
+
+    return ret
+
+
+def ir_for_self_call(call_expr, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
@@ -30,10 +72,10 @@ def ir_for_self_call(stmt_expr, context):
     # - push jumpdest (callback ptr) and return buffer location
     # - jump to label
     # - (private function will fill return buffer and jump back)
-    method_name = stmt_expr.func.attr
-    func_t = stmt_expr.func._metadata["type"]
+    method_name = call_expr.func.attr
+    func_t = call_expr.func._metadata["type"]
 
-    pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
+    pos_args_ir = [Expr(x, context).ir_node for x in call_expr.args]
 
     default_vals = _align_kwargs(func_t, pos_args_ir)
     default_vals_ir = [Expr(x, context).ir_node for x in default_vals]
@@ -49,7 +91,7 @@ def ir_for_self_call(stmt_expr, context):
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",
-            stmt_expr,
+            call_expr,
         )
 
     # note: internal_function_label asserts `func_t.is_internal`.
@@ -91,6 +133,11 @@ def ir_for_self_call(stmt_expr, context):
         copy_args = make_setter(args_dst, args_as_tuple)
 
     goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
+
+    # if needed, pass pointers to the callee
+    for self_ptr in _calculate_self_ptr_requirements(call_expr, func_t, context):
+        goto_op.append(self_ptr)
+
     # pass return buffer to subroutine
     if return_buffer is not None:
         goto_op.append(return_buffer)
@@ -99,7 +146,7 @@ def ir_for_self_call(stmt_expr, context):
     goto_op.append(["symbol", return_label])
 
     call_sequence = ["seq"]
-    call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
+    call_sequence.append(eval_once_check(_freshname(call_expr.node_source_code)))
     call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
     if return_buffer is not None:
         # push return buffer location to stack
@@ -109,7 +156,7 @@ def ir_for_self_call(stmt_expr, context):
         call_sequence,
         typ=func_t.return_type,
         location=MEMORY,
-        annotation=stmt_expr.get("node_source_code"),
+        annotation=call_expr.get("node_source_code"),
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
