@@ -266,6 +266,9 @@ class ExprInfo:
         func_node = node.get_ancestor(vy_ast.FunctionDef)
         func_t = func_node._metadata["func_type"]
 
+        assert isinstance(func_node, vy_ast.FunctionDef)  # mypy hint
+        assert self._var_info is not None  # mypy hint
+
         if self.is_immutable:
             if func_node.name != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)

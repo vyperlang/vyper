@@ -30,12 +30,11 @@ def _align_kwargs(func_t, args_ir):
 def _get_self_ptr_for_location(node: vy_ast.Attribute, context, location):
     # resolve something like self.x.y.z to a pointer
     if isinstance(node.value, vy_ast.Name):
-        # base case
-        if node.value.id == "self":
-            ptr = context.self_ptr(location)
-        else:  # pragma: nocover
-            raise CompilerPanic("unreachable!", node.value)
+        # base case - we should always end up at self. sanity check this!
+        assert node.value.id == "self"
+        ptr = context.self_ptr(location)
     else:
+        assert isinstance(node.value, vy_ast.Attribute)  # mypy hint
         # recurse
         ptr = _get_self_ptr_for_location(node.value, context, location)
 
