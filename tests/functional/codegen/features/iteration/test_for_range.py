@@ -110,8 +110,8 @@ def get_last(start: uint256, end: uint256) -> uint256:
 
     # check assertion for start >= end
     for n in range(1, 7):
-        assert_tx_failed(lambda: c.get_last(UINT_MAX - n, 0))
-        assert_tx_failed(lambda: c.get_last(UINT_MAX, UINT_MAX - n))
+        assert_tx_failed(lambda i=n: c.get_last(UINT_MAX - i, 0))
+        assert_tx_failed(lambda i=n: c.get_last(UINT_MAX, UINT_MAX - i))
 
 
 def test_digit_reverser(get_contract_with_gas_estimation):
