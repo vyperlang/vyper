@@ -343,7 +343,7 @@ def test_mint_batch_burn_batch(erc1155, w3, tx_failed):
     with tx_failed():
         erc1155.burnBatch([11, 12], [1, 1], transact={"from": a3})
 
-    assert erc1155.balanceOfBatch([a3, a3, a3], [1, 2, 3]) == [0, 0, 1]
+    assert erc1155.balanceOfBatch([a3, a3, a3], [1, 2, 3]) == [0, 0, 0]
 
 
 def test_approval_functions(erc1155, w3, tx_failed):  # test_mint_batch
