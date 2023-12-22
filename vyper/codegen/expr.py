@@ -185,12 +185,8 @@ class Expr:
             ret._referenced_variables = {var}
             return ret
 
-        # TODO: use self.expr._expr_info
-        elif self.expr.id in self.context.globals:
-            varinfo = self.context.globals[self.expr.id]
+        elif (varinfo := self.expr._metadata.get("variable_access")) is not None:
             assert varinfo.is_immutable, "not an immutable!"
-
-            ofst = varinfo.position.offset
 
             if self.context.is_ctor_context:
                 mutable = True
@@ -199,10 +195,16 @@ class Expr:
                 mutable = False
                 location = DATA
 
-            ret = IRnode.from_list(
-                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
-            )
+            module_ptr = self.context.self_ptr(location)
+
+            ret = get_element_ptr(module_ptr, self.expr.id)
+
+            assert ret.typ == varinfo.typ
+            assert ret.location == location
+
+            ret.mutable = mutable
             ret._referenced_variables = {varinfo}
+
             return ret
 
     # x.y or x[5]

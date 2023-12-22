@@ -8,7 +8,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
-from vyper.exceptions import CompilerPanic, StateAccessViolation
+from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
 
