@@ -31,7 +31,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
-from vyper.semantics.types import FlagT, EventT, InterfaceT, StructT
+from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
