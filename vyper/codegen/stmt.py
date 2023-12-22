@@ -228,7 +228,7 @@ class Stmt:
 
     def _get_range_const_value(self, arg_ast_node):
         with self.context.range_scope():
-            return Expr.parse_value_expr(arg_ast_node, self.context)
+            return Expr.parse_value_expr(arg_ast_node, self.context).value
 
     def parse_For(self):
         with self.context.block_scope():
