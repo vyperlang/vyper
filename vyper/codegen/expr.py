@@ -12,7 +12,7 @@ from vyper.codegen.core import (
     getpos,
     is_array_like,
     is_bytes_m_type,
-    is_enum_type,
+    is_flag_type,
     is_numeric_type,
     is_tuple_like,
     pop_dyn_array,
@@ -43,7 +43,7 @@ from vyper.semantics.types import (
     BytesT,
     DArrayT,
     DecimalT,
-    EnumT,
+    FlagT,
     HashMapT,
     InterfaceT,
     SArrayT,
@@ -213,7 +213,7 @@ class Expr:
 
         # MyEnum.foo
         if (
-            isinstance(typ, EnumT)
+            isinstance(typ, FlagT)
             and isinstance(self.expr.value, vy_ast.Name)
             and typ.name == self.expr.value.id
         ):
@@ -397,7 +397,7 @@ class Expr:
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
                 raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
-            assert is_numeric_type(left.typ) or is_enum_type(left.typ)
+            assert is_numeric_type(left.typ) or is_flag_type(left.typ)
 
         out_typ = left.typ
 
@@ -529,7 +529,7 @@ class Expr:
             if is_array_like(right.typ):
                 return self.build_in_comparator()
             else:
-                assert isinstance(right.typ, EnumT), right.typ
+                assert isinstance(right.typ, FlagT), right.typ
                 intersection = ["and", left, right]
                 if isinstance(self.expr.op, vy_ast.In):
                     return IRnode.from_list(["iszero", ["iszero", intersection]], typ=BoolT())
@@ -646,7 +646,7 @@ class Expr:
                 return IRnode.from_list(["iszero", operand], typ=BoolT())
 
         if isinstance(self.expr.op, vy_ast.Invert):
-            if isinstance(operand.typ, EnumT):
+            if isinstance(operand.typ, FlagT):
                 n_members = len(operand.typ._enum_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and

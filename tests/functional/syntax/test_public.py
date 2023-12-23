@@ -30,9 +30,9 @@ struct Foo:
 
 x: public(HashMap[uint256, Foo])
     """,
-    # expansion of public user-defined enum
+    # expansion of public user-defined flag
     """
-enum Foo:
+flag Foo:
     BAR
 
 x: public(HashMap[uint256, Foo])

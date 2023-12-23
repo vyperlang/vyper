@@ -245,13 +245,13 @@ class _ExprAnalyser:
         # comparisons, e.g. `x < y`
 
         # TODO fixme circular import
-        from vyper.semantics.types.user import EnumT
+        from vyper.semantics.types.user import FlagT
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if any(isinstance(t, EnumT) for t in left):
+            if any(isinstance(t, FlagT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]

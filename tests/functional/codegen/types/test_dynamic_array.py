@@ -102,7 +102,7 @@ def foo6() -> DynArray[DynArray[String[32], 2], 2]:
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
@@ -1247,13 +1247,13 @@ struct Foo:
         """
         code = struct_def + "\n" + code
     elif subtype == "DynArray[Foobar, 3]":
-        enum_def = """
-enum Foobar:
+        flag_def = """
+flag Foobar:
     FOO
     BAR
     BAZ
         """
-        code = enum_def + "\n" + code
+        code = flag_def + "\n" + code
         test_data = [2 ** (i - 1) for i in test_data]
 
     c = get_contract(code)
@@ -1292,7 +1292,7 @@ def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
 
 def test_list_of_structs_arg(get_contract):
     code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
