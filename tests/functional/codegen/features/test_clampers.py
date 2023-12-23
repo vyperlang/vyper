@@ -187,9 +187,9 @@ def foo(s: bool) -> bool:
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [0] + [2**i for i in range(5)])
-def test_enum_clamper_passing(w3, get_contract, value, evm_version):
+def test_flag_clamper_passing(w3, get_contract, value, evm_version):
     code = """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -207,9 +207,9 @@ def foo(s: Roles) -> Roles:
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
 @pytest.mark.parametrize("value", [2**i for i in range(5, 256)])
-def test_enum_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
+def test_flag_clamper_failing(w3, assert_tx_failed, get_contract, value, evm_version):
     code = """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN

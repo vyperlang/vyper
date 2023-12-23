@@ -1,6 +1,6 @@
 def test_values_should_be_increasing_ints(get_contract):
     code = """
-enum Action:
+flag Action:
     BUY
     SELL
     CANCEL
@@ -26,9 +26,9 @@ def cancel() -> Action:
     assert c.cancel() == 4
 
 
-def test_enum_storage(get_contract):
+def test_flag_storage(get_contract):
     code = """
-enum Actions:
+flag Actions:
     BUY
     SELL
     CANCEL
@@ -49,7 +49,7 @@ def set_and_get(a: Actions) -> Actions:
 
 def test_eq_neq(get_contract):
     code = """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -76,7 +76,7 @@ def is_not_boss(a: Roles) -> bool:
 
 def test_bitwise(get_contract, assert_tx_failed):
     code = """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -147,7 +147,7 @@ def binv_arg(a: Roles) -> Roles:
 
 def test_augassign_storage(get_contract, w3, assert_tx_failed):
     code = """
-enum Roles:
+flag Roles:
     ADMIN
     MINTER
 
@@ -214,9 +214,9 @@ def checkMinter(minter: address):
     assert_tx_failed(lambda: c.checkMinter(admin_address))
 
 
-def test_in_enum(get_contract_with_gas_estimation):
+def test_in_flag(get_contract_with_gas_estimation):
     code = """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -259,9 +259,9 @@ def baz(a: Roles) -> bool:
     assert c.baz(0b01000) is False  # Roles.MANAGER should fail
 
 
-def test_struct_with_enum(get_contract_with_gas_estimation):
+def test_struct_with_flag(get_contract_with_gas_estimation):
     code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
@@ -270,17 +270,17 @@ struct Foo:
     b: Foobar
 
 @external
-def get_enum_from_struct() -> Foobar:
+def get_flag_from_struct() -> Foobar:
     f: Foo = Foo({a: 1, b: Foobar.BAR})
     return f.b
     """
     c = get_contract_with_gas_estimation(code)
-    assert c.get_enum_from_struct() == 2
+    assert c.get_flag_from_struct() == 2
 
 
-def test_mapping_with_enum(get_contract_with_gas_estimation):
+def test_mapping_with_flag(get_contract_with_gas_estimation):
     code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
