@@ -34,12 +34,12 @@ def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
 
 valid_list = [
     """
-enum Foo:
+flag Foo:
     FE
     FI
 
 bar: DynArray[Foo, 10]
-    """,  # dynamic arrays of enums are allowed, but not static arrays
+    """,  # dynamic arrays of flags are allowed, but not static arrays
     """
 bar: DynArray[Bytes[30], 10]
     """,  # dynamic arrays of bytestrings are allowed, but not static arrays

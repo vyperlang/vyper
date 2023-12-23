@@ -176,8 +176,8 @@ class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
 
 
-class EnumDeclarationException(VyperException):
-    """Invalid enum declaration."""
+class FlagDeclarationException(VyperException):
+    """Invalid flag declaration."""
 
 
 class EventDeclarationException(VyperException):

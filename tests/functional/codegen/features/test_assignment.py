@@ -66,7 +66,7 @@ def bar(x: {typ}) -> {typ}:
 
 def test_internal_assign_struct(get_contract_with_gas_estimation):
     code = """
-enum Bar:
+flag Bar:
     BAD
     BAK
     BAZ
@@ -92,7 +92,7 @@ def bar(x: Foo) -> Foo:
 
 def test_internal_assign_struct_member(get_contract_with_gas_estimation):
     code = """
-enum Bar:
+flag Bar:
     BAD
     BAK
     BAZ

@@ -4,6 +4,7 @@ import copy
 import decimal
 import operator
 import sys
+import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
@@ -18,6 +19,7 @@ from vyper.exceptions import (
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
+    VyperException,
     ZeroDivisionException,
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
@@ -78,6 +80,11 @@ def get_node(
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
+    enum_warn = False
+    if ast_struct["ast_type"] == "EnumDef":
+        enum_warn = True
+        ast_struct["ast_type"] = "FlagDef"
+
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
         if ast_struct["ast_type"] == "Delete":
@@ -92,7 +99,17 @@ def get_node(
                 ast_struct,
             )
 
-    return vy_class(parent=parent, **ast_struct)
+    node = vy_class(parent=parent, **ast_struct)
+
+    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
+    if enum_warn:
+        # TODO: hack to pretty print, logic should be factored out of exception
+        pretty_printed_node = str(VyperException("", node))
+        warnings.warn(
+            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
+            stacklevel=2,
+        )
+    return node
 
 
 def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
@@ -725,7 +742,7 @@ class Log(Stmt):
     __slots__ = ("value",)
 
 
-class EnumDef(TopLevel):
+class FlagDef(TopLevel):
     __slots__ = ("name", "body")
 
 
