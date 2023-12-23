@@ -106,7 +106,8 @@ def get_node(
         # TODO: hack to pretty print, logic should be factored out of exception
         pretty_printed_node = str(VyperException("", node))
         warnings.warn(
-            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}"
+            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
+            stacklevel=2,
         )
     return node
 
