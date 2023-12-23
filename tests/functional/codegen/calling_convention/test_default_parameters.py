@@ -150,7 +150,7 @@ def foo(a: int128[3] = [1, 2, 3]) -> int128[3]:
     assert c.foo() == [1, 2, 3]
 
 
-def test_default_param_clamp(get_contract, monkeypatch, assert_tx_failed):
+def test_default_param_clamp(get_contract, monkeypatch, tx_failed):
     code = """
 @external
 def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
@@ -168,7 +168,8 @@ def bar(a: int128, b: int128 = -1) -> (int128, int128):  # noqa: E501
     monkeypatch.setattr("eth_abi.encoding.NumberEncoder.validate_value", validate_value)
 
     assert c.bar(200, 2**127 - 1) == [200, 2**127 - 1]
-    assert_tx_failed(lambda: c.bar(200, 2**127))
+    with tx_failed():
+        c.bar(200, 2**127)
 
 
 def test_default_param_private(get_contract):

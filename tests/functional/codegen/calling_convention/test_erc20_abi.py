@@ -81,7 +81,7 @@ def test_initial_state(w3, erc20_caller):
     assert erc20_caller.decimals() == TOKEN_DECIMALS
 
 
-def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
+def test_call_transfer(w3, erc20, erc20_caller, tx_failed):
     # Basic transfer.
     erc20.transfer(erc20_caller.address, 10, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 10
@@ -90,13 +90,12 @@ def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
     assert erc20.balanceOf(w3.eth.accounts[1]) == 10
 
     # more than allowed
-    assert_tx_failed(lambda: erc20_caller.transfer(w3.eth.accounts[1], TOKEN_TOTAL_SUPPLY))
+    with tx_failed():
+        erc20_caller.transfer(w3.eth.accounts[1], TOKEN_TOTAL_SUPPLY)
 
     # Negative transfer value.
-    assert_tx_failed(
-        function_to_test=lambda: erc20_caller.transfer(w3.eth.accounts[1], -1),
-        exception=ValidationError,
-    )
+    with tx_failed(ValidationError):
+        erc20_caller.transfer(w3.eth.accounts[1], -1)
 
 
 def test_caller_approve_allowance(w3, erc20, erc20_caller):
@@ -105,11 +104,10 @@ def test_caller_approve_allowance(w3, erc20, erc20_caller):
     assert erc20_caller.allowance(w3.eth.accounts[0], erc20_caller.address) == 10
 
 
-def test_caller_tranfer_from(w3, erc20, erc20_caller, assert_tx_failed):
+def test_caller_tranfer_from(w3, erc20, erc20_caller, tx_failed):
     # Cannot transfer tokens that are unavailable
-    assert_tx_failed(
-        lambda: erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10)
-    )
+    with tx_failed():
+        erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10)
     assert erc20.balanceOf(erc20_caller.address) == 0
     assert erc20.approve(erc20_caller.address, 10, transact={})
     erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 5, transact={})

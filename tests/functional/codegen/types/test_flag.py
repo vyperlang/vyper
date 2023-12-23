@@ -74,7 +74,7 @@ def is_not_boss(a: Roles) -> bool:
     assert c.is_not_boss(2**4) is False
 
 
-def test_bitwise(get_contract, assert_tx_failed):
+def test_bitwise(get_contract, tx_failed):
     code = """
 flag Roles:
     USER
@@ -134,18 +134,25 @@ def binv_arg(a: Roles) -> Roles:
     assert c.binv_arg(0b00000) == 0b11111
 
     # LHS is out of bound
-    assert_tx_failed(lambda: c.bor_arg(32, 3))
-    assert_tx_failed(lambda: c.band_arg(32, 3))
-    assert_tx_failed(lambda: c.bxor_arg(32, 3))
-    assert_tx_failed(lambda: c.binv_arg(32))
+    with tx_failed():
+        c.bor_arg(32, 3)
+    with tx_failed():
+        c.band_arg(32, 3)
+    with tx_failed():
+        c.bxor_arg(32, 3)
+    with tx_failed():
+        c.binv_arg(32)
 
     # RHS
-    assert_tx_failed(lambda: c.bor_arg(3, 32))
-    assert_tx_failed(lambda: c.band_arg(3, 32))
-    assert_tx_failed(lambda: c.bxor_arg(3, 32))
+    with tx_failed():
+        c.bor_arg(3, 32)
+    with tx_failed():
+        c.band_arg(3, 32)
+    with tx_failed():
+        c.bxor_arg(3, 32)
 
 
-def test_augassign_storage(get_contract, w3, assert_tx_failed):
+def test_augassign_storage(get_contract, w3, tx_failed):
     code = """
 flag Roles:
     ADMIN
@@ -190,7 +197,8 @@ def checkMinter(minter: address):
     assert c.roles(minter_address) == 0b10
 
     # admin is not a minter
-    assert_tx_failed(lambda: c.checkMinter(admin_address))
+    with tx_failed():
+        c.checkMinter(admin_address)
 
     c.addMinter(admin_address, transact={})
 
@@ -201,7 +209,8 @@ def checkMinter(minter: address):
     # revoke minter
     c.revokeMinter(admin_address, transact={})
     assert c.roles(admin_address) == 0b01
-    assert_tx_failed(lambda: c.checkMinter(admin_address))
+    with tx_failed():
+        c.checkMinter(admin_address)
 
     # flip minter
     c.flipMinter(admin_address, transact={})
@@ -211,7 +220,8 @@ def checkMinter(minter: address):
     # flip minter
     c.flipMinter(admin_address, transact={})
     assert c.roles(admin_address) == 0b01
-    assert_tx_failed(lambda: c.checkMinter(admin_address))
+    with tx_failed():
+        c.checkMinter(admin_address)
 
 
 def test_in_flag(get_contract_with_gas_estimation):
