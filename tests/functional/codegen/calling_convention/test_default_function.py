@@ -1,4 +1,4 @@
-def test_throw_on_sending(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_throw_on_sending(w3, tx_failed, get_contract_with_gas_estimation):
     code = """
 x: public(int128)
 
@@ -10,9 +10,8 @@ def __init__():
 
     assert c.x() == 123
     assert w3.eth.get_balance(c.address) == 0
-    assert_tx_failed(
-        lambda: w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(0.1, "ether")})
-    )
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(0.1, "ether")})
     assert w3.eth.get_balance(c.address) == 0
 
 
@@ -56,7 +55,7 @@ def __default__():
     assert w3.eth.get_balance(c.address) == w3.to_wei(0.1, "ether")
 
 
-def test_basic_default_not_payable(w3, assert_tx_failed, get_contract_with_gas_estimation):
+def test_basic_default_not_payable(w3, tx_failed, get_contract_with_gas_estimation):
     code = """
 event Sent:
     sender: indexed(address)
@@ -67,7 +66,8 @@ def __default__():
     """
     c = get_contract_with_gas_estimation(code)
 
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": c.address, "value": 10**17}))
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "value": 10**17})
 
 
 def test_multi_arg_default(assert_compile_failed, get_contract_with_gas_estimation):
@@ -100,7 +100,7 @@ def __default__():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
-def test_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+def test_zero_method_id(w3, get_logs, get_contract, tx_failed):
     # test a method with 0x00000000 selector,
     # expects at least 36 bytes of calldata.
     code = """
@@ -143,10 +143,11 @@ def __default__():
 
     for i in range(4, 36):
         # match the full 4 selector bytes, but revert due to malformed (short) calldata
-        assert_tx_failed(lambda p="0x" + "00" * i: _call_with_bytes(p))
+        with tx_failed():
+            _call_with_bytes(f"0x{'00' * i}")
 
 
-def test_another_zero_method_id(w3, get_logs, get_contract, assert_tx_failed):
+def test_another_zero_method_id(w3, get_logs, get_contract, tx_failed):
     # test another zero method id but which only expects 4 bytes of calldata
     code = """
 event Sent:

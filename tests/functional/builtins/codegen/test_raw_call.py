@@ -91,7 +91,7 @@ def create_and_return_proxy(inp: address) -> address:
     # print(f'Gas consumed: {(chain.head_state.receipts[-1].gas_used - chain.head_state.receipts[-2].gas_used - chain.last_tx.intrinsic_gas_used)}')  # noqa: E501
 
 
-def test_multiple_levels2(assert_tx_failed, get_contract_with_gas_estimation):
+def test_multiple_levels2(tx_failed, get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
@@ -114,7 +114,8 @@ def create_and_return_proxy(inp: address) -> address:
 
     c2 = get_contract_with_gas_estimation(outer_code)
 
-    assert_tx_failed(lambda: c2.create_and_call_returnten(c.address))
+    with tx_failed():
+        c2.create_and_call_returnten(c.address)
 
     print("Passed minimal proxy exception test")
 
@@ -171,7 +172,7 @@ def set(i: int128, owner: address):
     assert outer_contract.owners(1) == a1
 
 
-def test_gas(get_contract, assert_tx_failed):
+def test_gas(get_contract, tx_failed):
     inner_code = """
 bar: bytes32
 
@@ -202,7 +203,8 @@ def foo_call(_addr: address):
 
     # manually specifying an insufficient amount should fail
     outer_contract = get_contract(outer_code.format(", gas=15000"))
-    assert_tx_failed(lambda: outer_contract.foo_call(inner_contract.address))
+    with tx_failed():
+        outer_contract.foo_call(inner_contract.address)
 
 
 def test_static_call(get_contract):
@@ -323,7 +325,7 @@ def foo(_addr: address) -> bool:
     assert caller.foo(target.address) is True
 
 
-def test_static_call_fails_nonpayable(get_contract, assert_tx_failed):
+def test_static_call_fails_nonpayable(get_contract, tx_failed):
     target_source = """
 baz: int128
 
@@ -349,10 +351,11 @@ def foo(_addr: address) -> int128:
     target = get_contract(target_source)
     caller = get_contract(caller_source)
 
-    assert_tx_failed(lambda: caller.foo(target.address))
+    with tx_failed():
+        caller.foo(target.address)
 
 
-def test_checkable_raw_call(get_contract, assert_tx_failed):
+def test_checkable_raw_call(get_contract, tx_failed):
     target_source = """
 baz: int128
 @external

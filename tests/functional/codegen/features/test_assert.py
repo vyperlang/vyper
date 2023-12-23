@@ -3,12 +3,12 @@ from eth_tester.exceptions import TransactionFailed
 
 
 # web3 returns f"execution reverted: {err_str}"
-# TODO move exception string parsing logic into assert_tx_failed
+# TODO move exception string parsing logic into tx_failed
 def _fixup_err_str(s):
     return s.replace("execution reverted: ", "")
 
 
-def test_assert_refund(w3, get_contract_with_gas_estimation, assert_tx_failed):
+def test_assert_refund(w3, get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def foo():
@@ -26,7 +26,7 @@ def foo():
     assert tx_receipt["gasUsed"] < gas_sent
 
 
-def test_assert_reason(w3, get_contract_with_gas_estimation, assert_tx_failed, memory_mocker):
+def test_assert_reason(w3, get_contract_with_gas_estimation, tx_failed, memory_mocker):
     code = """
 @external
 def test(a: int128) -> int128:
@@ -132,7 +132,7 @@ def test_valid_assertions(get_contract, code):
     get_contract(code)
 
 
-def test_assert_staticcall(get_contract, assert_tx_failed, memory_mocker):
+def test_assert_staticcall(get_contract, tx_failed, memory_mocker):
     foreign_code = """
 state: uint256
 @external
@@ -151,10 +151,11 @@ def test():
     c1 = get_contract(foreign_code)
     c2 = get_contract(code, *[c1.address])
     # static call prohibits state change
-    assert_tx_failed(lambda: c2.test())
+    with tx_failed():
+        c2.test()
 
 
-def test_assert_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
+def test_assert_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -166,12 +167,15 @@ def test(x: uint256[3]) -> bool:
     c = get_contract(code)
 
     c.test([1, 2, 3])
-    assert_tx_failed(lambda: c.test([5, 1, 3]))
-    assert_tx_failed(lambda: c.test([1, 5, 3]))
-    assert_tx_failed(lambda: c.test([1, 3, 5]))
+    with tx_failed():
+        c.test([5, 1, 3])
+    with tx_failed():
+        c.test([1, 5, 3])
+    with tx_failed():
+        c.test([1, 3, 5])
 
 
-def test_assert_with_reason_in_for_loop(get_contract, assert_tx_failed, memory_mocker):
+def test_assert_with_reason_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
@@ -183,12 +187,15 @@ def test(x: uint256[3]) -> bool:
     c = get_contract(code)
 
     c.test([1, 2, 3])
-    assert_tx_failed(lambda: c.test([5, 1, 3]))
-    assert_tx_failed(lambda: c.test([1, 5, 3]))
-    assert_tx_failed(lambda: c.test([1, 3, 5]))
+    with tx_failed():
+        c.test([5, 1, 3])
+    with tx_failed():
+        c.test([1, 5, 3])
+    with tx_failed():
+        c.test([1, 3, 5])
 
 
-def test_assert_reason_revert_length(w3, get_contract, assert_tx_failed, memory_mocker):
+def test_assert_reason_revert_length(w3, get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test() -> int128:
@@ -196,4 +203,5 @@ def test() -> int128:
     return 1
 """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.test(), exc_text="oops")
+    with tx_failed(exc_text="oops"):
+        c.test()
