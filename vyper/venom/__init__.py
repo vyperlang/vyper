@@ -21,8 +21,8 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 def generate_assembly_experimental(
     ctxs: tuple[IRFunction, IRFunction], optimize: Optional[OptimizationLevel] = None
 ) -> list[str]:
-    ctxs = [ctx for ctx in ctxs if ctx is not None]
-    compiler = VenomCompiler(ctxs)
+    cleaned_ctxs = [ctx for ctx in ctxs if ctx is not None]
+    compiler = VenomCompiler(cleaned_ctxs)
     return compiler.generate_evm(optimize is OptimizationLevel.NONE)
 
 
