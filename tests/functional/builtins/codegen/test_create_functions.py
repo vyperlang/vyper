@@ -434,7 +434,7 @@ def test2(target: address, salt: bytes32) -> address:
     # test single byte contract
     # test2 = c.test2(b"\x01", salt)
     # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # with assert_tx_failed():
+    # with tx_failed():
     #     c.test2(bytecode, salt)
 
 

@@ -471,7 +471,7 @@ def get_logs(w3):
 @pytest.fixture(scope="module")
 def tx_failed(tester):
     @contextmanager
-    def assert_tx_failed(exception=TransactionFailed, exc_text=None):
+    def fn(exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
             yield excinfo
@@ -480,4 +480,4 @@ def tx_failed(tester):
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_tx_failed
+    return fn

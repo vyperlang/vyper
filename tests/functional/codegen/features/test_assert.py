@@ -3,7 +3,7 @@ from eth_tester.exceptions import TransactionFailed
 
 
 # web3 returns f"execution reverted: {err_str}"
-# TODO move exception string parsing logic into assert_tx_failed
+# TODO move exception string parsing logic into tx_failed
 def _fixup_err_str(s):
     return s.replace("execution reverted: ", "")
 
