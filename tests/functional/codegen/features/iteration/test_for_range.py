@@ -32,7 +32,7 @@ def repeat(n: uint256) -> uint256:
         c.repeat(7)
 
 
-def test_range_bound_constant_end(get_contract, assert_tx_failed):
+def test_range_bound_constant_end(get_contract, tx_failed):
     code = """
 @external
 def repeat(n: uint256) -> uint256:
@@ -46,11 +46,13 @@ def repeat(n: uint256) -> uint256:
         assert c.repeat(n) == sum(i + 1 for i in range(n, 7))
 
     # check codegen inserts assertion for n greater than bound
-    assert_tx_failed(lambda: c.repeat(8))
-    assert_tx_failed(lambda: c.repeat(0))
+    with tx_failed():
+        c.repeat(8)
+    with tx_failed():
+        c.repeat(0)
 
 
-def test_range_bound_two_args(get_contract, assert_tx_failed):
+def test_range_bound_two_args(get_contract, tx_failed):
     code = """
 @external
 def repeat(n: uint256) -> uint256:
@@ -64,13 +66,15 @@ def repeat(n: uint256) -> uint256:
         assert c.repeat(n) == sum(i + 1 for i in range(1, n))
 
     # check assertion for n less than start
-    assert_tx_failed(lambda: c.repeat(0))
+    with tx_failed():
+        c.repeat(0)
 
     # check codegen inserts assertion for n greater than bound
-    assert_tx_failed(lambda: c.repeat(8))
+    with tx_failed():
+        c.repeat(8)
 
 
-def test_range_bound_two_runtime_args(get_contract, assert_tx_failed):
+def test_range_bound_two_runtime_args(get_contract, tx_failed):
     code = """
 @external
 def repeat(start: uint256, end: uint256) -> uint256:
@@ -85,16 +89,21 @@ def repeat(start: uint256, end: uint256) -> uint256:
         assert c.repeat(n, n * 2) == sum(range(n, n * 2))
 
     # check assertion for start >= end
-    assert_tx_failed(lambda: c.repeat(1, 0))
-    assert_tx_failed(lambda: c.repeat(7, 0))
-    assert_tx_failed(lambda: c.repeat(8, 7))
+    with tx_failed():
+        c.repeat(1, 0)
+    with tx_failed():
+        c.repeat(7, 0)
+    with tx_failed():
+        c.repeat(8, 7)
 
     # check codegen inserts assertion for n greater than bound
-    assert_tx_failed(lambda: c.repeat(0, 7))
-    assert_tx_failed(lambda: c.repeat(14, 21))
+    with tx_failed():
+        c.repeat(0, 7)
+    with tx_failed():
+        c.repeat(14, 21)
 
 
-def test_range_overflow(get_contract, assert_tx_failed):
+def test_range_overflow(get_contract, tx_failed):
     code = """
 @external
 def get_last(start: uint256, end: uint256) -> uint256:
@@ -111,8 +120,10 @@ def get_last(start: uint256, end: uint256) -> uint256:
 
     # check assertion for start >= end
     for n in range(1, 7):
-        assert_tx_failed(lambda i=n: c.get_last(UINT_MAX - i, 0))
-        assert_tx_failed(lambda i=n: c.get_last(UINT_MAX, UINT_MAX - i))
+        with tx_failed():
+            c.get_last(UINT_MAX - n, 0)
+        with tx_failed():
+            c.get_last(UINT_MAX, UINT_MAX - n)
 
 
 def test_digit_reverser(get_contract_with_gas_estimation):
