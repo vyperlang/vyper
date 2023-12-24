@@ -375,7 +375,7 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def get_folded_value(self) -> "VyperNode":
+    def get_folded_value_throwing(self) -> "VyperNode":
         """
         Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
         Raises UnfoldableNode if not.
