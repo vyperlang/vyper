@@ -32,6 +32,102 @@ def repeat(n: uint256) -> uint256:
         c.repeat(7)
 
 
+def test_range_bound_constant_end(get_contract, tx_failed):
+    code = """
+@external
+def repeat(n: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(n, 7, bound=6):
+        x += i + 1
+    return x
+    """
+    c = get_contract(code)
+    for n in range(1, 5):
+        assert c.repeat(n) == sum(i + 1 for i in range(n, 7))
+
+    # check assertion for `start <= end`
+    with tx_failed():
+        c.repeat(8)
+    # check assertion for `start + bound <= end`
+    with tx_failed():
+        c.repeat(0)
+
+
+def test_range_bound_two_args(get_contract, tx_failed):
+    code = """
+@external
+def repeat(n: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(1, n, bound=6):
+        x += i + 1
+    return x
+    """
+    c = get_contract(code)
+    for n in range(1, 8):
+        assert c.repeat(n) == sum(i + 1 for i in range(1, n))
+
+    # check assertion for `start <= end`
+    with tx_failed():
+        c.repeat(0)
+
+    # check codegen inserts assertion for `start + bound <= end`
+    with tx_failed():
+        c.repeat(8)
+
+
+def test_range_bound_two_runtime_args(get_contract, tx_failed):
+    code = """
+@external
+def repeat(start: uint256, end: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(start, end, bound=6):
+        x += i
+    return x
+    """
+    c = get_contract(code)
+    for n in range(0, 7):
+        assert c.repeat(0, n) == sum(range(0, n))
+        assert c.repeat(n, n * 2) == sum(range(n, n * 2))
+
+    # check assertion for `start <= end`
+    with tx_failed():
+        c.repeat(1, 0)
+    with tx_failed():
+        c.repeat(7, 0)
+    with tx_failed():
+        c.repeat(8, 7)
+
+    # check codegen inserts assertion for `start + bound <= end`
+    with tx_failed():
+        c.repeat(0, 7)
+    with tx_failed():
+        c.repeat(14, 21)
+
+
+def test_range_overflow(get_contract, tx_failed):
+    code = """
+@external
+def get_last(start: uint256, end: uint256) -> uint256:
+    x: uint256 = 0
+    for i in range(start, end, bound=6):
+        x = i
+    return x
+    """
+    c = get_contract(code)
+    UINT_MAX = 2**256 - 1
+    assert c.get_last(UINT_MAX, UINT_MAX) == 0  # initial value of x
+
+    for n in range(1, 6):
+        assert c.get_last(UINT_MAX - n, UINT_MAX) == UINT_MAX - 1
+
+    # check for `start + bound <= end`, overflow cases
+    for n in range(1, 7):
+        with tx_failed():
+            c.get_last(UINT_MAX - n, 0)
+        with tx_failed():
+            c.get_last(UINT_MAX, UINT_MAX - n)
+
+
 def test_digit_reverser(get_contract_with_gas_estimation):
     digit_reverser = """
 @external
@@ -89,7 +185,7 @@ def test_offset_repeater_2(get_contract_with_gas_estimation, typ):
 @external
 def sum(frm: {typ}, to: {typ}) -> {typ}:
     out: {typ} = 0
-    for i in range(frm, frm + 101):
+    for i in range(frm, frm + 101, bound=101):
         if i == to:
             break
         out = out + i
@@ -146,26 +242,28 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(100) == 31337
 
 
-# test that we can get to the upper range of an integer
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_edge(get_contract, typ):
+    """
+    Check that we can get to the upper range of an integer.
+    Note that to avoid overflow in the bounds check for range(),
+    we need to calculate i+1 inside the loop.
+    """
     code = f"""
 @external
 def test():
     found: bool = False
     x: {typ} = max_value({typ})
-    for i in range(x, x + 1):
-        if i == max_value({typ}):
+    for i in range(x - 1, x, bound=1):
+        if i + 1 == max_value({typ}):
             found = True
-
     assert found
 
     found = False
     x = max_value({typ}) - 1
-    for i in range(x, x + 2):
-        if i == max_value({typ}):
+    for i in range(x - 1, x + 1, bound=2):
+        if i + 1 == max_value({typ}):
             found = True
-
     assert found
     """
     c = get_contract(code)
@@ -178,7 +276,7 @@ def test_for_range_oob_check(get_contract, tx_failed, typ):
 @external
 def test():
     x: {typ} = max_value({typ})
-    for i in range(x, x+2):
+    for i in range(x, x + 2, bound=2):
         pass
     """
     c = get_contract(code)
