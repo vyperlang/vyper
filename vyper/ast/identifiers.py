@@ -69,6 +69,7 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "struct",
     "event",
     "enum",
+    "flag"
     # EVM operations
     "unreachable",
     # special functions (no name mangling)

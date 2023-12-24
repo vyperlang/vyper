@@ -5,7 +5,7 @@ from vyper.exceptions import FunctionDeclarationException
 
 # TODO test functions in this module across all evm versions
 # once we have cancun support.
-def test_nonreentrant_decorator(get_contract, assert_tx_failed):
+def test_nonreentrant_decorator(get_contract, tx_failed):
     calling_contract_code = """
 interface SpecialContract:
     def unprotected_function(val: String[100], do_callback: bool): nonpayable
@@ -98,20 +98,23 @@ def unprotected_function(val: String[100], do_callback: bool):
     assert reentrant_contract.special_value() == "some value"
     assert reentrant_contract.protected_view_fn() == "some value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function("zzz value", True, transact={}))
+    with tx_failed():
+        reentrant_contract.protected_function("zzz value", True, transact={})
 
     reentrant_contract.protected_function2("another value", False, transact={})
     assert reentrant_contract.special_value() == "another value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function2("zzz value", True, transact={}))
+    with tx_failed():
+        reentrant_contract.protected_function2("zzz value", True, transact={})
 
     reentrant_contract.protected_function3("another value", False, transact={})
     assert reentrant_contract.special_value() == "another value"
 
-    assert_tx_failed(lambda: reentrant_contract.protected_function3("zzz value", True, transact={}))
+    with tx_failed():
+        reentrant_contract.protected_function3("zzz value", True, transact={})
 
 
-def test_nonreentrant_decorator_for_default(w3, get_contract, assert_tx_failed):
+def test_nonreentrant_decorator_for_default(w3, get_contract, tx_failed):
     calling_contract_code = """
 @external
 def send_funds(_amount: uint256):
@@ -196,9 +199,8 @@ def __default__():
     assert w3.eth.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
-    assert_tx_failed(
-        lambda: reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
-    )
+    with tx_failed():
+        reentrant_contract.protected_function("zzz value", True, transact={"value": 1000})
 
 
 def test_disallow_on_init_function(get_contract):

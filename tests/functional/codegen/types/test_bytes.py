@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import InvalidType, TypeMismatch
 
 
-def test_test_bytes(get_contract_with_gas_estimation, assert_tx_failed):
+def test_test_bytes(get_contract_with_gas_estimation, tx_failed):
     test_bytes = """
 @external
 def foo(x: Bytes[100]) -> Bytes[100]:
@@ -21,7 +21,8 @@ def foo(x: Bytes[100]) -> Bytes[100]:
     print("Passed max-length bytes test")
 
     # test for greater than 100 bytes, should raise exception
-    assert_tx_failed(lambda: c.foo(b"\x35" * 101))
+    with tx_failed():
+        c.foo(b"\x35" * 101)
 
     print("Passed input-too-long test")
 

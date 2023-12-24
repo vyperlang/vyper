@@ -23,4 +23,4 @@ cases_invalid_types = [
 def test_invalid_abi_types(assert_compile_failed, typ, params_variants):
     # double parametrization cannot work because the 2nd dimension is variable
     for params in params_variants:
-        assert_compile_failed(lambda: typ(*params), InvalidABIType)
+        assert_compile_failed(lambda p=params: typ(*p), InvalidABIType)

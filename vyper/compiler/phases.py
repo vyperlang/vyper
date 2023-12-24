@@ -335,7 +335,8 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
             "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!"
+            "a supported EVM! It will FAIL on all other nodes!",
+            stacklevel=2,
         )
     return assembly
 

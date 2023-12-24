@@ -13,14 +13,15 @@ def negate(a: uint256) -> uint256:
     assert_compile_failed(lambda: get_contract(code), exception=InvalidOperation)
 
 
-def test_unary_sub_int128_fail(get_contract, assert_tx_failed):
+def test_unary_sub_int128_fail(get_contract, tx_failed):
     code = """@external
 def negate(a: int128) -> int128:
     return -(a)
     """
     c = get_contract(code)
     # This test should revert on overflow condition
-    assert_tx_failed(lambda: c.negate(-(2**127)))
+    with tx_failed():
+        c.negate(-(2**127))
 
 
 @pytest.mark.parametrize("val", [-(2**127) + 1, 0, 2**127 - 1])

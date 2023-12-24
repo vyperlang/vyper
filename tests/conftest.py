@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import contextmanager
 from functools import wraps
 
 import hypothesis
@@ -411,23 +412,6 @@ def assert_compile_failed():
     return assert_compile_failed
 
 
-# TODO this should not be a fixture
-@pytest.fixture
-def search_for_sublist():
-    def search_for_sublist(ir, sublist):
-        _list = ir.to_list() if hasattr(ir, "to_list") else ir
-        if _list == sublist:
-            return True
-        if isinstance(_list, list):
-            for i in _list:
-                ret = search_for_sublist(i, sublist)
-                if ret is True:
-                    return ret
-        return False
-
-    return search_for_sublist
-
-
 @pytest.fixture
 def create2_address_of(keccak):
     def _f(_addr, _salt, _initcode):
@@ -484,16 +468,16 @@ def get_logs(w3):
     return get_logs
 
 
-# TODO replace me with function like `with anchor_state()`
 @pytest.fixture(scope="module")
-def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
+def tx_failed(tester):
+    @contextmanager
+    def fn(exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
-            function_to_test()
+            yield excinfo
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_tx_failed
+    return fn

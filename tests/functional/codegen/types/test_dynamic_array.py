@@ -102,7 +102,7 @@ def foo6() -> DynArray[DynArray[String[32], 2], 2]:
 
 def test_list_output_tester_code(get_contract_with_gas_estimation):
     list_output_tester_code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
@@ -776,27 +776,30 @@ def test_multi4_2() -> DynArray[DynArray[DynArray[DynArray[uint256, 2], 2], 2], 
     assert c.test_multi4_2() == nest4
 
 
-def test_uint256_accessor(get_contract_with_gas_estimation, assert_tx_failed):
+def test_uint256_accessor(get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def bounds_check_uint256(xs: DynArray[uint256, 3], ix: uint256) -> uint256:
     return xs[ix]
     """
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.bounds_check_uint256([], 0))
+    with tx_failed():
+        c.bounds_check_uint256([], 0)
 
     assert c.bounds_check_uint256([1], 0) == 1
-    assert_tx_failed(lambda: c.bounds_check_uint256([1], 1))
+    with tx_failed():
+        c.bounds_check_uint256([1], 1)
 
     assert c.bounds_check_uint256([1, 2, 3], 0) == 1
     assert c.bounds_check_uint256([1, 2, 3], 2) == 3
-    assert_tx_failed(lambda: c.bounds_check_uint256([1, 2, 3], 3))
+    with tx_failed():
+        c.bounds_check_uint256([1, 2, 3], 3)
 
     # TODO do bounds checks for nested darrays
 
 
 @pytest.mark.parametrize("list_", ([], [11], [11, 12], [11, 12, 13]))
-def test_dynarray_len(get_contract_with_gas_estimation, assert_tx_failed, list_):
+def test_dynarray_len(get_contract_with_gas_estimation, tx_failed, list_):
     code = """
 @external
 def darray_len(xs: DynArray[uint256, 3]) -> uint256:
@@ -807,7 +810,7 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     assert c.darray_len(list_) == len(list_)
 
 
-def test_dynarray_too_large(get_contract_with_gas_estimation, assert_tx_failed):
+def test_dynarray_too_large(get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def darray_len(xs: DynArray[uint256, 3]) -> uint256:
@@ -815,10 +818,11 @@ def darray_len(xs: DynArray[uint256, 3]) -> uint256:
     """
 
     c = get_contract_with_gas_estimation(code)
-    assert_tx_failed(lambda: c.darray_len([1, 2, 3, 4]))
+    with tx_failed():
+        c.darray_len([1, 2, 3, 4])
 
 
-def test_int128_accessor(get_contract_with_gas_estimation, assert_tx_failed):
+def test_int128_accessor(get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def bounds_check_int128(ix: int128) -> uint256:
@@ -828,8 +832,10 @@ def bounds_check_int128(ix: int128) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check_int128(0) == 1
     assert c.bounds_check_int128(2) == 3
-    assert_tx_failed(lambda: c.bounds_check_int128(3))
-    assert_tx_failed(lambda: c.bounds_check_int128(-1))
+    with tx_failed():
+        c.bounds_check_int128(3)
+    with tx_failed():
+        c.bounds_check_int128(-1)
 
 
 def test_index_exception(get_contract_with_gas_estimation, assert_compile_failed):
@@ -1181,12 +1187,13 @@ def test_invalid_append_pop(get_contract, assert_compile_failed, code, exception
 @pytest.mark.parametrize("code,check_result", append_pop_tests)
 # TODO change this to fuzz random data
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
-def test_append_pop(get_contract, assert_tx_failed, code, check_result, test_data):
+def test_append_pop(get_contract, tx_failed, code, check_result, test_data):
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicate txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
@@ -1251,7 +1258,7 @@ def foo(x: {typ}) -> {typ}:
     ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "DynArray[Foobar, 3]"],
 )
 # TODO change this to fuzz random data
-def test_append_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+def test_append_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
     if subtype == "Foo":
@@ -1264,20 +1271,21 @@ struct Foo:
         """
         code = struct_def + "\n" + code
     elif subtype == "DynArray[Foobar, 3]":
-        enum_def = """
-enum Foobar:
+        flag_def = """
+flag Foobar:
     FOO
     BAR
     BAZ
         """
-        code = enum_def + "\n" + code
+        code = flag_def + "\n" + code
         test_data = [2 ** (i - 1) for i in test_data]
 
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicate txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
@@ -1309,7 +1317,7 @@ def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
 
 def test_list_of_structs_arg(get_contract):
     code = """
-enum Foobar:
+flag Foobar:
     FOO
     BAR
 
@@ -1347,7 +1355,7 @@ def bar(_baz: DynArray[Foo, 3]) -> String[96]:
     assert c.bar(c_input) == "Hello world!!!!"
 
 
-def test_list_of_structs_lists_with_nested_lists(get_contract, assert_tx_failed):
+def test_list_of_structs_lists_with_nested_lists(get_contract, tx_failed):
     code = """
 struct Bar:
     a: DynArray[uint8[2], 2]
@@ -1368,7 +1376,8 @@ def foo(x: uint8) -> uint8:
     """
     c = get_contract(code)
     assert c.foo(17) == 98
-    assert_tx_failed(lambda: c.foo(241))
+    with tx_failed():
+        c.foo(241)
 
 
 def test_list_of_nested_struct_arrays(get_contract):
@@ -1639,7 +1648,7 @@ def bar() -> uint256:
     assert c.bar() == 58
 
 
-def test_constant_list(get_contract, assert_tx_failed):
+def test_constant_list(get_contract, tx_failed):
     some_good_primes = [5.0, 11.0, 17.0, 29.0, 37.0, 41.0]
     code = f"""
 MY_LIST: constant(DynArray[decimal, 6]) = {some_good_primes}
@@ -1651,7 +1660,8 @@ def ix(i: uint256) -> decimal:
     for i, p in enumerate(some_good_primes):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_primes) + 1))
+    with tx_failed():
+        c.ix(len(some_good_primes) + 1)
 
 
 def test_public_dynarray(get_contract):
@@ -1848,7 +1858,8 @@ def should_revert() -> DynArray[String[65], 2]:
 
 
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
-def test_dynarray_length_no_clobber(get_contract, assert_tx_failed, code):
+def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
     # check that length is not clobbered before dynarray data copy happens
     c = get_contract(code)
-    assert_tx_failed(lambda: c.should_revert())
+    with tx_failed():
+        c.should_revert()

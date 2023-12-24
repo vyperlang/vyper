@@ -85,7 +85,7 @@ ARITHMETIC_OPS = {
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, assert_compile_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -148,15 +148,23 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
+            with tx_failed():
+                c.foo(x, y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_2)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises(ZeroDivisionException):
+                get_contract(code_4)
         else:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_tx_failed(lambda: get_contract(code_2).foo(x))
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (InvalidType, OverflowException))
+            with tx_failed():
+                c.foo(x, y)
+            with tx_failed():
+                get_contract(code_2).foo(x)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            with pytest.raises((InvalidType, OverflowException)):
+                get_contract(code_4)
 
 
 COMPARISON_OPS = {
@@ -213,7 +221,7 @@ def test() -> {typ}:
         assert c.test() == val
 
     for val in bad_cases:
-        assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+        assert_compile_failed(lambda v=val: get_contract(code_template.format(typ=typ, val=v)))
 
 
 @pytest.mark.parametrize("typ", types)

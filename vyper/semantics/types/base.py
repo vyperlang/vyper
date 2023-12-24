@@ -92,7 +92,7 @@ class VyperType:
 
     def __eq__(self, other):
         return (
-            type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
+            type(self) is type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
 
     def __lt__(self, other):

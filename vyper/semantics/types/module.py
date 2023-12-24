@@ -232,14 +232,17 @@ class InterfaceT(_UserType):
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
         functions = []
-        for node in node.body:
-            if not isinstance(node, vy_ast.FunctionDef):
-                raise StructureException("Interfaces can only contain function definitions", node)
-            if len(node.decorator_list) > 0:
+        for func_ast in node.body:
+            if not isinstance(func_ast, vy_ast.FunctionDef):
                 raise StructureException(
-                    "Function definition in interface cannot be decorated", node.decorator_list[0]
+                    "Interfaces can only contain function definitions", func_ast
                 )
-            functions.append((node.name, ContractFunctionT.from_InterfaceDef(node)))
+            if len(func_ast.decorator_list) > 0:
+                raise StructureException(
+                    "Function definition in interface cannot be decorated",
+                    func_ast.decorator_list[0],
+                )
+            functions.append((func_ast.name, ContractFunctionT.from_InterfaceDef(func_ast)))
 
         # no structs or events in InterfaceDefs
         events: list = []

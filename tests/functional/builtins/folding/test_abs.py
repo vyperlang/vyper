@@ -39,7 +39,7 @@ def foo(a: int256) -> int256:
         get_contract(source)
 
 
-def test_abs_lower_bound(get_contract, assert_tx_failed):
+def test_abs_lower_bound(get_contract, tx_failed):
     source = """
 @external
 def foo(a: int256) -> int256:
@@ -47,10 +47,11 @@ def foo(a: int256) -> int256:
     """
     contract = get_contract(source)
 
-    assert_tx_failed(lambda: contract.foo(-(2**255)))
+    with tx_failed():
+        contract.foo(-(2**255))
 
 
-def test_abs_lower_bound_folded(get_contract, assert_tx_failed):
+def test_abs_lower_bound_folded(get_contract, tx_failed):
     source = """
 @external
 def foo() -> int256:

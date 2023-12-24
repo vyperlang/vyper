@@ -12,7 +12,7 @@ types = sorted(IntegerT.signeds())
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent_base_zero(get_contract, assert_tx_failed, typ):
+def test_exponent_base_zero(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -25,12 +25,14 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 0
     assert c.foo(hi) == 0
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))  # note: lo < 0
+    with tx_failed():
+        c.foo(-1)
+    with tx_failed():
+        c.foo(lo)  # note: lo < 0
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent_base_one(get_contract, assert_tx_failed, typ):
+def test_exponent_base_one(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -43,8 +45,10 @@ def foo(x: {typ}) -> {typ}:
     assert c.foo(1) == 1
     assert c.foo(hi) == 1
 
-    assert_tx_failed(lambda: c.foo(-1))
-    assert_tx_failed(lambda: c.foo(lo))
+    with tx_failed():
+        c.foo(-1)
+    with tx_failed():
+        c.foo(lo)
 
 
 def test_exponent_base_minus_one(get_contract):
@@ -63,7 +67,7 @@ def foo(x: int256) -> int256:
 
 # TODO: make this test pass
 @pytest.mark.parametrize("base", (0, 1))
-def test_exponent_negative_power(get_contract, assert_tx_failed, base):
+def test_exponent_negative_power(get_contract, tx_failed, base):
     # #2985
     code = f"""
 @external
@@ -73,7 +77,8 @@ def bar() -> int16:
     """
     c = get_contract(code)
     # known bug: 2985
-    assert_tx_failed(lambda: c.bar())
+    with tx_failed():
+        c.bar()
 
 
 def test_exponent_min_int16(get_contract):
@@ -103,7 +108,7 @@ def foo() -> int256:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_exponent(get_contract, assert_tx_failed, typ):
+def test_exponent(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(x: {typ}) -> {typ}:
@@ -116,7 +121,8 @@ def foo(x: {typ}) -> {typ}:
     test_cases = [0, 1, 3, 4, 126, 127, -1, lo, hi]
     for x in test_cases:
         if x * 2 >= typ.bits or x < 0:  # out of bounds
-            assert_tx_failed(lambda: c.foo(x))
+            with tx_failed():
+                c.foo(x)
         else:
             assert c.foo(x) == 4**x
 
@@ -145,7 +151,7 @@ def negative_four() -> {typ}:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_num_bound(assert_tx_failed, get_contract_with_gas_estimation, typ):
+def test_num_bound(tx_failed, get_contract_with_gas_estimation, typ):
     lo, hi = typ.ast_bounds
 
     num_bound_code = f"""
@@ -180,16 +186,22 @@ def _num_min() -> {typ}:
     assert c._num_sub(lo, 0) == lo
     assert c._num_add(hi - 1, 1) == hi
     assert c._num_sub(lo + 1, 1) == lo
-    assert_tx_failed(lambda: c._num_add(hi, 1))
-    assert_tx_failed(lambda: c._num_sub(lo, 1))
-    assert_tx_failed(lambda: c._num_add(hi - 1, 2))
-    assert_tx_failed(lambda: c._num_sub(lo + 1, 2))
+    with tx_failed():
+        c._num_add(hi, 1)
+    with tx_failed():
+        c._num_sub(lo, 1)
+    with tx_failed():
+        c._num_add(hi - 1, 2)
+    with tx_failed():
+        c._num_sub(lo + 1, 2)
     assert c._num_max() == hi
     assert c._num_min() == lo
 
-    assert_tx_failed(lambda: c._num_add3(hi, 1, -1))
+    with tx_failed():
+        c._num_add3(hi, 1, -1)
     assert c._num_add3(hi, -1, 1) == hi - 1 + 1
-    assert_tx_failed(lambda: c._num_add3(lo, -1, 1))
+    with tx_failed():
+        c._num_add3(lo, -1, 1)
     assert c._num_add3(lo, 1, -1) == lo + 1 - 1
 
 
@@ -219,7 +231,7 @@ ARITHMETIC_OPS = {
 @pytest.mark.parametrize("op", sorted(ARITHMETIC_OPS.keys()))
 @pytest.mark.parametrize("typ", types)
 @pytest.mark.fuzzing
-def test_arithmetic_thorough(get_contract, assert_tx_failed, assert_compile_failed, op, typ):
+def test_arithmetic_thorough(get_contract, tx_failed, assert_compile_failed, op, typ):
     # both variables
     code_1 = f"""
 @external
@@ -304,15 +316,22 @@ def foo() -> {typ}:
             assert get_contract(code_3).foo(y) == expected
             assert get_contract(code_4).foo() == expected
         elif div_by_zero:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_compile_failed(lambda: get_contract(code_2), ZeroDivisionException)
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), ZeroDivisionException)
+            with tx_failed():
+                c.foo(x, y)
+            assert_compile_failed(lambda code=code_2: get_contract(code), ZeroDivisionException)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            assert_compile_failed(lambda code=code_4: get_contract(code), ZeroDivisionException)
         else:
-            assert_tx_failed(lambda: c.foo(x, y))
-            assert_tx_failed(lambda: get_contract(code_2).foo(x))
-            assert_tx_failed(lambda: get_contract(code_3).foo(y))
-            assert_compile_failed(lambda: get_contract(code_4), (InvalidType, OverflowException))
+            with tx_failed():
+                c.foo(x, y)
+            with tx_failed():
+                get_contract(code_2).foo(x)
+            with tx_failed():
+                get_contract(code_3).foo(y)
+            assert_compile_failed(
+                lambda code=code_4: get_contract(code), (InvalidType, OverflowException)
+            )
 
 
 COMPARISON_OPS = {
@@ -370,7 +389,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
 
 @pytest.mark.parametrize("typ", types)
-def test_negation(get_contract, assert_tx_failed, typ):
+def test_negation(get_contract, tx_failed, typ):
     code = f"""
 @external
 def foo(a: {typ}) -> {typ}:
@@ -388,7 +407,8 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(2) == -2
     assert c.foo(-2) == 2
 
-    assert_tx_failed(lambda: c.foo(lo))
+    with tx_failed():
+        c.foo(lo)
 
 
 @pytest.mark.parametrize("typ", types)
