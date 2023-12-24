@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode, VyperException
+from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_variable_constancy,
@@ -127,19 +127,13 @@ class BuiltinFunctionT(VyperType):
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
 
-    def prefold(self, node):
-        if not hasattr(self, "fold"):
-            return None
-
-        try:
-            return self.fold(node)
-        except (UnfoldableNode, VyperException):
-            return None
-
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)
 
         return self._return_type
+
+    def fold(self, node: vy_ast.Call) -> vy_ast.VyperNode:
+        raise UnfoldableNode(f"{type(self)} cannot be folded")
 
     def infer_arg_types(self, node: vy_ast.Call, expected_return_typ=None) -> list[VyperType]:
         self._validate_arg_types(node)

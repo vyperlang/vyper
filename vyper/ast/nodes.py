@@ -375,15 +375,26 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def prefold(self) -> Optional["VyperNode"]:
+    def get_folded_value(self) -> "VyperNode":
         """
-        Attempt to evaluate the content of a node and generate a new node from it,
-        allowing for values that may be out of bounds during semantics typechecking.
+        Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
+        Raises UnfoldableNode if not.
+        """
+        if "folded_value" not in self._metadata:
+            self._metadata["folded_value"] = self.fold()
+        return self._metadata["folded_value"]
 
-        If a node cannot be prefolded, it should return None. This base method acts
-        as a catch-call for all inherited classes that do not implement the method.
+    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
         """
-        return None
+        Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
+        Returns None if not.
+        """
+        if "folded_value" not in self._metadata:
+            try:
+                self._metadata["folded_value"] = self.fold()
+            except (UnfoldableNode, VyperException):
+                return None
+        return self._metadata["folded_value"]
 
     def fold(self) -> "VyperNode":
         """
@@ -905,8 +916,8 @@ class List(ExprNode):
     _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
 
-    def prefold(self) -> Optional[ExprNode]:
-        elements = [e._metadata.get("folded_value") for e in self.elements]
+    def fold(self) -> Optional[ExprNode]:
+        elements = [e.get_folded_value_maybe() for e in self.elements]
         if None not in elements:
             return type(self).from_node(self, elements=elements)
 
@@ -942,14 +953,6 @@ class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
     _is_prefoldable = True
 
-    def prefold(self) -> Optional[ExprNode]:
-        operand = self.operand._metadata.get("folded_value")
-        if operand is not None:
-            value = self.op._op(operand.value)
-            return type(operand).from_node(self, value=value)
-
-        return None
-
     def fold(self) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
@@ -959,14 +962,16 @@ class UnaryOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
+        operand = self.operand.get_folded_value_maybe()
+
+        if isinstance(self.op, Not) and not isinstance(operand, NameConstant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
+        if isinstance(self.op, USub) and not isinstance(operand, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
+        if isinstance(self.op, Invert) and not isinstance(operand, Int):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        value = self.op._op(self.operand.value)
+        value = self.op._op(operand.value)
         return type(self.operand).from_node(self, value=value)
 
 
@@ -998,22 +1003,6 @@ class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
     _is_prefoldable = True
 
-    def prefold(self) -> Optional[ExprNode]:
-        left = self.left._metadata.get("folded_value")
-        right = self.right._metadata.get("folded_value")
-
-        if None in (left, right):
-            return None
-
-        # this validation is performed to prevent the compiler from hanging
-        # on very large shifts and improve the error message for negative
-        # values.
-        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
-            raise InvalidLiteral("Shift bits must be between 0 and 256", self.right)
-
-        value = self.op._op(left.value, right.value)
-        return type(left).from_node(self, value=value)
-
     def fold(self) -> ExprNode:
         """
         Attempt to evaluate the arithmetic operation.
@@ -1023,11 +1012,17 @@ class BinOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        left, right = self.left, self.right
+        left, right = [i.get_folded_value_maybe() for i in (self.left, self.right)]
         if type(left) is not type(right):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", self.right)
 
         value = self.op._op(left.value, right.value)
         return type(left).from_node(self, value=value)
@@ -1158,14 +1153,6 @@ class BoolOp(ExprNode):
     __slots__ = ("op", "values")
     _is_prefoldable = True
 
-    def prefold(self) -> Optional[ExprNode]:
-        values = [i._metadata.get("folded_value") for i in self.values]
-        if None in values:
-            return None
-
-        value = self.op._op(values)
-        return NameConstant.from_node(self, value=value)
-
     def fold(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
@@ -1175,13 +1162,12 @@ class BoolOp(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        if next((i for i in self.values if not isinstance(i, NameConstant)), None):
+        values = [i.get_folded_value_maybe() for i in self.values]
+
+        if any(not isinstance(i, NameConstant) for i in values):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        values = [i.value for i in self.values]
-        if None in values:
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
+        values = [i.value for i in values]
         value = self.op._op(values)
         return NameConstant.from_node(self, value=value)
 
@@ -1223,16 +1209,6 @@ class Compare(ExprNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def prefold(self) -> Optional[ExprNode]:
-        left = self.left._metadata.get("folded_value")
-        right = self.right._metadata.get("folded_value")
-
-        if None in (left, right):
-            return None
-
-        value = self.op._op(left.value, right.value)
-        return NameConstant.from_node(self, value=value)
-
     def fold(self) -> ExprNode:
         """
         Attempt to evaluate the comparison.
@@ -1242,7 +1218,7 @@ class Compare(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        left, right = self.left, self.right
+        left, right = [i.get_folded_value_maybe() for i in (self.left, self.right)]
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
@@ -1336,15 +1312,6 @@ class Subscript(ExprNode):
     __slots__ = ("slice", "value")
     _is_prefoldable = True
 
-    def prefold(self) -> Optional[ExprNode]:
-        slice_ = self.slice.value._metadata.get("folded_value")
-        value = self.value._metadata.get("folded_value")
-
-        if None in (slice_, value):
-            return None
-
-        return value.elements[slice_.value]
-
     def fold(self) -> ExprNode:
         """
         Attempt to evaluate the subscript.
@@ -1357,12 +1324,18 @@ class Subscript(ExprNode):
         ExprNode
             Node representing the result of the evaluation.
         """
-        if not isinstance(self.value, List):
+        slice_ = self.slice.value.get_folded_value_maybe()
+        value = self.value.get_folded_value_maybe()
+
+        if not isinstance(value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
-        elements = self.value.elements
+        elements = value.elements
         if len(set([type(i) for i in elements])) > 1:
             raise UnfoldableNode("List contains multiple node types")
-        idx = self.slice.get("value.value")
+
+        if not isinstance(slice_, Int):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+        idx = slice_.value
         if not isinstance(idx, int) or idx < 0 or idx >= len(elements):
             raise UnfoldableNode("Invalid index value")
 
