@@ -44,7 +44,8 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 # compound statements that are replaced with `class`
-VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
+# TODO remove enum in favor of flag
+VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 
 # simple statements or expressions that are replaced with `yield`
 VYPER_EXPRESSION_TYPES = {"log"}
@@ -55,7 +56,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "interface", "struct", "enum, and "event" keywords into python "class" keyword
+    * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator

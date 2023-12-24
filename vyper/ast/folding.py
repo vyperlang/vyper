@@ -246,7 +246,7 @@ def replace_constant(
                 continue
 
         # do not replace enum members
-        if node.get_ancestor(vy_ast.EnumDef):
+        if node.get_ancestor(vy_ast.FlagDef):
             continue
 
         try:

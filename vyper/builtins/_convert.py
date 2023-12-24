@@ -14,7 +14,7 @@ from vyper.codegen.core import (
     int_clamp,
     is_bytes_m_type,
     is_decimal_type,
-    is_enum_type,
+    is_flag_type,
     is_integer_type,
     sar,
     shl,
@@ -35,7 +35,7 @@ from vyper.semantics.types import (
     BytesM_T,
     BytesT,
     DecimalT,
-    EnumT,
+    FlagT,
     IntegerT,
     StringT,
 )
@@ -277,7 +277,7 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, EnumT, BytesT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT)
 def to_int(expr, arg, out_typ):
     return _to_int(expr, arg, out_typ)
 
@@ -305,7 +305,7 @@ def _to_int(expr, arg, out_typ):
     elif is_decimal_type(arg.typ):
         arg = _fixed_to_int(arg, out_typ)
 
-    elif is_enum_type(arg.typ):
+    elif is_flag_type(arg.typ):
         if out_typ != UINT256_T:
             _FAIL(arg.typ, out_typ, expr)
         # pretend enum is uint256
@@ -468,7 +468,7 @@ def convert(expr, context):
             ret = to_bool(arg_ast, arg, out_typ)
         elif out_typ == AddressT():
             ret = to_address(arg_ast, arg, out_typ)
-        elif is_enum_type(out_typ):
+        elif is_flag_type(out_typ):
             ret = to_enum(arg_ast, arg, out_typ)
         elif is_integer_type(out_typ):
             ret = to_int(arg_ast, arg, out_typ)

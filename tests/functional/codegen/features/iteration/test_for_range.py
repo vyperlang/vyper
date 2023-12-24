@@ -14,7 +14,7 @@ def repeat(z: int128) -> int128:
     assert c.repeat(9) == 54
 
 
-def test_range_bound(get_contract, assert_tx_failed):
+def test_range_bound(get_contract, tx_failed):
     code = """
 @external
 def repeat(n: uint256) -> uint256:
@@ -28,7 +28,8 @@ def repeat(n: uint256) -> uint256:
         assert c.repeat(n) == sum(i + 1 for i in range(n))
 
     # check codegen inserts assertion for n greater than bound
-    assert_tx_failed(lambda: c.repeat(7))
+    with tx_failed():
+        c.repeat(7)
 
 
 def test_range_bound_constant_end(get_contract, assert_tx_failed):
@@ -257,7 +258,7 @@ def test():
 
 
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
-def test_for_range_oob_check(get_contract, assert_tx_failed, typ):
+def test_for_range_oob_check(get_contract, tx_failed, typ):
     code = f"""
 @external
 def test():
@@ -266,7 +267,8 @@ def test():
         pass
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.test())
+    with tx_failed():
+        c.test()
 
 
 @pytest.mark.parametrize("typ", ["int128", "uint256"])

@@ -198,7 +198,7 @@ def foo() -> uint256:
 
 
 def test_minmax_var_uint256_negative_int128(
-    get_contract_with_gas_estimation, assert_tx_failed, assert_compile_failed
+    get_contract_with_gas_estimation, tx_failed, assert_compile_failed
 ):
     from vyper.exceptions import TypeMismatch
 

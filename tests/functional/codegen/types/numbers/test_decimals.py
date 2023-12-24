@@ -156,7 +156,7 @@ def iarg() -> uint256:
     print("Passed fractional multiplication test")
 
 
-def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
+def test_mul_overflow(tx_failed, get_contract_with_gas_estimation):
     mul_code = """
 
 @external
@@ -170,12 +170,14 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
     x = Decimal("85070591730234615865843651857942052864")
     y = Decimal("136112946768375385385349842973")
 
-    assert_tx_failed(lambda: c._num_mul(x, y))
+    with tx_failed():
+        c._num_mul(x, y)
 
     x = SizeLimits.MAX_AST_DECIMAL
     y = 1 + DECIMAL_EPSILON
 
-    assert_tx_failed(lambda: c._num_mul(x, y))
+    with tx_failed():
+        c._num_mul(x, y)
 
     assert c._num_mul(x, Decimal(1)) == x
 
@@ -186,7 +188,7 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
 
 # division failure modes(!)
-def test_div_overflow(get_contract, assert_tx_failed):
+def test_div_overflow(get_contract, tx_failed):
     code = """
 @external
 def foo(x: decimal, y: decimal) -> decimal:
@@ -198,32 +200,39 @@ def foo(x: decimal, y: decimal) -> decimal:
     x = SizeLimits.MIN_AST_DECIMAL
     y = -DECIMAL_EPSILON
 
-    assert_tx_failed(lambda: c.foo(x, y))
-    assert_tx_failed(lambda: c.foo(x, Decimal(0)))
-    assert_tx_failed(lambda: c.foo(y, Decimal(0)))
+    with tx_failed():
+        c.foo(x, y)
+    with tx_failed():
+        c.foo(x, Decimal(0))
+    with tx_failed():
+        c.foo(y, Decimal(0))
 
     y = Decimal(1) - DECIMAL_EPSILON  # 0.999999999
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     y = Decimal(-1)
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     assert c.foo(x, Decimal(1)) == x
     assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
     x = SizeLimits.MAX_AST_DECIMAL
 
-    assert_tx_failed(lambda: c.foo(x, DECIMAL_EPSILON))
+    with tx_failed():
+        c.foo(x, DECIMAL_EPSILON)
 
     y = Decimal(1) - DECIMAL_EPSILON
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     assert c.foo(x, Decimal(1)) == x
 
     assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
 
-def test_decimal_min_max_literals(assert_tx_failed, get_contract_with_gas_estimation):
+def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def maximum():
