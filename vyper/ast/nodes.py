@@ -972,7 +972,7 @@ class UnaryOp(ExprNode):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
         value = self.op._op(operand.value)
-        return type(self.operand).from_node(self, value=value)
+        return type(operand).from_node(self, value=value)
 
 
 class Operator(VyperNode):
