@@ -114,11 +114,12 @@ def get_last(start: uint256, end: uint256) -> uint256:
     """
     c = get_contract(code)
     UINT_MAX = 2**256 - 1
-    for n in range(6):
-        expected = UINT_MAX - 1 if n > 0 else 0
-        assert c.get_last(UINT_MAX - n, UINT_MAX) == expected
+    assert c.get_last(UINT_MAX, UINT_MAX) == 0  # initial value of x
 
-    # check assertion for start >= end
+    for n in range(1, 6):
+        assert c.get_last(UINT_MAX - n, UINT_MAX) == UINT_MAX - 1
+
+    # check for `start + bound <= end`, overflow cases
     for n in range(1, 7):
         with tx_failed():
             c.get_last(UINT_MAX - n, 0)
