@@ -359,7 +359,7 @@ class InvalidABIType(VyperInternalException):
 
 
 @contextlib.contextmanager
-def tag_exceptions( node, fallback_exception_type=CompilerPanic, note=None):
+def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
     try:
         yield
     except _BaseVyperException as e:
