@@ -634,7 +634,7 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(_check_literal(item) for item in node.elements)
 
-    if node._metadata.get("folded_value"):
+    if node.get_folded_value_maybe():
         return True
     return False
 

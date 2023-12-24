@@ -21,7 +21,7 @@ def get_constants(node: vy_ast.Module) -> dict:
             for n in c.value.get_descendants(include_self=True, reverse=True):
                 prefold(n, constants)
 
-            val = c.value._metadata.get("folded_value")
+            val = c.value.get_folded_value_maybe()
 
             # note that if a constant is redefined, its value will be overwritten,
             # but it is okay because the syntax error is handled downstream

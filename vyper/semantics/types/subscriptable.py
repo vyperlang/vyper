@@ -287,7 +287,7 @@ class DArrayT(_SequenceT):
         ):
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.value.elements[1]._metadata.get("folded_value")
+        length_node = node.slice.value.elements[1].get_folded_value_maybe()
 
         if not isinstance(length_node, vy_ast.Int):
             raise StructureException(err_msg, length_node)
