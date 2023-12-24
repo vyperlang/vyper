@@ -444,11 +444,15 @@ class IRnode:
         return ret
 
     @property
-    def is_literal(self):
+    def is_literal(self) -> bool:
         return isinstance(self.value, int) or self.value == "multi"
 
+    def int_value(self) -> int:
+        assert isinstance(self.value, int)
+        return self.value
+
     @property
-    def is_pointer(self):
+    def is_pointer(self) -> bool:
         # not used yet but should help refactor/clarify downstream code
         # eventually
         return self.location is not None

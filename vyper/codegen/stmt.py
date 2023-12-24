@@ -27,7 +27,6 @@ from vyper.evm.address_space import MEMORY, STORAGE
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
-    InvalidOperation,
     StructureException,
     TypeCheckFailure,
     tag_exceptions,
@@ -226,10 +225,6 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
-    def _get_range_const_value(self, arg_ast_node):
-        with self.context.range_scope():
-            return Expr.parse_value_expr(arg_ast_node, self.context).value
-
     def parse_For(self):
         with self.context.block_scope():
             if self.stmt.get("iter.func.id") == "range":
@@ -251,27 +246,31 @@ class Stmt:
             arg0, arg1 = (IRnode.from_list(0, typ=iter_typ), for_iter.args[0])
         elif args_len == 2:
             arg0, arg1 = for_iter.args
-        else:
-            raise InvalidOperation("Invalid number of arguments to range()")
+        else:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
-        kwargs = {s.arg: s.value for s in for_iter.keywords}
-
-        if "bound" in kwargs:
+        with self.context.range_scope():
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(arg1, self.context)
-            with end.cache_when_complex("end") as (builder, end):
-                rounds = builder.resolve(IRnode.from_list(["sub", end, clamp("le", start, end)]))
-            rounds_bound = self._get_range_const_value(kwargs["bound"])
+            kwargs = {
+                s.arg: Expr.parse_value_expr(s.value, self.context) for s in for_iter.keywords
+            }
+
+        if "bound" in kwargs:
+            with end.cache_when_complex("end") as (b1, end):
+                # note: the check for rounds<=rounds_bound happens in asm
+                # generation for `repeat`.
+                clamped_start = clamp("le", start, end)
+                rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
+            rounds_bound = kwargs.pop("bound").int_value()
         else:
-            start_val = self._get_range_const_value(arg0)
-            end_val = self._get_range_const_value(arg1)
-            start = IRnode.from_list(start_val, typ=iter_typ)
-            rounds = IRnode.from_list(end_val - start_val, typ=iter_typ)
+            rounds = end.int_value() - start.int_value()
             rounds_bound = rounds
 
-        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
-        if bound < 1:
-            return
+        assert len(kwargs) == 0  # sanity check stray keywords
+
+        if rounds_bound < 1:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
         varname = self.stmt.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
