@@ -68,8 +68,5 @@ def prefold(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
                     pass
 
     if getattr(node, "_is_prefoldable", None):
-        try:
-            # call `get_folded_value`` for its side effects
-            node.get_folded_value_throwing()
-        except UnfoldableNode:
-            pass
+        # call `get_folded_value_maybe` for its side effects
+        node.get_folded_value_maybe()
