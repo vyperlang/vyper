@@ -45,9 +45,10 @@ def repeat(n: uint256) -> uint256:
     for n in range(1, 5):
         assert c.repeat(n) == sum(i + 1 for i in range(n, 7))
 
-    # check codegen inserts assertion for `end - start <= bound`
+    # check assertion for `start <= end`
     with tx_failed():
         c.repeat(8)
+    # check assertion for `start + bound <= end`
     with tx_failed():
         c.repeat(0)
 
