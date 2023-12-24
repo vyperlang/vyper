@@ -45,7 +45,7 @@ def repeat(n: uint256) -> uint256:
     for n in range(1, 5):
         assert c.repeat(n) == sum(i + 1 for i in range(n, 7))
 
-    # check codegen inserts assertion for n greater than bound
+    # check codegen inserts assertion for `end - start <= bound`
     with tx_failed():
         c.repeat(8)
     with tx_failed():
@@ -65,11 +65,11 @@ def repeat(n: uint256) -> uint256:
     for n in range(1, 8):
         assert c.repeat(n) == sum(i + 1 for i in range(1, n))
 
-    # check assertion for n less than start
+    # check assertion for `start <= end`
     with tx_failed():
         c.repeat(0)
 
-    # check codegen inserts assertion for n greater than bound
+    # check codegen inserts assertion for `start + bound <= end`
     with tx_failed():
         c.repeat(8)
 
@@ -88,7 +88,7 @@ def repeat(start: uint256, end: uint256) -> uint256:
         assert c.repeat(0, n) == sum(range(0, n))
         assert c.repeat(n, n * 2) == sum(range(n, n * 2))
 
-    # check assertion for start >= end
+    # check assertion for `start <= end`
     with tx_failed():
         c.repeat(1, 0)
     with tx_failed():
@@ -96,7 +96,7 @@ def repeat(start: uint256, end: uint256) -> uint256:
     with tx_failed():
         c.repeat(8, 7)
 
-    # check codegen inserts assertion for n greater than bound
+    # check codegen inserts assertion for `start + bound <= end`
     with tx_failed():
         c.repeat(0, 7)
     with tx_failed():
