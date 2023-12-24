@@ -169,11 +169,26 @@ def repeat(n: uint256) -> uint256:
         "Value must be a literal integer, unless a bound is specified",
         "n",
     ),
+    (
+        """
+@external
+def foo(x: int128):
+    y: int128 = 7
+    for i in range(x, x + y):
+        pass
+    """,
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
+        "x",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):")
 fail_test_names = [
-    f"{i:02d}: {for_code_regex.search(code).group(1)} raises {type(err).__name__}"
+    (
+        f"{i:02d}: {for_code_regex.search(code).group(1)}"  # type: ignore[union-attr]
+        f" raises {type(err).__name__}"
+    )
     for i, (code, err, msg, src) in enumerate(fail_list)
 ]
 
@@ -232,7 +247,8 @@ def kick_foos():
 ]
 
 valid_test_names = [
-    f"{i} {for_code_regex.search(code).group(1)}" for i, code in enumerate(valid_list)
+    f"{i} {for_code_regex.search(code).group(1)}"  # type: ignore[union-attr]
+    for i, code in enumerate(valid_list)
 ]
 
 
