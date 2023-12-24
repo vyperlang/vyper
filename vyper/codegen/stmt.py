@@ -223,15 +223,6 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
-    def _check_valid_range_constant(self, arg_ast_node):
-        with self.context.range_scope():
-            arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-        return arg_expr
-
-    def _get_range_const_value(self, arg_ast_node):
-        arg_expr = self._check_valid_range_constant(arg_ast_node)
-        return arg_expr.value
-
     def parse_For(self):
         with self.context.block_scope():
             if self.stmt.get("iter.func.id") == "range":
@@ -247,41 +238,37 @@ class Stmt:
             iter_typ = INT256_T
 
         # Get arg0
-        arg0 = self.stmt.iter.args[0]
-        num_of_args = len(self.stmt.iter.args)
+        for_iter: vy_ast.Call = self.stmt.iter
+        args_len = len(for_iter.args)
+        if args_len == 1:
+            arg0, arg1 = (IRnode.from_list(0, typ=iter_typ), for_iter.args[0])
+        elif args_len == 2:
+            arg0, arg1 = for_iter.args
+        else:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
-        kwargs = {
-            s.arg: Expr.parse_value_expr(s.value, self.context)
-            for s in self.stmt.iter.keywords or []
-        }
-
-        # Type 1 for, e.g. for i in range(10): ...
-        if num_of_args == 1:
-            n = Expr.parse_value_expr(arg0, self.context)
-            start = IRnode.from_list(0, typ=iter_typ)
-            rounds = n
-            rounds_bound = kwargs.get("bound", rounds)
-
-        # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
-            arg0_val = self._get_range_const_value(arg0)
-            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-            start = IRnode.from_list(arg0_val, typ=iter_typ)
-            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
-            rounds_bound = rounds
-
-        # Type 3 for, e.g. for i in range(x, x + 10): ...
-        else:
-            arg1 = self.stmt.iter.args[1]
-            rounds = self._get_range_const_value(arg1.right)
+        with self.context.range_scope():
             start = Expr.parse_value_expr(arg0, self.context)
-            _, hi = start.typ.int_bounds
-            start = clamp("le", start, hi + 1 - rounds)
+            end = Expr.parse_value_expr(arg1, self.context)
+            kwargs = {
+                s.arg: Expr.parse_value_expr(s.value, self.context) for s in for_iter.keywords
+            }
+
+        if "bound" in kwargs:
+            with end.cache_when_complex("end") as (b1, end):
+                # note: the check for rounds<=rounds_bound happens in asm
+                # generation for `repeat`.
+                clamped_start = clamp("le", start, end)
+                rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
+            rounds_bound = kwargs.pop("bound").int_value()
+        else:
+            rounds = end.int_value() - start.int_value()
             rounds_bound = rounds
 
-        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
-        if bound < 1:
-            raise TypeCheckFailure("unreachable")
+        assert len(kwargs) == 0  # sanity check stray keywords
+
+        if rounds_bound < 1:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
         varname = self.stmt.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
