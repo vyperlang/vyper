@@ -7,7 +7,6 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidLiteral,
     InvalidOperation,
     InvalidType,
     IteratorException,
@@ -357,75 +356,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            range_ = node.iter
-            validate_call_args(range_, (1, 2), kwargs=["bound"])
-
-            args = range_.args
-            kwargs = {s.arg: s.value for s in range_.keywords or []}
-            if len(args) == 1:
-                # range(CONSTANT)
-                n = args[0]
-                bound = kwargs.pop("bound", None)
-                validate_expected_type(n, IntegerT.any())
-
-                if bound is None:
-                    n_val = n.get_folded_value_maybe()
-                    if not isinstance(n_val, vy_ast.Num):
-                        raise StateAccessViolation("Value must be a literal", n)
-                    if n_val.value <= 0:
-                        raise StructureException("For loop must have at least 1 iteration", args[0])
-                    type_list = get_possible_types_from_node(n)
-
-                else:
-                    bound_val = bound.get_folded_value_maybe()
-                    if not isinstance(bound_val, vy_ast.Num):
-                        raise StateAccessViolation("bound must be a literal", bound)
-                    if bound_val.value <= 0:
-                        raise StructureException("bound must be at least 1", bound)
-                    type_list = get_common_types(n, bound)
-
-            else:
-                if range_.keywords:
-                    raise StructureException(
-                        "Keyword arguments are not supported for `range(N, M)` and"
-                        "`range(x, x + N)` expressions",
-                        range_.keywords[0],
-                    )
-
-                validate_expected_type(args[0], IntegerT.any())
-                type_list = get_common_types(*args)
-                arg0_val = args[0].get_folded_value_maybe()
-                if not isinstance(arg0_val, vy_ast.Constant):
-                    # range(x, x + CONSTANT)
-                    if not isinstance(args[1], vy_ast.BinOp) or not isinstance(
-                        args[1].op, vy_ast.Add
-                    ):
-                        raise StructureException(
-                            "Second element must be the first element plus a literal value", args[0]
-                        )
-                    if not vy_ast.compare_nodes(args[0], args[1].left):
-                        raise StructureException(
-                            "First and second variable must be the same", args[1].left
-                        )
-                    if not isinstance(args[1].right, vy_ast.Int):
-                        raise InvalidLiteral("Literal must be an integer", args[1].right)
-                    if args[1].right.value < 1:
-                        raise StructureException(
-                            f"For loop has invalid number of iterations ({args[1].right.value}),"
-                            " the value must be greater than zero",
-                            args[1].right,
-                        )
-                else:
-                    # range(CONSTANT, CONSTANT)
-                    arg1_val = args[1].get_folded_value_maybe()
-                    if not isinstance(arg1_val, vy_ast.Int):
-                        raise InvalidType("Value must be a literal integer", args[1])
-                    validate_expected_type(args[1], IntegerT.any())
-                    if arg0_val.value >= arg1_val.value:
-                        raise StructureException("Second value must be > first value", args[1])
-
-                if not type_list:
-                    raise TypeMismatch("Iterator values are of different types", node.iter)
+            type_list = _analyse_range_call(node.iter)
 
         else:
             # iteration over a variable or literal list
@@ -499,8 +430,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
-                        for n in node.body:
-                            self.visit(n)
+                        for stmt in node.body:
+                            self.visit(stmt)
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
@@ -814,3 +745,45 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.body, typ)
         validate_expected_type(node.orelse, typ)
         self.visit(node.orelse, typ)
+
+
+def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
+    """
+    Check that the arguments to a range() call are valid.
+    :param node: call to range()
+    :return: None
+    """
+    validate_call_args(node, (1, 2), kwargs=["bound"])
+    kwargs = {s.arg: s.value for s in node.keywords or []}
+    start, end = (
+        (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else [i for i in node.args]
+    )
+
+    all_args = (start, end, *kwargs.values())
+    for arg1 in all_args:
+        validate_expected_type(arg1, IntegerT.any())
+
+    type_list = get_common_types(*all_args)
+    if not type_list:
+        raise TypeMismatch("Iterator values are of different types", node)
+
+    folded_start, folded_end = [i.get_folded_value_maybe() for i in (start, end)]
+    if "bound" in kwargs:
+        bound = kwargs["bound"]
+        folded_bound = bound.get_folded_value_maybe()
+        if not isinstance(folded_bound, vy_ast.Num):
+            raise StateAccessViolation("Bound must be a literal", bound)
+        if folded_bound.value <= 0:
+            raise StructureException("Bound must be at least 1", bound)
+        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
+            error = "Please remove the `bound=` kwarg when using range with constants"
+            raise StructureException(error, bound)
+    else:
+        for original_arg, folded_arg in zip([start, end], [folded_start, folded_end]):
+            if not isinstance(folded_arg, vy_ast.Num):
+                error = "Value must be a literal integer, unless a bound is specified"
+                raise StateAccessViolation(error, original_arg)
+        if folded_end.value <= folded_start.value:
+            raise StructureException("End must be greater than start", end)
+
+    return type_list
