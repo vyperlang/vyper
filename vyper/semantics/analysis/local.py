@@ -190,14 +190,14 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
     def analyze(self):
         # allow internal function params to be mutable
-        location, is_immutable, constancy = (
-            (DataLocation.MEMORY, False, Modifiability.MODIFIABLE)
+        location, modifiability = (
+            (DataLocation.MEMORY, Modifiability.MODIFIABLE)
             if self.func.is_internal
-            else (DataLocation.CALLDATA, True, Modifiability.NOT_MODIFIABLE)
+            else (DataLocation.CALLDATA, Modifiability.NOT_MODIFIABLE)
         )
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, location=location, is_immutable=is_immutable, constancy=constancy
+                arg.typ, location=location, modifiability=modifiability
             )
 
         for node in self.fn_node.body:
@@ -425,7 +425,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             with self.namespace.enter_scope():
                 self.namespace[iter_name] = VarInfo(
-                    possible_target_type, constancy=Modifiability.ALWAYS_CONSTANT
+                    possible_target_type, modifiability=Modifiability.ALWAYS_CONSTANT
                 )
 
                 try:

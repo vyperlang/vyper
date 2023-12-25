@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -324,7 +324,7 @@ class ModuleT(VyperType):
 
     @cached_property
     def immutables(self):
-        return [t for t in self.variables.values() if t.is_immutable]
+        return [t for t in self.variables.values() if t.modifiability == Modifiability.IMMUTABLE]
 
     @cached_property
     def immutable_section_bytes(self):

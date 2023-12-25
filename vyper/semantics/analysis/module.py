@@ -26,7 +26,7 @@ from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
 from vyper.semantics.analysis.pre_typecheck import pre_typecheck
 from vyper.semantics.analysis.utils import (
-    check_variable_constancy,
+    check_modifiability,
     get_exact_type_from_node,
     validate_expected_type,
 )
@@ -262,7 +262,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else DataLocation.STORAGE
         )
 
-        constancy = (
+        modifiability = (
             Modifiability.IMMUTABLE
             if node.is_immutable
             else Modifiability.ALWAYS_CONSTANT
@@ -279,9 +279,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             type_,
             decl_node=node,
             location=data_loc,
-            constancy=constancy,
+            modifiability=modifiability,
             is_public=node.is_public,
-            is_immutable=node.is_immutable,
             is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
@@ -317,7 +316,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             ExprVisitor().visit(node.value, type_)
 
-            if not check_variable_constancy(node.value, Modifiability.ALWAYS_CONSTANT):
+            if not check_modifiability(node.value, Modifiability.ALWAYS_CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

@@ -8,7 +8,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
-    check_variable_constancy,
+    check_modifiability,
     get_exact_type_from_node,
     validate_expected_type,
 )
@@ -111,7 +111,7 @@ class BuiltinFunctionT(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not check_variable_constancy(
+            if kwarg_settings.require_literal and not check_modifiability(
                 kwarg.value, Modifiability.IMMUTABLE
             ):
                 raise TypeMismatch("Value must be literal or environment variable", kwarg.value)

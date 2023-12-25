@@ -36,6 +36,7 @@ from vyper.exceptions import (
     VyperException,
     tag_exceptions,
 )
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -186,7 +187,7 @@ class Expr:
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
             varinfo = self.context.globals[self.expr.id]
-            assert varinfo.is_immutable, "not an immutable!"
+            assert varinfo.modifiability == Modifiability.IMMUTABLE, "not an immutable!"
 
             ofst = varinfo.position.offset
 

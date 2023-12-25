@@ -106,7 +106,7 @@ class FoldedFunctionT(BuiltinFunctionT):
     # Base class for nodes which should always be folded
 
     # Since foldable builtin functions are not folded before semantics validation,
-    # this flag is used for `check_variable_constancy` in semantics validation.
+    # this flag is used for `check_modifiability` in semantics validation.
     _kwargable = True
 
 

@@ -190,7 +190,7 @@ class ImportInfo(AnalysisResult):
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,
-    plus associated metadata like location and constancy attributes
+    plus associated metadata like location and modifiability attributes
 
     Object Attributes
     -----------------
@@ -200,9 +200,8 @@ class VarInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    constancy: Modifiability = Modifiability.MODIFIABLE
+    modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    is_immutable: bool = False
     is_transient: bool = False
     is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
@@ -233,11 +232,10 @@ class ExprInfo:
     typ: VyperType
     var_info: Optional[VarInfo] = None
     location: DataLocation = DataLocation.UNSET
-    constancy: Modifiability = Modifiability.MODIFIABLE
-    is_immutable: bool = False
+    modifiability: Modifiability = Modifiability.MODIFIABLE
 
     def __post_init__(self):
-        should_match = ("typ", "location", "constancy", "is_immutable")
+        should_match = ("typ", "location", "modifiability")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
@@ -249,8 +247,7 @@ class ExprInfo:
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
-            constancy=var_info.constancy,
-            is_immutable=var_info.is_immutable,
+            modifiability=var_info.modifiability,
         )
 
     @classmethod
@@ -261,7 +258,7 @@ class ExprInfo:
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "constancy", "is_immutable")
+        to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
         return self.__class__(typ=typ, **fields)
 
@@ -285,9 +282,9 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.constancy == Modifiability.ALWAYS_CONSTANT:
+        if self.modifiability == Modifiability.ALWAYS_CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
-        if self.is_immutable:
+        if self.modifiability == Modifiability.IMMUTABLE:
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
             # TODO: we probably want to remove this restriction.

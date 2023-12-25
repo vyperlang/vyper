@@ -98,10 +98,9 @@ class _ExprAnalyser:
             # kludge! for validate_modification in local analysis of Assign
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            constancy = sorted((i.constancy for i in types), key=lambda k: k.value)[-1]
-            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
+            modifiability = sorted((i.modifiability for i in types), key=lambda k: k.value)[-1]
 
-            return ExprInfo(t, location=location, constancy=constancy, is_immutable=is_immutable)
+            return ExprInfo(t, location=location, modifiability=modifiability)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
@@ -201,7 +200,7 @@ class _ExprAnalyser:
             if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and s.constancy >= Modifiability.IMMUTABLE:
+            if is_self_reference and s.modifiability >= Modifiability.IMMUTABLE:
                 _raise_invalid_reference(name, node)
             # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
@@ -639,33 +638,33 @@ def _check_literal(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def check_variable_constancy(node: vy_ast.VyperNode, constancy: Modifiability) -> bool:
+def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) -> bool:
     """
-    Check if the given node is a literal or constant value.
+    Check if the given node is not more modifiable than the given modifiability.
     """
     if _check_literal(node):
         return True
 
     if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
-        return all(check_variable_constancy(i, constancy) for i in (node.left, node.right))
+        return all(check_modifiability(i, modifiability) for i in (node.left, node.right))
 
     if isinstance(node, vy_ast.BoolOp):
-        return all(check_variable_constancy(i, constancy) for i in node.values)
+        return all(check_modifiability(i, modifiability) for i in node.values)
 
     if isinstance(node, vy_ast.UnaryOp):
-        return check_variable_constancy(node.operand, constancy)
+        return check_modifiability(node.operand, modifiability)
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_variable_constancy(item, constancy) for item in node.elements)
+        return all(check_modifiability(item, modifiability) for item in node.elements)
 
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_variable_constancy(v, constancy) for v in args[0].values)
+            return all(check_modifiability(v, modifiability) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
         if getattr(call_type, "_kwargable", False):
             return True
 
     value_type = get_expr_info(node)
-    return value_type.constancy >= constancy
+    return value_type.modifiability >= modifiability
