@@ -359,14 +359,17 @@ class InvalidABIType(VyperInternalException):
 
 
 @contextlib.contextmanager
-def tag_exceptions(
-    node, fallback_exception_type=CompilerPanic, fallback_message="unhandled exception"
-):
+def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
     try:
         yield
     except _BaseVyperException as e:
         if not e.annotations and not e.lineno:
-            raise e.with_annotation(node)
-        raise e
+            tb = e.__traceback__
+            raise e.with_annotation(node).with_traceback(tb)
+        raise e from None
     except Exception as e:
-        raise fallback_exception_type(fallback_message, node) from e
+        tb = e.__traceback__
+        fallback_message = "unhandled exception"
+        if note:
+            fallback_message += f", {note}"
+        raise fallback_exception_type(fallback_message, node).with_traceback(tb)

@@ -74,19 +74,17 @@ class Expr:
         self.context = context
 
         if isinstance(node, IRnode):
-            # TODO this seems bad
+            # this is a kludge for parse_AugAssign to pass in IRnodes
+            # directly.
+            # TODO fixme!
             self.ir_node = node
             return
 
-        fn = getattr(self, f"parse_{type(node).__name__}", None)
-        if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
-
-        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+        fn_name = f"parse_{type(node).__name__}"
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
+            fn = getattr(self, fn_name)
             self.ir_node = fn()
-
-        if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
+            assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)
@@ -375,9 +373,9 @@ class Expr:
             index = self.expr.slice.value.n
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
-                return
+                raise TypeCheckFailure("unreachable")
         else:
-            return
+            raise TypeCheckFailure("unreachable")
 
         ir_node = get_element_ptr(sub, index)
         ir_node.mutable = sub.mutable
@@ -412,13 +410,13 @@ class Expr:
             new_typ = left.typ
             if new_typ.bits != 256:
                 # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
-                return
+                raise TypeCheckFailure("unreachable")
             return IRnode.from_list(shl(right, left), typ=new_typ)
         if isinstance(self.expr.op, vy_ast.RShift):
             new_typ = left.typ
             if new_typ.bits != 256:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
-                return
+                raise TypeCheckFailure("unreachable")
             op = shr if not left.typ.is_signed else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
@@ -461,7 +459,7 @@ class Expr:
         elif isinstance(self.expr.op, vy_ast.NotIn):
             found, not_found = 0, 1
         else:  # pragma: no cover
-            return
+            raise TypeCheckFailure("unreachable")
 
         i = IRnode.from_list(self.context.fresh_varname("in_ix"), typ=UINT256_T)
 
@@ -523,7 +521,7 @@ class Expr:
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
         if right.value is None:
-            return
+            raise TypeCheckFailure("unreachable")
 
         if isinstance(self.expr.op, (vy_ast.In, vy_ast.NotIn)):
             if is_array_like(right.typ):
@@ -575,7 +573,7 @@ class Expr:
 
         elif left.typ._is_prim_word and right.typ._is_prim_word:
             if op not in ("eq", "ne"):
-                return
+                raise TypeCheckFailure("unreachable")
         else:
             # kludge to block behavior in #2638
             # TODO actually implement equality for complex types
