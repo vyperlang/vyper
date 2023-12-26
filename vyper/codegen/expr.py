@@ -70,6 +70,14 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
+        # use original node for better diagnostics
+        orig_node = node
+        if isinstance(node, vy_ast.VyperNode):
+            folded_node = node._metadata.get("folded_value")
+            if folded_node:
+                folded_node._metadata["type"] = node._metadata["type"]
+                node = folded_node
+
         self.expr = node
         self.context = context
 
@@ -80,13 +88,13 @@ class Expr:
 
         fn = getattr(self, f"parse_{type(node).__name__}", None)
         if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", node)
+            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}", orig_node)
 
-        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+        with tag_exceptions(orig_node, fallback_exception_type=CodegenPanic):
             self.ir_node = fn()
 
         if self.ir_node is None:
-            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", node)
+            raise TypeCheckFailure(f"{type(node).__name__} node did not produce IR.\n", orig_node)
 
         self.ir_node.annotation = self.expr.get("node_source_code")
         self.ir_node.source_pos = getpos(self.expr)

@@ -280,7 +280,7 @@ def generate_folded_ast(
     symbol_tables = set_data_positions(vyper_module, storage_layout_overrides)
 
     vyper_module_folded = copy.deepcopy(vyper_module)
-    vy_ast.folding.fold(vyper_module_folded)
+    #vy_ast.folding.fold(vyper_module_folded)
 
     return vyper_module_folded, symbol_tables
 
