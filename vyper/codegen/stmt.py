@@ -40,16 +40,14 @@ class Stmt:
     def __init__(self, node: vy_ast.VyperNode, context: Context) -> None:
         self.stmt = node
         self.context = context
-        fn = getattr(self, f"parse_{type(node).__name__}", None)
-        if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
 
-        with context.internal_memory_scope():
-            with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+        fn_name = f"parse_{type(node).__name__}"
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
+            fn = getattr(self, fn_name)
+            with context.internal_memory_scope():
                 self.ir_node = fn()
 
-        if self.ir_node is None:
-            raise TypeCheckFailure("Statement node did not produce IR")
+            assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
         self.ir_node.source_pos = getpos(self.stmt)
@@ -347,7 +345,7 @@ class Stmt:
             # because of this check, we do not need to check for
             # make_setter references lhs<->rhs as in parse_Assign -
             # single word load/stores are atomic.
-            return
+            raise TypeCheckFailure("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
             rhs = Expr.parse_value_expr(
