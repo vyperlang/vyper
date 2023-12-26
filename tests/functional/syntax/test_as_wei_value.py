@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InvalidType,
     OverflowException,
     StructureException,
+    UndeclaredDefinition
 )
 
 fail_list = [
@@ -15,7 +16,7 @@ fail_list = [
 def foo():
     x: uint256 = as_wei_value(5, szabo)
     """,
-        ArgumentException,
+        UndeclaredDefinition,
     ),
     (
         """
@@ -65,7 +66,7 @@ def foo():
         """
 FOO: constant(uint256) = as_wei_value(5, szabo)
     """,
-        ArgumentException,
+        UndeclaredDefinition,
     ),
     (
         """
