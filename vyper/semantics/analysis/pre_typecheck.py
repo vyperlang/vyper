@@ -21,14 +21,16 @@ def get_constants(node: vy_ast.Module) -> dict:
             for n in c.value.get_descendants(include_self=True, reverse=True):
                 prefold(n, constants)
 
-            val = c.value.get_folded_value_maybe()
+            try:
+                val = c.value.get_folded_value_throwing()
 
-            # note that if a constant is redefined, its value will be overwritten,
-            # but it is okay because the syntax error is handled downstream
-            if val is not None:
+                # note that if a constant is redefined, its value will be overwritten,
+                # but it is okay because the syntax error is handled downstream
                 constants[name] = val
                 derived_nodes += 1
                 const_var_decls.remove(c)
+            except UnfoldableNode:
+                pass
 
         if not derived_nodes:
             break
