@@ -917,11 +917,8 @@ class List(ExprNode):
     _translated_fields = {"elts": "elements"}
 
     def fold(self) -> Optional[ExprNode]:
-        elements = [e.get_folded_value_maybe() for e in self.elements]
-        if None not in elements:
-            return type(self).from_node(self, elements=elements)
-
-        return None
+        elements = [e.get_folded_value_throwing() for e in self.elements]
+        return type(self).from_node(self, elements=elements)
 
 
 class Tuple(ExprNode):
@@ -962,7 +959,7 @@ class UnaryOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        operand = self.operand.get_folded_value_maybe()
+        operand = self.operand.get_folded_value_throwing()
 
         if isinstance(self.op, Not) and not isinstance(operand, NameConstant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1012,7 +1009,7 @@ class BinOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        left, right = [i.get_folded_value_maybe() for i in (self.left, self.right)]
+        left, right = [i.get_folded_value_throwing() for i in (self.left, self.right)]
         if type(left) is not type(right):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
@@ -1162,7 +1159,7 @@ class BoolOp(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        values = [i.get_folded_value_maybe() for i in self.values]
+        values = [i.get_folded_value_throwing() for i in self.values]
 
         if any(not isinstance(i, NameConstant) for i in values):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1218,7 +1215,7 @@ class Compare(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        left, right = [i.get_folded_value_maybe() for i in (self.left, self.right)]
+        left, right = [i.get_folded_value_throwing() for i in (self.left, self.right)]
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
@@ -1324,8 +1321,8 @@ class Subscript(ExprNode):
         ExprNode
             Node representing the result of the evaluation.
         """
-        slice_ = self.slice.value.get_folded_value_maybe()
-        value = self.value.get_folded_value_maybe()
+        slice_ = self.slice.value.get_folded_value_throwing()
+        value = self.value.get_folded_value_throwing()
 
         if not isinstance(value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
