@@ -6,7 +6,7 @@ from vyper.exceptions import (
     InvalidType,
     OverflowException,
     StructureException,
-    UndeclaredDefinition
+    UndeclaredDefinition,
 )
 
 fail_list = [
