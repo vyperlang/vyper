@@ -1,11 +1,12 @@
 import pytest
 
-from vyper.compiler import compile_code
+from vyper import compile_code
 
 valid_list = [
     """
 BAR: constant(decimal) = 2.5
 FOO: constant(int256) = floor(BAR)
+
 @external
 def foo():
     a: int256 = FOO

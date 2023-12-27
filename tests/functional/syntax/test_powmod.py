@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import InvalidType
 
 fail_list = [
@@ -16,8 +16,9 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_powmod_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_powmod_fail(bad_code, exc):
+    with pytest.raises(exc):
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -25,10 +26,14 @@ valid_list = [
 FOO: constant(uint256) = 3
 BAR: constant(uint256) = 5
 BAZ: constant(uint256) = pow_mod256(FOO, BAR)
+
+@external
+def foo():
+    a: uint256 = BAZ
     """
 ]
 
 
 @pytest.mark.parametrize("code", valid_list)
 def test_powmod_pass(code):
-    assert compiler.compile_code(code) is not None
+    assert compile_code(code) is not None

@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType
 
 fail_list = [
@@ -28,8 +28,9 @@ FOO: constant(Bytes[4]) = method_id("bar ()")
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_method_id_fail(assert_compile_failed, get_contract_with_gas_estimation, bad_code, exc):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_method_id_fail(bad_code, exc):
+    with pytest.raises(exc):
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -46,4 +47,4 @@ def foo(a: Bytes[4] = BAR):
 
 @pytest.mark.parametrize("code", valid_list)
 def test_method_id_pass(code):
-    assert compiler.compile_code(code) is not None
+    assert compile_code(code) is not None

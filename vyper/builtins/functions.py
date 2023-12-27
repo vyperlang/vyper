@@ -2020,7 +2020,7 @@ class _MinMax(BuiltinFunctionT):
             raise TypeMismatch("Cannot perform action between dislike numeric types", node)
 
         value = self._eval_fn(left.value, right.value)
-        return type(node.args[0]).from_node(node, value=value)
+        return type(left).from_node(node, value=value)
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)

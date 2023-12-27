@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import InvalidType
 
 fail_list = [
@@ -46,4 +46,4 @@ BAX: constant(uint256) = uint256_mulmod(FOO, BAR, BAZ)
 
 @pytest.mark.parametrize("code", valid_list)
 def test_addmulmod_pass(code):
-    assert compiler.compile_code(code) is not None
+    assert compile_code(code) is not None

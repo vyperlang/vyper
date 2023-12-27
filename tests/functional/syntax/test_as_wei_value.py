@@ -1,5 +1,6 @@
 import pytest
 
+from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
     InvalidLiteral,
@@ -84,8 +85,9 @@ FOO: constant(uint256) = as_wei_value(-1, "szabo")
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_as_wei_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_as_wei_fail(bad_code, exc):
+    with pytest.raises(exc):
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -114,6 +116,10 @@ def foo() -> uint256:
     """
 y: constant(String[5]) = "szabo"
 x: constant(uint256) = as_wei_value(5, y)
+
+@external
+def foo():
+    a: uint256 = x
     """,
 ]
 
