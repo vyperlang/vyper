@@ -68,9 +68,16 @@ class _StringEnum(enum.Enum):
 
 
 class FunctionVisibility(_StringEnum):
-    # TODO: these can just be enum.auto() right?
-    EXTERNAL = _StringEnum.auto()
-    INTERNAL = _StringEnum.auto()
+    EXTERNAL = enum.auto()
+    INTERNAL = enum.auto()
+    CONSTRUCTOR = enum.auto()
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        # make CONSTRUCTOR visibility not available to the user
+        # (although as a design note - maybe `@constructor` should
+        # indeed be available)
+        return super().is_valid_value(value) and value != "constructor"
 
 
 class StateMutability(_StringEnum):

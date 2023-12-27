@@ -291,6 +291,8 @@ class ContractFunctionT(VyperType):
                 "function body in an interface can only be ...!", funcdef
             )
 
+        assert function_visibility is not None  # mypy hint
+
         return cls(
             funcdef.name,
             positional_args,
@@ -334,13 +336,15 @@ class ContractFunctionT(VyperType):
                 )
 
         if funcdef.name == "__init__":
-            if (
-                state_mutability in (StateMutability.PURE, StateMutability.VIEW)
-                or function_visibility == FunctionVisibility.INTERNAL
-            ):
+            if state_mutability in (StateMutability.PURE, StateMutability.VIEW):
                 raise FunctionDeclarationException(
-                    "Constructor cannot be marked as `@pure`, `@view` or `@internal`", funcdef
+                    "Constructor cannot be marked as `@pure` or `@view`", funcdef
                 )
+            if function_visibility is not None:
+                raise FunctionDeclarationException(
+                    "Constructor cannot be marked as `@internal` or `@external`", funcdef
+                )
+            function_visibility = FunctionVisibility.CONSTRUCTOR
             if return_type is not None:
                 raise FunctionDeclarationException(
                     "Constructor may not have a return type", funcdef.returns
@@ -351,6 +355,9 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
+
+        # sanity check
+        assert function_visibility is not None
 
         return cls(
             funcdef.name,
@@ -476,16 +483,16 @@ class ContractFunctionT(VyperType):
         return self.visibility == FunctionVisibility.INTERNAL
 
     @property
+    def is_constructor(self) -> bool:
+        return self.visibility == FunctionVisibility.CONSTRUCTOR
+
+    @property
     def is_mutable(self) -> bool:
         return self.mutability > StateMutability.VIEW
 
     @property
     def is_payable(self) -> bool:
         return self.mutability == StateMutability.PAYABLE
-
-    @property
-    def is_constructor(self) -> bool:
-        return self.name == "__init__"
 
     @property
     def is_fallback(self) -> bool:
@@ -620,7 +627,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[FunctionVisibility, StateMutability, Optional[str]]:
+) -> tuple[Optional[FunctionVisibility], StateMutability, Optional[str]]:
     function_visibility = None
     state_mutability = None
     nonreentrant_key = None
@@ -675,7 +682,7 @@ def _parse_decorators(
         else:
             raise StructureException("Bad decorator syntax", decorator)
 
-    if function_visibility is None:
+    if function_visibility is None and funcdef.name != "__init__":
         raise FunctionDeclarationException(
             f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", funcdef
         )
