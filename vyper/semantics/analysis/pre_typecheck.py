@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import UnfoldableNode, VyperException
+from vyper.exceptions import UnfoldableNode
 
 
 def get_constants(node: vy_ast.Module) -> dict:
@@ -66,7 +66,7 @@ def prefold(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
                 try:
                     node._metadata["folded_value"] = call_type.fold(node)
                     return
-                except (UnfoldableNode, VyperException):
+                except UnfoldableNode:
                     pass
 
     if getattr(node, "_is_prefoldable", None):
