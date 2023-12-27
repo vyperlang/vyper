@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import ArgumentException, InvalidType, SyntaxException, TypeMismatch
 
 fail_list = [
@@ -39,7 +39,7 @@ def foo():
 @pytest.mark.parametrize("bad_code,exc", fail_list)
 def test_raw_call_fail(bad_code, exc):
     with pytest.raises(exc):
-        compiler.compile_code(bad_code)
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -109,4 +109,4 @@ def foo():
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_raw_call_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+    assert compile_code(good_code) is not None

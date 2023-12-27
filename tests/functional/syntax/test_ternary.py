@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.compiler import compile_code
+from vyper import compile_code
 from vyper.exceptions import InvalidType, TypeMismatch
 
 good_list = [

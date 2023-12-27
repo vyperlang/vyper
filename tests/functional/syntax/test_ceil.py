@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.compiler import compile_code
+from vyper import compile_code
 
 valid_list = [
     """

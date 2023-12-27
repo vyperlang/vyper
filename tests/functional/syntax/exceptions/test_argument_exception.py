@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import compiler
+from vyper import compile_code
 from vyper.exceptions import ArgumentException
 
 fail_list = [
@@ -95,4 +95,4 @@ def foo():
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_function_declaration_exception(bad_code):
     with pytest.raises(ArgumentException):
-        compiler.compile_code(bad_code)
+        compile_code(bad_code)
