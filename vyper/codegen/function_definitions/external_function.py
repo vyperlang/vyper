@@ -8,7 +8,7 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY
 from vyper.semantics.types import TupleT
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, KeywordArg, PositionalArg
 
 
 # register function args with the local calling context.
@@ -63,12 +63,14 @@ def _generate_kwarg_handlers(
     #    write default args to memory
     #    goto external_function_common_ir
 
-    def handler_for(calldata_kwargs, original_default_kwargs, folded_default_kwargs):
-        calldata_args = func_t.positional_args + calldata_kwargs
+    def handler_for(calldata_kwargs_info, default_kwargs_info, default_kwargs):
+        calldata_args_info: list[Union[PositionalArg, KeywordArg]] = (
+            func_t.positional_args + calldata_kwargs_info
+        )
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
+        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args_info))
 
-        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
+        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs_info)
 
         calldata_kwargs_ofst = IRnode(
             4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
@@ -82,10 +84,10 @@ def _generate_kwarg_handlers(
         calldata_min_size = args_abi_t.min_size() + 4
 
         # TODO optimize make_setter by using
-        # TupleT(list(arg.typ for arg in calldata_kwargs + folded_default_kwargs))
+        # TupleT(list(arg.typ for arg in calldata_kwargs_info + default_kwargs_info))
         # (must ensure memory area is contiguous)
 
-        for i, arg_meta in enumerate(calldata_kwargs):
+        for i, arg_meta in enumerate(calldata_kwargs_info):
             k = func_t.n_positional_args + i
 
             dst = context.lookup_var(arg_meta.name).pos
@@ -98,7 +100,7 @@ def _generate_kwarg_handlers(
             copy_arg.source_pos = getpos(arg_meta.ast_source)
             ret.append(copy_arg)
 
-        for x, y in zip(original_default_kwargs, folded_default_kwargs):
+        for x, y in zip(default_kwargs_info, default_kwargs):
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
             lhs.source_pos = getpos(y)
@@ -116,26 +118,24 @@ def _generate_kwarg_handlers(
 
     ret = {}
 
-    keyword_args = func_t.keyword_args
-    folded_keyword_args = code.args.defaults
+    keyword_args_info = func_t.keyword_args
+    keyword_args = code.args.defaults
 
-    # allocate variable slots in memory
-    for arg in keyword_args:
+    # allocate keyword_args_info slots in memory
+    for arg in keyword_args_info:
         context.new_variable(arg.name, arg.typ, is_mutable=False)
 
-    for i, _ in enumerate(keyword_args):
-        calldata_kwargs = keyword_args[:i]
-        # folded ast
-        original_default_kwargs = keyword_args[i:]
-        # unfolded ast
-        folded_default_kwargs = folded_keyword_args[i:]
+    for i, _ in enumerate(keyword_args_info):
+        calldata_kwargs_info = keyword_args_info[:i]
+        default_kwargs_info: list[KeywordArg] = keyword_args_info[i:]
+        default_kwargs: list[vy_ast.VyperNode] = keyword_args[i:]
 
         sig, calldata_min_size, ir_node = handler_for(
-            calldata_kwargs, original_default_kwargs, folded_default_kwargs
+            calldata_kwargs_info, default_kwargs_info, default_kwargs
         )
         ret[sig] = calldata_min_size, ir_node
 
-    sig, calldata_min_size, ir_node = handler_for(keyword_args, [], [])
+    sig, calldata_min_size, ir_node = handler_for(keyword_args_info, [], [])
 
     ret[sig] = calldata_min_size, ir_node
 
