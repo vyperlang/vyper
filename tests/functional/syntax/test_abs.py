@@ -26,6 +26,10 @@ valid_list = [
     """
 FOO: constant(int256) = -3
 BAR: constant(int256) = abs(FOO)
+
+@external
+def foo():
+    a: int256 = BAR
     """
 ]
 

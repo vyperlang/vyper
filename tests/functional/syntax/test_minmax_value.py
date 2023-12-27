@@ -15,6 +15,10 @@ def foo():
     """,
     """
 FOO: constant(address) = min_value(address)
+
+@external
+def foo():
+    a: address = FOO
     """,
 ]
 

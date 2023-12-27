@@ -6,6 +6,10 @@ valid_list = [
     """
 FOO: constant(uint256) = 3
 BAR: constant(String[78]) = uint2str(FOO)
+
+@external
+def foo():
+    a: String[78] = BAR
     """
 ]
 

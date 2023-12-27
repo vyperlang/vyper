@@ -42,6 +42,7 @@ def foo(inp: String[10]) -> uint256:
     """
 BAR: constant(String[5]) = "vyper"
 FOO: constant(uint256) = len(BAR)
+
 @external
 def foo() -> uint256:
     a: uint256 = FOO

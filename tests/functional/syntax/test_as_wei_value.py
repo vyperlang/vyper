@@ -114,6 +114,10 @@ def foo() -> uint256:
     """
 y: constant(String[5]) = "szabo"
 x: constant(uint256) = as_wei_value(5, y)
+
+@external
+def foo():
+    a: uint256 = x
     """,
 ]
 

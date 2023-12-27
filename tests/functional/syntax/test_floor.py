@@ -6,6 +6,7 @@ valid_list = [
     """
 BAR: constant(decimal) = 2.5
 FOO: constant(int256) = floor(BAR)
+
 @external
 def foo():
     a: int256 = FOO

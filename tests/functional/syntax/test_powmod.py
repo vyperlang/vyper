@@ -25,6 +25,10 @@ valid_list = [
 FOO: constant(uint256) = 3
 BAR: constant(uint256) = 5
 BAZ: constant(uint256) = pow_mod256(FOO, BAR)
+
+@external
+def foo():
+    a: uint256 = BAZ
     """
 ]
 

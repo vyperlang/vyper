@@ -41,11 +41,19 @@ valid_list = [
 FOO: constant(uint256) = 123
 BAR: constant(uint256) = 456
 BAZ: constant(uint256) = min(FOO, BAR)
+
+@external
+def foo():
+    a: uint256 = BAZ
     """,
     """
 FOO: constant(uint256) = 123
 BAR: constant(uint256) = 456
 BAZ: constant(uint256) = max(FOO, BAR)
+
+@external
+def foo():
+    a: uint256 = BAZ
     """,
 ]
 
