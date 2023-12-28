@@ -495,7 +495,6 @@ def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
         resolved_path=str(file.resolved_path),
     )
     vy_ast.validation.validate_literal_nodes(ret)
-    # vy_ast.folding.fold(ret)
 
     return ret
 
