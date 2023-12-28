@@ -1,4 +1,3 @@
-from vyper import ast as vy_ast
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
@@ -8,7 +7,7 @@ from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY
 from vyper.semantics.types import TupleT
-from vyper.semantics.types.function import ContractFunctionT, KeywordArg, PositionalArg
+from vyper.semantics.types.function import ContractFunctionT
 
 
 # register function args with the local calling context.
@@ -51,7 +50,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
 
 
 def _generate_kwarg_handlers(
-    func_t: ContractFunctionT, context: Context, code: vy_ast.FunctionDef
+    func_t: ContractFunctionT, context: Context
 ) -> dict[str, tuple[int, IRnode]]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
@@ -63,14 +62,12 @@ def _generate_kwarg_handlers(
     #    write default args to memory
     #    goto external_function_common_ir
 
-    def handler_for(calldata_kwargs_info, default_kwargs_info, default_kwargs):
-        calldata_args_info: list[Union[PositionalArg, KeywordArg]] = (
-            func_t.positional_args + calldata_kwargs_info
-        )
+    def handler_for(calldata_kwargs, default_kwargs):
+        calldata_args = func_t.positional_args + calldata_kwargs
         # create a fake type so that get_element_ptr works
-        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args_info))
+        calldata_args_t = TupleT(list(arg.typ for arg in calldata_args))
 
-        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs_info)
+        abi_sig = func_t.abi_signature_for_kwargs(calldata_kwargs)
 
         calldata_kwargs_ofst = IRnode(
             4, location=CALLDATA, typ=calldata_args_t, encoding=Encoding.ABI
@@ -84,10 +81,10 @@ def _generate_kwarg_handlers(
         calldata_min_size = args_abi_t.min_size() + 4
 
         # TODO optimize make_setter by using
-        # TupleT(list(arg.typ for arg in calldata_kwargs_info + default_kwargs_info))
+        # TupleT(list(arg.typ for arg in calldata_kwargs + default_kwargs))
         # (must ensure memory area is contiguous)
 
-        for i, arg_meta in enumerate(calldata_kwargs_info):
+        for i, arg_meta in enumerate(calldata_kwargs):
             k = func_t.n_positional_args + i
 
             dst = context.lookup_var(arg_meta.name).pos
@@ -100,15 +97,15 @@ def _generate_kwarg_handlers(
             copy_arg.source_pos = getpos(arg_meta.ast_source)
             ret.append(copy_arg)
 
-        for x, y in zip(default_kwargs_info, default_kwargs):
+        for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
-            lhs.source_pos = getpos(y)
-            kw_ast_val = y
+            lhs.source_pos = getpos(x.ast_source)
+            kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(y)
+            copy_arg.source_pos = getpos(x.ast_source)
             ret.append(copy_arg)
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
@@ -118,24 +115,20 @@ def _generate_kwarg_handlers(
 
     ret = {}
 
-    keyword_args_info = func_t.keyword_args
-    keyword_args = code.args.defaults
+    keyword_args = func_t.keyword_args
 
-    # allocate keyword_args_info slots in memory
-    for arg in keyword_args_info:
+    # allocate variable slots in memory
+    for arg in keyword_args:
         context.new_variable(arg.name, arg.typ, is_mutable=False)
 
-    for i, _ in enumerate(keyword_args_info):
-        calldata_kwargs_info = keyword_args_info[:i]
-        default_kwargs_info: list[KeywordArg] = keyword_args_info[i:]
-        default_kwargs: list[vy_ast.VyperNode] = keyword_args[i:]
+    for i, _ in enumerate(keyword_args):
+        calldata_kwargs = keyword_args[:i]
+        default_kwargs = keyword_args[i:]
 
-        sig, calldata_min_size, ir_node = handler_for(
-            calldata_kwargs_info, default_kwargs_info, default_kwargs
-        )
+        sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs)
         ret[sig] = calldata_min_size, ir_node
 
-    sig, calldata_min_size, ir_node = handler_for(keyword_args_info, [], [])
+    sig, calldata_min_size, ir_node = handler_for(keyword_args, [])
 
     ret[sig] = calldata_min_size, ir_node
 
@@ -160,7 +153,7 @@ def generate_ir_for_external_function(code, func_t, context):
     handle_base_args = _register_function_args(func_t, context)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(func_t, context, code)
+    kwarg_handlers = _generate_kwarg_handlers(func_t, context)
 
     body = ["seq"]
     # once optional args have been handled,

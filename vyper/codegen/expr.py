@@ -70,13 +70,8 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
-        # use original node for better diagnostics
-        orig_node = node
         if isinstance(node, vy_ast.VyperNode):
-            folded_node = node._metadata.get("folded_value")
-            if folded_node:
-                folded_node._metadata["type"] = node._metadata["type"]
-                node = folded_node
+            node = node._metadata.get("folded_value", node)
 
         self.expr = node
         self.context = context
@@ -89,7 +84,7 @@ class Expr:
             return
 
         fn_name = f"parse_{type(node).__name__}"
-        with tag_exceptions(orig_node, fallback_exception_type=CodegenPanic, note=fn_name):
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
             fn = getattr(self, fn_name)
             self.ir_node = fn()
             assert isinstance(self.ir_node, IRnode), self.ir_node
