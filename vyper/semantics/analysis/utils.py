@@ -624,25 +624,11 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def _check_literal(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal value.
-    """
-    if isinstance(node, vy_ast.Constant):
-        return True
-    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(_check_literal(item) for item in node.elements)
-
-    if node.get_folded_value_maybe():
-        return True
-    return False
-
-
 def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) -> bool:
     """
     Check if the given node is not more modifiable than the given modifiability.
     """
-    if _check_literal(node):
+    if node.get_folded_value_maybe():
         return True
 
     if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
