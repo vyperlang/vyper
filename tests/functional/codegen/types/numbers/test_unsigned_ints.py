@@ -7,7 +7,7 @@ import pytest
 from vyper import compile_code
 from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
 from vyper.semantics.types import IntegerT
-from vyper.utils import evm_div, evm_mod
+from vyper.utils import SizeLimits, evm_div, evm_mod
 
 types = sorted(IntegerT.unsigneds())
 
@@ -222,7 +222,12 @@ def test() -> {typ}:
         assert c.test() == val
 
     for val in bad_cases:
-        with pytest.raises():
+        exc = (
+            InvalidType
+            if SizeLimits.MIN_INT256 <= val <= SizeLimits.MAX_UINT256
+            else OverflowException
+        )
+        with pytest.raises(exc):
             compile_code(code_template.format(typ=typ, val=val))
 
 

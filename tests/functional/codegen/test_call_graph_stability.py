@@ -54,7 +54,7 @@ def foo():
         t = CompilerData(code)
 
         # check the .called_functions data structure on foo() directly
-        foo = t.vyper_module_folded.get_children(vy_ast.FunctionDef, filters={"name": "foo"})[0]
+        foo = t.vyper_module_annotated.get_children(vy_ast.FunctionDef, filters={"name": "foo"})[0]
         foo_t = foo._metadata["func_type"]
         assert [f.name for f in foo_t.called_functions] == func_names
 
