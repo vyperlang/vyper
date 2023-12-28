@@ -193,7 +193,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
 
     lo, hi = typ.ast_bounds
 
-    # note: constant folding is tested in tests/ast/folding
+    # note: folding is tested in tests/unit/ast/nodes
 
     special_cases = [0, 1, 2, 3, hi // 2 - 1, hi // 2, hi // 2 + 1, hi - 2, hi - 1, hi]
     xs = special_cases.copy()

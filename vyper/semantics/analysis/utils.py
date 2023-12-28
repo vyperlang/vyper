@@ -134,8 +134,7 @@ class _ExprAnalyser:
     def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
         Find all possible types for a given node.
-        If the node's metadata contains type information propagated from constant folding,
-        then that type is returned.
+        If the node's metadata contains type information, then that type is returned.
 
         Arguments
         ---------

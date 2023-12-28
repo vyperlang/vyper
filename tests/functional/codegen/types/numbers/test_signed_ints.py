@@ -360,7 +360,7 @@ def foo(x: {typ}, y: {typ}) -> bool:
     fn = COMPARISON_OPS[op]
     c = get_contract(code_1)
 
-    # note: constant folding is tested in tests/ast/folding
+    # note: constant folding is tested in tests/unit/ast/nodes
     special_cases = [
         lo,
         lo + 1,
