@@ -104,56 +104,24 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
+@dataclass
 class DataPosition:
-    _location: DataLocation
-
-
-class CalldataOffset(DataPosition):
-    __slots__ = ("dynamic_offset", "static_offset")
-    _location = DataLocation.CALLDATA
-
-    def __init__(self, static_offset, dynamic_offset=None):
-        self.static_offset = static_offset
-        self.dynamic_offset = dynamic_offset
-
-    def __repr__(self):
-        if self.dynamic_offset is not None:
-            return f"<CalldataOffset: static {self.static_offset}, dynamic {self.dynamic_offset})>"
-        else:
-            return f"<CalldataOffset: static {self.static_offset}, no dynamic>"
-
-
-class MemoryOffset(DataPosition):
-    __slots__ = ("offset",)
-    _location = DataLocation.MEMORY
-
-    def __init__(self, offset):
-        self.offset = offset
-
-    def __repr__(self):
-        return f"<MemoryOffset: {self.offset}>"
+    offset: int
 
 
 class StorageSlot(DataPosition):
-    _location = DataLocation.STORAGE
 
-    def __init__(self, position):
-        self.position = position
+    @property
+    def _location(self):
+        return DataLocation.STORAGE
 
-    def __repr__(self):
-        return f"<StorageSlot: {self.position}>"
 
 
 class CodeOffset(DataPosition):
-    __slots__ = ("offset",)
-    _location = DataLocation.CODE
 
-    def __init__(self, offset):
-        self.offset = offset
-
-    def __repr__(self):
-        return f"<CodeOffset: {self.offset}>"
-
+    @property
+    def _location(self):
+        return DataLocation.CODE
 
 # base class for things that are the "result" of analysis
 class AnalysisResult:
