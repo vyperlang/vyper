@@ -83,6 +83,7 @@ class BuiltinFunctionT(VyperType):
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
+    _modifiability: Modifiability = Modifiability.MODIFIABLE
     _return_type: Optional[VyperType] = None
 
     # helper function to deal with TYPE_DEFINITIONs

@@ -49,7 +49,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -105,9 +105,8 @@ SHA256_PER_WORD_GAS = 12
 class FoldedFunctionT(BuiltinFunctionT):
     # Base class for nodes which should always be folded
 
-    # Since foldable builtin functions are not folded before semantics validation,
-    # this flag is used for `check_modifiability` in semantics validation.
-    _kwargable = True
+    # This flag is used for `check_modifiability` in semantics validation.
+    _modifiability = Modifiability.ALWAYS_CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):
