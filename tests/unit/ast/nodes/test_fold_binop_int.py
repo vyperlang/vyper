@@ -115,8 +115,8 @@ def foo({input_value}) -> int128:
     vyper_ast = vy_ast.parse_to_ast(literal_op)
 
     try:
-        vy_ast.folding.replace_literal_ops(vyper_ast)
-        expected = vyper_ast.body[0].value.value
+        new_node = vyper_ast.body[0].value.fold()
+        expected = new_node.value
         is_valid = True
     except ZeroDivisionException:
         is_valid = False

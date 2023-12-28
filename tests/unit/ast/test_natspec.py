@@ -60,7 +60,7 @@ expected_devdoc = {
 
 
 def parse_natspec(code):
-    vyper_ast = CompilerData(code).vyper_module_folded
+    vyper_ast = CompilerData(code).vyper_module_annotated
     return vy_ast.parse_natspec(vyper_ast)
 
 

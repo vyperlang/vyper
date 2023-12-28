@@ -31,7 +31,7 @@ def foo(a: bool) -> bool:
 
     literal_op = f"{'not ' * count}{bool_cond}"
     vyper_ast = vy_ast.parse_to_ast(literal_op)
-    vy_ast.folding.replace_literal_ops(vyper_ast)
-    expected = vyper_ast.body[0].value.value
+    new_node = vyper_ast.body[0].value.fold()
+    expected = new_node.value
 
     assert contract.foo(bool_cond) == expected
