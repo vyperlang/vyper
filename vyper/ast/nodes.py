@@ -952,6 +952,7 @@ class List(ExprNode):
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
+    _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
 
     def validate(self):
