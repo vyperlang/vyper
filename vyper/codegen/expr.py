@@ -720,9 +720,6 @@ class Expr:
         if len(self.expr.elements) == 0:
             return IRnode.from_list("~empty", typ=typ)
 
-        for e in self.expr.elements:
-            if "type" not in e._metadata:
-                e._metadata["type"] = typ.subtype
         multi_ir = [Expr(x, self.context).ir_node for x in self.expr.elements]
 
         return IRnode.from_list(["multi"] + multi_ir, typ=typ)

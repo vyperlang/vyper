@@ -777,7 +777,12 @@ class Constant(ExprNode):
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
-        self._metadata["folded_value"] = self
+
+    def get_folded_value_throwing(self) -> "VyperNode":
+        return self
+
+    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
+        return self
 
 
 class Num(Constant):
@@ -911,6 +916,18 @@ class Bytes(Constant):
         return self.value
 
 
+def check_literal(node: VyperNode) -> bool:
+    """
+    Check if the given node is a literal value.
+    """
+    if isinstance(node, Constant):
+        return True
+    elif isinstance(node, (Tuple, List)):
+        return all(check_literal(item) for item in node.elements)
+
+    return False
+
+
 class List(ExprNode):
     __slots__ = ("elements",)
     _is_prefoldable = True
@@ -920,6 +937,18 @@ class List(ExprNode):
         elements = [e.get_folded_value_throwing() for e in self.elements]
         return type(self).from_node(self, elements=elements)
 
+    def get_folded_value_throwing(self) -> "VyperNode":
+        if check_literal(self):
+            return self
+
+        return super().get_folded_value_throwing()
+
+    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
+        if check_literal(self):
+            return self
+
+        return super().get_folded_value_maybe()
+
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
@@ -928,6 +957,22 @@ class Tuple(ExprNode):
     def validate(self):
         if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
+
+    def fold(self) -> Optional[ExprNode]:
+        elements = [e.get_folded_value_throwing() for e in self.elements]
+        return type(self).from_node(self, elements=elements)
+
+    def get_folded_value_throwing(self) -> "VyperNode":
+        if check_literal(self):
+            return self
+
+        return super().get_folded_value_throwing()
+
+    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
+        if check_literal(self):
+            return self
+
+        return super().get_folded_value_maybe()
 
 
 class NameConstant(Constant):
