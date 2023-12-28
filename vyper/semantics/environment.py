@@ -35,7 +35,7 @@ class _Chain(_EnvType):
 
 class _Msg(_EnvType):
     _id = "msg"
-    _type_members = {"data": BytesT(), "gas": UINT256_T, "sender": AddressT(), "value": UINT256_T}
+    _type_members = {"data": BytesT(), "gas": UINT256_T, "mana": UINT256_T, "sender": AddressT(), "value": UINT256_T}
 
 
 class _Tx(_EnvType):
