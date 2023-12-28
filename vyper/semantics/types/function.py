@@ -44,14 +44,12 @@ class _FunctionArg:
 
 @dataclass
 class PositionalArg(_FunctionArg):
-    # unfolded ast
     ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
 class KeywordArg(_FunctionArg):
     default_value: vy_ast.VyperNode
-    # unfolded ast
     ast_source: Optional[vy_ast.VyperNode] = None
 
 
