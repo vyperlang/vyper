@@ -49,7 +49,7 @@ class HashMapT(_SubscriptableT):
     _invalid_locations = (
         DataLocation.UNSET,
         DataLocation.CALLDATA,
-        DataLocation.CODE,
+        DataLocation.IMMUTABLES,
         DataLocation.MEMORY,
     )
 

@@ -129,7 +129,7 @@ class ContractFunctionT(VyperType):
     def touched_locations(self):
         # return the DataLocation of touched module variables
         ret = []
-        possible_locations = [DataLocation.STORAGE, DataLocation.CODE]
+        possible_locations = (DataLocation.STORAGE, DataLocation.IMMUTABLES)
         for location in possible_locations:
             if self.touches_location(location):
                 ret.append(location)

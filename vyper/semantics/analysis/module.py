@@ -264,7 +264,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
 
         data_loc = (
-            DataLocation.CODE
+            DataLocation.IMMUTABLES
             if node.is_immutable
             else DataLocation.UNSET
             if node.is_constant

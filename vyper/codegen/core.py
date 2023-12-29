@@ -71,7 +71,8 @@ def data_location_to_addr_space(s: DataLocation):
         return STORAGE
     if s == DataLocation.MEMORY:
         return MEMORY
-    if s == DataLocation.CODE:
+    if s == DataLocation.IMMUTABLES:
+        # note: this is confusing in ctor context!
         return IMMUTABLES
 
     raise CompilerPanic("unreachable")  # pragma: nocover

@@ -131,7 +131,7 @@ class VyperType:
 
         if location == DataLocation.MEMORY:
             return self.memory_bytes_required
-        if location == DataLocation.CODE:
+        if location == DataLocation.IMMUTABLES:
             return self.immutable_bytes_required
         if location == DataLocation.STORAGE:
             return self.storage_slots_required
@@ -168,7 +168,7 @@ class VyperType:
         in the immutables section
         """
         # sanity check the type can actually be instantiated as an immutable
-        if DataLocation.CODE in self._invalid_locations:
+        if DataLocation.IMMUTABLES in self._invalid_locations:
             raise CompilerPanic(f"{self} cannot be an immutable!")
 
         return self._size_in_bytes

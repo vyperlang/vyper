@@ -135,7 +135,7 @@ class VarInfo:
     """
 
     typ: VyperType
-    location: DataLocation = DataLocation.UNSET
+    _location: DataLocation = DataLocation.UNSET
     is_constant: bool = False
     is_public: bool = False
     is_immutable: bool = False
@@ -145,6 +145,10 @@ class VarInfo:
 
     def __hash__(self):
         return hash(id(self))
+
+    @property
+    def location(self):
+        return self._location
 
     def __post_init__(self):
         self._reads = []
@@ -168,7 +172,7 @@ class VarInfo:
             return self.typ.size_in_location(location)
         return 0
 
-class ModuleInfo(VarInfo):
+class ModuleVarInfo(VarInfo):
     """
     A special VarInfo for modules
     """
@@ -178,6 +182,11 @@ class ModuleInfo(VarInfo):
 
         self.code_offset = None
         self.storage_offset = None
+
+    @property
+    def location(self):
+        # location does not make sense for module vars
+        raise CompilerPanic("unreachable")
 
     def set_code_offset(ofst):
         assert self.code_offset is None
@@ -193,7 +202,7 @@ class ModuleInfo(VarInfo):
     def get_offset_in(self, location):
         if location == DataLocation.STORAGE:
             return self.storage_offset
-        if location == DataLocation.CODE:
+        if location == DataLocation.IMMUTABLES:
             return self.code_offset
         raise CompilerPanic("unreachable")  # pragma: nocover
 
