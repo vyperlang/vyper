@@ -70,8 +70,8 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
-        if isinstance(node, vy_ast.VyperNode):
-            node = node.get_folded_value() if node.has_folded_value else node
+        if isinstance(node, vy_ast.VyperNode) and node.has_folded_value:
+            node = node.get_folded_value()
 
         self.expr = node
         self.context = context
@@ -193,9 +193,8 @@ class Expr:
                 # using the folded value metadata
                 assert isinstance(varinfo.typ, StructT)
                 value_node = varinfo.decl_node.value
-                value_node = (
-                    value_node.get_folded_value() if value_node.has_folded_value else value_node
-                )
+                if value_node.has_folded_value:
+                    value_node = value_node.get_folded_value()
                 return Expr.parse_value_expr(value_node, self.context)
 
             assert varinfo.modifiability == Modifiability.IMMUTABLE, "not an immutable!"

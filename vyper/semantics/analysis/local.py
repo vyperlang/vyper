@@ -758,15 +758,8 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     """
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
-    arg0 = node.args[0].get_folded_value if node.args[0].has_folded_value else node.args[0]
-    start, end = (
-        (vy_ast.Int(value=0), arg0)
-        if len(node.args) == 1
-        else (
-            arg0,
-            node.args[1].get_folded_value() if node.args[1].has_folded_value else node.args[1],
-        )
-    )
+    start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
+    start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
 
     all_args = (start, end, *kwargs.values())
     for arg1 in all_args:
@@ -778,10 +771,11 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
-        folded_bound = bound.get_folded_value() if bound.has_folded_value else bound
-        if not isinstance(folded_bound, vy_ast.Num):
+        if bound.has_folded_value:
+            bound = bound.get_folded_value()
+        if not isinstance(bound, vy_ast.Num):
             raise StateAccessViolation("Bound must be a literal", bound)
-        if folded_bound.value <= 0:
+        if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
         if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
             error = "Please remove the `bound=` kwarg when using range with constants"
