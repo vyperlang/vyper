@@ -627,10 +627,7 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
     """
     Check if the given node is not more modifiable than the given modifiability.
     """
-    if node.is_literal_value:
-        return True
-
-    if node.has_folded_value:
+    if node.is_literal_value or node.has_folded_value:
         return True
 
     if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):

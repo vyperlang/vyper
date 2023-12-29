@@ -378,9 +378,9 @@ class VyperNode:
     @property
     def is_literal_value(self):
         """
-        Property method to check if the node is a literal value.
+        Check if the node is a literal value.
         """
-        return check_literal(self)
+        return False
 
     @property
     def has_folded_value(self):
@@ -397,7 +397,7 @@ class VyperNode:
 
         Raises UnfoldableNode if not.
         """
-        if check_literal(self):
+        if self.is_literal_value:
             return self
 
         if "folded_value" not in self._metadata:
@@ -786,6 +786,10 @@ class Constant(ExprNode):
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
 
+    @property
+    def is_literal_value(self):
+        return True
+
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -918,22 +922,14 @@ class Bytes(Constant):
         return self.value
 
 
-def check_literal(node: VyperNode) -> bool:
-    """
-    Check if the given node is a literal value.
-    """
-    if isinstance(node, Constant):
-        return True
-    elif isinstance(node, (Tuple, List)):
-        return all(check_literal(item) for item in node.elements)
-
-    return False
-
-
 class List(ExprNode):
     __slots__ = ("elements",)
     _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
+
+    @property
+    def is_literal_value(self):
+        return all(e.is_literal_value for e in self.elements)
 
     def fold(self) -> Optional[ExprNode]:
         elements = [e.get_folded_value() for e in self.elements]
@@ -944,6 +940,10 @@ class Tuple(ExprNode):
     __slots__ = ("elements",)
     _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
+
+    @property
+    def is_literal_value(self):
+        return all(e.is_literal_value for e in self.elements)
 
     def validate(self):
         if not self.elements:
