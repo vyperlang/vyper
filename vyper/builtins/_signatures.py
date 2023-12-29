@@ -34,7 +34,7 @@ def process_arg(arg, expected_arg_type, context):
 
 def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
     if kwarg_settings.require_literal:
-        return kwarg_node.get_folded_value_throwing().value
+        return kwarg_node.get_folded_value().value
 
     return process_arg(kwarg_node, expected_kwarg_type, context)
 

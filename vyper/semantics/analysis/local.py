@@ -360,7 +360,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            iter_val = node.iter.get_folded_value_maybe()
+            iter_val = node.iter.get_folded_value() if node.iter.has_folded_value else node.iter
             if isinstance(iter_val, vy_ast.List) and len(iter_val.elements) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
@@ -549,10 +549,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         node._metadata["type"] = typ
 
         # validate and annotate folded value
-        folded_value = node._metadata.get("folded_value")
-        if folded_value:
-            validate_expected_type(folded_value, typ)
-            folded_value._metadata["type"] = typ
+        if node.has_folded_value:
+            folded_node = node.get_folded_value()
+            validate_expected_type(folded_node, typ)
+            folded_node._metadata["type"] = typ
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
@@ -769,10 +769,9 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     if not type_list:
         raise TypeMismatch("Iterator values are of different types", node)
 
-    folded_start, folded_end = [i.get_folded_value_maybe() for i in (start, end)]
     if "bound" in kwargs:
         bound = kwargs["bound"]
-        folded_bound = bound.get_folded_value_maybe()
+        folded_bound = bound.get_folded_value() if bound.has_folded_value else bound
         if not isinstance(folded_bound, vy_ast.Num):
             raise StateAccessViolation("Bound must be a literal", bound)
         if folded_bound.value <= 0:
@@ -781,6 +780,9 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
+        folded_start, folded_end = [
+            i.get_folded_value() if i.has_folded_value else i for i in (start, end)
+        ]
         for original_arg, folded_arg in zip([start, end], [folded_start, folded_end]):
             if not isinstance(folded_arg, vy_ast.Num):
                 error = "Value must be a literal integer, unless a bound is specified"

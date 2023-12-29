@@ -22,7 +22,7 @@ def get_constants(node: vy_ast.Module) -> dict:
                 prefold(n, constants)
 
             try:
-                val = c.value.get_folded_value_throwing()
+                val = c.value.get_folded_value()
 
                 # note that if a constant is redefined, its value will be overwritten,
                 # but it is okay because the syntax error is handled downstream
@@ -70,9 +70,9 @@ def prefold(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
                     pass
 
     if getattr(node, "_is_prefoldable", None):
-        # call `get_folded_value_throwing` for its side effects and allow all
+        # call `get_folded_value` for its side effects and allow all
         # exceptions other than `UnfoldableNode` to raise
         try:
-            node.get_folded_value_throwing()
+            node.get_folded_value()
         except UnfoldableNode:
             pass

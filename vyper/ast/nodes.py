@@ -375,25 +375,33 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def get_folded_value_throwing(self) -> "VyperNode":
+    @property
+    def is_literal_value(self):
+        """
+        Property method to check if the node is a literal value.
+        """
+        return check_literal(self)
+
+    @property
+    def has_folded_value(self):
+        """
+        Property method to check if the node has a folded value.
+        """
+        return "folded_value" in self._metadata
+
+    def get_folded_value(self) -> "VyperNode":
         """
         Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
+        For constant nodes, the node is directly returned as the folded value without caching
+        to the metadata.
+
         Raises UnfoldableNode if not.
         """
+        if check_literal(self):
+            return self
+
         if "folded_value" not in self._metadata:
             self._metadata["folded_value"] = self.fold()
-        return self._metadata["folded_value"]
-
-    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
-        """
-        Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
-        Returns None if not.
-        """
-        if "folded_value" not in self._metadata:
-            try:
-                self._metadata["folded_value"] = self.fold()
-            except (UnfoldableNode, VyperException):
-                return None
         return self._metadata["folded_value"]
 
     def fold(self) -> "VyperNode":
@@ -778,12 +786,6 @@ class Constant(ExprNode):
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
         super().__init__(parent, **kwargs)
 
-    def get_folded_value_throwing(self) -> "VyperNode":
-        return self
-
-    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
-        return self
-
 
 class Num(Constant):
     # inherited class for all numeric constant node types
@@ -934,20 +936,8 @@ class List(ExprNode):
     _translated_fields = {"elts": "elements"}
 
     def fold(self) -> Optional[ExprNode]:
-        elements = [e.get_folded_value_throwing() for e in self.elements]
+        elements = [e.get_folded_value() for e in self.elements]
         return type(self).from_node(self, elements=elements)
-
-    def get_folded_value_throwing(self) -> "VyperNode":
-        if check_literal(self):
-            return self
-
-        return super().get_folded_value_throwing()
-
-    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
-        if check_literal(self):
-            return self
-
-        return super().get_folded_value_maybe()
 
 
 class Tuple(ExprNode):
@@ -960,20 +950,8 @@ class Tuple(ExprNode):
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
     def fold(self) -> Optional[ExprNode]:
-        elements = [e.get_folded_value_throwing() for e in self.elements]
+        elements = [e.get_folded_value() for e in self.elements]
         return type(self).from_node(self, elements=elements)
-
-    def get_folded_value_throwing(self) -> "VyperNode":
-        if check_literal(self):
-            return self
-
-        return super().get_folded_value_throwing()
-
-    def get_folded_value_maybe(self) -> Optional["VyperNode"]:
-        if check_literal(self):
-            return self
-
-        return super().get_folded_value_maybe()
 
 
 class NameConstant(Constant):
@@ -1005,7 +983,7 @@ class UnaryOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        operand = self.operand.get_folded_value_throwing()
+        operand = self.operand.get_folded_value()
 
         if isinstance(self.op, Not) and not isinstance(operand, NameConstant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1055,7 +1033,7 @@ class BinOp(ExprNode):
         Int | Decimal
             Node representing the result of the evaluation.
         """
-        left, right = [i.get_folded_value_throwing() for i in (self.left, self.right)]
+        left, right = [i.get_folded_value() for i in (self.left, self.right)]
         if type(left) is not type(right):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         if not isinstance(left, (Int, Decimal)):
@@ -1205,7 +1183,7 @@ class BoolOp(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        values = [i.get_folded_value_throwing() for i in self.values]
+        values = [i.get_folded_value() for i in self.values]
 
         if any(not isinstance(i, NameConstant) for i in values):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
@@ -1261,7 +1239,7 @@ class Compare(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        left, right = [i.get_folded_value_throwing() for i in (self.left, self.right)]
+        left, right = [i.get_folded_value() for i in (self.left, self.right)]
         if not isinstance(left, Constant):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
@@ -1367,8 +1345,8 @@ class Subscript(ExprNode):
         ExprNode
             Node representing the result of the evaluation.
         """
-        slice_ = self.slice.value.get_folded_value_throwing()
-        value = self.value.get_folded_value_throwing()
+        slice_ = self.slice.value.get_folded_value()
+        value = self.value.get_folded_value()
 
         if not isinstance(value, List):
             raise UnfoldableNode("Subscript object is not a literal list")

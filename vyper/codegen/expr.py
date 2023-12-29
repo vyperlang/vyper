@@ -71,7 +71,7 @@ class Expr:
 
     def __init__(self, node, context):
         if isinstance(node, vy_ast.VyperNode):
-            node = node._metadata.get("folded_value", node)
+            node = node.get_folded_value() if node.has_folded_value else node
 
         self.expr = node
         self.context = context
@@ -193,7 +193,9 @@ class Expr:
                 # using the folded value metadata
                 assert isinstance(varinfo.typ, StructT)
                 value_node = varinfo.decl_node.value
-                value_node = value_node._metadata.get("folded_value", value_node)
+                value_node = (
+                    value_node.get_folded_value() if value_node.has_folded_value else value_node
+                )
                 return Expr.parse_value_expr(value_node, self.context)
 
             assert varinfo.modifiability == Modifiability.IMMUTABLE, "not an immutable!"
