@@ -179,7 +179,7 @@ def get_index_value(node: vy_ast.Index) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    value = node.value
+    value = node.get("value")
     if value.has_folded_value:
         value = value.get_folded_value()
 
