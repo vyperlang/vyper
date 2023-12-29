@@ -10,7 +10,7 @@ def get_constants(node: vy_ast.Module) -> dict:
     ]
 
     while const_var_decls:
-        derived_nodes = 0
+        n_processed = 0
 
         for c in const_var_decls:
             name = c.get("target.id")
@@ -27,12 +27,12 @@ def get_constants(node: vy_ast.Module) -> dict:
                 # note that if a constant is redefined, its value will be overwritten,
                 # but it is okay because the syntax error is handled downstream
                 constants[name] = val
-                derived_nodes += 1
+                n_processed += 1
                 const_var_decls.remove(c)
             except UnfoldableNode:
                 pass
 
-        if not derived_nodes:
+        if not n_processed:
             break
 
     return constants
