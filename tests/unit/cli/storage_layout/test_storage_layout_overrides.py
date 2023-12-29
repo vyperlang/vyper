@@ -4,6 +4,7 @@ from vyper.compiler import compile_code
 from vyper.exceptions import StorageLayoutException
 
 
+@pytest.mark.xfail(reason="storage layout overrides disabled")
 def test_storage_layout_overrides():
     code = """
 a: uint256
