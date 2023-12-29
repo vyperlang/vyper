@@ -225,8 +225,6 @@ class VyperNode:
     _description : str, optional
         A human-readable description of the node. Used to give more verbose error
         messages.
-    _is_prefoldable : str, optional
-        If `True`, indicates that pre-folding should be attempted on the node.
     _only_empty_fields : Tuple, optional
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
@@ -924,7 +922,6 @@ class Bytes(Constant):
 
 class List(ExprNode):
     __slots__ = ("elements",)
-    _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
 
     @property
@@ -938,7 +935,6 @@ class List(ExprNode):
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
-    _is_prefoldable = True
     _translated_fields = {"elts": "elements"}
 
     @property
@@ -972,7 +968,6 @@ class Name(ExprNode):
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
-    _is_prefoldable = True
 
     def fold(self) -> ExprNode:
         """
@@ -1022,7 +1017,6 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
-    _is_prefoldable = True
 
     def fold(self) -> ExprNode:
         """
@@ -1172,7 +1166,6 @@ class RShift(Operator):
 
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
-    _is_prefoldable = True
 
     def fold(self) -> ExprNode:
         """
@@ -1220,7 +1213,6 @@ class Compare(ExprNode):
     """
 
     __slots__ = ("left", "op", "right")
-    _is_prefoldable = True
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["ops"]) > 1 or len(kwargs["comparators"]) > 1:
@@ -1331,7 +1323,6 @@ class Attribute(ExprNode):
 
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
-    _is_prefoldable = True
 
     def fold(self) -> ExprNode:
         """
