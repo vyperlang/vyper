@@ -108,7 +108,7 @@ class Context:
         if location == STORAGE:
             return IRnode.from_list("self_ptr_storage", typ=module_t, location=location)
         if location == IMMUTABLES:
-            return IRnode.from_list("self_ptr_code", typ=module_t, location=location)
+            return IRnode.from_list("self_ptr_immutables", typ=module_t, location=location)
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr

@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union, ClassVar
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import InputBundle
@@ -46,14 +46,14 @@ class _StringEnum(enum.Enum):
     # Comparison operations
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("Can only compare like types.")
+            raise CompilerPanic("bad comparison")
         return self is other
 
     # Python normally does __ne__(other) ==> not self.__eq__(other)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("Can only compare like types.")
+            raise CompilerPanic("bad comparison")
         options = self.__class__.options()
         return options.index(self) < options.index(other)  # type: ignore
 
@@ -104,25 +104,6 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-@dataclass
-class DataPosition:
-    offset: int
-
-
-class StorageSlot(DataPosition):
-
-    @property
-    def _location(self):
-        return DataLocation.STORAGE
-
-
-
-class CodeOffset(DataPosition):
-
-    @property
-    def _location(self):
-        return DataLocation.CODE
-
 # base class for things that are the "result" of analysis
 class AnalysisResult:
     pass
@@ -168,15 +149,56 @@ class VarInfo:
     def __post_init__(self):
         self._reads = []
         self._writes = []
-        self.position = None  # the location provided by the allocator
+        self._position = None  # the location provided by the allocator
 
-    def set_position(self, position: DataPosition) -> None:
-        if self.position is not None:
-            raise CompilerPanic("Position was already assigned")
+    def set_position_in(self, position: DataPosition) -> None:
+        assert self.position is None
         if self.location != position._location:
             raise CompilerPanic(f"Incompatible locations: {self.location}, {position._location}")
-        self.position = position
+        self._position = position
 
+    def get_position(self) -> int:
+        return self._position
+
+    def get_size_in(self, location) -> int:
+        """
+        Get the amount of space this variable occupies in a given location
+        """
+        if location == self.location:
+            return self.typ.size_in_location(location)
+        return 0
+
+class ModuleInfo(VarInfo):
+    """
+    A special VarInfo for modules
+    """
+    def __post_init__(self):
+        super.__post_init__()
+        assert isinstance(self.typ, ModuleT)
+
+        self.code_offset = None
+        self.storage_offset = None
+
+    def set_code_offset(ofst):
+        assert self.code_offset is None
+        self.code_offset = ofst
+
+    def set_storage_offset(ofst):
+        assert self.storage_offset is None
+        self.storage_offset = ofst
+
+    def get_position(self):
+        raise CompilerPanic("use get_offset_in for ModuleInfo!")
+
+    def get_offset_in(self, location):
+        if location == DataLocation.STORAGE:
+            return self.storage_offset
+        if location == DataLocation.CODE:
+            return self.code_offset
+        raise CompilerPanic("unreachable")  # pragma: nocover
+
+    def get_size_in(self, location):
+        return self.typ.size_in_location(location)
 
 @dataclass
 class ExprInfo:

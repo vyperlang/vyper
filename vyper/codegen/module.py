@@ -431,7 +431,8 @@ def generate_ir_for_module(compilation_target: ModuleT) -> tuple[IRnode, IRnode]
     reachable = _globally_reachable_functions(compilation_target.function_defs)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
-    init_function = next((f for f in function_defs if _is_constructor(f)), None)
+
+    init_function = next((f for f in compilation_target.function_defs if _is_constructor(f)), None)
 
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
@@ -477,18 +478,15 @@ def generate_ir_for_module(compilation_target: ModuleT) -> tuple[IRnode, IRnode]
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = compilation_target.immutable_bytes_required
-    if init_function:
+    if init_function is not None:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
         init_func_t = init_function._metadata["func_type"]
         ctor_internal_func_irs = []
-        internal_functions = [f for f in runtime_functions if _is_internal(f)]
-        for f in internal_functions:
-            func_t = f._metadata["func_type"]
-            if func_t not in init_func_t.reachable_internal_functions:
-                # unreachable code, delete it
-                continue
+        reachable_from_ctor = init_func_t.reachable_internal_functions
+        for func_t in reachable_from_ctor:
+            fn_ast = func_t.ast_def
 
-            func_ir = _ir_for_internal_function(f, compilation_target, is_ctor_context=True)
+            func_ir = _ir_for_internal_function(fn_ast, compilation_target, is_ctor_context=True)
             ctor_internal_func_irs.append(func_ir)
 
         # generate init_func_ir after callees to ensure they have analyzed

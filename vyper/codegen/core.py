@@ -471,13 +471,9 @@ def _get_element_ptr_module(parent, key):
 
     ofst = 0  # offset from parent start
 
-    assert parent.location == STORAGE, parent.location
+    assert parent.location in (STORAGE, IMMUTABLES, DATA), parent.location
 
-    for i in range(index):
-        ofst += module_t.variables[attrs[i]].typ.storage_slots_required
-
-    # calculated the same way both ways
-    assert ofst == module_t.variables[key].position.position
+    ofst = module_t.offset_of(key)
 
     return IRnode.from_list(
         add_ofst(parent, ofst),

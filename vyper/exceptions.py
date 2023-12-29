@@ -369,7 +369,7 @@ def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
         raise e from None
     except Exception as e:
         tb = e.__traceback__
-        fallback_message = "unhandled exception"
+        fallback_message = f"unhandled exception {e}"
         if note:
             fallback_message += f", {note}"
         raise fallback_exception_type(fallback_message, node).with_traceback(tb)

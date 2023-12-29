@@ -65,7 +65,13 @@ class _FuncIRInfo:
         return self.ir_identifier + "_common"
 
     def internal_function_label(self, is_ctor_context: bool = False) -> str:
-        assert self.func_t.is_internal, "uh oh, should be internal"
+        f = self.func_t
+        assert f.is_internal or f.is_constructor, "uh oh, should be internal"
+
+        if f.is_constructor:
+            # sanity check - imported init functions only callable from main init
+            assert is_ctor_context
+
         suffix = "_deploy" if is_ctor_context else "_runtime"
         return self.ir_identifier + suffix
 
@@ -140,7 +146,7 @@ def generate_ir_for_function(
         is_ctor_context=is_ctor_context,
     )
 
-    if func_t.is_internal:
+    if func_t.is_internal or func_t.is_constructor:
         ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
         func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
     else:
@@ -163,7 +169,7 @@ def generate_ir_for_function(
     else:
         assert frame_info == func_t._ir_info.frame_info
 
-    if not func_t.is_internal:
+    if func_t.is_external:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since

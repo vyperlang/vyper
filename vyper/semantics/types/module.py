@@ -310,6 +310,9 @@ class ModuleT(VyperType):
         else:
             return f"module {self._id} (loaded from '{self._module.resolved_path}')"
 
+    def offset_of(self, attr: str, location: DataLocation):
+        pass
+
     def get_type_member(self, attr: str, node: vy_ast.VyperNode) -> VyperType:
         return self._helper.get_type_member(attr, node)
 

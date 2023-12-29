@@ -41,8 +41,8 @@ class Stmt:
         self.stmt = node
         self.context = context
 
-        fn_name = f"parse_{type(node).__name__}"
-        with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+            fn_name = f"parse_{type(node).__name__}"
             fn = getattr(self, fn_name)
             with context.internal_memory_scope():
                 self.ir_node = fn()
@@ -145,7 +145,7 @@ class Stmt:
                 return pop_dyn_array(darray, return_popped_item=False)
 
         if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal:
+            if func_type.is_internal or func_type.is_constructor:
                 return self_call.ir_for_self_call(self.stmt, self.context)
             else:
                 return external_call.ir_for_external_call(self.stmt, self.context)

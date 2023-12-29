@@ -2,9 +2,13 @@ import enum
 
 
 class DataLocation(enum.Enum):
-    UNSET = 0
-    MEMORY = 1
-    STORAGE = 2
-    CALLDATA = 3
-    CODE = 4
-    # TRANSIENT = 5
+    # TODO: rename me to something like VarLocation, or StorageRegion
+    """
+    Possible locations for variables in vyper
+    """
+    UNSET = enum.auto() # like constants and stack variables
+    MEMORY = enum.auto() # local variables
+    STORAGE = enum.auto() # storage variables
+    CALLDATA = enum.auto() # arguments to external functions
+    IMMUTABLE = enum.auto() # immutable variables
+    TRANSIENT = enum.auto() # transient storage variables

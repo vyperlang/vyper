@@ -123,6 +123,21 @@ class VyperType:
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
 
+    # return the size in bytes or slots that this type
+    # needs to allocate in the provided location
+    def size_in_location(self, location):
+        if location in self._invalid_locations:
+            raise CompilerPanic(f"{self} cannot be instantiated in {location}!")
+
+        if location == DataLocation.MEMORY:
+            return self.memory_bytes_required
+        if location == DataLocation.CODE:
+            return self.immutable_bytes_required
+        if location == DataLocation.STORAGE:
+            return self.storage_slots_required
+
+        raise CompilerPanic("invalid location: {location}")  # pragma: nocover
+
     @property
     def memory_bytes_required(self) -> int:
         if DataLocation.MEMORY in self._invalid_locations:
