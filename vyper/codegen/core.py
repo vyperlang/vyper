@@ -4,7 +4,15 @@ from typing import Generator
 from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import (
+    CALLDATA,
+    DATA,
+    IMMUTABLES,
+    MEMORY,
+    STORAGE,
+    TRANSIENT,
+    AddrSpace,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
 from vyper.semantics.data_locations import DataLocation
@@ -74,6 +82,15 @@ def data_location_to_addr_space(s: DataLocation):
     if s == DataLocation.IMMUTABLES:
         # note: this is confusing in ctor context!
         return IMMUTABLES
+
+    raise CompilerPanic("unreachable")  # pragma: nocover
+
+
+def addr_space_to_data_location(s: AddrSpace):
+    if s == STORAGE:
+        return DataLocation.STORAGE
+    if s in (IMMUTABLES, DATA):
+        return DataLocation.IMMUTABLES
 
     raise CompilerPanic("unreachable")  # pragma: nocover
 
@@ -465,19 +482,16 @@ def _get_element_ptr_module(parent, key):
     assert isinstance(module_t, ModuleT)
 
     assert isinstance(key, str)
-    typ = module_t.variables[key].typ
-    # attrs = list(module_t.variables.keys())
+    varinfo = module_t.variables[key]
     annotation = key
-
-    ofst = 0  # offset from parent start
 
     assert parent.location in (STORAGE, IMMUTABLES, DATA), parent.location
 
-    ofst = module_t.offset_of(key)
+    ofst = varinfo.get_offset_in(addr_space_to_data_location(parent.location))
 
     return IRnode.from_list(
         add_ofst(parent, ofst),
-        typ=typ,
+        typ=varinfo.typ,
         location=parent.location,
         encoding=parent.encoding,
         annotation=annotation,

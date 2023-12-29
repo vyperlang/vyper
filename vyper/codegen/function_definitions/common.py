@@ -117,6 +117,7 @@ def generate_ir_for_function(
         - Function body
     """
     func_t = code._metadata["func_type"]
+    module_t = code._parent._metadata["type"]  # type: ignore
 
     # generate _FuncIRInfo
     func_t._ir_info = _FuncIRInfo(func_t)
@@ -146,7 +147,9 @@ def generate_ir_for_function(
         is_ctor_context=is_ctor_context,
     )
 
-    if func_t.is_internal or func_t.is_constructor:
+    is_internal_init = func_t.is_constructor and compilation_target != module_t
+
+    if func_t.is_internal or is_internal_init:
         ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
         func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
     else:
@@ -169,7 +172,9 @@ def generate_ir_for_function(
     else:
         assert frame_info == func_t._ir_info.frame_info
 
-    if func_t.is_external:
+    if func_t.is_internal or is_internal_init:
+        ret.func_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
+    else:
         # adjust gas estimate to include cost of mem expansion
         # frame_size of external function includes all private functions called
         # (note: internal functions do not need to adjust gas estimate since
@@ -177,7 +182,5 @@ def generate_ir_for_function(
         ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
         ret.common_ir.passthrough_metadata["func_t"] = func_t  # type: ignore
         ret.common_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
-    else:
-        ret.func_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
 
     return ret

@@ -21,7 +21,7 @@ def allocate_variables(vyper_module: vy_ast.Module) -> StorageLayout:
 
 
 class SimpleAllocator:
-    _max_slots = None
+    _max_slots: int = None  # type: ignore
 
     def __init__(self, starting_slot: int = 0):
         self._slot = starting_slot

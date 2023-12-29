@@ -376,7 +376,7 @@ class ContractFunctionT(VyperType):
         if self.nonreentrant is None:
             raise CompilerPanic(f"No reentrant key {self}")
         # sanity check even though implied by the type
-        if position._location != DataLocation.STORAGE:
+        if position.location != DataLocation.STORAGE:
             raise CompilerPanic("Non-storage reentrant key")
         self.reentrancy_key_position = position
 

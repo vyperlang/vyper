@@ -179,7 +179,7 @@ class VarInfo:
     def _set_position_in(self, position: DataPosition) -> None:
         assert self._position is None
         if self.location != position.location:
-            raise CompilerPanic(f"Incompatible locations: {self.location}, {position._location}")
+            raise CompilerPanic(f"Incompatible locations: {self.location}, {position.location}")
         self._position = position
 
     def set_storage_position(self, position: DataPosition):
@@ -212,33 +212,38 @@ class ModuleVarInfo(VarInfo):
     """
 
     def __post_init__(self):
-        super.__post_init__()
+        super().__post_init__()
+        # hmm
+        from vyper.semantics.types.module import ModuleT
+
         assert isinstance(self.typ, ModuleT)
 
-        self.code_offset = None
-        self.storage_offset = None
+        self._immutables_offset = None
+        self._storage_offset = None
 
     @property
     def location(self):
-        # location does not make sense for module vars
-        raise CompilerPanic("unreachable")
+        # location does not make sense for module vars but make the API work
+        return DataLocation.STORAGE
 
     def set_immutables_position(self, ofst):
-        assert self.code_offset is None
-        self.code_offset = ofst
+        assert self._immutables_offset is None
+        assert ofst.location == DataLocation.IMMUTABLES
+        self._immutables_offset = ofst
 
     def set_storage_position(self, ofst):
-        assert self.storage_offset is None
-        self.storage_offset = ofst
+        assert self._storage_offset is None
+        assert ofst.location == DataLocation.STORAGE
+        self._storage_offset = ofst
 
     def get_position(self):
-        raise CompilerPanic("use get_offset_in for ModuleInfo!")
+        raise CompilerPanic("use get_offset_in for ModuleVarInfo!")
 
     def get_offset_in(self, location):
         if location == DataLocation.STORAGE:
-            return self.storage_offset
+            return self._storage_offset.offset
         if location == DataLocation.IMMUTABLES:
-            return self.code_offset
+            return self._immutables_offset.offset
         raise CompilerPanic("unreachable")  # pragma: nocover
 
     def get_size_in(self, location):
