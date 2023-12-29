@@ -54,7 +54,7 @@ def _get_constants(node: vy_ast.Module) -> dict:
                 val = c.value.get_folded_value()
             except UnfoldableNode:
                 continue
-            
+
             # note that if a constant is redefined, its value will be overwritten,
             # but it is okay because the syntax error is handled downstream
             constants[name] = val

@@ -432,26 +432,27 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     with NodeMetadata.enter_typechecker_speculation():
                         for stmt in node.body:
                             self.visit(stmt)
+
+                        self.expr_visitor.visit(node.target, possible_target_type)
+
+                        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+                            iter_type = get_exact_type_from_node(node.iter)
+                            # note CMC 2023-10-23: slightly redundant with how type_list is computed
+                            validate_expected_type(node.target, iter_type.value_type)
+                            self.expr_visitor.visit(node.iter, iter_type)
+                        if isinstance(node.iter, vy_ast.List):
+                            len_ = len(node.iter.elements)
+                            self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
+                        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+                            for a in node.iter.args:
+                                self.expr_visitor.visit(a, possible_target_type)
+                            for a in node.iter.keywords:
+                                if a.arg == "bound":
+                                    self.expr_visitor.visit(a.value, possible_target_type)
+
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
-                    self.expr_visitor.visit(node.target, possible_target_type)
-
-                    if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-                        iter_type = get_exact_type_from_node(node.iter)
-                        # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                        validate_expected_type(node.target, iter_type.value_type)
-                        self.expr_visitor.visit(node.iter, iter_type)
-                    if isinstance(node.iter, vy_ast.List):
-                        len_ = len(node.iter.elements)
-                        self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
-                    if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                        for a in node.iter.args:
-                            self.expr_visitor.visit(a, possible_target_type)
-                        for a in node.iter.keywords:
-                            if a.arg == "bound":
-                                self.expr_visitor.visit(a.value, possible_target_type)
-
                     # success -- do not enter error handling section
                     return
 
@@ -757,8 +758,14 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     """
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
+    arg0 = node.args[0].get_folded_value if node.args[0].has_folded_value else node.args[0]
     start, end = (
-        (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else [i for i in node.args]
+        (vy_ast.Int(value=0), arg0)
+        if len(node.args) == 1
+        else (
+            arg0,
+            node.args[1].get_folded_value() if node.args[1].has_folded_value else node.args[1],
+        )
     )
 
     all_args = (start, end, *kwargs.values())
@@ -780,14 +787,11 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
-        folded_start, folded_end = [
-            i.get_folded_value() if i.has_folded_value else i for i in (start, end)
-        ]
-        for original_arg, folded_arg in zip([start, end], [folded_start, folded_end]):
-            if not isinstance(folded_arg, vy_ast.Num):
+        for arg in (start, end):
+            if not isinstance(arg, vy_ast.Num):
                 error = "Value must be a literal integer, unless a bound is specified"
-                raise StateAccessViolation(error, original_arg)
-        if folded_end.value <= folded_start.value:
+                raise StateAccessViolation(error, arg)
+        if end.value <= start.value:
             raise StructureException("End must be greater than start", end)
 
     return type_list
