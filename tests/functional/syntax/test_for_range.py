@@ -233,7 +233,7 @@ def foo():
         """,
         StructureException,
         "Bound must be at least 1",
-        "FOO",
+        "-1",
     ),
 ]
 
