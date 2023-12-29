@@ -192,10 +192,7 @@ class Expr:
                 # non-struct constants should have been dispatched via the `Expr` ctor
                 # using the folded value metadata
                 assert isinstance(varinfo.typ, StructT)
-                value_node = varinfo.decl_node.value
-                if value_node.has_folded_value:
-                    value_node = value_node.get_folded_value()
-                return Expr.parse_value_expr(value_node, self.context)
+                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.modifiability == Modifiability.IMMUTABLE, "not an immutable!"
 
