@@ -466,8 +466,7 @@ def _get_element_ptr_module(parent, key):
 
     assert isinstance(key, str)
     typ = module_t.variables[key].typ
-    attrs = list(module_t.variables.keys())
-    index = attrs.index(key)
+    # attrs = list(module_t.variables.keys())
     annotation = key
 
     ofst = 0  # offset from parent start

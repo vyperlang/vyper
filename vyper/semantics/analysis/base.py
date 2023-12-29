@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Union, ClassVar
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import InputBundle
@@ -123,6 +123,27 @@ class ImportInfo(AnalysisResult):
 
 
 @dataclass
+class DataPosition:
+    offset: int
+
+    @property
+    def location(self):
+        raise CompilerPanic("unreachable!")
+
+
+class StorageSlot(DataPosition):
+    @property
+    def location(self):
+        return DataLocation.STORAGE
+
+
+class CodeOffset(DataPosition):
+    @property
+    def location(self):
+        return DataLocation.IMMUTABLES
+
+
+@dataclass
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,
@@ -155,14 +176,26 @@ class VarInfo:
         self._writes = []
         self._position = None  # the location provided by the allocator
 
-    def set_position_in(self, position: DataPosition) -> None:
-        assert self.position is None
-        if self.location != position._location:
+    def _set_position_in(self, position: DataPosition) -> None:
+        assert self._position is None
+        if self.location != position.location:
             raise CompilerPanic(f"Incompatible locations: {self.location}, {position._location}")
         self._position = position
 
+    def set_storage_position(self, position: DataPosition):
+        assert self.location == DataLocation.STORAGE
+        self._set_position_in(position)
+
+    def set_immutables_position(self, position: DataPosition):
+        assert self.location == DataLocation.IMMUTABLES
+        self._set_position_in(position)
+
     def get_position(self) -> int:
-        return self._position
+        return self._position.offset
+
+    def get_offset_in(self, location):
+        assert location == self.location
+        return self._position.offset
 
     def get_size_in(self, location) -> int:
         """
@@ -172,10 +205,12 @@ class VarInfo:
             return self.typ.size_in_location(location)
         return 0
 
+
 class ModuleVarInfo(VarInfo):
     """
     A special VarInfo for modules
     """
+
     def __post_init__(self):
         super.__post_init__()
         assert isinstance(self.typ, ModuleT)
@@ -188,11 +223,11 @@ class ModuleVarInfo(VarInfo):
         # location does not make sense for module vars
         raise CompilerPanic("unreachable")
 
-    def set_code_offset(ofst):
+    def set_immutables_position(self, ofst):
         assert self.code_offset is None
         self.code_offset = ofst
 
-    def set_storage_offset(ofst):
+    def set_storage_position(self, ofst):
         assert self.storage_offset is None
         self.storage_offset = ofst
 
@@ -208,6 +243,7 @@ class ModuleVarInfo(VarInfo):
 
     def get_size_in(self, location):
         return self.typ.size_in_location(location)
+
 
 @dataclass
 class ExprInfo:

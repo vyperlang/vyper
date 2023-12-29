@@ -20,9 +20,9 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, ModuleVarInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.data_positions import set_data_positions
+from vyper.semantics.analysis.data_positions import allocate_variables
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import validate_functions
 from vyper.semantics.analysis.utils import (
@@ -39,16 +39,8 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 # TODO: rename to `analyze_vyper`
-def validate_semantics(
-    module_ast, input_bundle, storage_layout_overrides=None, is_interface=False
-) -> ModuleT:
-    return validate_semantics_r(
-        module_ast,
-        input_bundle,
-        ImportGraph(),
-        is_interface,
-        storage_layout_overrides=storage_layout_overrides,
-    )
+def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
+    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
 
 
 def validate_semantics_r(
@@ -56,7 +48,6 @@ def validate_semantics_r(
     input_bundle: InputBundle,
     import_graph: ImportGraph,
     is_interface: bool,
-    storage_layout_overrides: Any = None,
 ) -> ModuleT:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
@@ -76,7 +67,7 @@ def validate_semantics_r(
         if not is_interface:
             validate_functions(module_ast)
 
-            layout = set_data_positions(module_ast, storage_layout_overrides)
+            layout = allocate_variables(module_ast)
             module_ast._metadata["variables_layout"] = layout
 
     return ret
@@ -206,7 +197,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # we just want to be able to construct the call graph.
                     continue
 
-                if isinstance(call_t, ContractFunctionT) and (call_t.is_internal or call_t.is_constructor):
+                if isinstance(call_t, ContractFunctionT) and (
+                    call_t.is_internal or call_t.is_constructor
+                ):
                     fn_t.called_functions.add(call_t)
 
         for func in function_defs:
@@ -279,15 +272,21 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_transient and not version_check(begin="cancun"):
             raise StructureException("`transient` is not available pre-cancun", node.annotation)
 
-        var_info = VarInfo(
+        if isinstance(type_, ModuleT):
+            var_type = ModuleVarInfo
+        else:
+            var_type = VarInfo
+
+        var_info = var_type(
             type_,
             decl_node=node,
-            location=data_loc,
             is_constant=node.is_constant,
             is_public=node.is_public,
             is_immutable=node.is_immutable,
             is_transient=node.is_transient,
+            _location=data_loc,
         )
+
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
 

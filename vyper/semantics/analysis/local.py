@@ -196,7 +196,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         )
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, location=location, is_immutable=is_immutable
+                arg.typ, _location=location, is_immutable=is_immutable
             )
 
         for node in self.fn_node.body:
