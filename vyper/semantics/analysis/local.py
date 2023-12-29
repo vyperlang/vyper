@@ -627,7 +627,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node, typ)
+            arg_types = call_type.infer_arg_types(node, expected_return_typ=typ)
             # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
