@@ -1164,11 +1164,12 @@ class BoolOp(ExprNode):
         NameConstant
             Node representing the result of the evaluation.
         """
-        values = [i.get_folded_value() for i in self.values]
+        values = [v.get_folded_value() for v in self.values]
 
-        if any(not isinstance(i, NameConstant) for i in values):
+        if any(not isinstance(v, NameConstant) for v in values):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
+        values = [v.value for v in values]
         value = self.op._op(values)
         return NameConstant.from_node(self, value=value)
 
