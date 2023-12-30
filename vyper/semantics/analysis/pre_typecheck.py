@@ -2,7 +2,7 @@ from vyper import ast as vy_ast
 from vyper.exceptions import UnfoldableNode
 
 
-# try to fold a node. this function is very similar to
+# try to fold a node, swallowing exceptions. this function is very similar to
 # `VyperNode.get_folded_value()` but additionally checks in the constants
 # table if the node is a `Name` node.
 #
@@ -12,21 +12,23 @@ from vyper.exceptions import UnfoldableNode
 # need to use this function in conjunction with `get_descendants` since
 # `VyperNode._try_fold()` already recurses. it would also remove the need
 # for `VyperNode._set_folded_value()`.
-def _fold_with_constants(
-    node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]
-) -> vy_ast.VyperNode:
+def _fold_with_constants(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
     if isinstance(node, vy_ast.Name):
         # check if it's in constants table
         var_name = node.id
 
         if var_name not in constants:
-            raise UnfoldableNode("not a constant", node)
+            return
 
         res = constants[var_name]
         node._set_folded_value(res)
-        return res
+        return
 
-    return node.get_folded_value()
+    try:
+        # call get_folded_value for its side effects
+        node.get_folded_value()
+    except UnfoldableNode:
+        pass
 
 
 def _get_constants(node: vy_ast.Module) -> dict:
@@ -39,14 +41,15 @@ def _get_constants(node: vy_ast.Module) -> dict:
         for c in const_var_decls.copy():
             assert c.value is not None  # guaranteed by VariableDecl.validate()
 
-            try:
-                for n in c.get_descendants(reverse=True):
-                    _fold_with_constants(n, constants)
+            for n in c.get_descendants(reverse=True):
+                _fold_with_constants(n, constants)
 
-                val = c.value.get_folded_value()
-
-            except UnfoldableNode:
-                continue
+                try:
+                    val = c.value.get_folded_value()
+                except UnfoldableNode:
+                    # not foldable, maybe it depends on other constants
+                    # so try again later
+                    continue
 
             # note that if a constant is redefined, its value will be
             # overwritten, but it is okay because the error is handled
@@ -75,15 +78,12 @@ def pre_typecheck(node: vy_ast.Module) -> None:
 
     # note: use reverse to get descendants in leaf-first order
     for n in node.get_descendants(reverse=True):
-        try:
-            # try folding every single node. note this should be done before
-            # type checking because the typechecker requires literals or
-            # foldable nodes in type signatures and some other places (e.g.
-            # certain builtin kwargs).
-            #
-            # note we could limit to only folding nodes which are required
-            # during type checking, but it's easier to just fold everything
-            # and be done with it!
-            _fold_with_constants(n, constants)
-        except UnfoldableNode:
-            pass
+        # try folding every single node. note this should be done before
+        # type checking because the typechecker requires literals or
+        # foldable nodes in type signatures and some other places (e.g.
+        # certain builtin kwargs).
+        #
+        # note we could limit to only folding nodes which are required
+        # during type checking, but it's easier to just fold everything
+        # and be done with it!
+        _fold_with_constants(n, constants)
