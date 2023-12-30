@@ -854,7 +854,14 @@ class Hex(Constant):
         """
         The number of bytes this hex value represents
         """
-        return self.n_nibbles // 2
+        return len(self.bytes_value)
+
+    @property
+    def bytes_value(self):
+        """
+        This value as bytes
+        """
+        return bytes.fromhex(self.value.removeprefix("0x"))
 
 
 class Str(Constant):

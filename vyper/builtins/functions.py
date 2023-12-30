@@ -465,8 +465,7 @@ class Len(BuiltinFunctionT):
         if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
             length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
-            # 2 characters represent 1 byte and we subtract 1 to ignore the leading `0x`
-            length = len(arg.value) // 2 - 1
+            length = len(arg.bytes_value)
         else:
             raise UnfoldableNode
 
@@ -604,8 +603,7 @@ class Keccak256(BuiltinFunctionT):
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
         elif isinstance(value, vy_ast.Hex):
-            length = len(value.value) // 2 - 1
-            value = int(value.value, 16).to_bytes(length, "big")
+            value = value.bytes_value
         else:
             raise UnfoldableNode
 
@@ -652,8 +650,7 @@ class Sha256(BuiltinFunctionT):
         elif isinstance(value, vy_ast.Str):
             value = value.value.encode()
         elif isinstance(value, vy_ast.Hex):
-            length = len(value.value) // 2 - 1
-            value = int(value.value, 16).to_bytes(length, "big")
+            value = value.bytes_value
         else:
             raise UnfoldableNode
 
