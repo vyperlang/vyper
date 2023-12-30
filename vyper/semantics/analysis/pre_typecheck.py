@@ -65,7 +65,9 @@ def _get_constants(node: vy_ast.Module) -> dict:
 
         if n_processed == 0:
             # this condition means that there are some constant vardecls
-            # whose values are not foldable
+            # whose values are not foldable. this can happen for struct
+            # and interface constants for instance. these are valid constant
+            # declarations, but we just can't fold them at this stage.
             break
 
     return constants
