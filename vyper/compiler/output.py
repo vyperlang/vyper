@@ -84,6 +84,16 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
+def build_bb_output(compiler_data: CompilerData) -> IRnode:
+    compiler_data.experimental_codegen = True
+    return compiler_data.ir_nodes
+
+
+def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
+    compiler_data.experimental_codegen = True
+    return compiler_data.ir_runtime
+
+
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
