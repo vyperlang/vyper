@@ -630,48 +630,6 @@ class Module(TopLevel):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
 
-    def replace_in_tree(self, old_node: VyperNode, new_node: VyperNode) -> None:
-        """
-        Perform an in-place substitution of a node within the tree.
-
-        Parameters
-        ----------
-        old_node : VyperNode
-            Node object to be replaced.
-        new_node : VyperNode
-            Node object to replace new_node.
-
-        Returns
-        -------
-        None
-        """
-        parent = old_node._parent
-
-        if old_node not in parent._children:
-            raise CompilerPanic("Node to be replaced does not exist within parent children")
-
-        is_replaced = False
-        for key in parent.get_fields():
-            obj = getattr(parent, key, None)
-            if obj == old_node:
-                if is_replaced:
-                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
-                setattr(parent, key, new_node)
-                is_replaced = True
-            elif isinstance(obj, list) and obj.count(old_node):
-                if is_replaced or obj.count(old_node) > 1:
-                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
-                obj[obj.index(old_node)] = new_node
-                is_replaced = True
-        if not is_replaced:
-            raise CompilerPanic("Node to be replaced does not exist within parent members")
-
-        parent._children.remove(old_node)
-
-        new_node._parent = parent
-        new_node._depth = old_node._depth
-        parent._children.add(new_node)
-
     def add_to_body(self, node: VyperNode) -> None:
         """
         Add a new node to the body of this node.
