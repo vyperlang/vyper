@@ -153,3 +153,6 @@ class BuiltinFunctionT(VyperType):
 
     def __repr__(self):
         return f"(builtin) {self._id}"
+
+    def _try_fold(self, node):
+        raise UnfoldableNode(f"not foldable: {self}", node)

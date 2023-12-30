@@ -52,11 +52,12 @@ def validate_semantics_r(
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
+    pre_typecheck(module_ast)
+
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
-        pre_typecheck(module_ast)
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
         ret = analyzer.analyze()
 
@@ -311,8 +312,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.namespace[name] = var_info
 
         if node.is_constant:
-            if not node.value:
-                raise VariableDeclarationException("Constant must be declared with a value", node)
+            assert node.value is not None  # checked in VariableDecl.validate()
 
             ExprVisitor().visit(node.value, type_)
 
@@ -324,11 +324,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             return _finalize()
 
-        if node.value:
-            var_type = "Immutable" if node.is_immutable else "Storage"
-            raise VariableDeclarationException(
-                f"{var_type} variables cannot have an initial value", node.value
-            )
+        assert node.value is None  # checked in VariableDecl.validate()
 
         if node.is_immutable:
             _validate_self_namespace()

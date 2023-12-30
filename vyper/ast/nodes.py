@@ -11,7 +11,6 @@ from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
-    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -19,6 +18,7 @@ from vyper.exceptions import (
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
+    VariableDeclarationException,
     VyperException,
     ZeroDivisionException,
 )
@@ -402,15 +402,21 @@ class VyperNode:
 
         if "folded_value" not in self._metadata:
             res = self._try_fold()  # possibly throws UnfoldableNode
-            self._metadata["folded_value"] = res
-
-            # set the folded node's parent so that get_ancestor works
-            # this is mainly important for error messages.
-            res._parent = self._parent
+            self._set_folded_value(res)
 
         return self._metadata["folded_value"]
 
-    def _fold(self) -> "VyperNode":
+    def _set_folded_value(self, node: "VyperNode") -> None:
+        # sanity check this is only called once
+        assert "folded_value" not in self._metadata
+
+        # set the folded node's parent so that get_ancestor works
+        # this is mainly important for error messages.
+        node._parent = self._parent
+
+        self._metadata["folded_value"] = node
+
+    def _try_fold(self) -> "VyperNode":
         """
         Attempt to constant-fold the content of a node, returning the result of
         constant-folding if possible.
@@ -895,7 +901,7 @@ class List(ExprNode):
     def is_literal_value(self):
         return all(e.is_literal_value for e in self.elements)
 
-    def fold(self) -> Optional[ExprNode]:
+    def _try_fold(self) -> ExprNode:
         elements = [e.get_folded_value() for e in self.elements]
         return type(self).from_node(self, elements=elements)
 
@@ -912,7 +918,7 @@ class Tuple(ExprNode):
         if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
-    def fold(self) -> Optional[ExprNode]:
+    def _try_fold(self) -> Optional[ExprNode]:
         elements = [e.get_folded_value() for e in self.elements]
         return type(self).from_node(self, elements=elements)
 
@@ -936,7 +942,7 @@ class Name(ExprNode):
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
 
-    def fold(self) -> ExprNode:
+    def _try_fold(self) -> ExprNode:
         """
         Attempt to evaluate the unary operation.
 
@@ -985,7 +991,7 @@ class Invert(Operator):
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
 
-    def fold(self) -> ExprNode:
+    def _try_fold(self) -> ExprNode:
         """
         Attempt to evaluate the arithmetic operation.
 
@@ -1134,7 +1140,7 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
-    def fold(self) -> ExprNode:
+    def _try_fold(self) -> ExprNode:
         """
         Attempt to evaluate the boolean operation.
 
@@ -1189,7 +1195,7 @@ class Compare(ExprNode):
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
 
-    def fold(self) -> ExprNode:
+    def _try_fold(self) -> ExprNode:
         """
         Attempt to evaluate the comparison.
 
@@ -1279,6 +1285,21 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
+    # try checking if this is a builtin, which is foldable
+    def _try_fold(self):
+        if not isinstance(self.func.id, Name):
+            raise UnfoldableNode("not a builtin", self)
+
+        # cursed import cycle!
+        from vyper.builtins.functions import DISPATCH_TABLE
+
+        func_name = self.func.id
+        if func_name not in DISPATCH_TABLE:
+            raise UnfoldableNode("not a builtin", self)
+
+        builtin_t = DISPATCH_TABLE[func_name]
+        return builtin_t._try_fold(self)
+
 
 class keyword(VyperNode):
     __slots__ = ("arg", "value")
@@ -1291,7 +1312,7 @@ class Attribute(ExprNode):
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
 
-    def fold(self) -> ExprNode:
+    def _try_fold(self) -> ExprNode:
         """
         Attempt to evaluate the subscript.
 
@@ -1416,6 +1437,24 @@ class VariableDecl(VyperNode):
 
         if isinstance(self.annotation, Call):
             _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
+
+    def _pretty_location(self) -> str:
+        if self.is_constant:
+            return "Constant"
+        if self.is_transient:
+            return "Transient"
+        if self.is_immutable:
+            return "Immutable"
+        return "Storage"
+
+    def validate(self):
+        if self.is_constant and self.value is None:
+            raise VariableDeclarationException("Constant must be declared with a value", self)
+
+        if not self.is_constant and self.value is not None:
+            raise VariableDeclarationException(
+                f"{self._pretty_location} variables cannot have an initial value", self.value
+            )
 
 
 class AugAssign(Stmt):
