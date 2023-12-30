@@ -83,7 +83,7 @@ def parse_to_ast_with_settings(
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
 
-    # vyper validation
+    # additional vyper AST validation
     validate_literal_nodes(module)
 
     return settings, module
