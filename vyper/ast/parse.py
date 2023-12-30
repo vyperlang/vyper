@@ -7,10 +7,10 @@ import asttokens
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import pre_parse
+from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
-from vyper.ast.validation import validate_literal_nodes
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
