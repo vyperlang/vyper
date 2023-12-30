@@ -1072,10 +1072,12 @@ class RawCall(BuiltinFunctionT):
         outsize = kwargz.get("max_outsize")
         if outsize is not None:
             outsize = outsize.get_folded_value()
+
         revert_on_failure = kwargz.get("revert_on_failure")
         if revert_on_failure is not None:
-            revert_on_failure = revert_on_failure.get_folded_value()
-        revert_on_failure = revert_on_failure.value if revert_on_failure is not None else True
+            revert_on_failure = revert_on_failure.get_folded_value().value
+        else:
+            revert_on_failure = True
 
         if outsize is None or outsize.value == 0:
             if revert_on_failure:
