@@ -918,7 +918,7 @@ class Tuple(ExprNode):
         if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
-    def _try_fold(self) -> Optional[ExprNode]:
+    def _try_fold(self) -> ExprNode:
         elements = [e.get_folded_value() for e in self.elements]
         return type(self).from_node(self, elements=elements)
 
@@ -933,6 +933,15 @@ class Ellipsis(Constant):
 
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
+
+    @property
+    def is_literal_value(self):
+        return all(v.is_literal_value for v in self.values)
+
+    def _try_fold(self) -> ExprNode:
+        values = [v.get_folded_value() for v in self.values]
+        return type(self).from_node(self, values=values)
+
 
 
 class Name(ExprNode):

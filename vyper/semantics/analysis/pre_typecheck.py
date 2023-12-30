@@ -13,6 +13,9 @@ from vyper.exceptions import UnfoldableNode
 # `VyperNode._try_fold()` already recurses. it would also remove the need
 # for `VyperNode._set_folded_value()`.
 def _fold_with_constants(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
+    if node.has_folded_value:
+        return
+
     if isinstance(node, vy_ast.Name):
         # check if it's in constants table
         var_name = node.id
@@ -35,7 +38,7 @@ def _get_constants(node: vy_ast.Module) -> dict:
     constants: dict[str, vy_ast.VyperNode] = {}
     const_var_decls = node.get_children(vy_ast.VariableDecl, {"is_constant": True})
 
-    while len(const_var_decls) > 0:
+    while True:
         n_processed = 0
 
         for c in const_var_decls.copy():
@@ -44,12 +47,12 @@ def _get_constants(node: vy_ast.Module) -> dict:
             for n in c.get_descendants(reverse=True):
                 _fold_with_constants(n, constants)
 
-                try:
-                    val = c.value.get_folded_value()
-                except UnfoldableNode:
-                    # not foldable, maybe it depends on other constants
-                    # so try again later
-                    continue
+            try:
+                val = c.value.get_folded_value()
+            except UnfoldableNode:
+                # not foldable, maybe it depends on other constants
+                # so try again later
+                continue
 
             # note that if a constant is redefined, its value will be
             # overwritten, but it is okay because the error is handled
@@ -63,7 +66,7 @@ def _get_constants(node: vy_ast.Module) -> dict:
         if n_processed == 0:
             # this condition means that there are some constant vardecls
             # whose values are not foldable
-            raise UnfoldableNode("unfoldable constants", *const_var_decls)
+            break
 
     return constants
 
