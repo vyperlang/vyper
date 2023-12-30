@@ -70,18 +70,19 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
-        if isinstance(node, vy_ast.VyperNode) and node.has_folded_value:
-            node = node.get_folded_value()
-
-        self.expr = node
-        self.context = context
-
         if isinstance(node, IRnode):
             # this is a kludge for parse_AugAssign to pass in IRnodes
             # directly.
             # TODO fixme!
             self.ir_node = node
             return
+
+        assert isinstance(node, vy_ast.VyperNode)
+        if node.has_folded_value:
+            node = node.get_folded_value()
+
+        self.expr = node
+        self.context = context
 
         fn_name = f"parse_{type(node).__name__}"
         with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
