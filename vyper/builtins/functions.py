@@ -738,8 +738,6 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `_try_fold` for its typechecking side effects
-        self._try_fold(node)
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
@@ -1008,12 +1006,6 @@ class AsWeiValue(BuiltinFunctionT):
         return self._return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `_try_fold` for its typechecking side effects`
-        try:
-            self._try_fold(node)
-        except UnfoldableNode:
-            pass
-
         self._validate_arg_types(node)
         # return a concrete type instead of abstract type
         value_type = get_possible_types_from_node(node.args[0]).pop()
@@ -2584,8 +2576,6 @@ class _MinMaxValue(TypenameFoldedFunctionT):
         return ret
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        # call `_try_fold` for its typechecking side effects
-        self._try_fold(node)
         input_typedef = TYPE_T(type_from_annotation(node.args[0]))
         return [input_typedef]
 
