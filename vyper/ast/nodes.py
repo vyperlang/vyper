@@ -969,11 +969,11 @@ class UnaryOp(ExprNode):
         operand = self.operand.get_folded_value()
 
         if isinstance(self.op, Not) and not isinstance(operand, NameConstant):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, USub) and not isinstance(operand, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            raise UnfoldableNode("not a boolean!", self.operand)
+        if isinstance(self.op, USub) and not isinstance(operand, Num):
+            raise UnfoldableNode("not a number!", self.operand)
         if isinstance(self.op, Invert) and not isinstance(operand, Int):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            raise UnfoldableNode("not an int!", self.operand)
 
         value = self.op._op(operand.value)
         return type(operand).from_node(self, value=value)
@@ -1017,9 +1017,9 @@ class BinOp(ExprNode):
         """
         left, right = [i.get_folded_value() for i in (self.left, self.right)]
         if type(left) is not type(right):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if not isinstance(left, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation", self)
+        if not isinstance(left, (Num)):
+            raise UnfoldableNode("not a number!", self.left)
 
         # this validation is performed to prevent the compiler from hanging
         # on very large shifts and improve the error message for negative
@@ -1169,7 +1169,6 @@ class BoolOp(ExprNode):
         if any(not isinstance(i, NameConstant) for i in values):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
 
-        values = [i.value for i in values]
         value = self.op._op(values)
         return NameConstant.from_node(self, value=value)
 
@@ -1351,7 +1350,7 @@ class Subscript(ExprNode):
         if not isinstance(slice_, Int):
             raise UnfoldableNode("Node contains invalid field(s) for evaluation")
         idx = slice_.value
-        if not isinstance(idx, int) or idx < 0 or idx >= len(elements):
+        if idx < 0 or idx >= len(elements):
             raise UnfoldableNode("Invalid index value")
 
         return elements[idx]
