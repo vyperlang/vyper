@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -52,6 +53,8 @@ def validate_semantics_r(
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
+    validate_literal_nodes(module_ast)
+
     pre_typecheck(module_ast)
 
     # validate semantics and annotate AST with type/semantics information

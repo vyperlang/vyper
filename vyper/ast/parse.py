@@ -7,7 +7,6 @@ import asttokens
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import pre_parse
-from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
@@ -82,9 +81,6 @@ def parse_to_ast_with_settings(
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
-
-    # additional vyper AST validation
-    validate_literal_nodes(module)
 
     return settings, module
 
