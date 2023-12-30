@@ -943,7 +943,6 @@ class Dict(ExprNode):
         return type(self).from_node(self, values=values)
 
 
-
 class Name(ExprNode):
     __slots__ = ("id",)
 
