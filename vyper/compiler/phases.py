@@ -259,8 +259,6 @@ def generate_annotated_ast(
     StorageLayout
         Layout of variables in storage
     """
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: validate_semantics does type inference on the AST
         validate_semantics(vyper_module, input_bundle)

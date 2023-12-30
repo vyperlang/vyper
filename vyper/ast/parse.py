@@ -10,6 +10,7 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
+from vyper.ast.validation import validate_literal_nodes
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -81,6 +82,10 @@ def parse_to_ast_with_settings(
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
+
+    # vyper validation
+    validate_literal_nodes(module)
+
     return settings, module
 
 
