@@ -36,7 +36,7 @@ def _get_constants(node: vy_ast.Module) -> dict:
     while len(const_var_decls) > 0:
         n_processed = 0
 
-        for c in const_var_decls:
+        for c in const_var_decls.copy():
             assert c.value is not None  # guaranteed by VariableDecl.validate()
 
             try:
