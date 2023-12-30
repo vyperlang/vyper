@@ -401,15 +401,21 @@ class VyperNode:
             return self
 
         if "folded_value" not in self._metadata:
-            self._metadata["folded_value"] = self.fold()
+            res = self._try_fold()  # possibly throws UnfoldableNode
+            self._metadata["folded_value"] = res
+
+            # set the folded node's parent so that get_ancestor works
+            # this is mainly important for error messages.
+            res._parent = self._parent
+
         return self._metadata["folded_value"]
 
-    def fold(self) -> "VyperNode":
+    def _fold(self) -> "VyperNode":
         """
-        Attempt to evaluate the content of a node and generate a new node from
-        it.
+        Attempt to constant-fold the content of a node, returning the result of
+        constant-folding if possible.
 
-        If a node cannot be evaluated, it should raise `UnfoldableNode`. This
+        If a node cannot be folded, it should raise `UnfoldableNode`. This
         base implementation acts as a catch-all to raise on any inherited
         classes that do not implement the method.
         """
