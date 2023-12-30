@@ -389,11 +389,13 @@ class VyperNode:
 
     def get_folded_value(self) -> "VyperNode":
         """
-        Attempt to get the folded value and cache it on `_metadata["folded_value"]`.
-        For constant nodes, the node is directly returned as the folded value without caching
-        to the metadata.
+        Attempt to get the folded value, bubbling up UnfoldableNode if the node
+        is not foldable.
 
-        Raises UnfoldableNode if not.
+        The returned value is cached on `_metadata["folded_value"]`.
+
+        For constant/literal nodes, the node should be directly returned
+        without caching to the metadata.
         """
         if self.is_literal_value:
             return self
@@ -404,11 +406,12 @@ class VyperNode:
 
     def fold(self) -> "VyperNode":
         """
-        Attempt to evaluate the content of a node and generate a new node from it.
+        Attempt to evaluate the content of a node and generate a new node from
+        it.
 
-        If a node cannot be evaluated, it should raise `UnfoldableNode`. This base
-        method acts as a catch-all to raise on any inherited classes that do not
-        implement the method.
+        If a node cannot be evaluated, it should raise `UnfoldableNode`. This
+        base implementation acts as a catch-all to raise on any inherited
+        classes that do not implement the method.
         """
         raise UnfoldableNode(f"{type(self)} cannot be folded")
 
@@ -416,8 +419,8 @@ class VyperNode:
         """
         Validate the content of a node.
 
-        Called by `ast.validation.validate_literal_nodes` to verify values within
-        literal nodes.
+        Called by `ast.validation.validate_literal_nodes` to verify values
+        within literal nodes.
 
         Returns `None` if the node is valid, raises `InvalidLiteral` or another
         more expressive exception if the value cannot be valid within a Vyper
