@@ -1287,7 +1287,7 @@ class Call(ExprNode):
 
     # try checking if this is a builtin, which is foldable
     def _try_fold(self):
-        if not isinstance(self.func.id, Name):
+        if not isinstance(self.func, Name):
             raise UnfoldableNode("not a builtin", self)
 
         # cursed import cycle!
