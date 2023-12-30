@@ -21,6 +21,6 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"pow_mod256({a}, {b})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.PowMod256().fold(old_node)
+    new_node = vy_fn.PowMod256()._try_fold(old_node)
 
     assert contract.foo(a, b) == new_node.value

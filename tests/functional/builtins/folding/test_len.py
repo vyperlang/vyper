@@ -17,7 +17,7 @@ def foo(a: String[1024]) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"len('{value}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().fold(old_node)
+    new_node = vy_fn.Len()._try_fold(old_node)
 
     assert contract.foo(value) == new_node.value
 
@@ -35,7 +35,7 @@ def foo(a: Bytes[1024]) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"len(b'{value}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().fold(old_node)
+    new_node = vy_fn.Len()._try_fold(old_node)
 
     assert contract.foo(value.encode()) == new_node.value
 
@@ -53,6 +53,6 @@ def foo(a: Bytes[1024]) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"len({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().fold(old_node)
+    new_node = vy_fn.Len()._try_fold(old_node)
 
     assert contract.foo(value) == new_node.value

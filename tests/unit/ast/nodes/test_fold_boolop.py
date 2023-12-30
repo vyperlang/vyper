@@ -26,7 +26,7 @@ def foo({input_value}) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(literal_op)
     old_node = vyper_ast.body[0].value
-    new_node = old_node.fold()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(*values) == new_node.value
 
@@ -53,7 +53,7 @@ def foo({input_value}) -> bool:
     literal_op = literal_op.rsplit(maxsplit=1)[0]
 
     vyper_ast = vy_ast.parse_to_ast(literal_op)
-    new_node = vyper_ast.body[0].value.fold()
+    new_node = vyper_ast.body[0].value.get_folded_value()
     expected = new_node.value
 
     assert contract.foo(*values) == expected

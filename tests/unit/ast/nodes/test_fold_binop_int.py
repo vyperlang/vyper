@@ -27,7 +27,7 @@ def foo(a: int128, b: int128) -> int128:
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
     try:
-        new_node = old_node.fold()
+        new_node = old_node.get_folded_value()
         is_valid = True
     except ZeroDivisionException:
         is_valid = False
@@ -57,7 +57,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
     try:
-        new_node = old_node.fold()
+        new_node = old_node.get_folded_value()
         is_valid = new_node.value >= 0
     except ZeroDivisionException:
         is_valid = False
@@ -85,7 +85,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} ** {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.fold()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(left, right) == new_node.value
 
@@ -115,7 +115,7 @@ def foo({input_value}) -> int128:
     vyper_ast = vy_ast.parse_to_ast(literal_op)
 
     try:
-        new_node = vyper_ast.body[0].value.fold()
+        new_node = vyper_ast.body[0].value.get_folded_value()
         expected = new_node.value
         is_valid = True
     except ZeroDivisionException:
