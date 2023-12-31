@@ -71,6 +71,8 @@ class CompilerData:
         Runtime bytecode
     """
 
+    experimental_codegen: bool = False
+
     def __init__(
         self,
         file_input: FileInput | str,
