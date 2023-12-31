@@ -10,6 +10,8 @@ from vyper.exceptions import (
     UndeclaredDefinition,
 )
 
+# CMC 2023-12-31 these tests could probably go in builtins/folding/
+
 fail_list = [
     (
         """

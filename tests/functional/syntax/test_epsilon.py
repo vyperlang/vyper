@@ -3,6 +3,7 @@ import pytest
 from vyper import compile_code
 from vyper.exceptions import InvalidType
 
+# CMC 2023-12-31 this could probably go in builtins/folding/
 fail_list = [
     (
         """

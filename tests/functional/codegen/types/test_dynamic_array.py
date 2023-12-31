@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
@@ -327,10 +328,8 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
     return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[FOO]
     """
 
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation(array_constant_negative_accessor),
-        ArrayIndexException,
-    )
+    with pytest.raises(ArrayIndexException):
+        compile_code(array_constant_negative_accessor)
 
     array_negative_accessor = """
 @external
