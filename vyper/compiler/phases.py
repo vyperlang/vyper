@@ -2,6 +2,7 @@ import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Optional
+import copy
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
@@ -259,6 +260,7 @@ def generate_annotated_ast(
     StorageLayout
         Layout of variables in storage
     """
+    vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: validate_semantics does type inference on the AST
         validate_semantics(vyper_module, input_bundle)
