@@ -189,11 +189,11 @@ class Expr:
         # TODO: use self.expr._expr_info
         elif self.expr.id in self.context.globals:
             varinfo = self.context.globals[self.expr.id]
-            # XXX: check me
-            if varinfo.modifiability == Modifiability.CONSTANT:
+
+            if varinfo.is_constant:
+                # non-struct constants should have already gotten propagated
+                # during constant folding
                 assert isinstance(varinfo.typ, StructT)
-                # non-struct constants should have been dispatched via the `Expr` ctor
-                # using the folded value metadata
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.is_immutable, "not an immutable!"
