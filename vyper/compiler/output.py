@@ -26,23 +26,23 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
 def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
     annotated_ast_dict = {
         "contract_name": str(compiler_data.contract_path),
-        "ast": ast_to_dict(compiler_data.vyper_module_annotated),
+        "ast": ast_to_dict(compiler_data.annotated_vyper_module),
     }
     return annotated_ast_dict
 
 
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_annotated)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_annotated)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_annotated._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
@@ -61,7 +61,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_annotated._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
     if interface.events:
@@ -166,7 +166,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    module_t = compiler_data.vyper_module_annotated._metadata["type"]
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
     functions = module_t.function_defs
 
     return {
@@ -175,7 +175,7 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    module_t = compiler_data.vyper_module_annotated._metadata["type"]
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
     _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()

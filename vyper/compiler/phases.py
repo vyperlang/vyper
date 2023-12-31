@@ -53,8 +53,8 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
-    vyper_module_annotated : vy_ast.Module
-        Annotated Vyper AST
+    annotated_vyper_module: vy_ast.Module
+        Annotated/analysed Vyper AST
     global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
@@ -158,7 +158,7 @@ class CompilerData:
         )
 
     @property
-    def vyper_module_annotated(self) -> vy_ast.Module:
+    def annotated_vyper_module(self) -> vy_ast.Module:
         module, storage_layout = self._annotated_module
         return module
 
@@ -169,7 +169,7 @@ class CompilerData:
 
     @property
     def global_ctx(self) -> ModuleT:
-        return self.vyper_module_annotated._metadata["type"]
+        return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
     def _ir_output(self):
@@ -198,7 +198,7 @@ class CompilerData:
         # ensure codegen is run:
         _ = self._ir_output
 
-        fs = self.vyper_module_annotated.get_children(vy_ast.FunctionDef)
+        fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
