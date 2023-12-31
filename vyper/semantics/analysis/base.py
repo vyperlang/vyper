@@ -98,8 +98,13 @@ class StateMutability(_StringEnum):
 
 
 # classify the constancy of an expression
+# CMC 2023-12-31 note that we now have three ways of classifying mutability in
+# the codebase: StateMutability (for functions), Modifiability (for expressions
+# and variables) and Constancy (in codegen). context.Constancy can/should
+# probably be refactored away though as those kinds of checks should be done
+# during analysis.
 class Modifiability(enum.IntEnum):
-    # can result in arbitrary state or memory changes
+    # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
 
     # could add more fine-grained here as needed, like
@@ -109,7 +114,7 @@ class Modifiability(enum.IntEnum):
     # block.*, msg.*, tx.* and immutables
     RUNTIME_CONSTANT = enum.auto()
 
-    # compile-time constant
+    # compile-time / always constant
     CONSTANT = enum.auto()
 
 
@@ -225,7 +230,8 @@ class VarInfo:
             if self.location == DataLocation.UNSET:
                 self.location = position._location
             elif self.is_transient and position._location == DataLocation.STORAGE:
-                # use same allocator for storage and transient for now
+                # CMC 2023-12-31 - use same allocator for storage and transient
+                # for now, this should be refactored soon.
                 pass
             else:
                 raise CompilerPanic("Incompatible locations")
