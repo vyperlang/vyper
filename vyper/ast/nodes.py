@@ -754,9 +754,6 @@ class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
 
-    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
-        super().__init__(parent, **kwargs)
-
     @property
     def is_literal_value(self):
         return True
