@@ -113,18 +113,32 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 def test_compile_json(input_json, input_bundle):
     foo_input = input_bundle.load_file("contracts/foo.vy")
+    # remove bb and bb_runtime from output formats
+    # because they require venom (experimental)
+    output_formats = OUTPUT_FORMATS.copy()
+    del output_formats["bb"]
+    del output_formats["bb_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        foo_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        experimental_codegen=False,
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
     library = compile_from_file_input(
-        library_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        library_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        experimental_codegen=False,
     )
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        bar_input,
+        output_formats=output_formats,
+        input_bundle=input_bundle,
+        experimental_codegen=False,
     )
 
     compile_code_results = {
