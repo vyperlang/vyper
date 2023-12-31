@@ -701,7 +701,7 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
-            if not check_modifiability(value, Modifiability.IMMUTABLE):
+            if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))

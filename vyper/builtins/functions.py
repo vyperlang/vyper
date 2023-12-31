@@ -105,8 +105,7 @@ SHA256_PER_WORD_GAS = 12
 class FoldedFunctionT(BuiltinFunctionT):
     # Base class for nodes which should always be folded
 
-    # This flag is used for `check_modifiability` in semantics validation.
-    _modifiability = Modifiability.ALWAYS_CONSTANT
+    _modifiability = Modifiability.CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):

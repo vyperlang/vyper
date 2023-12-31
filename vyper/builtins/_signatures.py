@@ -113,9 +113,9 @@ class BuiltinFunctionT(VyperType):
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
             if kwarg_settings.require_literal and not check_modifiability(
-                kwarg.value, Modifiability.IMMUTABLE
+                kwarg.value, Modifiability.CONSTANT
             ):
-                raise TypeMismatch("Value must be literal or environment variable", kwarg.value)
+                raise TypeMismatch("Value must be literal", kwarg.value)
             self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,

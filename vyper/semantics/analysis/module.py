@@ -267,9 +267,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         modifiability = (
-            Modifiability.IMMUTABLE
+            Modifiability.RUNTIME_CONSTANT
             if node.is_immutable
-            else Modifiability.ALWAYS_CONSTANT
+            else Modifiability.CONSTANT
             if node.is_constant
             else Modifiability.MODIFIABLE
         )
@@ -285,7 +285,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             location=data_loc,
             modifiability=modifiability,
             is_public=node.is_public,
-            is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
@@ -319,7 +318,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             ExprVisitor().visit(node.value, type_)
 
-            if not check_modifiability(node.value, Modifiability.ALWAYS_CONSTANT):
+            if not check_modifiability(node.value, Modifiability.CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)

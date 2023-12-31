@@ -52,7 +52,7 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, modifiability=Modifiability.CONSTANT_IN_CURRENT_TX)
+        result[k] = VarInfo(v, modifiability=Modifiability.RUNTIME_CONSTANT)
 
     return result
 

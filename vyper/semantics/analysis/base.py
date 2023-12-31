@@ -97,12 +97,20 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
+# classify the constancy of an expression
 class Modifiability(enum.IntEnum):
+    # can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
-    IMMUTABLE = enum.auto()
-    NOT_MODIFIABLE = enum.auto()
-    CONSTANT_IN_CURRENT_TX = enum.auto()
-    ALWAYS_CONSTANT = enum.auto()
+
+    # could add more fine-grained here as needed, like
+    # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
+
+    # things that are constant within the current message call, including
+    # block.*, msg.*, tx.* and immutables
+    RUNTIME_CONSTANT = enum.auto()
+
+    # compile-time constant
+    CONSTANT = enum.auto()
 
 
 class DataPosition:
@@ -202,8 +210,6 @@ class VarInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    is_transient: bool = False
-    is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
 
     def __hash__(self):
@@ -221,6 +227,20 @@ class VarInfo:
             else:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
+
+    @property
+    def is_transient(self):
+        return self.location == DataLocation.TRANSIENT
+
+    @property
+    def is_immutable(self):
+        return self.location == DataLocation.CODE
+
+    @property
+    def is_constant(self):
+        res = self.location == DataLocation.UNSET
+        assert res == (self.modifiability == Modifiability.CONSTANT)
+        return res
 
 
 @dataclass
@@ -282,17 +302,23 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.modifiability == Modifiability.ALWAYS_CONSTANT:
+
+        if self.modifiability == Modifiability.RUNTIME_CONSTANT:
+            if self.location == DataLocation.CODE:
+                if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+                    raise ImmutableViolation("Immutable value cannot be written to", node)
+                # TODO: we probably want to remove this restriction.
+                if self.var_info._modification_count:  # type: ignore
+                    raise ImmutableViolation(
+                        "Immutable value cannot be modified after assignment", node
+                    )
+                self.var_info._modification_count += 1  # type: ignore
+            else:
+                raise ImmutableViolation("Environment variable cannot be written to", node)
+
+        if self.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
-        if self.modifiability == Modifiability.IMMUTABLE:
-            if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
-                raise ImmutableViolation("Immutable value cannot be written to", node)
-            # TODO: we probably want to remove this restriction.
-            if self.var_info._modification_count:  # type: ignore
-                raise ImmutableViolation(
-                    "Immutable value cannot be modified after assignment", node
-                )
-            self.var_info._modification_count += 1  # type: ignore
+
 
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)

@@ -199,10 +199,12 @@ class _ExprAnalyser:
             if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
-            if is_self_reference and s.modifiability >= Modifiability.IMMUTABLE:
-                _raise_invalid_reference(name, node)
+
             # general case. s is a VarInfo, e.g. self.foo
+            if is_self_reference and (s.is_constant or s.is_immutable):
+                _raise_invalid_reference(name, node)
             return [s.typ]
+
         except UnknownAttribute as e:
             if not is_self_reference:
                 raise e from None
