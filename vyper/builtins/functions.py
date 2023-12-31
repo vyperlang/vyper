@@ -743,9 +743,7 @@ class MethodID(FoldedFunctionT):
         if node.keywords:
             output_type = type_from_annotation(node.keywords[0].value)
             if output_type not in (BytesT(4), BYTES4_T):
-                raise ArgumentException(
-                    "output_type must be Bytes[4] or bytes4", node.keywords[0].value
-                )
+                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
         else:
             # default to `Bytes[4]`
             output_type = BytesT(4)
