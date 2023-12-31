@@ -224,6 +224,9 @@ class VarInfo:
         if self.location != position._location:
             if self.location == DataLocation.UNSET:
                 self.location = position._location
+            elif self.is_transient and position._location == DataLocation.STORAGE:
+                # use same allocator for storage and transient for now
+                pass
             else:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
