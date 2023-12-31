@@ -1,8 +1,8 @@
+import copy
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Optional
-import copy
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
