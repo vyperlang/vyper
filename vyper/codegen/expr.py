@@ -36,7 +36,6 @@ from vyper.exceptions import (
     VyperException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.types import (
     AddressT,
     BoolT,
