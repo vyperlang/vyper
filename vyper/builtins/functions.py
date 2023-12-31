@@ -740,16 +740,17 @@ class MethodID(FoldedFunctionT):
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
-        # If `output_type` is not given, default to `Bytes[4]`
-        output_typedef = TYPE_T(BytesT(4))
         if node.keywords:
-            return_type = type_from_annotation(node.keywords[0].value)
-            if return_type.compare_type(BYTES4_T):
-                output_typedef = TYPE_T(BYTES4_T)
-            elif not (isinstance(return_type, BytesT) and return_type.length == 4):
-                raise ArgumentException("output_type must be Bytes[4] or bytes4", node.keywords[0])
+            output_type = type_from_annotation(node.keywords[0].value)
+            if output_type not in (BytesT(4), BYTES4_T):
+                raise ArgumentException(
+                    "output_type must be Bytes[4] or bytes4", node.keywords[0].value
+                )
+        else:
+            # default to `Bytes[4]`
+            output_type = BytesT(4)
 
-        return {"output_type": output_typedef}
+        return {"output_type": TYPE_T(output_type)}
 
 
 class ECRecover(BuiltinFunctionT):
