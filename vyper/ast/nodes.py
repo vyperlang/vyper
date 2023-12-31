@@ -930,6 +930,10 @@ class Tuple(ExprNode):
 class NameConstant(Constant):
     __slots__ = ()
 
+    def validate(self):
+        if self.value is None:
+            raise InvalidLiteral("`None` is not a valid vyper value!", self)
+
 
 class Ellipsis(Constant):
     __slots__ = ()
