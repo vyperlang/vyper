@@ -319,6 +319,5 @@ class ExprInfo:
         if self.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to", node)
 
-
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)
