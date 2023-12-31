@@ -2,7 +2,7 @@ import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -705,7 +705,7 @@ MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 def foo() -> {return_type}[3]:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -717,7 +717,7 @@ MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 def foo() -> {return_type}:
     return MY_CONSTANT[0]
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -824,7 +824,7 @@ MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
 def foo() -> {return_type}[2][3]:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -838,4 +838,4 @@ MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
 def foo() -> {return_type}:
     return MY_CONSTANT[0][0]
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

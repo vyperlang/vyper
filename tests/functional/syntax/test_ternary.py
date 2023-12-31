@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.compiler import compile_code
+from vyper import compile_code
 from vyper.exceptions import InvalidType, TypeMismatch
 
 good_list = [
@@ -82,7 +82,7 @@ TEST: constant(uint256) = 1
 def foo() -> uint256:
     return 1 if TEST else 2
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (  # bad test type: variable
         """

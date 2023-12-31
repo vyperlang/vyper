@@ -1,13 +1,31 @@
 import pytest
 
-from vyper.exceptions import ArgumentException, InvalidType, StructureException
+from vyper import compile_code
+from vyper.exceptions import (
+    ArgumentException,
+    InvalidLiteral,
+    InvalidType,
+    OverflowException,
+    StructureException,
+    UndeclaredDefinition,
+)
+
+# CMC 2023-12-31 these tests could probably go in builtins/folding/
 
 fail_list = [
     (
         """
 @external
 def foo():
-    x: int128 = as_wei_value(5, szabo)
+    x: uint256 = as_wei_value(5, szabo)
+    """,
+        UndeclaredDefinition,
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(5, "szaboo")
     """,
         ArgumentException,
     ),
@@ -28,12 +46,50 @@ def foo():
     """,
         InvalidType,
     ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return as_wei_value(
+        115792089237316195423570985008687907853269984665640564039457584007913129639937,
+        'milliether'
+    )
+    """,
+        OverflowException,
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = as_wei_value(-1, "szabo")
+    """,
+        InvalidLiteral,
+    ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(5, szabo)
+    """,
+        UndeclaredDefinition,
+    ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(5, "szaboo")
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+FOO: constant(uint256) = as_wei_value(-1, "szabo")
+    """,
+        InvalidLiteral,
+    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_as_wei_fail(get_contract_with_gas_estimation, bad_code, exc, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(bad_code), exc)
+def test_as_wei_fail(bad_code, exc):
+    with pytest.raises(exc):
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -58,6 +114,14 @@ def foo():
 def foo() -> uint256:
     x: address = 0x1234567890123456789012345678901234567890
     return x.balance
+    """,
+    """
+y: constant(String[5]) = "szabo"
+x: constant(uint256) = as_wei_value(5, y)
+
+@external
+def foo():
+    a: uint256 = x
     """,
 ]
 

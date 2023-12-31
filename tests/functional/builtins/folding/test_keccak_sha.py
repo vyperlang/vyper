@@ -22,7 +22,7 @@ def foo(a: String[100]) -> bytes32:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}('''{value}''')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value
 
@@ -41,7 +41,7 @@ def foo(a: Bytes[100]) -> bytes32:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value
 
@@ -62,6 +62,6 @@ def foo(a: Bytes[100]) -> bytes32:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value

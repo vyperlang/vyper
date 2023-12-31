@@ -2,6 +2,7 @@ import itertools
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
@@ -315,6 +316,21 @@ def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
 
 
 def test_array_negative_accessor(get_contract_with_gas_estimation, assert_compile_failed):
+    array_constant_negative_accessor = """
+FOO: constant(int128) = -1
+@external
+def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
+    a: int128[4] = [0, 0, 0, 0]
+    a[0] = x
+    a[1] = y
+    a[2] = z
+    a[3] = w
+    return a[-4] * 1000 + a[-3] * 100 + a[-2] * 10 + a[FOO]
+    """
+
+    with pytest.raises(ArrayIndexException):
+        compile_code(array_constant_negative_accessor)
+
     array_negative_accessor = """
 @external
 def test_array(x: int128, y: int128, z: int128, w: int128) -> int128:
@@ -1728,7 +1744,7 @@ MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
 def foo() -> DynArray[{return_type}, 3]:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -1740,7 +1756,7 @@ MY_CONSTANT: constant(DynArray[{storage_type}, 3]) = [1, 2, 3]
 def foo() -> {return_type}:
     return MY_CONSTANT[0]
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))

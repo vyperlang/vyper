@@ -24,6 +24,6 @@ def foo(a: uint256, b: uint256, c: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({a}, {b}, {c})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
 
     assert contract.foo(a, b, c) == new_node.value

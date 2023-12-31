@@ -81,6 +81,7 @@ def parse_to_ast_with_settings(
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
+
     return settings, module
 
 

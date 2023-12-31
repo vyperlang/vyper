@@ -14,6 +14,8 @@ from vyper.typing import ContractPath, OutputFormats, StorageLayout
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    # requires annotated_vyper_module
+    "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,

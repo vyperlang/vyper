@@ -388,7 +388,7 @@ def test_int128_too_long(get_contract, tx_failed):
     contract_1 = """
 @external
 def foo() -> int256:
-    return (2**255)-1
+    return max_value(int256)
     """
 
     c = get_contract(contract_1)

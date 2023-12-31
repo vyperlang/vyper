@@ -16,9 +16,14 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
 )
-from vyper.semantics.analysis.base import FunctionVisibility, StateMutability, StorageSlot
+from vyper.semantics.analysis.base import (
+    FunctionVisibility,
+    Modifiability,
+    StateMutability,
+    StorageSlot,
+)
 from vyper.semantics.analysis.utils import (
-    check_kwargable,
+    check_modifiability,
     get_exact_type_from_node,
     validate_expected_type,
 )
@@ -128,7 +133,7 @@ class ContractFunctionT(VyperType):
     def __str__(self):
         ret_sig = "" if not self.return_type else f" -> {self.return_type}"
         args_sig = ",".join([str(t) for t in self.argument_types])
-        return f"def {self.name} {args_sig}{ret_sig}:"
+        return f"def {self.name}({args_sig}){ret_sig}:"
 
     # override parent implementation. function type equality does not
     # make too much sense.
@@ -696,7 +701,7 @@ def _parse_args(
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
         else:
             value = funcdef.args.defaults[i - n_positional_args]
-            if not check_kwargable(value):
+            if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             validate_expected_type(value, type_)
             keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))

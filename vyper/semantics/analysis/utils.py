@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -98,12 +98,9 @@ class _ExprAnalyser:
             # kludge! for validate_modification in local analysis of Assign
             types = [self.get_expr_info(n) for n in node.elements]
             location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            is_constant = any((getattr(i, "is_constant", False) for i in types))
-            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
+            modifiability = sorted((i.modifiability for i in types), key=lambda k: k.value)[-1]
 
-            return ExprInfo(
-                t, location=location, is_constant=is_constant, is_immutable=is_immutable
-            )
+            return ExprInfo(t, location=location, modifiability=modifiability)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
@@ -137,8 +134,7 @@ class _ExprAnalyser:
     def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
         Find all possible types for a given node.
-        If the node's metadata contains type information propagated from constant folding,
-        then that type is returned.
+        If the node's metadata contains type information, then that type is returned.
 
         Arguments
         ---------
@@ -203,10 +199,12 @@ class _ExprAnalyser:
             if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
+
+            # general case. s is a VarInfo, e.g. self.foo
             if is_self_reference and (s.is_constant or s.is_immutable):
                 _raise_invalid_reference(name, node)
-            # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
+
         except UnknownAttribute as e:
             if not is_self_reference:
                 raise e from None
@@ -282,6 +280,8 @@ class _ExprAnalyser:
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
         return_value = var.fetch_call_return(node)
         if return_value:
+            if isinstance(return_value, list):
+                return return_value
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
 
@@ -378,7 +378,7 @@ class _ExprAnalyser:
 
     def types_from_Subscript(self, node):
         # index access, e.g. `foo[1]`
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             types_list = self.get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:
@@ -625,54 +625,33 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode) -> bool:
+def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) -> bool:
     """
-    Check if the given node can be used as a default arg
+    Check if the given node is not more modifiable than the given modifiability.
     """
-    if _check_literal(node):
+    if node.is_literal_value or node.has_folded_value:
         return True
+
+    if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
+        return all(check_modifiability(i, modifiability) for i in (node.left, node.right))
+
+    if isinstance(node, vy_ast.BoolOp):
+        return all(check_modifiability(i, modifiability) for i in node.values)
+
+    if isinstance(node, vy_ast.UnaryOp):
+        return check_modifiability(node.operand, modifiability)
+
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_kwargable(item) for item in node.elements)
+        return all(check_modifiability(item, modifiability) for item in node.elements)
+
     if isinstance(node, vy_ast.Call):
         args = node.args
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_kwargable(v) for v in args[0].values)
+            return all(check_modifiability(v, modifiability) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
+        call_type_modifiability = getattr(call_type, "_modifiability", Modifiability.MODIFIABLE)
+        return call_type_modifiability >= modifiability
 
     value_type = get_expr_info(node)
-    # is_constant here actually means not_assignable, and is to be renamed
-    return value_type.is_constant
-
-
-def _check_literal(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal value.
-    """
-    if isinstance(node, vy_ast.Constant):
-        return True
-    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(_check_literal(item) for item in node.elements)
-    return False
-
-
-def check_constant(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal or constant value.
-    """
-    if _check_literal(node):
-        return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_constant(item) for item in node.elements)
-    if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_constant(v) for v in args[0].values)
-
-        call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
-
-    return False
+    return value_type.modifiability >= modifiability

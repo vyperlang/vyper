@@ -15,6 +15,6 @@ def foo() -> {typ_name}:
 
     vyper_ast = vy_ast.parse_to_ast(f"epsilon({typ_name})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE["epsilon"].evaluate(old_node)
+    new_node = vy_fn.DISPATCH_TABLE["epsilon"]._try_fold(old_node)
 
     assert contract.foo() == new_node.value

@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -20,12 +21,13 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.local import validate_functions
+from vyper.semantics.analysis.local import ExprVisitor, validate_functions
+from vyper.semantics.analysis.pre_typecheck import pre_typecheck
 from vyper.semantics.analysis.utils import (
-    check_constant,
+    check_modifiability,
     get_exact_type_from_node,
     validate_expected_type,
 )
@@ -51,6 +53,10 @@ def validate_semantics_r(
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
+    validate_literal_nodes(module_ast)
+
+    pre_typecheck(module_ast)
+
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
 
@@ -254,10 +260,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if node.is_immutable
             else DataLocation.UNSET
             if node.is_constant
-            # XXX: needed if we want separate transient allocator
-            # else DataLocation.TRANSIENT
-            # if node.is_transient
+            else DataLocation.TRANSIENT
+            if node.is_transient
             else DataLocation.STORAGE
+        )
+
+        modifiability = (
+            Modifiability.RUNTIME_CONSTANT
+            if node.is_immutable
+            else Modifiability.CONSTANT
+            if node.is_constant
+            else Modifiability.MODIFIABLE
         )
 
         type_ = type_from_annotation(node.annotation, data_loc)
@@ -269,10 +282,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             type_,
             decl_node=node,
             location=data_loc,
-            is_constant=node.is_constant,
+            modifiability=modifiability,
             is_public=node.is_public,
-            is_immutable=node.is_immutable,
-            is_transient=node.is_transient,
         )
         node.target._metadata["varinfo"] = var_info  # TODO maybe put this in the global namespace
         node._metadata["type"] = type_
@@ -302,9 +313,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.namespace[name] = var_info
 
         if node.is_constant:
-            if not node.value:
-                raise VariableDeclarationException("Constant must be declared with a value", node)
-            if not check_constant(node.value):
+            assert node.value is not None  # checked in VariableDecl.validate()
+
+            ExprVisitor().visit(node.value, type_)
+
+            if not check_modifiability(node.value, Modifiability.CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             validate_expected_type(node.value, type_)
@@ -312,11 +325,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             return _finalize()
 
-        if node.value:
-            var_type = "Immutable" if node.is_immutable else "Storage"
-            raise VariableDeclarationException(
-                f"{var_type} variables cannot have an initial value", node.value
-            )
+        assert node.value is None  # checked in VariableDecl.validate()
 
         if node.is_immutable:
             _validate_self_namespace()
@@ -482,9 +491,6 @@ def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
         module_path=str(file.path),
         resolved_path=str(file.resolved_path),
     )
-    vy_ast.validation.validate_literal_nodes(ret)
-    vy_ast.folding.fold(ret)
-
     return ret
 
 
