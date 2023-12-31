@@ -1341,15 +1341,17 @@ class Subscript(ExprNode):
 
         if not isinstance(value, List):
             raise UnfoldableNode("Subscript object is not a literal list")
+
         elements = value.elements
         if len(set([type(i) for i in elements])) > 1:
             raise UnfoldableNode("List contains multiple node types")
 
         if not isinstance(slice_, Int):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            raise UnfoldableNode("invalid index type", slice_)
+
         idx = slice_.value
         if idx < 0 or idx >= len(elements):
-            raise UnfoldableNode("Invalid index value")
+            raise UnfoldableNode("invalid index value")
 
         return elements[idx]
 
