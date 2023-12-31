@@ -107,7 +107,7 @@ class Modifiability(enum.IntEnum):
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
 
-    # could add more fine-grained here as needed, like
+    # could potentially add more fine-grained here as needed, like
     # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
 
     # things that are constant within the current message call, including
@@ -207,8 +207,8 @@ class VarInfo:
 
     Object Attributes
     -----------------
-    is_constant : bool, optional
-        If `True`, this is a variable defined with the `constant()` modifier
+    location: DataLocation of this variable
+    modifiability: Modifiability of this variable
     """
 
     typ: VyperType

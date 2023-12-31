@@ -54,7 +54,7 @@ class CompilerData:
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
     annotated_vyper_module: vy_ast.Module
-        Annotated/analysed Vyper AST
+        Annotated+analysed Vyper AST
     global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode

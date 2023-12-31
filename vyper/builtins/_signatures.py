@@ -133,9 +133,6 @@ class BuiltinFunctionT(VyperType):
 
         return self._return_type
 
-    def fold(self, node: vy_ast.Call) -> vy_ast.VyperNode:
-        raise UnfoldableNode(f"{type(self)} cannot be folded")
-
     def infer_arg_types(self, node: vy_ast.Call, expected_return_typ=None) -> list[VyperType]:
         self._validate_arg_types(node)
         ret = [expected for (_, expected) in self._inputs]

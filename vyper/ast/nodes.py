@@ -389,8 +389,8 @@ class VyperNode:
 
     def get_folded_value(self) -> "VyperNode":
         """
-        Attempt to get the folded value, bubbling up UnfoldableNode if the node
-        is not foldable.
+        Attempt to get the folded value, returning self if the node is not
+        foldable
 
         The returned value is cached on `_metadata["folded_value"]`.
 
