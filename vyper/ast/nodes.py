@@ -1014,8 +1014,8 @@ class BinOp(ExprNode):
         """
         left, right = [i.get_folded_value() for i in (self.left, self.right)]
         if type(left) is not type(right):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation", self)
-        if not isinstance(left, (Num)):
+            raise UnfoldableNode("invalid operation", self)
+        if not isinstance(left, Num):
             raise UnfoldableNode("not a number!", self.left)
 
         # this validation is performed to prevent the compiler from hanging
