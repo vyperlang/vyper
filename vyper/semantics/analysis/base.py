@@ -104,23 +104,25 @@ class StateMutability(_StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-# base class for things that are the "result" of analysis
-class AnalysisResult:
-    pass
+# classify the constancy of an expression
+# CMC 2023-12-31 note that we now have three ways of classifying mutability in
+# the codebase: StateMutability (for functions), Modifiability (for expressions
+# and variables) and Constancy (in codegen). context.Constancy can/should
+# probably be refactored away though as those kinds of checks should be done
+# during analysis.
+class Modifiability(enum.IntEnum):
+    # is writeable/can result in arbitrary state or memory changes
+    MODIFIABLE = enum.auto()
 
+    # could potentially add more fine-grained here as needed, like
+    # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
 
-@dataclass
-class ImportInfo(AnalysisResult):
-    typ: Union["ModuleT", "InterfaceT"]
-    alias: str  # the name in the namespace
-    qualified_module_name: str  # for error messages
-    # source_id: int
-    input_bundle: InputBundle
-    node: vy_ast.VyperNode
+    # things that are constant within the current message call, including
+    # block.*, msg.*, tx.* and immutables
+    RUNTIME_CONSTANT = enum.auto()
 
-    def __eq__(self, other):
-        return self is other
-
+    # compile-time / always constant
+    CONSTANT = enum.auto()
 
 @dataclass
 class DataPosition:
@@ -143,25 +145,40 @@ class CodeOffset(DataPosition):
         return DataLocation.IMMUTABLES
 
 
+# base class for things that are the "result" of analysis
+class AnalysisResult:
+    pass
+
+
+@dataclass
+class ImportInfo(AnalysisResult):
+    typ: Union["ModuleT", "InterfaceT"]
+    alias: str  # the name in the namespace
+    qualified_module_name: str  # for error messages
+    # source_id: int
+    input_bundle: InputBundle
+    node: vy_ast.VyperNode
+
+    def __eq__(self, other):
+        return self is other
+
+
 @dataclass
 class VarInfo:
     """
     VarInfo are objects that represent the type of a variable,
-    plus associated metadata like location and constancy attributes
+    plus associated metadata like location and modifiability attributes
 
     Object Attributes
     -----------------
-    is_constant : bool, optional
-        If `True`, this is a variable defined with the `constant()` modifier
+    location: DataLocation of this variable
+    modifiability: Modifiability of this variable
     """
 
     typ: VyperType
     _location: DataLocation = DataLocation.UNSET
-    is_constant: bool = False
+    modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    is_immutable: bool = False
-    is_transient: bool = False
-    is_local_var: bool = False
     decl_node: Optional[vy_ast.VyperNode] = None
 
     def __hash__(self):
@@ -181,6 +198,21 @@ class VarInfo:
         if self.location != position.location:
             raise CompilerPanic(f"Incompatible locations: {self.location}, {position.location}")
         self._position = position
+
+    def _DEAD_set_position(self, position: DataPosition) -> None:
+        if hasattr(self, "position"):
+            raise CompilerPanic("Position was already assigned")
+        if self.location != position._location:
+            if self.location == DataLocation.UNSET:
+                self.location = position._location
+            elif self.is_transient and position._location == DataLocation.STORAGE:
+                # CMC 2023-12-31 - use same allocator for storage and transient
+                # for now, this should be refactored soon.
+                pass
+            else:
+                raise CompilerPanic("Incompatible locations")
+        self.position = position
+
 
     def set_storage_position(self, position: DataPosition):
         assert self.location == DataLocation.STORAGE
@@ -249,6 +281,20 @@ class ModuleVarInfo(VarInfo):
     def get_size_in(self, location):
         return self.typ.size_in_location(location)
 
+    @property
+    def is_transient(self):
+        return self.location == DataLocation.TRANSIENT
+
+    @property
+    def is_immutable(self):
+        return self.location == DataLocation.IMMUTABLES
+
+    @property
+    def is_constant(self):
+        res = self.location == DataLocation.UNSET
+        assert res == (self.modifiability == Modifiability.CONSTANT)
+        return res
+
 
 @dataclass
 class ExprInfo:
@@ -258,12 +304,11 @@ class ExprInfo:
 
     typ: VyperType
     location: DataLocation = DataLocation.UNSET
-    is_constant: bool = False
-    is_immutable: bool = False
     _var_info: Optional[VarInfo] = None
+    modifiability: Modifiability = Modifiability.MODIFIABLE
 
     def __post_init__(self):
-        should_match = ("typ", "location", "is_constant", "is_immutable")
+        should_match = ("typ", "location", "modifiability")
         if self._var_info is not None:
             for attr in should_match:
                 if getattr(self._var_info, attr) != getattr(self, attr):
@@ -273,9 +318,8 @@ class ExprInfo:
     def from_varinfo(cls, var_info: VarInfo) -> "ExprInfo":
         return cls(
             var_info.typ,
+            modifiability=var_info.modifiability,
             location=var_info.location,
-            is_constant=var_info.is_constant,
-            is_immutable=var_info.is_immutable,
             _var_info=var_info,
         )
 
@@ -283,10 +327,11 @@ class ExprInfo:
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "is_constant", "is_immutable")
+        to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
         return self.__class__(typ=typ, **fields)
 
+    # TODO: move to analysis/local.py
     def validate_modification(self, node: vy_ast.VyperNode, mutability: StateMutability) -> None:
         """
         Validate an attempt to modify this value.
@@ -307,28 +352,35 @@ class ExprInfo:
 
         if self.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata", node)
-        if self.is_constant:
-            raise ImmutableViolation("Constant value cannot be written to", node)
 
         func_node = node.get_ancestor(vy_ast.FunctionDef)
+
+        assert self._var_info is not None  # mypy hint
+        assert isinstance(func_node, vy_ast.FunctionDef)  # mypy hint
+
         func_t = func_node._metadata["func_type"]
 
-        assert isinstance(func_node, vy_ast.FunctionDef)  # mypy hint
-        assert self._var_info is not None  # mypy hint
+        if self.modifiability == Modifiability.RUNTIME_CONSTANT:
+            # special handling for immutable variables in the ctor
+            if self.location == DataLocation.IMMUTABLES:
+                if func_node.name != "__init__":
+                    raise ImmutableViolation("Immutable value cannot be written to", node)
 
-        if self.is_immutable:
-            if func_node.name != "__init__":
-                raise ImmutableViolation("Immutable value cannot be written to", node)
+                # we may consider removing this restriction.
+                if len(self._var_info._writes) > 0:
+                    raise ImmutableViolation(
+                        "Immutable value cannot be modified after assignment", node
+                    )
+            else:
+                raise ImmutableViolation("Environment variable cannot be written to", node)
 
-            if len(self._var_info._writes) > 0:
-                raise ImmutableViolation(
-                    "Immutable value cannot be modified after assignment", node
-                )
+        if self.modifiability == Modifiability.CONSTANT:
+            raise ImmutableViolation("Constant value cannot be written to", node)
+
+        if isinstance(node, vy_ast.AugAssign):
+            self.typ.validate_numeric_op(node)
 
         # tag it in the metadata
         node._metadata["variable_write"] = self._var_info
         self._var_info._writes.append(node)
         func_t._variable_writes.append(node)
-
-        if isinstance(node, vy_ast.AugAssign):
-            self.typ.validate_numeric_op(node)

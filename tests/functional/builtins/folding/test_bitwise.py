@@ -13,6 +13,9 @@ st_uint256 = st.integers(min_value=0, max_value=2**256 - 1)
 st_sint256 = st.integers(min_value=-(2**255), max_value=2**255 - 1)
 
 
+# TODO: move this file to tests/unit/ast/nodes/test_fold_bitwise.py
+
+
 @pytest.mark.fuzzing
 @settings(max_examples=50)
 @pytest.mark.parametrize("op", ["&", "|", "^"])
@@ -28,7 +31,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(a, b) == new_node.value
 
@@ -49,7 +52,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     old_node = vyper_ast.body[0].value
 
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.get_folded_value()
         # force bounds check, no-op because validate_numeric_bounds
         # already does this, but leave in for hygiene (in case
         # more types are added).
@@ -79,7 +82,7 @@ def foo(a: int256, b: uint256) -> int256:
     old_node = vyper_ast.body[0].value
 
     try:
-        new_node = old_node.evaluate()
+        new_node = old_node.get_folded_value()
         validate_expected_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
@@ -104,6 +107,6 @@ def foo(a: uint256) -> uint256:
 
     vyper_ast = vy_ast.parse_to_ast(f"~{value}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value

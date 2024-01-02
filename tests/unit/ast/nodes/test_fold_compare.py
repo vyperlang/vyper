@@ -21,7 +21,7 @@ def foo(a: int128, b: int128) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(left, right) == new_node.value
 
@@ -41,7 +41,7 @@ def foo(a: uint128, b: uint128) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(left, right) == new_node.value
 
@@ -65,7 +65,7 @@ def bar(a: int128) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} in {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     # check runtime == fully folded
     assert contract.foo(left, right) == new_node.value
@@ -94,7 +94,7 @@ def bar(a: int128) -> bool:
 
     vyper_ast = vy_ast.parse_to_ast(f"{left} not in {right}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     # check runtime == fully folded
     assert contract.foo(left, right) == new_node.value
@@ -109,4 +109,4 @@ def test_compare_type_mismatch(op):
     vyper_ast = vy_ast.parse_to_ast(f"1 {op} 1.0")
     old_node = vyper_ast.body[0].value
     with pytest.raises(UnfoldableNode):
-        old_node.evaluate()
+        old_node.get_folded_value()

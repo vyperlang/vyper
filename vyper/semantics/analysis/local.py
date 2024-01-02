@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -187,16 +187,18 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["func_type"]
-        self.expr_visitor = _ExprVisitor(self.func)
+        self.expr_visitor = ExprVisitor(self.func)
 
     def analyze(self):
         # allow internal function params to be mutable
-        location, is_immutable = (
-            (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
-        )
+        if self.func.is_internal:
+            location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)
+        else:
+            location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
+
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, _location=location, is_immutable=is_immutable
+                arg.typ, _location=location, modifiability=modifiability
             )
 
         for node in self.fn_node.body:
@@ -359,7 +361,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
         else:
             # iteration over a variable or literal list
-            if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
+            iter_val = node.iter.get_folded_value() if node.iter.has_folded_value else node.iter
+            if isinstance(iter_val, vy_ast.List) and len(iter_val.elements) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
             type_list = [
@@ -422,32 +425,35 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             # type check the for loop body using each possible type for iterator value
 
             with self.namespace.enter_scope():
-                self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
+                self.namespace[iter_name] = VarInfo(
+                    possible_target_type, modifiability=Modifiability.RUNTIME_CONSTANT
+                )
 
                 try:
                     with NodeMetadata.enter_typechecker_speculation():
                         for stmt in node.body:
                             self.visit(stmt)
+
+                        self.expr_visitor.visit(node.target, possible_target_type)
+
+                        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+                            iter_type = get_exact_type_from_node(node.iter)
+                            # note CMC 2023-10-23: slightly redundant with how type_list is computed
+                            validate_expected_type(node.target, iter_type.value_type)
+                            self.expr_visitor.visit(node.iter, iter_type)
+                        if isinstance(node.iter, vy_ast.List):
+                            len_ = len(node.iter.elements)
+                            self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
+                        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+                            for a in node.iter.args:
+                                self.expr_visitor.visit(a, possible_target_type)
+                            for a in node.iter.keywords:
+                                if a.arg == "bound":
+                                    self.expr_visitor.visit(a.value, possible_target_type)
+
                 except (TypeMismatch, InvalidOperation) as exc:
                     for_loop_exceptions.append(exc)
                 else:
-                    self.expr_visitor.visit(node.target, possible_target_type)
-
-                    if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-                        iter_type = get_exact_type_from_node(node.iter)
-                        # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                        validate_expected_type(node.target, iter_type.value_type)
-                        self.expr_visitor.visit(node.iter, iter_type)
-                    if isinstance(node.iter, vy_ast.List):
-                        len_ = len(node.iter.elements)
-                        self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
-                    if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                        for a in node.iter.args:
-                            self.expr_visitor.visit(a, possible_target_type)
-                        for a in node.iter.keywords:
-                            if a.arg == "bound":
-                                self.expr_visitor.visit(a.value, possible_target_type)
-
                     # success -- do not enter error handling section
                     return
 
@@ -524,10 +530,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
-class _ExprVisitor(VyperNodeVisitorBase):
+class ExprVisitor(VyperNodeVisitorBase):
     scope_name = "function"
 
-    def __init__(self, fn_node: ContractFunctionT):
+    def __init__(self, fn_node: Optional[ContractFunctionT] = None):
         self.func = fn_node
 
     def visit(self, node, typ):
@@ -551,6 +557,12 @@ class _ExprVisitor(VyperNodeVisitorBase):
             var_info._reads.append(node)
             self.func._variable_reads.append(node)
 
+        # validate and annotate folded value
+        if node.has_folded_value:
+            folded_node = node.get_folded_value()
+            validate_expected_type(folded_node, typ)
+            folded_node._metadata["type"] = typ
+
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
 
@@ -559,10 +571,10 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # if self.func.mutability < expr_info.mutability:
         #    raise ...
 
-        if self.func.mutability != StateMutability.PAYABLE:
+        if self.func and self.func.mutability != StateMutability.PAYABLE:
             _validate_msg_value_access(node)
 
-        if self.func.mutability == StateMutability.PURE:
+        if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
@@ -597,7 +609,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
         if isinstance(call_type, ContractFunctionT):
             # function calls
-            if call_type.is_internal:
+            if self.func and call_type.is_internal:
                 self.func.called_functions.add(call_type)
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
@@ -623,7 +635,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node)
+            arg_types = call_type.infer_arg_types(node, expected_return_typ=typ)
             # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
@@ -688,7 +700,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func.mutability == StateMutability.PURE:
+        if self.func and self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
 
         if not isinstance(typ, TYPE_T):
@@ -699,7 +711,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             possible_base_types = get_possible_types_from_node(node.value)
 
             for possible_type in possible_base_types:
@@ -755,6 +767,7 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
+    start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
 
     all_args = (start, end, *kwargs.values())
     for arg1 in all_args:
@@ -766,6 +779,8 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
+        if bound.has_folded_value:
+            bound = bound.get_folded_value()
         if not isinstance(bound, vy_ast.Num):
             raise StateAccessViolation("Bound must be a literal", bound)
         if bound.value <= 0:

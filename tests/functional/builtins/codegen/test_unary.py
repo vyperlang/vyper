@@ -69,16 +69,11 @@ def bar() -> decimal:
 
 def test_negation_int128(get_contract):
     code = """
-a: constant(int128) = -2**127
-
-@external
-def foo() -> int128:
-    return -2**127
+a: constant(int128) = min_value(int128)
 
 @external
 def bar() -> int128:
     return -(a+1)
     """
     c = get_contract(code)
-    assert c.foo() == -(2**127)
     assert c.bar() == 2**127 - 1

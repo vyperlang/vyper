@@ -3,7 +3,12 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StateAccessViolation, StructureException
+from vyper.exceptions import (
+    ArgumentException,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -16,6 +21,17 @@ def foo():
         StructureException,
         "Invalid syntax for loop iterator",
         "a[1]",
+    ),
+    (
+        """
+@external
+def bar():
+    for i in range(1,2,bound=0):
+        pass
+    """,
+        StructureException,
+        "Bound must be at least 1",
+        "0",
     ),
     (
         """
@@ -180,6 +196,44 @@ def foo(x: int128):
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
         "x",
+    ),
+    (
+        """
+@external
+def bar(x: uint256):
+    for i in range(3, x):
+        pass
+    """,
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
+        "x",
+    ),
+    (
+        """
+FOO: constant(int128) = 3
+BAR: constant(uint256) = 7
+
+@external
+def foo():
+    for i in range(FOO, BAR):
+        pass
+    """,
+        TypeMismatch,
+        "Iterator values are of different types",
+        "range(FOO, BAR)",
+    ),
+    (
+        """
+FOO: constant(int128) = -1
+
+@external
+def foo():
+    for i in range(10, bound=FOO):
+        pass
+        """,
+        StructureException,
+        "Bound must be at least 1",
+        "-1",
     ),
 ]
 

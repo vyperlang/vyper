@@ -41,8 +41,8 @@ def test_basic_ast():
     code = """
 a: int128
     """
-    dict_out = compiler.compile_code(code, output_formats=["ast_dict"], source_id=0)
-    assert dict_out["ast_dict"]["ast"]["body"][0] == {
+    dict_out = compiler.compile_code(code, output_formats=["annotated_ast_dict"], source_id=0)
+    assert dict_out["annotated_ast_dict"]["ast"]["body"][0] == {
         "annotation": {
             "ast_type": "Name",
             "col_offset": 3,
@@ -69,12 +69,14 @@ a: int128
             "lineno": 2,
             "node_id": 2,
             "src": "1:1:0",
+            "type": "int128",
         },
         "value": None,
         "is_constant": False,
         "is_immutable": False,
         "is_public": False,
         "is_transient": False,
+        "type": "int128",
     }
 
 

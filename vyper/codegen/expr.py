@@ -70,9 +70,6 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
-        self.expr = node
-        self.context = context
-
         if isinstance(node, IRnode):
             # this is a kludge for parse_AugAssign to pass in IRnodes
             # directly.
@@ -80,7 +77,18 @@ class Expr:
             self.ir_node = node
             return
 
-        with tag_exceptions(node, fallback_exception_type=CodegenPanic):
+        assert isinstance(node, vy_ast.VyperNode)
+
+        # keep the original ast node for exception-handling purposes
+        og_node = node
+
+        if node.has_folded_value:
+            node = node.get_folded_value()
+
+        self.expr = node
+        self.context = context
+
+        with tag_exceptions(og_node, fallback_exception_type=CodegenPanic):
             fn_name = f"parse_{type(node).__name__}"
             fn = getattr(self, fn_name)
             self.ir_node = fn()
@@ -184,6 +192,14 @@ class Expr:
             return ret
 
         elif (varinfo := self.expr._metadata.get("variable_access")) is not None:
+            varinfo = self.context.globals[self.expr.id]
+
+            if varinfo.is_constant:
+                # non-struct constants should have already gotten propagated
+                # during constant folding
+                assert isinstance(varinfo.typ, StructT)
+                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
             assert varinfo.is_immutable, "not an immutable!"
 
             if self.context.is_ctor_context:
