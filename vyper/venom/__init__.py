@@ -17,8 +17,8 @@ from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
-DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
+DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 def generate_assembly_experimental(
     runtime_code: IRFunction,
