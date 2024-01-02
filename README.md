@@ -54,6 +54,23 @@ make dev-init
 python setup.py test
 ```
 
+## Developing (working on the compiler)
+
+A useful script to have in your PATH is something like the following:
+```bash
+$ cat ~/.local/bin/vyc
+#!/usr/bin/env bash
+PYTHONPATH=. python vyper/cli/vyper_compile.py "$@"
+```
+
+To run a python performance profile (to find compiler perf hotspots):
+```bash
+PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
+```
+
+To get a call graph from a python profile, https://stackoverflow.com/a/23164271/ is helpful.
+
+
 # Contributing
 * See Issues tab, and feel free to submit your own issues
 * Add PRs if you discover a solution to an existing issue

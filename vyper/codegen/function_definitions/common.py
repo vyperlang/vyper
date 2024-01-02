@@ -6,13 +6,13 @@ import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
 from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
-from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import MemoryPositions, calc_mem_gas, mkalphanum
+from vyper.semantics.types.module import ModuleT
+from vyper.utils import MemoryPositions, calc_mem_gas
 
 
 @dataclass
@@ -43,7 +43,14 @@ class _FuncIRInfo:
     @cached_property
     def ir_identifier(self) -> str:
         argz = ",".join([str(argtyp) for argtyp in self.func_t.argument_types])
-        return mkalphanum(f"{self.visibility} {self.func_t.name} ({argz})")
+
+        name = self.func_t.name
+        function_id = self.func_t._function_id
+        assert function_id is not None
+
+        # include module id in the ir identifier to disambiguate functions
+        # with the same name but which come from different modules
+        return f"{self.visibility} {function_id} {name}({argz})"
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         if self.frame_info is not None:
@@ -93,7 +100,7 @@ class InternalFuncIR(FuncIR):
 
 # TODO: should split this into external and internal ir generation?
 def generate_ir_for_function(
-    code: vy_ast.FunctionDef, global_ctx: GlobalContext, is_ctor_context: bool = False
+    code: vy_ast.FunctionDef, module_ctx: ModuleT, is_ctor_context: bool = False
 ) -> FuncIR:
     """
     Parse a function and produce IR code for the function, includes:
@@ -102,7 +109,7 @@ def generate_ir_for_function(
         - Clamping and copying of arguments
         - Function body
     """
-    func_t = code._metadata["type"]
+    func_t = code._metadata["func_type"]
 
     # generate _FuncIRInfo
     func_t._ir_info = _FuncIRInfo(func_t)
@@ -121,7 +128,7 @@ def generate_ir_for_function(
 
     context = Context(
         vars_=None,
-        global_ctx=global_ctx,
+        module_ctx=module_ctx,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,
@@ -157,5 +164,9 @@ def generate_ir_for_function(
         # (note: internal functions do not need to adjust gas estimate since
         mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
         ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
+        ret.common_ir.passthrough_metadata["func_t"] = func_t  # type: ignore
+        ret.common_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
+    else:
+        ret.func_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
 
     return ret

@@ -23,9 +23,16 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeCheckFailure,
+    tag_exceptions,
+)
 from vyper.semantics.analysis.utils import is_terminus_node
 from vyper.semantics.types import DArrayT, MemberFunctionT
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
 
@@ -33,15 +40,14 @@ class Stmt:
     def __init__(self, node: vy_ast.VyperNode, context: Context) -> None:
         self.stmt = node
         self.context = context
-        fn = getattr(self, f"parse_{type(node).__name__}", None)
-        if fn is None:
-            raise TypeCheckFailure(f"Invalid statement node: {type(node).__name__}")
 
-        with context.internal_memory_scope():
-            self.ir_node = fn()
+        fn_name = f"parse_{type(node).__name__}"
+        with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
+            fn = getattr(self, fn_name)
+            with context.internal_memory_scope():
+                self.ir_node = fn()
 
-        if self.ir_node is None:
-            raise TypeCheckFailure("Statement node did not produce IR")
+            assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
         self.ir_node.source_pos = getpos(self.stmt)
@@ -117,44 +123,32 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def parse_Call(self):
-        # TODO use expr.func.type.is_internal once type annotations
-        # are consistently available.
-        is_self_function = (
-            (isinstance(self.stmt.func, vy_ast.Attribute))
-            and isinstance(self.stmt.func.value, vy_ast.Name)
-            and self.stmt.func.value.id == "self"
-        )
-
         if isinstance(self.stmt.func, vy_ast.Name):
             funcname = self.stmt.func.id
             return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
 
-        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
-            "append",
-            "pop",
-        ):
-            func_type = self.stmt.func._metadata["type"]
-            if isinstance(func_type, MemberFunctionT):
-                darray = Expr(self.stmt.func.value, self.context).ir_node
-                args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-                if self.stmt.func.attr == "append":
-                    # sanity checks
-                    assert len(args) == 1
-                    arg = args[0]
-                    assert isinstance(darray.typ, DArrayT)
-                    check_assign(
-                        dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                    )
+        func_type = self.stmt.func._metadata["type"]
 
-                    return append_dyn_array(darray, arg)
-                else:
-                    assert len(args) == 0
-                    return pop_dyn_array(darray, return_popped_item=False)
+        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
+            darray = Expr(self.stmt.func.value, self.context).ir_node
+            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+            if self.stmt.func.attr == "append":
+                (arg,) = args
+                assert isinstance(darray.typ, DArrayT)
+                check_assign(
+                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                )
 
-        if is_self_function:
-            return self_call.ir_for_self_call(self.stmt, self.context)
-        else:
-            return external_call.ir_for_external_call(self.stmt, self.context)
+                return append_dyn_array(darray, arg)
+            else:
+                assert len(args) == 0
+                return pop_dyn_array(darray, return_popped_item=False)
+
+        if isinstance(func_type, ContractFunctionT):
+            if func_type.is_internal:
+                return self_call.ir_for_self_call(self.stmt, self.context)
+            else:
+                return external_call.ir_for_external_call(self.stmt, self.context)
 
     def _assert_reason(self, test_expr, msg):
         # from parse_Raise: None passed as the assert condition
@@ -229,15 +223,6 @@ class Stmt:
         else:
             return IRnode.from_list(["revert", 0, 0], error_msg="user raise")
 
-    def _check_valid_range_constant(self, arg_ast_node):
-        with self.context.range_scope():
-            arg_expr = Expr.parse_value_expr(arg_ast_node, self.context)
-        return arg_expr
-
-    def _get_range_const_value(self, arg_ast_node):
-        arg_expr = self._check_valid_range_constant(arg_ast_node)
-        return arg_expr.value
-
     def parse_For(self):
         with self.context.block_scope():
             if self.stmt.get("iter.func.id") == "range":
@@ -253,41 +238,37 @@ class Stmt:
             iter_typ = INT256_T
 
         # Get arg0
-        arg0 = self.stmt.iter.args[0]
-        num_of_args = len(self.stmt.iter.args)
+        for_iter: vy_ast.Call = self.stmt.iter
+        args_len = len(for_iter.args)
+        if args_len == 1:
+            arg0, arg1 = (IRnode.from_list(0, typ=iter_typ), for_iter.args[0])
+        elif args_len == 2:
+            arg0, arg1 = for_iter.args
+        else:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
-        kwargs = {
-            s.arg: Expr.parse_value_expr(s.value, self.context)
-            for s in self.stmt.iter.keywords or []
-        }
-
-        # Type 1 for, e.g. for i in range(10): ...
-        if num_of_args == 1:
-            n = Expr.parse_value_expr(arg0, self.context)
-            start = IRnode.from_list(0, typ=iter_typ)
-            rounds = n
-            rounds_bound = kwargs.get("bound", rounds)
-
-        # Type 2 for, e.g. for i in range(100, 110): ...
-        elif self._check_valid_range_constant(self.stmt.iter.args[1]).is_literal:
-            arg0_val = self._get_range_const_value(arg0)
-            arg1_val = self._get_range_const_value(self.stmt.iter.args[1])
-            start = IRnode.from_list(arg0_val, typ=iter_typ)
-            rounds = IRnode.from_list(arg1_val - arg0_val, typ=iter_typ)
-            rounds_bound = rounds
-
-        # Type 3 for, e.g. for i in range(x, x + 10): ...
-        else:
-            arg1 = self.stmt.iter.args[1]
-            rounds = self._get_range_const_value(arg1.right)
+        with self.context.range_scope():
             start = Expr.parse_value_expr(arg0, self.context)
-            _, hi = start.typ.int_bounds
-            start = clamp("le", start, hi + 1 - rounds)
+            end = Expr.parse_value_expr(arg1, self.context)
+            kwargs = {
+                s.arg: Expr.parse_value_expr(s.value, self.context) for s in for_iter.keywords
+            }
+
+        if "bound" in kwargs:
+            with end.cache_when_complex("end") as (b1, end):
+                # note: the check for rounds<=rounds_bound happens in asm
+                # generation for `repeat`.
+                clamped_start = clamp("le", start, end)
+                rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
+            rounds_bound = kwargs.pop("bound").int_value()
+        else:
+            rounds = end.int_value() - start.int_value()
             rounds_bound = rounds
 
-        bound = rounds_bound if isinstance(rounds_bound, int) else rounds_bound.value
-        if bound < 1:
-            return
+        assert len(kwargs) == 0  # sanity check stray keywords
+
+        if rounds_bound < 1:  # pragma: nocover
+            raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
         varname = self.stmt.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
@@ -364,7 +345,7 @@ class Stmt:
             # because of this check, we do not need to check for
             # make_setter references lhs<->rhs as in parse_Assign -
             # single word load/stores are atomic.
-            return
+            raise TypeCheckFailure("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
             rhs = Expr.parse_value_expr(

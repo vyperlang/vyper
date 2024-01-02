@@ -12,8 +12,6 @@ and parsing NatSpec docstrings.
 
 * [`annotation.py`](annotation.py): Contains the `AnnotatingVisitor` class, used to
 annotate and modify the Python AST prior to converting it to a Vyper AST.
-* [`folding.py`](folding.py): Functions for evaluating and replacing literal
-nodes within the Vyper AST.
 * [`natspec.py`](natspec.py): Functions for parsing NatSpec docstrings within the
 source.
 * [`nodes.py`](nodes.py): Contains the Vyper node classes, and the `get_node`
@@ -69,25 +67,6 @@ or parents that match a desired pattern.
 
 To learn more about these methods, read their docstrings in the `VyperNode` class
 in [`nodes.py`](nodes.py).
-
-### Modifying the AST
-
-[`folding.py`](folding.py) contains the `fold` function, a high-level method called
-to evaluating and replacing literal nodes within the AST. Some examples of literal
-folding include:
-
-* arithmetic operations (`3+2` becomes `5`)
-* references to literal arrays (`["foo", "bar"][1]` becomes `"bar"`)
-* builtin functions applied to literals (`min(1,2)` becomes `1`)
-
-The process of literal folding includes:
-
-1. Foldable node classes are evaluated via their `evaluate` method, which attempts
-to create a new `Constant` from the content of the given node.
-2. Replacement nodes are generated using the `from_node` class method within the new
-node class.
-3. The modification of the tree is handled by `Module.replace_in_tree`, which locates
-the existing node and replaces it with a new one.
 
 ## Design
 

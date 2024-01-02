@@ -1,4 +1,11 @@
 # NOTE: Copied from https://github.com/fubuloubu/ERC4626/blob/1a10b051928b11eeaad15d80397ed36603c2a49b/contracts/VyperVault.vy
+
+# example implementation of an ERC4626 vault
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
 from vyper.interfaces import ERC20
 from vyper.interfaces import ERC4626
 

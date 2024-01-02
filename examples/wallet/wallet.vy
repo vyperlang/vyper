@@ -1,5 +1,8 @@
-# An example of how you can do a wallet in Vyper.
-# Warning: NOT AUDITED. Do not use to store substantial quantities of funds.
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# An example of how you can implement a wallet in Vyper.
 
 # A list of the owners addresses (there are a maximum of 5 owners)
 owners: public(address[5])
