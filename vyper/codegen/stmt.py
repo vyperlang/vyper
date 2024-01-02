@@ -30,7 +30,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     tag_exceptions,
 )
-from vyper.semantics.analysis.utils import is_terminus_node
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
@@ -406,7 +405,7 @@ def parse_stmt(stmt, context):
 def _is_terminated(code):
     last_stmt = code[-1]
 
-    if is_terminus_node(last_stmt):
+    if last_stmt.is_terminus:
         return True
 
     if isinstance(last_stmt, vy_ast.If):

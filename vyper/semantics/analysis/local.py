@@ -25,7 +25,6 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
-    is_terminus_node,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -76,7 +75,7 @@ def check_for_terminus(node_list: list) -> bool:
     # Check for invalid code after returns
     last_node_pos = len(node_list) - 1
     for idx, n in enumerate(node_list):
-        if is_terminus_node(n):
+        if n.is_terminus:
             terminus_nodes.append(n)
             if idx < last_node_pos:
                 # is not last statement in body.
