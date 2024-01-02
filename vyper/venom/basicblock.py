@@ -270,7 +270,7 @@ def _ir_operand_from_value(val: Any) -> IROperand:
     if isinstance(val, IROperand):
         return val
 
-    assert isinstance(val, int)
+    assert isinstance(val, int), val
     return IRLiteral(val)
 
 
