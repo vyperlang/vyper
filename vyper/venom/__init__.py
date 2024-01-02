@@ -17,15 +17,23 @@ from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
+DEFAULT_OPT_LEVEL = OptimizationLevel.default()
+
 
 def generate_assembly_experimental(
-    ctxs: tuple[IRFunction, IRFunction], optimize: Optional[OptimizationLevel] = None
+    runtime_code: IRFunction,
+    deploy_code: Optional[IRFunction] = None,
+    optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
 ) -> list[str]:
-    compiler = VenomCompiler(list(ctxs))
+    functions = [runtime_code]
+    if deploy_code is not None:
+        functions.append(deploy_code)
+
+    compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize is OptimizationLevel.NONE)
 
 
-def _run_passes(ctx: IRFunction, optimize: Optional[OptimizationLevel] = None) -> None:
+def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
     while True:
@@ -51,9 +59,7 @@ def _run_passes(ctx: IRFunction, optimize: Optional[OptimizationLevel] = None) -
             break
 
 
-def generate_ir(
-    ir: IRnode, optimize: Optional[OptimizationLevel] = None
-) -> tuple[IRFunction, IRFunction]:
+def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> tuple[IRFunction, IRFunction]:
     # Convert "old" IR to "new" IR
     ctx, ctx_runtime = convert_ir_basicblock(ir)
 
