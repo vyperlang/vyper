@@ -18,10 +18,10 @@ def test_duplicate_operands():
     ctx = IRFunction()
     bb = ctx.get_basic_block()
     op = bb.append_instruction("store", 10)
-    sum = bb.append_instruction("add", op, op)
-    bb.append_instruction("mul", sum, op)
+    sum_ = bb.append_instruction("add", op, op)
+    bb.append_instruction("mul", sum_, op)
     bb.append_instruction("stop")
 
-    asm = generate_assembly_experimental(ctx, OptimizationLevel.CODESIZE)
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.CODESIZE)
 
     assert asm == ["PUSH1", 10, "DUP1", "DUP1", "DUP1", "ADD", "MUL", "STOP", "REVERT"]

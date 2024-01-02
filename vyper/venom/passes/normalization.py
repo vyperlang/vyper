@@ -14,13 +14,11 @@ class NormalizationPass(IRPass):
     changes = 0
 
     def _split_basic_block(self, bb: IRBasicBlock) -> None:
-        # Iterate over the predecessors of the basic block
+        # Iterate over the predecessors to this basic block
         for in_bb in list(bb.cfg_in):
-            jump_inst = in_bb.instructions[-1]
             assert bb in in_bb.cfg_out
-
-            # Handle branching
-            if jump_inst.opcode in ("jnz", "djmp"):
+            # Handle branching in the predecessor bb
+            if len(in_bb.cfg_out) > 1:
                 self._insert_split_basicblock(bb, in_bb)
                 self.changes += 1
                 break
