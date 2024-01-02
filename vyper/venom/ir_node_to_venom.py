@@ -99,23 +99,23 @@ def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
 
 
 def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
-    deploy_node = _findIRnode(ir, "deploy")
-    deploy_code = None
-    if deploy_node is not None:
-        deploy_code = IRFunction()
-        _convert_ir_basicblock(deploy_code, ir, {}, OrderedSet(), {})
-        deploy_code.get_basic_block().append_instruction("stop")
-        ir = deploy_node.args[1]
+    deploy_ir = _findIRnode(ir, "deploy")
+    assert deploy_ir is not None
 
-    runtime_code = IRFunction()
-    _convert_ir_basicblock(runtime_code, ir, {}, OrderedSet(), {})
+    deploy_venom = IRFunction()
+    _convert_ir_basicblock(deploy_venom, ir, {}, OrderedSet(), {})
+    deploy_venom.get_basic_block().append_instruction("stop")
+
+    runtime_ir = deploy_ir.args[1]
+    runtime_venom = IRFunction()
+    _convert_ir_basicblock(runtime_venom, runtime_ir, {}, OrderedSet(), {})
 
     # Connect unterminated blocks to the next with a jump
-    for i, bb in enumerate(runtime_code.basic_blocks):
-        if not bb.is_terminated and i < len(runtime_code.basic_blocks) - 1:
-            bb.append_instruction("jmp", runtime_code.basic_blocks[i + 1].label)
+    for i, bb in enumerate(runtime_venom.basic_blocks):
+        if not bb.is_terminated and i < len(runtime_venom.basic_blocks) - 1:
+            bb.append_instruction("jmp", runtime_venom.basic_blocks[i + 1].label)
 
-    return deploy_code, runtime_code  # type: ignore
+    return deploy_venom, runtime_venom
 
 
 def _convert_binary_op(
