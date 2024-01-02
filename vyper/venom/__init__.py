@@ -25,9 +25,11 @@ def generate_assembly_experimental(
     deploy_code: Optional[IRFunction] = None,
     optimize: OptimizationLevel = DEFAULT_OPT_LEVEL,
 ) -> list[str]:
-    functions = [runtime_code]
+    # note: VenomCompiler is sensitive to the order of these!
     if deploy_code is not None:
-        functions.append(deploy_code)
+        functions = [deploy_code, runtime_code]
+    else:
+        functions = [runtime_code]
 
     compiler = VenomCompiler(functions)
     return compiler.generate_evm(optimize == OptimizationLevel.NONE)

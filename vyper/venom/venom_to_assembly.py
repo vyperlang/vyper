@@ -113,8 +113,7 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
 
             # TODO make this property on IRFunction
-            is_deploy = ctx.immutables_len is not None and ctx.ctor_mem_size is not None
-            if is_deploy:
+            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
                 while asm[-1] != "JUMPDEST":
                     asm.pop()
                 asm.extend(
@@ -133,7 +132,7 @@ class VenomCompiler:
                 asm.extend(_REVERT_POSTAMBLE)
 
             # Append data segment
-            data_segments: dict[Any, list[Any]] = dict()
+            data_segments: dict = dict()
             for inst in ctx.data_segment:
                 if inst.opcode == "dbname":
                     label = inst.operands[0].value
