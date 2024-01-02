@@ -174,13 +174,9 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        nodes = generate_ir_nodes(
+        return generate_ir_nodes(
             self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
         )
-        if self.settings.experimental_codegen:
-            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
-        else:
-            return nodes
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -202,10 +198,16 @@ class CompilerData:
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
+    def venom_functions(self):
+        return generate_ir(self.ir_nodes, self.settings.optimize)
+
+    @cached_property
     def assembly(self) -> list:
         if self.settings.experimental_codegen:
+            deploy_code, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                self.ir_nodes, self.settings.optimize  # type: ignore
+                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
             )
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
@@ -213,9 +215,9 @@ class CompilerData:
     @cached_property
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
-            return generate_assembly_experimental(
-                self.ir_runtime, self.settings.optimize  # type: ignore
-            )
+            _, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
