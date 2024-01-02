@@ -138,16 +138,10 @@ class IRFunction:
             if len(bb.cfg_in) <= 1:
                 continue
 
-            # Check if there is a conditional jump at the end
+            # Check if there is a branching jump at the end
             # of one of the predecessors
-            #
-            # TODO: this check could be:
-            #  `if len(in_bb.cfg_out) > 1: return False`
-            # but the cfg is currently not calculated "correctly" for
-            # the special deploy instruction.
             for in_bb in bb.cfg_in:
-                jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode in ("jnz", "djmp"):
+                if len(in_bb.cfg_out) > 1:
                     return False
 
         # The function is normalized
