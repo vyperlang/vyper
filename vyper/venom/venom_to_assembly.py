@@ -111,7 +111,10 @@ class VenomCompiler:
             assert ctx.normalized, "Non-normalized CFG!"
 
             self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
-            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
+
+            # TODO make this property on IRFunction
+            is_deploy = ctx.immutables_len is not None and ctx.ctor_mem_size is not None
+            if is_deploy:
                 while asm[-1] != "JUMPDEST":
                     asm.pop()
                 asm.extend(
@@ -121,10 +124,11 @@ class VenomCompiler:
                 asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
                 asm.extend(["RETURN"])
                 asm.extend(_REVERT_POSTAMBLE)
-                asm.append(
-                    [RuntimeHeader("_sym_runtime_begin", ctx.ctor_mem_size, ctx.immutables_len)]
-                )
-                asm = asm[-1]
+                runtime_asm = [
+                    RuntimeHeader("_sym_runtime_begin", ctx.ctor_mem_size, ctx.immutables_len)
+                ]
+                asm.append(runtime_asm)
+                asm = runtime_asm
             else:
                 asm.extend(_REVERT_POSTAMBLE)
 
@@ -137,11 +141,10 @@ class VenomCompiler:
                 elif inst.opcode == "db":
                     data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
-            extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
-            extent_point.extend([data_segments[label] for label in data_segments])  # type: ignore
+            asm.extend(list(data_segments.values()))
 
-            if no_optimize is False:
-                optimize_assembly(asm)
+        if no_optimize is False:
+            optimize_assembly(top_asm)
 
         return top_asm
 
