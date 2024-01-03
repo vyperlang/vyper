@@ -111,6 +111,41 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
 
 
+def test_default_param_interface(get_contract):
+    code = """
+interface Foo:
+    def bar(): payable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+
+@external
+def bar(a: uint256, b: Foo = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)) -> Foo:
+    return b
+
+@external
+def baz(a: uint256, b: Foo = Foo(empty(address))) -> Foo:
+    return b
+
+@external
+def faz(a: uint256, b: Foo = FOO) -> Foo:
+    return b
+    """
+    c = get_contract(code)
+
+    assert c.bar(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    assert (
+        c.bar(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
+        == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    )
+    assert c.baz(1) is None
+    assert c.baz(1, "0x0000000000000000000000000000000000000000") is None
+    assert c.faz(1) == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    assert (
+        c.faz(1, "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF")
+        == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    )
+
+
 def test_default_param_internal_function(get_contract):
     code = """
 @internal
