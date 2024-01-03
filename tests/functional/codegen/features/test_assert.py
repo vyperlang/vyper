@@ -107,14 +107,6 @@ def test():
     assert self.ret1() == 1
     """,
     """
-@internal
-def valid_address(sender: address) -> bool:
-    selfdestruct(sender)
-@external
-def test():
-    assert self.valid_address(msg.sender)
-    """,
-    """
 @external
 def test():
     assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == b''
