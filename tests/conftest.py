@@ -280,6 +280,18 @@ def get_contract_from_ir(w3, optimize):
     return ir_compiler
 
 
+def _get_output_formats(experimental_codegen):
+    """
+    Returns a list of output formats supported. If not running the experimental
+    codegen path, the bb and bb_runtime formats are removed.
+    """
+    output_formats = list(compiler.OUTPUT_FORMATS.keys())
+    if experimental_codegen is False:
+        output_formats.remove("bb")
+        output_formats.remove("bb_runtime")
+    return output_formats
+
+
 def _get_contract(
     w3,
     source_code,
@@ -293,14 +305,10 @@ def _get_contract(
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = override_opt_level or optimize
-    output_formats = list(compiler.OUTPUT_FORMATS.keys())
-    if experimental_codegen is False:
-        output_formats.remove("bb")
-        output_formats.remove("bb_runtime")
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
-        output_formats=output_formats,
+        output_formats=_get_output_formats(experimental_codegen),
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
@@ -372,13 +380,9 @@ def _deploy_blueprint_for(
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize
-    output_formats = list(compiler.OUTPUT_FORMATS.keys())
-    if experimental_codegen is False:
-        output_formats.remove("bb")
-        output_formats.remove("bb_runtime")
     out = compiler.compile_code(
         source_code,
-        output_formats=output_formats,
+        output_formats=_get_output_formats(experimental_codegen),
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
