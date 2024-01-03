@@ -731,6 +731,10 @@ class Return(Stmt):
 class Expr(Stmt):
     __slots__ = ("value",)
 
+    @property
+    def is_terminus(self):
+        return self.value.is_terminus
+
 
 class Log(Stmt):
     __slots__ = ("value",)
@@ -1313,10 +1317,10 @@ class Call(ExprNode):
     @property
     def is_terminus(self):
         # cursed import cycle!
-        from vyper.builtins.functions import DISPATCH_TABLE
+        from vyper.builtins.functions import get_builtin_functions
 
         func_name = self.func.id
-        builtin_t = DISPATCH_TABLE[func_name]
+        builtin_t = get_builtin_functions().get(func_name)
         return getattr(builtin_t, "_is_terminus", False)
 
     # try checking if this is a builtin, which is foldable
