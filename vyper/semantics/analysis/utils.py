@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -646,10 +646,20 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
 
     if isinstance(node, vy_ast.Call):
         args = node.args
+
+        # structs
         if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
             return all(check_modifiability(v, modifiability) for v in args[0].values)
 
         call_type = get_exact_type_from_node(node.func)
+
+        # interfaces
+        from vyper.semantics.types.module import InterfaceT
+
+        if is_type_t(call_type, InterfaceT):
+            return check_modifiability(args[0], modifiability)
+
+        # builtins
         call_type_modifiability = getattr(call_type, "_modifiability", Modifiability.MODIFIABLE)
         return call_type_modifiability >= modifiability
 
