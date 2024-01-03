@@ -57,6 +57,7 @@ def compile_from_file_input(
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
+    experimental_codegen: bool = False,
 ) -> dict:
     """
     Main entry point into the compiler.
@@ -86,6 +87,8 @@ def compile_from_file_input(
         two arguments - the name of the contract, and the exception that was raised
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
+    experimental_codegen: bool
+        Use experimental codegen. Defaults to False
 
     Returns
     -------
@@ -110,6 +113,7 @@ def compile_from_file_input(
         storage_layout_override,
         show_gas_estimates,
         no_bytecode_metadata,
+        experimental_codegen,
     )
 
     ret = {}

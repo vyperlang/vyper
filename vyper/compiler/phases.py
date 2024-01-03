@@ -71,8 +71,6 @@ class CompilerData:
         Runtime bytecode
     """
 
-    experimental_codegen: bool = False
-
     def __init__(
         self,
         file_input: FileInput | str,
@@ -81,6 +79,7 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
+        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -114,6 +113,7 @@ class CompilerData:
         self.no_bytecode_metadata = no_bytecode_metadata
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
+        self.experimental_codegen = experimental_codegen
 
         _ = self._generate_ast  # force settings to be calculated
 
