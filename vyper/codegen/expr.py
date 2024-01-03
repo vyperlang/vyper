@@ -190,7 +190,7 @@ class Expr:
             varinfo = self.context.globals[self.expr.id]
 
             if varinfo.is_constant:
-                # constants other than structs and interfaces should have already gotten 
+                # constants other than structs and interfaces should have already gotten
                 # propagated during constant folding
                 assert isinstance(varinfo.typ, (InterfaceT, StructT))
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
