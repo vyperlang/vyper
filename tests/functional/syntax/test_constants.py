@@ -310,6 +310,13 @@ interface Foo:
 
 FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
     """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(BAR)
+BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    """,
 ]
 
 
