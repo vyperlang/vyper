@@ -281,13 +281,7 @@ def get_contract_from_ir(w3, optimize):
 
 
 def _get_contract(
-    w3,
-    source_code,
-    optimize,
-    *args,
-    override_opt_level=None,
-    input_bundle=None,
-    **kwargs,
+    w3, source_code, optimize, *args, override_opt_level=None, input_bundle=None, **kwargs
 ):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
