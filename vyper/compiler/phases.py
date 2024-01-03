@@ -79,7 +79,6 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
-        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -113,7 +112,6 @@ class CompilerData:
         self.no_bytecode_metadata = no_bytecode_metadata
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
-        self.experimental_codegen = experimental_codegen
 
         _ = self._generate_ast  # force settings to be calculated
 
@@ -176,9 +174,7 @@ class CompilerData:
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        return generate_ir_nodes(
-            self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
-        )
+        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -274,9 +270,7 @@ def generate_annotated_ast(
     return vyper_module, symbol_tables
 
 
-def generate_ir_nodes(
-    global_ctx: ModuleT, optimize: OptimizationLevel, experimental_codegen: bool
-) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 

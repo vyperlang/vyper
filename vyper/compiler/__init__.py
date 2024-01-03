@@ -57,7 +57,6 @@ def compile_from_file_input(
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
-    experimental_codegen: bool = False,
 ) -> dict:
     """
     Main entry point into the compiler.
@@ -113,7 +112,6 @@ def compile_from_file_input(
         storage_layout_override,
         show_gas_estimates,
         no_bytecode_metadata,
-        experimental_codegen,
     )
 
     ret = {}
