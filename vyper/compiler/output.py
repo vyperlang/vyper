@@ -86,12 +86,12 @@ def build_interface_output(compiler_data: CompilerData) -> str:
 
 def build_bb_output(compiler_data: CompilerData) -> IRnode:
     compiler_data.experimental_codegen = True
-    return compiler_data.ir_nodes
+    return compiler_data.venom_functions[0]
 
 
 def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
     compiler_data.experimental_codegen = True
-    return compiler_data.ir_runtime
+    return compiler_data.venom_functions[1]
 
 
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
