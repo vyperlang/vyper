@@ -1319,7 +1319,10 @@ class Call(ExprNode):
         # cursed import cycle!
         from vyper.builtins.functions import get_builtin_functions
 
-        func_name = self.func.id
+        func_name = self.func.get("id")
+        if not func_name:
+            return False
+
         builtin_t = get_builtin_functions().get(func_name)
         return getattr(builtin_t, "_is_terminus", False)
 
