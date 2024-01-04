@@ -13,8 +13,9 @@ from vyper.exceptions import (
     UnknownAttribute,
     VariableDeclarationException,
 )
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import validate_expected_type
+from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -408,3 +409,6 @@ class StructT(_UserType):
             )
 
         return self
+
+    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+        return all(check_modifiability(v, modifiability) for v in node.args[0].values)

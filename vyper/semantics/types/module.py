@@ -5,8 +5,12 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
-from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
+from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    validate_expected_type,
+    validate_unique_method_ids,
+)
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
@@ -65,6 +69,9 @@ class InterfaceT(_UserType):
 
     def _ctor_kwarg_types(self, node):
         return {}
+
+    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+        return check_modifiability(node.args[0], modifiability)
 
     # TODO x.validate_implements(other)
     def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
