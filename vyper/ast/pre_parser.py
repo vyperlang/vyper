@@ -44,7 +44,8 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
 
 
 # compound statements that are replaced with `class`
-VYPER_CLASS_TYPES = {"enum", "event", "interface", "struct"}
+# TODO remove enum in favor of flag
+VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 
 # simple statements or expressions that are replaced with `yield`
 VYPER_EXPRESSION_TYPES = {"log"}
@@ -55,7 +56,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
 
-    * Translates "interface", "struct", "enum, and "event" keywords into python "class" keyword
+    * Translates "interface", "struct", "flag", and "event" keywords into python "class" keyword
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
@@ -116,7 +117,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                         validate_version_pragma(compiler_version, start)
                         settings.compiler_version = compiler_version
 
-                    if pragma.startswith("optimize "):
+                    elif pragma.startswith("optimize "):
                         if settings.optimize is not None:
                             raise StructureException("pragma optimize specified twice!", start)
                         try:
@@ -124,13 +125,16 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                             settings.optimize = OptimizationLevel.from_string(mode)
                         except ValueError:
                             raise StructureException(f"Invalid optimization mode `{mode}`", start)
-                    if pragma.startswith("evm-version "):
+                    elif pragma.startswith("evm-version "):
                         if settings.evm_version is not None:
                             raise StructureException("pragma evm-version specified twice!", start)
                         evm_version = pragma.removeprefix("evm-version").strip()
                         if evm_version not in EVM_VERSIONS:
                             raise StructureException("Invalid evm version: `{evm_version}`", start)
                         settings.evm_version = evm_version
+
+                    else:
+                        raise StructureException(f"Unknown pragma `{pragma.split()[0]}`")
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(

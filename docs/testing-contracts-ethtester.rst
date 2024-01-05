@@ -55,9 +55,9 @@ To test events and failed transactions we expand our simple storage contract to 
 
 Next, we take a look at the two fixtures that will allow us to read the event logs and to check for failed transactions.
 
-.. literalinclude:: ../tests/base_conftest.py
+.. literalinclude:: ../tests/conftest.py
     :language: python
-    :pyobject: assert_tx_failed
+    :pyobject: tx_failed
 
 The fixture to assert failed transactions defaults to check for a ``TransactionFailed`` exception, but can be used to check for different exceptions too, as shown below. Also note that the chain gets reverted to the state before the failed transaction.
 

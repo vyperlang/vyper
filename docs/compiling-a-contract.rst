@@ -197,6 +197,7 @@ The following is a list of supported EVM versions, and changes in the compiler i
 
    - The ``transient`` keyword allows declaration of variables which live in transient storage
    - Functions marked with ``@nonreentrant`` are protected with TLOAD/TSTORE instead of SLOAD/SSTORE
+   - The ``MCOPY`` opcode will be generated automatically by the compiler for most memory operations.
 
 
 

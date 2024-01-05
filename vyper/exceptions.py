@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import textwrap
 import types
@@ -40,7 +41,7 @@ class _BaseVyperException(Exception):
             Error message to display with the exception.
         *items : VyperNode | Tuple[str, VyperNode], optional
             Vyper ast node(s), or tuple of (description, node) indicating where
-            the exception occured. Source annotations are generated in the order
+            the exception occurred. Source annotations are generated in the order
             the nodes are given.
 
             A single tuple of (lineno, col_offset) is also understood to support
@@ -49,12 +50,15 @@ class _BaseVyperException(Exception):
         self.message = message
         self.lineno = None
         self.col_offset = None
+        self.annotations = None
 
         if len(items) == 1 and isinstance(items[0], tuple) and isinstance(items[0][0], int):
             # support older exceptions that don't annotate - remove this in the future!
             self.lineno, self.col_offset = items[0][:2]
         else:
-            self.annotations = items
+            # strip out None sources so that None can be passed as a valid
+            # annotation (in case it is only available optionally)
+            self.annotations = [k for k in items if k is not None]
 
     def with_annotation(self, *annotations):
         """
@@ -77,7 +81,7 @@ class _BaseVyperException(Exception):
         from vyper import ast as vy_ast
         from vyper.utils import annotate_source_code
 
-        if not hasattr(self, "annotations"):
+        if not self.annotations:
             if self.lineno is not None and self.col_offset is not None:
                 return f"line {self.lineno}:{self.col_offset} {self.message}"
             else:
@@ -103,8 +107,9 @@ class _BaseVyperException(Exception):
 
             if isinstance(node, vy_ast.VyperNode):
                 module_node = node.get_ancestor(vy_ast.Module)
-                if module_node.get("name") not in (None, "<unknown>"):
-                    node_msg = f'{node_msg}contract "{module_node.name}:{node.lineno}", '
+
+                if module_node.get("path") not in (None, "<unknown>"):
+                    node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
 
                 fn_node = node.get_ancestor(vy_ast.FunctionDef)
                 if fn_node:
@@ -171,8 +176,8 @@ class FunctionDeclarationException(VyperException):
     """Invalid function declaration."""
 
 
-class EnumDeclarationException(VyperException):
-    """Invalid enum declaration."""
+class FlagDeclarationException(VyperException):
+    """Invalid flag declaration."""
 
 
 class EventDeclarationException(VyperException):
@@ -227,6 +232,18 @@ class CallViolation(VyperException):
     """Illegal function call."""
 
 
+class ImportCycle(VyperException):
+    """An import cycle"""
+
+
+class DuplicateImport(VyperException):
+    """A module was imported twice from the same module"""
+
+
+class ModuleNotFound(VyperException):
+    """Module was not found"""
+
+
 class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 
@@ -267,6 +284,10 @@ class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
 
 
+class MemoryAllocationException(VyperException):
+    """Tried to allocate too much memory"""
+
+
 class JSONError(Exception):
 
     """Invalid compiler input JSON."""
@@ -302,8 +323,9 @@ class VyperInternalException(_BaseVyperException):
 
     def __str__(self):
         return (
-            f"{self.message}\n\nThis is an unhandled internal compiler error. "
-            "Please create an issue on Github to notify the developers.\n"
+            f"{super().__str__()}\n\n"
+            "This is an unhandled internal compiler error. "
+            "Please create an issue on Github to notify the developers!\n"
             "https://github.com/vyperlang/vyper/issues/new?template=bug.md"
         )
 
@@ -330,3 +352,24 @@ class UnfoldableNode(VyperInternalException):
 
 class TypeCheckFailure(VyperInternalException):
     """An issue was not caught during type checking that should have been."""
+
+
+class InvalidABIType(VyperInternalException):
+    """An internal routine constructed an invalid ABI type"""
+
+
+@contextlib.contextmanager
+def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
+    try:
+        yield
+    except _BaseVyperException as e:
+        if not e.annotations and not e.lineno:
+            tb = e.__traceback__
+            raise e.with_annotation(node).with_traceback(tb)
+        raise e from None
+    except Exception as e:
+        tb = e.__traceback__
+        fallback_message = "unhandled exception"
+        if note:
+            fallback_message += f", {note}"
+        raise fallback_exception_type(fallback_message, node).with_traceback(tb)

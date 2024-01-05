@@ -299,7 +299,7 @@ Members
 Member          Type        Description
 =============== =========== ==========================================================================
 ``balance``     ``uint256`` Balance of an address
-``codehash``    ``bytes32`` Keccak of code at an address, ``EMPTY_BYTES32`` if no contract is deployed
+``codehash``    ``bytes32`` Keccak of code at an address, ``0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`` if no contract is deployed (see `EIP-1052 <https://eips.ethereum.org/EIPS/eip-1052>`_)
 ``codesize``    ``uint256`` Size of code deployed at an address, in bytes
 ``is_contract`` ``bool``    Boolean indicating if a contract is deployed at an address
 ``code``        ``Bytes``   Contract bytecode
@@ -376,22 +376,22 @@ On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
     example_str: String[100] = "Test String"
 
-Enums
+Flags
 -----
 
-**Keyword:** ``enum``
+**Keyword:** ``flag``
 
-Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members.
+Flags are custom defined types. A flag must have at least one member, and can hold up to a maximum of 256 members.
 The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
 
 .. code-block:: python
 
-    # Defining an enum with two members
-    enum Roles:
+    # Defining a flag with two members
+    flag Roles:
         ADMIN
         USER
 
-    # Declaring an enum variable
+    # Declaring a flag variable
     role: Roles = Roles.ADMIN
 
     # Returning a member
@@ -426,13 +426,13 @@ Operator       Description
 ``~x``         Bitwise not
 =============  ======================
 
-Enum members can be combined using the above bitwise operators. While enum members have values that are power of two, enum member combinations may not.
+Flag members can be combined using the above bitwise operators. While flag members have values that are power of two, flag member combinations may not.
 
-The ``in`` and ``not in`` operators can be used in conjunction with enum member combinations to check for membership.
+The ``in`` and ``not in`` operators can be used in conjunction with flag member combinations to check for membership.
 
 .. code-block:: python
 
-    enum Roles:
+    flag Roles:
         MANAGER
         ADMIN
         USER
@@ -447,7 +447,7 @@ The ``in`` and ``not in`` operators can be used in conjunction with enum member 
     def bar(a: Roles) -> bool:
         return a not in (Roles.MANAGER | Roles.USER)
 
-Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two enum objects are simultaneously set, while ``==`` checks that two enum objects are bit-for-bit equal.
+Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two flag objects are simultaneously set, while ``==`` checks that two flag objects are bit-for-bit equal.
 
 The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
 
@@ -488,7 +488,7 @@ Fixed-size Lists
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and enums.
+Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and flags.
 
 .. code-block:: python
 

@@ -1,75 +1,7 @@
-import ast as python_ast
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.annotation import annotate_python_ast
-from vyper.ast.pre_parser import pre_parse
-from vyper.compiler.settings import Settings
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
-
-
-def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
-    return parse_to_ast_with_settings(*args, **kwargs)[1]
-
-
-def parse_to_ast_with_settings(
-    source_code: str,
-    source_id: int = 0,
-    contract_name: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
-) -> tuple[Settings, vy_ast.Module, dict[int, dict[str, Any]]]:
-    """
-    Parses a Vyper source string and generates basic Vyper AST nodes.
-
-    Parameters
-    ----------
-    source_code : str
-        The Vyper source code to parse.
-    source_id : int, optional
-        Source id to use in the `src` member of each node.
-    contract_name: str, optional
-        Name of contract.
-    add_fn_node: str, optional
-        If not None, adds a dummy Python AST FunctionDef wrapper node.
-
-    Returns
-    -------
-    list
-        Untyped, unoptimized Vyper AST nodes.
-    """
-    if "\x00" in source_code:
-        raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, loop_var_annotations, reformatted_code = pre_parse(source_code)
-    try:
-        py_ast = python_ast.parse(reformatted_code)
-
-        print("loop vars: ", loop_var_annotations)
-        for k, v in loop_var_annotations.items():
-            print("v: ", v)
-            parsed_v = python_ast.parse(v["source_code"])
-            print("parsed v: ", parsed_v.body[0].value)
-            loop_var_annotations[k]["parsed_ast"] = parsed_v
-    except SyntaxError as e:
-        # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
-
-    # Add dummy function node to ensure local variables are treated as `AnnAssign`
-    # instead of state variables (`VariableDecl`)
-    if add_fn_node:
-        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
-        fn_node.body = py_ast.body
-        fn_node.args = python_ast.arguments(defaults=[])
-        py_ast.body = [fn_node]
-    annotate_python_ast(py_ast, source_code, class_types, loop_var_annotations, source_id, contract_name)
-
-    # Convert to Vyper AST.
-    module = vy_ast.get_node(py_ast)
-
-    for k, v in loop_var_annotations.items():
-        loop_var_annotations[k]["vy_ast"] = vy_ast.get_node(v["parsed_ast"])
-
-    assert isinstance(module, vy_ast.Module)  # mypy hint
-    return settings, module, loop_var_annotations
+from vyper.exceptions import CompilerPanic
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:

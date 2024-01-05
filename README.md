@@ -1,3 +1,4 @@
+**Vyper compiler security audit competition starts 14th September with $150k worth of bounties.** [See the competition on CodeHawks](https://www.codehawks.com/contests/cll5rujmw0001js08menkj7hc) and find [more details in this blog post](https://mirror.xyz/0xBA41A04A14aeaEec79e2D694B21ba5Ab610982f1/WTZ3l3MLhTz9P4avq6JqipN5d4HJNiUY-d8zT0pfmXg).
 
 <img src="https://raw.githubusercontent.com/vyperlang/vyper/master/logo/vyper-logo-transparent.svg?sanitize=true" alt="" width="110">
 
@@ -52,6 +53,23 @@ be a bit behind the latest version found in the master branch of this repository
 make dev-init
 python setup.py test
 ```
+
+## Developing (working on the compiler)
+
+A useful script to have in your PATH is something like the following:
+```bash
+$ cat ~/.local/bin/vyc
+#!/usr/bin/env bash
+PYTHONPATH=. python vyper/cli/vyper_compile.py "$@"
+```
+
+To run a python performance profile (to find compiler perf hotspots):
+```bash
+PYTHONPATH=. python -m cProfile -s tottime vyper/cli/vyper_compile.py "$@"
+```
+
+To get a call graph from a python profile, https://stackoverflow.com/a/23164271/ is helpful.
+
 
 # Contributing
 * See Issues tab, and feel free to submit your own issues
