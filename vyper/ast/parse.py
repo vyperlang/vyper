@@ -401,8 +401,6 @@ def annotate_python_ast(
     )
     visitor.visit(parsed_ast)
     for k, v in loop_var_annotations.items():
-        print("k: ", k)
-        print("v: ", v)
         tokens = asttokens.ASTTokens(v["source_code"], tree=cast(Optional[python_ast.Module], v["parsed_ast"]))
         visitor = AnnotatingVisitor(v["source_code"], {}, tokens, source_id, module_path=module_path, resolved_path=resolved_path)
         visitor.visit(v["parsed_ast"])
