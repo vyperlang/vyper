@@ -429,9 +429,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
             try:
-                with NodeMetadata.enter_typechecker_speculation():
-                    for stmt in node.body:
-                        self.visit(stmt)
+                for stmt in node.body:
+                    self.visit(stmt)
 
                 self.expr_visitor.visit(node.target, iter_type)
 
