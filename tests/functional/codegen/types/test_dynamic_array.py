@@ -1328,7 +1328,7 @@ struct Foo:
 @external
 def bar(_baz: DynArray[Foo, 3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         e: Foobar = _baz[i].z
         f: uint256 = convert(e, uint256)
         sum += _baz[i].x * _baz[i].y + f
@@ -1397,7 +1397,7 @@ struct Bar:
 @external
 def bar(_bar: DynArray[Bar, 3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
     return sum
     """

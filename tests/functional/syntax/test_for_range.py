@@ -15,7 +15,7 @@ fail_list = [
         """
 @external
 def foo():
-    for a[1] in range(10):
+    for a[1]: uint256 in range(10):
         pass
     """,
         StructureException,
@@ -26,7 +26,7 @@ def foo():
         """
 @external
 def bar():
-    for i in range(1,2,bound=0):
+    for i: uint256 in range(1,2,bound=0):
         pass
     """,
         StructureException,
@@ -38,7 +38,7 @@ def bar():
 @external
 def foo():
     x: uint256 = 100
-    for _ in range(10, bound=x):
+    for _: uint256 in range(10, bound=x):
         pass
     """,
         StateAccessViolation,
@@ -49,7 +49,7 @@ def foo():
         """
 @external
 def foo():
-    for _ in range(10, 20, bound=5):
+    for _: uint256 in range(10, 20, bound=5):
         pass
     """,
         StructureException,
@@ -60,7 +60,7 @@ def foo():
         """
 @external
 def foo():
-    for _ in range(10, 20, bound=0):
+    for _: uint256 in range(10, 20, bound=0):
         pass
     """,
         StructureException,
@@ -72,7 +72,7 @@ def foo():
 @external
 def bar():
     x:uint256 = 1
-    for i in range(x,x+1,bound=2,extra=3):
+    for i: uint256 in range(x,x+1,bound=2,extra=3):
         pass
     """,
         ArgumentException,
@@ -83,7 +83,7 @@ def bar():
         """
 @external
 def bar():
-    for i in range(0):
+    for i: uint256 in range(0):
         pass
     """,
         StructureException,
@@ -95,7 +95,7 @@ def bar():
 @external
 def bar():
     x:uint256 = 1
-    for i in range(x):
+    for i: uint256 in range(x):
         pass
     """,
         StateAccessViolation,
@@ -107,7 +107,7 @@ def bar():
 @external
 def bar():
     x:uint256 = 1
-    for i in range(0, x):
+    for i: uint256 in range(0, x):
         pass
     """,
         StateAccessViolation,
@@ -118,7 +118,7 @@ def bar():
         """
 @external
 def repeat(n: uint256) -> uint256:
-    for i in range(0, n * 10):
+    for i: uint256 in range(0, n * 10):
         pass
     return n
     """,
@@ -131,7 +131,7 @@ def repeat(n: uint256) -> uint256:
 @external
 def bar():
     x:uint256 = 1
-    for i in range(0, x + 1):
+    for i: uint256 in range(0, x + 1):
         pass
     """,
         StateAccessViolation,
@@ -142,7 +142,7 @@ def bar():
         """
 @external
 def bar():
-    for i in range(2, 1):
+    for i: uint256 in range(2, 1):
         pass
     """,
         StructureException,
@@ -154,7 +154,7 @@ def bar():
 @external
 def bar():
     x:uint256 = 1
-    for i in range(x, x):
+    for i: uint256 in range(x, x):
         pass
     """,
         StateAccessViolation,
@@ -166,7 +166,7 @@ def bar():
 @external
 def foo():
     x: int128 = 5
-    for i in range(x, x + 10):
+    for i: int128 in range(x, x + 10):
         pass
     """,
         StateAccessViolation,
@@ -177,7 +177,7 @@ def foo():
         """
 @external
 def repeat(n: uint256) -> uint256:
-    for i in range(n, 6):
+    for i: uint256 in range(n, 6):
         pass
     return x
     """,
@@ -190,7 +190,7 @@ def repeat(n: uint256) -> uint256:
 @external
 def foo(x: int128):
     y: int128 = 7
-    for i in range(x, x + y):
+    for i: int128 in range(x, x + y):
         pass
     """,
         StateAccessViolation,
@@ -201,7 +201,7 @@ def foo(x: int128):
         """
 @external
 def bar(x: uint256):
-    for i in range(3, x):
+    for i: uint256 in range(3, x):
         pass
     """,
         StateAccessViolation,
@@ -215,7 +215,7 @@ BAR: constant(uint256) = 7
 
 @external
 def foo():
-    for i in range(FOO, BAR):
+    for i: uint256 in range(FOO, BAR):
         pass
     """,
         TypeMismatch,
@@ -228,7 +228,7 @@ FOO: constant(int128) = -1
 
 @external
 def foo():
-    for i in range(10, bound=FOO):
+    for i: int128 in range(10, bound=FOO):
         pass
         """,
         StructureException,
@@ -259,34 +259,34 @@ valid_list = [
     """
 @external
 def foo():
-    for i in range(10):
+    for i: uint256 in range(10):
         pass
     """,
     """
 @external
 def foo():
-    for i in range(10, 20):
-        pass
-    """,
-    """
-@external
-def foo():
-    x: int128 = 5
-    for i in range(1, x, bound=4):
+    for i: uint256 in range(10, 20):
         pass
     """,
     """
 @external
 def foo():
     x: int128 = 5
-    for i in range(x, bound=4):
+    for i: int128 in range(1, x, bound=4):
         pass
     """,
     """
 @external
 def foo():
     x: int128 = 5
-    for i in range(0, x, bound=4):
+    for i: int128 in range(x, bound=4):
+        pass
+    """,
+    """
+@external
+def foo():
+    x: int128 = 5
+    for i: int128 in range(0, x, bound=4):
         pass
     """,
     """
@@ -295,7 +295,7 @@ interface Foo:
 foos: Foo[3]
 @external
 def kick_foos():
-    for foo in self.foos:
+    for foo: Foo in self.foos:
         foo.kick()
     """,
 ]

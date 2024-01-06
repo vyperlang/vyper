@@ -17,7 +17,7 @@ def test_basic_slice(get_contract_with_gas_estimation):
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     inp: Bytes[50] = inp1
-    for i in range(1, 11):
+    for i: uint256 in range(1, 11):
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """

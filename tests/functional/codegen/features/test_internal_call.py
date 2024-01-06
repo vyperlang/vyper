@@ -152,7 +152,7 @@ def _increment():
 
 @external
 def returnten() -> int128:
-    for i in range(10):
+    for i: uint256 in range(10):
         self._increment()
     return self.counter
     """

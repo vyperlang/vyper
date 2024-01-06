@@ -566,7 +566,7 @@ struct Foo:
 @external
 def bar(_baz: Foo[3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _baz[i].x * _baz[i].y
     return sum
     """
@@ -608,7 +608,7 @@ struct Bar:
 @external
 def bar(_bar: Bar[3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
     return sum
     """
