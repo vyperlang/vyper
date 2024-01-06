@@ -39,13 +39,12 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast, loop_var_annotations, input_bundle, is_interface=False) -> ModuleT:
-    return validate_semantics_r(module_ast, loop_var_annotations, input_bundle, ImportGraph(), is_interface)
+def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
+    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
 
 
 def validate_semantics_r(
     module_ast: vy_ast.Module,
-    loop_var_annotations: dict[int, dict[str, Any]],
     input_bundle: InputBundle,
     import_graph: ImportGraph,
     is_interface: bool,
@@ -70,7 +69,7 @@ def validate_semantics_r(
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
         if not is_interface:
-            validate_functions(module_ast, loop_var_annotations)
+            validate_functions(module_ast)
 
     return ret
 
@@ -486,13 +485,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
-    ast, loop_var_annotations = vy_ast.parse_to_ast(
+    ast = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=str(file.path),
         resolved_path=str(file.resolved_path),
     )
-    return ast, loop_var_annotations
+    return ast
 
 
 # convert an import to a path (without suffix)
@@ -543,8 +542,8 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
 
     # TODO: it might be good to cache this computation
-    interface_ast, loop_var_annotations = _parse_and_fold_ast(file)
+    interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
-        module_t = validate_semantics(interface_ast, loop_var_annotations, input_bundle, is_interface=True)
+        module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
     return module_t.interface

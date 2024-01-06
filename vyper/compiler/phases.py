@@ -129,7 +129,7 @@ class CompilerData:
 
     @cached_property
     def _generate_ast(self):
-        settings, ast, loop_var_annotations = vy_ast.parse_to_ast_with_settings(
+        settings, ast = vy_ast.parse_to_ast_with_settings(
             self.source_code,
             self.source_id,
             module_path=str(self.contract_path),
@@ -145,7 +145,7 @@ class CompilerData:
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
-        return ast, loop_var_annotations
+        return ast
 
     @cached_property
     def vyper_module(self):
@@ -153,9 +153,8 @@ class CompilerData:
 
     @cached_property
     def _annotated_module(self):
-        ast, loop_var_annotations = self.vyper_module
         return generate_annotated_ast(
-            ast, loop_var_annotations, self.input_bundle, self.storage_layout_override
+            self.vyper_module, self.input_bundle, self.storage_layout_override
         )
 
     @property
@@ -245,7 +244,6 @@ class CompilerData:
 
 def generate_annotated_ast(
     vyper_module: vy_ast.Module,
-    loop_var_annotations: dict[int, dict[str, Any]],
     input_bundle: InputBundle,
     storage_layout_overrides: StorageLayout = None,
 ) -> tuple[vy_ast.Module, StorageLayout]:
@@ -267,7 +265,7 @@ def generate_annotated_ast(
     vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
         # note: validate_semantics does type inference on the AST
-        validate_semantics(vyper_module, loop_var_annotations, input_bundle)
+        validate_semantics(vyper_module, input_bundle)
 
     symbol_tables = set_data_positions(vyper_module, storage_layout_overrides)
 

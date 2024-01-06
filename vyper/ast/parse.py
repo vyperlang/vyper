@@ -12,9 +12,9 @@ from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
 
 
-def parse_to_ast(*args: Any, **kwargs: Any) -> tuple[vy_ast.Module, dict[int, dict[str, Any]]]:
-    _settings, ast, loop_var_annotations = parse_to_ast_with_settings(*args, **kwargs)
-    return ast, loop_var_annotations
+def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
+    _settings, ast = parse_to_ast_with_settings(*args, **kwargs)
+    return ast
 
 
 def parse_to_ast_with_settings(
@@ -57,6 +57,12 @@ def parse_to_ast_with_settings(
     settings, class_types, loop_var_annotations, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
+
+        for k, v in loop_var_annotations.items():
+            print("v: ", v)
+            parsed_v = python_ast.parse(v["source_code"])
+            print("parsed v: ", parsed_v.body[0].value)
+            loop_var_annotations[k]["parsed_ast"] = parsed_v
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
@@ -83,7 +89,13 @@ def parse_to_ast_with_settings(
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
 
-    return settings, module, loop_var_annotations
+    for k, v in loop_var_annotations.items():
+        loop_var_vy_ast = vy_ast.get_node(v["parsed_ast"])
+        loop_var_annotations[k]["vy_ast"] = loop_var_vy_ast
+
+    module._metadata["loop_var_annotations"] = loop_var_annotations
+
+    return settings, module
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
@@ -390,8 +402,10 @@ def annotate_python_ast(
     )
     visitor.visit(parsed_ast)
     for k, v in loop_var_annotations.items():
+        print("k: ", k)
+        print("v: ", v)
         tokens = asttokens.ASTTokens(v["source_code"], tree=cast(Optional[python_ast.Module], v["parsed_ast"]))
-        visitor = AnnotatingVisitor(v["source_code"], {}, tokens, source_id, contract_name)
+        visitor = AnnotatingVisitor(v["source_code"], {}, tokens, source_id, module_path=module_path, resolved_path=resolved_path)
         visitor.visit(v["parsed_ast"])
 
     return parsed_ast
