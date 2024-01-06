@@ -297,11 +297,11 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        target_type = self.stmt.target._metadata["type"]
+        target_type = self.stmt.target.target._metadata["type"]
         assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
-        varname = self.stmt.target.id
+        varname = self.stmt.target.target.id
         loop_var = IRnode.from_list(
             self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )

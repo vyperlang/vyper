@@ -54,13 +54,9 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, loop_var_annotations, class_types, reformatted_code = pre_parse(source_code)
+    settings, class_types, for_loop_annotations, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
-
-        for k, v in loop_var_annotations.items():
-            parsed_v = python_ast.parse(v["source_code"])
-            loop_var_annotations[k]["parsed_ast"] = parsed_v
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
@@ -76,12 +72,15 @@ def parse_to_ast_with_settings(
     annotate_python_ast(
         py_ast,
         source_code,
-        loop_var_annotations,
         class_types,
+        for_loop_annotations,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
+
+    # postcondition: consumed all the for loop annotations
+    assert len(for_loop_annotations) == 0
 
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
@@ -123,8 +122,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def __init__(
         self,
         source_code: str,
-        loop_var_annotations: dict[int, dict[str, Any]],
-        modification_offsets: Optional[ModificationOffsets],
+        modification_offsets: ModificationOffsets,
+        for_loop_annotations: dict,
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
@@ -134,12 +133,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_id = source_id
         self._module_path = module_path
         self._resolved_path = resolved_path
-        self._source_code: str = source_code
+        self._source_code = source_code
+        self._modification_offsets = modification_offsets
+        self._for_loop_annotations = for_loop_annotations
+
         self.counter: int = 0
-        self._modification_offsets = {}
-        self._loop_var_annotations = loop_var_annotations
-        if modification_offsets is not None:
-            self._modification_offsets = modification_offsets
 
     def generic_visit(self, node):
         """
@@ -221,6 +219,45 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
         return node
 
+    def visit_For(self, node):
+        """
+        Visit a For node, splicing in the loop variable annotation provided by
+        the pre-parser
+        """
+        raw_annotation = self._for_loop_annotations.pop((node.lineno, node.col_offset))
+
+        if not raw_annotation:
+            # a common case for people migrating to 0.4.0, provide a more
+            # specific error message than "invalid type annotation"
+            raise SyntaxException(
+                "missing type annotation\n\n"
+                "(hint: did you mean something like "
+                f"`for {node.target.id}: uint256 in ...`?)\n",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+            )
+
+        try:
+            annotation = python_ast.parse(raw_annotation, mode="eval")
+        except SyntaxError as e:
+            raise SyntaxException(
+                "invalid type annotation", self._source_code, node.lineno, node.col_offset
+            ) from e
+
+        assert isinstance(annotation, python_ast.Expression)
+        annotation = annotation.body
+
+        node.target_annotation = annotation
+
+        old_target = node.target
+        new_target = python_ast.AnnAssign(target=old_target, annotation=annotation, simple=1)
+        node.target = new_target
+
+        self.generic_visit(node)
+
+        return node
+
     def visit_Expr(self, node):
         """
         Convert the `Yield` node into a Vyper-specific node type.
@@ -237,28 +274,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if isinstance(node.value, python_ast.Yield):
             node = node.value
             node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
-
-        return node
-
-    def visit_For(self, node):
-        """
-        Annotate `For` nodes with the iterator's type annotation that was extracted
-        during pre-parsing.
-        """
-        iter_type_info = self._loop_var_annotations.get(node.lineno)
-        if not iter_type_info:
-            raise SyntaxException(
-                "For loop iterator requires type annotation",
-                self._source_code,
-                node.iter.lineno,
-                node.iter.col_offset,
-            )
-
-        iter_type_ast = iter_type_info["parsed_ast"]
-        self.generic_visit(iter_type_ast)
-        self.generic_visit(node)
-
-        node.iter_type = iter_type_ast.body[0].value
 
         return node
 
@@ -322,13 +337,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # modify vyper AST type according to the format of the literal value
         self.generic_visit(node)
 
-        # the type annotation of a for loop iterator is removed from the source
-        # code during pre-parsing, and therefore the `node_source_code` attribute
-        # of an integer in the type annotation would not be available e.g. DynArray[uint256, 3]
-        value = node.node_source_code if hasattr(node, "node_source_code") else None
+        value = node.node_source_code
 
         # deduce non base-10 types based on prefix
-        if value and value.lower()[:2] == "0x":
+        if value.lower()[:2] == "0x":
             if len(value) % 2:
                 raise SyntaxException(
                     "Hex notation requires an even number of digits",
@@ -339,7 +351,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Hex"
             node.n = value
 
-        elif value and value.lower()[:2] == "0b":
+        elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
             mod = (len(value) - 2) % 8
             if mod:
@@ -389,8 +401,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     source_code: str,
-    loop_var_annotations: dict[int, dict[str, Any]],
-    modification_offsets: Optional[ModificationOffsets] = None,
+    modification_offsets: ModificationOffsets,
+    for_loop_annotations: dict,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -418,8 +430,8 @@ def annotate_python_ast(
     tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(
         source_code,
-        loop_var_annotations,
         modification_offsets,
+        for_loop_annotations,
         tokens,
         source_id,
         module_path=module_path,

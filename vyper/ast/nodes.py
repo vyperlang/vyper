@@ -1546,7 +1546,7 @@ class IfExp(ExprNode):
 
 
 class For(Stmt):
-    __slots__ = ("iter", "iter_type", "target", "body")
+    __slots__ = ("target", "iter", "body")
     _only_empty_fields = ("orelse",)
 
 

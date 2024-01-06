@@ -1,5 +1,5 @@
-import io
 import enum
+import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 from typing import Any
@@ -44,16 +44,19 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
             start,
         )
 
+
 class ForParserState(enum.Enum):
     NOT_RUNNING = enum.auto()
     START_SOON = enum.auto()
     RUNNING = enum.auto()
 
+
 # a simple state machine which allows us to handle loop variable annotations
 # (which are rejected by the python parser due to pep-526, so we scoop up the
 # tokens between `:` and `in` and parse them and add them back in later).
 class ForParser:
-    def __init__(self):
+    def __init__(self, code):
+        self._code = code
         self.annotations = {}
         self._current_annotation = None
 
@@ -74,18 +77,25 @@ class ForParser:
         # state machine: start slurping tokens
         if token.type == OP and token.string == ":":
             self._state = ForParserState.RUNNING
-            assert self._current_annotation is None, (self._current_for_loop, self._current_annotation)
-            self._current_annotation = []
-            return False
 
-        if self._state != ForParserState.RUNNING:
-            return False
+            # sanity check -- this should never really happen, but if it does,
+            # try to raise an exception which pinpoints the source.
+            if self._current_annotation is not None:
+                raise SyntaxException(
+                    "for loop parse error", self._code, token.start[0], token.start[1]
+                )
+
+            self._current_annotation = []
+            return True  # do not add ":" to tokens.
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
             self._state = ForParserState.NOT_RUNNING
-            self.annotations[self._current_for_loop] = self._current_annotation
+            self.annotations[self._current_for_loop] = self._current_annotation or []
             self._current_annotation = None
+            return False
+
+        if self._state != ForParserState.RUNNING:
             return False
 
         # slurp the token
@@ -101,7 +111,7 @@ VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 VYPER_EXPRESSION_TYPES = {"log"}
 
 
-def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], ModificationOffsets, str]:
+def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -127,15 +137,15 @@ def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], Modificat
         Compilation settings based on the directives in the source code
     ModificationOffsets
         A mapping of class names to their original class types.
-    dict[int, dict[str, Any]]
-        A mapping of line numbers of `For` nodes to the type annotation of the iterator
+    dict[tuple[int, int], str]
+        A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     str
         Reformatted python source string.
     """
     result = []
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
-    for_parser = ForParser()
+    for_parser = ForParser(code)
 
     try:
         code_bytes = code.encode("utf-8")
@@ -211,15 +221,7 @@ def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], Modificat
 
     for_loop_annotations = {}
     for k, v in for_parser.annotations.items():
-        updated_v = untokenize(v)
-        # print("untokenized v: ", updated_v)
-        # updated_v = updated_v.replace("\\", "")
-        # updated_v = updated_v.replace("\n", "")
-        # import textwrap
+        v_source = untokenize(v).replace("\\", "").strip()
+        for_loop_annotations[k] = v_source
 
-        # print("updated v: ", textwrap.dedent(updated_v))
-        for_loop_annotations[k] = updated_v
-
-    # print("untokenized result: ", type(untokenize(result)))
-    # print("untokenized result decoded: ", untokenize(result).decode("utf-8"))
     return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")

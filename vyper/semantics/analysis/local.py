@@ -347,7 +347,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
-        iter_type = type_from_annotation(node.iter_type, DataLocation.MEMORY)
+        if not isinstance(node.target, vy_ast.AnnAssign):
+            raise StructureException("Invalid syntax for loop iterator", node.target)
+
+        iter_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
@@ -410,10 +413,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             call_node,
                         )
 
-        if not isinstance(node.target, vy_ast.Name):
-            raise StructureException("Invalid syntax for loop iterator", node.target)
-
-        iter_name = node.target.id
+        iter_name = node.target.target.id
         with self.namespace.enter_scope():
             self.namespace[iter_name] = VarInfo(
                 iter_type, modifiability=Modifiability.RUNTIME_CONSTANT
@@ -422,7 +422,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             for stmt in node.body:
                 self.visit(stmt)
 
-            self.expr_visitor.visit(node.target, iter_type)
+            self.expr_visitor.visit(node.target.target, iter_type)
 
             if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
                 iter_type = get_exact_type_from_node(node.iter)
@@ -714,7 +714,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.orelse, typ)
 
 
-def _analyse_range_call(node: vy_ast.Call, iter_type: VyperType) -> list[VyperType]:
+def _analyse_range_call(node: vy_ast.Call, iter_type: VyperType):
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
