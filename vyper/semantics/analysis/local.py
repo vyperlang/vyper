@@ -427,6 +427,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
+        for_loop_exceptions = []
         iter_name = node.target.id
         with self.namespace.enter_scope():
             self.namespace[iter_name] = VarInfo(
