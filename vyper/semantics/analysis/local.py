@@ -228,7 +228,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Memory variables must be declared with an initial value", node
             )
 
-        print("visit_AnnAssign - typ: ", type(node.annotation))
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         validate_expected_type(node.value, typ)
 
@@ -351,13 +350,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
-        print("visit_For: ", node.lineno)
         loop_var_annotations = self.vyper_module._metadata.get("loop_var_annotations")
-        print("visit_For - loop vars: ", loop_var_annotations)
-        iter_annotation_node = loop_var_annotations[node.lineno]["vy_ast"].body[0].value
-        print("visit_For - type annotation node type: ", type(iter_annotation_node))
+        iter_annotation = loop_var_annotations.get(node.lineno).get("vy_ast")
+        if not iter_annotation:
+            raise StructureException("Iterator needs type annotation", node.iter)
+        
+        iter_annotation_node = iter_annotation.body[0].value
         iter_type = type_from_annotation(iter_annotation_node, DataLocation.MEMORY)
-        print("iter type: ", iter_type)
         node.target._metadata["type"] = iter_type   
 
         if isinstance(node.iter, vy_ast.Call):
@@ -428,23 +427,59 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
-        self.expr_visitor.visit(node.target, iter_type)
+        iter_name = node.target.id
+        with self.namespace.enter_scope():
+            self.namespace[iter_name] = VarInfo(
+                iter_type, modifiability=Modifiability.RUNTIME_CONSTANT
+            )
 
-        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-            #iter_type = get_exact_type_from_node(node.iter)
-            # note CMC 2023-10-23: slightly redundant with how type_list is computed
-            #validate_expected_type(node.target, iter_type.value_type)
-            self.expr_visitor.visit(node.iter, iter_type)
-        if isinstance(node.iter, vy_ast.List):
-            len_ = len(node.iter.elements)
-            self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
-        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-            for a in node.iter.args:
-                self.expr_visitor.visit(a, iter_type)
-            for a in node.iter.keywords:
-                if a.arg == "bound":
-                    self.expr_visitor.visit(a.value, iter_type)
+            try:
+                with NodeMetadata.enter_typechecker_speculation():
+                    for stmt in node.body:
+                        self.visit(stmt)
 
+                self.expr_visitor.visit(node.target, iter_type)
+
+                if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
+                    iter_type = get_exact_type_from_node(node.iter)
+                    # note CMC 2023-10-23: slightly redundant with how type_list is computed
+                    validate_expected_type(node.target, iter_type.value_type)
+                    self.expr_visitor.visit(node.iter, iter_type)
+                if isinstance(node.iter, vy_ast.List):
+                    len_ = len(node.iter.elements)
+                    self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
+                if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+                    for a in node.iter.args:
+                        self.expr_visitor.visit(a, iter_type)
+                    for a in node.iter.keywords:
+                        if a.arg == "bound":
+                            self.expr_visitor.visit(a.value, iter_type)
+
+            except (TypeMismatch, InvalidOperation) as exc:
+                for_loop_exceptions.append(exc)
+            else:
+                # success -- do not enter error handling section
+                return
+
+        # failed to find a good type. bail out
+        if len(set(str(i) for i in for_loop_exceptions)) == 1:
+            # if every attempt at type checking raised the same exception
+            raise for_loop_exceptions[0]
+
+        # return an aggregate TypeMismatch that shows all possible exceptions
+        # depending on which type is used
+        types_str = [str(i) for i in type_list]
+        given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
+        raise TypeMismatch(
+            f"Iterator value '{iter_name}' may be cast as {given_str}, "
+            "but type checking fails with all possible types:",
+            node,
+            *(
+                (f"Casting '{iter_name}' as {typ}: {exc.message}", exc.annotations[0])
+                for typ, exc in zip(type_list, for_loop_exceptions)
+            ),
+        )
+            
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())

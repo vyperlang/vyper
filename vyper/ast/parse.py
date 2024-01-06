@@ -59,9 +59,7 @@ def parse_to_ast_with_settings(
         py_ast = python_ast.parse(reformatted_code)
 
         for k, v in loop_var_annotations.items():
-            print("v: ", v)
             parsed_v = python_ast.parse(v["source_code"])
-            print("parsed v: ", parsed_v.body[0].value)
             loop_var_annotations[k]["parsed_ast"] = parsed_v
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
