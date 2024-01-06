@@ -255,9 +255,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             )
 
         iter_type_ast = iter_type_info["parsed_ast"]
-
-        self.generic_visit(node)
         self.generic_visit(iter_type_ast)
+        self.generic_visit(node)
+
         node.iter_type = iter_type_ast.body[0].value
 
         return node
@@ -321,7 +321,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         # modify vyper AST type according to the format of the literal value
         self.generic_visit(node)
-        value = node.node_source_code
+
+        # the type annotation of a for loop iterator is removed from the source
+        # code during pre-parsing, and therefore the `node_source_code` attribute
+        # of an integer in the type annotation would not be available e.g. DynArray[uint256, 3]
+        value = node.node_source_code if hasattr(node, "node_source_code") else node.n
 
         # deduce non base-10 types based on prefix
         if value.lower()[:2] == "0x":
