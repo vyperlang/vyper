@@ -350,13 +350,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
-        loop_var_annotations = self.vyper_module._metadata.get("loop_var_annotations")
-        iter_annotation = loop_var_annotations.get(node.lineno).get("vy_ast")
-        if not iter_annotation:
-            raise StructureException("Iterator needs type annotation", node.iter)
-
-        iter_annotation_node = iter_annotation.body[0].value
-        iter_type = type_from_annotation(iter_annotation_node, DataLocation.MEMORY)
+        iter_type = type_from_annotation(node.iter_type, DataLocation.MEMORY)
         node.target._metadata["type"] = iter_type
 
         if isinstance(node.iter, vy_ast.Call):

@@ -87,13 +87,6 @@ def parse_to_ast_with_settings(
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
 
-    for k, v in loop_var_annotations.items():
-        loop_var_vy_ast = vy_ast.get_node(v["parsed_ast"])
-        loop_var_annotations[k]["vy_ast"] = loop_var_vy_ast
-        del loop_var_annotations[k]["parsed_ast"]
-
-    module._metadata["loop_var_annotations"] = loop_var_annotations
-
     return settings, module
 
 
@@ -125,12 +118,14 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _modification_offsets: ModificationOffsets
+    _loop_var_annotations: dict[int, python_ast.AST]
 
     def __init__(
         self,
         source_code: str,
         modification_offsets: Optional[ModificationOffsets],
         tokens: asttokens.ASTTokens,
+        loop_var_annotations: dict[int, python_ast.AST],
         source_id: int,
         module_path: Optional[str] = None,
         resolved_path: Optional[str] = None,
@@ -142,6 +137,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_code: str = source_code
         self.counter: int = 0
         self._modification_offsets = {}
+        self._loop_var_annotations = loop_var_annotations
         if modification_offsets is not None:
             self._modification_offsets = modification_offsets
 
@@ -241,6 +237,28 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if isinstance(node.value, python_ast.Yield):
             node = node.value
             node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+
+        return node
+
+    def visit_For(self, node):
+        """
+        Annotate `For` nodes with the iterator's type annotation that was extracted
+        during pre-parsing.
+        """
+        iter_type_info = self._loop_var_annotations.get(node.lineno)
+        if not iter_type_info:
+            raise SyntaxException(
+                "For loop iterator requires type annotation",
+                self._source_code,
+                node.iter.lineno,
+                node.iter.col_offset,
+            )
+
+        iter_type_ast = iter_type_info["parsed_ast"]
+
+        self.generic_visit(node)
+        self.generic_visit(iter_type_ast)
+        node.iter_type = iter_type_ast.body[0].value
 
         return node
 
@@ -384,6 +402,9 @@ def annotate_python_ast(
         The originating source code of the AST.
     modification_offsets : dict, optional
         A mapping of class names to their original class types.
+    loop_var_annotations: dict, optional
+        A mapping of line numbers of `For` nodes to the type annotation of the iterator
+        extracted during pre-parsing.
 
     Returns
     -------
@@ -395,24 +416,11 @@ def annotate_python_ast(
         source_code,
         modification_offsets,
         tokens,
+        loop_var_annotations,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
     visitor.visit(parsed_ast)
-
-    for _, v in loop_var_annotations.items():
-        tokens = asttokens.ASTTokens(
-            v["source_code"], tree=cast(Optional[python_ast.Module], v["parsed_ast"])
-        )
-        visitor = AnnotatingVisitor(
-            v["source_code"],
-            {},
-            tokens,
-            source_id,
-            module_path=module_path,
-            resolved_path=resolved_path,
-        )
-        visitor.visit(v["parsed_ast"])
 
     return parsed_ast
