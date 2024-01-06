@@ -154,9 +154,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
 
             if typ == NAME and string == "for":
                 is_for_loop = True
-                #print("for loop!")
-                #print(token)
-            
+                # print("for loop!")
+                # print(token)
+
             if is_for_loop:
                 if typ == NAME and string == "in":
                     loop_var_annotations[start[0]] = loop_var_annotation
@@ -170,7 +170,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
                     continue
 
                 elif after_loop_var and not (typ == NAME and string == "for"):
-                    #print("adding to loop var: ", toks)
+                    # print("adding to loop var: ", toks)
                     loop_var_annotation.extend(toks)
                     continue
 
@@ -179,16 +179,15 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
     for k, v in loop_var_annotations.items():
-        
-        
         updated_v = untokenize(v)
-        #print("untokenized v: ", updated_v)
+        # print("untokenized v: ", updated_v)
         updated_v = updated_v.replace("\\", "")
         updated_v = updated_v.replace("\n", "")
         import textwrap
-        #print("updated v: ", textwrap.dedent(updated_v))
+
+        # print("updated v: ", textwrap.dedent(updated_v))
         loop_var_annotations[k] = {"source_code": textwrap.dedent(updated_v)}
-        
-    #print("untokenized result: ", type(untokenize(result)))
-    #print("untokenized result decoded: ", untokenize(result).decode("utf-8"))
+
+    # print("untokenized result: ", type(untokenize(result)))
+    # print("untokenized result decoded: ", untokenize(result).decode("utf-8"))
     return settings, modification_offsets, loop_var_annotations, untokenize(result).decode("utf-8")

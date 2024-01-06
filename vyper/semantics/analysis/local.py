@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.metadata import NodeMetadata
@@ -354,10 +354,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         iter_annotation = loop_var_annotations.get(node.lineno).get("vy_ast")
         if not iter_annotation:
             raise StructureException("Iterator needs type annotation", node.iter)
-        
+
         iter_annotation_node = iter_annotation.body[0].value
         iter_type = type_from_annotation(iter_annotation_node, DataLocation.MEMORY)
-        node.target._metadata["type"] = iter_type   
+        node.target._metadata["type"] = iter_type
 
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
@@ -480,7 +480,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 for typ, exc in zip(type_list, for_loop_exceptions)
             ),
         )
-            
+
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())
