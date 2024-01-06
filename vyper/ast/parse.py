@@ -23,7 +23,7 @@ def parse_to_ast_with_settings(
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
     add_fn_node: Optional[str] = None,
-) -> tuple[Settings, vy_ast.Module, dict[int, dict[str, Any]]]:
+) -> tuple[Settings, vy_ast.Module]:
     """
     Parses a Vyper source string and generates basic Vyper AST nodes.
 
@@ -54,7 +54,7 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, loop_var_annotations, reformatted_code = pre_parse(source_code)
+    settings, loop_var_annotations, class_types, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
 
@@ -76,8 +76,8 @@ def parse_to_ast_with_settings(
     annotate_python_ast(
         py_ast,
         source_code,
-        class_types,
         loop_var_annotations,
+        class_types,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
@@ -118,14 +118,14 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _modification_offsets: ModificationOffsets
-    _loop_var_annotations: dict[int, python_ast.AST]
+    _loop_var_annotations: dict[int, dict[str, Any]]
 
     def __init__(
         self,
         source_code: str,
+        loop_var_annotations: dict[int, dict[str, Any]],
         modification_offsets: Optional[ModificationOffsets],
         tokens: asttokens.ASTTokens,
-        loop_var_annotations: dict[int, python_ast.AST],
         source_id: int,
         module_path: Optional[str] = None,
         resolved_path: Optional[str] = None,
@@ -325,10 +325,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # the type annotation of a for loop iterator is removed from the source
         # code during pre-parsing, and therefore the `node_source_code` attribute
         # of an integer in the type annotation would not be available e.g. DynArray[uint256, 3]
-        value = node.node_source_code if hasattr(node, "node_source_code") else node.n
+        value = node.node_source_code if hasattr(node, "node_source_code") else None
 
         # deduce non base-10 types based on prefix
-        if value.lower()[:2] == "0x":
+        if value and value.lower()[:2] == "0x":
             if len(value) % 2:
                 raise SyntaxException(
                     "Hex notation requires an even number of digits",
@@ -339,7 +339,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             node.ast_type = "Hex"
             node.n = value
 
-        elif value.lower()[:2] == "0b":
+        elif value and value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
             mod = (len(value) - 2) % 8
             if mod:
@@ -389,8 +389,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
     source_code: str,
+    loop_var_annotations: dict[int, dict[str, Any]],
     modification_offsets: Optional[ModificationOffsets] = None,
-    loop_var_annotations: Optional[dict[int, python_ast.AST]] = None,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -404,11 +404,11 @@ def annotate_python_ast(
         The AST to be annotated and optimized.
     source_code : str
         The originating source code of the AST.
-    modification_offsets : dict, optional
-        A mapping of class names to their original class types.
     loop_var_annotations: dict, optional
         A mapping of line numbers of `For` nodes to the type annotation of the iterator
         extracted during pre-parsing.
+    modification_offsets : dict, optional
+        A mapping of class names to their original class types.
 
     Returns
     -------
@@ -418,9 +418,9 @@ def annotate_python_ast(
     tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(
         source_code,
+        loop_var_annotations,
         modification_offsets,
         tokens,
-        loop_var_annotations,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,

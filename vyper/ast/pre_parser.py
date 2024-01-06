@@ -1,6 +1,7 @@
 import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
+from typing import Any
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
@@ -51,7 +52,7 @@ VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 VYPER_EXPRESSION_TYPES = {"log"}
 
 
-def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[str, str]], str]:
+def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], ModificationOffsets, str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -85,7 +86,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[
     result = []
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
-    loop_var_annotations = {}
+    loop_var_annotation_tokens = {}
 
     try:
         code_bytes = code.encode("utf-8")
@@ -93,7 +94,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[
 
         is_for_loop = False
         after_loop_var = False
-        loop_var_annotation = []
+        loop_var_annotation: list = []
 
         for i in range(len(token_list)):
             token = token_list[i]
@@ -163,7 +164,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[
 
             if is_for_loop:
                 if typ == NAME and string == "in":
-                    loop_var_annotations[start[0]] = loop_var_annotation
+                    loop_var_annotation_tokens[start[0]] = loop_var_annotation
 
                     is_for_loop = False
                     after_loop_var = False
@@ -181,7 +182,8 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    for k, v in loop_var_annotations.items():
+    loop_var_annotations: dict[int, dict[str, Any]] = {}
+    for k, v in loop_var_annotation_tokens.items():
         updated_v = untokenize(v)
         updated_v = updated_v.replace("\\", "")
         updated_v = updated_v.replace("\n", "")
@@ -189,4 +191,4 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[
 
         loop_var_annotations[k] = {"source_code": textwrap.dedent(updated_v)}
 
-    return settings, modification_offsets, loop_var_annotations, untokenize(result).decode("utf-8")
+    return settings, loop_var_annotations, modification_offsets, untokenize(result).decode("utf-8")
