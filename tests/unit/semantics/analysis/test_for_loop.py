@@ -22,7 +22,7 @@ def foo():
 @internal
 def bar():
     self.foo()
-    for i in self.a:
+    for i: uint256 in self.a:
         pass
     """
     vyper_module = parse_to_ast(code)
@@ -42,7 +42,7 @@ def foo(a: uint256[3]) -> uint256[3]:
 @internal
 def bar():
     a: uint256[3] = [1,2,3]
-    for i in a:
+    for i: uint256 in a:
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
@@ -56,7 +56,7 @@ a: uint256[3]
 
 @internal
 def bar():
-    for i in self.a:
+    for i: uint256 in self.a:
         self.a[0] = 1
     """
     vyper_module = parse_to_ast(code)
@@ -70,7 +70,7 @@ def test_bad_keywords(dummy_input_bundle):
 @internal
 def bar(n: uint256):
     x: uint256 = 0
-    for i in range(n, boundddd=10):
+    for i: uint256 in range(n, boundddd=10):
         x += i
     """
     vyper_module = parse_to_ast(code)
@@ -84,7 +84,7 @@ def test_bad_bound(dummy_input_bundle):
 @internal
 def bar(n: uint256):
     x: uint256 = 0
-    for i in range(n, bound=n):
+    for i: uint256 in range(n, bound=n):
         x += i
     """
     vyper_module = parse_to_ast(code)
@@ -103,7 +103,7 @@ def foo():
 
 @internal
 def bar():
-    for i in self.a:
+    for i: uint256 in self.a:
         self.foo()
     """
     vyper_module = parse_to_ast(code)
@@ -126,50 +126,9 @@ def bar():
 
 @internal
 def baz():
-    for i in self.a:
+    for i: uint256 in self.a:
         self.bar()
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, dummy_input_bundle)
-
-
-iterator_inference_codes = [
-    """
-@external
-def main():
-    for j in range(3):
-        x: uint256 = j
-        y: uint16 = j
-    """,  # GH issue 3212
-    """
-@external
-def foo():
-    for i in [1]:
-        a:uint256 = i
-        b:uint16 = i
-    """,  # GH issue 3374
-    """
-@external
-def foo():
-    for i in [1]:
-        for j in [1]:
-            a:uint256 = i
-        b:uint16 = i
-    """,  # GH issue 3374
-    """
-@external
-def foo():
-    for i in [1,2,3]:
-        for j in [1,2,3]:
-            b:uint256 = j + i
-        c:uint16 = i
-    """,  # GH issue 3374
-]
-
-
-@pytest.mark.parametrize("code", iterator_inference_codes)
-def test_iterator_type_inference_checker(code, dummy_input_bundle):
-    vyper_module = parse_to_ast(code)
-    with pytest.raises(TypeMismatch):
         validate_semantics(vyper_module, dummy_input_bundle)
