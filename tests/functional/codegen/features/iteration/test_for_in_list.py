@@ -648,7 +648,7 @@ def foo(x: int128):
         """
 @external
 def foo():
-    for i: uint256 in range(-3):
+    for i: int128 in range(-3):
         pass
     """,
         StructureException,
@@ -776,7 +776,7 @@ def test_for() -> int128:
         a = i
     return a
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (
         """
