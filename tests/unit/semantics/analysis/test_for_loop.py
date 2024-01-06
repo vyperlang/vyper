@@ -1,12 +1,7 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import (
-    ArgumentException,
-    ImmutableViolation,
-    StateAccessViolation,
-    TypeMismatch,
-)
+from vyper.exceptions import ArgumentException, ImmutableViolation, StateAccessViolation
 from vyper.semantics.analysis import validate_semantics
 
 

@@ -1,7 +1,6 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
