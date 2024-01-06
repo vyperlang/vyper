@@ -90,6 +90,7 @@ def parse_to_ast_with_settings(
     for k, v in loop_var_annotations.items():
         loop_var_vy_ast = vy_ast.get_node(v["parsed_ast"])
         loop_var_annotations[k]["vy_ast"] = loop_var_vy_ast
+        del loop_var_annotations[k]["parsed_ast"]
 
     module._metadata["loop_var_annotations"] = loop_var_annotations
 
