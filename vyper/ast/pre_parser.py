@@ -1,4 +1,5 @@
 import io
+import enum
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 from typing import Any
@@ -43,6 +44,54 @@ def validate_version_pragma(version_str: str, start: ParserPosition) -> None:
             start,
         )
 
+class ForParserState(enum.Enum):
+    NOT_RUNNING = enum.auto()
+    START_SOON = enum.auto()
+    RUNNING = enum.auto()
+
+# a simple state machine which allows us to handle loop variable annotations
+# (which are rejected by the python parser due to pep-526, so we scoop up the
+# tokens between `:` and `in` and parse them and add them back in later).
+class ForParser:
+    def __init__(self):
+        self.annotations = {}
+        self._current_annotation = None
+
+        self._state = ForParserState.NOT_RUNNING
+        self._current_for_loop = None
+
+    def consume(self, token):
+        # state machine: we can start slurping tokens soon
+        if token.type == NAME and token.string == "for":
+            # note: self._is_running should be false here, but we don't sanity
+            # check here as that should be an error the parser will handle.
+            self._state = ForParserState.START_SOON
+            self._current_for_loop = token.start
+
+        if self._state == ForParserState.NOT_RUNNING:
+            return False
+
+        # state machine: start slurping tokens
+        if token.type == OP and token.string == ":":
+            self._state = ForParserState.RUNNING
+            assert self._current_annotation is None, (self._current_for_loop, self._current_annotation)
+            self._current_annotation = []
+            return False
+
+        if self._state != ForParserState.RUNNING:
+            return False
+
+        # state machine: end slurping tokens
+        if token.type == NAME and token.string == "in":
+            self._state = ForParserState.NOT_RUNNING
+            self.annotations[self._current_for_loop] = self._current_annotation
+            self._current_annotation = None
+            return False
+
+        # slurp the token
+        self._current_annotation.append(token)
+        return True
+
 
 # compound statements that are replaced with `class`
 # TODO remove enum in favor of flag
@@ -86,18 +135,13 @@ def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], Modificat
     result = []
     modification_offsets: ModificationOffsets = {}
     settings = Settings()
-    loop_var_annotation_tokens = {}
+    for_parser = ForParser()
 
     try:
         code_bytes = code.encode("utf-8")
         token_list = list(tokenize(io.BytesIO(code_bytes).readline))
 
-        is_for_loop = False
-        after_loop_var = False
-        loop_var_annotation: list = []
-
-        for i in range(len(token_list)):
-            token = token_list[i]
+        for token in token_list:
             toks = [token]
 
             typ = token.type
@@ -159,36 +203,23 @@ def pre_parse(code: str) -> tuple[Settings, dict[int, dict[str, Any]], Modificat
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])
 
-            if typ == NAME and string == "for":
-                is_for_loop = True
+            if not for_parser.consume(token):
+                result.extend(toks)
 
-            if is_for_loop:
-                if typ == NAME and string == "in":
-                    loop_var_annotation_tokens[start[0]] = loop_var_annotation
-
-                    is_for_loop = False
-                    after_loop_var = False
-                    loop_var_annotation = []
-
-                elif (typ, string) == (OP, ":"):
-                    after_loop_var = True
-                    continue
-
-                elif after_loop_var and not (typ == NAME and string == "for"):
-                    loop_var_annotation.extend(toks)
-                    continue
-
-            result.extend(toks)
     except TokenError as e:
         raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
-    loop_var_annotations: dict[int, dict[str, Any]] = {}
-    for k, v in loop_var_annotation_tokens.items():
+    for_loop_annotations = {}
+    for k, v in for_parser.annotations.items():
         updated_v = untokenize(v)
-        updated_v = updated_v.replace("\\", "")
-        updated_v = updated_v.replace("\n", "")
-        import textwrap
+        # print("untokenized v: ", updated_v)
+        # updated_v = updated_v.replace("\\", "")
+        # updated_v = updated_v.replace("\n", "")
+        # import textwrap
 
-        loop_var_annotations[k] = {"source_code": textwrap.dedent(updated_v)}
+        # print("updated v: ", textwrap.dedent(updated_v))
+        for_loop_annotations[k] = updated_v
 
-    return settings, loop_var_annotations, modification_offsets, untokenize(result).decode("utf-8")
+    # print("untokenized result: ", type(untokenize(result)))
+    # print("untokenized result decoded: ", untokenize(result).decode("utf-8"))
+    return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")
