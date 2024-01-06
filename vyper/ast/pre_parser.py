@@ -51,7 +51,7 @@ VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
 VYPER_EXPRESSION_TYPES = {"log"}
 
 
-def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
+def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict[int, dict[str, str]], str]:
     """
     Re-formats a vyper source string into a python source string and performs
     some validation.  More specifically,
@@ -60,9 +60,11 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
     * Validates "@version" pragma against current compiler version
     * Prevents direct use of python "class" keyword
     * Prevents use of python semi-colon statement separator
+    * Extracts type annotation of for loop iterators into a separate dictionary
 
     Also returns a mapping of detected interface and struct names to their
-    respective vyper class types ("interface" or "struct").
+    respective vyper class types ("interface" or "struct"), and a mapping of line numbers
+    of for loops to the type annotation of their iterators.
 
     Parameters
     ----------
@@ -71,8 +73,12 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, str]:
 
     Returns
     -------
-    dict
-        Mapping of offsets where source was modified.
+    Settings
+        Compilation settings based on the directives in the source code
+    ModificationOffsets
+        A mapping of class names to their original class types.
+    dict[int, dict[str, Any]]
+        A mapping of line numbers of `For` nodes to the type annotation of the iterator
     str
         Reformatted python source string.
     """
