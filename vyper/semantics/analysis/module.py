@@ -485,13 +485,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
-    ast = vy_ast.parse_to_ast(
+    ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=str(file.path),
         resolved_path=str(file.resolved_path),
     )
-    return ast
+    return ret
 
 
 # convert an import to a path (without suffix)
