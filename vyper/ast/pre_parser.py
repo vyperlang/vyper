@@ -2,7 +2,6 @@ import enum
 import io
 import re
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
-from typing import Any
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
