@@ -221,7 +221,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
 
     for_loop_annotations = {}
     for k, v in for_parser.annotations.items():
-        v_source = untokenize(v).replace("\\", "").strip()
+        v_source = untokenize(v)
+        # untokenize adds backslashes and whitespace, strip them.
+        v_source = v_source.replace("\\", "").strip()
         for_loop_annotations[k] = v_source
 
     return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")
