@@ -60,7 +60,6 @@ class _BaseVyperException(Exception):
             # annotation (in case it is only available optionally)
             self.annotations = [k for k in items if k is not None]
 
-
     def with_annotation(self, *annotations):
         """
         Creates a copy of this exception with a modified source annotation.

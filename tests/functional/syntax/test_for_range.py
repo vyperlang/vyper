@@ -5,10 +5,9 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
-    TypeMismatch,
-    InvalidType,
     StateAccessViolation,
     StructureException,
+    TypeMismatch,
 )
 
 fail_list = [

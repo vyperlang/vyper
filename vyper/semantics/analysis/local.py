@@ -717,7 +717,7 @@ def _analyse_range_call(node: vy_ast.Call):
     :param node: call to range()
     :return: None
     """
-    assert node.func.id == "range"
+    assert node.func.get("id") == "range"
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
