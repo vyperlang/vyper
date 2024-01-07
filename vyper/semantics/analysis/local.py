@@ -350,7 +350,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if not isinstance(node.target, vy_ast.AnnAssign):
             raise StructureException("Invalid syntax for loop iterator", node.target)
 
-        iter_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
+        iter_item_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
@@ -358,7 +358,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            _analyse_range_call(node.iter, iter_type)
+            _analyse_range_call(node.iter, iter_item_type)
 
         else:
             # iteration over a variable or literal list
@@ -416,28 +416,28 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         iter_name = node.target.target.id
         with self.namespace.enter_scope():
             self.namespace[iter_name] = VarInfo(
-                iter_type, modifiability=Modifiability.RUNTIME_CONSTANT
+                iter_item_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
 
             for stmt in node.body:
                 self.visit(stmt)
 
-            self.expr_visitor.visit(node.target.target, iter_type)
+            self.expr_visitor.visit(node.target.target, iter_item_type)
 
             if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
                 iter_type = get_exact_type_from_node(node.iter)
                 # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                validate_expected_type(node.target, iter_type.value_type)
+                validate_expected_type(node.target.target, iter_type.value_type)
                 self.expr_visitor.visit(node.iter, iter_type)
             if isinstance(node.iter, vy_ast.List):
                 len_ = len(node.iter.elements)
-                self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
+                self.expr_visitor.visit(node.iter, SArrayT(iter_item_type, len_))
             if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
                 for a in node.iter.args:
-                    self.expr_visitor.visit(a, iter_type)
+                    self.expr_visitor.visit(a, iter_item_type)
                 for a in node.iter.keywords:
                     if a.arg == "bound":
-                        self.expr_visitor.visit(a.value, iter_type)
+                        self.expr_visitor.visit(a.value, iter_item_type)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
@@ -714,7 +714,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.orelse, typ)
 
 
-def _analyse_range_call(node: vy_ast.Call, iter_type: VyperType):
+def _analyse_range_call(node: vy_ast.Call, iter_item_type: VyperType):
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
@@ -727,7 +727,7 @@ def _analyse_range_call(node: vy_ast.Call, iter_type: VyperType):
 
     all_args = (start, end, *kwargs.values())
     for arg1 in all_args:
-        validate_expected_type(arg1, iter_type)
+        validate_expected_type(arg1, iter_item_type)
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
