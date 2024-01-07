@@ -178,7 +178,6 @@ body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
 cond_exec: _expr ":" body
 default_exec: body
 if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
-// TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
 loop_variable: NAME ":" type
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
