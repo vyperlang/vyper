@@ -431,11 +431,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 len_ = len(node.iter.elements)
                 self.expr_visitor.visit(node.iter, SArrayT(iter_type, len_))
             if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                for a in node.iter.args:
-                    self.expr_visitor.visit(a, iter_type)
-                for a in node.iter.keywords:
-                    if a.arg == "bound":
-                        self.expr_visitor.visit(a.value, iter_type)
+                args = node.iter.args
+                kwargs = [s.value for s in node.iter.keywords]
+                for arg in (*args, *kwargs):
+                    self.expr_visitor.visit(arg, iter_type)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
