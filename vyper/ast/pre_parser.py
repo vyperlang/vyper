@@ -65,7 +65,7 @@ class ForParser:
     def consume(self, token):
         # state machine: we can start slurping tokens soon
         if token.type == NAME and token.string == "for":
-            # note: self._is_running should be false here, but we don't sanity
+            # note: self._state should be NOT_RUNNING here, but we don't sanity
             # check here as that should be an error the parser will handle.
             self._state = ForParserState.START_SOON
             self._current_for_loop = token.start
