@@ -19,7 +19,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 # type of type `type_`
 class _GenericTypeAcceptor:
     def __repr__(self):
-        return repr(self.type_)
+        return f"<any>({repr(self.type_)})"
 
     def __init__(self, type_):
         self.type_ = type_

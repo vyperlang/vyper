@@ -90,7 +90,7 @@ from vyper.utils import (
     ceil32,
     fourbytes_to_int,
     keccak256,
-    method_id_int,
+    method_id,
     vyper_warn,
 )
 
@@ -723,12 +723,12 @@ class MethodID(FoldedFunctionT):
             raise InvalidLiteral("Invalid function signature - no spaces allowed.", node.args[0])
 
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
-        value = method_id_int(value.value)
+        value = method_id(value.value)
 
         if return_type.compare_type(BYTES4_T):
-            return vy_ast.Hex.from_node(node, value=hex(value))
+            return vy_ast.Hex.from_node(node, value="0x" + value.hex())
         else:
-            return vy_ast.Bytes.from_node(node, value=value.to_bytes(4, "big"))
+            return vy_ast.Bytes.from_node(node, value=value)
 
     def fetch_call_return(self, node):
         validate_call_args(node, 1, ["output_type"])
