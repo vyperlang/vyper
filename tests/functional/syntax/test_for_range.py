@@ -5,9 +5,9 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    InvalidType,
     StateAccessViolation,
     StructureException,
-    TypeMismatch,
 )
 
 fail_list = [
@@ -218,9 +218,15 @@ def foo():
     for i: uint256 in range(FOO, BAR):
         pass
     """,
-        TypeMismatch,
-        "Iterator values are of different types",
-        "range(FOO, BAR)",
+        InvalidType,
+        """Expected uint256 but literal can only be cast as int128.
+  line 2:24 
+       1
+  ---> 2 FOO: constant(int128) = 3
+  -------------------------------^
+       3 BAR: constant(uint256) = 7
+""",  # noqa: W291
+        "FOO",
     ),
     (
         """
@@ -233,7 +239,7 @@ def foo():
         """,
         StructureException,
         "Bound must be at least 1",
-        "-1",
+        "FOO",
     ),
 ]
 
