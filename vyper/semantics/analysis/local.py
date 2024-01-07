@@ -347,8 +347,8 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if isinstance(node.iter, vy_ast.Subscript):
             raise StructureException("Cannot iterate over a nested list", node.iter)
 
-        if not isinstance(node.target, vy_ast.AnnAssign):
-            raise StructureException("Invalid syntax for loop iterator", node.target)
+        if not isinstance(node.target.target, vy_ast.Name):
+            raise StructureException("Invalid syntax for loop iterator", node.target.target)
 
         iter_item_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
@@ -723,27 +723,32 @@ def _analyse_range_call(node: vy_ast.Call, iter_item_type: VyperType):
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
-    start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
+    folded_start, folded_end = [
+        i.get_folded_value() if i.has_folded_value else i for i in (start, end)
+    ]
 
-    all_args = (start, end, *kwargs.values())
-    for arg1 in all_args:
-        validate_expected_type(arg1, iter_item_type)
+    all_args_unfolded = (start, end, *kwargs.values())
+    all_args_folded = (folded_start, folded_end, *kwargs.values())
+    for unfolded_arg, folded_arg in zip(all_args_unfolded, all_args_folded):
+        try:
+            validate_expected_type(folded_arg, iter_item_type)
+        except VyperException as e:
+            raise InvalidType(str(e), unfolded_arg)
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
-        if bound.has_folded_value:
-            bound = bound.get_folded_value()
-        if not isinstance(bound, vy_ast.Num):
+        folded_bound = bound.get_folded_value() if bound.has_folded_value else bound
+        if not isinstance(folded_bound, vy_ast.Num):
             raise StateAccessViolation("Bound must be a literal", bound)
-        if bound.value <= 0:
+        if folded_bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
-        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
+        if isinstance(folded_start, vy_ast.Num) and isinstance(folded_end, vy_ast.Num):
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
-        for arg in (start, end):
-            if not isinstance(arg, vy_ast.Num):
+        for arg, folded_arg in zip((start, end), (folded_start, folded_end)):
+            if not isinstance(folded_arg, vy_ast.Num):
                 error = "Value must be a literal integer, unless a bound is specified"
                 raise StateAccessViolation(error, arg)
-        if end.value <= start.value:
+        if folded_end.value <= folded_start.value:
             raise StructureException("End must be greater than start", end)
