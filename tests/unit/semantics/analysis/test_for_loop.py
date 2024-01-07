@@ -1,7 +1,12 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import ArgumentException, ImmutableViolation, StateAccessViolation
+from vyper.exceptions import (
+    ArgumentException,
+    ImmutableViolation,
+    StateAccessViolation,
+    TypeMismatch,
+)
 from vyper.semantics.analysis import validate_semantics
 
 
@@ -126,4 +131,45 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
+        validate_semantics(vyper_module, dummy_input_bundle)
+
+
+iterator_inference_codes = [
+    """
+@external
+def main():
+    for j: uint256 in range(3):
+        x: uint256 = j
+        y: uint16 = j
+    """,  # GH issue 3212
+    """
+@external
+def foo():
+    for i: uint256 in [1]:
+        a: uint256 = i
+        b: uint16 = i
+    """,  # GH issue 3374
+    """
+@external
+def foo():
+    for i: uint256 in [1]:
+        for j: uint256 in [1]:
+            a: uint256 = i
+        b: uint16 = i
+    """,  # GH issue 3374
+    """
+@external
+def foo():
+    for i: uint256 in [1,2,3]:
+        for j: uint256 in [1,2,3]:
+            b: uint256 = j + i
+        c: uint16 = i
+    """,  # GH issue 3374
+]
+
+
+@pytest.mark.parametrize("code", iterator_inference_codes)
+def test_iterator_type_inference_checker(code, dummy_input_bundle):
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(TypeMismatch):
         validate_semantics(vyper_module, dummy_input_bundle)
