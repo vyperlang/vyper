@@ -358,7 +358,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            _analyse_range_call(node.iter, target_type)
+            _analyse_range_call(node.iter)
 
         else:
             # iteration over a variable or literal list
@@ -717,7 +717,7 @@ def _analyse_range_call(node: vy_ast.Call):
     :param node: call to range()
     :return: None
     """
-    assert node.iter.func.id == "range"
+    assert node.func.id == "range"
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
