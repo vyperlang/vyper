@@ -270,7 +270,7 @@ class Stmt:
         if rounds_bound < 1:  # pragma: nocover
             raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
-        varname = self.stmt.target.id
+        varname = self.stmt.target.target.id
         i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
         iptr = self.context.new_variable(varname, iter_typ)
 
