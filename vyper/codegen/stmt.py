@@ -33,7 +33,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
+from vyper.semantics.types.shortcuts import UINT256_T
 
 
 class Stmt:
@@ -231,11 +231,8 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # TODO make sure type always gets annotated
-        if "type" in self.stmt.target._metadata:
-            iter_typ = self.stmt.target._metadata["type"]
-        else:
-            iter_typ = INT256_T
+        assert "type" in self.stmt.target.target._metadata
+        iter_typ = self.stmt.target.target._metadata["type"]
 
         # Get arg0
         for_iter: vy_ast.Call = self.stmt.iter
@@ -271,7 +268,7 @@ class Stmt:
             raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
         varname = self.stmt.target.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=iter_typ)
         iptr = self.context.new_variable(varname, iter_typ)
 
         self.context.forvars[varname] = True
