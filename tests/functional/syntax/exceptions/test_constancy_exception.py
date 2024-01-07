@@ -57,7 +57,7 @@ def foo() -> int128:
     return 5
 @external
 def bar():
-    for i in range(self.foo(), self.foo() + 1):
+    for i: int128 in range(self.foo(), self.foo() + 1):
         pass""",
         """
 glob: int128
@@ -67,13 +67,13 @@ def foo() -> int128:
     return 5
 @external
 def bar():
-    for i in [1,2,3,4,self.foo()]:
+    for i: int128 in [1,2,3,4,self.foo()]:
         pass""",
         """
 @external
 def foo():
     x: int128 = 5
-    for i in range(x):
+    for i: int128 in range(x):
         pass""",
         """
 f:int128

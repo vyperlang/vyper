@@ -33,7 +33,7 @@ def foo(choice: bool):
 @external
 def foo(choice: bool):
 
-    for i in range(4):
+    for i: int128 in range(4):
         a: int128 = 0
     a = 1
     """,
@@ -41,7 +41,7 @@ def foo(choice: bool):
 @external
 def foo(choice: bool):
 
-    for i in range(4):
+    for i: int128 in range(4):
         a: int128 = 0
     a += 1
     """,

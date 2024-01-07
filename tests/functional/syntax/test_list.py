@@ -306,7 +306,7 @@ def foo():
 @external
 def foo():
     x: DynArray[uint256, 3] = [1, 2, 3]
-    for i in [[], []]:
+    for i: DynArray[uint256, 3] in [[], []]:
         x = i
     """,
 ]
