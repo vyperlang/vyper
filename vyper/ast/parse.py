@@ -240,12 +240,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         try:
             annotation = python_ast.parse(raw_annotation, mode="eval")
-            # call ASTTokens ctor for its side effects of enhancing the Python AST tree
-            # with token and source code information, specifically the `first_token` and 
-            # `last_token` attributes that are accessed in `generic_visit`.
-            asttokens.ASTTokens(
-                raw_annotation, tree=cast(Optional[python_ast.Module], annotation)
-            )
+            # enhance the Python AST tree with token and source code information, specifically the
+            # `first_token` and `last_token` attributes that are accessed in `generic_visit`.
+            tokens = asttokens.ASTTokens(raw_annotation)
+            tokens.mark_tokens(annotation)
         except SyntaxError as e:
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
