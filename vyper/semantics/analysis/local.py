@@ -355,7 +355,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            _analyse_range_call(node.iter)
+            _validate_range_call(node.iter)
 
         else:
             # iteration over a variable or literal list
@@ -708,7 +708,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.orelse, typ)
 
 
-def _analyse_range_call(node: vy_ast.Call):
+def _validate_range_call(node: vy_ast.Call):
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
