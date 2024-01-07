@@ -24,7 +24,7 @@ from vyper.exceptions import (
 )
 from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
-NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata")
+NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata", "_original_node")
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
     "end_col_offset",
@@ -257,6 +257,7 @@ class VyperNode:
         self.set_parent(parent)
         self._children: set = set()
         self._metadata: NodeMetadata = NodeMetadata()
+        self._original_node = None
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -411,11 +412,15 @@ class VyperNode:
         # sanity check this is only called once
         assert "folded_value" not in self._metadata
 
-        # set the folded node's parent so that get_ancestor works
-        # this is mainly important for error messages.
-        node._parent = self._parent
+        # set the "original node" so that exceptions can point to the original
+        # node and not the folded node
+        node = copy.copy(node)
+        node._original_node = self
 
         self._metadata["folded_value"] = node
+
+    def get_original_node(self) -> "VyperNode":
+        return self._original_node or self
 
     def _try_fold(self) -> "VyperNode":
         """

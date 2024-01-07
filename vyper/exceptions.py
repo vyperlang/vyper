@@ -60,6 +60,7 @@ class _BaseVyperException(Exception):
             # annotation (in case it is only available optionally)
             self.annotations = [k for k in items if k is not None]
 
+
     def with_annotation(self, *annotations):
         """
         Creates a copy of this exception with a modified source annotation.
@@ -91,6 +92,10 @@ class _BaseVyperException(Exception):
         for value in self.annotations:
             node = value[1] if isinstance(value, tuple) else value
             node_msg = ""
+
+            if isinstance(node, vy_ast.VyperNode):
+                # folded AST nodes contain pointers to the original source
+                node = node.get_original_node()
 
             try:
                 source_annotation = annotate_source_code(

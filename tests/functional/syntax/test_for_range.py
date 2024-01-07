@@ -5,6 +5,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    TypeMismatch,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -218,14 +219,8 @@ def foo():
     for i: uint256 in range(FOO, BAR):
         pass
     """,
-        InvalidType,
-        """Expected uint256 but literal can only be cast as int128.
-  line 2:24 
-       1
-  ---> 2 FOO: constant(int128) = 3
-  -------------------------------^
-       3 BAR: constant(uint256) = 7
-""",  # noqa: W291
+        TypeMismatch,
+        "Given reference has type int128, expected uint256",
         "FOO",
     ),
     (
@@ -258,7 +253,7 @@ def test_range_fail(bad_code, error_type, message, source_code):
     with pytest.raises(error_type) as exc_info:
         compiler.compile_code(bad_code)
     assert message == exc_info.value.message
-    assert source_code == exc_info.value.args[1].node_source_code
+    assert source_code == exc_info.value.args[1].get_original_node().node_source_code
 
 
 valid_list = [
