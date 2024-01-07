@@ -344,9 +344,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, fn_type)
 
     def visit_For(self, node):
-        if isinstance(node.iter, vy_ast.Subscript):
-            raise StructureException("Cannot iterate over a nested list", node.iter)
-
         if not isinstance(node.target.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target.target)
 

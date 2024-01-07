@@ -418,6 +418,18 @@ def a() -> int128:
     return x""",
         -14,
     ),
+    (
+        """
+@external
+def a() -> uint256:
+    a: DynArray[DynArray[uint256, 2], 3] = [[0, 1], [2, 3], [4, 5]]
+    x: uint256 = 0
+    for i: uint256 in a[2]:
+        x += i
+    return x
+    """,
+        9,
+    ),
 ]
 
 
@@ -791,13 +803,6 @@ def test_for() -> int128:
     """,
         TypeMismatch,
     ),
-    """
-@external
-def foo():
-    a: DynArray[DynArray[uint256, 2], 3] = [[0, 1], [2, 3], [4, 5]]
-    for i: uint256 in a[2]:
-        pass
-    """,
 ]
 
 BAD_CODE = [code if isinstance(code, tuple) else (code, StructureException) for code in BAD_CODE]
