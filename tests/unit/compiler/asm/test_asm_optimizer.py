@@ -58,7 +58,7 @@ def ctor_only():
 
 @internal
 def runtime_only():
-    for i in range(10):
+    for i: uint256 in range(10):
         self.s += 1
 
 @external
