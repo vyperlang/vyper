@@ -40,8 +40,11 @@ class ConstantFolder(VyperNodeVisitorBase):
         except UndeclaredDefinition:
             raise UnfoldableNode("unknown name", node)
 
-        if not isinstance(varinfo, VarInfo) or not varinfo.is_constant:
-            raise UnfoldableNode("not a constant", node)
+        if not isinstance(varinfo, VarInfo) or varinfo.decl_node is None:
+            raise UnfoldableNode("not a variable", node)
+
+        if not varinfo.decl_node.is_constant:
+            raise UnfoldableNode("no value")
 
         return varinfo.decl_node.value.get_folded_value()
 
@@ -135,7 +138,11 @@ class ConstantFolder(VyperNodeVisitorBase):
         if func_name not in namespace:
             raise UnfoldableNode("unknown", node)
 
-        typ = namespace[func_name]
+        varinfo = namespace[func_name]
+        if not isinstance(varinfo, VarInfo):
+            raise UnfoldableNode("unfoldable", node)
+
+        typ = varinfo.typ
         # TODO: rename to vyper_type.try_fold_call_expr
         if not hasattr(typ, "_try_fold"):
             raise UnfoldableNode("unfoldable", node)
