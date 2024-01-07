@@ -426,8 +426,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
 
             if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
                 iter_type = get_exact_type_from_node(node.iter)
-                # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                validate_expected_type(node.target.target, iter_type.value_type)
                 self.expr_visitor.visit(node.iter, iter_type)
             if isinstance(node.iter, vy_ast.List):
                 len_ = len(node.iter.elements)
