@@ -338,7 +338,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         """
         # modify vyper AST type according to the format of the literal value
         self.generic_visit(node)
-
         value = node.node_source_code
 
         # deduce non base-10 types based on prefix
