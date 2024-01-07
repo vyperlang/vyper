@@ -1,6 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, UndeclaredDefinition, UnfoldableNode
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.namespace import get_namespace
 
 
@@ -13,6 +14,9 @@ class ConstantFolder(VyperNodeVisitorBase):
                 # ignore bubbled up exceptions
                 pass
 
+        if node.has_folded_value:
+            return node.get_folded_value()
+
         try:
             for class_ in node.__class__.mro():
                 ast_type = class_.__name__
@@ -22,11 +26,9 @@ class ConstantFolder(VyperNodeVisitorBase):
                     folded_value = visitor_fn(node)
                     node._set_folded_value(folded_value)
                     return folded_value
-            else:
-                raise UnfoldableNode
         except UnfoldableNode:
             # ignore bubbled up exceptions
-            pass
+            return node
 
     def visit_Constant(self, node) -> vy_ast.ExprNode:
         return node
@@ -34,14 +36,14 @@ class ConstantFolder(VyperNodeVisitorBase):
     def visit_Name(self, node) -> vy_ast.ExprNode:
         namespace = get_namespace()
         try:
-            ret = namespace[node]
+            varinfo = namespace[node.id]
         except UndeclaredDefinition:
             raise UnfoldableNode("unknown name", node)
 
-        if not isinstance(ret, vy_ast.VariableDecl) and not ret.is_constant:
+        if not isinstance(varinfo, VarInfo) or not varinfo.is_constant:
             raise UnfoldableNode("not a constant", node)
 
-        return ret.value.get_folded_value()
+        return varinfo.decl_node.value.get_folded_value()
 
     def visit_UnaryOp(self, node):
         operand = node.operand.get_folded_value()

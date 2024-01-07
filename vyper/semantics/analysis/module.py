@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
+from vyper.semantics.analysis.constant_folding import ConstantFolder
 from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
@@ -159,6 +160,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(to_visit):
                 err_list.raise_if_not_empty()
 
+        # run constant folding recursively on all nodes
+        ConstantFolder().visit(self.ast)
+
         self.module_t = ModuleT(self.ast)
         self.ast._metadata["type"] = self.module_t
 
@@ -307,6 +311,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
+
+            ConstantFolder().visit(node.value)
 
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
