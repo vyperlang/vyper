@@ -23,9 +23,9 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.constant_folding import ConstantFolder
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
+from vyper.semantics.analysis.pre_typecheck import pre_typecheck
 from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
@@ -50,6 +50,8 @@ def validate_semantics_r(
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
     validate_literal_nodes(module_ast)
+
+    pre_typecheck(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -146,9 +148,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list = ExceptionList()
             for node in to_visit.copy():
                 try:
-                    # try constant folding, some type annotations and constants
-                    # may need folding before they work properly.
-                    ConstantFolder().visit(node)
                     self.visit(node)
                     to_visit.remove(node)
                 except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:

@@ -1,11 +1,58 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidLiteral, UndeclaredDefinition, UnfoldableNode
+from vyper.exceptions import InvalidLiteral, UnfoldableNode
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.namespace import get_namespace
 
 
+def pre_typecheck(module_ast: vy_ast.Module):
+    ConstantFolder(module_ast).run()
+
+
 class ConstantFolder(VyperNodeVisitorBase):
+    def __init__(self, module_ast):
+        self._constants = {}
+        self._module_ast = module_ast
+
+    def run(self):
+        self._get_constants()
+        self.visit(self._module_ast)
+
+    def _get_constants(self):
+        module = self._module_ast
+        const_var_decls = module.get_children(vy_ast.VariableDecl, {"is_constant": True})
+
+        while True:
+            n_processed = 0
+
+            for c in const_var_decls.copy():
+                assert c.value is not None  # guaranteed by VariableDecl.validate()
+
+                self.visit(c.value)
+
+                try:
+                    val = c.value.get_folded_value()
+                except UnfoldableNode:
+                    # not foldable, maybe it depends on other constants
+                    # so try again later
+                    continue
+
+                # note that if a constant is redefined, its value will be
+                # overwritten, but it is okay because the error is handled
+                # downstream
+                name = c.target.id
+                self._constants[name] = val
+
+                n_processed += 1
+                const_var_decls.remove(c)
+
+            if n_processed == 0:
+                # this condition means that there are some constant vardecls
+                # whose values are not foldable. this can happen for struct
+                # and interface constants for instance. these are valid constant
+                # declarations, but we just can't fold them at this stage.
+                break
+
     def visit(self, node):
         if node.has_folded_value:
             return node.get_folded_value()
@@ -34,20 +81,10 @@ class ConstantFolder(VyperNodeVisitorBase):
         return node
 
     def visit_Name(self, node) -> vy_ast.ExprNode:
-        namespace = get_namespace()
         try:
-            varinfo = namespace[node.id]
-        except UndeclaredDefinition:
+            return self._constants[node.id]
+        except KeyError:
             raise UnfoldableNode("unknown name", node)
-
-        if not isinstance(varinfo, VarInfo) or varinfo.decl_node is None:
-            raise UnfoldableNode("not a variable", node)
-
-        assert isinstance(varinfo.decl_node, vy_ast.VariableDecl)  # mypy hint
-        if not varinfo.decl_node.is_constant:
-            raise UnfoldableNode("no value")
-
-        return varinfo.decl_node.value.get_folded_value()
 
     def visit_UnaryOp(self, node):
         operand = node.operand.get_folded_value()
