@@ -312,8 +312,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
 
-            ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
             ConstantFolder().visit(node.value)
+            ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
             if not check_modifiability(node.value, Modifiability.CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
