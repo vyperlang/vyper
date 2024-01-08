@@ -59,6 +59,14 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="module")
+def output_formats():
+    output_formats = compiler.OUTPUT_FORMATS.copy()
+    del output_formats["bb"]
+    del output_formats["bb_runtime"]
+    return output_formats
+
+
+@pytest.fixture(scope="module")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
@@ -281,14 +289,18 @@ def get_contract_from_ir(w3, optimize):
 
 
 def _get_contract(
-    w3, source_code, optimize, *args, override_opt_level=None, input_bundle=None, **kwargs
+    w3,
+    source_code,
+    optimize,
+    output_formats,
+    *args,
+    override_opt_level=None,
+    input_bundle=None,
+    **kwargs,
 ):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = override_opt_level or optimize
-    output_formats = compiler.OUTPUT_FORMATS.copy()
-    del output_formats["bb"]
-    del output_formats["bb_runtime"]
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
@@ -312,17 +324,17 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize):
+def get_contract(w3, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize):
+def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, optimize, *args, **kwargs)
+        contract = _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -332,15 +344,15 @@ def get_contract_with_gas_estimation(tester, w3, optimize):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize):
+def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize):
+def get_contract_module(optimize, output_formats):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -353,20 +365,15 @@ def get_contract_module(optimize):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return get_contract_module
 
 
-def _deploy_blueprint_for(
-    w3, source_code, optimize, initcode_prefix=b"", experimental_codegen=False, **kwargs
-):
+def _deploy_blueprint_for(w3, source_code, optimize, output_formats, initcode_prefix=b"", **kwargs):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize
-    output_formats = compiler.OUTPUT_FORMATS.copy()
-    del output_formats["bb"]
-    del output_formats["bb_runtime"]
     out = compiler.compile_code(
         source_code,
         output_formats=output_formats,
@@ -402,9 +409,9 @@ def _deploy_blueprint_for(
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, optimize):
+def deploy_blueprint_for(w3, optimize, output_formats):
     def deploy_blueprint_for(source_code, *args, **kwargs):
-        return _deploy_blueprint_for(w3, source_code, optimize, *args, **kwargs)
+        return _deploy_blueprint_for(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return deploy_blueprint_for
 
