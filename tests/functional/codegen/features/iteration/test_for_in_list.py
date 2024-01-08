@@ -827,7 +827,7 @@ def foo():
         """
 @external
 def foo():
-    for i: DynArra[uint256, 3] in [1, 2, 3]:
+    for i: uint9 in [1, 2, 3]:
         pass
     """,
         UnknownType,
