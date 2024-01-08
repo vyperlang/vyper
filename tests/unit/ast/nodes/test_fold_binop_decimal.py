@@ -4,8 +4,8 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 from tests.utils import parse_and_fold
+from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 
 st_decimals = st.decimals(
     min_value=-(2**32), max_value=2**32, allow_nan=False, allow_infinity=False, places=10

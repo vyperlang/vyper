@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.semantics.analysis.constant_folding import ConstantFolder
 from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
@@ -24,6 +23,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.constant_folding import ConstantFolder
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
 from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
@@ -160,7 +160,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if count == len(to_visit):
                 err_list.raise_if_not_empty()
 
-        # run constant folding recursively on all nodes
+        # try constant folding all nodes
         ConstantFolder().visit(self.ast)
 
         self.module_t = ModuleT(self.ast)

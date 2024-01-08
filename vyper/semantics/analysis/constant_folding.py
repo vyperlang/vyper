@@ -1,7 +1,7 @@
 from vyper import ast as vy_ast
 from vyper.exceptions import InvalidLiteral, UndeclaredDefinition, UnfoldableNode
-from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.namespace import get_namespace
 
 

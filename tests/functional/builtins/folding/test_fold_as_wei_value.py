@@ -3,7 +3,6 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
-
 from vyper.builtins import functions as vy_fn
 from vyper.utils import SizeLimits
 

@@ -2,8 +2,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper.utils import SizeLimits
 from tests.utils import parse_and_fold
+from vyper.utils import SizeLimits
 
 st_decimals = st.decimals(
     min_value=SizeLimits.MIN_AST_DECIMAL,

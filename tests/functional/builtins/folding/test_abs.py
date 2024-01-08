@@ -2,8 +2,8 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper.exceptions import InvalidType
 from tests.utils import parse_and_fold
+from vyper.exceptions import InvalidType
 
 
 @pytest.mark.fuzzing
