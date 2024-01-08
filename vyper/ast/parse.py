@@ -268,10 +268,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             n.node_source_code = raw_annotation
 
             # override the locations to show the `For` node
-            n.lineno = node.lineno
-            n.col_offset = node.col_offset
-            n.end_lineno = node.end_lineno
-            n.end_col_offset = node.end_col_offset
+            python_ast.copy_location(n, node)
 
         return node
 
