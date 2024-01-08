@@ -8,6 +8,7 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
+    UnknownType,
 )
 
 fail_list = [
@@ -234,6 +235,17 @@ def foo():
         StructureException,
         "Bound must be at least 1",
         "FOO",
+    ),
+    (
+        """
+@external
+def foo():
+    for i: DynArra[uint256, 3] in [1, 2, 3]:
+        pass
+    """,
+        UnknownType,
+        "No builtin or user-defined type named 'DynArra[uint256, 3]'. ",
+        "DynArra[uint256, 3]",
     ),
 ]
 

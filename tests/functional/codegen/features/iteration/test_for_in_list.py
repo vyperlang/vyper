@@ -11,7 +11,9 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     TypeMismatch,
+    UnknownType,
 )
 
 BASIC_FOR_LOOP_CODE = [
@@ -802,6 +804,33 @@ def test_for() -> int128:
     return a
     """,
         TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+    for i in [1, 2, 3]:
+        pass
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def foo():
+    for i: $$$ in [1, 2, 3]:
+        pass
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def foo():
+    for i: DynArra[uint256, 3] in [1, 2, 3]:
+        pass
+    """,
+        UnknownType,
     ),
 ]
 
