@@ -1,4 +1,5 @@
 import ast as python_ast
+import itertools
 import tokenize
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
@@ -261,7 +262,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # this step improves the diagnostics during semantics analysis as otherwise
         # the code displayed in the error message would be incorrectly based on the
         # full source code with the location of the type annotation as an expression
-        for n in python_ast.iter_child_nodes(node.target.annotation):
+        annotation_child_nodes = python_ast.iter_child_nodes(node.target.annotation)
+        for n in itertools.chain(annotation_child_nodes, [node.target.annotation]):
             # override the source code to show the spliced type annotation
             n.node_source_code = raw_annotation
 
