@@ -7,15 +7,15 @@ from vyper.semantics.namespace import get_namespace
 
 class ConstantFolder(VyperNodeVisitorBase):
     def visit(self, node):
+        if node.has_folded_value:
+            return node.get_folded_value()
+
         for c in node.get_children():
             try:
                 self.visit(c)
             except UnfoldableNode:
                 # ignore bubbled up exceptions
                 pass
-
-        if node.has_folded_value:
-            return node.get_folded_value()
 
         try:
             for class_ in node.__class__.mro():
