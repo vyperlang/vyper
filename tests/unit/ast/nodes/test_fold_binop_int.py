@@ -2,7 +2,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 from vyper.exceptions import ZeroDivisionException
 
 st_int32 = st.integers(min_value=-(2**32), max_value=2**32)
@@ -24,9 +24,9 @@ def foo(a: int128, b: int128) -> int128:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    old_node = vyper_ast.body[0].value
     try:
+        vyper_ast = parse_and_fold(f"{left} {op} {right}")
+        old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
         is_valid = True
     except ZeroDivisionException:
@@ -54,9 +54,9 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    old_node = vyper_ast.body[0].value
     try:
+        vyper_ast = parse_and_fold(f"{left} {op} {right}")
+        old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
         is_valid = new_node.value >= 0
     except ZeroDivisionException:
@@ -83,7 +83,7 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} ** {right}")
+    vyper_ast = parse_and_fold(f"{left} ** {right}")
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
@@ -112,9 +112,8 @@ def foo({input_value}) -> int128:
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
 
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
-
     try:
+        vyper_ast = parse_and_fold(literal_op)
         new_node = vyper_ast.body[0].value.get_folded_value()
         expected = new_node.value
         is_valid = True

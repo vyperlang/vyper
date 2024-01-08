@@ -91,6 +91,7 @@ from vyper.utils import (
     fourbytes_to_int,
     keccak256,
     method_id,
+    method_id_int,
     vyper_warn,
 )
 
