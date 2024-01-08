@@ -258,6 +258,19 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         self.generic_visit(node)
 
+        # this step improves the diagnostics during semantics analysis as otherwise
+        # the code displayed in the error message would be incorrectly based on the
+        # full source code with the location of the type annotation as an expression
+        for n in python_ast.iter_child_nodes(node.target.annotation):
+            # override the source code to show the spliced type annotation
+            n.node_source_code = raw_annotation
+
+            # override the locations to show the `For` node
+            n.lineno = node.lineno
+            n.col_offset = node.col_offset
+            n.end_lineno = node.end_lineno
+            n.end_col_offset = node.end_col_offset
+
         return node
 
     def visit_Expr(self, node):
