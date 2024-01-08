@@ -43,6 +43,7 @@ class ConstantFolder(VyperNodeVisitorBase):
         if not isinstance(varinfo, VarInfo) or varinfo.decl_node is None:
             raise UnfoldableNode("not a variable", node)
 
+        assert isinstance(varinfo.decl_node, vy_ast.VariableDecl)  # mypy hint
         if not varinfo.decl_node.is_constant:
             raise UnfoldableNode("no value")
 
@@ -146,7 +147,7 @@ class ConstantFolder(VyperNodeVisitorBase):
         # TODO: rename to vyper_type.try_fold_call_expr
         if not hasattr(typ, "_try_fold"):
             raise UnfoldableNode("unfoldable", node)
-        return typ._try_fold(node)
+        return typ._try_fold(node)  # type: ignore
 
     def visit_Subscript(self, node) -> vy_ast.ExprNode:
         slice_ = node.slice.value.get_folded_value()
