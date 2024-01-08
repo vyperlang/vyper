@@ -423,7 +423,7 @@ interface Mirror:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i in range(1024):
+    for i: uint256 in range(1024):
         xs[i] = -(i + 1)
 @internal
 def priv(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
@@ -469,7 +469,7 @@ struct X:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i in range(1024):
+    for i: uint256 in range(1024):
         xs[i] = -(i + 1)
 
 @external

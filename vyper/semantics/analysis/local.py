@@ -1,13 +1,11 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidOperation,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -40,7 +38,6 @@ from vyper.semantics.types import (
     EventT,
     FlagT,
     HashMapT,
-    IntegerT,
     SArrayT,
     StringT,
     StructT,
@@ -347,8 +344,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, fn_type)
 
     def visit_For(self, node):
-        if isinstance(node.iter, vy_ast.Subscript):
-            raise StructureException("Cannot iterate over a nested list", node.iter)
+        if not isinstance(node.target.target, vy_ast.Name):
+            raise StructureException("Invalid syntax for loop iterator", node.target.target)
+
+        target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         if isinstance(node.iter, vy_ast.Call):
             # iteration via range()
@@ -356,7 +355,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise IteratorException(
                     "Cannot iterate over the result of a function call", node.iter
                 )
-            type_list = _analyse_range_call(node.iter)
+            _validate_range_call(node.iter)
 
         else:
             # iteration over a variable or literal list
@@ -364,14 +363,10 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             if isinstance(iter_val, vy_ast.List) and len(iter_val.elements) == 0:
                 raise StructureException("For loop must have at least 1 iteration", node.iter)
 
-            type_list = [
-                i.value_type
-                for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, (DArrayT, SArrayT))
-            ]
-
-        if not type_list:
-            raise InvalidType("Not an iterable type", node.iter)
+            if not any(
+                isinstance(i, (DArrayT, SArrayT)) for i in get_possible_types_from_node(node.iter)
+            ):
+                raise InvalidType("Not an iterable type", node.iter)
 
         if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
             # check for references to the iterated value within the body of the loop
@@ -415,65 +410,28 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                             call_node,
                         )
 
-        if not isinstance(node.target, vy_ast.Name):
-            raise StructureException("Invalid syntax for loop iterator", node.target)
+        target_name = node.target.target.id
+        with self.namespace.enter_scope():
+            self.namespace[target_name] = VarInfo(
+                target_type, modifiability=Modifiability.RUNTIME_CONSTANT
+            )
 
-        for_loop_exceptions = []
-        iter_name = node.target.id
-        for possible_target_type in type_list:
-            # type check the for loop body using each possible type for iterator value
+            for stmt in node.body:
+                self.visit(stmt)
 
-            with self.namespace.enter_scope():
-                self.namespace[iter_name] = VarInfo(
-                    possible_target_type, modifiability=Modifiability.RUNTIME_CONSTANT
-                )
+            self.expr_visitor.visit(node.target.target, target_type)
 
-                try:
-                    with NodeMetadata.enter_typechecker_speculation():
-                        for stmt in node.body:
-                            self.visit(stmt)
-
-                        self.expr_visitor.visit(node.target, possible_target_type)
-
-                        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-                            iter_type = get_exact_type_from_node(node.iter)
-                            # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                            validate_expected_type(node.target, iter_type.value_type)
-                            self.expr_visitor.visit(node.iter, iter_type)
-                        if isinstance(node.iter, vy_ast.List):
-                            len_ = len(node.iter.elements)
-                            self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
-                        if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                            for a in node.iter.args:
-                                self.expr_visitor.visit(a, possible_target_type)
-                            for a in node.iter.keywords:
-                                if a.arg == "bound":
-                                    self.expr_visitor.visit(a.value, possible_target_type)
-
-                except (TypeMismatch, InvalidOperation) as exc:
-                    for_loop_exceptions.append(exc)
-                else:
-                    # success -- do not enter error handling section
-                    return
-
-        # failed to find a good type. bail out
-        if len(set(str(i) for i in for_loop_exceptions)) == 1:
-            # if every attempt at type checking raised the same exception
-            raise for_loop_exceptions[0]
-
-        # return an aggregate TypeMismatch that shows all possible exceptions
-        # depending on which type is used
-        types_str = [str(i) for i in type_list]
-        given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
-        raise TypeMismatch(
-            f"Iterator value '{iter_name}' may be cast as {given_str}, "
-            "but type checking fails with all possible types:",
-            node,
-            *(
-                (f"Casting '{iter_name}' as {typ}: {exc.message}", exc.annotations[0])
-                for typ, exc in zip(type_list, for_loop_exceptions)
-            ),
-        )
+            if isinstance(node.iter, vy_ast.List):
+                len_ = len(node.iter.elements)
+                self.expr_visitor.visit(node.iter, SArrayT(target_type, len_))
+            elif isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
+                args = node.iter.args
+                kwargs = [s.value for s in node.iter.keywords]
+                for arg in (*args, *kwargs):
+                    self.expr_visitor.visit(arg, target_type)
+            else:
+                iter_type = get_exact_type_from_node(node.iter)
+                self.expr_visitor.visit(node.iter, iter_type)
 
     def visit_If(self, node):
         validate_expected_type(node.test, BoolT())
@@ -750,24 +708,17 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.orelse, typ)
 
 
-def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
+def _validate_range_call(node: vy_ast.Call):
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
     :return: None
     """
+    assert node.func.get("id") == "range"
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
     start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
-
-    all_args = (start, end, *kwargs.values())
-    for arg1 in all_args:
-        validate_expected_type(arg1, IntegerT.any())
-
-    type_list = get_common_types(*all_args)
-    if not type_list:
-        raise TypeMismatch("Iterator values are of different types", node)
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
@@ -787,5 +738,3 @@ def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
                 raise StateAccessViolation(error, arg)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)
-
-    return type_list

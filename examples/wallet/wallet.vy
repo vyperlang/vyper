@@ -14,7 +14,7 @@ seq: public(int128)
 
 @external
 def __init__(_owners: address[5], _threshold: int128):
-    for i in range(5):
+    for i: uint256 in range(5):
         if _owners[i] != empty(address):
             self.owners[i] = _owners[i]
     self.threshold = _threshold
@@ -47,7 +47,7 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
     assert self.seq == _seq
     # # Iterates through all the owners and verifies that there signatures,
     # # given as the sigdata argument are correct
-    for i in range(5):
+    for i: uint256 in range(5):
         if sigdata[i][0] != 0:
             # If an invalid signature is given for an owner then the contract throws
             assert ecrecover(h2, sigdata[i][0], sigdata[i][1], sigdata[i][2]) == self.owners[i]

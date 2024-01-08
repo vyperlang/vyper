@@ -106,6 +106,6 @@ def has_no_docstrings(c):
 @hypothesis.settings(max_examples=500)
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
-        _, _, reformatted_code = pre_parse(code + "\n")
+        _, _, _, reformatted_code = pre_parse(code + "\n")
         tree = parse_to_ast(reformatted_code)
         assert isinstance(tree, Module)

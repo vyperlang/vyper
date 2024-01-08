@@ -2157,7 +2157,7 @@ else:
     z = x / 2.0 + 0.5
     y: decimal = x
 
-    for i in range(256):
+    for i: uint256 in range(256):
         if z == y:
             break
         y = z

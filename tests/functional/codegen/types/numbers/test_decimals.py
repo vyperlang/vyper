@@ -125,7 +125,7 @@ def test_harder_decimal_test(get_contract_with_gas_estimation):
 @external
 def phooey(inp: decimal) -> decimal:
     x: decimal = 10000.0
-    for i in range(4):
+    for i: uint256 in range(4):
         x = x * inp
     return x
 

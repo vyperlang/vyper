@@ -80,13 +80,13 @@ def foo():
     """
 @external
 def foo():
-    for i in range():
+    for i: uint256 in range():
         pass
     """,
     """
 @external
 def foo():
-    for i in range(1, 2, 3, 4):
+    for i: uint256 in range(1, 2, 3, 4):
         pass
     """,
 ]

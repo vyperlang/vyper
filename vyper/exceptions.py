@@ -92,6 +92,10 @@ class _BaseVyperException(Exception):
             node = value[1] if isinstance(value, tuple) else value
             node_msg = ""
 
+            if isinstance(node, vy_ast.VyperNode):
+                # folded AST nodes contain pointers to the original source
+                node = node.get_original_node()
+
             try:
                 source_annotation = annotate_source_code(
                     # add trailing space because EOF exceptions point one char beyond the length
