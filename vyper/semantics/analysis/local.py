@@ -510,8 +510,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # validate and annotate folded value
         if node.has_folded_value:
             folded_node = node.get_folded_value()
-            validate_expected_type(folded_node, typ)
-            folded_node._metadata["type"] = typ
+            self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)

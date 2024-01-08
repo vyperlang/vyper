@@ -418,7 +418,9 @@ class VyperNode:
 
         # set the "original node" so that exceptions can point to the original
         # node and not the folded node
-        node = copy.copy(node)
+        cls = node.__class__
+        # make a fresh copy so that the node metadata is fresh.
+        node = cls(**{i: getattr(node, i) for i in node.get_fields()})
         node._original_node = self
 
         self._metadata["folded_value"] = node
