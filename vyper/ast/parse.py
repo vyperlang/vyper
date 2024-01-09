@@ -258,16 +258,59 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         self.generic_visit(node)
 
+
+        start_lineno = node.lineno - 1
+        end_lineno = node.end_lineno - 1
+        col_offset = node.col_offset
+        end_col_offset = node.end_col_offset
+
+        print("for node token deets")
+        print(node.first_token.string)
+        print(node.first_token.start)
+        print(node.first_token.end)
+        print(node.first_token.line)
+        print(node.first_token.startpos)
+        print(node.first_token.endpos)
+
+        for n in python_ast.walk(node.target.annotation):
+            if not n.lineno:
+                continue
+
+            print("annotation node token deets")
+            print(n.first_token.string)
+            print(n.first_token.start)
+            print(n.first_token.end)
+            print(n.first_token.line)
+            print(n.first_token.startpos)
+            print(n.first_token.endpos)
+            
+            print("type(token.start): ", type(n.first_token.start))
+            #n.first_token._replace(start=(0, 2))
+
+            line_offset = node.end_lineno - node.lineno
+
+            n.lineno = start_lineno + line_offset
+            n.end_lineno = end_lineno + line_offset
+
+            node_col_offset = n.end_col_offset - n.col_offset
+
+            n.col_offset = col_offset + node_col_offset
+            n.end_col_offset = end_col_offset + node_col_offset
+
+        #self.generic_visit(node.target.annotation)
+            
+
         # this step improves the diagnostics during semantics analysis as otherwise
         # the code displayed in the error message would be incorrectly based on the
         # full source code with the location of the type annotation as an expression
         annotation_children = python_ast.iter_child_nodes(node.target.annotation)
         for n in [*annotation_children, node.target.annotation]:
             # override the source code to show the spliced type annotation
-            n.node_source_code = raw_annotation
+            #n.node_source_code = raw_annotation
 
             # override the locations to show the `For` node
-            python_ast.copy_location(n, node)
+            #python_ast.copy_location(n, node)
+            continue
 
         return node
 
