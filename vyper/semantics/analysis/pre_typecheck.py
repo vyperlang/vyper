@@ -26,10 +26,11 @@ class ConstantFolder(VyperNodeVisitorBase):
             n_processed = 0
 
             for c in const_var_decls.copy():
+                # visit the entire constant node in case its type annotation
+                # has unfolded constants in it.
+                self.visit(c)
+
                 assert c.value is not None  # guaranteed by VariableDecl.validate()
-
-                self.visit(c.value)
-
                 try:
                     val = c.value.get_folded_value()
                 except UnfoldableNode:
@@ -75,7 +76,9 @@ class ConstantFolder(VyperNodeVisitorBase):
                     return folded_value
         except UnfoldableNode:
             # ignore bubbled up exceptions
-            return node
+            pass
+
+        return node
 
     def visit_Constant(self, node) -> vy_ast.ExprNode:
         return node
