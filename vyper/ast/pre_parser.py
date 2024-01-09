@@ -65,27 +65,32 @@ class ForParser:
     def consume(self, token):
         # state machine: we can start slurping tokens soon
         if token.type == NAME and token.string == "for":
-            # note: self._state should be NOT_RUNNING here, but we don't sanity
-            # check here as that should be an error the parser will handle.
-            self._state = ForParserState.START_SOON
-            self._current_for_loop = token.start
-
-        if self._state == ForParserState.NOT_RUNNING:
-            return False
-
-        # state machine: start slurping tokens
-        if token.type == OP and token.string == ":":
-            self._state = ForParserState.RUNNING
-
             # sanity check -- this should never really happen, but if it does,
             # try to raise an exception which pinpoints the source.
             if self._current_annotation is not None:
                 raise SyntaxException(
                     "for loop parse error", self._code, token.start[0], token.start[1]
                 )
-
             self._current_annotation = []
-            return True  # do not add ":" to tokens.
+
+            assert self._state == ForParserState.NOT_RUNNING
+            self._state = ForParserState.START_SOON
+            self._current_for_loop = token.start
+            return False
+
+        if self._state == ForParserState.NOT_RUNNING:
+            return False
+
+        if self._state == ForParserState.START_SOON:
+            # state machine: start slurping tokens
+
+            self._current_annotation.append(token)
+
+            if token.type == OP and token.string == ":":
+                self._state = ForParserState.RUNNING
+                return True  # do not add ":" to global tokens.
+
+            return False  # add everything before ":" to tokens
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
@@ -220,9 +225,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
 
     for_loop_annotations = {}
     for k, v in for_parser.annotations.items():
-        v_source = untokenize(v)
+        #v_source = untokenize(v)
         # untokenize adds backslashes and whitespace, strip them.
-        v_source = v_source.replace("\\", "").strip()
-        for_loop_annotations[k] = v_source
+        #v_source = v_source.replace("\\", "").strip()
+        for_loop_annotations[k] = v.copy()
 
     return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")

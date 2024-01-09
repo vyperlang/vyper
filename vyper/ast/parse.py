@@ -139,6 +139,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         self.counter: int = 0
 
+
     def generic_visit(self, node):
         """
         Annotate a node with information that simplifies Vyper node generation.
@@ -150,7 +151,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
 
         # Decorate every node with source end offsets
-        start = node.first_token.start if hasattr(node, "first_token") else (None, None)
+        start = (None, None)
+        if hasattr(node, "first_token"):
+            start = node.first_token.start
         end = (None, None)
         if hasattr(node, "last_token"):
             end = node.last_token.end
@@ -224,9 +227,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         Visit a For node, splicing in the loop variable annotation provided by
         the pre-parser
         """
-        raw_annotation = self._for_loop_annotations.pop((node.lineno, node.col_offset))
+        annotation_tokens = self._for_loop_annotations.pop((node.lineno, node.col_offset))
 
-        if not raw_annotation:
+        if not annotation_tokens:
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
@@ -238,79 +241,96 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 node.col_offset,
             )
 
+        self.generic_visit(node)
+
         try:
-            annotation = python_ast.parse(raw_annotation, mode="eval")
-            # annotate with token and source code information. `first_token`
-            # and `last_token` attributes are accessed in `generic_visit`.
-            tokens = asttokens.ASTTokens(raw_annotation)
-            tokens.mark_tokens(annotation)
+            from tokenize import untokenize
+            import string
+            annotation_str = untokenize(annotation_tokens).strip(string.whitespace + "\\")
+            print("ENTER4", annotation_str)
+            annotation = python_ast.parse(annotation_str)
         except SyntaxError as e:
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
             ) from e
 
-        assert isinstance(annotation, python_ast.Expression)
-        annotation = annotation.body
+        annotation = annotation.body[0]
+        print("ANN", annotation)
+        og_target = node.target
 
-        old_target = node.target
-        new_target = python_ast.AnnAssign(target=old_target, annotation=annotation, simple=1)
-        node.target = new_target
+        # annotate with token and source code information. `first_token`
+        # and `last_token` attributes are accessed in `generic_visit`.
+        tokens = asttokens.ASTTokens(annotation_str)
+        tokens.mark_tokens(annotation)
 
-        self.generic_visit(node)
+        adjustment = og_target.first_token.start[0] - 1, og_target.first_token.start[1]
 
+        def _add_pair(x, y):
+            return x[0] + y[0], x[1] + y[1]
 
-        start_lineno = node.lineno - 1
-        end_lineno = node.end_lineno - 1
-        col_offset = node.col_offset
-        end_col_offset = node.end_col_offset
+        for n in python_ast.walk(annotation):
+            # adjust all offsets
+            if hasattr(n, "first_token"):
+                n.first_token = n.first_token._replace(
+                    start=_add_pair(n.first_token.start, adjustment),
+                    end=_add_pair(n.first_token.end, adjustment),
+                    startpos=n.first_token.startpos + og_target.first_token.startpos,
+                    endpos=n.first_token.startpos + og_target.first_token.startpos
+                )
+            if hasattr(n, "last_token"):
+                n.last_token = n.last_token._replace(
+                    start=_add_pair(n.last_token.start, adjustment),
+                    end=_add_pair(n.last_token.end, adjustment),
+                    startpos=n.last_token.startpos + og_target.first_token.startpos,
+                    endpos=n.last_token.endpos + og_target.first_token.startpos
+                )
 
-        print("for node token deets")
-        print(node.first_token.string)
-        print(node.first_token.start)
-        print(node.first_token.end)
-        print(node.first_token.line)
-        print(node.first_token.startpos)
-        print(node.first_token.endpos)
+        node.target = annotation
 
-        for n in python_ast.walk(node.target.annotation):
+        #start_lineno = node.lineno - 1
+        #end_lineno = node.end_lineno - 1
+        #col_offset = node.col_offset
+        #end_col_offset = node.end_col_offset
+
+        try:
+            tmp = self.lineno_ofst, self.col_ofst
+            #self._source_code = annotation_str
+            print("ENTER", self.lineno_ofst, self.col_ofst, node)
+            node.target = self.generic_visit(node.target)
+        finally:
+            self.lineno_ofst, self.col_ofst = tmp
+            #print("OOH", self._source_code)
+
+        for n in python_ast.walk(node):
+            n.full_source_code = self._source_code
+            print("WALK 1", n, n.full_source_code)
+
+        return node
+
+        # dead code:
+        for_node = node
+        for n in python_ast.walk(node.target):
             if not n.lineno:
+                print("CONTINUE", n)
                 continue
 
-            print("annotation node token deets")
-            print(n.first_token.string)
-            print(n.first_token.start)
-            print(n.first_token.end)
-            print(n.first_token.line)
-            print(n.first_token.startpos)
-            print(n.first_token.endpos)
-            
-            print("type(token.start): ", type(n.first_token.start))
+            #n.lineno += for_node.lineno
+            #n.end_lineno += for_node.lineno
+            #DIRTY_CONSTANT = 2
+            #n.col_offset += for_node.col_offset + DIRTY_CONSTANT
+            #n.end_col_offset += for_node.end_col_offset + DIRTY_CONSTANT
+
             #n.first_token._replace(start=(0, 2))
 
-            line_offset = node.end_lineno - node.lineno
+            #line_offset = node.end_lineno - node.lineno
 
-            n.lineno = start_lineno + line_offset
-            n.end_lineno = end_lineno + line_offset
+            #n.lineno = start_lineno + line_offset
+            #n.end_lineno = end_lineno + line_offset
 
-            node_col_offset = n.end_col_offset - n.col_offset
+            #node_col_offset = n.end_col_offset - n.col_offset
 
-            n.col_offset = col_offset + node_col_offset
-            n.end_col_offset = end_col_offset + node_col_offset
-
-        #self.generic_visit(node.target.annotation)
-            
-
-        # this step improves the diagnostics during semantics analysis as otherwise
-        # the code displayed in the error message would be incorrectly based on the
-        # full source code with the location of the type annotation as an expression
-        annotation_children = python_ast.iter_child_nodes(node.target.annotation)
-        for n in [*annotation_children, node.target.annotation]:
-            # override the source code to show the spliced type annotation
-            #n.node_source_code = raw_annotation
-
-            # override the locations to show the `For` node
-            #python_ast.copy_location(n, node)
-            continue
+            #n.col_offset = col_offset + node_col_offset
+            #n.end_col_offset = end_col_offset + node_col_offset
 
         return node
 
