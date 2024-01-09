@@ -4,7 +4,7 @@ import textwrap
 import hypothesis
 import hypothesis.strategies as st
 import pytest
-from hypothesis import assume, given
+from hypothesis import HealthCheck, assume, given
 from hypothesis.extra.lark import LarkStrategy
 
 from vyper.ast import Module, parse_to_ast
@@ -103,7 +103,7 @@ def has_no_docstrings(c):
 
 @pytest.mark.fuzzing
 @given(code=from_grammar().filter(lambda c: utf8_encodable(c)))
-@hypothesis.settings(max_examples=500)
+@hypothesis.settings(max_examples=500, suppress_health_check=[HealthCheck.too_slow])
 def test_grammar_bruteforce(code):
     if utf8_encodable(code):
         _, _, _, reformatted_code = pre_parse(code + "\n")
