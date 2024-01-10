@@ -400,12 +400,6 @@ class VyperNode:
         """
         Attempt to get the folded value, bubbling up UnfoldableNode if the node
         is not foldable.
-
-
-        The returned value is cached on `_metadata["folded_value"]`.
-
-        For constant/literal nodes, the node should be directly returned
-        without caching to the metadata.
         """
         try:
             return self._metadata["folded_value"]

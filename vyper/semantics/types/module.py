@@ -61,9 +61,9 @@ class InterfaceT(_UserType):
     def _try_fold(self, node):
         if len(node.args) != 1:
             raise UnfoldableNode("wrong number of args", node.args)
-        args = [arg.get_folded_value() for arg in node.args]
-        if not isinstance(args[0], vy_ast.Hex):
-            raise UnfoldableNode("not an address", node.args[0])
+        arg = node.args[0].get_folded_value()
+        if not isinstance(arg, vy_ast.Hex):
+            raise UnfoldableNode("not an address", arg)
 
         return node
 
