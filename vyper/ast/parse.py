@@ -1,7 +1,6 @@
 import ast as python_ast
 import string
 import tokenize
-
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -141,7 +140,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         self.counter: int = 0
 
-
     def generic_visit(self, node):
         """
         Annotate a node with information that simplifies Vyper node generation.
@@ -275,14 +273,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                     start=_add_pair(n.first_token.start, adjustment),
                     end=_add_pair(n.first_token.end, adjustment),
                     startpos=n.first_token.startpos + og_target.first_token.startpos,
-                    endpos=n.first_token.startpos + og_target.first_token.startpos
+                    endpos=n.first_token.startpos + og_target.first_token.startpos,
                 )
             if hasattr(n, "last_token"):
                 n.last_token = n.last_token._replace(
                     start=_add_pair(n.last_token.start, adjustment),
                     end=_add_pair(n.last_token.end, adjustment),
                     startpos=n.last_token.startpos + og_target.first_token.startpos,
-                    endpos=n.last_token.endpos + og_target.first_token.startpos
+                    endpos=n.last_token.endpos + og_target.first_token.startpos,
                 )
 
         node.target = annotation
@@ -448,8 +446,8 @@ def annotate_python_ast(
     source_code : str
         The originating source code of the AST.
     loop_var_annotations: dict, optional
-        A mapping of line numbers of `For` nodes to the type annotation of the iterator
-        extracted during pre-parsing.
+        A mapping of line numbers of `For` nodes to the tokens of the type annotation
+        of the iterator extracted during pre-parsing.
     modification_offsets : dict, optional
         A mapping of class names to their original class types.
 

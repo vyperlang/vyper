@@ -141,8 +141,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
         Compilation settings based on the directives in the source code
     ModificationOffsets
         A mapping of class names to their original class types.
-    dict[tuple[int, int], str]
-        A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
+    dict[tuple[int, int], list[TokenInfo]]
+        A mapping of line/column offsets of `For` nodes to the tokens of the annotation of the
+        for loop target
     str
         Reformatted python source string.
     """
@@ -225,9 +226,6 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
 
     for_loop_annotations = {}
     for k, v in for_parser.annotations.items():
-        #v_source = untokenize(v)
-        # untokenize adds backslashes and whitespace, strip them.
-        #v_source = v_source.replace("\\", "").strip()
         for_loop_annotations[k] = v.copy()
 
     return settings, modification_offsets, for_loop_annotations, untokenize(result).decode("utf-8")

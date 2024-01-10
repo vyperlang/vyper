@@ -106,7 +106,6 @@ class _BaseVyperException(Exception):
                     line_numbers=VYPER_ERROR_LINE_NUMBERS,
                 )
             except Exception:
-                print("EXC", node.full_source_code, node.node_source_code, node.lineno, node.col_offset)
                 # necessary for certain types of syntax exceptions
                 return self.message
 
