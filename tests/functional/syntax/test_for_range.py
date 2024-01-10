@@ -244,8 +244,8 @@ def foo():
         pass
     """,
         UnknownType,
-        "No builtin or user-defined type named 'DynArra[uint256, 3]'. ",
-        "DynArra[uint256, 3]",
+        "No builtin or user-defined type named 'DynArra'. Did you mean 'DynArray'?",
+        "DynArra",
     ),
 ]
 
