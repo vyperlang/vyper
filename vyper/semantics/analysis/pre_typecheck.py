@@ -1,94 +1,210 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import UnfoldableNode
+from vyper.exceptions import InvalidLiteral, UnfoldableNode
+from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.namespace import get_namespace
 
 
-# try to fold a node, swallowing exceptions. this function is very similar to
-# `VyperNode.get_folded_value()` but additionally checks in the constants
-# table if the node is a `Name` node.
-#
-# CMC 2023-12-30 a potential refactor would be to move this function into
-# `Name._try_fold` (which would require modifying the signature of _try_fold to
-# take an optional constants table as parameter). this would remove the
-# need to use this function in conjunction with `get_descendants` since
-# `VyperNode._try_fold()` already recurses. it would also remove the need
-# for `VyperNode._set_folded_value()`.
-def _fold_with_constants(node: vy_ast.VyperNode, constants: dict[str, vy_ast.VyperNode]):
-    if node.has_folded_value:
-        return
-
-    if isinstance(node, vy_ast.Name):
-        # check if it's in constants table
-        var_name = node.id
-
-        if var_name not in constants:
-            return
-
-        res = constants[var_name]
-        node._set_folded_value(res)
-        return
-
-    try:
-        # call get_folded_value for its side effects
-        node.get_folded_value()
-    except UnfoldableNode:
-        pass
+def pre_typecheck(module_ast: vy_ast.Module):
+    ConstantFolder(module_ast).run()
 
 
-def _get_constants(node: vy_ast.Module) -> dict:
-    constants: dict[str, vy_ast.VyperNode] = {}
-    const_var_decls = node.get_children(vy_ast.VariableDecl, {"is_constant": True})
+class ConstantFolder(VyperNodeVisitorBase):
+    def __init__(self, module_ast):
+        self._constants = {}
+        self._module_ast = module_ast
 
-    while True:
-        n_processed = 0
+    def run(self):
+        self._get_constants()
+        self.visit(self._module_ast)
 
-        for c in const_var_decls.copy():
-            assert c.value is not None  # guaranteed by VariableDecl.validate()
+    def _get_constants(self):
+        module = self._module_ast
+        const_var_decls = module.get_children(vy_ast.VariableDecl, {"is_constant": True})
 
-            for n in c.get_descendants(reverse=True):
-                _fold_with_constants(n, constants)
+        while True:
+            n_processed = 0
 
+            for c in const_var_decls.copy():
+                # visit the entire constant node in case its type annotation
+                # has unfolded constants in it.
+                self.visit(c)
+
+                assert c.value is not None  # guaranteed by VariableDecl.validate()
+                try:
+                    val = c.value.get_folded_value()
+                except UnfoldableNode:
+                    # not foldable, maybe it depends on other constants
+                    # so try again later
+                    continue
+
+                # note that if a constant is redefined, its value will be
+                # overwritten, but it is okay because the error is handled
+                # downstream
+                name = c.target.id
+                self._constants[name] = val
+
+                n_processed += 1
+                const_var_decls.remove(c)
+
+            if n_processed == 0:
+                # this condition means that there are some constant vardecls
+                # whose values are not foldable. this can happen for struct
+                # and interface constants for instance. these are valid constant
+                # declarations, but we just can't fold them at this stage.
+                break
+
+    def visit(self, node):
+        if node.has_folded_value:
+            return node.get_folded_value()
+
+        for c in node.get_children():
             try:
-                val = c.value.get_folded_value()
+                self.visit(c)
             except UnfoldableNode:
-                # not foldable, maybe it depends on other constants
-                # so try again later
-                continue
+                # ignore bubbled up exceptions
+                pass
 
-            # note that if a constant is redefined, its value will be
-            # overwritten, but it is okay because the error is handled
-            # downstream
-            name = c.target.id
-            constants[name] = val
+        try:
+            for class_ in node.__class__.mro():
+                ast_type = class_.__name__
 
-            n_processed += 1
-            const_var_decls.remove(c)
+                visitor_fn = getattr(self, f"visit_{ast_type}", None)
+                if visitor_fn:
+                    folded_value = visitor_fn(node)
+                    node._set_folded_value(folded_value)
+                    return folded_value
+        except UnfoldableNode:
+            # ignore bubbled up exceptions
+            pass
 
-        if n_processed == 0:
-            # this condition means that there are some constant vardecls
-            # whose values are not foldable. this can happen for struct
-            # and interface constants for instance. these are valid constant
-            # declarations, but we just can't fold them at this stage.
-            break
+        return node
 
-    return constants
+    def visit_Constant(self, node) -> vy_ast.ExprNode:
+        return node
 
+    def visit_Name(self, node) -> vy_ast.ExprNode:
+        try:
+            return self._constants[node.id]
+        except KeyError:
+            raise UnfoldableNode("unknown name", node)
 
-# perform constant folding on a module AST
-def pre_typecheck(node: vy_ast.Module) -> None:
-    """
-    Perform pre-typechecking steps on a Module AST node.
-    At this point, this is limited to performing constant folding.
-    """
-    constants = _get_constants(node)
+    def visit_UnaryOp(self, node):
+        operand = node.operand.get_folded_value()
 
-    # note: use reverse to get descendants in leaf-first order
-    for n in node.get_descendants(reverse=True):
-        # try folding every single node. note this should be done before
-        # type checking because the typechecker requires literals or
-        # foldable nodes in type signatures and some other places (e.g.
-        # certain builtin kwargs).
-        #
-        # note we could limit to only folding nodes which are required
-        # during type checking, but it's easier to just fold everything
-        # and be done with it!
-        _fold_with_constants(n, constants)
+        if isinstance(node.op, vy_ast.Not) and not isinstance(operand, vy_ast.NameConstant):
+            raise UnfoldableNode("not a boolean!", node.operand)
+        if isinstance(node.op, vy_ast.USub) and not isinstance(operand, vy_ast.Num):
+            raise UnfoldableNode("not a number!", node.operand)
+        if isinstance(node.op, vy_ast.Invert) and not isinstance(operand, vy_ast.Int):
+            raise UnfoldableNode("not an int!", node.operand)
+
+        value = node.op._op(operand.value)
+        return type(operand).from_node(node, value=value)
+
+    def visit_BinOp(self, node):
+        left, right = [i.get_folded_value() for i in (node.left, node.right)]
+        if type(left) is not type(right):
+            raise UnfoldableNode("invalid operation", node)
+        if not isinstance(left, vy_ast.Num):
+            raise UnfoldableNode("not a number!", node.left)
+
+        # this validation is performed to prevent the compiler from hanging
+        # on very large shifts and improve the error message for negative
+        # values.
+        if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)) and not (0 <= right.value <= 256):
+            raise InvalidLiteral("Shift bits must be between 0 and 256", node.right)
+
+        value = node.op._op(left.value, right.value)
+        return type(left).from_node(node, value=value)
+
+    def visit_BoolOp(self, node):
+        values = [v.get_folded_value() for v in node.values]
+
+        if any(not isinstance(v, vy_ast.NameConstant) for v in values):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        values = [v.value for v in values]
+        value = node.op._op(values)
+        return vy_ast.NameConstant.from_node(node, value=value)
+
+    def visit_Compare(self, node):
+        left, right = [i.get_folded_value() for i in (node.left, node.right)]
+        if not isinstance(left, vy_ast.Constant):
+            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+
+        # CMC 2022-08-04 we could probably remove these evaluation rules as they
+        # are taken care of in the IR optimizer now.
+        if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
+            if not isinstance(right, vy_ast.List):
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            if next((i for i in right.elements if not isinstance(i, vy_ast.Constant)), None):
+                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
+            if len(set([type(i) for i in right.elements])) > 1:
+                raise UnfoldableNode("List contains multiple literal types")
+            value = node.op._op(left.value, [i.value for i in right.elements])
+            return vy_ast.NameConstant.from_node(node, value=value)
+
+        if not isinstance(left, type(right)):
+            raise UnfoldableNode("Cannot compare different literal types")
+
+        # this is maybe just handled in the type checker.
+        if not isinstance(node.op, (vy_ast.Eq, vy_ast.NotEq)) and not isinstance(left, vy_ast.Num):
+            raise UnfoldableNode(
+                f"Invalid literal types for {node.op.description} comparison", node
+            )
+
+        value = node.op._op(left.value, right.value)
+        return vy_ast.NameConstant.from_node(node, value=value)
+
+    def visit_List(self, node) -> vy_ast.ExprNode:
+        elements = [e.get_folded_value() for e in node.elements]
+        return type(node).from_node(node, elements=elements)
+
+    def visit_Tuple(self, node) -> vy_ast.ExprNode:
+        elements = [e.get_folded_value() for e in node.elements]
+        return type(node).from_node(node, elements=elements)
+
+    def visit_Dict(self, node) -> vy_ast.ExprNode:
+        values = [v.get_folded_value() for v in node.values]
+        return type(node).from_node(node, values=values)
+
+    def visit_Call(self, node) -> vy_ast.ExprNode:
+        if not isinstance(node.func, vy_ast.Name):
+            raise UnfoldableNode("not a builtin", node)
+
+        namespace = get_namespace()
+
+        func_name = node.func.id
+        if func_name not in namespace:
+            raise UnfoldableNode("unknown", node)
+
+        varinfo = namespace[func_name]
+        if not isinstance(varinfo, VarInfo):
+            raise UnfoldableNode("unfoldable", node)
+
+        typ = varinfo.typ
+        # TODO: rename to vyper_type.try_fold_call_expr
+        if not hasattr(typ, "_try_fold"):
+            raise UnfoldableNode("unfoldable", node)
+        return typ._try_fold(node)  # type: ignore
+
+    def visit_Subscript(self, node) -> vy_ast.ExprNode:
+        slice_ = node.slice.value.get_folded_value()
+        value = node.value.get_folded_value()
+
+        if not isinstance(value, vy_ast.List):
+            raise UnfoldableNode("Subscript object is not a literal list")
+
+        elements = value.elements
+        if len(set([type(i) for i in elements])) > 1:
+            raise UnfoldableNode("List contains multiple node types")
+
+        if not isinstance(slice_, vy_ast.Int):
+            raise UnfoldableNode("invalid index type", slice_)
+
+        idx = slice_.value
+        if idx < 0 or idx >= len(elements):
+            raise UnfoldableNode("invalid index value")
+
+        return elements[idx]

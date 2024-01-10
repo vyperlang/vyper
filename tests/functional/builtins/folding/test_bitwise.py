@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 from vyper.exceptions import InvalidType, OverflowException
 from vyper.semantics.analysis.utils import validate_expected_type
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
@@ -29,7 +29,7 @@ def foo(a: uint256, b: uint256) -> uint256:
 
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
+    vyper_ast = parse_and_fold(f"{a} {op} {b}")
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
@@ -48,10 +48,9 @@ def foo(a: uint256, b: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
-    old_node = vyper_ast.body[0].value
-
     try:
+        vyper_ast = parse_and_fold(f"{a} {op} {b}")
+        old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
         # force bounds check, no-op because validate_numeric_bounds
         # already does this, but leave in for hygiene (in case
@@ -78,10 +77,9 @@ def foo(a: int256, b: uint256) -> int256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{a} {op} {b}")
-    old_node = vyper_ast.body[0].value
-
     try:
+        vyper_ast = parse_and_fold(f"{a} {op} {b}")
+        old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
         validate_expected_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
@@ -105,7 +103,7 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"~{value}")
+    vyper_ast = parse_and_fold(f"~{value}")
     old_node = vyper_ast.body[0].value
     new_node = old_node.get_folded_value()
 
