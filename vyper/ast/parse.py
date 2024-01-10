@@ -1,5 +1,7 @@
 import ast as python_ast
+import string
 import tokenize
+
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -244,10 +246,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         try:
-            from tokenize import untokenize
-            import string
-            annotation_str = untokenize(annotation_tokens).strip(string.whitespace + "\\")
-            print("ENTER4", annotation_str)
+            annotation_str = tokenize.untokenize(annotation_tokens).strip(string.whitespace + "\\")
             annotation = python_ast.parse(annotation_str)
         except SyntaxError as e:
             raise SyntaxException(
@@ -255,7 +254,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ) from e
 
         annotation = annotation.body[0]
-        print("ANN", annotation)
         og_target = node.target
 
         # annotate with token and source code information. `first_token`
@@ -263,6 +261,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         tokens = asttokens.ASTTokens(annotation_str)
         tokens.mark_tokens(annotation)
 
+        # decrease line offset by 1 because annotation is on the same line as `For` node
+        # but the spliced expression also starts at line 1
         adjustment = og_target.first_token.start[0] - 1, og_target.first_token.start[1]
 
         def _add_pair(x, y):
@@ -286,51 +286,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 )
 
         node.target = annotation
-
-        #start_lineno = node.lineno - 1
-        #end_lineno = node.end_lineno - 1
-        #col_offset = node.col_offset
-        #end_col_offset = node.end_col_offset
-
-        try:
-            tmp = self.lineno_ofst, self.col_ofst
-            #self._source_code = annotation_str
-            print("ENTER", self.lineno_ofst, self.col_ofst, node)
-            node.target = self.generic_visit(node.target)
-        finally:
-            self.lineno_ofst, self.col_ofst = tmp
-            #print("OOH", self._source_code)
-
-        for n in python_ast.walk(node):
-            n.full_source_code = self._source_code
-            print("WALK 1", n, n.full_source_code)
-
-        return node
-
-        # dead code:
-        for_node = node
-        for n in python_ast.walk(node.target):
-            if not n.lineno:
-                print("CONTINUE", n)
-                continue
-
-            #n.lineno += for_node.lineno
-            #n.end_lineno += for_node.lineno
-            #DIRTY_CONSTANT = 2
-            #n.col_offset += for_node.col_offset + DIRTY_CONSTANT
-            #n.end_col_offset += for_node.end_col_offset + DIRTY_CONSTANT
-
-            #n.first_token._replace(start=(0, 2))
-
-            #line_offset = node.end_lineno - node.lineno
-
-            #n.lineno = start_lineno + line_offset
-            #n.end_lineno = end_lineno + line_offset
-
-            #node_col_offset = n.end_col_offset - n.col_offset
-
-            #n.col_offset = col_offset + node_col_offset
-            #n.end_col_offset = end_col_offset + node_col_offset
+        node.target = self.generic_visit(node.target)
 
         return node
 
