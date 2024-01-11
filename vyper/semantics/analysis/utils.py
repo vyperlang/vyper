@@ -654,9 +654,5 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
         if hasattr(call_type, "check_modifiability_for_call"):
             return call_type.check_modifiability_for_call(node, modifiability)
 
-        # builtins
-        call_type_modifiability = getattr(call_type, "_modifiability", Modifiability.MODIFIABLE)
-        return call_type_modifiability >= modifiability
-
     value_type = get_expr_info(node)
     return value_type.modifiability >= modifiability
