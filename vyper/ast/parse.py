@@ -1,5 +1,4 @@
 import ast as python_ast
-import string
 import tokenize
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
@@ -170,6 +169,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
+
             if node.last_token.type == 4:
                 # ignore trailing newline once more
                 end_pos -= 1
@@ -241,52 +241,36 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 node.col_offset,
             )
 
-        self.generic_visit(node)
+        # some kind of black magic. untokenize preserves the line and column
+        # offsets, giving us something like `\
+        # \
+        # \
+        #   uint8`
+        # that's not a valid python Expr because it is indented.
+        # but it's good because the code is indented to exactly the same
+        # offset as it did in the original source(!)
+        # add in a spurious target which lets us keep the
+        # line/col offset but also giving us a valid AST.
+        annotation_str = tokenize.untokenize(annotation_tokens)
+        annotation_str = f"fake_target:" + annotation_str
 
         try:
-            annotation_str = tokenize.untokenize(annotation_tokens).strip(string.whitespace + "\\")
-            annotation = python_ast.parse(annotation_str)
+            ann_assign = python_ast.parse(annotation_str).body[0]
         except SyntaxError as e:
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
             ) from e
 
-        annotation = annotation.body[0]
+        # replace the target with the new ann_assign
         og_target = node.target
+        ann_assign.target = og_target
+        node.target = ann_assign
 
-        # annotate with token and source code information. `first_token`
-        # and `last_token` attributes are accessed in `generic_visit`.
-        tokens = asttokens.ASTTokens(annotation_str)
-        tokens.mark_tokens(annotation)
-
-        # decrease line offset by 1 because annotation is on the same line as `For` node
-        # but the spliced expression also starts at line 1
-        adjustment = og_target.first_token.start[0] - 1, og_target.first_token.start[1]
-
-        def _add_pair(x, y):
-            return x[0] + y[0], x[1] + y[1]
-
-        for n in python_ast.walk(annotation):
-            # adjust all offsets
-            if hasattr(n, "first_token"):
-                n.first_token = n.first_token._replace(
-                    start=_add_pair(n.first_token.start, adjustment),
-                    end=_add_pair(n.first_token.end, adjustment),
-                    startpos=n.first_token.startpos + og_target.first_token.startpos,
-                    endpos=n.first_token.startpos + og_target.first_token.startpos,
-                )
-            if hasattr(n, "last_token"):
-                n.last_token = n.last_token._replace(
-                    start=_add_pair(n.last_token.start, adjustment),
-                    end=_add_pair(n.last_token.end, adjustment),
-                    startpos=n.last_token.startpos + og_target.first_token.startpos,
-                    endpos=n.last_token.endpos + og_target.first_token.startpos,
-                )
-
-        node.target = annotation
-        node.target = self.generic_visit(node.target)
-
-        return node
+        # fill in asttokens info. note we can use `self._tokens` because
+        # it is indented to exactly the same position where it appeared
+        # in the original source!
+        self._tokens.mark_tokens(ann_assign)
+        return self.generic_visit(node)
 
     def visit_Expr(self, node):
         """

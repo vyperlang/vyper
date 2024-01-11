@@ -65,32 +65,27 @@ class ForParser:
     def consume(self, token):
         # state machine: we can start slurping tokens soon
         if token.type == NAME and token.string == "for":
+            # note: self._state should be NOT_RUNNING here, but we don't sanity
+            # check here as that should be an error the parser will handle.
+            self._state = ForParserState.START_SOON
+            self._current_for_loop = token.start
+
+        if self._state == ForParserState.NOT_RUNNING:
+            return False
+
+        # state machine: start slurping tokens
+        if token.type == OP and token.string == ":":
+            self._state = ForParserState.RUNNING
+
             # sanity check -- this should never really happen, but if it does,
             # try to raise an exception which pinpoints the source.
             if self._current_annotation is not None:
                 raise SyntaxException(
                     "for loop parse error", self._code, token.start[0], token.start[1]
                 )
+
             self._current_annotation = []
-
-            assert self._state == ForParserState.NOT_RUNNING
-            self._state = ForParserState.START_SOON
-            self._current_for_loop = token.start
-            return False
-
-        if self._state == ForParserState.NOT_RUNNING:
-            return False
-
-        if self._state == ForParserState.START_SOON:
-            # state machine: start slurping tokens
-
-            self._current_annotation.append(token)
-
-            if token.type == OP and token.string == ":":
-                self._state = ForParserState.RUNNING
-                return True  # do not add ":" to global tokens.
-
-            return False  # add everything before ":" to tokens
+            return True  # do not add ":" to tokens.
 
         # state machine: end slurping tokens
         if token.type == NAME and token.string == "in":
@@ -141,9 +136,8 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
         Compilation settings based on the directives in the source code
     ModificationOffsets
         A mapping of class names to their original class types.
-    dict[tuple[int, int], list[TokenInfo]]
-        A mapping of line/column offsets of `For` nodes to the tokens of the annotation of the
-        for loop target
+    dict[tuple[int, int], str]
+        A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     str
         Reformatted python source string.
     """
