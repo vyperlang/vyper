@@ -248,28 +248,30 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         #   uint8`
         # that's not a valid python Expr because it is indented.
         # but it's good because the code is indented to exactly the same
-        # offset as it did in the original source(!)
-        # add in a spurious target which lets us keep the
-        # line/col offset but also giving us a valid AST.
+        # offset as it did in the original source!
+        #
+        # add in a spurious target here which we will remove in a bit
+        # but for now lets us keep the line/col offset, and *also* gives
+        # us a valid AST.
         annotation_str = tokenize.untokenize(annotation_tokens)
-        annotation_str = f"fake_target:" + annotation_str
+        annotation_str = f"COMPILER_INSERTED:" + annotation_str
 
         try:
-            ann_assign = python_ast.parse(annotation_str).body[0]
+            fake_node = python_ast.parse(annotation_str).body[0]
         except SyntaxError as e:
             raise SyntaxException(
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
             ) from e
 
-        # replace the target with the new ann_assign
-        og_target = node.target
-        ann_assign.target = og_target
-        node.target = ann_assign
-
-        # fill in asttokens info. note we can use `self._tokens` because
+        # fill in with asttokens info. note we can use `self._tokens` because
         # it is indented to exactly the same position where it appeared
         # in the original source!
-        self._tokens.mark_tokens(ann_assign)
+        self._tokens.mark_tokens(fake_node)
+
+        # replace the For node target with the new ann_assign
+        fake_node.target = node.target
+        node.target = fake_node
+
         return self.generic_visit(node)
 
     def visit_Expr(self, node):
