@@ -107,7 +107,7 @@ def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets:
 
     # Calculate refund for sender
     refund: uint256 = 0
-    for i in range(MAX_BIDS):
+    for i: int128 in range(MAX_BIDS):
         # Note that loop may break sooner than 128 iterations if i >= _numBids
         if (i >= _numBids):
             break

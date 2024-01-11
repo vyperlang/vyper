@@ -10,6 +10,7 @@ from vyper.exceptions import (
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
+    UnfoldableNode,
     UnknownAttribute,
     VariableDeclarationException,
 )
@@ -357,6 +358,16 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
+
+    def _try_fold(self, node):
+        if len(node.args) != 1:
+            raise UnfoldableNode("wrong number of args", node.args)
+        args = [arg.get_folded_value() for arg in node.args]
+        if not isinstance(args[0], vy_ast.Dict):
+            raise UnfoldableNode("not a dict")
+
+        # it can't be reduced, but this lets upstream code know it's constant
+        return node
 
     @property
     def size_in_bytes(self):

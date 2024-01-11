@@ -6,7 +6,7 @@ TEST_CODE = """
 @internal
 def _baz(a: int128) -> int128:
     b: int128 = a
-    for i in range(2, 5):
+    for i: int128 in range(2, 5):
         b *=  i
         if b > 31337:
             break

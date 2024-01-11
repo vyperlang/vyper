@@ -24,7 +24,7 @@ def foo():
     """
 @external
 def foo():
-    for i in [0x6b175474e89094c44da98b954eedeac495271d0F]:
+    for i: address in [0x6b175474e89094c44da98b954eedeac495271d0F]:
         pass
     """,
     """

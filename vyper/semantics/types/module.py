@@ -4,7 +4,12 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
+from vyper.exceptions import (
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+    UnfoldableNode,
+)
 from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -56,6 +61,15 @@ class InterfaceT(_UserType):
 
     def __repr__(self):
         return f"interface {self._id}"
+
+    def _try_fold(self, node):
+        if len(node.args) != 1:
+            raise UnfoldableNode("wrong number of args", node.args)
+        arg = node.args[0].get_folded_value()
+        if not isinstance(arg, vy_ast.Hex):
+            raise UnfoldableNode("not an address", arg)
+
+        return node
 
     # when using the type itself (not an instance) in the call position
     def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":

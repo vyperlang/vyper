@@ -20,7 +20,7 @@ def test_uint256_mulmod_complex(get_contract_with_gas_estimation):
 @external
 def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     o: uint256 = 1
-    for i in range(256):
+    for i: uint256 in range(256):
         o = uint256_mulmod(o, o, modulus)
         if exponent & shift(1, 255 - i) != 0:
             o = uint256_mulmod(o, base, modulus)

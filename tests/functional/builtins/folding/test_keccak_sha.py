@@ -2,8 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
-from vyper.builtins import functions as vy_fn
+from tests.utils import parse_and_fold
 
 alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&()*+,-./:;<=>?@[]^_`{|}~'  # NOQA: E501
 
@@ -20,9 +19,9 @@ def foo(a: String[100]) -> bytes32:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}('''{value}''')")
+    vyper_ast = parse_and_fold(f"{fn_name}('''{value}''')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
+    new_node = old_node.get_folded_value()
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value
 
@@ -39,9 +38,9 @@ def foo(a: Bytes[100]) -> bytes32:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({value})")
+    vyper_ast = parse_and_fold(f"{fn_name}({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
+    new_node = old_node.get_folded_value()
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value
 
@@ -60,8 +59,8 @@ def foo(a: Bytes[100]) -> bytes32:
 
     value = f"0x{value.hex()}"
 
-    vyper_ast = vy_ast.parse_to_ast(f"{fn_name}({value})")
+    vyper_ast = parse_and_fold(f"{fn_name}({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE[fn_name]._try_fold(old_node)
+    new_node = old_node.get_folded_value()
 
     assert f"0x{contract.foo(value).hex()}" == new_node.value
