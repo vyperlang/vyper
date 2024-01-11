@@ -249,6 +249,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # that's not a valid python Expr because it is indented.
         # but it's good because the code is indented to exactly the same
         # offset as it did in the original source!
+        # (to best understand this, print out annotation_str and
+        # self._source_code and compare them side-by-side).
         #
         # add in a spurious target here which we will remove in a bit
         # but for now lets us keep the line/col offset, and *also* gives
