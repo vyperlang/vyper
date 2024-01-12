@@ -136,7 +136,7 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
         Compilation settings based on the directives in the source code
     ModificationOffsets
         A mapping of class names to their original class types.
-    dict[tuple[int, int], str]
+    dict[tuple[int, int], list[TokenInfo]]
         A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     str
         Reformatted python source string.
