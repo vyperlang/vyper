@@ -298,7 +298,7 @@ class ModuleT(VyperType):
             self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
 
         for i in self.interface_defs:
-            # add the type of the interfaceso it can be used in call position
+            # add the type of the interface so it can be used in call position
             self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
             self._helper.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
 
