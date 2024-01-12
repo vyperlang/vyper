@@ -265,6 +265,22 @@ def foo():
         "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
         "uint9",
     ),
+    (
+        # test an even more deranged example
+        """
+@external
+def foo():
+    for i: \\
+        \\
+          DynArray[\\
+        uint9, 3\\
+        ] in [1,2,3]:
+        pass
+    """,
+        UnknownType,
+        "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
+        "uint9",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
