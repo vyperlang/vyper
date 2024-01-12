@@ -127,14 +127,13 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         except UndeclaredDefinition:
             raise InvalidType(err_msg, node) from None
 
-        interface = module_or_interface
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
-            interface = module_or_interface.module_t.interface
+            module_or_interface = module_or_interface.module_t
 
-        if not interface._attribute_in_annotation:
+        if not module_or_interface._attribute_in_annotation:
             raise InvalidType(err_msg, node)
 
-        type_t = interface.get_type_member(node.attr, node)
+        type_t = module_or_interface.get_type_member(node.attr, node)
         assert isinstance(type_t, TYPE_T)  # sanity check
         return type_t.typedef
 

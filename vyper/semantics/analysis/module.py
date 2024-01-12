@@ -383,8 +383,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
-        obj = InterfaceT.from_InterfaceDef(node)
-        self.namespace[node.name] = obj
+        interface_t = InterfaceT.from_InterfaceDef(node)
+        node._metadata["interface_type"] = interface_t
+        self.namespace[node.name] = interface_t
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_StructDef(node)
