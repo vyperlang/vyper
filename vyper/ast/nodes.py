@@ -1372,8 +1372,8 @@ class ImplementsDecl(Stmt):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if not isinstance(self.annotation, Name):
-            raise StructureException("not an identifier", self.annotation)
+        if not isinstance(self.annotation, (Name, Attribute)):
+            raise StructureException("invalid implements", self.annotation)
 
 
 class If(Stmt):
