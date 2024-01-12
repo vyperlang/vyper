@@ -136,7 +136,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         if not module_or_interface._attribute_in_annotation:
             raise InvalidType(err_msg, node)
 
-        type_t = module_or_interface.get_type_member(node.attr, node)
+        type_t = module_or_interface.get_type_member(node.attr, node)  # type: ignore
         assert isinstance(type_t, TYPE_T)  # sanity check
         return type_t.typedef
 
