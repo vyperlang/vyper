@@ -114,6 +114,50 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
+def annotate_python_ast(
+    parsed_ast: python_ast.AST,
+    source_code: str,
+    modification_offsets: ModificationOffsets,
+    for_loop_annotations: dict,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
+) -> python_ast.AST:
+    """
+    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
+
+    Parameters
+    ----------
+    parsed_ast : AST
+        The AST to be annotated and optimized.
+    source_code : str
+        The originating source code of the AST.
+    loop_var_annotations: dict
+        A mapping of line numbers of `For` nodes to the tokens of the type
+        annotation of the iterator extracted during pre-parsing.
+    modification_offsets : dict
+        A mapping of class names to their original class types.
+
+    Returns
+    -------
+        The annotated and optimized AST.
+    """
+
+    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    visitor = AnnotatingVisitor(
+        source_code,
+        modification_offsets,
+        for_loop_annotations,
+        tokens,
+        source_id,
+        module_path=module_path,
+        resolved_path=resolved_path,
+    )
+    visitor.visit(parsed_ast)
+
+    return parsed_ast
+
+
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _modification_offsets: ModificationOffsets
@@ -415,47 +459,3 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             return node.operand
         else:
             return node
-
-
-def annotate_python_ast(
-    parsed_ast: python_ast.AST,
-    source_code: str,
-    modification_offsets: ModificationOffsets,
-    for_loop_annotations: dict,
-    source_id: int = 0,
-    module_path: Optional[str] = None,
-    resolved_path: Optional[str] = None,
-) -> python_ast.AST:
-    """
-    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
-
-    Parameters
-    ----------
-    parsed_ast : AST
-        The AST to be annotated and optimized.
-    source_code : str
-        The originating source code of the AST.
-    loop_var_annotations: dict, optional
-        A mapping of line numbers of `For` nodes to the tokens of the type annotation
-        of the iterator extracted during pre-parsing.
-    modification_offsets : dict, optional
-        A mapping of class names to their original class types.
-
-    Returns
-    -------
-        The annotated and optimized AST.
-    """
-
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
-    visitor = AnnotatingVisitor(
-        source_code,
-        modification_offsets,
-        for_loop_annotations,
-        tokens,
-        source_id,
-        module_path=module_path,
-        resolved_path=resolved_path,
-    )
-    visitor.visit(parsed_ast)
-
-    return parsed_ast
