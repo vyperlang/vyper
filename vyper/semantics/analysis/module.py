@@ -25,7 +25,7 @@ from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo,
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
-from vyper.semantics.analysis.pre_typecheck import constant_fold
+from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
