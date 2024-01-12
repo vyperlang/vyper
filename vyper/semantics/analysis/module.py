@@ -25,7 +25,7 @@ from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo,
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
-from vyper.semantics.analysis.pre_typecheck import pre_typecheck
+from vyper.semantics.analysis.pre_typecheck import constant_fold
 from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
@@ -50,8 +50,6 @@ def validate_semantics_r(
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
     validate_literal_nodes(module_ast)
-
-    pre_typecheck(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -139,6 +137,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         for node in import_stmts:
             self.visit(node)
             to_visit.remove(node)
+
+        # we can resolve constants after imports are handled.
+        constant_fold(self.ast)
 
         # keep trying to process all the nodes until we finish or can
         # no longer progress. this makes it so we don't need to
