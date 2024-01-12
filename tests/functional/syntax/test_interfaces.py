@@ -90,7 +90,7 @@ interface A:
         """
 implements: self.x
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """

@@ -130,6 +130,9 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
             module_or_interface = module_or_interface.module_t
 
+        if not isinstance(module_or_interface, VyperType):
+            raise InvalidType(err_msg, node)
+
         if not module_or_interface._attribute_in_annotation:
             raise InvalidType(err_msg, node)
 
