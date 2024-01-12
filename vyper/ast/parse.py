@@ -252,11 +252,12 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # (to best understand this, print out annotation_str and
         # self._source_code and compare them side-by-side).
         #
-        # add in a spurious target here which we will remove in a bit
-        # but for now lets us keep the line/col offset, and *also* gives
-        # us a valid AST.
+        # what we do here is add in a dummy target which we will remove
+        # in a bit, but for now lets us keep the line/col offset, and
+        # *also* gives us a valid AST. it doesn't matter what the dummy
+        # target name is, since it gets removed in a few lines.
         annotation_str = tokenize.untokenize(annotation_tokens)
-        annotation_str = f"COMPILER_INSERTED:" + annotation_str
+        annotation_str = "dummy_target:" + annotation_str
 
         try:
             fake_node = python_ast.parse(annotation_str).body[0]
@@ -270,8 +271,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # in the original source!
         self._tokens.mark_tokens(fake_node)
 
-        # replace the For node target with the new ann_assign
+        # replace the dummy target name with the real target name.
         fake_node.target = node.target
+        # replace the For node target with the new ann_assign
         node.target = fake_node
 
         return self.generic_visit(node)
