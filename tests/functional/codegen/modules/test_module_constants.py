@@ -53,3 +53,26 @@ def test_foo() -> bool:
 
     c = get_contract(contract, input_bundle=input_bundle)
     assert c.test_foo() is True
+
+
+def test_import_constant_array(make_input_bundle, get_contract, tx_failed):
+    mod1 = """
+X: constant(uint256[3]) = [1,2,3]
+    """
+    contract = """
+import mod1
+
+@external
+def foo(ix: uint256) -> uint256:
+    return mod1.X[ix]
+    """
+
+    input_bundle = make_input_bundle({"mod1.vy": mod1})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo(0) == 1
+    assert c.foo(1) == 2
+    assert c.foo(2) == 3
+    with tx_failed():
+        c.foo(3)
