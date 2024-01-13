@@ -1,11 +1,11 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidLiteral, UnfoldableNode
+from vyper.exceptions import InvalidLiteral, UnfoldableNode, VyperException
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.namespace import get_namespace
 
 
-def pre_typecheck(module_ast: vy_ast.Module):
+def constant_fold(module_ast: vy_ast.Module):
     ConstantFolder(module_ast).run()
 
 
@@ -88,6 +88,33 @@ class ConstantFolder(VyperNodeVisitorBase):
             return self._constants[node.id]
         except KeyError:
             raise UnfoldableNode("unknown name", node)
+
+    def visit_Attribute(self, node) -> vy_ast.ExprNode:
+        namespace = get_namespace()
+        path = []
+        value = node.value
+        while isinstance(value, vy_ast.Attribute):
+            path.append(value.attr)
+            value = value.value
+
+        path.reverse()
+
+        if not isinstance(value, vy_ast.Name):
+            raise UnfoldableNode("not a module", value)
+
+        # not super type-safe but we don't care. just catch AttributeErrors
+        # and move on
+        try:
+            module_t = namespace[value.id].module_t
+
+            for module_name in path:
+                module_t = module_t.members[module_name].module_t
+
+            varinfo = module_t.get_member(node.attr, node)
+
+            return varinfo.decl_node.value.get_folded_value()
+        except (VyperException, AttributeError):
+            raise UnfoldableNode("not a module")
 
     def visit_UnaryOp(self, node):
         operand = node.operand.get_folded_value()
