@@ -49,6 +49,11 @@ def validate_semantics_r(
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
+    if "type" in module_ast._metadata:
+        # we don't need to analyse again, skip out
+        assert isinstance(module_ast._metadata["type"], ModuleT)
+        return module_ast._metadata["type"]
+
     validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
@@ -121,11 +126,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def analyze(self) -> ModuleT:
         # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
-        if "type" in self.ast._metadata:
-            assert isinstance(self.ast._metadata["type"], ModuleT)
-            # we don't need to analyse again, skip out
-            self.module_t = self.ast._metadata["type"]
-            return self.module_t
+
+        assert "type" not in self.ast._metadata
 
         to_visit = self.ast.body.copy()
 
