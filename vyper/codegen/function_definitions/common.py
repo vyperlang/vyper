@@ -61,7 +61,7 @@ class _FuncIRInfo:
     @property
     # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
-        assert not self.func_t.is_internal, "uh oh, should be external"
+        assert self.func_t.is_external, "uh oh, should be external"
         return self.ir_identifier + "_common"
 
     def internal_function_label(self, is_ctor_context: bool = False) -> str:
