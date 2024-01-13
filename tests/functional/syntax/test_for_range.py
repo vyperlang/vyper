@@ -247,9 +247,43 @@ def foo():
         "No builtin or user-defined type named 'DynArra'. Did you mean 'DynArray'?",
         "DynArra",
     ),
+    (
+        # test for loop target broken into multiple lines
+        """
+@external
+def foo():
+    for i: \\
+      \\
+        \\
+        \\
+        \\
+        \\
+        uint9 in [1,2,3]:
+        pass
+    """,
+        UnknownType,
+        "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
+        "uint9",
+    ),
+    (
+        # test an even more deranged example
+        """
+@external
+def foo():
+    for i: \\
+        \\
+          DynArray[\\
+        uint9, 3\\
+        ] in [1,2,3]:
+        pass
+    """,
+        UnknownType,
+        "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
+        "uint9",
+    ),
 ]
 
-for_code_regex = re.compile(r"for .+ in (.*):")
+for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
 fail_test_names = [
     (
         f"{i:02d}: {for_code_regex.search(code).group(1)}"  # type: ignore[union-attr]
