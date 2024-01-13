@@ -1,4 +1,3 @@
-
 def test_module_constant(make_input_bundle, get_contract):
     mod1 = """
 X: constant(uint256) = 12345
@@ -16,6 +15,7 @@ def foo() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.foo() == 12345
+
 
 def test_nested_module_constant(make_input_bundle, get_contract):
     # test nested module constants
