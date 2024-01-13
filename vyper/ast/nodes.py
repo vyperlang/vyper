@@ -718,6 +718,19 @@ class Expr(Stmt):
     __slots__ = ("value",)
 
 
+class NamedExpr(Stmt):
+    __slots__ = ("target", "value")
+
+    def validate(self):
+        # module[dep1 := dep2]
+
+        # XXX: better error messages
+        if not isinstance(self.target, Name):
+            raise StructureException("not a Name")
+
+        if not isinstance(self.value, Name):
+            raise StructureException("not a Name")
+
 class Log(Stmt):
     __slots__ = ("value",)
 
