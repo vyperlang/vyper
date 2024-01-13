@@ -347,7 +347,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         Starting from python 3.9, the `Index` node type has been deprecated,
         and made impossible to instantiate via regular means. Here we do awful
-        hacky black magic to create an `Index` node. We need our own parser.
+        hacky black magic to create an `Index` node.
+
+        TODO: remove Index ast nodes since we require python>=3.10 now - CMC 2024-01-13
         """
         self.generic_visit(node)
 

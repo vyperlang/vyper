@@ -224,6 +224,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         type_.validate_implements(node)
 
+    def visit_UsesDecl(self, node):
+        # XXX: implement
+        pass
+
+    def visit_InitializesDecl(self, node):
+        # XXX: implement
+        pass
+
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
         if name is None:

@@ -83,8 +83,20 @@ def get_node(
             if ast_struct["value"] is not None:
                 _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "ImplementsDecl"
+
+        # Replace "uses:" `AnnAssign` nodes with `UsesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "uses":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`uses` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "UsesDecl"
+
+        # Replace "initializes:" `AnnAssign` nodes with `InitializesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "initializes":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`initializes` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "InitializesDecl"
+
         # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-        # Parent node is required for context to determine whether replacement should happen.
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
@@ -1370,23 +1382,79 @@ class ImplementsDecl(Stmt):
     """
     An `implements` declaration.
 
-    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
-
     Attributes
     ----------
-    target : Name
-        Name node for the `implements` keyword
     annotation : Name
         Name node for the interface to be implemented
     """
 
-    __slots__ = ("target", "annotation")
+    __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         if not isinstance(self.annotation, (Name, Attribute)):
             raise StructureException("invalid implements", self.annotation)
+
+class UsesDecl(Stmt):
+    """
+    A `uses` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Tuple
+        The module(s) which this uses
+    """
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if isinstance(self.annotation, Tuple):
+            items = self.annotation.elements
+        else:
+            items = (self.annotation,)
+
+        for item in items:
+            if not isinstance(item, (Name, Attribute)):
+                raise StructureException("invalid uses", item)
+
+class InitializesDecl(Stmt):
+    """
+    An `initializes` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Subscript
+        An imported module which this module initializes
+    """
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        module_ref = self.annotation
+        if isinstance(module_ref, Subscript):
+            module_ref = module_ref.value
+
+            index = self.annotation.slice.value
+
+            if isinstance(index, Tuple):
+                dependencies = dependencies.elements
+            else:
+                dependencies = (index,)
+
+            for item in dependencies:
+                if not isinstance(item, NamedExpr):
+                    print(type(item))
+                    raise StructureException("invalid dependency (hint: should be [dependency := dependency]", item)
+                if not isinstance(item.target, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+                if not isinstance(item.value, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+
+        if not isinstance(module_ref, (Name, Attribute)):
+            raise StructureException("invalid module", module_ref)
 
 
 class If(Stmt):
