@@ -97,18 +97,21 @@ class ConstantFolder(VyperNodeVisitorBase):
             path.append(value.attr)
             value = value.value
 
+        path.reverse()
+
         if not isinstance(value, vy_ast.Name):
             raise UnfoldableNode("not a module", value)
-
-        path.reverse()
 
         # not super type-safe but we don't care. just catch AttributeErrors
         # and move on
         try:
-            module = namespace[value.id]
+            module_t = namespace[value.id].module_t
+
             for module_name in path:
-                module_info = module._metadata["namespace"][module_name]
-            varinfo = module_info.module_t.get_member(node.attr, node)
+                module_t = module_t.members[module_name].module_t
+
+            varinfo = module_t.get_member(node.attr, node)
+
             return varinfo.decl_node.value.get_folded_value()
         except (VyperException, AttributeError):
             raise UnfoldableNode("not a module")
