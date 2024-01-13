@@ -46,14 +46,14 @@ class _StringEnum(enum.Enum):
     # Comparison operations
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("Can only compare like types.")
+            raise CompilerPanic("bad comparison")
         return self is other
 
     # Python normally does __ne__(other) ==> not self.__eq__(other)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("Can only compare like types.")
+            raise CompilerPanic("bad comparison")
         options = self.__class__.options()
         return options.index(self) < options.index(other)  # type: ignore
 

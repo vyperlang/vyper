@@ -197,7 +197,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # we just want to be able to construct the call graph.
                     continue
 
-                if isinstance(call_t, ContractFunctionT) and call_t.is_internal:
+                if isinstance(call_t, ContractFunctionT) and (call_t.is_internal or call_t.is_constructor):
+
                     fn_t.called_functions.add(call_t)
 
         for func in function_defs:
