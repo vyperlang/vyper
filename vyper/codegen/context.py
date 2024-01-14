@@ -44,7 +44,7 @@ class VariableRecord:
         return f"VariableRecord({ret})"
 
 
-# Contains arguments, variables, etc
+# compilation context for a function
 class Context:
     def __init__(
         self,
@@ -82,6 +82,10 @@ class Context:
         # Memory alloctor, keeps track of currently allocated memory.
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
+
+        # save the starting memory location so we can find out (later)
+        # how much memory this function uses.
+        self.starting_memory = memory_allocator.next_mem
 
         # Incremented values, used for internal IDs
         self._internal_var_iter = 0

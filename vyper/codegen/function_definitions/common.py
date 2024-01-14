@@ -2,17 +2,14 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
 
-import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
-from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
-from vyper.exceptions import CompilerPanic
+from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
-from vyper.utils import MemoryPositions, calc_mem_gas
+from vyper.utils import MemoryPositions
 
 
 @dataclass
@@ -53,14 +50,16 @@ class _FuncIRInfo:
         return f"{self.visibility} {function_id} {name}({argz})"
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
+        # XXX: when can this happen?
         if self.frame_info is not None:
-            raise CompilerPanic(f"frame_info already set for {self.func_t}!")
-        self.frame_info = frame_info
+            assert frame_info == self.frame_info
+        else:
+            self.frame_info = frame_info
 
     @property
     # common entry point for external function with kwargs
     def external_function_base_entry_label(self) -> str:
-        assert self.func_t.is_external, "uh oh, should be external"
+        assert not self.func_t.is_internal, "uh oh, should be external"
         return self.ir_identifier + "_common"
 
     def internal_function_label(self, is_ctor_context: bool = False) -> str:
@@ -75,10 +74,6 @@ class _FuncIRInfo:
         return self.ir_identifier + suffix
 
 
-class FuncIR:
-    pass
-
-
 @dataclass
 class EntryPointInfo:
     func_t: ContractFunctionT
@@ -86,7 +81,7 @@ class EntryPointInfo:
     ir_node: IRnode  # the ir for this entry point
 
     def __post_init__(self):
-        # ABI v2 property guaranteed by the spec.
+        # sanity check ABI v2 properties guaranteed by the spec.
         # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:  # noqa: E501
         # > Note that for any X, len(enc(X)) is a multiple of 32.
         assert self.min_calldatasize >= 4
@@ -94,34 +89,28 @@ class EntryPointInfo:
 
 
 @dataclass
-class ExternalFuncIR(FuncIR):
+class ExternalFuncIR:
     entry_points: dict[str, EntryPointInfo]  # map from abi sigs to entry points
     common_ir: IRnode  # the "common" code for the function
 
 
 @dataclass
-class InternalFuncIR(FuncIR):
+class InternalFuncIR:
     func_ir: IRnode  # the code for the function
 
 
-# TODO: should split this into external and internal ir generation?
-def generate_ir_for_function(
-    code: vy_ast.FunctionDef, module_ctx: ModuleT, is_ctor_context: bool = False
-) -> FuncIR:
-    """
-    Parse a function and produce IR code for the function, includes:
-        - Signature method if statement
-        - Argument handling
-        - Clamping and copying of arguments
-        - Function body
-    """
-    func_t = code._metadata["func_type"]
-
-    # generate _FuncIRInfo
+def init_ir_info(func_t: ContractFunctionT):
+    # initialize IRInfo on the function
     func_t._ir_info = _FuncIRInfo(func_t)
 
-    callees = func_t.called_functions
 
+def initialize_context(
+    func_t: ContractFunctionT, module_ctx: ModuleT, is_ctor_context: bool = False
+):
+    init_ir_info(func_t)
+
+    # calculate starting frame
+    callees = func_t.called_functions
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c_func_t in callees:
@@ -132,7 +121,7 @@ def generate_ir_for_function(
 
     memory_allocator = MemoryAllocator(allocate_start)
 
-    context = Context(
+    return Context(
         vars_=None,
         module_ctx=module_ctx,
         memory_allocator=memory_allocator,
@@ -141,38 +130,41 @@ def generate_ir_for_function(
         is_ctor_context=is_ctor_context,
     )
 
-    if func_t.is_internal or func_t.is_constructor:
-        ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
-        func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
-    else:
-        kwarg_handlers, common = generate_ir_for_external_function(code, func_t, context)
-        entry_points = {
-            k: EntryPointInfo(func_t, mincalldatasize, ir_node)
-            for k, (mincalldatasize, ir_node) in kwarg_handlers.items()
-        }
-        ret = ExternalFuncIR(entry_points, common)
-        # note: this ignores the cost of traversing selector table
-        func_t._ir_info.gas_estimate = ret.common_ir.gas
 
+def tag_frame_info(func_t, context):
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
+    frame_start = context.starting_memory
 
-    frame_info = FrameInfo(allocate_start, frame_size, context.vars)
+    frame_info = FrameInfo(frame_start, frame_size, context.vars)
+    func_t._ir_info.set_frame_info(frame_info)
 
-    # XXX: when can this happen?
-    if func_t._ir_info.frame_info is None:
-        func_t._ir_info.set_frame_info(frame_info)
+    return frame_info
+
+
+def get_nonreentrant_lock(func_t):
+    if not func_t.nonreentrant:
+        return ["pass"], ["pass"]
+
+    nkey = func_t.reentrancy_key_position.position
+
+    LOAD, STORE = "sload", "sstore"
+    if version_check(begin="cancun"):
+        LOAD, STORE = "tload", "tstore"
+
+    if version_check(begin="berlin"):
+        # any nonzero values would work here (see pricing as of net gas
+        # metering); these values are chosen so that downgrading to the
+        # 0,1 scheme (if it is somehow necessary) is safe.
+        final_value, temp_value = 3, 2
     else:
-        assert frame_info == func_t._ir_info.frame_info
+        final_value, temp_value = 0, 1
 
-    if func_t.is_external:
-        # adjust gas estimate to include cost of mem expansion
-        # frame_size of external function includes all private functions called
-        # (note: internal functions do not need to adjust gas estimate since
-        mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
-        ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
-        ret.common_ir.passthrough_metadata["func_t"] = func_t  # type: ignore
-        ret.common_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
+    check_notset = ["assert", ["ne", temp_value, [LOAD, nkey]]]
+
+    if func_t.mutability == StateMutability.VIEW:
+        return [check_notset], [["seq"]]
+
     else:
-        ret.func_ir.passthrough_metadata["frame_info"] = frame_info  # type: ignore
-
-    return ret
+        pre = ["seq", check_notset, [STORE, nkey, temp_value]]
+        post = [STORE, nkey, final_value]
+        return [pre], [post]

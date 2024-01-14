@@ -4,7 +4,10 @@ from typing import Any, List
 
 from vyper.codegen import core, jumptable_utils
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function
+from vyper.codegen.function_definitions import (
+    generate_ir_for_external_function,
+    generate_ir_for_internal_function,
+)
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
@@ -89,7 +92,7 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
         callvalue_check = ["assert", ["iszero", "callvalue"]]
         ret.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
 
-    func_ir = generate_ir_for_function(func_ast, *args, **kwargs)
+    func_ir = generate_ir_for_external_function(func_ast, *args, **kwargs)
     assert len(func_ir.entry_points) == 1
 
     # add a goto to make the function entry look like other functions
@@ -101,7 +104,7 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
 
 
 def _ir_for_internal_function(func_ast, *args, **kwargs):
-    return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
+    return generate_ir_for_internal_function(func_ast, *args, **kwargs).func_ir
 
 
 def _generate_external_entry_points(external_functions, module_ctx):
@@ -109,7 +112,7 @@ def _generate_external_entry_points(external_functions, module_ctx):
     sig_of = {}  # reverse map from method ids to abi sig
 
     for code in external_functions:
-        func_ir = generate_ir_for_function(code, module_ctx)
+        func_ir = generate_ir_for_external_function(code, module_ctx)
         for abi_sig, entry_point in func_ir.entry_points.items():
             method_id = method_id_int(abi_sig)
             assert abi_sig not in entry_points
@@ -490,7 +493,7 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
         # generate init_func_ir after callees to ensure they have analyzed
         # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_ctx, is_ctor_context=True)
+        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_ctx)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
