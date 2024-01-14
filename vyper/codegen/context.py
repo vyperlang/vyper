@@ -68,10 +68,6 @@ class Context:
         # Is the function constant?
         self.constancy = constancy
 
-        # Whether body is currently in an assert statement
-        # XXX: dead, never set to True
-        self.in_assertion = False
-
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
 
@@ -95,7 +91,7 @@ class Context:
         self.is_ctor_context = is_ctor_context
 
     def is_constant(self):
-        return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+        return self.constancy is Constancy.Constant or self.in_range_expr
 
     def check_is_not_constant(self, err, expr):
         if self.is_constant():
@@ -250,9 +246,7 @@ class Context:
 
     # Pretty print constancy for error messages
     def pp_constancy(self):
-        if self.in_assertion:
-            return "an assertion"
-        elif self.in_range_expr:
+        if self.in_range_expr:
             return "a range expression"
         elif self.constancy == Constancy.Constant:
             return "a constant function"
