@@ -23,6 +23,8 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
+    "bb": output.build_bb_output,
+    "bb_runtime": output.build_bb_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
@@ -84,6 +86,8 @@ def compile_from_file_input(
         two arguments - the name of the contract, and the exception that was raised
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
+    experimental_codegen: bool
+        Use experimental codegen. Defaults to False
 
     Returns
     -------

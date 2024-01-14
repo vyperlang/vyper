@@ -4,7 +4,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 from vyper.exceptions import OverflowException, TypeMismatch, ZeroDivisionException
 
 st_decimals = st.decimals(
@@ -28,9 +28,9 @@ def foo(a: decimal, b: decimal) -> decimal:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{left} {op} {right}")
-    old_node = vyper_ast.body[0].value
     try:
+        vyper_ast = parse_and_fold(f"{left} {op} {right}")
+        old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
         is_valid = True
     except ZeroDivisionException:
@@ -45,11 +45,8 @@ def foo(a: decimal, b: decimal) -> decimal:
 
 def test_binop_pow():
     # raises because Vyper does not support decimal exponentiation
-    vyper_ast = vy_ast.parse_to_ast("3.1337 ** 4.2")
-    old_node = vyper_ast.body[0].value
-
     with pytest.raises(TypeMismatch):
-        old_node.get_folded_value()
+        _ = parse_and_fold("3.1337 ** 4.2")
 
 
 @pytest.mark.fuzzing
@@ -72,8 +69,8 @@ def foo({input_value}) -> decimal:
 
     literal_op = " ".join(f"{a} {b}" for a, b in zip(values, ops))
     literal_op = literal_op.rsplit(maxsplit=1)[0]
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
     try:
+        vyper_ast = parse_and_fold(literal_op)
         new_node = vyper_ast.body[0].value.get_folded_value()
         expected = new_node.value
         is_valid = -(2**127) <= expected < 2**127

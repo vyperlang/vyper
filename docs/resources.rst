@@ -24,6 +24,7 @@ Frameworks and tooling
 - `🐍 snekmate – Vyper smart contract building blocks <https://github.com/pcaversaccio/snekmate>`_
 - `Serpentor – A set of smart contracts tools for governance <https://github.com/yearn/serpentor>`_
 - `Smart contract development frameworks and tools for Vyper on Ethreum.org <https://ethereum.org/en/developers/docs/programming-languages/python/>`_
+- `Vyper Online Compiler - an online platform for compiling and deploying Vyper smart contracts <https://github.com/0x0077/vyper-online-compiler>`_
 
 Security
 --------

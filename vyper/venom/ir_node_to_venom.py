@@ -87,19 +87,35 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return ret
 
 
-def convert_ir_basicblock(ir: IRnode) -> IRFunction:
-    global_function = IRFunction()
-    _convert_ir_basicblock(global_function, ir, {}, OrderedSet(), {})
+def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
+    if ir.value == value:
+        return ir
+    for arg in ir.args:
+        if isinstance(arg, IRnode):
+            ret = _findIRnode(arg, value)
+            if ret is not None:
+                return ret
+    return None
 
-    for i, bb in enumerate(global_function.basic_blocks):
-        if not bb.is_terminated and i < len(global_function.basic_blocks) - 1:
-            bb.append_instruction("jmp", global_function.basic_blocks[i + 1].label)
 
-    revert_bb = IRBasicBlock(IRLabel("__revert"), global_function)
-    revert_bb = global_function.append_basic_block(revert_bb)
-    revert_bb.append_instruction("revert", 0, 0)
+def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
+    deploy_ir = _findIRnode(ir, "deploy")
+    assert deploy_ir is not None
 
-    return global_function
+    deploy_venom = IRFunction()
+    _convert_ir_basicblock(deploy_venom, ir, {}, OrderedSet(), {})
+    deploy_venom.get_basic_block().append_instruction("stop")
+
+    runtime_ir = deploy_ir.args[1]
+    runtime_venom = IRFunction()
+    _convert_ir_basicblock(runtime_venom, runtime_ir, {}, OrderedSet(), {})
+
+    # Connect unterminated blocks to the next with a jump
+    for i, bb in enumerate(runtime_venom.basic_blocks):
+        if not bb.is_terminated and i < len(runtime_venom.basic_blocks) - 1:
+            bb.append_instruction("jmp", runtime_venom.basic_blocks[i + 1].label)
+
+    return deploy_venom, runtime_venom
 
 
 def _convert_binary_op(
@@ -279,20 +295,9 @@ def _convert_ir_basicblock(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value in ["pass", "stop", "return"]:
         pass
     elif ir.value == "deploy":
-        memsize = ir.args[0].value
-        ir_runtime = ir.args[1]
-        padding = ir.args[2].value
-        assert isinstance(memsize, int), "non-int memsize"
-        assert isinstance(padding, int), "non-int padding"
-
-        runtimeLabel = ctx.get_next_label()
-
-        ctx.get_basic_block().append_instruction("deploy", memsize, runtimeLabel, padding)
-
-        bb = IRBasicBlock(runtimeLabel, ctx)
-        ctx.append_basic_block(bb)
-
-        _convert_ir_basicblock(ctx, ir_runtime, symbols, variables, allocated_variables)
+        ctx.ctor_mem_size = ir.args[0].value
+        ctx.immutables_len = ir.args[2].value
+        return None
     elif ir.value == "seq":
         func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:

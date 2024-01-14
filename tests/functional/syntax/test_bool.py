@@ -37,7 +37,7 @@ def foo():
 def foo() -> bool:
     return (1 == 2) <= (1 == 1)
     """,
-        TypeMismatch,
+        InvalidOperation,
     ),
     """
 @external

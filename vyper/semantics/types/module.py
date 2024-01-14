@@ -4,7 +4,12 @@ from typing import Optional
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
 from vyper.ast.validation import validate_call_args
-from vyper.exceptions import InterfaceViolation, NamespaceCollision, StructureException
+from vyper.exceptions import (
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+    UnfoldableNode,
+)
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.namespace import get_namespace
@@ -34,6 +39,7 @@ class InterfaceT(_UserType):
 
         self._helper = VyperType(events | structs)
         self._id = _id
+        self._helper._id = _id
         self.functions = functions
         self.events = events
         self.structs = structs
@@ -52,6 +58,15 @@ class InterfaceT(_UserType):
 
     def __repr__(self):
         return f"interface {self._id}"
+
+    def _try_fold(self, node):
+        if len(node.args) != 1:
+            raise UnfoldableNode("wrong number of args", node.args)
+        arg = node.args[0].get_folded_value()
+        if not isinstance(arg, vy_ast.Hex):
+            raise UnfoldableNode("not an address", arg)
+
+        return node
 
     # when using the type itself (not an instance) in the call position
     def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
@@ -253,6 +268,8 @@ class InterfaceT(_UserType):
 
 # Datatype to store all module information.
 class ModuleT(VyperType):
+    _attribute_in_annotation = True
+
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         super().__init__()
 
@@ -262,7 +279,10 @@ class ModuleT(VyperType):
 
         # compute the interface, note this has the side effect of checking
         # for function collisions
-        self._helper = self.interface
+        _ = self.interface
+
+        self._helper = VyperType()
+        self._helper._id = self._id
 
         for f in self.function_defs:
             # note: this checks for collisions
@@ -275,6 +295,12 @@ class ModuleT(VyperType):
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
             self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+            self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+
+        for i in self.interface_defs:
+            # add the type of the interface so it can be used in call position
+            self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
+            self._helper.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])
@@ -307,6 +333,10 @@ class ModuleT(VyperType):
     @property
     def struct_defs(self):
         return self._module.get_children(vy_ast.StructDef)
+
+    @property
+    def interface_defs(self):
+        return self._module.get_children(vy_ast.InterfaceDef)
 
     @property
     def import_stmts(self):

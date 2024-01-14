@@ -23,14 +23,10 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
-from vyper.semantics.analysis.pre_typecheck import pre_typecheck
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    get_exact_type_from_node,
-    validate_expected_type,
-)
+from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
@@ -54,8 +50,6 @@ def validate_semantics_r(
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
     validate_literal_nodes(module_ast)
-
-    pre_typecheck(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -143,6 +137,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         for node in import_stmts:
             self.visit(node)
             to_visit.remove(node)
+
+        # we can resolve constants after imports are handled.
+        constant_fold(self.ast)
 
         # keep trying to process all the nodes until we finish or can
         # no longer progress. this makes it so we don't need to
@@ -315,12 +312,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
 
-            ExprVisitor().visit(node.value, type_)
+            ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
             if not check_modifiability(node.value, Modifiability.CONSTANT):
                 raise StateAccessViolation("Value must be a literal", node.value)
 
-            validate_expected_type(node.value, type_)
             _validate_self_namespace()
 
             return _finalize()
@@ -388,8 +384,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node, node.level, qualified_module_name, alias)
 
     def visit_InterfaceDef(self, node):
-        obj = InterfaceT.from_InterfaceDef(node)
-        self.namespace[node.name] = obj
+        interface_t = InterfaceT.from_InterfaceDef(node)
+        node._metadata["interface_type"] = interface_t
+        self.namespace[node.name] = interface_t
 
     def visit_StructDef(self, node):
         struct_t = StructT.from_StructDef(node)

@@ -969,7 +969,7 @@ append_pop_tests = [
 my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.append(x)
     return self.my_array
     """,
@@ -981,7 +981,7 @@ my_array: DynArray[uint256, 5]
 some_var: uint256
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
-    for x in xs:
+    for x: uint256 in xs:
         self.some_var = x
         # test that typechecker for append args works
         self.my_array.append(self.some_var)
@@ -994,9 +994,9 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.append(x)
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.pop()
     return self.my_array
     """,
@@ -1008,7 +1008,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.append(x)
     return self.my_array, self.my_array.pop()
     """,
@@ -1020,7 +1020,7 @@ def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
 my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.append(x)
     return self.my_array.pop(), self.my_array
     """,
@@ -1033,7 +1033,7 @@ def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys: DynArray[uint256, 5] = []
     i: uint256 = 0
-    for x in xs:
+    for x: uint256 in xs:
         if i >= len(xs) - 1:
             break
         ys.append(x)
@@ -1049,7 +1049,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.append(x)
     return self.my_array
     """,
@@ -1061,9 +1061,9 @@ def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys: DynArray[uint256, 5] = []
-    for x in xs:
+    for x: uint256 in xs:
         ys.append(x)
-    for x in xs:
+    for x: uint256 in xs:
         ys.pop()
     return ys
     """,
@@ -1075,9 +1075,9 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys: DynArray[uint256, 5] = []
-    for x in xs:
+    for x: uint256 in xs:
         ys.append(x)
-    for x in xs:
+    for x: uint256 in xs:
         ys.pop()
     ys.pop()  # fail
     return ys
@@ -1328,7 +1328,7 @@ struct Foo:
 @external
 def bar(_baz: DynArray[Foo, 3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         e: Foobar = _baz[i].z
         f: uint256 = convert(e, uint256)
         sum += _baz[i].x * _baz[i].y + f
@@ -1397,7 +1397,7 @@ struct Bar:
 @external
 def bar(_bar: DynArray[Bar, 3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
     return sum
     """

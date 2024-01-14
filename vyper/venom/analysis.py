@@ -19,27 +19,6 @@ def calculate_cfg(ctx: IRFunction) -> None:
         bb.cfg_out = OrderedSet()
         bb.out_vars = OrderedSet()
 
-    # TODO: This is a hack to support the old IR format where `deploy` is
-    # an instruction. in the future we should have two entry points, one
-    # for the initcode and one for the runtime code.
-    deploy_bb = None
-    after_deploy_bb = None
-    for i, bb in enumerate(ctx.basic_blocks):
-        if bb.instructions[0].opcode == "deploy":
-            deploy_bb = bb
-            after_deploy_bb = ctx.basic_blocks[i + 1]
-            break
-
-    if deploy_bb is not None:
-        assert after_deploy_bb is not None, "No block after deploy block"
-        entry_block = after_deploy_bb
-        has_constructor = ctx.basic_blocks[0].instructions[0].opcode != "deploy"
-        if has_constructor:
-            deploy_bb.add_cfg_in(ctx.basic_blocks[0])
-            entry_block.add_cfg_in(deploy_bb)
-    else:
-        entry_block = ctx.basic_blocks[0]
-
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]

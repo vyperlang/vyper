@@ -151,7 +151,7 @@ def test_assert_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
-    for i in range(3):
+    for i: uint256 in range(3):
         assert x[i] < 5
     return True
     """
@@ -171,7 +171,7 @@ def test_assert_with_reason_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
-    for i in range(3):
+    for i: uint256 in range(3):
         assert x[i] < 5, "because reasons"
     return True
     """

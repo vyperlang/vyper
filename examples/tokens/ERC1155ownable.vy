@@ -205,7 +205,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
     assert len(accounts) == len(ids), "ERC1155: accounts and ids length mismatch"
     batchBalances: DynArray[uint256, BATCH_SIZE] = []
     j: uint256 = 0
-    for i in ids:
+    for i: uint256 in ids:
         batchBalances.append(self.balanceOf[accounts[j]][i])
         j += 1
     return batchBalances
@@ -243,7 +243,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[receiver][ids[i]] += amounts[i]
@@ -277,7 +277,7 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender 
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[msg.sender][ids[i]] -= amounts[i]
@@ -333,7 +333,7 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         id: uint256 = ids[i]

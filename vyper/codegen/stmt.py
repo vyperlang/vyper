@@ -32,7 +32,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.types import DArrayT, MemberFunctionT
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
+from vyper.semantics.types.shortcuts import UINT256_T
 
 
 class Stmt:
@@ -230,19 +230,17 @@ class Stmt:
                 return self._parse_For_list()
 
     def _parse_For_range(self):
-        # TODO make sure type always gets annotated
-        if "type" in self.stmt.target._metadata:
-            iter_typ = self.stmt.target._metadata["type"]
-        else:
-            iter_typ = INT256_T
+        assert "type" in self.stmt.target.target._metadata
+        target_type = self.stmt.target.target._metadata["type"]
 
         # Get arg0
-        for_iter: vy_ast.Call = self.stmt.iter
-        args_len = len(for_iter.args)
+        range_call: vy_ast.Call = self.stmt.iter
+        assert isinstance(range_call, vy_ast.Call)
+        args_len = len(range_call.args)
         if args_len == 1:
-            arg0, arg1 = (IRnode.from_list(0, typ=iter_typ), for_iter.args[0])
+            arg0, arg1 = (IRnode.from_list(0, typ=target_type), range_call.args[0])
         elif args_len == 2:
-            arg0, arg1 = for_iter.args
+            arg0, arg1 = range_call.args
         else:  # pragma: nocover
             raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
@@ -250,7 +248,7 @@ class Stmt:
             start = Expr.parse_value_expr(arg0, self.context)
             end = Expr.parse_value_expr(arg1, self.context)
             kwargs = {
-                s.arg: Expr.parse_value_expr(s.value, self.context) for s in for_iter.keywords
+                s.arg: Expr.parse_value_expr(s.value, self.context) for s in range_call.keywords
             }
 
         if "bound" in kwargs:
@@ -269,9 +267,9 @@ class Stmt:
         if rounds_bound < 1:  # pragma: nocover
             raise TypeCheckFailure("unreachable: unchecked 0 bound")
 
-        varname = self.stmt.target.id
-        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=UINT256_T)
-        iptr = self.context.new_variable(varname, iter_typ)
+        varname = self.stmt.target.target.id
+        i = IRnode.from_list(self.context.fresh_varname("range_ix"), typ=target_type)
+        iptr = self.context.new_variable(varname, target_type)
 
         self.context.forvars[varname] = True
 
@@ -296,11 +294,11 @@ class Stmt:
         with self.context.range_scope():
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
-        target_type = self.stmt.target._metadata["type"]
+        target_type = self.stmt.target.target._metadata["type"]
         assert target_type == iter_list.typ.value_type
 
         # user-supplied name for loop variable
-        varname = self.stmt.target.id
+        varname = self.stmt.target.target.id
         loop_var = IRnode.from_list(
             self.context.new_variable(varname, target_type), typ=target_type, location=MEMORY
         )
