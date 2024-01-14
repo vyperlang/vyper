@@ -755,6 +755,7 @@ class NamedExpr(Stmt):
         if not isinstance(self.value, Name):
             raise StructureException("not a Name")
 
+
 class Log(Stmt):
     __slots__ = ("value",)
 
@@ -1426,6 +1427,7 @@ class ImplementsDecl(Stmt):
         if not isinstance(self.annotation, (Name, Attribute)):
             raise StructureException("invalid implements", self.annotation)
 
+
 class UsesDecl(Stmt):
     """
     A `uses` declaration.
@@ -1435,6 +1437,7 @@ class UsesDecl(Stmt):
     annotation : Name | Attribute | Tuple
         The module(s) which this uses
     """
+
     __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
@@ -1449,6 +1452,7 @@ class UsesDecl(Stmt):
             if not isinstance(item, (Name, Attribute)):
                 raise StructureException("invalid uses", item)
 
+
 class InitializesDecl(Stmt):
     """
     An `initializes` declaration.
@@ -1458,6 +1462,7 @@ class InitializesDecl(Stmt):
     annotation : Name | Attribute | Subscript
         An imported module which this module initializes
     """
+
     __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
@@ -1470,14 +1475,16 @@ class InitializesDecl(Stmt):
             index = self.annotation.slice.value
 
             if isinstance(index, Tuple):
-                dependencies = dependencies.elements
+                dependencies = index.elements
             else:
                 dependencies = (index,)
 
             for item in dependencies:
                 if not isinstance(item, NamedExpr):
                     print(type(item))
-                    raise StructureException("invalid dependency (hint: should be [dependency := dependency]", item)
+                    raise StructureException(
+                        "invalid dependency (hint: should be [dependency := dependency]", item
+                    )
                 if not isinstance(item.target, (Name, Attribute)):
                     raise StructureException("invalid module", item.target)
                 if not isinstance(item.value, (Name, Attribute)):
