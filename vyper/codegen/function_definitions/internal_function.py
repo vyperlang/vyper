@@ -41,6 +41,9 @@ def generate_ir_for_internal_function(
 
     func_t = code._metadata["func_type"]
 
+    # sanity check
+    assert func_t.is_internal or func_t.is_constructor
+
     context = initialize_context(func_t, module_ctx, is_ctor_context)
 
     for arg in func_t.arguments:

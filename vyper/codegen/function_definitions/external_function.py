@@ -171,6 +171,8 @@ def generate_ir_for_external_function(code, compilation_target):
     metadata required for `module.py` to construct the selector table.
     """
     func_t = code._metadata["func_type"]
+    assert func_t.is_external or func_t.is_constructor  # sanity check
+
     context = initialize_context(func_t, compilation_target, func_t.is_constructor)
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
