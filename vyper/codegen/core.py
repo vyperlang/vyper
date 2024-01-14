@@ -1,12 +1,11 @@
 import contextlib
 from typing import Generator
 
-from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -1033,43 +1032,6 @@ def eval_seq(ir_node):
     if isinstance(ir_node.value, int):
         return IRnode.from_list(ir_node)
     return None
-
-
-def is_return_from_function(node):
-    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
-        "raw_revert",
-        "selfdestruct",
-    ):
-        return True
-    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
-        return True
-    return False
-
-
-# TODO this is almost certainly duplicated with check_terminus_node
-# in vyper/semantics/analysis/local.py
-def check_single_exit(fn_node):
-    _check_return_body(fn_node, fn_node.body)
-    for node in fn_node.get_descendants(vy_ast.If):
-        _check_return_body(node, node.body)
-        if node.orelse:
-            _check_return_body(node, node.orelse)
-
-
-def _check_return_body(node, node_list):
-    return_count = len([n for n in node_list if is_return_from_function(n)])
-    if return_count > 1:
-        raise StructureException(
-            "Too too many exit statements (return, raise or selfdestruct).", node
-        )
-    # Check for invalid code after returns.
-    last_node_pos = len(node_list) - 1
-    for idx, n in enumerate(node_list):
-        if is_return_from_function(n) and idx < last_node_pos:
-            # is not last statement in body.
-            raise StructureException(
-                "Exit statement with succeeding code (that will not execute).", node_list[idx + 1]
-            )
 
 
 def mzero(dst, nbytes):

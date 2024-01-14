@@ -15,7 +15,6 @@ from vyper.codegen.core import (
     get_dyn_array_count,
     get_element_ptr,
     getpos,
-    is_return_from_function,
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
@@ -404,7 +403,7 @@ def parse_stmt(stmt, context):
 def _is_terminated(code):
     last_stmt = code[-1]
 
-    if is_return_from_function(last_stmt):
+    if last_stmt.is_terminus:
         return True
 
     if isinstance(last_stmt, vy_ast.If):

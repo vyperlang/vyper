@@ -237,8 +237,6 @@ class VyperNode:
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
         but not in Vyper.
-    _is_terminus : bool, optional
-        If `True`, indicates that execution halts upon reaching this node.
     _translated_fields : Dict, optional
         Field names that are reassigned if encountered. Used to normalize fields
         across different Python versions.
@@ -386,6 +384,13 @@ class VyperNode:
     def is_literal_value(self):
         """
         Check if the node is a literal value.
+        """
+        return False
+
+    @property
+    def is_terminus(self):
+        """
+        Check if execution halts upon reaching this node.
         """
         return False
 
@@ -711,11 +716,18 @@ class Stmt(VyperNode):
 
 class Return(Stmt):
     __slots__ = ("value",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Expr(Stmt):
     __slots__ = ("value",)
+
+    @property
+    def is_terminus(self):
+        return self.value.is_terminus
 
 
 class Log(Stmt):
@@ -1187,6 +1199,21 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
+    @property
+    def is_terminus(self):
+        # cursed import cycle!
+        from vyper.builtins.functions import get_builtin_functions
+
+        if not isinstance(self.func, Name):
+            return False
+
+        funcname = self.func.id
+        builtin_t = get_builtin_functions().get(funcname)
+        if builtin_t is None:
+            return False
+
+        return builtin_t._is_terminus
+
 
 class keyword(VyperNode):
     __slots__ = ("arg", "value")
@@ -1322,7 +1349,10 @@ class AugAssign(Stmt):
 class Raise(Stmt):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Assert(Stmt):
