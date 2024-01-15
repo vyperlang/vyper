@@ -90,6 +90,9 @@ class _ExprAnalyser:
             if isinstance(t, VarInfo):
                 return ExprInfo.from_varinfo(t)
 
+            if isinstance(t, ModuleInfo):
+                return ExprInfo.from_moduleinfo(t)
+
             # it's something else, like my_struct.foo
             return info.copy_with_type(t)
 
