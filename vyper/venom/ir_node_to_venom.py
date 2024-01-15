@@ -99,14 +99,17 @@ def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
 
 
 def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
+    runtime_ir = ir
     deploy_ir = _findIRnode(ir, "deploy")
-    assert deploy_ir is not None
 
-    deploy_venom = IRFunction()
-    _convert_ir_basicblock(deploy_venom, ir, {}, OrderedSet(), {})
-    deploy_venom.get_basic_block().append_instruction("stop")
+    deploy_venom = None
+    if deploy_ir is not None:
+        deploy_venom = IRFunction()
+        _convert_ir_basicblock(deploy_venom, ir, {}, OrderedSet(), {})
+        deploy_venom.get_basic_block().append_instruction("stop")
 
-    runtime_ir = deploy_ir.args[1]
+        runtime_ir = deploy_ir.args[1]
+
     runtime_venom = IRFunction()
     _convert_ir_basicblock(runtime_venom, runtime_ir, {}, OrderedSet(), {})
 
