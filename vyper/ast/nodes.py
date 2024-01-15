@@ -1253,7 +1253,7 @@ class Subscript(ExprNode):
     __slots__ = ("slice", "value")
 
 
-class Index(VyperNode):
+class Index(ExprNode):
     __slots__ = ("value",)
 
 
