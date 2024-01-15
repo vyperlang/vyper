@@ -648,9 +648,6 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
         call_type = get_exact_type_from_node(node.func)
 
         # structs and interfaces
-        if isinstance(call_type, TYPE_T):
-            call_type = call_type.typedef
-
         if hasattr(call_type, "check_modifiability_for_call"):
             return call_type.check_modifiability_for_call(node, modifiability)
 

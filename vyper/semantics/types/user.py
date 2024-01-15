@@ -421,5 +421,5 @@ class StructT(_UserType):
 
         return self
 
-    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return all(check_modifiability(v, modifiability) for v in node.args[0].values)

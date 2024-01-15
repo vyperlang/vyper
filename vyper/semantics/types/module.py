@@ -84,7 +84,7 @@ class InterfaceT(_UserType):
     def _ctor_kwarg_types(self, node):
         return {}
 
-    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return check_modifiability(node.args[0], modifiability)
 
     # TODO x.validate_implements(other)
