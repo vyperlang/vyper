@@ -206,6 +206,12 @@ class ImportInfo(AnalysisResult):
     node: vy_ast.VyperNode
 
 
+# analysis result of InitializesDecl
+@dataclass
+class InitializesInfo(AnalysisResult):
+    module_t: "ModuleT"
+
+
 @dataclass
 class VarInfo:
     """

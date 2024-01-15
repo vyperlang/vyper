@@ -21,12 +21,22 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import (
+    ImportInfo,
+    InitializesInfo,
+    Modifiability,
+    ModuleInfo,
+    VarInfo,
+)
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
-from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    get_exact_type_from_node,
+    get_expr_info,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
@@ -231,7 +241,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         pass
 
     def visit_InitializesDecl(self, node):
-        # XXX: implement
+        module_ref = node.annotation
+        if isinstance(module_ref, vy_ast.Subscript):
+            module_ref = module_ref.value
+
+        # postcondition of InitializesDecl.validates()
+        assert isinstance(module_ref, (vy_ast.Name, vy_ast.Attribute))
+
+        module_t = get_expr_info(module_ref).typ
+        if not isinstance(module_t, ModuleT):
+            raise StructureException("Not a module!", module_ref)
+
+        node._metadata["initializes_info"] = InitializesInfo(module_t)
+
+        # XXX: implement borrowship check
         pass
 
     def visit_VariableDecl(self, node):

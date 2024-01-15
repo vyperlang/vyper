@@ -1,4 +1,3 @@
-# TODO this module doesn't really belong in "validation"
 from typing import Dict, List
 
 from vyper import ast as vy_ast
@@ -21,11 +20,12 @@ def set_data_positions(
         Top-level Vyper AST node that has already been annotated with type data.
     """
     code_offsets = set_code_offsets(vyper_module)
-    storage_slots = (
-        set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
-        if storage_layout_overrides is not None
-        else set_storage_slots(vyper_module)
-    )
+
+    if storage_layout_overrides is None:
+        allocator = SimpleStorageAllocator()
+        storage_slots = set_storage_slots_r(vyper_module, allocator)
+    else:
+        storage_slots = set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
 
     return {"storage_layout": storage_slots, "code_layout": code_offsets}
 
@@ -140,6 +140,8 @@ def set_storage_slots_with_overrides(
 
 class SimpleStorageAllocator:
     def __init__(self, starting_slot: int = 0):
+        # Allocate storage slots from 0
+        # note storage is word-addressable, not byte-addressable
         self._slot = starting_slot
 
     def allocate_slot(self, n, var_name):
@@ -153,15 +155,13 @@ class SimpleStorageAllocator:
         return ret
 
 
-def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
+def set_storage_slots_r(
+    vyper_module: vy_ast.Module, allocator: SimpleStorageAllocator
+) -> StorageLayout:
     """
     Parse module-level Vyper AST to calculate the layout of storage variables.
     Returns the layout as a dict of variable name -> variable info
     """
-    # Allocate storage slots from 0
-    # note storage is word-addressable, not byte-addressable
-    allocator = SimpleStorageAllocator()
-
     ret: Dict[str, Dict] = {}
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
@@ -190,7 +190,15 @@ def set_storage_slots(vyper_module: vy_ast.Module) -> StorageLayout:
         # we nail down the format better
         ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
 
-    for node in vyper_module.get_children(vy_ast.VariableDecl):
+    for node in vyper_module.body:
+        if isinstance(node, vy_ast.InitializesDecl):
+            module_t = node._metadata["initializes_info"].module_t
+            set_storage_slots_r(module_t._module, allocator)
+            continue
+
+        if not isinstance(node, vy_ast.VariableDecl):
+            continue
+
         # skip non-storage variables
         if node.is_constant or node.is_immutable:
             continue
