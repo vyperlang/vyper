@@ -59,9 +59,6 @@ class Context:
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars_ or {}
 
-        # Global variables, in the form (name, storage location, type)
-        self.globals = module_ctx.variables
-
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
 

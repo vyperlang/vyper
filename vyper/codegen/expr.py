@@ -185,10 +185,7 @@ class Expr:
             ret._referenced_variables = {var}
             return ret
 
-        # TODO: use self.expr._expr_info
-        elif self.expr.id in self.context.globals:
-            varinfo = self.context.globals[self.expr.id]
-
+        elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
                 # non-struct constants should have already gotten propagated
                 # during constant folding
@@ -268,8 +265,7 @@ class Expr:
                     return IRnode.from_list(["~selfcode"], typ=BytesT(0))
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
         # self.x: global attribute
-        elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            varinfo = self.context.globals[self.expr.attr]
+        elif (varinfo := self.expr._expr_info.var_info) is not None:
             location = TRANSIENT if varinfo.is_transient else STORAGE
 
             ret = IRnode.from_list(

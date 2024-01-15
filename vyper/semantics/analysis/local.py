@@ -510,6 +510,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         # annotate
         node._metadata["type"] = typ
+        node._expr_info = get_expr_info(node)
 
         # validate and annotate folded value
         if node.has_folded_value:
