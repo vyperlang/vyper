@@ -61,7 +61,9 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
             break
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> tuple[IRFunction, IRFunction]:
+def generate_ir(
+    ir: IRnode, optimize: OptimizationLevel
+) -> tuple[Optional[IRFunction], Optional[IRFunction]]:
     # Convert "old" IR to "new" IR
     ctx, ctx_runtime = convert_ir_basicblock(ir)
 
