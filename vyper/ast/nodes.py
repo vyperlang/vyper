@@ -237,8 +237,6 @@ class VyperNode:
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
         but not in Vyper.
-    _is_terminus : bool, optional
-        If `True`, indicates that execution halts upon reaching this node.
     _translated_fields : Dict, optional
         Field names that are reassigned if encountered. Used to normalize fields
         across different Python versions.
@@ -390,13 +388,20 @@ class VyperNode:
         return False
 
     @property
+    def is_terminus(self):
+        """
+        Check if execution halts upon reaching this node.
+        """
+        return False
+
+    @property
     def has_folded_value(self):
         """
         Property method to check if the node has a folded value.
         """
         return "folded_value" in self._metadata
 
-    def get_folded_value(self) -> "VyperNode":
+    def get_folded_value(self) -> "ExprNode":
         """
         Attempt to get the folded value, bubbling up UnfoldableNode if the node
         is not foldable.
@@ -711,11 +716,18 @@ class Stmt(VyperNode):
 
 class Return(Stmt):
     __slots__ = ("value",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Expr(Stmt):
     __slots__ = ("value",)
+
+    @property
+    def is_terminus(self):
+        return self.value.is_terminus
 
 
 class Log(Stmt):
@@ -1187,6 +1199,21 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
+    @property
+    def is_terminus(self):
+        # cursed import cycle!
+        from vyper.builtins.functions import get_builtin_functions
+
+        if not isinstance(self.func, Name):
+            return False
+
+        funcname = self.func.id
+        builtin_t = get_builtin_functions().get(funcname)
+        if builtin_t is None:
+            return False
+
+        return builtin_t._is_terminus
+
 
 class keyword(VyperNode):
     __slots__ = ("arg", "value")
@@ -1322,7 +1349,10 @@ class AugAssign(Stmt):
 class Raise(Stmt):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Assert(Stmt):
@@ -1372,8 +1402,8 @@ class ImplementsDecl(Stmt):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if not isinstance(self.annotation, Name):
-            raise StructureException("not an identifier", self.annotation)
+        if not isinstance(self.annotation, (Name, Attribute)):
+            raise StructureException("invalid implements", self.annotation)
 
 
 class If(Stmt):

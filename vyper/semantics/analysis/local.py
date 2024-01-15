@@ -66,26 +66,28 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     err_list.raise_if_not_empty()
 
 
-def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
-    if getattr(node, "_is_terminus", None):
-        return True
-    if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
-        func = get_exact_type_from_node(node.value.func)
-        if getattr(func, "_is_terminus", None):
-            return True
-    return False
+# finds the terminus node for a list of nodes.
+# raises an exception if any nodes are unreachable
+def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
+    ret = None
 
+    for node in node_list:
+        if ret is not None:
+            raise StructureException("Unreachable code!", node)
+        if node.is_terminus:
+            ret = node
 
-def check_for_terminus(node_list: list) -> bool:
-    if next((i for i in node_list if _is_terminus_node(i)), None):
-        return True
-    for node in [i for i in node_list if isinstance(i, vy_ast.If)][::-1]:
-        if not node.orelse or not check_for_terminus(node.orelse):
-            continue
-        if not check_for_terminus(node.body):
-            continue
-        return True
-    return False
+        if isinstance(node, vy_ast.If):
+            body_terminates = find_terminating_node(node.body)
+
+            else_terminates = None
+            if node.orelse is not None:
+                else_terminates = find_terminating_node(node.orelse)
+
+            if body_terminates is not None and else_terminates is not None:
+                ret = else_terminates
+
+    return ret
 
 
 def _check_iterator_modification(
@@ -201,11 +203,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             self.visit(node)
 
         if self.func.return_type:
-            if not check_for_terminus(self.fn_node.body):
+            if not find_terminating_node(self.fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{self.fn_node.name}'",
-                    self.fn_node,
+                    f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
                 )
+        else:
+            # call find_terminator for its unreachable code detection side effect
+            find_terminating_node(self.fn_node.body)
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
@@ -468,7 +472,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise FunctionDeclarationException("Return statement is missing a value", node)
             return
         elif self.func.return_type is None:
-            raise FunctionDeclarationException("Function does not return any values", node)
+            raise FunctionDeclarationException("Function should not return any values", node)
 
         if isinstance(values, vy_ast.Tuple):
             values = values.elements

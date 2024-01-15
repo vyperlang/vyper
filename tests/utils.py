@@ -2,7 +2,7 @@ import contextlib
 import os
 
 from vyper import ast as vy_ast
-from vyper.semantics.analysis.pre_typecheck import pre_typecheck
+from vyper.semantics.analysis.constant_folding import constant_fold
 
 
 @contextlib.contextmanager
@@ -17,5 +17,5 @@ def working_directory(directory):
 
 def parse_and_fold(source_code):
     ast = vy_ast.parse_to_ast(source_code)
-    pre_typecheck(ast)
+    constant_fold(ast)
     return ast

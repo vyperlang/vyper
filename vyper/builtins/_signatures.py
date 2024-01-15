@@ -85,6 +85,7 @@ class BuiltinFunctionT(VyperType):
     _kwargs: dict[str, KwargSettings] = {}
     _modifiability: Modifiability = Modifiability.MODIFIABLE
     _return_type: Optional[VyperType] = None
+    _is_terminus = False
 
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
