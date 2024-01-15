@@ -377,6 +377,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         # convert the condition
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)
+        current_bb = ctx.get_basic_block()
 
         else_block = IRBasicBlock(ctx.get_next_label(), ctx)
         ctx.append_basic_block(else_block)
@@ -392,6 +393,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 assert isinstance(else_ret_val.value, int)  # help mypy
                 else_ret_val = ctx.get_basic_block().append_instruction("store", else_ret_val)
         after_else_syms = else_syms.copy()
+        else_block = ctx.get_basic_block()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label(), ctx)
@@ -404,21 +406,24 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
         after_then_syms = symbols.copy()
+        then_block = ctx.get_basic_block()
 
         # exit bb
         exit_label = ctx.get_next_label()
-        bb = IRBasicBlock(exit_label, ctx)
-        bb = ctx.append_basic_block(bb)
+        exit_bb = IRBasicBlock(exit_label, ctx)
+        exit_bb = ctx.append_basic_block(exit_bb)
 
         if_ret = None
         if then_ret_val is not None and else_ret_val is not None:
-            if_ret = bb.append_instruction(
+            if_ret = exit_bb.append_instruction(
                 "phi", then_block.label, then_ret_val, else_block.label, else_ret_val
             )
 
         common_symbols = _get_symbols_common(after_then_syms, after_else_syms)
         for sym, val in common_symbols.items():
-            ret = bb.append_instruction("phi", then_block.label, val[0], else_block.label, val[1])
+            ret = exit_bb.append_instruction(
+                "phi", then_block.label, val[0], else_block.label, val[1]
+            )
             old_var = symbols.get(sym, None)
             symbols[sym] = ret
             if old_var is not None:
@@ -427,10 +432,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         allocated_variables[idx] = ret  # type: ignore
 
         if not else_block.is_terminated:
-            else_block.append_instruction("jmp", bb.label)
+            else_block.append_instruction("jmp", exit_bb.label)
 
         if not then_block.is_terminated:
-            then_block.append_instruction("jmp", bb.label)
+            then_block.append_instruction("jmp", exit_bb.label)
 
         return if_ret
 
@@ -757,7 +762,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         sym = ir.args[0]
         start, end, _ = _convert_ir_bb_list(
-            ctx, ir.args[:3], symbols, variables, allocated_variables
+            ctx, ir.args[1:4], symbols, variables, allocated_variables
         )
 
         body = ir.args[4]
@@ -813,8 +818,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         jump_up_block.append_instruction("jmp", increment_block.label)
         ctx.append_basic_block(jump_up_block)
 
-        increment_block.append_instruction(IRInstruction("add", ret, 1))
-        increment_block.insert_instruction[-1].output = counter_inc_var
+        increment_block.insert_instruction(
+            IRInstruction("add", [ret, IRLiteral(1)], counter_inc_var), 0
+        )
 
         increment_block.append_instruction("jmp", cond_block.label)
         ctx.append_basic_block(increment_block)
@@ -836,9 +842,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         return ctx.get_basic_block().append_instruction("returndatasize")
     elif ir.value == "returndatacopy":
         assert len(ir.args) == 3, "returndatacopy with wrong number of arguments"
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
-        arg_1 = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
-        size = _convert_ir_bb(ctx, ir.args[2], symbols, variables, allocated_variables)
+        arg_0, arg_1, size = _convert_ir_bb_list(
+            ctx, ir.args, symbols, variables, allocated_variables
+        )
 
         new_var = ctx.get_basic_block().append_instruction("returndatacopy", arg_1, size)
 
