@@ -115,8 +115,11 @@ def convert_ir_basicblock(ir: IRnode) -> tuple[IRFunction, IRFunction]:
 
     # Connect unterminated blocks to the next with a jump
     for i, bb in enumerate(runtime_venom.basic_blocks):
-        if not bb.is_terminated and i < len(runtime_venom.basic_blocks) - 1:
-            bb.append_instruction("jmp", runtime_venom.basic_blocks[i + 1].label)
+        if not bb.is_terminated:
+            if i < len(runtime_venom.basic_blocks) - 1:
+                bb.append_instruction("jmp", runtime_venom.basic_blocks[i + 1].label)
+            else:
+                bb.append_instruction("stop")
 
     return deploy_venom, runtime_venom
 
