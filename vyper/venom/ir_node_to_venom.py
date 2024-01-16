@@ -87,6 +87,18 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return ret
 
 
+def _get_symbols_accessed(a: dict, b: dict) -> list:
+    ret = []
+    # preserves the ordering in `a`
+    for k in a.keys():
+        if k not in b:
+            continue
+        if a[k] != b[k]:
+            continue
+        ret.append(a[k])
+    return ret
+
+
 def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
     if ir.value == value:
         return ir
@@ -753,7 +765,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # 5) increment block
         # 6) exit block
         # TODO: Add the extra bounds check after clarify
-        def emit_body_block():
+        def emit_body_blocks():
             global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, increment_block
@@ -789,10 +801,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         cont_ret = cond_block.append_instruction("iszero", xor_ret)
         ctx.append_basic_block(cond_block)
 
-        # Do a dry run to get the symbols needing phi nodes
         start_syms = symbols.copy()
         ctx.append_basic_block(body_block)
-        emit_body_block()
+        emit_body_blocks()
         end_syms = symbols.copy()
         diff_syms = _get_symbols_common(start_syms, end_syms)
 
