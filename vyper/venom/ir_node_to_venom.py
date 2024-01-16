@@ -87,18 +87,6 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return ret
 
 
-def _get_symbols_accessed(a: dict, b: dict) -> list:
-    ret = []
-    # preserves the ordering in `a`
-    for k in a.keys():
-        if k not in b:
-            continue
-        if a[k] != b[k]:
-            continue
-        ret.append(a[k])
-    return ret
-
-
 def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
     if ir.value == value:
         return ir
