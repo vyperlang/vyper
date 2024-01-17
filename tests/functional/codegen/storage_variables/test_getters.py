@@ -19,6 +19,9 @@ def foo() -> int128:
 
 def test_getter_code(get_contract_with_gas_estimation_for_constants):
     getter_code = """
+interface V:
+    def foo(): nonpayable
+
 struct W:
     a: uint256
     b: int128[7]
@@ -36,6 +39,7 @@ c: public(constant(uint256)) = 1
 d: public(immutable(uint256))
 e: public(immutable(uint256[2]))
 f: public(constant(uint256[2])) = [3, 7]
+g: public(constant(V)) = V(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 
 @external
 def __init__():
@@ -70,6 +74,7 @@ def __init__():
     assert c.d() == 1729
     assert c.e(0) == 2
     assert [c.f(i) for i in range(2)] == [3, 7]
+    assert c.g() == "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
 
 
 def test_getter_mutability(get_contract):
