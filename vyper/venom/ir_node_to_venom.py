@@ -137,7 +137,8 @@ def _convert_binary_op(
     ir_args = ir.args[::-1] if swap else ir.args
     arg_0, arg_1 = _convert_ir_bb_list(ctx, ir_args, symbols, variables, allocated_variables)
 
-    return ctx.get_basic_block().append_instruction(str(ir.value), arg_1, arg_0)
+    assert isinstance(ir.value, str)  # mypy hint
+    return ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
 
 
 def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
