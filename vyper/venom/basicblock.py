@@ -343,6 +343,8 @@ class IRBasicBlock:
 
         Returns the output variable if the instruction supports one
         """
+        assert not self.is_terminated, self
+
         ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
         # Wrap raw integers in IRLiterals
