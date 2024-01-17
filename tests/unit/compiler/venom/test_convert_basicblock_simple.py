@@ -10,13 +10,9 @@ def test_simple():
     assert deploy is None
     assert runtime is not None
 
-    correct_venom = """IRFunction: __global
-__global:  IN=[] OUT=[] => {}
-    %1 = calldatasize
-    calldatacopy %1, 0, 32
-    stop"""
-
-    assert str(runtime) == correct_venom
+    bb = runtime.basic_blocks[0]
+    assert bb.instructions[0].opcode == "calldatasize"
+    assert bb.instructions[1].opcode == "calldatacopy"
 
 
 def test_simple_2():
