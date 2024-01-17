@@ -373,7 +373,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             return bb.append_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
-        current_bb = ctx.get_basic_block()
 
         # convert the condition
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)
