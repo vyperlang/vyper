@@ -379,9 +379,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             )
             if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
-                else_ret_val = ctx.get_basic_block().append_instruction("store", else_ret_val)
+                else_ret_val = else_block.append_instruction("store", else_ret_val)
+
         after_else_syms = else_syms.copy()
-        else_block = ctx.get_basic_block()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label(), ctx)
@@ -389,12 +389,11 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         then_ret_val = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
         if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
+            then_ret_val = then_block.append_instruction("store", then_ret_val)
 
         current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
         after_then_syms = symbols.copy()
-        then_block = ctx.get_basic_block()
 
         # exit bb
         exit_label = ctx.get_next_label()
@@ -661,6 +660,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                     return bb.append_instruction("mload", sym_ir.value)
             else:
                 new_var = _convert_ir_bb(ctx, sym_ir, symbols, variables, allocated_variables)
+                # current basic block might have changed in convert_ir_bb
+                bb = ctx.get_basic_block()
                 #
                 # Old IR gets it's return value as a reference in the stack
                 # New IR gets it's return value in stack in case of 32 bytes or less
