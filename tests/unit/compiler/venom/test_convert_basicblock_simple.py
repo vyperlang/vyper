@@ -1,16 +1,14 @@
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import OptimizationLevel
-from vyper.venom import generate_ir
+from vyper.venom.ir_node_to_venom import ir_node_to_venom
 
 
 def test_simple():
-    ir = ["calldatacopy", 32, 0, ["calldatasize"]]
+    ir = IRnode.from_list(["calldatacopy", 32, 0, ["calldatasize"]])
     ir_node = IRnode.from_list(ir)
-    deploy, runtime = generate_ir(ir_node, OptimizationLevel.NONE)
-    assert deploy is None
-    assert runtime is not None
+    venom = ir_node_to_venom(ir_node)
+    assert venom is not None
 
-    bb = runtime.basic_blocks[0]
+    bb = venom.basic_blocks[0]
     assert bb.instructions[0].opcode == "calldatasize"
     assert bb.instructions[1].opcode == "calldatacopy"
 
@@ -39,13 +37,5 @@ def test_simple_2():
         32,
     ]
     ir_node = IRnode.from_list(ir)
-    deploy, runtime = generate_ir(ir_node, OptimizationLevel.NONE)
-    assert deploy is None
-    assert runtime is not None
-
-    print(runtime)
-
-
-if __name__ == "__main__":
-    test_simple()
-    test_simple_2()
+    venom = ir_node_to_venom(ir_node)
+    assert venom is not None
