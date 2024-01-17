@@ -44,6 +44,7 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         changes += ir_pass_optimize_empty_blocks(ctx)
         changes += ir_pass_remove_unreachable_blocks(ctx)
 
+        calculate_cfg(ctx)
         calculate_liveness(ctx)
 
         changes += ir_pass_optimize_unused_variables(ctx)
