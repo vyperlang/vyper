@@ -338,17 +338,27 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else:
             argsOffsetVar = argsOffset
 
-        retOffsetValue = int(retOffset.value) if retOffset else 0
-        retVar = ctx.get_next_variable(MemType.MEMORY, retOffsetValue)
-        symbols[f"&{retOffsetValue}"] = retVar
-
         bb = ctx.get_basic_block()
 
+        if isinstance(retOffset, IRLiteral):
+            offset = retOffset.value
+            retOffsetVar = symbols.get(f"&{offset}", None)
+            if retOffsetVar is None:
+                retOffsetVar = retOffset
+            elif isinstance(retOffsetVar, IRVariable):
+                retOffsetVar.mem_type = MemType.MEMORY
+                retOffsetVar.mem_addr = offset
+            else:  # pragma: nocover
+                raise CompilerPanic("unreachable")
+        else:
+            retOffsetVar = retOffset
+
+
         if ir.value == "call":
-            args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
+            args = [retSize, retOffsetVar, argsSize, argsOffsetVar, value, address, gas]
             return bb.append_instruction(ir.value, *args)
         else:
-            args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
+            args = [retSize, retOffsetVar, argsSize, argsOffsetVar, address, gas]
             return bb.append_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
