@@ -343,6 +343,8 @@ class IRBasicBlock:
 
         Returns the output variable if the instruction supports one
         """
+        assert not self.is_terminated, self
+
         ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
         # Wrap raw integers in IRLiterals
@@ -361,6 +363,7 @@ class IRBasicBlock:
 
         Returns the output variable if the instruction supports one
         """
+        assert not self.is_terminated, self
         ret = None
         if returns:
             ret = self.parent.get_next_variable()
@@ -375,7 +378,9 @@ class IRBasicBlock:
 
     def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+
         if index is None:
+            assert not self.is_terminated, self
             index = len(self.instructions)
         instruction.parent = self
         self.instructions.insert(index, instruction)
