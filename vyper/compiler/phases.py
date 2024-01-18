@@ -197,7 +197,10 @@ class CompilerData:
 
     @cached_property
     def venom_functions(self):
-        return generate_ir(self.ir_nodes, self.settings.optimize)
+        deploy_ir, runtime_ir = self._ir_output
+        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
+        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        return deploy_venom, runtime_venom
 
     @cached_property
     def assembly(self) -> list:

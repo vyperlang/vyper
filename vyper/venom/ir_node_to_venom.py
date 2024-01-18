@@ -87,43 +87,21 @@ def _get_symbols_common(a: dict, b: dict) -> dict:
     return ret
 
 
-def _findIRnode(ir: IRnode, value: str) -> Optional[IRnode]:
-    if ir.value == value:
-        return ir
-    for arg in ir.args:
-        if isinstance(arg, IRnode):
-            ret = _findIRnode(arg, value)
-            if ret is not None:
-                return ret
-    return None
+# convert IRnode directly to venom
+def ir_node_to_venom(ir: IRnode) -> IRFunction:
+    ctx = IRFunction()
+    _convert_ir_bb(ctx, ir, {}, OrderedSet(), {})
 
-
-def convert_ir_basicblock(ir: IRnode) -> tuple[Optional[IRFunction], Optional[IRFunction]]:
-    runtime_ir = ir
-    deploy_ir = _findIRnode(ir, "deploy")
-
-    # 1. Convert deploy IR to Venom IR
-    deploy_venom = None
-    if deploy_ir is not None:
-        deploy_venom = IRFunction()
-        _convert_ir_bb(deploy_venom, ir, {}, OrderedSet(), {})
-        deploy_venom.get_basic_block().append_instruction("stop")
-
-        runtime_ir = deploy_ir.args[1]
-
-    # 2. Convert runtime IR to Venom IR
-    runtime_venom = IRFunction()
-    _convert_ir_bb(runtime_venom, runtime_ir, {}, OrderedSet(), {})
-
-    # 3. Patch up basic blocks. Connect unterminated blocks to the next with a jump
-    for i, bb in enumerate(runtime_venom.basic_blocks):
+    # Patch up basic blocks. Connect unterminated blocks to the next with
+    # a jump. terminate final basic block with STOP.
+    for i, bb in enumerate(ctx.basic_blocks):
         if not bb.is_terminated:
-            if i < len(runtime_venom.basic_blocks) - 1:
-                bb.append_instruction("jmp", runtime_venom.basic_blocks[i + 1].label)
+            if i < len(ctx.basic_blocks) - 1:
+                bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
             else:
                 bb.append_instruction("stop")
 
-    return deploy_venom, runtime_venom
+    return ctx
 
 
 def _convert_binary_op(
@@ -137,7 +115,8 @@ def _convert_binary_op(
     ir_args = ir.args[::-1] if swap else ir.args
     arg_0, arg_1 = _convert_ir_bb_list(ctx, ir_args, symbols, variables, allocated_variables)
 
-    return ctx.get_basic_block().append_instruction(str(ir.value), arg_1, arg_0)
+    assert isinstance(ir.value, str)  # mypy hint
+    return ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
 
 
 def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
@@ -374,7 +353,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         return retVar
     elif ir.value == "if":
         cond = ir.args[0]
-        current_bb = ctx.get_basic_block()
 
         # convert the condition
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)

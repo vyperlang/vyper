@@ -85,7 +85,7 @@ def calculate_liveness(ctx: IRFunction) -> None:
             changed |= _calculate_out_vars(bb)
             changed |= _calculate_liveness(bb)
 
-        if changed is False:
+        if not changed:
             break
 
 
