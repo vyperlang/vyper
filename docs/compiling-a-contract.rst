@@ -29,7 +29,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 ::
 
-    $ vyper -f abi,bytecode,bytecode_runtime,ir,asm,source_map,method_identifiers yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,combined_json,layout yourFileName.vy
 
 The ``-p`` flag allows you to set a root path that is used when searching for interface files to import.  If none is given, it will default to the current working directory. See :ref:`searching_for_imports` for more information.
 
