@@ -58,6 +58,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "exp",
         "eq",
         "iszero",
+        "not",
         "lg",
         "lt",
         "slt",
