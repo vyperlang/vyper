@@ -543,13 +543,12 @@ class Concat(BuiltinFunctionT):
         else:
             ret_typ = BytesT(dst_maxlen)
 
+        # respect API of copy_bytes
+        bufsize = dst_maxlen + 32
+        buf = context.new_internal_variable(BytesT(bufsize))
+
         # Node representing the position of the output in memory
-        dst = IRnode.from_list(
-            context.new_internal_variable(ret_typ),
-            typ=ret_typ,
-            location=MEMORY,
-            annotation="concat destination",
-        )
+        dst = IRnode.from_list(buf, typ=ret_typ, location=MEMORY, annotation="concat destination")
 
         ret = ["seq"]
         # stack item representing our current offset in the dst buffer
