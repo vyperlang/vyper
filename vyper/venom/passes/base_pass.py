@@ -14,6 +14,8 @@ class IRPass:
             count += changes_count
             if changes_count == 0:
                 break
+            if count > 1000:
+                raise Exception("Too many iterations in IR pass!", t.__class__)
 
         return count
 
