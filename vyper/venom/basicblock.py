@@ -373,8 +373,10 @@ class IRBasicBlock:
         self.instructions.append(inst)
         return ret
 
-    def insert_instruction(self, instruction: IRInstruction, index: int) -> None:
+    def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        if index is None:
+            index = len(self.instructions)
         instruction.parent = self
         self.instructions.insert(index, instruction)
 
