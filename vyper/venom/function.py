@@ -1,6 +1,6 @@
 from typing import Optional
-from vyper.utils import OrderedSet
 
+from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
     CFG_ALTERING_INSTRUCTIONS,
     IRBasicBlock,

@@ -35,7 +35,7 @@ def erc20(get_contract):
 
 
 def test_call(w3, market_maker, erc20, tx_failed):
-    a0 = w3.eth.accounts[0]
+    # a0 = w3.eth.accounts[0]
     ether, ethers = w3.to_wei(1, "ether"), w3.to_wei(2, "ether")
     erc20.approve(market_maker.address, ethers, transact={})
     assert erc20.name() == TOKEN_NAME
