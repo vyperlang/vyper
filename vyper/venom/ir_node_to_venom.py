@@ -27,6 +27,7 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "sgt",
         "shr",
         "shl",
+        "sar",
         "or",
         "xor",
         "and",
@@ -34,6 +35,8 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "sub",
         "mul",
         "div",
+        "smul",
+        "sdiv",
         "mod",
         "exp",
         "sha3",
@@ -853,6 +856,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "selfdestruct":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
         ctx.get_basic_block().append_instruction("selfdestruct", arg_0)
+    elif ir.value == "cleanup_repeat":
+        # no-op from our perspective
+        pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         args = reversed(
             [_convert_ir_bb(ctx, arg, symbols, variables, allocated_variables) for arg in ir.args]
