@@ -51,6 +51,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "chainid",
     "basefee",
     "timestamp",
+    "blockhash",
     "caller",
     "selfbalance",
     "calldatasize",
@@ -65,7 +66,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "coinbase",
     "number",
     "iszero",
-    "ceil32",
+    "not",
     "calldataload",
     "extcodesize",
     "extcodehash",
@@ -252,12 +253,13 @@ def _convert_ir_bb_list(ctx, ir, symbols, variables, allocated_variables):
     ret = []
     for ir_node in ir:
         venom = _convert_ir_bb(ctx, ir_node, symbols, variables, allocated_variables)
+        assert venom is not None, ir_node
         ret.append(venom)
     return ret
 
 
 def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
-    assert isinstance(ir, IRnode)
+    assert isinstance(ir, IRnode), ir
     assert isinstance(variables, OrderedSet)
     global _break_target, _continue_target
 
@@ -639,7 +641,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 if sym_ir.is_literal:
                     sym = symbols.get(f"&{sym_ir.value}", None)
                     if sym is None:
-                        new_var = bb.append_instruction("store", sym_ir)
+                        new_var = _convert_ir_bb(
+                            ctx, sym_ir, symbols, variables, allocated_variables
+                        )
                         symbols[f"&{sym_ir.value}"] = new_var
                         if allocated_variables.get(var.name, None) is None:
                             allocated_variables[var.name] = new_var
@@ -719,6 +723,15 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             else:
                 symbols[sym_ir.value] = arg_1
                 return arg_1
+    elif ir.value == "ceil32":
+        x = ir.args[0]
+        expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
+        return _convert_ir_bb(ctx, expanded, symbols, variables, allocated_variables)
+    elif ir.value == "select":
+        # b ^ ((a ^ b) * cond) where cond is 1 or 0
+        cond, a, b = ir.args
+        expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
+        return _convert_ir_bb(ctx, expanded, symbols, variables, allocated_variables)
 
     elif ir.value in ["sload", "iload"]:
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
