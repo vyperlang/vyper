@@ -55,6 +55,25 @@ def krazykonkat(z: Bytes[10]) -> Bytes[25]:
     print("Passed third concat test")
 
 
+def test_concat_buffer(get_contract):
+    # GHSA-2q8v-3gqq-4f8p
+    code = """
+@internal
+def bar() -> uint256:
+    sss: String[2] = concat("a", "b")
+    return 1
+
+
+@external
+def foo() -> int256:
+    a: int256 = -1
+    b: uint256 = self.bar()
+    return a
+    """
+    c = get_contract(code)
+    assert c.foo() == -1
+
+
 def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
 @external
