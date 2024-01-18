@@ -353,7 +353,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else:
             retOffsetVar = retOffset
 
-
         if ir.value == "call":
             args = [retSize, retOffsetVar, argsSize, argsOffsetVar, value, address, gas]
             return bb.append_instruction(ir.value, *args)
