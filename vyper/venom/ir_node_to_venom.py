@@ -27,6 +27,7 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "sgt",
         "shr",
         "shl",
+        "sar",
         "or",
         "xor",
         "and",
@@ -34,6 +35,8 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "sub",
         "mul",
         "div",
+        "smul",
+        "sdiv",
         "mod",
         "exp",
         "sha3",
@@ -340,18 +343,19 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else:
             argsOffsetVar = argsOffset
 
-        retOffsetValue = int(retOffset.value) if retOffset else 0
-        retVar = ctx.get_next_variable(MemType.MEMORY, retOffsetValue)
-        symbols[f"&{retOffsetValue}"] = retVar
-
-        bb = ctx.get_basic_block()
+        if isinstance(retOffset, IRLiteral):
+            retOffsetValue = int(retOffset.value) if retOffset else 0
+            retVar = ctx.get_next_variable(MemType.MEMORY, retOffsetValue)
+            symbols[f"&{retOffsetValue}"] = retVar
+        else:
+            retVar = retOffset
 
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
 
-        bb.insert_instruction(IRInstruction(ir.value, args, retVar))
+        ctx.get_basic_block().insert_instruction(IRInstruction(ir.value, args, retVar))
         return retVar
     elif ir.value == "if":
         cond = ir.args[0]
@@ -664,7 +668,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 #
                 if sym_ir.is_self_call:
                     return new_var
-                return bb.append_instruction("mload", new_var)
+                return ctx.get_basic_block().append_instruction("mload", new_var)
 
     elif ir.value == "mstore":
         sym_ir, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
@@ -819,6 +823,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.append_basic_block(exit_block)
 
         cond_block.append_instruction("jnz", cont_ret, exit_block.label, body_block.label)
+    elif ir.value == "cleanup_repeat":
+        pass
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
         ctx.get_basic_block().append_instruction("jmp", _break_target.label)
