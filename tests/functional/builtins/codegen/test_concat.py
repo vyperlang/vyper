@@ -92,6 +92,33 @@ def foo() -> int256:
     assert c.foo() == -1
 
 
+def test_concat_buffer3(get_contract):
+    # GHSA-2q8v-3gqq-4f8p
+    code = """
+s: String[1]
+s2: String[33]
+s3: String[34]
+
+@external
+def __init__():
+    self.s = "a"
+    self.s2 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # 33*'a'
+
+@internal
+def bar() -> uint256:
+    self.s3 = concat(self.s, self.s2)
+    return 1
+
+@external
+def foo() -> int256:
+    i: int256 = -1
+    b: uint256 = self.bar()
+    return i
+    """
+    c = get_contract(code)
+    assert c.foo() == -1
+
+
 def test_concat_bytes32(get_contract_with_gas_estimation):
     test_concat_bytes32 = """
 @external
