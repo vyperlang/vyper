@@ -55,7 +55,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     ]
 )
 
-CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz", "invoke"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
