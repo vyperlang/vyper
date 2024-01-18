@@ -370,13 +370,29 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # convert the condition
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)
         current_bb = ctx.get_basic_block()
-
+        then_block = IRBasicBlock(ctx.get_next_label(), ctx)
         else_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        ctx.append_basic_block(else_block)
+
+        # terminate current_bb
+        # we can no longer call ctx.get_basic_block().append_instruction()
+        # until we append another basic block to `ctx`. for hygiene, do this
+        # after filling in then, else and exit basic blocks.
+        current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
+
+        # convert "then"
+        ctx.append_basic_block(then_block)
+        then_syms = symbols.copy()
+
+        then_ret_val = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
+        if isinstance(then_ret_val, IRLiteral):
+            then_ret_val = then_block.append_instruction("store", then_ret_val)
+
+        after_then_syms = then_syms.copy()
 
         # convert "else"
         else_ret_val = None
         else_syms = symbols.copy()
+        ctx.append_basic_block(else_block)
         if len(ir.args) == 3:
             else_ret_val = _convert_ir_bb(
                 ctx, ir.args[2], else_syms, variables, allocated_variables.copy()
@@ -387,22 +403,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         after_else_syms = else_syms.copy()
 
-        # convert "then"
-        then_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        ctx.append_basic_block(then_block)
-
-        then_ret_val = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
-        if isinstance(then_ret_val, IRLiteral):
-            then_ret_val = then_block.append_instruction("store", then_ret_val)
-
-        current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
-
-        after_then_syms = symbols.copy()
-
         # exit bb
         exit_label = ctx.get_next_label()
         exit_bb = IRBasicBlock(exit_label, ctx)
-        exit_bb = ctx.append_basic_block(exit_bb)
 
         if_ret = None
         if then_ret_val is not None and else_ret_val is not None:
@@ -427,6 +430,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         if not then_block.is_terminated:
             then_block.append_instruction("jmp", exit_bb.label)
+
+        ctx.append_basic_block(exit_bb)
 
         return if_ret
 
