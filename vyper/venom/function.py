@@ -1,4 +1,5 @@
 from typing import Optional
+from vyper.utils import OrderedSet
 
 from vyper.venom.basicblock import (
     CFG_ALTERING_INSTRUCTIONS,
@@ -113,7 +114,7 @@ class IRFunction:
         removed = 0
         new_basic_blocks = []
         for bb in self.basic_blocks:
-            if not bb.is_reachable and bb.label not in self.entry_points:
+            if not bb.is_reachable:
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
@@ -125,9 +126,12 @@ class IRFunction:
         Compute reachability of basic blocks.
         """
         for bb in self.basic_blocks:
+            bb.reachable = OrderedSet()
             bb.is_reachable = False
+
         for entry in self.entry_points:
-            self._compute_reachability_from(self.get_basic_block(entry.value))
+            entry_bb = self.get_basic_block(entry.value)
+            self._compute_reachability_from(entry_bb)
 
     def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
         """
@@ -137,10 +141,10 @@ class IRFunction:
             return
         bb.is_reachable = True
         for inst in bb.instructions:
-            if inst.opcode in CFG_ALTERING_INSTRUCTIONS or inst.opcode in "invoke":
-                ops = inst.get_label_operands()
-                for op in ops:
+            if inst.opcode in CFG_ALTERING_INSTRUCTIONS or inst.opcode == "invoke":
+                for op in inst.get_label_operands():
                     out_bb = self.get_basic_block(op.value)
+                    bb.reachable.add(out_bb)
                     self._compute_reachability_from(out_bb)
 
     def append_data(self, opcode: str, args: list[IROperand]) -> None:

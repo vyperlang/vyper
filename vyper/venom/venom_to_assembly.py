@@ -230,7 +230,7 @@ class VenomCompiler:
         for inst in basicblock.instructions:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
-        for bb in basicblock.cfg_out:
+        for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
 
     # pop values from stack at entry to bb
