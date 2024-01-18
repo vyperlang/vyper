@@ -367,10 +367,11 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
-            return bb.append_instruction(ir.value, *args)
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
-            return bb.append_instruction(ir.value, *args)
+
+        bb.insert_instruction(IRInstruction(ir.value, args, retVar))
+        return retVar
     elif ir.value == "if":
         cond = ir.args[0]
         current_bb = ctx.get_basic_block()
