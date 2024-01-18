@@ -55,7 +55,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     ]
 )
 
-CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz", "invoke"])
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -306,6 +306,7 @@ class IRBasicBlock:
     cfg_out: OrderedSet["IRBasicBlock"]
     # stack items which this basic block produces
     out_vars: OrderedSet[IRVariable]
+    is_reachable: bool = False
 
     def __init__(self, label: IRLabel, parent: "IRFunction") -> None:
         assert isinstance(label, IRLabel), "label must be an IRLabel"
@@ -315,6 +316,7 @@ class IRBasicBlock:
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
         self.out_vars = OrderedSet()
+        self.is_reachable = False
 
     def add_cfg_in(self, bb: "IRBasicBlock") -> None:
         self.cfg_in.add(bb)
@@ -332,10 +334,6 @@ class IRBasicBlock:
     def remove_cfg_out(self, bb: "IRBasicBlock") -> None:
         assert bb in self.cfg_out
         self.cfg_out.remove(bb)
-
-    @property
-    def is_reachable(self) -> bool:
-        return len(self.cfg_in) > 0
 
     def append_instruction(self, opcode: str, *args: Union[IROperand, int]) -> Optional[IRVariable]:
         """

@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper.venom.basicblock import (
+    CFG_ALTERING_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -107,6 +108,8 @@ class IRFunction:
         return f"%{self.last_variable}"
 
     def remove_unreachable_blocks(self) -> int:
+        self._compute_reachability()
+
         removed = 0
         new_basic_blocks = []
         for bb in self.basic_blocks:
@@ -116,6 +119,29 @@ class IRFunction:
                 new_basic_blocks.append(bb)
         self.basic_blocks = new_basic_blocks
         return removed
+
+    def _compute_reachability(self) -> None:
+        """
+        Compute reachability of basic blocks.
+        """
+        for bb in self.basic_blocks:
+            bb.is_reachable = False
+        for entry in self.entry_points:
+            self._compute_reachability_from(self.get_basic_block(entry.value))
+
+    def _compute_reachability_from(self, bb: IRBasicBlock) -> None:
+        """
+        Compute reachability of basic blocks from bb.
+        """
+        if bb.is_reachable:
+            return
+        bb.is_reachable = True
+        for inst in bb.instructions:
+            if inst.opcode in CFG_ALTERING_INSTRUCTIONS or inst.opcode in "invoke":
+                ops = inst.get_label_operands()
+                for op in ops:
+                    out_bb = self.get_basic_block(op.value)
+                    self._compute_reachability_from(out_bb)
 
     def append_data(self, opcode: str, args: list[IROperand]) -> None:
         """
