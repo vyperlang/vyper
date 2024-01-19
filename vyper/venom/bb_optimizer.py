@@ -56,9 +56,31 @@ def _optimize_empty_basicblocks(ctx: IRFunction) -> int:
     return count
 
 
+def _daisychain_empty_basicblocks(ctx: IRFunction) -> int:
+    count = 0
+    i = 0
+    while i < len(ctx.basic_blocks):
+        bb = ctx.basic_blocks[i]
+        i += 1
+        if bb.is_terminated:
+            continue
+
+        if i < len(ctx.basic_blocks) - 1:
+            bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
+        else:
+            bb.append_instruction("stop")
+
+        count += 1
+
+    return count
+
+
 @ir_pass
 def ir_pass_optimize_empty_blocks(ctx: IRFunction) -> int:
-    changes = _optimize_empty_basicblocks(ctx)
+    # NOTE: Replaced basic block removal for now, as it breaks the optimizer
+    # the normalization of 2 inputs to phi nodes. It just daisy chains empty
+    # blocks instead.
+    changes = _daisychain_empty_basicblocks(ctx)
     calculate_cfg(ctx)
     return changes
 
