@@ -343,20 +343,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else:
             argsOffsetVar = argsOffset
 
-        if isinstance(retOffset, IRLiteral):
-            retOffsetValue = int(retOffset.value) if retOffset else 0
-            retVar = ctx.get_next_variable(MemType.MEMORY, retOffsetValue)
-            symbols[f"&{retOffsetValue}"] = retVar
-        else:
-            retVar = retOffset
-
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
         else:
             args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
 
-        ctx.get_basic_block().insert_instruction(IRInstruction(ir.value, args, retVar))
-        return retVar
+        return ctx.get_basic_block().append_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
 
