@@ -77,10 +77,7 @@ def _daisychain_empty_basicblocks(ctx: IRFunction) -> int:
 
 @ir_pass
 def ir_pass_optimize_empty_blocks(ctx: IRFunction) -> int:
-    # NOTE: Replaced basic block removal for now, as it breaks the optimizer
-    # the normalization of 2 inputs to phi nodes. It just daisy chains empty
-    # blocks instead.
-    changes = _daisychain_empty_basicblocks(ctx)
+    changes = _optimize_empty_basicblocks(ctx)
     calculate_cfg(ctx)
     return changes
 
