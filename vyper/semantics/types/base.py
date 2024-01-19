@@ -25,7 +25,7 @@ class _GenericTypeAcceptor:
         self.type_ = type_
 
     def compare_type(self, other):
-        return isinstance(other, self.type_)
+        return isinstance(other, self.type_) or self == other
 
 
 class VyperType:
