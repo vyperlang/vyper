@@ -308,17 +308,17 @@ class VenomCompiler:
         self._emit_input_operands(assembly, inst, operands, stack)
 
         # Step 3: Reorder stack
-        if opcode in ["jnz", "djmp", "jmp"]:
-            # prepare stack for jump into another basic block
-            assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
-            b = next(iter(inst.parent.cfg_out))
-            target_stack = input_vars_from(inst.parent, b)
-            # TODO optimize stack reordering at entry and exit from basic blocks
-            # NOTE: stack in general can contain multiple copies of the same variable,
-            # however we are safe in the case of jmp/djmp/jnz as it's not going to
-            # have multiples.
-            target_stack_list = [x for x in target_stack.keys()]
-            self._stack_reorder(assembly, stack, target_stack_list)
+        # if opcode in ["jnz", "djmp", "jmp"]:
+        #     # prepare stack for jump into another basic block
+        #     assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
+        #     b = next(iter(inst.parent.cfg_out))
+        #     target_stack = input_vars_from(inst.parent, b)
+        #     # TODO optimize stack reordering at entry and exit from basic blocks
+        #     # NOTE: stack in general can contain multiple copies of the same variable,
+        #     # however we are safe in the case of jmp/djmp/jnz as it's not going to
+        #     # have multiples.
+        #     target_stack_list = [x for x in target_stack.keys()]
+        #     self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
