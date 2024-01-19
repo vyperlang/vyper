@@ -516,6 +516,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         # annotate
         node._metadata["type"] = typ
 
+        if not isinstance(typ, TYPE_T) and not isinstance(node, vy_ast.Subscript):
+            validate_expected_type(node, typ)
+
         # validate and annotate folded value
         if node.has_folded_value:
             folded_node = node.get_folded_value()
