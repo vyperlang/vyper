@@ -41,8 +41,8 @@ def test_multi_entry_block_1():
     finish_bb = ctx.get_basic_block(finish_label.value)
     cfg_in = list(finish_bb.cfg_in.keys())
     assert cfg_in[0].label.value == "target", "Should contain target"
-    assert cfg_in[1].label.value == "finish_split___global", "Should contain finish_split___global"
-    assert cfg_in[2].label.value == "finish_split_block_1", "Should contain finish_split_block_1"
+    assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
+    assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"
 
 
 # more complicated one
@@ -93,8 +93,8 @@ def test_multi_entry_block_2():
     finish_bb = ctx.get_basic_block(finish_label.value)
     cfg_in = list(finish_bb.cfg_in.keys())
     assert cfg_in[0].label.value == "target", "Should contain target"
-    assert cfg_in[1].label.value == "finish_split___global", "Should contain finish_split___global"
-    assert cfg_in[2].label.value == "finish_split_block_1", "Should contain finish_split_block_1"
+    assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
+    assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"
 
 
 def test_multi_entry_block_with_dynamic_jump():
@@ -134,5 +134,5 @@ def test_multi_entry_block_with_dynamic_jump():
     finish_bb = ctx.get_basic_block(finish_label.value)
     cfg_in = list(finish_bb.cfg_in.keys())
     assert cfg_in[0].label.value == "target", "Should contain target"
-    assert cfg_in[1].label.value == "finish_split___global", "Should contain finish_split___global"
-    assert cfg_in[2].label.value == "finish_split_block_1", "Should contain finish_split_block_1"
+    assert cfg_in[1].label.value == "__global_split_finish", "Should contain __global_split_finish"
+    assert cfg_in[2].label.value == "block_1_split_finish", "Should contain block_1_split_finish"
