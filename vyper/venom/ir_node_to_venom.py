@@ -233,6 +233,20 @@ def _get_variable_from_address(
     return None
 
 
+def _get_variables_from_address_and_size(
+    variables: OrderedSet[VariableRecord], addr: int, size: int
+) -> list[VariableRecord]:
+    assert isinstance(addr, int), "non-int address"
+    addr_end = addr + size
+    ret = []
+    for var in variables.keys():
+        if var.location.name != "memory":
+            continue
+        if var.pos >= addr and var.pos + var.size <= addr_end:  # type: ignore
+            ret.append(var)
+    return ret
+
+
 def _append_return_for_stack_operand(
     ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
 ) -> None:
@@ -452,22 +466,20 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         )
 
         new_v = arg_0
-        var = (
-            _get_variable_from_address(variables, int(arg_0.value))
-            if isinstance(arg_0, IRLiteral)
-            else None
-        )
         bb = ctx.get_basic_block()
-        if var is not None:
-            if allocated_variables.get(var.name, None) is None:
-                new_v = bb.append_instruction("alloca", var.size, var.pos)  # type: ignore
-                allocated_variables[var.name] = new_v  # type: ignore
-            bb.append_instruction("calldatacopy", size, arg_1, new_v)  # type: ignore
-            symbols[f"&{var.pos}"] = new_v  # type: ignore
-        else:
-            bb.append_instruction("calldatacopy", size, arg_1, new_v)  # type: ignore
+        if isinstance(arg_0, IRLiteral) and isinstance(size, IRLiteral):
+            vars = _get_variables_from_address_and_size(
+                variables, int(arg_0.value), int(size.value)
+            )
+            for var in vars:
+                if allocated_variables.get(var.name, None) is None:
+                    new_v = ctx.get_basic_block().append_instruction("alloca", var.size, var.pos)
+                    allocated_variables[var.name] = new_v
+                    symbols[f"&{var.pos}"] = new_v
 
-        return new_v
+        bb.append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
+
+        return None
     elif ir.value == "codecopy":
         arg_0, arg_1, size = _convert_ir_bb_list(
             ctx, ir.args, symbols, variables, allocated_variables
@@ -796,7 +808,14 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 1,
             )
 
-        body_block.replace_operands(replacements)
+        i = 0
+        for bb in ctx.basic_blocks:
+            if bb.label == body_block.label:
+                break
+            i += 1
+
+        for bb in ctx.basic_blocks[i:]:
+            bb.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
         if not body_end.is_terminated:
