@@ -152,11 +152,9 @@ class VenomCompiler:
         return top_asm
 
     def _stack_reorder(
-        self, assembly: list, stack: StackModel, _stack_ops: OrderedSet[IRVariable]
+        self, assembly: list, stack: StackModel, stack_ops: list[IRVariable]
     ) -> None:
-        # make a list so we can index it
-        stack_ops = [x for x in _stack_ops.keys()]
-        stack_ops_count = len(_stack_ops)
+        stack_ops_count = len(stack_ops)
 
         for i in range(stack_ops_count):
             op = stack_ops[i]
@@ -316,11 +314,15 @@ class VenomCompiler:
             b = next(iter(inst.parent.cfg_out))
             target_stack = input_vars_from(inst.parent, b)
             # TODO optimize stack reordering at entry and exit from basic blocks
-            self._stack_reorder(assembly, stack, target_stack)
+            # NOTE: stack in general can contain multiple copies of the same variable,
+            # however we are safe in the case of jmp/djmp/jnz as it's not going to
+            # have multiples.
+            target_stack_list = [x for x in target_stack.keys()]
+            self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        self._stack_reorder(assembly, stack, OrderedSet(operands))
+        self._stack_reorder(assembly, stack, operands)  # type: ignore
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
