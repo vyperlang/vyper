@@ -371,7 +371,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)
         current_bb = ctx.get_basic_block()
 
-        else_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        else_block = IRBasicBlock(ctx.get_next_label("else"), ctx)
         ctx.append_basic_block(else_block)
 
         # convert "else"
@@ -388,7 +388,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else_block = ctx.get_basic_block()
 
         # convert "then"
-        then_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
         ctx.append_basic_block(then_block)
 
         then_ret_val = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
@@ -401,7 +401,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         then_block = ctx.get_basic_block()
 
         # exit bb
-        exit_label = ctx.get_next_label()
+        exit_label = ctx.get_next_label("if_exit")
         exit_bb = IRBasicBlock(exit_label, ctx)
         exit_bb = ctx.append_basic_block(exit_bb)
 
@@ -429,7 +429,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         if not then_block.is_terminated:
             then_block.append_instruction("jmp", exit_bb.label)
 
-        sink_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        sink_block = IRBasicBlock(ctx.get_next_label("sink"), ctx)
         ctx.append_basic_block(sink_block)
         exit_bb.append_instruction("jmp", sink_block.label)
 
@@ -764,7 +764,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         def emit_body_blocks():
             global _break_target, _continue_target
             old_targets = _break_target, _continue_target
-            _break_target, _continue_target = exit_block, increment_block
+            _break_target, _continue_target = exit_block, continue_block
             _convert_ir_bb(ctx, body, symbols, variables, allocated_variables)
             _break_target, _continue_target = old_targets
 
@@ -779,6 +779,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         cond_block = IRBasicBlock(ctx.get_next_label("condition"), ctx)
         body_block = IRBasicBlock(ctx.get_next_label("body"), ctx)
         jump_up_block = IRBasicBlock(ctx.get_next_label("jump_up"), ctx)
+        continue_block = IRBasicBlock(ctx.get_next_label("continue"), ctx)
         increment_block = IRBasicBlock(ctx.get_next_label("increment"), ctx)
         exit_block = IRBasicBlock(ctx.get_next_label("exit"), ctx)
 
@@ -841,8 +842,11 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         if not body_end.is_terminated:
             body_end.append_instruction("jmp", jump_up_block.label)
 
-        jump_up_block.append_instruction("jmp", increment_block.label)
+        jump_up_block.append_instruction("jmp", continue_block.label)
         ctx.append_basic_block(jump_up_block)
+
+        continue_block.append_instruction("jmp", increment_block.label)
+        ctx.append_basic_block(continue_block)
 
         increment_block.insert_instruction(
             IRInstruction("add", [ret, IRLiteral(1)], counter_inc_var), 0

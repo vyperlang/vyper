@@ -113,15 +113,25 @@ class IRFunction:
     def remove_unreachable_blocks(self) -> int:
         self._compute_reachability()
 
-        removed = 0
+        removed = []
         new_basic_blocks = []
         for bb in self.basic_blocks:
             if not bb.is_reachable:
-                removed += 1
+                removed.append(bb)
             else:
                 new_basic_blocks.append(bb)
         self.basic_blocks = new_basic_blocks
-        return removed
+
+        for bb in removed:
+            for out_bb in bb.cfg_out:
+                for inst in out_bb.instructions:
+                    if inst.opcode != "phi":
+                        continue
+                    in_labels = inst.get_label_operands()
+                    if bb.label in in_labels:
+                        out_bb.remove_instruction(inst)
+
+        return len(removed)
 
     def _compute_reachability(self) -> None:
         """
