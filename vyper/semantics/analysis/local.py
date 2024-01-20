@@ -635,7 +635,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        pass
+        validate_expected_type(node, typ)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
         self.visit(node.value, typ)
