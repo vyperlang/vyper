@@ -386,6 +386,10 @@ class IRBasicBlock:
         instruction.parent = self
         self.instructions.insert(index, instruction)
 
+    def remove_instruction(self, instruction: IRInstruction) -> None:
+        assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
+        self.instructions.remove(instruction)
+
     def clear_instructions(self) -> None:
         self.instructions = []
 
@@ -395,6 +399,13 @@ class IRBasicBlock:
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Check if the basic block is empty, i.e. it has no instructions.
+        """
+        return len(self.instructions) == 0
 
     @property
     def is_terminated(self) -> bool:
