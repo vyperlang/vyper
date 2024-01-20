@@ -52,7 +52,7 @@ def foo(x: int128) -> uint256:
     return convert(x, uint256)
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 interface Factory:
     def getExchange(token_addr: address) -> address: view

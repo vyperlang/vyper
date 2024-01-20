@@ -1,4 +1,4 @@
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 interface Exchange:
     def token() -> ERC20: view
