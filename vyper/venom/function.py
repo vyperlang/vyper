@@ -95,9 +95,11 @@ class IRFunction:
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
-    def get_next_label(self) -> IRLabel:
+    def get_next_label(self, suffix: str = "") -> IRLabel:
+        if suffix != "":
+            suffix = f"_{suffix}"
         self.last_label += 1
-        return IRLabel(f"{self.last_label}")
+        return IRLabel(f"{self.last_label}{suffix}")
 
     def get_next_variable(
         self, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: Optional[int] = None

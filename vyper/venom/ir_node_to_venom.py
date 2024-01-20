@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper.codegen.context import VariableRecord
+from vyper.codegen.core import is_array_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
@@ -630,6 +631,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         bb = ctx.get_basic_block()
         if var is not None:
             if var.size and var.size > 32:
+                if is_array_like(var.typ):
+                    return bb.append_instruction("store", var.pos)
+
                 if allocated_variables.get(var.name, None) is None:
                     allocated_variables[var.name] = bb.append_instruction(
                         "alloca", var.size, var.pos
@@ -771,12 +775,16 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         body = ir.args[4]
 
-        entry_block = ctx.get_basic_block()
-        cond_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        body_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        jump_up_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        increment_block = IRBasicBlock(ctx.get_next_label(), ctx)
-        exit_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        entry_block = IRBasicBlock(ctx.get_next_label("repeat"), ctx)
+        cond_block = IRBasicBlock(ctx.get_next_label("condition"), ctx)
+        body_block = IRBasicBlock(ctx.get_next_label("body"), ctx)
+        jump_up_block = IRBasicBlock(ctx.get_next_label("jump_up"), ctx)
+        increment_block = IRBasicBlock(ctx.get_next_label("increment"), ctx)
+        exit_block = IRBasicBlock(ctx.get_next_label("exit"), ctx)
+
+        bb = ctx.get_basic_block()
+        bb.append_instruction("jmp", entry_block.label)
+        ctx.append_basic_block(entry_block)
 
         counter_inc_var = ctx.get_next_variable()
 
@@ -794,6 +802,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.append_basic_block(cond_block)
 
         start_syms = symbols.copy()
+        start_allocated = allocated_variables.copy()
         ctx.append_basic_block(body_block)
         emit_body_blocks()
         end_syms = symbols.copy()
@@ -822,6 +831,13 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             bb.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
+        # for name, var in allocated_variables.items():
+        #     if start_allocated.get(name) is not None:
+        #         continue
+        #     body_end.append_instruction("dealloca", var)
+
+        allocated_variables = start_allocated
+
         if not body_end.is_terminated:
             body_end.append_instruction("jmp", jump_up_block.label)
 
