@@ -1,4 +1,5 @@
 import binascii
+from collections.abc import Iterator
 import contextlib
 import decimal
 import functools
@@ -57,6 +58,9 @@ class OrderedSet(Generic[_T], dict[_T, None]):
 
     def __or__(self, other):
         return self.__class__(super().__or__(other))
+
+    def __iter__(self) -> Iterator[_T]:
+        return iter(self.keys())
 
     def copy(self):
         return self.__class__(super().copy())
