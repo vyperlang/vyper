@@ -428,6 +428,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         if not then_block.is_terminated:
             then_block.append_instruction("jmp", exit_bb.label)
 
+        sink_block = IRBasicBlock(ctx.get_next_label(), ctx)
+        ctx.append_basic_block(sink_block)
+        exit_bb.append_instruction("jmp", sink_block.label)
+
         return if_ret
 
     elif ir.value == "with":
