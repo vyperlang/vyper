@@ -115,6 +115,8 @@ class IRFunction:
 
         removed = []
         new_basic_blocks = []
+
+        # Remove unreachable basic blocks
         for bb in self.basic_blocks:
             if not bb.is_reachable:
                 removed.append(bb)
@@ -122,6 +124,7 @@ class IRFunction:
                 new_basic_blocks.append(bb)
         self.basic_blocks = new_basic_blocks
 
+        # Remove phi instructions that reference removed basic blocks
         for bb in removed:
             for out_bb in bb.cfg_out:
                 for inst in out_bb.instructions:
