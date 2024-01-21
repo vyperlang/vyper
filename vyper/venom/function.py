@@ -200,6 +200,31 @@ class IRFunction:
         new.last_variable = self.last_variable
         return new
 
+    def as_graph(self) -> str:
+        import html
+
+        def _make_label(bb):
+            ret = f'<<table border="1" cellborder="0" cellspacing="0">'
+            ret += f'<tr><td align="left"><b>{html.escape(bb.label.value)}</b></td></tr>'
+            for inst in bb.instructions:
+                ret += f'<tr ><td align="left">{html.escape(str(inst))}</td></tr>'
+            ret += "</table>>"
+
+            return ret
+            # return f"{bb.label.value}:\n" + "\n".join([f"    {inst}" for inst in bb.instructions])
+
+        ret = "digraph G {\n"
+
+        for bb in self.basic_blocks:
+            for out_bb in bb.cfg_out:
+                ret += f'    "{bb.label.value}" -> "{out_bb.label.value}"\n'
+
+        for bb in self.basic_blocks:
+            ret += f'    "{bb.label.value}" [shape=plaintext, label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
+
+        ret += "}\n"
+        return ret
+
     def __repr__(self) -> str:
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
