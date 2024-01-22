@@ -235,7 +235,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        validate_expected_type(node.value, typ)
 
         self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
@@ -443,7 +442,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 self.expr_visitor.visit(node.iter, iter_type)
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())
         with self.namespace.enter_scope():
             for n in node.body:
@@ -489,10 +487,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.member_types):
-                validate_expected_type(given, expected)
-        else:
-            validate_expected_type(values, self.func.return_type)
+
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
@@ -509,8 +504,8 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if (
             not isinstance(typ, TYPE_T)
-            and not isinstance(node, vy_ast.Subscript)
-            and not isinstance(node.get_ancestor(), vy_ast.Expr)
+            and not isinstance(node, vy_ast.Index)
+            and not isinstance(node.get_ancestor(), (vy_ast.Expr, vy_ast.Log))
         ):
             validate_expected_type(node, typ)
 
