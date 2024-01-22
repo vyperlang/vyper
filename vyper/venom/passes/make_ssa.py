@@ -19,7 +19,9 @@ class MakeSSA(IRPass):
 
         self._compute_defs()
         self._add_phi_nodes()
-        # self._dfs_dom(entry, set())
+
+        self.var_names = {var.name: 0 for var in self.defs.keys()}
+        self._rename_vars(entry, set())
 
         print(ctx.as_graph())
 
@@ -31,13 +33,40 @@ class MakeSSA(IRPass):
                 for front in self.dom.df[bb]:
                     self._add_phi(var, front)
 
-    def _dfs_dom(self, basic_block: IRBasicBlock, visited: set):
+    def _rename_vars(self, basic_block: IRBasicBlock, visited: set):
         visited.add(basic_block)
-        for bb in self.dom.dominated[basic_block]:
-            if bb not in visited:
-                self._dfs_dom(bb, visited)
 
-        self._process_basic_block(basic_block)
+        for inst in basic_block.instructions:
+            if inst.output is None:
+                continue
+
+            inst.replace_operands(
+                {inst.output: IRVariable(f"{inst.output.name}{self.var_names[inst.output.name]}")}
+            )
+            self.var_names[inst.output.name] += 1
+            inst.output = IRVariable(f"{inst.output.value}{self.var_names[inst.output.name]}")
+
+            for bb in basic_block.cfg_out:
+                for inst in bb.instructions:
+                    if inst.opcode != "phi":
+                        continue
+                    inst.replace_operands(
+                        {
+                            inst.output: IRVariable(
+                                f"{inst.output.value}{self.var_names[inst.output.name]}"
+                            )
+                        }
+                    )
+
+            for bb in self.dom.dominated[basic_block]:
+                if bb in visited:
+                    continue
+                self._rename_vars(bb, visited)
+
+        for inst in basic_block.instructions:
+            if inst.output is None:
+                continue
+            self.var_names[inst.output.name] -= 1
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock):
         # TODO: check if the phi already exists
@@ -45,8 +74,9 @@ class MakeSSA(IRPass):
         for bb in basic_block.cfg_in:
             if bb == basic_block:
                 continue
-            args.append(var)
             args.append(bb.label)
+            args.append(var)
+
         phi = IRInstruction("phi", args, var)
         basic_block.instructions.insert(0, phi)
 

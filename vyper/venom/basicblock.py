@@ -1,4 +1,5 @@
 from enum import Enum, auto
+import re
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
@@ -138,6 +139,11 @@ class IRVariable(IRValue):
         self.offset = 0
         self.mem_type = mem_type
         self.mem_addr = mem_addr
+
+    @property
+    def name(self) -> str:
+        s = re.split(r"(\d+)", self.value)
+        return s[0]
 
     def __repr__(self) -> str:
         return self.value
