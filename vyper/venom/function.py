@@ -221,7 +221,7 @@ class IRFunction:
 
         for bb in self.basic_blocks:
             ret += f'    "{bb.label.value}" [shape=plaintext, '
-            ret += 'label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
+            ret += f'label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
 
         ret += "}\n"
         return ret
