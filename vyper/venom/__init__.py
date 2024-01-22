@@ -47,16 +47,6 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
 
         calculate_liveness(ctx)
 
-        if len(ctx.basic_blocks) > 3:
-            calculate_cfg(ctx)
-
-            dom = DominatorTree(ctx, ctx.basic_blocks[0])
-            print(dom.as_graph())
-            # print(ctx.as_graph())
-            import sys
-
-            sys.exit(0)
-
         changes += ir_pass_optimize_unused_variables(ctx)
 
         calculate_cfg(ctx)
