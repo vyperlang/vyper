@@ -204,7 +204,7 @@ class IRFunction:
         import html
 
         def _make_label(bb):
-            ret = f'<<table border="1" cellborder="0" cellspacing="0">'
+            ret = '<<table border="1" cellborder="0" cellspacing="0">'
             ret += f'<tr><td align="left"><b>{html.escape(str(bb.label))}</b></td></tr>\n'
             for inst in bb.instructions:
                 ret += f'<tr ><td align="left">{html.escape(str(inst))}</td></tr>\n'
@@ -220,7 +220,8 @@ class IRFunction:
                 ret += f'    "{bb.label.value}" -> "{out_bb.label.value}"\n'
 
         for bb in self.basic_blocks:
-            ret += f'    "{bb.label.value}" [shape=plaintext, label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
+            ret += f'    "{bb.label.value}" [shape=plaintext, '
+            ret += 'label={_make_label(bb)}, fontname="Courier" fontsize="8"]\n'
 
         ret += "}\n"
         return ret

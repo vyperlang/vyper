@@ -1,4 +1,5 @@
 from typing import Optional
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
@@ -19,24 +20,24 @@ def _add_bb(
     elif cgf_outs_len == 2:
         bb.append_instruction("jnz", IRLiteral(1), cfg_outs[0], cfg_outs[1])
     else:
-        assert False, cgf_outs_len
+        raise CompilerPanic("Invalid number of CFG outs")
     return bb
 
 
 def _make_test_ctx():
-    l = [IRLabel(str(i)) for i in range(0, 9)]
+    lab = [IRLabel(str(i)) for i in range(0, 9)]
 
-    ctx = IRFunction(l[1])
+    ctx = IRFunction(lab[1])
 
     bb1 = ctx.basic_blocks[0]
-    bb1.append_instruction("jmp", l[2])
+    bb1.append_instruction("jmp", lab[2])
 
-    _add_bb(ctx, l[7], [])
-    _add_bb(ctx, l[6], [l[7], l[2]])
-    _add_bb(ctx, l[5], [l[6], l[3]])
-    _add_bb(ctx, l[4], [l[6]])
-    _add_bb(ctx, l[3], [l[5]])
-    _add_bb(ctx, l[2], [l[3], l[4]])
+    _add_bb(ctx, lab[7], [])
+    _add_bb(ctx, lab[6], [lab[7], lab[2]])
+    _add_bb(ctx, lab[5], [lab[6], lab[3]])
+    _add_bb(ctx, lab[4], [lab[6]])
+    _add_bb(ctx, lab[3], [lab[5]])
+    _add_bb(ctx, lab[2], [lab[3], lab[4]])
 
     return ctx
 
