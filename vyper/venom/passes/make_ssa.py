@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.dominators import DominatorTree
@@ -17,8 +18,10 @@ class MakeSSA(IRPass):
         dom = DominatorTree(ctx, entry)
         self.dom = dom
 
-        self._compute_defs()
-        self._add_phi_nodes()
+        count = 0
+        while self._add_phi_nodes():
+            if count := count + 1 > len(ctx.basic_blocks) * 2:
+                raise CompilerPanic("Failed to add phi nodes")
 
         self.var_names = {var.name: 0 for var in self.defs.keys()}
         self._rename_vars(entry, set())
@@ -27,11 +30,15 @@ class MakeSSA(IRPass):
 
         self.changes = 0
 
-    def _add_phi_nodes(self):
+    def _add_phi_nodes(self) -> bool:
+        self._compute_defs()
+        changed = False
         for var, defs in self.defs.items():
             for bb in defs:
                 for front in self.dom.df[bb]:
-                    self._add_phi(var, front)
+                    changed |= self._add_phi(var, front)
+
+        return changed
 
     def _rename_vars(self, basic_block: IRBasicBlock, visited: set):
         visited.add(basic_block)
@@ -70,17 +77,23 @@ class MakeSSA(IRPass):
                 continue
             self.var_names[inst.output.name] -= 1
 
-    def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        # TODO: check if the phi already exists
+    def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
+        for inst in basic_block.instructions:
+            if inst.opcode == "phi" and inst.output.name == var.name:
+                return False
+
         args = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
                 continue
+
             args.append(bb.label)
             args.append(var)
 
         phi = IRInstruction("phi", args, var)
         basic_block.instructions.insert(0, phi)
+
+        return True
 
     def _compute_defs(self):
         self.defs = {}
