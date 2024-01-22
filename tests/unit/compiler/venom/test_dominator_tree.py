@@ -1,8 +1,9 @@
 from typing import Optional
 from vyper.venom.analysis import calculate_cfg
-from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
+from vyper.venom.passes.make_ssa import MakeSSA
 
 
 def _add_bb(
@@ -56,5 +57,19 @@ def test_deminator_frontier_calculation():
     assert dom.df[bb7] == set(), dom.df[bb7]
 
 
+def test_phi_placement():
+    ctx = _make_test_ctx()
+    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [ctx.get_basic_block(str(i)) for i in range(1, 8)]
+
+    x = IRVariable("%x")
+    bb1.insert_instruction(IRInstruction("mload", [IRLiteral(0)], x), 0)
+    bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], x), 0)
+    bb7.insert_instruction(IRInstruction("mstore", [x, IRLiteral(0)]), 0)
+
+    MakeSSA.run_pass(ctx)
+
+    print(ctx)
+
+
 if __name__ == "__main__":
-    test_deminator_frontier_calculation()
+    test_phi_placement()
