@@ -16,6 +16,7 @@ class DominatorTree:
         self.dfs = []
         self.dominators = {}
         self.idoms = {}
+        self.dominated = {}
         self.df = {}
         self._compute()
 
@@ -69,6 +70,15 @@ class DominatorTree:
                 continue
             doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
             self.idoms[bb] = doms[1]
+
+        self.dominated = {bb: set() for bb in self.dfs}
+        for dom, target in self.idoms.items():
+            self.dominated[target].add(dom)
+
+        # for dom, targets in self.dominated.items():
+        #     print(dom.label)
+        #     for t in targets:
+        #         print("    ", t.label)
 
     def _compute_df(self):
         """
