@@ -16,6 +16,7 @@ class DominatorTree:
         self.dfs = []
         self.dominators = {}
         self.idoms = {}
+        self.df = {}
         self._compute()
 
     def dominates(self, bb1, bb2):
@@ -28,6 +29,7 @@ class DominatorTree:
         self._dfs(self.entry, set())
         self._compute_dominators()
         self._compute_idoms()
+        self._compute_df()
 
     def _compute_dominators(self):
         basic_blocks = list(self.dfs_order.keys())
@@ -67,6 +69,26 @@ class DominatorTree:
                 continue
             doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
             self.idoms[bb] = doms[1]
+
+    def _compute_df(self):
+        """
+        Compute dominance frontier
+        """
+        basic_blocks = self.dfs
+        self.df = {bb: set() for bb in basic_blocks}
+
+        for bb in self.dfs:
+            if len(bb.cfg_in) > 1:
+                for pred in bb.cfg_in:
+                    runner = pred
+                    while runner != self.idoms[bb]:
+                        self.df[runner].add(bb)
+                        runner = self.idoms[runner]
+
+        # for bb in self.dfs:
+        #     print(bb.label)
+        #     for df in self.df[bb]:
+        #         print("    ", df.label)
 
     def _intersect(self, bb1, bb2):
         dfs_order = self.dfs_order
