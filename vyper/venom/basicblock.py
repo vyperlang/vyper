@@ -142,8 +142,7 @@ class IRVariable(IRValue):
 
     @property
     def name(self) -> str:
-        s = re.split(r"(\d+)", self.value)
-        return s[0]
+        return self.value.split(":")[0]
 
     def __repr__(self) -> str:
         return self.value

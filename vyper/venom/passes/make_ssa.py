@@ -23,7 +23,7 @@ class MakeSSA(IRPass):
         self.var_names = {var.name: 0 for var in self.defs.keys()}
         self._rename_vars(entry, set())
 
-        print(ctx.as_graph())
+        # print(ctx.as_graph())
 
         self.changes = 0
 
@@ -37,14 +37,18 @@ class MakeSSA(IRPass):
         visited.add(basic_block)
 
         for inst in basic_block.instructions:
-            if inst.output is None:
-                continue
+            new_ops = []
+            for op in inst.operands:
+                if not isinstance(op, IRVariable):
+                    new_ops.append(op)
+                    continue
 
-            inst.replace_operands(
-                {inst.output: IRVariable(f"{inst.output.name}{self.var_names[inst.output.name]}")}
-            )
-            self.var_names[inst.output.name] += 1
-            inst.output = IRVariable(f"{inst.output.value}{self.var_names[inst.output.name]}")
+                new_ops.append(IRVariable(f"{op.name}:{self.var_names[op.name]}"))
+
+            inst.operands = new_ops
+            if inst.output is not None:
+                self.var_names[inst.output.name] += 1
+                inst.output = IRVariable(f"{inst.output.name}:{self.var_names[inst.output.name]}")
 
         for bb in basic_block.cfg_out:
             for inst in bb.instructions:
@@ -53,7 +57,7 @@ class MakeSSA(IRPass):
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         inst.operands[i + 1] = IRVariable(
-                            f"{inst.output.name}{self.var_names[inst.output.name]}"
+                            f"{inst.output.name}:{self.var_names[inst.output.name]}"
                         )
 
         for bb in self.dom.dominated[basic_block]:
