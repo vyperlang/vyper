@@ -260,8 +260,8 @@ class IRInstruction:
         if self.annotation:
             s += f" <{self.annotation}>"
 
-        # if self.liveness:
-        #     return f"{s: <30} # {self.liveness}"
+        if self.liveness:
+            return f"{s: <30} # {self.liveness}"
 
         return s
 
@@ -399,6 +399,12 @@ class IRBasicBlock:
         """
         for instruction in self.instructions:
             instruction.replace_operands(replacements)
+
+    def get_assignments(self):
+        """
+        Get all assignments in basic block.
+        """
+        return [inst.output for inst in self.instructions if inst.output]
 
     @property
     def is_empty(self) -> bool:
