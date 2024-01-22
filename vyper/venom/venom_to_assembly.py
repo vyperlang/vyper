@@ -13,6 +13,7 @@ from vyper.venom.basicblock import (
     MemType,
 )
 from vyper.venom.function import IRFunction
+from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 
@@ -110,6 +111,7 @@ class VenomCompiler:
         for ctx in self.ctxs:
             calculate_cfg(ctx)
             NormalizationPass.run_pass(ctx)
+            # MakeSSA.run_pass(ctx)
             calculate_liveness(ctx)
 
             assert ctx.normalized, "Non-normalized CFG!"

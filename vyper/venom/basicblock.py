@@ -132,9 +132,17 @@ class IRVariable(IRValue):
     mem_addr: Optional[int] = None
 
     def __init__(
-        self, value: str, mem_type: MemType = MemType.OPERAND_STACK, mem_addr: int = None
+        self,
+        value: str,
+        mem_type: MemType = MemType.OPERAND_STACK,
+        mem_addr: int = None,
+        version: str | int = None,
     ) -> None:
         assert isinstance(value, str)
+        assert ":" not in value, "Variable name cannot contain ':'"
+        if version:
+            assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
+            value = f"{value}:{version}"
         self.value = value
         self.offset = 0
         self.mem_type = mem_type
