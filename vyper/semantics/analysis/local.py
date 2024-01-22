@@ -504,20 +504,18 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit(self, node, typ):
         # recurse and typecheck in case we are being fed the wrong type for
-        # some reason. note that `validate_expected_type` is unnecessary
-        # for nodes that already call `get_exact_type_from_node` and
-        # `get_possible_types_from_node` because `validate_expected_type`
-        # would be calling the same function again.
-        # CMC 2023-06-27 would be cleanest to call validate_expected_type()
-        # before recursing but maybe needs some refactoring before that
-        # can happen.
+        # some reason.
         super().visit(node, typ)
+
+        if (
+            not isinstance(typ, TYPE_T)
+            and not isinstance(node, vy_ast.Subscript)
+            and not isinstance(node.get_ancestor(), vy_ast.Expr)
+        ):
+            validate_expected_type(node, typ)
 
         # annotate
         node._metadata["type"] = typ
-
-        if not isinstance(typ, TYPE_T) and not isinstance(node, vy_ast.Subscript):
-            validate_expected_type(node, typ)
 
         # validate and annotate folded value
         if node.has_folded_value:
@@ -635,7 +633,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        validate_expected_type(node, typ)
+        pass
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
         self.visit(node.value, typ)
