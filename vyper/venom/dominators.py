@@ -90,6 +90,15 @@ class DominatorTree:
         #     for df in self.df[bb]:
         #         print("    ", df.label)
 
+    def dominance_frontier(self, basic_blocks: list[IRBasicBlock]):
+        """
+        Compute dominance frontier of a set of basic blocks.
+        """
+        df = set()
+        for bb in basic_blocks:
+            df.update(self.df[bb])
+        return df
+
     def _intersect(self, bb1, bb2):
         dfs_order = self.dfs_order
         while bb1 != bb2:
