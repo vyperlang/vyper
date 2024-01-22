@@ -11,6 +11,7 @@ from vyper.venom.bb_optimizer import (
     ir_pass_optimize_unused_variables,
     ir_pass_remove_unreachable_blocks,
 )
+from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
@@ -45,6 +46,16 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         changes += ir_pass_remove_unreachable_blocks(ctx)
 
         calculate_liveness(ctx)
+
+        if len(ctx.basic_blocks) > 3:
+            calculate_cfg(ctx)
+
+            dom = DominatorTree(ctx, ctx.basic_blocks[0])
+            print(dom.as_graph())
+            # print(ctx.as_graph())
+            import sys
+
+            sys.exit(0)
 
         changes += ir_pass_optimize_unused_variables(ctx)
 

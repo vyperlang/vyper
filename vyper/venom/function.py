@@ -205,9 +205,9 @@ class IRFunction:
 
         def _make_label(bb):
             ret = f'<<table border="1" cellborder="0" cellspacing="0">'
-            ret += f'<tr><td align="left"><b>{html.escape(bb.label.value)}</b></td></tr>'
+            ret += f'<tr><td align="left"><b>{html.escape(str(bb.label))}</b></td></tr>\n'
             for inst in bb.instructions:
-                ret += f'<tr ><td align="left">{html.escape(str(inst))}</td></tr>'
+                ret += f'<tr ><td align="left">{html.escape(str(inst))}</td></tr>\n'
             ret += "</table>>"
 
             return ret
@@ -226,6 +226,7 @@ class IRFunction:
         return ret
 
     def __repr__(self) -> str:
+        return self.as_graph()
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"
