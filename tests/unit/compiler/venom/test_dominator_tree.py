@@ -22,7 +22,7 @@ def _add_bb(
     return bb
 
 
-def test_deminator_frontier_calculation():
+def _make_test_ctx():
     l = [IRLabel(str(i)) for i in range(0, 9)]
 
     ctx = IRFunction(l[1])
@@ -30,12 +30,19 @@ def test_deminator_frontier_calculation():
     bb1 = ctx.basic_blocks[0]
     bb1.append_instruction("jmp", l[2])
 
-    bb7 = _add_bb(ctx, l[7], [])
-    bb6 = _add_bb(ctx, l[6], [l[7], l[2]])
-    bb5 = _add_bb(ctx, l[5], [l[6], l[3]])
-    bb4 = _add_bb(ctx, l[4], [l[6]])
-    bb3 = _add_bb(ctx, l[3], [l[5]])
-    bb2 = _add_bb(ctx, l[2], [l[3], l[4]])
+    _add_bb(ctx, l[7], [])
+    _add_bb(ctx, l[6], [l[7], l[2]])
+    _add_bb(ctx, l[5], [l[6], l[3]])
+    _add_bb(ctx, l[4], [l[6]])
+    _add_bb(ctx, l[3], [l[5]])
+    _add_bb(ctx, l[2], [l[3], l[4]])
+
+    return ctx
+
+
+def test_deminator_frontier_calculation():
+    ctx = _make_test_ctx()
+    bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [ctx.get_basic_block(str(i)) for i in range(1, 8)]
 
     calculate_cfg(ctx)
     dom = DominatorTree(ctx, bb1)
