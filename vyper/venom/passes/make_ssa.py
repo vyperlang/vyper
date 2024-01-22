@@ -46,22 +46,20 @@ class MakeSSA(IRPass):
             self.var_names[inst.output.name] += 1
             inst.output = IRVariable(f"{inst.output.value}{self.var_names[inst.output.name]}")
 
-            for bb in basic_block.cfg_out:
-                for inst in bb.instructions:
-                    if inst.opcode != "phi":
-                        continue
-                    inst.replace_operands(
-                        {
-                            inst.output: IRVariable(
-                                f"{inst.output.value}{self.var_names[inst.output.name]}"
-                            )
-                        }
-                    )
-
-            for bb in self.dom.dominated[basic_block]:
-                if bb in visited:
+        for bb in basic_block.cfg_out:
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
                     continue
-                self._rename_vars(bb, visited)
+                for i, op in enumerate(inst.operands):
+                    if op == basic_block.label:
+                        inst.operands[i + 1] = IRVariable(
+                            f"{inst.output.name}{self.var_names[inst.output.name]}"
+                        )
+
+        for bb in self.dom.dominated[basic_block]:
+            if bb in visited:
+                continue
+            self._rename_vars(bb, visited)
 
         for inst in basic_block.instructions:
             if inst.output is None:
