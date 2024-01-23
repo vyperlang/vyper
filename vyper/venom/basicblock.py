@@ -143,6 +143,8 @@ class IRVariable(IRValue):
         if version:
             assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
             value = f"{value}:{version}"
+        if value[0] != "%":
+            value = f"%{value}"
         self.value = value
         self.offset = 0
         self.mem_type = mem_type
@@ -151,6 +153,12 @@ class IRVariable(IRValue):
     @property
     def name(self) -> str:
         return self.value.split(":")[0]
+
+    def __hash__(self) -> int:
+        return self.value.__hash__()
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
 
     def __repr__(self) -> str:
         return self.value
@@ -351,7 +359,9 @@ class IRBasicBlock:
         assert bb in self.cfg_out
         self.cfg_out.remove(bb)
 
-    def append_instruction(self, opcode: str, *args: Union[IROperand, int]) -> Optional[IRVariable]:
+    def append_instruction(
+        self, opcode: str, *args: Union[IROperand, int], ret: IRVariable = None
+    ) -> Optional[IRVariable]:
         """
         Append an instruction to the basic block
 
@@ -359,7 +369,8 @@ class IRBasicBlock:
         """
         assert not self.is_terminated, self
 
-        ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
+        if ret is None:
+            ret = self.parent.get_next_variable() if opcode not in NO_OUTPUT_INSTRUCTIONS else None
 
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
