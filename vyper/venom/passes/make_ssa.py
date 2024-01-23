@@ -10,11 +10,10 @@ class MakeSSA(IRPass):
     dom: DominatorTree
     defs: dict[IRVariable, set[IRBasicBlock]]
 
-    def _run_pass(self, ctx: IRFunction) -> int:
+    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
         self.ctx = ctx
 
         calculate_cfg(ctx)
-        entry = ctx.get_basic_block(ctx.entry_points[0].value)
         dom = DominatorTree(ctx, entry)
         self.dom = dom
 
@@ -23,10 +22,13 @@ class MakeSSA(IRPass):
             if count := count + 1 > len(ctx.basic_blocks) * 2:
                 raise CompilerPanic("Failed to add phi nodes")
 
-        self.var_names = {var.name: 0 for var in self.defs.keys()}
+        self.var_names = {var.name: -1 for var in self.defs.keys()}
         self._rename_vars(entry, set())
 
         # print(ctx.as_graph())
+        # import sys
+
+        # sys.exit(0)
 
         self.changes = 0
 
