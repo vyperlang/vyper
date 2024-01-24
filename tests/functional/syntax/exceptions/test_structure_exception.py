@@ -139,7 +139,7 @@ interface Bar:
     """,
     """
 interface Bar:
-# invalud interface declaration (assignment)
+# invalid interface declaration (assignment)
     def set_lucky(arg1: int128):
         arg1 = 1
         arg1 = 3

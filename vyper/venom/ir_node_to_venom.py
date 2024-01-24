@@ -42,7 +42,7 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
     ]
 )
 
-# Instuctions that are mapped to their inverse
+# Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
 
 # Instructions that have a direct EVM opcode equivalent and can
@@ -508,7 +508,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         assert func_t is not None, "exit_to without func_t"
 
         if func_t.is_external:
-            # Hardcoded contructor special case
+            # Hardcoded constructor special case
             bb = ctx.get_basic_block()
             if func_t.name == "__init__":
                 label = IRLabel(ir.args[0].value, True)

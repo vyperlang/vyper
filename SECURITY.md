@@ -9,7 +9,7 @@ It is un-audited software, use with caution.
 ## Audit reports
 
 Vyper is constantly changing and improving.
-This means the lastest version available may not be audited.
+This means the latest version available may not be audited.
 We try to ensure the highest security code possible, but occasionally things slip through.
 
 ### Compiler Audits

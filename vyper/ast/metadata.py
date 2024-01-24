@@ -51,7 +51,7 @@ class _NodeMetadataJournal:
 
         outer = self._node_updates[-1]
 
-        # register with previous frame in case inner gets commited
+        # register with previous frame in case inner gets committed
         # but outer needs to be rolled back
         for (_, k), (metadata, prev) in inner.items():
             if (id(metadata), k) not in outer:

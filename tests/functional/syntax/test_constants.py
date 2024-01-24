@@ -42,7 +42,7 @@ VAL: constant(uint256) = -1
     """,
         InvalidType,
     ),
-    # reserverd keyword
+    # reserved keyword
     (
         """
 wei: constant(uint256) = 1
