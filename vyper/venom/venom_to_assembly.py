@@ -27,6 +27,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "gas",
         "gasprice",
         "gaslimit",
+        "chainid",
         "address",
         "origin",
         "number",
