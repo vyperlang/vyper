@@ -456,11 +456,11 @@ class VenomCompiler:
 
 def _evm_swap_for(depth: int) -> str:
     swap_idx = -depth
-    assert 1 <= swap_idx <= 16, "Unsupported swap depth"
+    assert 1 <= swap_idx <= 16, f"Unsupported swap depth {swap_idx}"
     return f"SWAP{swap_idx}"
 
 
 def _evm_dup_for(depth: int) -> str:
     dup_idx = 1 - depth
-    assert 1 <= dup_idx <= 16, "Unsupported dup depth"
+    assert 1 <= dup_idx <= 16, f"Unsupported dup depth {dup_idx}"
     return f"DUP{dup_idx}"
