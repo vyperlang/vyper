@@ -22,8 +22,8 @@ class MakeSSA(IRPass):
 
         self.var_names = {var.name: 0 for var in self.defs.keys()}
         self.stacks = {var.name: [0] for var in self.defs.keys()}
-        # self._rename_vars(entry)
-        # self._remove_degenerate_phis(entry)
+        self._rename_vars(entry)
+        self._remove_degenerate_phis(entry)
 
         self.changes = 0
 
@@ -97,7 +97,7 @@ class MakeSSA(IRPass):
                 v_name = inst.output.name
                 i = self.var_names[v_name]
                 inst.output = IRVariable(v_name, version=i)
-                outs.append(inst.output)
+                outs.append(inst.output.name)
                 self.stacks[v_name].append(i)
                 self.var_names[v_name] = i + 1
 
@@ -116,10 +116,10 @@ class MakeSSA(IRPass):
                 continue
             self._rename_vars(bb)
 
-        for op in outs:
-            self.stacks[op.name].pop()
+        for op_name in outs:
+            self.stacks[op_name].pop()
 
-    def _remove_degenerate_phis(self, entry: IRBasicBlock):
+    def __remove_degenerate_phis(self, entry: IRBasicBlock):
         for inst in entry.instructions:
             if inst.opcode != "phi":
                 continue
@@ -132,6 +132,31 @@ class MakeSSA(IRPass):
 
             if remove:
                 entry.instructions.remove(inst)
+
+        for bb in self.dom.dominated[entry]:
+            if bb == entry:
+                continue
+            self._remove_degenerate_phis(bb)
+
+    def _remove_degenerate_phis(self, entry: IRBasicBlock):
+        for inst in entry.instructions:
+            if inst.opcode != "phi":
+                continue
+
+            new_ops = []
+            for label, op in inst.phi_operands:
+                if op == inst.output:
+                    continue
+                new_ops.extend([label, op])
+            l = len(new_ops)
+            if l == 0:
+                entry.instructions.remove(inst)
+            elif l == 2:
+                inst.opcode = "store"
+                inst.output = new_ops[1]
+                inst.operands = [new_ops[0]]
+            else:
+                inst.operands = new_ops
 
         for bb in self.dom.dominated[entry]:
             if bb == entry:
