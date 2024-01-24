@@ -157,7 +157,7 @@ class IRVariable(IRValue):
     @property
     def version(self) -> int:
         if ":" not in self.value:
-            return -1
+            return 0
         return int(self.value.split(":")[1])
 
     def __hash__(self) -> int:

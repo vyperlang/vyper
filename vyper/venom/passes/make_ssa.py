@@ -1,4 +1,5 @@
 from vyper.exceptions import CompilerPanic
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.dominators import DominatorTree
@@ -8,7 +9,7 @@ from vyper.venom.passes.base_pass import IRPass
 
 class MakeSSA(IRPass):
     dom: DominatorTree
-    defs: dict[IRVariable, set[IRBasicBlock]]
+    defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
         self.ctx = ctx
@@ -17,26 +18,66 @@ class MakeSSA(IRPass):
         dom = DominatorTree(ctx, entry)
         self.dom = dom
 
-        count = 0
-        while self._add_phi_nodes():
-            if count := count + 1 > len(ctx.basic_blocks) * 2:
-                raise CompilerPanic("Failed to add phi nodes")
+        self._add_phi_nodes()
 
         self.var_names = {var.name: 0 for var in self.defs.keys()}
         self.stacks = {var.name: [0] for var in self.defs.keys()}
-        self._rename_vars(entry)
+        # self._rename_vars(entry)
+        # self._remove_degenerate_phis(entry)
 
         self.changes = 0
 
     def _add_phi_nodes(self) -> bool:
         self._compute_defs()
-        changed = False
-        for var, defs in self.defs.items():
-            for bb in defs:
-                for front in self.dom.df[bb]:
-                    changed |= self._add_phi(var, front)
+        self.work = {var: 0 for var in self.dom.dfs}
+        self.has_already = {var: 0 for var in self.dom.dfs}
+        i = 0
 
-        return changed
+        # Iterate over all variables
+        for var, d in self.defs.items():
+            i += 1
+            defs = list(d)
+            while len(defs) > 0:
+                bb = defs.pop()
+                for dom in self.dom.df[bb]:
+                    if self.has_already[dom] >= i:
+                        continue
+
+                    self._place_phi(var, dom)
+                    self.has_already[dom] = i
+                    if self.work[dom] < i:
+                        self.work[dom] = i
+                        defs.append(dom)
+
+    def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
+        args = []
+        for bb in basic_block.cfg_in:
+            if bb == basic_block:
+                continue
+
+            args.append(bb.label)
+            args.append(var)
+
+        phi = IRInstruction("phi", args, var)
+        basic_block.instructions.insert(0, phi)
+
+    def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
+        for inst in basic_block.instructions:
+            if inst.opcode == "phi" and inst.output.name == var.name:
+                return False
+
+        args = []
+        for bb in basic_block.cfg_in:
+            if bb == basic_block:
+                continue
+
+            args.append(bb.label)
+            args.append(var)
+
+        phi = IRInstruction("phi", args, var)
+        basic_block.instructions.insert(0, phi)
+
+        return True
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         outs = []
@@ -78,23 +119,24 @@ class MakeSSA(IRPass):
         for op in outs:
             self.stacks[op.name].pop()
 
-    def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
-        for inst in basic_block.instructions:
-            if inst.opcode == "phi" and inst.output.name == var.name:
-                return False
-
-        args = []
-        for bb in basic_block.cfg_in:
-            if bb == basic_block:
+    def _remove_degenerate_phis(self, entry: IRBasicBlock):
+        for inst in entry.instructions:
+            if inst.opcode != "phi":
                 continue
 
-            args.append(bb.label)
-            args.append(var)
+            remove = False
+            for _, var in inst.phi_operands:
+                if var == inst.output:
+                    remove = True
+                    break
 
-        phi = IRInstruction("phi", args, var)
-        basic_block.instructions.insert(0, phi)
+            if remove:
+                entry.instructions.remove(inst)
 
-        return True
+        for bb in self.dom.dominated[entry]:
+            if bb == entry:
+                continue
+            self._remove_degenerate_phis(bb)
 
     def _compute_defs(self):
         self.defs = {}
@@ -102,5 +144,5 @@ class MakeSSA(IRPass):
             assignments = bb.get_assignments()
             for var in assignments:
                 if var not in self.defs:
-                    self.defs[var] = set()
+                    self.defs[var] = OrderedSet()
                 self.defs[var].add(bb)
