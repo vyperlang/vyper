@@ -36,6 +36,13 @@ class NormalizationPass(IRPass):
         split_bb.append_instruction("jmp", bb.label)
         self.ctx.append_basic_block(split_bb)
 
+        for inst in bb.instructions:
+            if inst.opcode != "phi":
+                continue
+            for i in range(0, len(inst.operands), 2):
+                if inst.operands[i] == in_bb.label:
+                    inst.operands[i] = split_bb.label
+
         # Update the labels in the data segment
         for inst in self.ctx.data_segment:
             if inst.opcode == "db" and inst.operands[0] == bb.label:
