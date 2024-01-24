@@ -104,19 +104,17 @@ def input_vars_from(source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IR
             # will arbitrarily choose either %12 or %14 to be in the liveness
             # set, and then during instruction selection, after this instruction,
             # %12 will be replaced by %56 in the liveness set
-            source1, source2 = inst.operands[0], inst.operands[2]
-            phi1, phi2 = inst.operands[1], inst.operands[3]
-            if source.label == source1:
-                liveness.add(phi1)
-                if phi2 in liveness:
-                    liveness.remove(phi2)
-            elif source.label == source2:
-                liveness.add(phi2)
-                if phi1 in liveness:
-                    liveness.remove(phi1)
-            else:
-                # bad path into this phi node
+
+            # bad path into this phi node
+            if source.label not in inst.operands:
                 raise CompilerPanic(f"unreachable: {inst}")
+
+            for label, var in inst.phi_operands:
+                if label == source.label:
+                    liveness.add(var)
+                else:
+                    if var in liveness:
+                        liveness.remove(var)
 
     return liveness
 

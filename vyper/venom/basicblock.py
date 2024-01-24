@@ -273,6 +273,15 @@ class IRInstruction:
             if isinstance(operand, IRLabel) and operand.value in replacements:
                 self.operands[i] = replacements[operand.value]
 
+    @property
+    def phi_operands(self) -> (IRLabel, IRVariable):
+        """
+        Get phi operands for instruction.
+        """
+        assert self.opcode == "phi", "instruction must be a phi"
+        for i in range(0, len(self.operands), 2):
+            yield self.operands[i], self.operands[i + 1]
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
