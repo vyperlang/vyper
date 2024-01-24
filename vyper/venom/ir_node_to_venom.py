@@ -464,7 +464,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             )
             for var in vars:
                 if allocated_variables.get(var.name, None) is None:
-                    new_v = ctx.get_basic_block().append_instruction("alloca", var.size, var.pos)
+                    new_v = IRVariable(var.name)
+                    ctx.get_basic_block().append_instruction("alloca", var.size, var.pos, ret=new_v)
                     allocated_variables[var.name] = new_v
                     symbols[f"&{var.pos}"] = new_v
 
