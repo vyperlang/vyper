@@ -8,6 +8,15 @@ class DominatorTree:
     Dominator tree.
     """
 
+    ctx: IRFunction
+    entry: IRBasicBlock
+    dfs_order: dict[IRBasicBlock, int]
+    dfs: list[IRBasicBlock]
+    dominators: dict[IRBasicBlock, set[IRBasicBlock]]
+    idoms: dict[IRBasicBlock, IRBasicBlock]
+    dominated: dict[IRBasicBlock, set[IRBasicBlock]]
+    df: dict[IRBasicBlock, set[IRBasicBlock]]
+
     def __init__(self, ctx: IRFunction, entry: IRBasicBlock):
         self.ctx = ctx
         self.entry = entry

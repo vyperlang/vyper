@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
 
@@ -135,7 +135,7 @@ class IRVariable(IRValue):
         value: str,
         mem_type: MemType = MemType.OPERAND_STACK,
         mem_addr: int = None,
-        version: str | int = None,
+        version: Optional[str | int] = None,
     ) -> None:
         assert isinstance(value, str)
         assert ":" not in value, "Variable name cannot contain ':'"
@@ -273,13 +273,17 @@ class IRInstruction:
                 self.operands[i] = replacements[operand.value]
 
     @property
-    def phi_operands(self) -> (IRLabel, IRVariable):
+    def phi_operands(self) -> Generator[tuple[IRLabel, IRVariable], None, None]:
         """
         Get phi operands for instruction.
         """
         assert self.opcode == "phi", "instruction must be a phi"
         for i in range(0, len(self.operands), 2):
-            yield self.operands[i], self.operands[i + 1]
+            label = self.operands[i]
+            var = self.operands[i + 1]
+            assert isinstance(label, IRLabel), "phi operand must be a label"
+            assert isinstance(var, IRVariable), "phi operand must be a variable"
+            yield label, var
 
     def __repr__(self) -> str:
         s = ""
