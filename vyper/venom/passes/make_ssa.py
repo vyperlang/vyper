@@ -44,7 +44,7 @@ class MakeSSA(IRPass):
         return changed
 
     def _rename_vars(self, basic_block: IRBasicBlock):
-        old_assignments = []
+        outs = []
         for inst in basic_block.instructions:
             new_ops = []
             if inst.opcode != "phi":
@@ -58,11 +58,12 @@ class MakeSSA(IRPass):
                 inst.operands = new_ops
 
             if inst.output is not None:
-                i = self.var_names[inst.output.name]
-                inst.output = IRVariable(inst.output.name, version=i)
-                old_assignments.append(inst.output)
-                self.stacks[inst.output.name].append(i)
-                self.var_names[inst.output.name] = i + 1
+                v_name = inst.output.name
+                i = self.var_names[v_name]
+                inst.output = IRVariable(v_name, version=i)
+                outs.append(inst.output)
+                self.stacks[v_name].append(i)
+                self.var_names[v_name] = i + 1
 
         for bb in basic_block.cfg_out:
             for inst in bb.instructions:
@@ -79,7 +80,7 @@ class MakeSSA(IRPass):
                 continue
             self._rename_vars(bb)
 
-        for op in old_assignments:
+        for op in outs:
             self.stacks[op.name].pop()
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
