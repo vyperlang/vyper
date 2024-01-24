@@ -498,16 +498,16 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        # recurse and typecheck in case we are being fed the wrong type for
-        # some reason.
-        super().visit(node, typ)
-
         if (
             not isinstance(typ, TYPE_T)
             and not isinstance(node, vy_ast.Index)
             and not isinstance(node.get_ancestor(), (vy_ast.Expr, vy_ast.Log))
         ):
             validate_expected_type(node, typ)
+
+        # recurse and typecheck in case we are being fed the wrong type for
+        # some reason.
+        super().visit(node, typ)
 
         # annotate
         node._metadata["type"] = typ
