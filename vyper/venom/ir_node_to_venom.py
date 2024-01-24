@@ -774,55 +774,19 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         bb.append_instruction("jmp", entry_block.label)
         ctx.append_basic_block(entry_block)
 
-        counter_inc_var = ctx.get_next_variable()
-
         counter_var = ctx.get_basic_block().append_instruction("store", start)
         symbols[sym.value] = counter_var
         ctx.get_basic_block().append_instruction("jmp", cond_block.label)
 
-        ret = cond_block.append_instruction(
-            "phi", entry_block.label, counter_var, increment_block.label, counter_inc_var
-        )
-        symbols[sym.value] = ret
-
-        xor_ret = cond_block.append_instruction("xor", ret, end)
+        xor_ret = cond_block.append_instruction("xor", counter_var, end)
         cont_ret = cond_block.append_instruction("iszero", xor_ret)
         ctx.append_basic_block(cond_block)
 
-        start_syms = symbols.copy()
         start_allocated = allocated_variables.copy()
         ctx.append_basic_block(body_block)
         emit_body_blocks()
-        end_syms = symbols.copy()
-        diff_syms = _get_symbols_common(start_syms, end_syms)
-
-        replacements = {}
-        for sym, val in diff_syms.items():
-            new_var = ctx.get_next_variable()
-            symbols[sym] = new_var
-            replacements[val[0]] = new_var
-            replacements[val[1]] = new_var
-            cond_block.insert_instruction(
-                IRInstruction(
-                    "phi", [entry_block.label, val[0], increment_block.label, val[1]], new_var
-                ),
-                1,
-            )
-
-        i = 0
-        for bb in ctx.basic_blocks:
-            if bb.label == body_block.label:
-                break
-            i += 1
-
-        for bb in ctx.basic_blocks[i:]:
-            bb.replace_operands(replacements)
 
         body_end = ctx.get_basic_block()
-        # for name, var in allocated_variables.items():
-        #     if start_allocated.get(name) is not None:
-        #         continue
-        #     body_end.append_instruction("dealloca", var)
 
         allocated_variables = start_allocated
 
@@ -836,7 +800,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.append_basic_block(continue_block)
 
         increment_block.insert_instruction(
-            IRInstruction("add", [ret, IRLiteral(1)], counter_inc_var), 0
+            IRInstruction("add", [counter_var, IRLiteral(1)], counter_var)
         )
 
         increment_block.append_instruction("jmp", cond_block.label)
