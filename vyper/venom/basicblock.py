@@ -140,7 +140,7 @@ class IRVariable(IRValue):
     ) -> None:
         assert isinstance(value, str)
         assert ":" not in value, "Variable name cannot contain ':'"
-        if version is not None:
+        if version:
             assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
             value = f"{value}:{version}"
         if value[0] != "%":
