@@ -16,6 +16,8 @@ from vyper.venom.function import IRFunction
 from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
+from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -39,6 +41,13 @@ def generate_assembly_experimental(
 def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     # Run passes on Venom IR
     # TODO: Add support for optimization levels
+
+    ir_pass_optimize_empty_blocks(ctx)
+    ir_pass_remove_unreachable_blocks(ctx)
+    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
+    calculate_cfg(ctx)
+    calculate_liveness(ctx)
+
     while True:
         changes = 0
 
