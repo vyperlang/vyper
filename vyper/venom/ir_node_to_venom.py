@@ -681,9 +681,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         if var is not None and var.size is not None:
             if var.size and var.size > 32:
                 if allocated_variables.get(var.name, None) is None:
-                    allocated_variables[var.name] = bb.append_instruction(
-                        "alloca", var.size, var.pos
-                    )
+                    new_var = IRVariable(var.name)
+                    allocated_variables[var.name] = new_var
+                    bb.append_instruction("alloca", var.size, var.pos, ret=new_var)
 
                 offset = int(sym_ir.value) - var.pos
                 if offset > 0:
@@ -752,7 +752,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             global _break_target, _continue_target
             old_targets = _break_target, _continue_target
             _break_target, _continue_target = exit_block, increment_block
-            _convert_ir_bb(ctx, body, symbols, variables, allocated_variables)
+            _convert_ir_bb(ctx, body, symbols.copy(), variables, allocated_variables.copy())
             _break_target, _continue_target = old_targets
 
         sym = ir.args[0]
@@ -781,13 +781,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         cont_ret = cond_block.append_instruction("iszero", xor_ret)
         ctx.append_basic_block(cond_block)
 
-        start_allocated = allocated_variables.copy()
         ctx.append_basic_block(body_block)
         emit_body_blocks()
-
         body_end = ctx.get_basic_block()
-
-        allocated_variables = start_allocated
 
         if not body_end.is_terminated:
             body_end.append_instruction("jmp", jump_up_block.label)
