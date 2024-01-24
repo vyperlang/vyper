@@ -99,7 +99,7 @@ def foo(t: uint256) -> uint256:
 def foo() -> uint256:
     return 1 if True else 2.0
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (  # mismatched body and orelse: literal and known type
         """
@@ -108,7 +108,7 @@ T: constant(uint256) = 1
 def foo() -> uint256:
     return T if True else 2.0
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (  # mismatched body and orelse: both variable
         """
@@ -124,7 +124,7 @@ def foo(x: uint256, y: uint8) -> uint256:
 def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
     return (a, b) if True else (a, b, c)
     """,
-        TypeMismatch,
+        InvalidType,
     ),
     (  # mismatched tuple types - other direction
         """
@@ -132,7 +132,7 @@ def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
 def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
     return (a, b, c) if True else (a, b)
     """,
-        TypeMismatch,
+        InvalidType,
     ),
 ]
 

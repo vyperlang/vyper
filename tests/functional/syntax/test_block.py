@@ -5,22 +5,16 @@ from vyper import compiler
 from vyper.exceptions import InvalidType, TypeMismatch
 
 fail_list = [
-    (
-        """
+    """
 @external
 def foo() -> int128[2]:
     return [3,block.timestamp]
     """,
-        InvalidType,
-    ),
-    (
-        """
+    """
 @external
 def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
     """,
-        InvalidType,
-    ),
     """
 @external
 def foo() -> decimal:

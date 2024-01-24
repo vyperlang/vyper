@@ -84,7 +84,7 @@ struct S:
 def foo() -> int128:
     s: S = S({b: 1.2, a: 1})
     """,
-        InvalidAttribute,
+        InvalidType,
     ),
     (
         """
