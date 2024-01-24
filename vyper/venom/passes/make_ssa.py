@@ -22,8 +22,9 @@ class MakeSSA(IRPass):
             if count := count + 1 > len(ctx.basic_blocks) * 2:
                 raise CompilerPanic("Failed to add phi nodes")
 
-        self.var_names = {var.name: -1 for var in self.defs.keys()}
-        self._rename_vars(entry, set())
+        self.var_names = {var.name: 0 for var in self.defs.keys()}
+        self.stacks = {var.name: [0] for var in self.defs.keys()}
+        self._rename_vars(entry)
 
         # print(ctx.as_graph())
         # import sys
@@ -42,22 +43,26 @@ class MakeSSA(IRPass):
 
         return changed
 
-    def _rename_vars(self, basic_block: IRBasicBlock, visited: set):
-        visited.add(basic_block)
-
+    def _rename_vars(self, basic_block: IRBasicBlock):
+        old_assignments = []
         for inst in basic_block.instructions:
             new_ops = []
-            for op in inst.operands:
-                if not isinstance(op, IRVariable):
-                    new_ops.append(op)
-                    continue
+            if inst.opcode != "phi":
+                for op in inst.operands:
+                    if not isinstance(op, IRVariable):
+                        new_ops.append(op)
+                        continue
 
-                new_ops.append(IRVariable(op.name, version=self.var_names[op.name]))
+                    new_ops.append(IRVariable(op.name, version=self.stacks[op.name][-1]))
 
-            inst.operands = new_ops
+                inst.operands = new_ops
+
             if inst.output is not None:
-                self.var_names[inst.output.name] += 1
-                inst.output = IRVariable(inst.output.name, version=self.var_names[inst.output.name])
+                i = self.var_names[inst.output.name]
+                inst.output = IRVariable(inst.output.name, version=i)
+                old_assignments.append(inst.output)
+                self.stacks[inst.output.name].append(i)
+                self.var_names[inst.output.name] = i + 1
 
         for bb in basic_block.cfg_out:
             for inst in bb.instructions:
@@ -66,18 +71,16 @@ class MakeSSA(IRPass):
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         inst.operands[i + 1] = IRVariable(
-                            inst.output.name, version=self.var_names[inst.output.name]
+                            inst.output.name, version=self.stacks[inst.output.name][-1]
                         )
 
         for bb in self.dom.dominated[basic_block]:
-            if bb in visited:
+            if bb == basic_block:
                 continue
-            self._rename_vars(bb, visited)
+            self._rename_vars(bb)
 
-        for inst in basic_block.instructions:
-            if inst.output is None:
-                continue
-            self.var_names[inst.output.name] -= 1
+        for op in old_assignments:
+            self.stacks[op.name].pop()
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
         for inst in basic_block.instructions:
