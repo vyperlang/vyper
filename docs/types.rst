@@ -316,7 +316,7 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
     ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
 M-byte-wide Fixed Size Byte Array
-----------------------
+---------------------------------
 
 **Keyword:** ``bytesM``
 This is an M-byte-wide byte array that is otherwise similar to dynamically sized byte arrays. On an ABI level, it is annotated as bytesM (e.g., bytes32).
@@ -452,6 +452,7 @@ Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that
 The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
 
 .. code-block:: python
+
     @external
     def add_user(a: Roles) -> Roles:
         ret: Roles = a
@@ -676,4 +677,4 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
 * Enums can be converted to and from ``uint256`` only.
 
-A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`__. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`__.
