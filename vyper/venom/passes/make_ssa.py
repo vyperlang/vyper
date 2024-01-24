@@ -26,11 +26,6 @@ class MakeSSA(IRPass):
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
 
-        # print(ctx.as_graph())
-        # import sys
-
-        # sys.exit(0)
-
         self.changes = 0
 
     def _add_phi_nodes(self) -> bool:
