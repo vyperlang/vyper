@@ -44,7 +44,7 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
 
     ir_pass_optimize_empty_blocks(ctx)
     ir_pass_remove_unreachable_blocks(ctx)
-    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
+    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])  # TODO: do all entries
     calculate_cfg(ctx)
     calculate_liveness(ctx)
 
