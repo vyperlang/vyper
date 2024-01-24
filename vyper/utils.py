@@ -1,5 +1,4 @@
 import binascii
-from collections.abc import Iterator
 import contextlib
 import decimal
 import functools
@@ -7,6 +6,7 @@ import sys
 import time
 import traceback
 import warnings
+from collections.abc import Iterator
 from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import DecimalOverrideException, InvalidLiteral

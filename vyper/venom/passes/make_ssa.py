@@ -1,4 +1,3 @@
-from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
@@ -148,10 +147,10 @@ class MakeSSA(IRPass):
                 if op == inst.output:
                     continue
                 new_ops.extend([label, op])
-            l = len(new_ops)
-            if l == 0:
+            new_ops_len = len(new_ops)
+            if new_ops_len == 0:
                 entry.instructions.remove(inst)
-            elif l == 2:
+            elif new_ops_len == 2:
                 inst.opcode = "store"
                 inst.output = new_ops[1]
                 inst.operands = [new_ops[0]]

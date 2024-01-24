@@ -13,7 +13,6 @@ from vyper.venom.basicblock import (
     MemType,
 )
 from vyper.venom.function import IRFunction
-from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.stack_model import StackModel
 

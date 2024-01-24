@@ -1,4 +1,5 @@
 from typing import Optional
+
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable

@@ -1,5 +1,4 @@
 from enum import Enum, auto
-import re
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
