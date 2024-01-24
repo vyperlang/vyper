@@ -140,7 +140,7 @@ class IRVariable(IRValue):
     ) -> None:
         assert isinstance(value, str)
         assert ":" not in value, "Variable name cannot contain ':'"
-        if version:
+        if version is not None:
             assert isinstance(value, str) or isinstance(value, int), "value must be an str or int"
             value = f"{value}:{version}"
         if value[0] != "%":
@@ -153,6 +153,12 @@ class IRVariable(IRValue):
     @property
     def name(self) -> str:
         return self.value.split(":")[0]
+
+    @property
+    def version(self) -> int:
+        if ":" not in self.value:
+            return -1
+        return int(self.value.split(":")[1])
 
     def __hash__(self) -> int:
         return self.value.__hash__()
