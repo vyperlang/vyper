@@ -369,40 +369,43 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         # convert the condition
         cont_ret = _convert_ir_bb(ctx, cond, symbols, variables, allocated_variables)
-        current_bb = ctx.get_basic_block()
+        cond_block = ctx.get_basic_block()
+
+        cond_symbols = symbols.copy()
+        cond_variables = variables.copy()
+        cond_allocated_variables = allocated_variables.copy()
 
         else_block = IRBasicBlock(ctx.get_next_label("else"), ctx)
         ctx.append_basic_block(else_block)
 
         # convert "else"
         else_ret_val = None
-        else_syms = symbols.copy()
         if len(ir.args) == 3:
             else_ret_val = _convert_ir_bb(
-                ctx, ir.args[2], else_syms, variables, allocated_variables.copy()
+                ctx, ir.args[2], cond_symbols, cond_variables, cond_allocated_variables
             )
             if isinstance(else_ret_val, IRLiteral):
                 assert isinstance(else_ret_val.value, int)  # help mypy
                 else_ret_val = ctx.get_basic_block().append_instruction("store", else_ret_val)
-        after_else_syms = else_syms.copy()
+
         else_block = ctx.get_basic_block()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
         ctx.append_basic_block(then_block)
 
-        then_ret_val = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
+        then_ret_val = _convert_ir_bb(
+            ctx, ir.args[1], cond_symbols, cond_variables, cond_allocated_variables
+        )
         if isinstance(then_ret_val, IRLiteral):
             then_ret_val = ctx.get_basic_block().append_instruction("store", then_ret_val)
 
-        current_bb.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
+        cond_block.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
-        after_then_syms = symbols.copy()
         then_block = ctx.get_basic_block()
 
         # exit bb
-        exit_label = ctx.get_next_label("if_exit")
-        exit_bb = IRBasicBlock(exit_label, ctx)
+        exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), ctx)
         exit_bb = ctx.append_basic_block(exit_bb)
 
         if_ret = None
@@ -411,27 +414,11 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 "phi", then_block.label, then_ret_val, else_block.label, else_ret_val
             )
 
-        common_symbols = _get_symbols_common(after_then_syms, after_else_syms)
-        for sym, val in common_symbols.items():
-            ret = exit_bb.append_instruction(
-                "phi", then_block.label, val[0], else_block.label, val[1]
-            )
-            old_var = symbols.get(sym, None)
-            symbols[sym] = ret
-            if old_var is not None:
-                for idx, var_rec in allocated_variables.items():  # type: ignore
-                    if var_rec.value == old_var.value:
-                        allocated_variables[idx] = ret  # type: ignore
-
         if not else_block.is_terminated:
             else_block.append_instruction("jmp", exit_bb.label)
 
         if not then_block.is_terminated:
             then_block.append_instruction("jmp", exit_bb.label)
-
-        sink_block = IRBasicBlock(ctx.get_next_label("sink"), ctx)
-        ctx.append_basic_block(sink_block)
-        exit_bb.append_instruction("jmp", sink_block.label)
 
         return if_ret
 
@@ -707,9 +694,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 bb.append_instruction("mstore", arg_1, ptr_var)
             else:
                 if isinstance(sym_ir, IRLiteral):
-                    new_var = bb.append_instruction("store", arg_1)
+                    new_var = IRVariable(var.name)
+                    bb.append_instruction("store", arg_1, ret=new_var)
                     symbols[f"&{sym_ir.value}"] = new_var
-                    # if allocated_variables.get(var.name, None) is None:
                     allocated_variables[var.name] = new_var
                 return new_var
         else:
