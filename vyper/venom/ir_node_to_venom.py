@@ -408,11 +408,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), ctx)
         exit_bb = ctx.append_basic_block(exit_bb)
 
-        if_ret = None
+        if_ret = ctx.get_next_variable("if_ret")
         if then_ret_val is not None and else_ret_val is not None:
-            if_ret = exit_bb.append_instruction(
-                "phi", then_block.label, then_ret_val, else_block.label, else_ret_val
-            )
+            then_block.append_instruction("store", then_ret_val, ret=if_ret)
+            else_block.append_instruction("store", else_ret_val, ret=if_ret)
 
         if not else_block.is_terminated:
             else_block.append_instruction("jmp", exit_bb.label)
