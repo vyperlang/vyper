@@ -24,7 +24,7 @@ class MakeSSA(IRPass):
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
 
-        return 1
+        return 0
 
     def _add_phi_nodes(self):
         self._compute_defs()
