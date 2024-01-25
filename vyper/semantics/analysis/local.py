@@ -235,7 +235,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        
+
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
 
@@ -277,7 +277,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, target.typ)
@@ -500,16 +499,16 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        # recurse and typecheck in case we are being fed the wrong type for
-        # some reason.
-        super().visit(node, typ)
-
         if (
             not isinstance(typ, TYPE_T)
-            and not isinstance(node, vy_ast.Index)
+            and not isinstance(node, (vy_ast.Index, vy_ast.Tuple))  # can be deferred
             and not isinstance(node.get_ancestor(), (vy_ast.Expr, vy_ast.Log))
         ):
             validate_expected_type(node, typ)
+
+        # recurse and typecheck in case we are being fed the wrong type for
+        # some reason.
+        super().visit(node, typ)
 
         # annotate
         node._metadata["type"] = typ
@@ -636,6 +635,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
+        print("visit_List - typ: ", typ)
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             self.visit(element, typ.value_type)
