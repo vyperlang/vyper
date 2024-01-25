@@ -346,7 +346,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
-        self.expr_visitor.visit(node.value, fn_type)
+        self.expr_visitor.visit(node.value, TYPE_T(fn_type))
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -459,7 +459,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
         f.fetch_call_return(node.value)
         node._metadata["type"] = f.typedef
-        self.expr_visitor.visit(node.value, f.typedef)
+        self.expr_visitor.visit(node.value, f)
 
     def visit_Raise(self, node):
         if node.exc:
@@ -495,11 +495,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        if (
-            not isinstance(typ, TYPE_T)
-            and not isinstance(node, (vy_ast.Index, vy_ast.Tuple))  # can be deferred
-            and not isinstance(node.get_ancestor(), (vy_ast.Expr, vy_ast.Log))
-        ):
+        if not isinstance(typ, TYPE_T) and not isinstance(node, (vy_ast.Tuple,)):
             validate_expected_type(node, typ)
 
         # recurse and typecheck in case we are being fed the wrong type for
@@ -633,7 +629,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.orelse, typ)
 
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
-        self.visit(node.value, typ)
+        assert isinstance(typ, TYPE_T)
+        self.visit(node.value, typ.typedef)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
@@ -670,7 +667,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         index_types = get_possible_types_from_node(node.slice.value)
         index_type = index_types.pop()
 
-        self.visit(node.slice, index_type)
+        self.visit(node.slice, TYPE_T(index_type))
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
