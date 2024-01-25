@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -26,7 +26,7 @@ class MakeSSA(IRPass):
 
         return 1
 
-    def _add_phi_nodes(self) -> bool:
+    def _add_phi_nodes(self):
         self._compute_defs()
         self.work = {var: 0 for var in self.dom.dfs}
         self.has_already = {var: 0 for var in self.dom.dfs}
@@ -49,7 +49,7 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        args = []
+        args: list[IROperand] = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
                 continue
@@ -62,10 +62,10 @@ class MakeSSA(IRPass):
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
         for inst in basic_block.instructions:
-            if inst.opcode == "phi" and inst.output.name == var.name:
+            if inst.opcode == "phi" and inst.output is not None and inst.output.name == var.name:
                 return False
 
-        args = []
+        args: list[IROperand] = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
                 continue
@@ -104,6 +104,7 @@ class MakeSSA(IRPass):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
+                assert inst.output is not None, "Phi instruction without output"
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         inst.operands[i + 1] = IRVariable(

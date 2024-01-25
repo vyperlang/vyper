@@ -87,6 +87,10 @@ class IROperand:
 
     value: Any
 
+    @property
+    def name(self) -> str:
+        return self.value
+
 
 class IRValue(IROperand):
     """
