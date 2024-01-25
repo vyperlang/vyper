@@ -119,25 +119,6 @@ class MakeSSA(IRPass):
         for op_name in outs:
             self.stacks[op_name].pop()
 
-    def __remove_degenerate_phis(self, entry: IRBasicBlock):
-        for inst in entry.instructions:
-            if inst.opcode != "phi":
-                continue
-
-            remove = False
-            for _, var in inst.phi_operands:
-                if var == inst.output:
-                    remove = True
-                    break
-
-            if remove:
-                entry.instructions.remove(inst)
-
-        for bb in self.dom.dominated[entry]:
-            if bb == entry:
-                continue
-            self._remove_degenerate_phis(bb)
-
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
         for inst in entry.instructions:
             if inst.opcode != "phi":
