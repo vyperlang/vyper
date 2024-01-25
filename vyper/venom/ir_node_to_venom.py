@@ -167,12 +167,10 @@ def _handle_self_call(
                 ret = bb.append_instruction(arg.location.load_op, ret)
             ret_args.append(ret)
 
-    if return_buf.is_literal:
-        ret_args.append(return_buf.value)  # type: ignore
-
     bb = ctx.get_basic_block()
     do_ret = func_t.return_type is not None
     if do_ret:
+        ret_args.append(return_buf.value)  # type: ignore
         invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
         allocated_variables["return_buffer"] = invoke_ret  # type: ignore
         return invoke_ret
@@ -508,9 +506,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         func_t = ir.passthrough_metadata.get("func_t", None)
         assert func_t is not None, "exit_to without func_t"
 
+        bb = ctx.get_basic_block()
         if func_t.is_external:
             # Hardcoded contructor special case
-            bb = ctx.get_basic_block()
             if func_t.name == "__init__":
                 label = IRLabel(ir.args[0].value, True)
                 bb.append_instruction("jmp", label)
@@ -576,8 +574,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
-        bb = ctx.get_basic_block()
-        if func_t.is_internal:
+        elif func_t.is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
             if func_t.return_type is None:
                 bb.append_instruction("ret", symbols["return_pc"])
