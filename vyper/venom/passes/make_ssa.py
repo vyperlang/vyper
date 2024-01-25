@@ -24,7 +24,7 @@ class MakeSSA(IRPass):
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
 
-        self.changes = 0
+        return 1
 
     def _add_phi_nodes(self) -> bool:
         self._compute_defs()
@@ -54,8 +54,8 @@ class MakeSSA(IRPass):
             if bb == basic_block:
                 continue
 
-            args.append(bb.label)
-            args.append(var)
+            args.append(bb.label)  # type: ignore
+            args.append(var)  # type: ignore
 
         phi = IRInstruction("phi", args, var)
         basic_block.instructions.insert(0, phi)
