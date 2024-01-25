@@ -19,7 +19,7 @@ c: public(Bytes[32])
 d: public(int128[4])
 foo: public(HashMap[uint256, uint256[3]])
 dyn_array: DynArray[uint256, 3]
-e: public(String[47])
+e: public(String[48])
 f: public(int256[1])
 g: public(StructTwo[2])
 h: public(int256[1])
