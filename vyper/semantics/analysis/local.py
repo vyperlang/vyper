@@ -635,7 +635,6 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
-        print("visit_List - typ: ", typ)
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             self.visit(element, typ.value_type)
