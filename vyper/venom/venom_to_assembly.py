@@ -260,7 +260,7 @@ class VenomCompiler:
                 continue
 
             if depth != 0:
-                stack.swap(depth)
+                self.swap(asm, stack, depth)
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
