@@ -260,10 +260,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if node.msg:
             self._validate_revert_reason(node.msg)
 
-        try:
-            validate_expected_type(node.test, BoolT())
-        except InvalidType:
-            raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test, BoolT())
 
     # repeated code for Assign and AugAssign
