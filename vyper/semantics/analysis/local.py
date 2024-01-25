@@ -235,11 +235,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+        
+        # validate the value before adding it to the namespace
+        self.expr_visitor.visit(node.value, typ)
 
         self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
         self.expr_visitor.visit(node.target, typ)
-        self.expr_visitor.visit(node.value, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
         if isinstance(msg_node, vy_ast.Str):
@@ -498,16 +500,16 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
+        # recurse and typecheck in case we are being fed the wrong type for
+        # some reason.
+        super().visit(node, typ)
+
         if (
             not isinstance(typ, TYPE_T)
             and not isinstance(node, vy_ast.Index)
             and not isinstance(node.get_ancestor(), (vy_ast.Expr, vy_ast.Log))
         ):
             validate_expected_type(node, typ)
-
-        # recurse and typecheck in case we are being fed the wrong type for
-        # some reason.
-        super().visit(node, typ)
 
         # annotate
         node._metadata["type"] = typ
