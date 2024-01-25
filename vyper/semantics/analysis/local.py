@@ -627,6 +627,11 @@ class ExprVisitor(VyperNodeVisitorBase):
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         pass
 
+    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
+        self.visit(node.test, BoolT())
+        self.visit(node.body, typ)
+        self.visit(node.orelse, typ)
+
     def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
         self.visit(node.value, typ)
 
@@ -679,11 +684,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
         self.visit(node.operand, typ)
-
-    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
-        self.visit(node.test, BoolT())
-        self.visit(node.body, typ)
-        self.visit(node.orelse, typ)
 
 
 def _validate_range_call(node: vy_ast.Call):
