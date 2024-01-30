@@ -125,7 +125,7 @@ You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can p
 
 
 The ``__default__`` Function
---------------------------
+----------------------------
 
 A contract can also have a default function, which is executed on a call to the contract if no other functions match the given function identifier (or if none was supplied at all, such as through someone sending it Eth). It is the same construct as fallback functions `in Solidity <https://solidity.readthedocs.io/en/latest/contracts.html?highlight=fallback#fallback-function>`_.
 
@@ -165,7 +165,7 @@ Lastly, although the default function receives no arguments, it can still access
     * the gas provided (``msg.gas``).
 
 The ``__init__`` Function
------------------------
+-------------------------
 
 ``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
 

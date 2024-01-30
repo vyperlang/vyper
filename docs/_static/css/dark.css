@@ -20,6 +20,10 @@ a:visited {
     background-color: #2d2d2d !important;
 }
 
+.descname {
+    color: inherit !important;
+}
+
 .rst-content dl:not(.docutils) dt {
     color: #aaddff;
     border-top: solid 3px #525252;
@@ -163,6 +167,10 @@ pre {
 
 
 /* table of contents */
+
+.wy-body-for-nav {
+    background-color: rgb(26, 28, 29);
+}
 
 .wy-nav-content-wrap {
     background-color: rgba(0, 0, 0, 0.6) !important;

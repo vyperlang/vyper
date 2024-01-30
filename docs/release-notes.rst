@@ -51,7 +51,7 @@ Notable fixes:
 - update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
 - fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
 - fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
-- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`__)
 
 Other docs updates, chores and fixes:
 -------------------------------------
@@ -164,7 +164,7 @@ Other docs updates, chores and fixes:
 - fix docs of ``blockhash`` to reflect revert behaviour (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
 - improvements to compiler error messages (`#3121 <https://github.com/vyperlang/vyper/pull/3121>`_, `#3134 <https://github.com/vyperlang/vyper/pull/3134>`_, `#3312 <https://github.com/vyperlang/vyper/pull/3312>`_, `#3304 <https://github.com/vyperlang/vyper/pull/3304>`_, `#3240 <https://github.com/vyperlang/vyper/pull/3240>`_, `#3264 <https://github.com/vyperlang/vyper/pull/3264>`_, `#3343 <https://github.com/vyperlang/vyper/pull/3343>`_, `#3307 <https://github.com/vyperlang/vyper/pull/3307>`_, `#3313 <https://github.com/vyperlang/vyper/pull/3313>`_ and `#3215 <https://github.com/vyperlang/vyper/pull/3215>`_)
 
-These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
+These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`__. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
 New Contributors:
 
@@ -346,7 +346,7 @@ Notable Fixes:
 * Referencing immutables in constructor (`#2627 <https://github.com/vyperlang/vyper/pull/2627>`_)
 * Arrays of interfaces in for loops (`#2699 <https://github.com/vyperlang/vyper/pull/2699>`_)
 
-Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`_.
+Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`__.
 
 Special thanks to @tserg for typechecker fixes and significant testing of new features! Additional contributors to this release include @abdullathedruid, @hi-ogawa, @skellet0r, @fubuloubu, @onlymaresia, @SwapOperator, @hitsuzen-eth, @Sud0u53r, @davidhq.
 
