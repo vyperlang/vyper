@@ -21,7 +21,7 @@ def __init__(_exchange_codehash: bytes32):
 #       For example, allowing the deployer of this contract to change this
 #       value allows them to use a new contract if the old one has an issue.
 #       This would trigger a cascade effect across all exchanges that would
-#       need to be handled appropiately.
+#       need to be handled appropriately.
 
 
 @external

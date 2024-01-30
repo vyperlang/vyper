@@ -80,7 +80,7 @@ def test_end_auction(w3, tester, auction_contract, tx_failed):
     with tx_failed():
         auction_contract.endAuction()
     auction_contract.bid(transact={"value": 1 * 10**10, "from": k2})
-    # Move block timestamp foreward to reach auction end time
+    # Move block timestamp forward to reach auction end time
     # tester.time_travel(tester.get_block_by_number('latest')['timestamp'] + EXPIRY)
     w3.testing.mine(EXPIRY)
     balance_before_end = w3.eth.get_balance(k1)
