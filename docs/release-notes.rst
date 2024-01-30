@@ -927,7 +927,7 @@ Here is the old changelog:
 * **2019.04.05**: Add stricter checking of unbalanced return statements. (`#590 <https://github.com/vyperlang/vyper/issues/590>`_)
 * **2019.03.04**: ``create_with_code_of`` has been renamed to ``create_forwarder_to``. (`#1177 <https://github.com/vyperlang/vyper/issues/1177>`_)
 * **2019.02.14**: Assigning a persistent contract address can only be done using the ``bar_contact = ERC20(<address>)`` syntax.
-* **2019.02.12**: ERC20 interface has to be imported using ``from ethereum.ercs import ERC20`` to use.
+* **2019.02.12**: ERC20 interface has to be imported using ``from vyper.interfaces import ERC20`` to use.
 * **2019.01.30**: Byte array literals need to be annoted using ``b""``, strings are represented as `""`.
 * **2018.12.12**: Disallow use of ``None``, disallow use of ``del``, implemented ``clear()`` built-in function.
 * **2018.11.19**: Change mapping syntax to use ``map()``. (`VIP564 <https://github.com/vyperlang/vyper/issues/564>`_)
