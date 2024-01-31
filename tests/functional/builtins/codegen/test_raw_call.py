@@ -608,6 +608,22 @@ def foo(_addr: address):
     (
         """
 @external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_delegate_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), is_static_call=True, value=1)
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
 @view
 def foo(_addr: address):
     raw_call(_addr, 256)
