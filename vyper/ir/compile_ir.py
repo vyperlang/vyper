@@ -16,6 +16,58 @@ PUSH_OFFSET = 0x5F
 DUP_OFFSET = 0x7F
 SWAP_OFFSET = 0x8F
 
+def encode_unsigned(value: int) -> bytes:
+    assert value >= 0
+
+    if value == 0:
+        return b"\x00"
+
+    ret = bytearray()
+    while value > 0:
+        char = value & 0x7F
+        value >>= 7
+
+        ret.append(char)
+
+    # set the continuation bits
+    for i, char in enumerate(ret):
+        if i == 0:
+            continue
+        ret[i] |= 0x80
+
+    # flip to big endian
+    ret.reverse()
+
+    return bytes(ret)
+
+def decode_unsigned(value: bytes) -> int:
+    ret = 0
+    for char in (value):
+        ret <<= 7
+        ret |= char & 0x7F
+        if char & 0x80 == 0:  # check continuation byte
+            break
+    else:
+        raise ValueError(value)  # TODO: use validation error
+
+    return ret
+
+def encode_signed(value: int) -> bytes:
+    bits = value.bit_length()
+    bits += 7 - (bits % 7)
+
+    # https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba
+    zigzag = (value >> bits - 1) ^ (value << 1)
+
+    return encode_unsigned(zigzag)
+
+def decode_signed(value: bytes) -> int:
+    int_val = decode_unsigned(value)
+
+    # zig zag decoding
+    # https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba
+    return (int_val >> 1) ^ -(int_val & 1)
+
 
 def num_to_bytearray(x):
     o = []
@@ -1156,6 +1208,8 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
     data_section_lengths = []
     immutables_len = None
 
+    jumps = []
+
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
@@ -1260,6 +1314,11 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
         elif is_symbol(item):
             # push a symbol to stack
             if not is_symbol_map_indicator(assembly[i + 1]):
+                if not item.startswith("_sym_revert") and not item.startswith("_sym_internal"):
+                    current_pc = len(ret)
+                    rel_pc = symbol_map[item] - current_pc  # estimate relative pc
+                    vlq = encode_signed(rel_pc)
+                    jumps.append(len(vlq))
                 bytecode, _ = assembly_to_evm(PUSH_N(symbol_map[item], n=SYMBOL_SIZE))
                 ret.extend(bytecode)
 
@@ -1297,4 +1356,10 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
 
     line_number_map["breakpoints"] = list(line_number_map["breakpoints"])
     line_number_map["pc_breakpoints"] = list(line_number_map["pc_breakpoints"])
+    if len(jumps) > 0:
+        import sys
+        print(f"number of jumps counted: {len(jumps)} (aka {2*len(jumps)} bytes)", file=sys.stderr)
+        print("theoretical bytes used by vlq:", sum(jumps), file=sys.stderr)
+        n_bytes_saved = 2 * len(jumps) - sum(jumps)
+        print(f"savings: {n_bytes_saved} bytes ({100*n_bytes_saved / len(ret):0.2f}%)", file=sys.stderr)
     return bytes(ret), line_number_map, symbol_map
