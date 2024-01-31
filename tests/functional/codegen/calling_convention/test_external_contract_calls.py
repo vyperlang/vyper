@@ -2370,7 +2370,7 @@ def transfer(receiver: address, amount: uint256):
     """
 
     code = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 @external
 def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
     assert erc20.transfer(receiver, amount, default_return_value=True)
