@@ -163,4 +163,4 @@ class IRFunction:
             str += "Data segment:\n"
             for inst in self.data_segment:
                 str += f"{inst}\n"
-        return str
+        return str.strip()

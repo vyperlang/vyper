@@ -6,8 +6,8 @@
 # @author Takayuki Jimba (@yudetamago)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 
-from vyper.interfaces import ERC20
-from vyper.interfaces import ERC20Detailed
+from ethereum.ercs import ERC20
+from ethereum.ercs import ERC20Detailed
 
 implements: ERC20
 implements: ERC20Detailed

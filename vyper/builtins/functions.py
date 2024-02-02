@@ -543,13 +543,12 @@ class Concat(BuiltinFunctionT):
         else:
             ret_typ = BytesT(dst_maxlen)
 
+        # respect API of copy_bytes
+        bufsize = dst_maxlen + 32
+        buf = context.new_internal_variable(BytesT(bufsize))
+
         # Node representing the position of the output in memory
-        dst = IRnode.from_list(
-            context.new_internal_variable(ret_typ),
-            typ=ret_typ,
-            location=MEMORY,
-            annotation="concat destination",
-        )
+        dst = IRnode.from_list(buf, typ=ret_typ, location=MEMORY, annotation="concat destination")
 
         ret = ["seq"]
         # stack item representing our current offset in the dst buffer
@@ -1115,13 +1114,16 @@ class RawCall(BuiltinFunctionT):
 
         if delegate_call and static_call:
             raise ArgumentException(
-                "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
+                "Call may use one of `is_delegate_call` or `is_static_call`, not both"
             )
+
+        if (delegate_call or static_call) and value.value != 0:
+            raise ArgumentException("value= may not be passed for static or delegate calls!")
+
         if not static_call and context.is_constant():
             raise StateAccessViolation(
                 f"Cannot make modifying calls from {context.pp_constancy()},"
-                " use `is_static_call=True` to perform this action",
-                expr,
+                " use `is_static_call=True` to perform this action"
             )
 
         if data.value == "~calldata":

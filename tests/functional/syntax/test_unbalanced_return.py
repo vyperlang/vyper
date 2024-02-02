@@ -118,6 +118,39 @@ def foo() -> uint256:
     """,
         StructureException,
     ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(10):
+        if i == 11:
+            return 1
+        """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(9):
+        if i == 11:
+            return 1
+    if block.number % 2 == 0:
+        return 1
+        """,
+        FunctionDeclarationException,
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    for i: uint256 in range(10):
+        return 1
+        pass  # unreachable
+    return 5
+        """,
+        StructureException,
+    ),
 ]
 
 
@@ -186,6 +219,13 @@ def foo() -> int128:
         return 123
     else:
         raw_revert(b"vyper")
+    """,
+    """
+@external
+def foo() -> int128:
+    for i: uint256 in range(1):
+        return 1
+    return 0
     """,
 ]
 

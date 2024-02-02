@@ -63,7 +63,7 @@ class _BytestringT(VyperType):
 
         if len(node.value) != self.length:
             # should always be constructed with correct length
-            # at the point that validate_literal is calle.d
+            # at the point that validate_literal is called
             raise CompilerPanic("unreachable")
 
     @property
@@ -71,7 +71,7 @@ class _BytestringT(VyperType):
         # the first slot (32 bytes) stores the actual length, and then we reserve
         # enough additional slots to store the data if it uses the max available length
         # because this data type is single-bytes, we make it so it takes the max 32 byte
-        # boundary as it's size, instead of giving it a size that is not cleanly divisble by 32
+        # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
 
         return 32 + ceil32(self.length)
 

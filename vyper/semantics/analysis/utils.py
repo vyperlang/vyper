@@ -648,15 +648,11 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
         return all(check_modifiability(item, modifiability) for item in node.elements)
 
     if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_modifiability(v, modifiability) for v in args[0].values)
-
         call_type = get_exact_type_from_node(node.func)
 
-        # builtins
-        call_type_modifiability = getattr(call_type, "_modifiability", Modifiability.MODIFIABLE)
-        return call_type_modifiability >= modifiability
+        # structs and interfaces
+        if hasattr(call_type, "check_modifiability_for_call"):
+            return call_type.check_modifiability_for_call(node, modifiability)
 
     value_type = get_expr_info(node)
     return value_type.modifiability >= modifiability

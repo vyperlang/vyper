@@ -42,7 +42,7 @@ VAL: constant(uint256) = -1
     """,
         InvalidType,
     ),
-    # reserverd keyword
+    # reserved keyword
     (
         """
 wei: constant(uint256) = 1
@@ -303,6 +303,19 @@ C: constant(Foo) = Foo({a: A, b: B})
 D: constant(int128) = -1
 
 CONST_BAR: constant(Bar) = Bar({c: C, d: D})
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(BAR)
+BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
     """,
 ]
 

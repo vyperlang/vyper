@@ -537,7 +537,7 @@ def _import_to_path(level: int, module_str: str) -> PurePath:
 
 
 # can add more, e.g. "vyper.builtins.interfaces", etc.
-BUILTIN_PREFIXES = ["vyper.interfaces"]
+BUILTIN_PREFIXES = ["ethereum.ercs"]
 
 
 def _is_builtin(module_str):
@@ -559,10 +559,10 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     input_bundle = FilesystemInputBundle([search_path])
 
     # remap builtins directory --
-    # vyper/interfaces => vyper/builtins/interfaces
+    # ethereum/ercs => vyper/builtins/interfaces
     remapped_module = module_str
-    if remapped_module.startswith("vyper.interfaces"):
-        remapped_module = remapped_module.removeprefix("vyper.interfaces")
+    if remapped_module.startswith("ethereum.ercs"):
+        remapped_module = remapped_module.removeprefix("ethereum.ercs")
         remapped_module = vyper.builtins.interfaces.__package__ + remapped_module
 
     path = _import_to_path(level, remapped_module).with_suffix(".vyi")

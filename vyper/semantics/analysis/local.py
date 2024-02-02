@@ -74,6 +74,7 @@ def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
     for node in node_list:
         if ret is not None:
             raise StructureException("Unreachable code!", node)
+
         if node.is_terminus:
             ret = node
 
@@ -86,6 +87,10 @@ def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
 
             if body_terminates is not None and else_terminates is not None:
                 ret = else_terminates
+
+        if isinstance(node, vy_ast.For):
+            # call find_terminating_node for its side effects
+            find_terminating_node(node.body)
 
     return ret
 

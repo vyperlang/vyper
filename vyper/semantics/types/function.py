@@ -189,7 +189,7 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        # FunctionDef with stateMutability in body (Interface defintions)
+        # FunctionDef with stateMutability in body (Interface definitions)
         body = funcdef.body
         if (
             len(body) == 1

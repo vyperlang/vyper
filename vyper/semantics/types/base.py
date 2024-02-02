@@ -334,6 +334,11 @@ class TYPE_T:
     def __repr__(self):
         return f"type({self.typedef})"
 
+    def check_modifiability_for_call(self, node, modifiability):
+        if hasattr(self.typedef, "_ctor_modifiability_for_call"):
+            return self.typedef._ctor_modifiability_for_call(node, modifiability)
+        raise StructureException("Value is not callable", node)
+
     # dispatch into ctor if it's called
     def fetch_call_return(self, node):
         if hasattr(self.typedef, "_ctor_call_return"):

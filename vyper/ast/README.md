@@ -42,7 +42,7 @@ Conversion between a Python Node and a Vyper Node uses the following rules:
 * The type of Vyper node is determined from the `ast_type` field of the Python node.
 * Fields listed in `__slots__` may be included and may have a value.
 * Fields listed in `_translated_fields` have their key modified prior to being added.
-This is used to handle discrepencies in how nodes are structured between different
+This is used to handle discrepancies in how nodes are structured between different
 Python versions.
 * Fields listed in `_only_empty_fields`, if present within the Python AST, must
 be `None` or a `SyntaxException` is raised.

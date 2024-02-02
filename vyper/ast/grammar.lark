@@ -237,7 +237,7 @@ _BITAND: "&"
 _BITOR: "|"
 _BITXOR: "^"
 
-// Comparisions
+// Comparisons
 _EQ: "=="
 _NE: "!="
 _LE: "<="

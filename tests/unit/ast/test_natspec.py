@@ -186,7 +186,7 @@ def test_partial_natspec():
 @external
 def foo():
     '''
-    Regular comments preceeding natspec is not allowed
+    Regular comments preceding natspec is not allowed
     @notice this is natspec
     '''
     pass
