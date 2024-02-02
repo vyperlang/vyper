@@ -26,6 +26,7 @@ from vyper.semantics.analysis.base import (
     InitializesInfo,
     Modifiability,
     ModuleInfo,
+    UsesInfo,
     VarInfo,
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
@@ -237,25 +238,72 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_.validate_implements(node)
 
     def visit_UsesDecl(self, node):
-        # XXX: implement
-        pass
+        # TODO: check duplicate uses declarations, e.g.
+        # uses: x
+        # ...
+        # uses: x
+        items = vy_ast.as_tuple(node.annotation)
+
+        used_modules = []
+
+        for item in items:
+            module_info = get_expr_info(item).module_info
+            if module_info is None:
+                raise StructureException("not a valid module!", item)
+            used_modules.append(module_info)
+
+        node._metadata["uses_info"] = UsesInfo(used_modules)
 
     def visit_InitializesDecl(self, node):
         module_ref = node.annotation
+        dependencies_ast = ()
         if isinstance(module_ref, vy_ast.Subscript):
             module_ref = module_ref.value
+            dependencies_ast = vy_ast.as_tuple(node.annotation.slice.value)
 
         # postcondition of InitializesDecl.validates()
         assert isinstance(module_ref, (vy_ast.Name, vy_ast.Attribute))
 
-        module_t = get_expr_info(module_ref).typ
-        if not isinstance(module_t, ModuleT):
+        module_info = get_expr_info(module_ref).module_info
+        if module_info is None:
             raise StructureException("Not a module!", module_ref)
 
-        node._metadata["initializes_info"] = InitializesInfo(module_t)
+        used_modules = module_info.module_t.used_modules.copy()
 
-        # XXX: implement borrowship check
-        pass
+        dependencies = []
+        for named_expr in dependencies_ast:
+            assert isinstance(named_expr, vy_ast.NamedExpr)
+
+            with override_global_namespace(module_info.module_node._metadata["namespace"]):
+                # lhs of the named_expr is evaluated in the namespace of the initialized module
+                lhs_module = get_expr_info(named_expr.target).module_info
+            rhs_module = get_expr_info(named_expr.value).module_info
+
+            if lhs_module.module_t != rhs_module.module_t:
+                raise StructureException(
+                    f"{lhs_module.alias} is not {rhs_module.alias}!", named_expr
+                )
+            dependencies.append(lhs_module)
+
+            if lhs_module not in used_modules:
+                raise StructureException(
+                    f"`{module_info.alias}` is initialized with `{lhs_module.alias}`, "
+                    f"but `{module_info.alias}` does not use `{lhs_module.alias}`!",
+                    named_expr,
+                )
+
+            used_modules.remove(lhs_module)
+
+        if len(used_modules) > 0:
+            item = used_modules[0]  # just pick one
+            raise StructureException(
+                f"`{module_info.alias}` uses `{item.alias}`, but it is not "
+                f"initialized with `{item.alias}`\n"
+                f"(hint: add `{item.alias}` to its initializer list)",
+                node,
+            )
+
+        node._metadata["initializes_info"] = InitializesInfo(module_info.module_t, dependencies)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
@@ -478,7 +526,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t)
+                return ModuleInfo(module_t, alias)
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things

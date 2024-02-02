@@ -353,6 +353,18 @@ class ModuleT(VyperType):
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
 
+    @property
+    def uses_decls(self):
+        return self._module.get_children(vy_ast.UsesDecl)
+
+    @property
+    def used_modules(self):
+        ret = []
+        for node in self.uses_decls:
+            for used_module in node._metadata["uses_info"].used_modules:
+                ret.append(used_module)
+        return ret
+
     @cached_property
     def variables(self):
         # variables that this module defines, ex.

@@ -1428,6 +1428,17 @@ class ImplementsDecl(Stmt):
             raise StructureException("invalid implements", self.annotation)
 
 
+def as_tuple(node: VyperNode):
+    """
+    Convenience function for some AST nodes which allow either a Tuple
+    or single elements. Returns a python tuple of AST nodes.
+    """
+    if isinstance(node, Tuple):
+        return node.elements
+    else:
+        return (node,)
+
+
 class UsesDecl(Stmt):
     """
     A `uses` declaration.
@@ -1443,11 +1454,7 @@ class UsesDecl(Stmt):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if isinstance(self.annotation, Tuple):
-            items = self.annotation.elements
-        else:
-            items = (self.annotation,)
-
+        items = as_tuple(self.annotation)
         for item in items:
             if not isinstance(item, (Name, Attribute)):
                 raise StructureException("invalid uses", item)
@@ -1473,11 +1480,7 @@ class InitializesDecl(Stmt):
             module_ref = module_ref.value
 
             index = self.annotation.slice.value
-
-            if isinstance(index, Tuple):
-                dependencies = index.elements
-            else:
-                dependencies = (index,)
+            dependencies = as_tuple(index)
 
             for item in dependencies:
                 if not isinstance(item, NamedExpr):

@@ -185,6 +185,7 @@ class AnalysisResult:
 @dataclass
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
+    alias: str
 
     @property
     def module_node(self):
@@ -210,6 +211,13 @@ class ImportInfo(AnalysisResult):
 @dataclass
 class InitializesInfo(AnalysisResult):
     module_t: "ModuleT"
+    dependencies: list["ModuleT"]
+
+
+# analysis result of UsesDecl
+@dataclass
+class UsesInfo(AnalysisResult):
+    used_modules: list["ModuleT"]
 
 
 @dataclass
@@ -273,6 +281,7 @@ class ExprInfo:
 
     typ: VyperType
     var_info: Optional[VarInfo] = None
+    module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
 
@@ -294,7 +303,7 @@ class ExprInfo:
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
-        return cls(module_info.module_t)
+        return cls(module_info.module_t, module_info=module_info)
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """
