@@ -276,6 +276,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
+        # check mutability of the function
         validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
@@ -334,11 +335,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise StateAccessViolation(
                     "Cannot call non-pure function from a pure function", node
                 )
-
-        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            # it's a dotted function call like dynarray.pop()
-            expr_info = get_expr_info(node.value.func.value)
-            expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
         return_value = fn_type.fetch_call_return(node.value)
@@ -565,6 +561,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         # already calls `validate_expected_type` on the call args
         # and kwargs via `call_type.fetch_call_return`
         self.visit(node.func, call_type)
+
+        # check mutability level of the function
+        expr_info = get_expr_info(node.func.value)
+        expr_info.validate_modification(node, self.func.mutability)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls

@@ -26,6 +26,7 @@ from vyper.semantics.analysis.base import (
     InitializesInfo,
     Modifiability,
     ModuleInfo,
+    ModuleOwnership,
     UsesInfo,
     VarInfo,
 )
@@ -250,6 +251,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_info = get_expr_info(item).module_info
             if module_info is None:
                 raise StructureException("not a valid module!", item)
+
+            # note: try to refactor - not a huge fan of mutating the
+            # ModuleInfo after it's constructed
+            module_info.set_ownership(ModuleOwnership.USES, item)
+
             used_modules.append(module_info)
 
         node._metadata["uses_info"] = UsesInfo(used_modules)
@@ -303,6 +309,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
+        # note: try to refactor. not a huge fan of mutating the
+        # ModuleInfo after it's constructed
+        module_info.set_ownership(ModuleOwnership.INITIALIZES, node)
         node._metadata["initializes_info"] = InitializesInfo(module_info.module_t, dependencies)
 
     def visit_VariableDecl(self, node):

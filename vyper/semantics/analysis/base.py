@@ -8,6 +8,7 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     StateAccessViolation,
+    StructureException,
     VyperInternalException,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -177,6 +178,12 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
+class ModuleOwnership(enum.IntEnum):
+    NO_OWNERSHIP = enum.auto()  # readable
+    USES = enum.auto()  # writeable
+    INITIALIZES = enum.auto()  # initializes
+
+
 # base class for things that are the "result" of analysis
 class AnalysisResult:
     pass
@@ -186,6 +193,8 @@ class AnalysisResult:
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
     alias: str
+    ownership: ModuleOwnership = ModuleOwnership.NO_OWNERSHIP
+    ownership_decl: Optional[vy_ast.VyperNode] = None
 
     @property
     def module_node(self):
@@ -195,6 +204,13 @@ class ModuleInfo(AnalysisResult):
     @property
     def typ(self):
         return self.module_t
+
+    def set_ownership(self, module_ownership: ModuleOwnership, node: Optional[vy_ast.VyperNode]):
+        if self.ownership != ModuleOwnership.NO_OWNERSHIP:
+            raise StructureException(
+                f"ownership already set to {self.module_ownership}", node, self.ownership_decl
+            )
+        self.ownership = module_ownership
 
 
 @dataclass
@@ -303,7 +319,11 @@ class ExprInfo:
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
-        return cls(module_info.module_t, module_info=module_info)
+        modifiability = Modifiability.MODIFIABLE
+        if module_info.ownership < ModuleOwnership.USES:
+            modifiability = Modifiability.CONSTANT
+
+        return cls(module_info.module_t, module_info=module_info, modifiability=modifiability)
 
     def copy_with_type(self, typ: VyperType) -> "ExprInfo":
         """
@@ -350,7 +370,11 @@ class ExprInfo:
                 raise ImmutableViolation("Environment variable cannot be written to", node)
 
         if self.modifiability == Modifiability.CONSTANT:
-            raise ImmutableViolation("Constant value cannot be written to", node)
+            msg = "Constant value cannot be written to."
+            if self.module_info is not None:
+                msg += f"\n(hint: add `uses: {self.module_info.alias}` as "
+                msg += "a top-level statement to your contract)."
+            raise ImmutableViolation(msg, node)
 
         if isinstance(node, vy_ast.AugAssign):
             self.typ.validate_numeric_op(node)

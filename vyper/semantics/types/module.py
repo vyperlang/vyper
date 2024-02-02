@@ -358,11 +358,25 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.UsesDecl)
 
     @property
+    def initializes_decls(self):
+        return self._module.get_children(vy_ast.InitializesDecl)
+
+    @property
     def used_modules(self):
+        # modules which are written to
         ret = []
         for node in self.uses_decls:
             for used_module in node._metadata["uses_info"].used_modules:
                 ret.append(used_module)
+        return ret
+
+    @property
+    def initialized_modules(self):
+        # modules which are initialized to
+        ret = []
+        for node in self.initializes_decls:
+            info = node._metadata["initializes_info"]
+            ret.append(info.module_t)
         return ret
 
     @cached_property
