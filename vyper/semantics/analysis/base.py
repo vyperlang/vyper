@@ -208,7 +208,7 @@ class ModuleInfo(AnalysisResult):
     def set_ownership(self, module_ownership: ModuleOwnership, node: Optional[vy_ast.VyperNode]):
         if self.ownership != ModuleOwnership.NO_OWNERSHIP:
             raise StructureException(
-                f"ownership already set to {self.module_ownership}", node, self.ownership_decl
+                f"ownership already set to {self.ownership}", node, self.ownership_decl
             )
         self.ownership = module_ownership
 
@@ -226,14 +226,16 @@ class ImportInfo(AnalysisResult):
 # analysis result of InitializesDecl
 @dataclass
 class InitializesInfo(AnalysisResult):
-    module_t: "ModuleT"
+    module_info: ModuleInfo
     dependencies: list["ModuleT"]
+    node: Optional[vy_ast.VyperNode] = None
 
 
 # analysis result of UsesDecl
 @dataclass
 class UsesInfo(AnalysisResult):
-    used_modules: list["ModuleT"]
+    used_modules: list[ModuleInfo]
+    node: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass

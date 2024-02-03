@@ -361,7 +361,7 @@ class ModuleT(VyperType):
     def initializes_decls(self):
         return self._module.get_children(vy_ast.InitializesDecl)
 
-    @property
+    @cached_property
     def used_modules(self):
         # modules which are written to
         ret = []
@@ -376,7 +376,7 @@ class ModuleT(VyperType):
         ret = []
         for node in self.initializes_decls:
             info = node._metadata["initializes_info"]
-            ret.append(info.module_t)
+            ret.append(info)
         return ret
 
     @cached_property

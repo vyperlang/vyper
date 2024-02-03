@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
@@ -48,7 +49,11 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
-    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
+    ret = validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
+
+    _validate_global_initializes_constraint(ret)
+
+    return ret
 
 
 def validate_semantics_r(
@@ -107,6 +112,59 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
         fn_t.reachable_internal_functions.add(g)
 
     path.pop()
+
+
+def _collect_used_modules_r(module_t):
+    ret: defaultdict[ModuleT, list[UsesInfo]] = defaultdict(list)
+
+    for uses_decl in module_t.uses_decls:
+        for used_module in uses_decl._metadata["uses_info"].used_modules:
+            ret[used_module.module_t].append(uses_decl)
+
+    for m_info in module_t.used_modules:
+        used_modules = _collect_used_modules_r(m_info.module_t)
+        for k, v in used_modules.items():
+            ret[k].extend(v)
+
+    return ret
+
+
+def _collect_initialized_modules_r(module_t, seen=None):
+    seen: dict[ModuleT, InitializesInfo] = seen or {}
+
+    # list of InitializedInfo
+    initialized_infos = module_t.initialized_modules
+
+    for i in initialized_infos:
+        if (other := seen.get(i.module_info.module_t)) is not None:
+            raise StructureException("{i.module_info.alias} initialized twice!", i.node, other)
+        seen[i.module_info.module_t] = i
+
+        for d in i.dependencies:
+            _collect_initialized_modules_r(d.module_t, seen)
+
+    return seen
+
+
+# validate that each module which is `used` in the import graph is
+# `initialized`.
+def _validate_global_initializes_constraint(module_t: ModuleT):
+    all_used_modules = _collect_used_modules_r(module_t)
+    all_initialized_modules = _collect_initialized_modules_r(module_t)
+
+    err_list = ExceptionList()
+
+    for u, uses in all_used_modules.items():
+        if u not in all_initialized_modules:
+            err_list.append(
+                StructureException(
+                    f"module {u} is used but never initialized!\n  "
+                    f"(hint: add `initializes: module_name` to your main contract",
+                    *uses,
+                )
+            )
+
+    err_list.raise_if_not_empty()
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -193,6 +251,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def analyze_call_graph(self):
         # get list of internal function calls made by each function
+        # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
         function_defs = self.module_t.function_defs
 
         for func in function_defs:
@@ -258,7 +317,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             used_modules.append(module_info)
 
-        node._metadata["uses_info"] = UsesInfo(used_modules)
+        node._metadata["uses_info"] = UsesInfo(used_modules, node)
 
     def visit_InitializesDecl(self, node):
         module_ref = node.annotation
@@ -274,14 +333,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
 
-        used_modules = module_info.module_t.used_modules.copy()
+        used_modules = [i.module_t for i in module_info.module_t.used_modules]
 
         dependencies = []
         for named_expr in dependencies_ast:
             assert isinstance(named_expr, vy_ast.NamedExpr)
 
-            with override_global_namespace(module_info.module_node._metadata["namespace"]):
-                # lhs of the named_expr is evaluated in the namespace of the initialized module
+            with module_info.module_node.namespace():
+                # lhs of the named_expr is evaluated in the namespace of the
+                # initialized module!
                 lhs_module = get_expr_info(named_expr.target).module_info
             rhs_module = get_expr_info(named_expr.value).module_info
 
@@ -291,14 +351,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
             dependencies.append(lhs_module)
 
-            if lhs_module not in used_modules:
+            if lhs_module.module_t not in used_modules:
                 raise StructureException(
                     f"`{module_info.alias}` is initialized with `{lhs_module.alias}`, "
                     f"but `{module_info.alias}` does not use `{lhs_module.alias}`!",
                     named_expr,
                 )
 
-            used_modules.remove(lhs_module)
+            used_modules.remove(lhs_module.module_t)
 
         if len(used_modules) > 0:
             item = used_modules[0]  # just pick one
@@ -312,7 +372,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # note: try to refactor. not a huge fan of mutating the
         # ModuleInfo after it's constructed
         module_info.set_ownership(ModuleOwnership.INITIALIZES, node)
-        node._metadata["initializes_info"] = InitializesInfo(module_info.module_t, dependencies)
+        node._metadata["initializes_info"] = InitializesInfo(module_info, dependencies, node)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")

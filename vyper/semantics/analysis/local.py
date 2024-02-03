@@ -563,8 +563,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.func, call_type)
 
         # check mutability level of the function
-        expr_info = get_expr_info(node.func.value)
-        expr_info.validate_modification(node, self.func.mutability)
+        if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
+            expr_info = get_expr_info(node.func.value)
+            # TODO: have mutability property on `self` (FunctionAnalyzer)
+            expr_info.validate_modification(node, self.func.mutability)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls

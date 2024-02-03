@@ -192,7 +192,7 @@ def set_storage_slots_r(
 
     for node in vyper_module.body:
         if isinstance(node, vy_ast.InitializesDecl):
-            module_t = node._metadata["initializes_info"].module_t
+            module_t = node._metadata["initializes_info"].module_info.module_t
             set_storage_slots_r(module_t._module, allocator)
             continue
 
