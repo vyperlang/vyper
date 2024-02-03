@@ -47,14 +47,14 @@ class _StringEnum(enum.Enum):
     # Comparison operations
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("bad comparison")
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
         return self is other
 
     # Python normally does __ne__(other) ==> not self.__eq__(other)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            raise CompilerPanic("bad comparison")
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
         options = self.__class__.options()
         return options.index(self) < options.index(other)  # type: ignore
 
@@ -74,14 +74,7 @@ class _StringEnum(enum.Enum):
 class FunctionVisibility(_StringEnum):
     EXTERNAL = enum.auto()
     INTERNAL = enum.auto()
-    CONSTRUCTOR = enum.auto()
-
-    @classmethod
-    def is_valid_value(cls, value: str) -> bool:
-        # make CONSTRUCTOR visibility not available to the user
-        # (although as a design note - maybe `@constructor` should
-        # indeed be available)
-        return super().is_valid_value(value) and value != "constructor"
+    DEPLOY = enum.auto()
 
 
 class StateMutability(_StringEnum):

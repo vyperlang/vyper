@@ -321,11 +321,10 @@ class ContractFunctionT(VyperType):
                 raise FunctionDeclarationException(
                     "Constructor cannot be marked as `@pure` or `@view`", funcdef
                 )
-            if function_visibility is not None:
+            if function_visibility != FunctionVisibility.DEPLOY:
                 raise FunctionDeclarationException(
-                    "Constructor cannot be marked as `@internal` or `@external`", funcdef
+                    "Constructor must be marked as `@deploy`", funcdef
                 )
-            function_visibility = FunctionVisibility.CONSTRUCTOR
             if return_type is not None:
                 raise FunctionDeclarationException(
                     "Constructor may not have a return type", funcdef.returns
@@ -465,7 +464,7 @@ class ContractFunctionT(VyperType):
 
     @property
     def is_constructor(self) -> bool:
-        return self.visibility == FunctionVisibility.CONSTRUCTOR
+        return self.visibility == FunctionVisibility.DEPLOY
 
     @property
     def is_mutable(self) -> bool:
@@ -663,7 +662,7 @@ def _parse_decorators(
         else:
             raise StructureException("Bad decorator syntax", decorator)
 
-    if function_visibility is None and funcdef.name != "__init__":
+    if function_visibility is None:
         raise FunctionDeclarationException(
             f"Visibility must be set to one of: {', '.join(FunctionVisibility.values())}", funcdef
         )
