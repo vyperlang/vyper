@@ -1,5 +1,4 @@
 import os
-from collections import defaultdict
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
@@ -51,15 +50,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
-    ret = validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
-
-    _validate_global_initializes_constraint(ret)
-
-    return ret
-
-
-def validate_semantics_r(
+def validate_module_semantics_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph,
@@ -118,60 +109,6 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
         fn_t.reachable_internal_functions.add(g)
 
     path.pop()
-
-
-def _collect_used_modules_r(module_t):
-    ret: defaultdict[ModuleT, list[UsesInfo]] = defaultdict(list)
-
-    for uses_decl in module_t.uses_decls:
-        for used_module in uses_decl._metadata["uses_info"].used_modules:
-            ret[used_module.module_t].append(uses_decl)
-
-    for m_info in module_t.used_modules:
-        used_modules = _collect_used_modules_r(m_info.module_t)
-        for k, v in used_modules.items():
-            ret[k].extend(v)
-
-    return ret
-
-
-def _collect_initialized_modules_r(module_t, seen=None):
-    seen: dict[ModuleT, InitializesInfo] = seen or {}
-
-    # list of InitializedInfo
-    initialized_infos = module_t.initialized_modules
-
-    for i in initialized_infos:
-        initialized_module_t = i.module_info.module_t
-        if initialized_module_t in seen:
-            seen_nodes = (i.node, seen[initialized_module_t].node)
-            raise StructureException(f"`{i.module_info.alias}` initialized twice!", *seen_nodes)
-        seen[initialized_module_t] = i
-
-        _collect_initialized_modules_r(initialized_module_t, seen)
-
-    return seen
-
-
-# validate that each module which is `used` in the import graph is
-# `initialized`.
-def _validate_global_initializes_constraint(module_t: ModuleT):
-    all_used_modules = _collect_used_modules_r(module_t)
-    all_initialized_modules = _collect_initialized_modules_r(module_t)
-
-    err_list = ExceptionList()
-
-    for u, uses in all_used_modules.items():
-        if u not in all_initialized_modules:
-            err_list.append(
-                StructureException(
-                    f"module {u} is used but never initialized!\n  "
-                    f"(hint: add `initializes: module_name` to your main contract",
-                    *uses,
-                )
-            )
-
-    err_list.raise_if_not_empty()
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -322,10 +259,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         if len(should_use) > 0:
             err_list = ExceptionList()
-            for module_info, uses_info in should_use.values():
-                msg = f"`{module_info.alias}` is declared as used, but it is not "
-                msg += "actually used anywhere in your contract!\n"
-                msg += f"  (hint: delete `uses: {module_info.alias}`)"
+            for used_module_info, uses_info in should_use.values():
+                msg = f"`{used_module_info.alias}` is declared as used, but "
+                msg += f"it is not actually used in {module_t}!\n"
+                msg += f"  (hint: delete `uses: {used_module_info.alias}`)\n"
                 err_list.append(BorrowException(msg, uses_info.node))
 
             err_list.raise_if_not_empty()
@@ -356,7 +293,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if initialized_module.module_t not in should_initialize:
                 msg = f"tried to initialize {initialized_module.alias}, "
                 msg += "but it is not in initializer list!\n"
-                msg += f"  (hint: add `initializes: {initialized_module.alias}` "
+                msg += f"  (hint: add `initializes: {initialized_module.alias}`\n"
                 raise InitializerException(msg, call_node.func)
 
             del should_initialize[initialized_module.module_t]
@@ -366,7 +303,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             for s in should_initialize.values():
                 msg = "not initialized!\n"
                 msg += f"  (hint: add `{s.module_info.alias}.__init__()` to "
-                msg += "your `__init__()` function)"
+                msg += "your `__init__()` function)\n"
                 err_list.append(InitializerException(msg, s.node))
 
             err_list.raise_if_not_empty()
@@ -425,7 +362,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
 
-        used_modules = [i.module_t for i in module_info.module_t.used_modules]
+        used_modules = {i.module_t: i for i in module_info.module_t.used_modules}
 
         dependencies = []
         for named_expr in dependencies_ast:
@@ -444,20 +381,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             dependencies.append(lhs_module)
 
             if lhs_module.module_t not in used_modules:
-                raise StructureException(
+                raise InitializerException(
                     f"`{module_info.alias}` is initialized with `{lhs_module.alias}`, "
                     f"but `{module_info.alias}` does not use `{lhs_module.alias}`!",
                     named_expr,
                 )
 
-            used_modules.remove(lhs_module.module_t)
+            del used_modules[lhs_module.module_t]
 
         if len(used_modules) > 0:
-            item = used_modules[0]  # just pick one
-            raise StructureException(
+            item = next(iter(used_modules.values()))  # just pick one
+            raise InitializerException(
                 f"`{module_info.alias}` uses `{item.alias}`, but it is not "
                 f"initialized with `{item.alias}`\n"
-                f"(hint: add `{item.alias}` to its initializer list)",
+                f"  (hint: add `{item.alias}` to its initializer list)\n",
                 node,
             )
 
@@ -680,7 +617,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                module_t = validate_semantics_r(
+                module_t = validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -700,7 +637,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_semantics_r(
+                validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -725,7 +662,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         raise ModuleNotFound(module_str, node) from err
 
 
-def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
+def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
@@ -786,5 +723,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
-        module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
+        module_t = validate_module_semantics_r(
+            interface_ast, input_bundle, ImportGraph(), is_interface=True
+        )
     return module_t.interface
