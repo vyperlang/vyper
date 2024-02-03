@@ -67,6 +67,9 @@ class _StringEnum(enum.Enum):
     def __ge__(self, other: object) -> bool:
         return self.__eq__(other) or self.__gt__(other)
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class FunctionVisibility(_StringEnum):
     EXTERNAL = enum.auto()

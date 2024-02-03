@@ -312,6 +312,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Expressions without assignment are disallowed", node)
 
         fn_type = get_exact_type_from_node(node.value.func)
+
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
@@ -319,21 +320,16 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
         if isinstance(fn_type, ContractFunctionT):
-            if (
-                fn_type.mutability > StateMutability.VIEW
-                and self.func.mutability <= StateMutability.VIEW
-            ):
+            # note: payable can be called from nonpayable functions
+            mutability_ok = (
+                fn_type.mutability <= self.func.mutability
+                or self.func.mutability >= StateMutability.NONPAYABLE
+            )
+            if not mutability_ok:
                 raise StateAccessViolation(
-                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
+                    f"Cannot call a {fn_type.mutability} function from a "
+                    f"{self.func.mutability} function",
                     node,
-                )
-
-            if (
-                self.func.mutability == StateMutability.PURE
-                and fn_type.mutability != StateMutability.PURE
-            ):
-                raise StateAccessViolation(
-                    "Cannot call non-pure function from a pure function", node
                 )
 
         # NOTE: fetch_call_return validates call args.
