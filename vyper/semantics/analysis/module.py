@@ -13,6 +13,7 @@ from vyper.exceptions import (
     DuplicateImport,
     ExceptionList,
     ImmutableViolation,
+    InitializerException,
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
@@ -86,6 +87,8 @@ def validate_semantics_r(
         # in `ContractFunction.from_vyi()`
         if not is_interface:
             validate_functions(module_ast)
+
+            analyzer.validate_module_initializers()
 
     return ret
 
@@ -279,6 +282,52 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
+
+    def validate_module_initializers(self):
+        # check all `initialized:` modules have `__init__()` called exactly once
+        constructor = next(
+            (
+                s
+                for s in self.ast.get_children(vy_ast.FunctionDef)
+                if s._metadata["func_type"].is_constructor
+            ),
+            None,
+        )
+        module_t = self.ast._metadata["type"]
+
+        should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
+        function_calls = []
+        if constructor is not None:
+            function_calls = constructor.get_descendants(vy_ast.Call)
+
+        for call_node in function_calls:
+            call_t = call_node.func._expr_info.typ
+
+            if not isinstance(call_t, ContractFunctionT):
+                continue
+
+            if not call_t.is_constructor:
+                continue
+
+            initialized_module = call_node.func.value._expr_info.module_info
+
+            if initialized_module.module_t not in should_initialize:
+                msg = f"tried to initialize {initialized_module.alias}, "
+                msg += "but it is not in initializer list!\n"
+                msg += f"  (hint: add `initializes: {initialized_module.alias}` "
+                raise InitializerException(msg, call_node.func)
+
+            del should_initialize[initialized_module.module_t]
+
+        if len(should_initialize) > 0:
+            err_list = ExceptionList()
+            for s in should_initialize.values():
+                msg = "not initialized!\n"
+                msg += f"  (hint: add `{s.module_info.alias}.__init__()` to "
+                msg += "your `__init__()` function)"
+                err_list.append(InitializerException(msg, s.node))
+
+            err_list.raise_if_not_empty()
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.

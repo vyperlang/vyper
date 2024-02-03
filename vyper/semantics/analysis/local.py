@@ -8,7 +8,6 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InitializerException,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -223,44 +222,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
-
-        # check all `initialized:` modules are called exactly once
-        if self.func.is_constructor:
-            self._validate_module_initializers()
-
-    def _validate_module_initializers(self):
-        module_t = self.vyper_module._metadata["type"]
-        should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
-        function_calls = self.fn_node.get_descendants(vy_ast.Call)
-        for call_node in function_calls:
-            call_t = call_node.func._expr_info.typ
-
-            if not isinstance(call_t, ContractFunctionT):
-                continue
-
-            if not call_t.is_constructor:
-                continue
-
-            initialized_module = call_node.func.value._expr_info.module_info
-
-            if initialized_module.module_t not in should_initialize:
-                msg = f"tried to initialize {initialized_module.alias}, "
-                msg += "but it is not in initializer list!\n"
-                msg += f"  (hint: add `initializes: {initialized_module.alias}` "
-                msg += "to the top-level of this file"
-                raise InitializerException(msg, call_node.func)
-
-            del should_initialize[initialized_module.module_t]
-
-        if len(should_initialize) > 0:
-            err_list = ExceptionList()
-            for s in should_initialize.values():
-                msg = "not initialized!\n"
-                msg += f"  (hint: add `{s.module_info.alias}.__init__()` to "
-                msg += "your `__init__()` function)"
-                err_list.append(InitializerException(msg, s.node))
-
-            err_list.raise_if_not_empty()
 
     def visit(self, node):
         super().visit(node)
