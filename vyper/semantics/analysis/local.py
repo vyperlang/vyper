@@ -321,19 +321,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
-        if isinstance(fn_type, ContractFunctionT):
-            # note: payable can be called from nonpayable functions
-            mutability_ok = (
-                fn_type.mutability <= self.func.mutability
-                or self.func.mutability >= StateMutability.NONPAYABLE
-            )
-            if not mutability_ok:
-                raise StateAccessViolation(
-                    f"Cannot call a {fn_type.mutability} function from a "
-                    f"{self.func.mutability} function",
-                    node,
-                )
-
         # NOTE: fetch_call_return validates call args.
         return_value = fn_type.fetch_call_return(node.value)
         if (
@@ -561,6 +548,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.func, call_type)
 
         # check mutability level of the function
+        # TODO: make this work for builtins too
         if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
             expr_info = get_expr_info(node.func.value)
             # TODO: have mutability property on `self` (FunctionAnalyzer)
@@ -568,8 +556,29 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if isinstance(call_type, ContractFunctionT):
             # function calls
-            if self.func and call_type.is_internal:
-                self.func.called_functions.add(call_type)
+
+            if self.func:
+                if call_type.is_internal:
+                    self.func.called_functions.add(call_type)
+
+                # note: payable can be called from nonpayable functions
+                mutability_ok = (
+                    call_type.mutability <= self.func.mutability
+                    or self.func.mutability >= StateMutability.NONPAYABLE
+                )
+                if not mutability_ok:
+                    raise StateAccessViolation(
+                        f"Cannot call a {call_type.mutability} function from a "
+                        f"{self.func.mutability} function",
+                        node,
+                    )
+                if call_type.is_deploy and not self.func.is_deploy:
+                    raise StateAccessViolation(
+                        f"Cannot call an @{call_type.visibility} function from "
+                        f"an @{self.func.visibility} function!",
+                        node
+                    )
+
             for arg, typ in zip(node.args, call_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
