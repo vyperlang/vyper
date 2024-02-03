@@ -576,7 +576,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     raise StateAccessViolation(
                         f"Cannot call an @{call_type.visibility} function from "
                         f"an @{self.func.visibility} function!",
-                        node
+                        node,
                     )
 
             for arg, typ in zip(node.args, call_type.argument_types):
