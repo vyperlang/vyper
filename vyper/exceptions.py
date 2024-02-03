@@ -252,6 +252,10 @@ class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 
 
+class InitializerException(VyperException):
+    """An issue with initializing/constructing a module"""
+
+
 class StateAccessViolation(VyperException):
     """Violating the mutability of a function definition."""
 

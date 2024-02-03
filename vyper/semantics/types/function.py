@@ -463,8 +463,12 @@ class ContractFunctionT(VyperType):
         return self.visibility == FunctionVisibility.INTERNAL
 
     @property
-    def is_constructor(self) -> bool:
+    def is_deploy(self) -> bool:
         return self.visibility == FunctionVisibility.DEPLOY
+
+    @property
+    def is_constructor(self) -> bool:
+        return self.name == "__init__"
 
     @property
     def is_mutable(self) -> bool:
