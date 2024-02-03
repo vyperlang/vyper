@@ -358,16 +358,19 @@ class ExprInfo:
 
         if self.modifiability == Modifiability.RUNTIME_CONSTANT:
             if self.location == DataLocation.CODE:
+                # handle immutables
+                assert self.var_info is not None  # mypy hint
+
                 if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                     raise ImmutableViolation("Immutable value cannot be written to", node)
 
                 # special handling for immutable variables in the ctor
-                # TODO: we probably want to remove this restriction.
-                if self.var_info._modification_count:  # type: ignore
+                # TODO: maybe we want to remove this restriction.
+                if self.var_info._modification_count != 0:
                     raise ImmutableViolation(
                         "Immutable value cannot be modified after assignment", node
                     )
-                self.var_info._modification_count += 1  # type: ignore
+                self.var_info._modification_count += 1
             else:
                 raise ImmutableViolation("Environment variable cannot be written to", node)
 
