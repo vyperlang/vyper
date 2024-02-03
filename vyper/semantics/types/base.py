@@ -329,6 +329,8 @@ class KwargSettings:
 # certain builtins which take types as parameters
 class TYPE_T(VyperType):
     def __init__(self, typedef):
+        super().__init__()
+
         self.typedef = typedef
 
     def __repr__(self):
