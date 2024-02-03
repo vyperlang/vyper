@@ -327,7 +327,7 @@ class KwargSettings:
 # A type type. Used internally for types which can live in expression
 # position, ex. constructors (events, interfaces and structs), and also
 # certain builtins which take types as parameters
-class TYPE_T:
+class TYPE_T(VyperType):
     def __init__(self, typedef):
         self.typedef = typedef
 

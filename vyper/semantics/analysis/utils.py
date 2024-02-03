@@ -74,7 +74,10 @@ class _ExprAnalyser:
             if isinstance(info, ModuleInfo):
                 return ExprInfo.from_moduleinfo(info)
 
-            raise CompilerPanic("unreachable!", node)
+            if isinstance(info, VyperType):
+                return ExprInfo(TYPE_T(info))
+
+            raise CompilerPanic(f"unreachable! {info}", node)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
