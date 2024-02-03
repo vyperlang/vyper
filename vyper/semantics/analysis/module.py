@@ -136,12 +136,13 @@ def _collect_initialized_modules_r(module_t, seen=None):
     initialized_infos = module_t.initialized_modules
 
     for i in initialized_infos:
-        if (other := seen.get(i.module_info.module_t)) is not None:
-            raise StructureException("{i.module_info.alias} initialized twice!", i.node, other)
-        seen[i.module_info.module_t] = i
+        initialized_module_t = i.module_info.module_t
+        if initialized_module_t in seen:
+            seen_nodes = (i.node, seen[initialized_module_t].node)
+            raise StructureException(f"`{i.module_info.alias}` initialized twice!", *seen_nodes)
+        seen[initialized_module_t] = i
 
-        for d in i.dependencies:
-            _collect_initialized_modules_r(d.module_t, seen)
+        _collect_initialized_modules_r(initialized_module_t, seen)
 
     return seen
 

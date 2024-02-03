@@ -58,7 +58,7 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     for node in vy_module.get_children(vy_ast.FunctionDef):
         with namespace.enter_scope():
             try:
-                analyzer = FunctionNodeVisitor(vy_module, node, namespace)
+                analyzer = FunctionAnalyzer(vy_module, node, namespace)
                 analyzer.analyze()
             except VyperException as e:
                 err_list.append(e)
@@ -179,7 +179,7 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
-class FunctionNodeVisitor(VyperNodeVisitorBase):
+class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
