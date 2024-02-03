@@ -58,7 +58,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
 
 def _generate_kwarg_handlers(
     func_t: ContractFunctionT, context: Context
-) -> dict[str, tuple[int, IRnode]]:
+) -> dict[str, EntryPointInfo]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,

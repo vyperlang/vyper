@@ -11,7 +11,7 @@ from vyper.codegen.stmt import parse_body
 
 def generate_ir_for_internal_function(
     code: vy_ast.FunctionDef, module_ctx, is_ctor_context: bool
-) -> IRnode:
+) -> InternalFuncIR:
     """
     Parse a internal function (FuncDef), and produce full function body.
 
