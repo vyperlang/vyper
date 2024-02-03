@@ -403,7 +403,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     if len(wrong_self_attribute) > 0
                     else "Immutable definition requires an assignment in the constructor"
                 )
-                raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
+                raise ImmutableViolation(message, node)
 
         data_loc = (
             DataLocation.CODE
