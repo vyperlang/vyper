@@ -256,6 +256,10 @@ class InitializerException(VyperException):
     """An issue with initializing/constructing a module"""
 
 
+class BorrowException(VyperException):
+    """An issue with borrowing/using a module"""
+
+
 class StateAccessViolation(VyperException):
     """Violating the mutability of a function definition."""
 

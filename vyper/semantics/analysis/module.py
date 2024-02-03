@@ -9,6 +9,7 @@ from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    BorrowException,
     CallViolation,
     DuplicateImport,
     ExceptionList,
@@ -29,6 +30,7 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
+    StateMutability,
     UsesInfo,
     VarInfo,
 )
@@ -88,7 +90,8 @@ def validate_semantics_r(
         if not is_interface:
             validate_functions(module_ast)
 
-            analyzer.validate_module_initializers()
+        analyzer.validate_initialized_modules()
+        analyzer.validate_used_modules()
 
     return ret
 
@@ -283,24 +286,62 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
 
-    def validate_module_initializers(self):
-        # check all `initialized:` modules have `__init__()` called exactly once
-        constructor = next(
-            (
-                s
-                for s in self.ast.get_children(vy_ast.FunctionDef)
-                if s._metadata["func_type"].is_constructor
-            ),
-            None,
-        )
+    def validate_used_modules(self):
+        # check all `uses:` modules are actually used
+        should_use = {}
+
         module_t = self.ast._metadata["type"]
+        uses_decls = module_t.uses_decls
+        for decl in uses_decls:
+            info = decl._metadata["uses_info"]
+            for m in info.used_modules:
+                should_use[m.module_t] = (m, info)
 
+        initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
+        for call_node in self.ast.get_descendants(vy_ast.Call):
+            expr_info = call_node.func._expr_info
+            call_t = expr_info.typ
+
+            if not isinstance(call_t, ContractFunctionT):
+                continue
+
+            # CMC 2024-02-03 TODO: should we refine this check to
+            # check storage variables?
+            if not call_t.mutability >= StateMutability.NONPAYABLE:
+                continue
+
+            # XXX: check this works as expected for nested attributes
+            used_module = call_node.func.value._expr_info.module_info.module_t
+
+            if used_module in initialized_modules:
+                continue
+
+            if used_module in should_use:
+                del should_use[used_module]
+
+        if len(should_use) > 0:
+            err_list = ExceptionList()
+            for module_info, uses_info in should_use.values():
+                msg = f"`{module_info.alias}` is declared as used, but it is not "
+                msg += "actually used anywhere in your contract!\n"
+                msg += f"  (hint: delete `uses: {module_info.alias}`)"
+                err_list.append(BorrowException(msg, uses_info.node))
+
+            err_list.raise_if_not_empty()
+
+    def validate_initialized_modules(self):
+        # check all `initializes:` modules have `__init__()` called exactly once
+        module_t = self.ast._metadata["type"]
         should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
-        function_calls = []
-        if constructor is not None:
-            function_calls = constructor.get_descendants(vy_ast.Call)
 
-        for call_node in function_calls:
+        init_calls = []
+        for f in self.ast.get_children(vy_ast.FunctionDef):
+            if f._metadata["func_type"].is_constructor:
+                init_calls = f.get_descendants(vy_ast.Call)
+                break
+
+        for call_node in init_calls:
             call_t = call_node.func._expr_info.typ
 
             if not isinstance(call_t, ContractFunctionT):
@@ -309,6 +350,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not call_t.is_constructor:
                 continue
 
+            # XXX: check this works as expected for nested attributes
             initialized_module = call_node.func.value._expr_info.module_info
 
             if initialized_module.module_t not in should_initialize:
