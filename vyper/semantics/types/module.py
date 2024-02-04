@@ -284,7 +284,6 @@ class ModuleT(VyperType):
         DataLocation.TRANSIENT,
     )
 
-
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         super().__init__()
 
