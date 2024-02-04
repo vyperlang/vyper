@@ -550,7 +550,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         # and kwargs via `call_type.fetch_call_return`
         self.visit(node.func, call_type)
 
-        # check mutability level of the function
+        # check mutability level of the function when the function call is
+        # an attr (ex. `foo.bar()`)
         # TODO: make this work for builtins too
         if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
             expr_info = get_expr_info(node.func.value)
