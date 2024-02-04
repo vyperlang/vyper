@@ -12,11 +12,7 @@ if TYPE_CHECKING:
     from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
-class _StringEnum(enum.Enum):
-    @staticmethod
-    def auto():
-        return enum.auto()
-
+class StringEnum(enum.Enum):
     # Must be first, or else won't work, specifies what .value is
     def _generate_next_value_(name, start, count, last_values):
         return name.lower()
@@ -31,7 +27,7 @@ class _StringEnum(enum.Enum):
         return value in set(o.value for o in cls)
 
     @classmethod
-    def options(cls) -> List["_StringEnum"]:
+    def options(cls) -> List["StringEnum"]:
         return list(cls)
 
     @classmethod
@@ -65,18 +61,17 @@ class _StringEnum(enum.Enum):
         return self.value
 
 
-class FunctionVisibility(_StringEnum):
+class FunctionVisibility(StringEnum):
     EXTERNAL = enum.auto()
     INTERNAL = enum.auto()
     DEPLOY = enum.auto()
 
 
-class StateMutability(_StringEnum):
-    # TODO: these can just be enum.auto() right?
-    PURE = _StringEnum.auto()
-    VIEW = _StringEnum.auto()
-    NONPAYABLE = _StringEnum.auto()
-    PAYABLE = _StringEnum.auto()
+class StateMutability(StringEnum):
+    PURE = enum.auto()
+    VIEW = enum.auto()
+    NONPAYABLE = enum.auto()
+    PAYABLE = enum.auto()
 
     @classmethod
     def from_abi(cls, abi_dict: Dict) -> "StateMutability":
