@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, List
+from typing import TYPE_CHECKING, Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -31,10 +31,12 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import checksum_encode, int_to_fourbytes
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.function import ContractFunctionT
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -674,7 +676,7 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
 # note that validate_modification and check_modifiability have slightly
 # overlapping semantics, and maybe validate_modification can be rewritten
 # in terms of check_modifiability
-def validate_modification(target: ExprInfo, func_t: ContractFunctionT) -> None:
+def validate_modification(target: ExprInfo, func_t: "ContractFunctionT") -> None:
     """
     Validate an attempt to modify `target`.
 
