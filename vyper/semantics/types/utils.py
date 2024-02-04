@@ -167,9 +167,8 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     Arguments
     ---------
-    node: vy_ast.Index
-        Vyper ast node from the `slice` member of a Subscript node. Must be an
-        `Index` object (Vyper does not support `Slice` or `ExtSlice`).
+    node: vy_ast.VyperNode
+        Vyper ast node from the `slice` member of a Subscript node.
 
     Returns
     -------
