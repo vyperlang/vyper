@@ -80,9 +80,8 @@ def validate_module_semantics_r(
         # in `ContractFunction.from_vyi()`
         if not is_interface:
             validate_functions(module_ast)
-
-        analyzer.validate_initialized_modules()
-        analyzer.validate_used_modules()
+            analyzer.validate_initialized_modules()
+            analyzer.validate_used_modules()
 
     return ret
 
