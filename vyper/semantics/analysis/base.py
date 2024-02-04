@@ -62,6 +62,17 @@ class Modifiability(enum.IntEnum):
     # compile-time / always constant
     CONSTANT = enum.auto()
 
+    @classmethod
+    def from_state_mutability(cls, mutability: StateMutability):
+        if mutability == StateMutability.PURE:
+            return cls.CONSTANT
+        if mutability == StateMutability.VIEW:
+            return cls.RUNTIME_CONSTANT
+        # sanity check in case more StateMutability levels are added in the future
+        assert mutability in (StateMutability.PAYABLE, StateMutability.NONPAYABLE)
+        return cls.MODIFIABLE
+
+
 
 class DataPosition:
     _location: DataLocation

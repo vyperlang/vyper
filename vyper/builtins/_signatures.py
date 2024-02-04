@@ -88,6 +88,10 @@ class BuiltinFunctionT(VyperType):
     _equality_attrs = ("_id",)
     _is_terminus = False
 
+    @property
+    def modifiability(self):
+        return self._modifiability
+
     # helper function to deal with TYPE_DEFINITIONs
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
         # TODO using "TYPE_DEFINITION" is a kludge in derived classes,

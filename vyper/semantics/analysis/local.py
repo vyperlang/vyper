@@ -48,7 +48,7 @@ from vyper.semantics.types import (
     _BytestringT,
     is_type_t,
 )
-from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability, Modifiability
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
@@ -627,7 +627,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # an attr (ex. `foo.bar()`)
         # TODO: this is not really correct; we need to check touched variables,
         # not just function mutability as there could be false positives.
-        if self.function_analyzer is not None and call_type.mutability > StateMutability.VIEW:
+        if self.function_analyzer is not None and getattr(call_type, "modifiability", None) == Modifiability.MODIFIABLE:
             self.function_analyzer._handle_modification(node.func)
 
         if isinstance(call_type, ContractFunctionT):
