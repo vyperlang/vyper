@@ -495,7 +495,9 @@ def get_exact_type_from_node(node):
 
 
 def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
-    return _ExprAnalyser().get_expr_info(node)
+    if node._expr_info is None:
+        node._expr_info = _ExprAnalyser().get_expr_info(node)
+    return node._expr_info
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
