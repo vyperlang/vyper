@@ -18,7 +18,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -26,7 +26,6 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
     get_possible_types_from_node,
     validate_expected_type,
-    validate_modification,
 )
 from vyper.semantics.data_locations import DataLocation
 
@@ -51,6 +50,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.utils import OrderedSet
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
@@ -192,7 +192,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["func_type"]
-        self.expr_visitor = ExprVisitor(self.func)
+        self.expr_visitor = ExprVisitor(self)
+
+        self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
 
     def analyze(self):
         # allow internal function params to be mutable
@@ -222,6 +224,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
+
+        self.fn_node._metadata["used_modules"] = self._used_modules
 
     def visit(self, node):
         super().visit(node)
@@ -273,17 +277,78 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_expr_info(node.target)
+
+        # TODO can this check be moved into validate_modification?
         if isinstance(target.typ, HashMapT):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        # check mutability of the function
         validate_expected_type(node.value, target.typ)
-        validate_modification(target, self.func)
+
+        # check mutability of the function
+        self._handle_modification(node.target)
 
         self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
+
+    def _handle_modification(self, target: vy_ast.VyperNode):
+        # check a modification of `target`. validate the modification is
+        # valid, and log the modification in relevant data structures.
+        func_t = self.func
+        info = get_expr_info(target)
+
+        if (
+            info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+            and func_t.mutability <= StateMutability.VIEW
+        ):
+            raise StateAccessViolation(
+                f"Cannot modify {info.location} variable in a {func_t.mutability} function"
+            )
+
+        if info.location == DataLocation.CALLDATA:
+            raise ImmutableViolation("Cannot write to calldata")
+
+        if info.modifiability == Modifiability.RUNTIME_CONSTANT:
+            if info.location == DataLocation.CODE:
+                # handle immutables
+                assert info.var_info is not None  # mypy hint
+
+                if not func_t.is_constructor:
+                    raise ImmutableViolation("Immutable value cannot be written to")
+
+                # special handling for immutable variables in the ctor
+                # TODO: maybe we want to remove this restriction.
+                if info.var_info._modification_count != 0:
+                    raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                info.var_info._modification_count += 1
+            else:
+                raise ImmutableViolation("Environment variable cannot be written to")
+
+        if info.modifiability == Modifiability.CONSTANT:
+            msg = "Constant value cannot be written to."
+            if info.module_info is not None:
+                msg += f"\n(hint: add `uses: {info.module_info.alias}` as "
+                msg += "a top-level statement to your contract)."
+            raise ImmutableViolation(msg)
+
+        self._log_used_module(target)
+
+    def _log_used_module(self, target: vy_ast.VyperNode):
+        if not isinstance(target, vy_ast.Attribute):
+            return
+
+        # extract the outer references, e.g. `foo.bar.baz` => `foo`
+        module = target.value
+        while isinstance(module, vy_ast.Attribute):
+            module = module.value
+        assert isinstance(module, vy_ast.Name)
+
+        module_info = get_expr_info(target.value).module_info
+        if module_info is None:
+            return
+
+        self._used_modules.add(module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -479,8 +544,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
 
 class ExprVisitor(VyperNodeVisitorBase):
-    def __init__(self, fn_node: Optional[ContractFunctionT] = None):
-        self.func = fn_node
+    def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
+        self.function_analyzer = function_analyzer
+
+    @property
+    def func(self):
+        if self.function_analyzer is None:
+            return None
+        return self.function_analyzer.func
 
     @property
     def scope_name(self):
@@ -501,7 +572,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         # annotate
         node._metadata["type"] = typ
-        node._expr_info = get_expr_info(node)
+        _ = get_expr_info(node)  # get_expr_info fills in node._expr_info
 
         # validate and annotate folded value
         if node.has_folded_value:
@@ -554,11 +625,10 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         # check mutability level of the function when the function call is
         # an attr (ex. `foo.bar()`)
-        # TODO: make this work for builtins too
-        if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
-            expr_info = get_expr_info(node.func.value)
-            # TODO: have mutability property on `self` (FunctionAnalyzer)
-            validate_modification(expr_info, self.func)
+        # TODO: this is not really correct; we need to check touched variables,
+        # not just function mutability as there could be false positives.
+        if self.function_analyzer is not None and call_type.mutability > StateMutability.VIEW:
+            self.function_analyzer._handle_modification(node.func)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls

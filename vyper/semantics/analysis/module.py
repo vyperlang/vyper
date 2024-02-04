@@ -29,7 +29,6 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
-    StateMutability,
     UsesInfo,
     VarInfo,
 )
@@ -48,6 +47,7 @@ from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.utils import OrderedSet
 
 
 def validate_module_semantics_r(
@@ -236,29 +236,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
 
-        call_nodes = []
+        all_used_modules = OrderedSet()
+
         for f in self.ast.get_children(vy_ast.FunctionDef):
-            call_nodes.extend(f.get_descendants(vy_ast.Call))
+            for u in f._metadata["used_modules"]:
+                all_used_modules.add(u.module_t)
 
-        for call_node in call_nodes:
-            expr_info = call_node.func._expr_info
-            call_t = expr_info.typ
-
-            if not isinstance(call_t, ContractFunctionT):
-                continue
-
-            # CMC 2024-02-03 TODO: should we refine this check to
-            # check storage variables?
-            if not call_t.mutability >= StateMutability.NONPAYABLE:
-                continue
-
-            module_info = call_node.func.value._expr_info.module_info
-            if module_info is None:
-                continue
-
-            # XXX: check this works as expected for nested attributes
-            used_module = call_node.func.value._expr_info.module_info.module_t
-
+        for used_module in all_used_modules:
             if used_module in initialized_modules:
                 continue
 

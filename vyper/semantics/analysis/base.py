@@ -149,6 +149,9 @@ class ModuleInfo(AnalysisResult):
             )
         self.ownership = module_ownership
 
+    def __hash__(self):
+        return hash(id(self.module_t))
+
 
 @dataclass
 class ImportInfo(AnalysisResult):

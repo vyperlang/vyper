@@ -1,16 +1,14 @@
 import itertools
-from typing import TYPE_CHECKING, Callable, List
+from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
-    ImmutableViolation,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
     InvalidType,
     OverflowException,
-    StateAccessViolation,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -19,24 +17,14 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import (
-    ExprInfo,
-    Modifiability,
-    ModuleInfo,
-    StateMutability,
-    VarInfo,
-)
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import checksum_encode, int_to_fourbytes
-
-if TYPE_CHECKING:
-    from vyper.semantics.types.function import ContractFunctionT
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -673,53 +661,3 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
 
     value_type = get_expr_info(node)
     return value_type.modifiability >= modifiability
-
-
-# note that validate_modification and check_modifiability have slightly
-# overlapping semantics, and maybe validate_modification can be rewritten
-# in terms of check_modifiability
-def validate_modification(target: ExprInfo, func_t: "ContractFunctionT") -> None:
-    """
-    Validate an attempt to modify `target`.
-
-    Raises if the target is a constant or involves an invalid operation.
-
-    Arguments
-    ---------
-    target: ExprInfo
-    mutability: StateMutability
-        The mutability of the context (e.g., pure function) we are currently in
-    """
-    if (
-        target.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
-        and func_t.mutability <= StateMutability.VIEW
-    ):
-        raise StateAccessViolation(
-            f"Cannot modify {target.location} variable in a {func_t.mutability} function"
-        )
-
-    if target.location == DataLocation.CALLDATA:
-        raise ImmutableViolation("Cannot write to calldata")
-
-    if target.modifiability == Modifiability.RUNTIME_CONSTANT:
-        if target.location == DataLocation.CODE:
-            # handle immutables
-            assert target.var_info is not None  # mypy hint
-
-            if not func_t.is_constructor:
-                raise ImmutableViolation("Immutable value cannot be written to")
-
-            # special handling for immutable variables in the ctor
-            # TODO: maybe we want to remove this restriction.
-            if target.var_info._modification_count != 0:
-                raise ImmutableViolation("Immutable value cannot be modified after assignment")
-            target.var_info._modification_count += 1
-        else:
-            raise ImmutableViolation("Environment variable cannot be written to")
-
-    if target.modifiability == Modifiability.CONSTANT:
-        msg = "Constant value cannot be written to."
-        if target.module_info is not None:
-            msg += f"\n(hint: add `uses: {target.module_info.alias}` as "
-            msg += "a top-level statement to your contract)."
-        raise ImmutableViolation(msg)
