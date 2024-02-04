@@ -377,7 +377,7 @@ def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
     except _BaseVyperException as e:
         if not e.annotations and not e.lineno:
             tb = e.__traceback__
-            raise e.with_annotation(node).with_traceback(tb)
+            raise e.with_annotation(node).with_traceback(tb) from None
         raise e from None
     except Exception as e:
         tb = e.__traceback__
