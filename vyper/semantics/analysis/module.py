@@ -269,6 +269,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 init_calls = f.get_descendants(vy_ast.Call)
                 break
 
+        seen_initializers = {}
         for call_node in init_calls:
             call_t = call_node.func._expr_info.typ
 
@@ -281,13 +282,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # XXX: check this works as expected for nested attributes
             initialized_module = call_node.func.value._expr_info.module_info
 
+            if initialized_module.module_t in seen_initializers:
+                seen_location = seen_initializers[initialized_module.module_t]
+                msg = f"tried to initialize `{initialized_module.alias}`, "
+                msg += "but its __init__() function was already called!"
+                raise InitializerException(msg, call_node.func, seen_location)
+
             if initialized_module.module_t not in should_initialize:
-                msg = f"tried to initialize {initialized_module.alias}, "
+                msg = f"tried to initialize `{initialized_module.alias}`, "
                 msg += "but it is not in initializer list!\n"
                 msg += f"  (hint: add `initializes: {initialized_module.alias}`\n"
                 raise InitializerException(msg, call_node.func)
 
             del should_initialize[initialized_module.module_t]
+            seen_initializers[initialized_module.module_t] = call_node.func
 
         if len(should_initialize) > 0:
             err_list = ExceptionList()
