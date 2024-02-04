@@ -279,6 +279,13 @@ struct Foo:
 CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
     """,
     """
+CONST_EMPTY: constant(bytes32) = empty(bytes32)
+
+@internal
+def foo() -> bytes32:
+    return CONST_EMPTY
+    """,
+    """
 struct Foo:
     a: uint256
     b: uint256
