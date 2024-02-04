@@ -671,50 +671,46 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
 
 
 def validate_modification(
-    info: ExprInfo, mutability: StateMutability, node: vy_ast.VyperNode
+    target: ExprInfo, mutability: StateMutability, node: vy_ast.VyperNode
 ) -> None:
     """
-    Validate an attempt to modify an expr.
+    Validate an attempt to modify some expr.
 
     Raises if the value is a constant or involves an invalid operation.
 
     Arguments
     ---------
-    node : Assign | AugAssign | Call
-        Vyper ast node of the modifying action.
+    target: ExprInfo
     mutability: StateMutability
         The mutability of the context (e.g., pure function) we are currently in
     """
-    if mutability <= StateMutability.VIEW and info.location == DataLocation.STORAGE:
+    if mutability <= StateMutability.VIEW and target.location == DataLocation.STORAGE:
         raise StateAccessViolation(f"Cannot modify storage in a {mutability.value} function", node)
 
-    if info.location == DataLocation.CALLDATA:
+    if target.location == DataLocation.CALLDATA:
         raise ImmutableViolation("Cannot write to calldata", node)
 
-    if info.modifiability == Modifiability.RUNTIME_CONSTANT:
-        if info.location == DataLocation.CODE:
+    if target.modifiability == Modifiability.RUNTIME_CONSTANT:
+        if target.location == DataLocation.CODE:
             # handle immutables
-            assert info.var_info is not None  # mypy hint
+            assert target.var_info is not None  # mypy hint
 
             if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
                 raise ImmutableViolation("Immutable value cannot be written to", node)
 
             # special handling for immutable variables in the ctor
             # TODO: maybe we want to remove this restriction.
-            if info.var_info._modification_count != 0:
+            if target.var_info._modification_count != 0:
                 raise ImmutableViolation(
                     "Immutable value cannot be modified after assignment", node
                 )
-            info.var_info._modification_count += 1
+            target.var_info._modification_count += 1
         else:
             raise ImmutableViolation("Environment variable cannot be written to", node)
 
-    if info.modifiability == Modifiability.CONSTANT:
+    if target.modifiability == Modifiability.CONSTANT:
         msg = "Constant value cannot be written to."
-        if info.module_info is not None:
-            msg += f"\n(hint: add `uses: {info.module_info.alias}` as "
+        if target.module_info is not None:
+            msg += f"\n(hint: add `uses: {target.module_info.alias}` as "
             msg += "a top-level statement to your contract)."
         raise ImmutableViolation(msg, node)
-
-    if isinstance(node, vy_ast.AugAssign):
-        info.typ.validate_numeric_op(node)

@@ -290,6 +290,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
     def visit_AugAssign(self, node):
         self._assign_helper(node)
+        node.target._expr_info.typ.validate_numeric_op(node)
 
     def visit_Break(self, node):
         for_node = node.get_ancestor(vy_ast.For)
