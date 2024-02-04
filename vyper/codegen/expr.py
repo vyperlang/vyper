@@ -187,9 +187,6 @@ class Expr:
 
         elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
-                # constants other than structs and interfaces should have already gotten
-                # propagated during constant folding
-                assert isinstance(varinfo.typ, (InterfaceT, StructT)), varinfo.typ
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.is_immutable, "not an immutable!"
