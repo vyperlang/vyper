@@ -54,7 +54,6 @@ from vyper.semantics.types.utils import type_from_annotation
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
-
     err_list = ExceptionList()
     namespace = get_namespace()
     for node in vy_module.get_children(vy_ast.FunctionDef):
@@ -478,10 +477,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
 
 class ExprVisitor(VyperNodeVisitorBase):
-    scope_name = "function"
-
     def __init__(self, fn_node: Optional[ContractFunctionT] = None):
         self.func = fn_node
+
+    @property
+    def scope_name(self):
+        if self.func is not None:
+            return "function"
+        return "module"
 
     def visit(self, node, typ):
         # recurse and typecheck in case we are being fed the wrong type for
