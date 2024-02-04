@@ -31,7 +31,9 @@ html_theme_options = {
     "twitter_site": "vyperlang",
     "twitter_url": "https://twitter.com/vyperlang",
     "github_url": "https://github.com/vyperlang",
-    "globaltoc_expand_depth": 2,
+    "globaltoc_expand_depth": 1,
+    "toctree_titles_only": False,
+    "toctree_collapse": True,
 }
 html_favicon = "vyper-logo-color.svg"
 html_static_path = ["_static"]

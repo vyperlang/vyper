@@ -1,4 +1,6 @@
-/* Hide the right navbar icon on small screens. */
+/* Hide the right navbar. */
+aside#rside,
+aside .rside-overlay,
 button[aria-controls="rside"] {
     display: none;
 }
