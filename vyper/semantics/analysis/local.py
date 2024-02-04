@@ -26,6 +26,7 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
     get_possible_types_from_node,
     validate_expected_type,
+    validate_modification,
 )
 from vyper.semantics.data_locations import DataLocation
 
@@ -279,7 +280,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         # check mutability of the function
         validate_expected_type(node.value, target.typ)
-        target.validate_modification(node, self.func.mutability)
+        validate_modification(target, self.func.mutability, node)
 
         self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
@@ -556,7 +557,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
             expr_info = get_expr_info(node.func.value)
             # TODO: have mutability property on `self` (FunctionAnalyzer)
-            expr_info.validate_modification(node, self.func.mutability)
+            validate_modification(expr_info, self.func.mutability, node)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls

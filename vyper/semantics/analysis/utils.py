@@ -4,11 +4,13 @@ from typing import Callable, List
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     CompilerPanic,
+    ImmutableViolation,
     InvalidLiteral,
     InvalidOperation,
     InvalidReference,
     InvalidType,
     OverflowException,
+    StateAccessViolation,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -17,8 +19,15 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import (
+    ExprInfo,
+    Modifiability,
+    ModuleInfo,
+    StateMutability,
+    VarInfo,
+)
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -659,3 +668,53 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
 
     value_type = get_expr_info(node)
     return value_type.modifiability >= modifiability
+
+
+def validate_modification(
+    info: ExprInfo, mutability: StateMutability, node: vy_ast.VyperNode
+) -> None:
+    """
+    Validate an attempt to modify an expr.
+
+    Raises if the value is a constant or involves an invalid operation.
+
+    Arguments
+    ---------
+    node : Assign | AugAssign | Call
+        Vyper ast node of the modifying action.
+    mutability: StateMutability
+        The mutability of the context (e.g., pure function) we are currently in
+    """
+    if mutability <= StateMutability.VIEW and info.location == DataLocation.STORAGE:
+        raise StateAccessViolation(f"Cannot modify storage in a {mutability.value} function", node)
+
+    if info.location == DataLocation.CALLDATA:
+        raise ImmutableViolation("Cannot write to calldata", node)
+
+    if info.modifiability == Modifiability.RUNTIME_CONSTANT:
+        if info.location == DataLocation.CODE:
+            # handle immutables
+            assert info.var_info is not None  # mypy hint
+
+            if node.get_ancestor(vy_ast.FunctionDef).get("name") != "__init__":
+                raise ImmutableViolation("Immutable value cannot be written to", node)
+
+            # special handling for immutable variables in the ctor
+            # TODO: maybe we want to remove this restriction.
+            if info.var_info._modification_count != 0:
+                raise ImmutableViolation(
+                    "Immutable value cannot be modified after assignment", node
+                )
+            info.var_info._modification_count += 1
+        else:
+            raise ImmutableViolation("Environment variable cannot be written to", node)
+
+    if info.modifiability == Modifiability.CONSTANT:
+        msg = "Constant value cannot be written to."
+        if info.module_info is not None:
+            msg += f"\n(hint: add `uses: {info.module_info.alias}` as "
+            msg += "a top-level statement to your contract)."
+        raise ImmutableViolation(msg, node)
+
+    if isinstance(node, vy_ast.AugAssign):
+        info.typ.validate_numeric_op(node)
