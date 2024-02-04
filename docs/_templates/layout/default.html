@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{%- block extrahead -%}
+  {% include "partials/opengraph.html" %}
+  {%- if languages %}
+    {%- for item in languages %}
+      {%- if item[2] and item[2] != language %}
+        <link rel="alternate" hreflang="{{ item[2] }}" href="{{ i18n_link(item[1]) }}" />
+      {%- endif %}
+    {%- endfor %}
+  {% endif %}
+{%- endblock -%}
+
+{%- if meta and meta.dark_code == "true" -%}
+  {% set dark_code = True %}
+{%- elif theme_dark_code -%}
+  {% set dark_code = True %}
+{%- else -%}
+  {% set dark_code = False %}
+{%- endif -%}
+
+{% block body %}
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        {%- if sidebars %}
+          {%- for sidebartemplate in sidebars %}
+            {%- include sidebartemplate %}
+          {%- endfor %}
+        {%- endif %}
+      </div>
+      {% if READTHEDOCS %}
+      <div class="sy-lside-bottom px-6" id="readthedocs-embed-flyout"></div>
+      {% endif %}
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+    {% include "components/breadcrumbs.html" %}
+    <div class="flex flex-col break-words justify-between">
+      <div class="min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+        <article class="yue{% if dark_code %} dark-code{% endif %}" role="main">
+          {% block content %}{{ body }}{% endblock %}
+        </article>
+        {% include "partials/article-bottom.html" %}
+        {% include "components/navigation.html" %}
+        {% include "partials/page-bottom.html" %}
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

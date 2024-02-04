@@ -1,0 +1,9 @@
+/* Hide the right navbar icon on small screens. */
+button[aria-controls="rside"] {
+    display: none;
+}
+
+/* Give more width to the main container. */
+main.sy-main {
+    width: 100%;
+}

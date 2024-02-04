@@ -35,6 +35,7 @@ html_theme_options = {
 }
 html_favicon = "vyper-logo-color.svg"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # For the "Edit this page ->" link
 html_context = {
