@@ -85,6 +85,7 @@ class BuiltinFunctionT(VyperType):
     _kwargs: dict[str, KwargSettings] = {}
     _modifiability: Modifiability = Modifiability.MODIFIABLE
     _return_type: Optional[VyperType] = None
+    _equality_attrs = ("_id",)
     _is_terminus = False
 
     # helper function to deal with TYPE_DEFINITIONs

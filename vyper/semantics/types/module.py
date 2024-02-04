@@ -16,6 +16,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
@@ -276,6 +277,13 @@ class InterfaceT(_UserType):
 # Datatype to store all module information.
 class ModuleT(VyperType):
     _attribute_in_annotation = True
+    _invalid_locations = (
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+        DataLocation.TRANSIENT,
+    )
+
 
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         super().__init__()

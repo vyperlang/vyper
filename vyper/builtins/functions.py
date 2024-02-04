@@ -1976,18 +1976,22 @@ class _UnsafeMath(BuiltinFunctionT):
 
 
 class UnsafeAdd(_UnsafeMath):
+    _id = "unsafe_add"
     op = "add"
 
 
 class UnsafeSub(_UnsafeMath):
+    _id = "unsafe_sub"
     op = "sub"
 
 
 class UnsafeMul(_UnsafeMath):
+    _id = "unsafe_mul"
     op = "mul"
 
 
 class UnsafeDiv(_UnsafeMath):
+    _id = "unsafe_div"
     op = "div"
 
 

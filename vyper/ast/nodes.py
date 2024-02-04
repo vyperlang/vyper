@@ -782,6 +782,11 @@ class StructDef(TopLevel):
 class ExprNode(VyperNode):
     __slots__ = ("_expr_info",)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._expr_info = None
+
 
 class Constant(ExprNode):
     # inherited class for all simple constant node types
