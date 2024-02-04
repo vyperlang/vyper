@@ -1,64 +1,16 @@
 import enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import InputBundle
-from vyper.exceptions import CompilerPanic, StructureException, VyperInternalException
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.utils import StringEnum
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import InterfaceT, ModuleT
-
-
-class StringEnum(enum.Enum):
-    # Must be first, or else won't work, specifies what .value is
-    def _generate_next_value_(name, start, count, last_values):
-        return name.lower()
-
-    # Override ValueError with our own internal exception
-    @classmethod
-    def _missing_(cls, value):
-        raise VyperInternalException(f"{value} is not a valid {cls.__name__}")
-
-    @classmethod
-    def is_valid_value(cls, value: str) -> bool:
-        return value in set(o.value for o in cls)
-
-    @classmethod
-    def options(cls) -> List["StringEnum"]:
-        return list(cls)
-
-    @classmethod
-    def values(cls) -> List[str]:
-        return [v.value for v in cls.options()]
-
-    # Comparison operations
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
-            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
-        return self is other
-
-    # Python normally does __ne__(other) ==> not self.__eq__(other)
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
-            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
-        options = self.__class__.options()
-        return options.index(self) < options.index(other)  # type: ignore
-
-    def __le__(self, other: object) -> bool:
-        return self.__eq__(other) or self.__lt__(other)
-
-    def __gt__(self, other: object) -> bool:
-        return not self.__le__(other)
-
-    def __ge__(self, other: object) -> bool:
-        return self.__eq__(other) or self.__gt__(other)
-
-    def __str__(self) -> str:
-        return self.value
 
 
 class FunctionVisibility(StringEnum):

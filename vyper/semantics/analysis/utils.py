@@ -693,7 +693,7 @@ def validate_modification(target: ExprInfo, func_t: "ContractFunctionT") -> None
         and func_t.mutability <= StateMutability.VIEW
     ):
         raise StateAccessViolation(
-            f"Cannot modify {target.location} in a {func_t.mutability} function"
+            f"Cannot modify {target.location} variable in a {func_t.mutability} function"
         )
 
     if target.location == DataLocation.CALLDATA:

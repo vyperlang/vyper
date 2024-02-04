@@ -1,6 +1,7 @@
 import binascii
 import contextlib
 import decimal
+import enum
 import functools
 import sys
 import time
@@ -8,7 +9,7 @@ import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral
 
 _T = TypeVar("_T")
 
@@ -60,6 +61,52 @@ class OrderedSet(Generic[_T], dict[_T, None]):
 
     def copy(self):
         return self.__class__(super().copy())
+
+
+class StringEnum(enum.Enum):
+    # Must be first, or else won't work, specifies what .value is
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise CompilerPanic(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        return self is other
+
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 class DecimalContextOverride(decimal.Context):
