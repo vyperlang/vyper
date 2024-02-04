@@ -106,6 +106,7 @@ class StringEnum(enum.Enum):
         return self.value
 
     def __hash__(self) -> int:
+        # let `dataclass` know that this class is not mutable
         return super().__hash__()
 
 
