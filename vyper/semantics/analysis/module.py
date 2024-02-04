@@ -242,7 +242,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         for call_node in call_nodes:
             expr_info = call_node.func._expr_info
-            print(call_node.func)
             call_t = expr_info.typ
 
             if not isinstance(call_t, ContractFunctionT):
