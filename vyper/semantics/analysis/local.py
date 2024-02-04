@@ -280,7 +280,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         # check mutability of the function
         validate_expected_type(node.value, target.typ)
-        validate_modification(target, self.func.mutability, node)
+        validate_modification(target, self.func)
 
         self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
@@ -558,7 +558,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(node.func, vy_ast.Attribute) and self.func is not None:
             expr_info = get_expr_info(node.func.value)
             # TODO: have mutability property on `self` (FunctionAnalyzer)
-            validate_modification(expr_info, self.func.mutability, node)
+            validate_modification(expr_info, self.func)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls
