@@ -315,7 +315,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                     # special handling for immutable variables in the ctor
                     # TODO: maybe we want to remove this restriction.
                     if info.var_info._modification_count != 0:
-                        raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                        raise ImmutableViolation(
+                            "Immutable value cannot be modified after assignment"
+                        )
                     info.var_info._modification_count += 1
             else:
                 raise ImmutableViolation("Environment variable cannot be written to")

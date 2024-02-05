@@ -131,7 +131,6 @@ def get_my_struct() -> MyStruct:
     assert c.get_my_struct() == (2,)
 
 
-
 def test_list_immutable(get_contract):
     code = """
 my_list: immutable(uint256[3])
