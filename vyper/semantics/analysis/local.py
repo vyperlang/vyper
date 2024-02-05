@@ -277,12 +277,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         target = get_expr_info(node.target)
 
-        # TODO can this check be moved into validate_modification?
-        if isinstance(target.typ, HashMapT):
-            raise StructureException(
-                "Left-hand side of assignment cannot be a HashMap without a key", node
-            )
-
         # check mutability of the function
         self._handle_modification(node.target)
 
@@ -294,6 +288,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # valid, and log the modification in relevant data structures.
         func_t = self.func
         info = get_expr_info(target)
+
+        if isinstance(info.typ, HashMapT):
+            raise StructureException(
+                "Left-hand side of assignment cannot be a HashMap without a key"
+            )
 
         if (
             info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
