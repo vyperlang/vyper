@@ -307,17 +307,16 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         if info.modifiability == Modifiability.RUNTIME_CONSTANT:
             if info.location == DataLocation.CODE:
-                # handle immutables
-                assert info.var_info is not None  # mypy hint
-
                 if not func_t.is_constructor:
                     raise ImmutableViolation("Immutable value cannot be written to")
 
-                # special handling for immutable variables in the ctor
-                # TODO: maybe we want to remove this restriction.
-                if info.var_info._modification_count != 0:
-                    raise ImmutableViolation("Immutable value cannot be modified after assignment")
-                info.var_info._modification_count += 1
+                # handle immutables
+                if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                    # special handling for immutable variables in the ctor
+                    # TODO: maybe we want to remove this restriction.
+                    if info.var_info._modification_count != 0:
+                        raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                    info.var_info._modification_count += 1
             else:
                 raise ImmutableViolation("Environment variable cannot be written to")
 

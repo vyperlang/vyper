@@ -108,6 +108,30 @@ def get_my_struct() -> MyStruct:
     assert c.get_my_struct() == values
 
 
+def test_complex_immutable_modifiable(get_contract):
+    code = """
+struct MyStruct:
+    a: uint256
+
+my_struct: immutable(MyStruct)
+
+@deploy
+def __init__(a: uint256):
+    my_struct = MyStruct({a: a})
+
+    # struct members are modifiable after initialization
+    my_struct.a += 1
+
+@view
+@external
+def get_my_struct() -> MyStruct:
+    return my_struct
+    """
+    c = get_contract(code, 1)
+    assert c.get_my_struct() == (2,)
+
+
+
 def test_list_immutable(get_contract):
     code = """
 my_list: immutable(uint256[3])
