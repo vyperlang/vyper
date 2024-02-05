@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArrayIndexException,
     InstantiationException,
     InvalidType,
+    StructureException,
     UndeclaredDefinition,
     UnknownType,
 )
@@ -175,10 +176,19 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
         Literal integer value.
         In the future, will return `None` if the subscript is an Ellipsis
     """
+    # this is imported to improve error messages
+    # TODO: revisit this!
+    from vyper.semantics.analysis.utils import get_possible_types_from_node
+
     if node.has_folded_value:
         node = node.get_folded_value()
 
     if not isinstance(node, vy_ast.Int):
+        try:
+            get_possible_types_from_node(node)
+        except StructureException:
+            # StructureException is a very broad error, better to raise InvalidType in this case
+            pass
         raise InvalidType("Subscript must be a literal integer", node)
 
     if node.value <= 0:
