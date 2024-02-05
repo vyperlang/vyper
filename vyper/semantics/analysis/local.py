@@ -343,11 +343,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         module = target.value
         while isinstance(module, vy_ast.Attribute):
             module = module.value
-        assert isinstance(module, vy_ast.Name)
-
         module_info = get_expr_info(target.value).module_info
         if module_info is None:
             return
+
+        assert isinstance(module, vy_ast.Name)
 
         self._used_modules.add(module_info)
 
