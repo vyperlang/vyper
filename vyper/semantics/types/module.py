@@ -235,7 +235,7 @@ class InterfaceT(_UserType):
 
         for node in module_t.function_defs:
             func_t = node._metadata["func_type"]
-            if not func_t.is_external:
+            if not (func_t.is_external or func_t.is_constructor):
                 continue
             funcs.append((node.name, func_t))
 
