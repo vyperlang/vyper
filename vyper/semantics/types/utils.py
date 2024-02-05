@@ -161,15 +161,14 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.Index) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> int:
     """
     Return the literal value for a `Subscript` index.
 
     Arguments
     ---------
-    node: vy_ast.Index
-        Vyper ast node from the `slice` member of a Subscript node. Must be an
-        `Index` object (Vyper does not support `Slice` or `ExtSlice`).
+    node: vy_ast.VyperNode
+        Vyper ast node from the `slice` member of a Subscript node.
 
     Returns
     -------
@@ -181,23 +180,20 @@ def get_index_value(node: vy_ast.Index) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    value = node.get("value")
-    if value.has_folded_value:
-        value = value.get_folded_value()
+    if node.has_folded_value:
+        node = node.get_folded_value()
 
-    if not isinstance(value, vy_ast.Int):
-        if hasattr(node, "value"):
-            # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
-            try:
-                get_possible_types_from_node(node.value)
-            except StructureException:
-                # StructureException is a very broad error, better to raise InvalidType in this case
-                pass
-
+    if not isinstance(node, vy_ast.Int):
+        # even though the subscript is an invalid type, first check if it's a valid _something_
+        # this gives a more accurate error in case of e.g. a typo in a constant variable name
+        try:
+            get_possible_types_from_node(node)
+        except StructureException:
+            # StructureException is a very broad error, better to raise InvalidType in this case
+            pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if value.value <= 0:
+    if node.value <= 0:
         raise ArrayIndexException("Subscript must be greater than 0", node)
 
-    return value.value
+    return node.value

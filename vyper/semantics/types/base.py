@@ -276,7 +276,7 @@ class VyperType:
         raise StructureException(f"{self} is not callable", node)
 
     @classmethod
-    def get_subscripted_type(self, node: vy_ast.Index) -> None:
+    def get_subscripted_type(self, node: vy_ast.VyperNode) -> None:
         """
         Return the type of a subscript expression, e.g. x[1]
 

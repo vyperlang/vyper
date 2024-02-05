@@ -341,26 +341,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
-    def visit_Subscript(self, node):
-        """
-        Maintain consistency of `Subscript.slice` across python versions.
-
-        Starting from python 3.9, the `Index` node type has been deprecated,
-        and made impossible to instantiate via regular means. Here we do awful
-        hacky black magic to create an `Index` node.
-
-        TODO: remove Index ast nodes since we require python>=3.10 now - CMC 2024-01-13
-        """
-        self.generic_visit(node)
-
-        if not isinstance(node.slice, python_ast.Index):
-            index = python_ast.Constant(value=node.slice, ast_type="Index")
-            index.__class__ = python_ast.Index
-            self.generic_visit(index)
-            node.slice = index
-
-        return node
-
     def visit_Constant(self, node):
         """
         Handle `Constant` when using Python >=3.8

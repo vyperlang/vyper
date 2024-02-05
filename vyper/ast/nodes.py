@@ -1258,10 +1258,6 @@ class Subscript(ExprNode):
     __slots__ = ("slice", "value")
 
 
-class Index(ExprNode):
-    __slots__ = ("value",)
-
-
 class Assign(Stmt):
     """
     An assignment.
