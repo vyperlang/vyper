@@ -646,7 +646,7 @@ event MyLog:
     arg3: indexed(int128)
     arg4: indexed(int128)
 
-@external
+@deploy
 def __init__():
     log MyLog(1, 2, 3, 4)
     """
@@ -1033,7 +1033,7 @@ event Bar:
 x: int128[4]
 y: int128[2]
 
-@external
+@deploy
 def __init__():
     self.y = [1024, 2048]
 

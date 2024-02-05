@@ -16,7 +16,7 @@ struct Chunk:
     c: int128
 chunk: Chunk
 
-@external
+@deploy
 def __init__():
     self.chunk.a = b"hello"
     self.chunk.b = b"world"

@@ -41,7 +41,7 @@ def test_complicated_external_contract_calls(get_contract, get_contract_with_gas
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
 
@@ -968,7 +968,7 @@ def test_external_contract_calls_with_public_globals(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -994,7 +994,7 @@ def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -1008,7 +1008,7 @@ interface Foo:
 
 magic_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
     self.magic_number = Foo(arg1).lucky()
     """
@@ -1020,7 +1020,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
     self.best_number = Bar(arg1).magic_number()
     """
@@ -1145,7 +1145,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__():
     pass
 """

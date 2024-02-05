@@ -122,7 +122,7 @@ def bar() -> bool:
     """,
     """
 # payable init function
-@external
+@deploy
 @payable
 def __init__():
     a: int128 = 1
@@ -279,7 +279,7 @@ def baz() -> bool:
     """,
     """
 # init function
-@external
+@deploy
 def __init__():
     a: int128 = 1
 

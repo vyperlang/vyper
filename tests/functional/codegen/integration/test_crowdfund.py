@@ -13,7 +13,7 @@ goal: public(uint256)
 refundIndex: int128
 timelimit: public(uint256)
 
-@external
+@deploy
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
@@ -109,7 +109,7 @@ goal: uint256
 refundIndex: int128
 timelimit: public(uint256)
 
-@external
+@deploy
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit

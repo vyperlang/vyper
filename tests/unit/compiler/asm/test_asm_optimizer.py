@@ -20,7 +20,7 @@ def runtime_only():
 def bar():
     self.runtime_only()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,
@@ -44,7 +44,7 @@ def ctor_only():
 def bar():
     self.foo()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,
@@ -65,7 +65,7 @@ def runtime_only():
 def bar():
     self.runtime_only()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,

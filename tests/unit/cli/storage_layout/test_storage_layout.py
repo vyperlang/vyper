@@ -56,7 +56,7 @@ name: String[32]
 SYMBOL: immutable(String[32])
 DECIMALS: immutable(uint8)
 
-@external
+@deploy
 def __init__():
     SYMBOL = "VYPR"
     DECIMALS = 18

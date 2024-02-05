@@ -94,7 +94,7 @@ VAL: constant(uint256) = 1
 VAL: immutable(uint256)
 VAL: uint256
 
-@external
+@deploy
 def __init__():
     VAL = 1
     """,
@@ -106,7 +106,7 @@ def __init__():
 VAL: uint256
 VAL: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     VAL = 1
     """,

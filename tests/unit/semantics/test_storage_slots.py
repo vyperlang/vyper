@@ -25,7 +25,7 @@ g: public(StructTwo[2])
 h: public(int256[1])
 
 
-@external
+@deploy
 def __init__():
     self.a = StructOne({a: "ok", b: [4,5,6]})
     self.b = [7, 8]

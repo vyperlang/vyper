@@ -1666,7 +1666,7 @@ def ix(i: uint256) -> decimal:
 def test_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[uint256, 5])
-@external
+@deploy
 def __init__():
     self.my_list = [1,2,3]
     """
@@ -1679,7 +1679,7 @@ def __init__():
 def test_nested_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[DynArray[uint256, 5], 5])
-@external
+@deploy
 def __init__():
     self.my_list = [[1,2,3]]
     """
