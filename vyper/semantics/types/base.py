@@ -325,7 +325,7 @@ class KwargSettings:
 
 
 class _VoidType(VyperType):
-    pass
+    _id = "(void)"
 
 
 # sentinel for function calls which return nothing
