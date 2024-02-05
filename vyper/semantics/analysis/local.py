@@ -609,38 +609,36 @@ class ExprVisitor(VyperNodeVisitorBase):
         for value in node.values:
             self.visit(value, BoolT())
 
+    def _check_call_mutability(self, call_mutability: StateMutability):
+        # note: payable can be called from nonpayable functions
+        ok = (
+            call_mutability <= self.func.mutability
+            or self.func.mutability >= StateMutability.NONPAYABLE
+        )
+        if not ok:
+            msg = f"Cannot call a {call_mutability} function from a {self.func.mutability} function"
+            raise StateAccessViolation(msg)
+
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
         self.visit(node.func, call_type)
 
-        # check mutability level of the function when the function call is
-        # an attr (ex. `foo.bar()`)
-        # TODO: this is not really correct; we need to check touched variables,
-        # not just function mutability as there could be false positives.
-        if (
-            self.function_analyzer is not None
-            and getattr(call_type, "modifiability", None) == Modifiability.MODIFIABLE
-        ):
-            self.function_analyzer._handle_modification(node.func)
-
         if isinstance(call_type, ContractFunctionT):
             # function calls
 
-            if self.func:
+            if self.function_analyzer:
                 if call_type.is_internal:
                     self.func.called_functions.add(call_type)
 
-                # note: payable can be called from nonpayable functions
-                mutability_ok = (
-                    call_type.mutability <= self.func.mutability
-                    or self.func.mutability >= StateMutability.NONPAYABLE
-                )
-                if not mutability_ok:
-                    raise StateAccessViolation(
-                        f"Cannot call a {call_type.mutability} function from a "
-                        f"{self.func.mutability} function",
-                        node,
-                    )
+                self._check_call_mutability(call_type.mutability)
+
+                # log used module when the function is modifiable
+                # TODO: this is not really correct; we need to check touched
+                # variables, not just function mutability as there could be
+                # false positives.
+                if call_type.modifiability == Modifiability.MODIFIABLE:
+                    self.function_analyzer._log_used_module(node.func)
+
                 if call_type.is_deploy and not self.func.is_deploy:
                     raise StateAccessViolation(
                         f"Cannot call an @{call_type.visibility} function from "
@@ -667,6 +665,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             for value, arg_type in zip(node.args[0].values, expected_types):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
+            if call_type.is_modifying:
+                self.function_analyzer._handle_modification(node.func)
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
                 self.visit(arg, arg_type)
