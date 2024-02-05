@@ -31,6 +31,7 @@ html_theme_options = {
     "twitter_site": "vyperlang",
     "twitter_url": "https://twitter.com/vyperlang",
     "github_url": "https://github.com/vyperlang",
+    # Customize the left sidebar
     "globaltoc_expand_depth": 1,
     "toctree_titles_only": False,
     "toctree_collapse": True,
@@ -38,6 +39,8 @@ html_theme_options = {
 html_favicon = "vyper-logo-color.svg"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+# Customize the right sidebar
+html_sidebars = {"**": []}
 
 # For the "Edit this page ->" link
 html_context = {
