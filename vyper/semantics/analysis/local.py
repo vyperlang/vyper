@@ -666,7 +666,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             for value, arg_type in zip(node.args[0].values, expected_types):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
-            if call_type.is_modifying:
+            if call_type.is_modifying and self.function_analyzer is not None:
                 self.function_analyzer._handle_modification(node.func)
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
