@@ -12,7 +12,7 @@ from vyper.venom.bb_optimizer import (
     ir_pass_remove_unreachable_blocks,
 )
 from vyper.venom.function import IRFunction
-from vyper.venom.ir_node_to_venom import convert_ir_basicblock
+from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.venom_to_assembly import VenomCompiler
@@ -61,11 +61,9 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
             break
 
 
-def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> tuple[IRFunction, IRFunction]:
+def generate_ir(ir: IRnode, optimize: OptimizationLevel) -> IRFunction:
     # Convert "old" IR to "new" IR
-    ctx, ctx_runtime = convert_ir_basicblock(ir)
-
+    ctx = ir_node_to_venom(ir)
     _run_passes(ctx, optimize)
-    _run_passes(ctx_runtime, optimize)
 
-    return ctx, ctx_runtime
+    return ctx

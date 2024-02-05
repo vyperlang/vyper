@@ -69,7 +69,7 @@ interface One:
 
 def test_basic_interface_implements(assert_compile_failed):
     code = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 implements: ERC20
 
@@ -382,7 +382,7 @@ def transfer(to: address, amount: uint256) -> bool:
     """
 
     code = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 
 token_address: ERC20

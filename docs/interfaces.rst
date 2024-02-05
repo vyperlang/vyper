@@ -160,11 +160,11 @@ In the above example, the ``my_project`` folder is set as the root path. A contr
 Built-in Interfaces
 ===================
 
-Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``vyper.interfaces``:
+Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.org/EIPS/eip-20>`_ and `ERC721 <https://eips.ethereum.org/EIPS/eip-721>`_. These are imported from ``ethereum.ercs``:
 
 .. code-block:: python
 
-    from vyper.interfaces import ERC20
+    from ethereum.ercs import ERC20
 
     implements: ERC20
 

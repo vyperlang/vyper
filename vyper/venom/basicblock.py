@@ -55,7 +55,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
     ]
 )
 
-CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz", "call", "staticcall", "invoke"])
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -410,8 +410,8 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars} \n"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         )
         for instruction in self.instructions:
-            s += f"    {instruction}\n"
+            s += f"    {str(instruction).strip()}\n"
         return s

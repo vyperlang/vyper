@@ -32,7 +32,7 @@ def get_balance(w3):
 
 
 def test_initial_state(w3, tx_failed, get_contract, get_balance, contract_code):
-    # Inital deposit has to be divisible by two
+    # Initial deposit has to be divisible by two
     with tx_failed():
         get_contract(contract_code, value=13)
     # Seller puts item up for sale

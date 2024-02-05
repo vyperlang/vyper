@@ -190,9 +190,6 @@ class Expr:
             varinfo = self.context.globals[self.expr.id]
 
             if varinfo.is_constant:
-                # constants other than structs and interfaces should have already gotten
-                # propagated during constant folding
-                assert isinstance(varinfo.typ, (InterfaceT, StructT))
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.is_immutable, "not an immutable!"
@@ -359,16 +356,16 @@ class Expr:
 
         if isinstance(sub.typ, HashMapT):
             # TODO sanity check we are in a self.my_map[i] situation
-            index = Expr(self.expr.slice.value, self.context).ir_node
+            index = Expr(self.expr.slice, self.context).ir_node
             if isinstance(index.typ, _BytestringT):
                 # we have to hash the key to get a storage location
                 index = keccak256_helper(index, self.context)
 
         elif is_array_like(sub.typ):
-            index = Expr.parse_value_expr(self.expr.slice.value, self.context)
+            index = Expr.parse_value_expr(self.expr.slice, self.context)
 
         elif is_tuple_like(sub.typ):
-            index = self.expr.slice.value.n
+            index = self.expr.slice.n
             # note: this check should also happen in get_element_ptr
             if not 0 <= index < len(sub.typ.member_types):
                 raise TypeCheckFailure("unreachable")

@@ -206,7 +206,7 @@ function.
 2. We call `fetch_call_return` on the function definition object, with the AST
 node representing the call. This method validates the input arguments, and returns
 a `BytesM_T` with `m=32`.
-3. We validation of the delcaration of `bar` in the same manner as the first
+3. We validation of the declaration of `bar` in the same manner as the first
 example, and compare the generated type to that returned by `sha256`.
 
 ### Exceptions

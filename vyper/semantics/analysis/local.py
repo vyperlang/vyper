@@ -628,10 +628,6 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.body, typ)
         self.visit(node.orelse, typ)
 
-    def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
-        assert isinstance(typ, TYPE_T)
-        self.visit(node.value, typ.typedef)
-
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
@@ -664,7 +660,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # get the correct type for the index, it might
         # not be exactly base_type.key_type
         # note: index_type is validated in types_from_Subscript
-        index_types = get_possible_types_from_node(node.slice.value)
+        index_types = get_possible_types_from_node(node.slice)
         index_type = index_types.pop()
 
         self.visit(node.slice, TYPE_T(index_type))

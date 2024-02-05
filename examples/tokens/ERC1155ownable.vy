@@ -9,7 +9,7 @@
 """
 
 ############### imports ###############
-from vyper.interfaces import ERC165
+from ethereum.ercs import ERC165
 
 ############### variables ###############
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
