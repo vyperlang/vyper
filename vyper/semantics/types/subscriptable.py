@@ -197,7 +197,7 @@ class SArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
-        if not isinstance(node, vy_ast.Subscript) or not hasattr(node, "slice"):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
@@ -279,11 +279,7 @@ class DArrayT(_SequenceT):
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(err_msg, node)
 
-        if (
-            not hasattr(node, "slice")
-            or not isinstance(node.slice, vy_ast.Tuple)
-            or len(node.slice.elements) != 2
-        ):
+        if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
         length_node = node.slice.elements[1]

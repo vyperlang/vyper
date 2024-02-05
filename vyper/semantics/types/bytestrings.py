@@ -123,7 +123,7 @@ class _BytestringT(VyperType):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
-        if not isinstance(node, vy_ast.Subscript) or not hasattr(node, "slice"):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 f"Cannot declare {cls._id} type without a maximum length, e.g. {cls._id}[5]", node
             )
