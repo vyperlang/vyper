@@ -667,7 +667,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         index_types = get_possible_types_from_node(node.slice)
         index_type = index_types.pop()
 
-        self.visit(node.slice, TYPE_T(index_type))
+        self.visit(node.slice, index_type)
         self.visit(node.value, base_type)
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
