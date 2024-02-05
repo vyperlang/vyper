@@ -352,8 +352,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_ref = node.annotation
         dependencies_ast = ()
         if isinstance(module_ref, vy_ast.Subscript):
+            dependencies_ast = vy_ast.as_tuple(module_ref.slice)
             module_ref = module_ref.value
-            dependencies_ast = vy_ast.as_tuple(node.annotation.slice.value)
 
         # postcondition of InitializesDecl.validates()
         assert isinstance(module_ref, (vy_ast.Name, vy_ast.Attribute))

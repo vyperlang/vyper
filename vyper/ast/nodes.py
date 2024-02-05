@@ -1478,14 +1478,11 @@ class InitializesDecl(Stmt):
 
         module_ref = self.annotation
         if isinstance(module_ref, Subscript):
+            dependencies = as_tuple(module_ref.slice)
             module_ref = module_ref.value
-
-            index = self.annotation.slice.value
-            dependencies = as_tuple(index)
 
             for item in dependencies:
                 if not isinstance(item, NamedExpr):
-                    print(type(item))
                     raise StructureException(
                         "invalid dependency (hint: should be [dependency := dependency]", item
                     )
