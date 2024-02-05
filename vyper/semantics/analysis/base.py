@@ -73,7 +73,6 @@ class Modifiability(enum.IntEnum):
         return cls.MODIFIABLE
 
 
-
 class DataPosition:
     _location: DataLocation
 

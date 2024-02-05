@@ -290,8 +290,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             if initialized_module.module_t not in should_initialize:
                 msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but it is not in initializer list!\n"
-                msg += f"  (hint: add `initializes: {initialized_module.alias}`\n"
+                msg += "but it is not in initializer list!\n\n"
+                msg += f"  (hint: add `initializes: {initialized_module.alias}` "
+                msg += "as a top-level statement to your contract\n"
                 raise InitializerException(msg, call_node.func)
 
             del should_initialize[initialized_module.module_t]

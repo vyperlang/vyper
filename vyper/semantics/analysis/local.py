@@ -48,7 +48,7 @@ from vyper.semantics.types import (
     _BytestringT,
     is_type_t,
 )
-from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability, Modifiability
+from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
@@ -327,9 +327,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         if info.modifiability == Modifiability.CONSTANT:
             msg = "Constant value cannot be written to."
-            if info.module_info is not None:
-                msg += f"\n(hint: add `uses: {info.module_info.alias}` as "
-                msg += "a top-level statement to your contract)."
+            while isinstance(target, vy_ast.Attribute):
+                target = target.value
+            module_info = get_expr_info(target).module_info
+            if module_info is not None:
+                msg += f"\n\n  (hint: add `uses: {module_info.alias}` or "
+                msg += f"`initializes: {module_info.alias}` as "
+                msg += "a top-level statement to your contract).\n"
             raise ImmutableViolation(msg)
 
         self._log_used_module(target)
@@ -627,7 +631,10 @@ class ExprVisitor(VyperNodeVisitorBase):
         # an attr (ex. `foo.bar()`)
         # TODO: this is not really correct; we need to check touched variables,
         # not just function mutability as there could be false positives.
-        if self.function_analyzer is not None and getattr(call_type, "modifiability", None) == Modifiability.MODIFIABLE:
+        if (
+            self.function_analyzer is not None
+            and getattr(call_type, "modifiability", None) == Modifiability.MODIFIABLE
+        ):
             self.function_analyzer._handle_modification(node.func)
 
         if isinstance(call_type, ContractFunctionT):
