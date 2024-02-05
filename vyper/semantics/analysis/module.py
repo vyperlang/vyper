@@ -271,6 +271,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         seen_initializers = {}
         for call_node in init_calls:
+            expr_info = call_node.func._expr_info
+            if expr_info is None:
+                # this can happen for range() calls; CMC 2024-02-05 try to
+                # refactor so that range() is properly tagged.
+                continue
+
             call_t = call_node.func._expr_info.typ
 
             if not isinstance(call_t, ContractFunctionT):
