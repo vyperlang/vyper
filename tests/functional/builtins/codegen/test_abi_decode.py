@@ -224,7 +224,7 @@ def test_side_effects_evaluation(get_contract):
     contract_1 = """
 counter: uint256
 
-@external
+@deploy
 def __init__():
     self.counter = 0
 

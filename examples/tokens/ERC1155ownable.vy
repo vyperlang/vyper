@@ -122,7 +122,7 @@ interface IERC1155MetadataURI:
 
 ############### functions ###############
 
-@external
+@deploy
 def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment

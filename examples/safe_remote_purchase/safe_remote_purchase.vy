@@ -19,7 +19,7 @@ buyer: public(address)
 unlocked: public(bool)
 ended: public(bool)
 
-@external
+@deploy
 @payable
 def __init__():
     assert (msg.value % 2) == 0

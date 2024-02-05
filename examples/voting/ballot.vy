@@ -50,7 +50,7 @@ def directlyVoted(addr: address) -> bool:
 
 
 # Setup global variables
-@external
+@deploy
 def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voterCount = 0

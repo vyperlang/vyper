@@ -82,7 +82,7 @@ SUPPORTED_INTERFACES: constant(bytes4[2]) = [
     0x80ac58cd,
 ]
 
-@external
+@deploy
 def __init__():
     """
     @dev Contract constructor.

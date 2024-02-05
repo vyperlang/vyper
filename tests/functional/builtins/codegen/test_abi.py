@@ -8,14 +8,14 @@ source_codes = [
     """
 x: int128
 
-@external
+@deploy
 def __init__():
     self.x = 1
     """,
     """
 x: int128
 
-@external
+@deploy
 def __init__():
     pass
     """,

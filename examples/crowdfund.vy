@@ -11,7 +11,7 @@ goal: public(uint256)
 timelimit: public(uint256)
 
 # Setup global variables
-@external
+@deploy
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit

@@ -137,7 +137,7 @@ owner_setter_contract: public(address)
 owners: public(address[5])
 
 
-@external
+@deploy
 def __init__(_owner_setter: address):
     self.owner_setter_contract = _owner_setter
 

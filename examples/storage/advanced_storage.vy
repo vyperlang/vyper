@@ -4,7 +4,7 @@ event DataChange:
 
 storedData: public(int128)
 
-@external
+@deploy
 def __init__(_x: int128):
   self.storedData = _x
 

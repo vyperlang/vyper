@@ -50,7 +50,7 @@ event Withdraw:
     shares: uint256
 
 
-@external
+@deploy
 def __init__(asset: ERC20):
     self.asset = asset
 
