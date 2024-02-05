@@ -324,6 +324,20 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
+class _VoidType(VyperType):
+    pass
+
+
+# sentinel for function calls which return nothing
+VOID_TYPE = _VoidType()
+
+
+def map_void(typ: Optional[VyperType]) -> VyperType:
+    if typ is None:
+        return VOID_TYPE
+    return typ
+
+
 # A type type. Used internally for types which can live in expression
 # position, ex. constructors (events, interfaces and structs), and also
 # certain builtins which take types as parameters

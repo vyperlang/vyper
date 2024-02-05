@@ -32,6 +32,7 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
+    VOID_TYPE,
     AddressT,
     BoolT,
     DArrayT,
@@ -45,6 +46,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_type_t,
+    map_void,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
@@ -337,16 +339,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = fn_type.fetch_call_return(node.value)
+        return_value = map_void(fn_type.fetch_call_return(node.value))
         if (
-            return_value
+            return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
-        self.expr_visitor.visit(node.value, TYPE_T(fn_type))
+        self.expr_visitor.visit(node.value, return_value)
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -457,13 +459,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
-        f.fetch_call_return(node.value)
+        t = map_void(f.fetch_call_return(node.value))
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this
         node._metadata["type"] = f.typedef
-        # pass expected_type=TYPE_T(EventT) so that in visit(),
-        # validate_expected_type is skipped for the return value
-        self.expr_visitor.visit(node.value, f)
+        self.expr_visitor.visit(node.value, t)
 
     def visit_Raise(self, node):
         if node.exc:
@@ -499,7 +499,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        if not isinstance(typ, TYPE_T):
+        if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
 
         # recurse and typecheck in case we are being fed the wrong type for
