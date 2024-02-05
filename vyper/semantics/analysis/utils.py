@@ -323,6 +323,17 @@ class _ExprAnalyser:
             )
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        return types_list
+
     def types_from_List(self, node):
         # literal array
         if _is_empty_list(node):
@@ -404,17 +415,6 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
-
-    def types_from_IfExp(self, node):
-        validate_expected_type(node.test, BoolT())
-        types_list = get_common_types(node.body, node.orelse)
-
-        if not types_list:
-            a = get_possible_types_from_node(node.body)[0]
-            b = get_possible_types_from_node(node.orelse)[0]
-            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
-
-        return types_list
 
 
 def _is_empty_list(node):
@@ -558,10 +558,25 @@ def validate_expected_type(node, expected_type):
     -------
     None
     """
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
-
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
+
+    if isinstance(node, vy_ast.Tuple):
+        possible_tuple_types = [t for t in expected_type if isinstance(t, TupleT)]
+        for t in possible_tuple_types:
+            if len(t.member_types) != len(node.elements):
+                continue
+            for item_ast, item_type in zip(node.elements, t.member_types):
+                try:
+                    validate_expected_type(item_ast, item_type)
+                    return
+                except VyperException:
+                    pass
+        else:
+            # fail block
+            pass
+
+    given_types = _ExprAnalyser().get_possible_types_from_node(node)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
