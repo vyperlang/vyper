@@ -180,8 +180,6 @@ class _ExprAnalyser:
             if fn is not None:
                 return fn
 
-        print("type: ", type(node))
-
         raise StructureException("Cannot determine type of this object", node)
 
     def types_from_Attribute(self, node):
