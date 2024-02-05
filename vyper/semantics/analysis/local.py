@@ -292,7 +292,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
 
-    def _handle_modification(self, target: vy_ast.VyperNode):
+    def _handle_modification(self, target: vy_ast.ExprNode):
         # check a modification of `target`. validate the modification is
         # valid, and log the modification in relevant data structures.
         func_t = self.func

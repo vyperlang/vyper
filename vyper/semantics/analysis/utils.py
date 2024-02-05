@@ -482,7 +482,7 @@ def get_exact_type_from_node(node):
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
-def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
+def get_expr_info(node: vy_ast.ExprNode) -> ExprInfo:
     if node._expr_info is None:
         node._expr_info = _ExprAnalyser().get_expr_info(node)
     return node._expr_info
@@ -633,7 +633,7 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) -> bool:
+def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
     """
     Check if the given node is not more modifiable than the given modifiability.
     """
