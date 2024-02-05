@@ -382,13 +382,13 @@ class _ExprAnalyser:
             types_list = self.get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:
-                t.validate_index_type(node.slice.value)
-                ret.append(t.get_subscripted_type(node.slice.value))
+                t.validate_index_type(node.slice)
+                ret.append(t.get_subscripted_type(node.slice))
             return ret
 
         t = self.get_exact_type_from_node(node.value)
-        t.validate_index_type(node.slice.value)
-        return [t.get_subscripted_type(node.slice.value)]
+        t.validate_index_type(node.slice)
+        return [t.get_subscripted_type(node.slice)]
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
