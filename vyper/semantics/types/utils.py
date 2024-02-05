@@ -185,7 +185,7 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
+        # this gives a more accurate error in case of e.g. a typo in a constant variable name
         try:
             get_possible_types_from_node(node)
         except StructureException:
