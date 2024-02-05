@@ -41,7 +41,7 @@ buyer: address
 seller: address
 arbitrator: address
 
-@external
+@deploy
 @payable
 def __init__(_seller: address, _arbitrator: address):
     if self.buyer == empty(address):
