@@ -609,19 +609,28 @@ class ExprVisitor(VyperNodeVisitorBase):
         for value in node.values:
             self.visit(value, BoolT())
 
+    def _check_call_modifiability(self, modifiability: Modifiability):
+        # note: payable can be called from nonpayable functions
+        current_modifiability = Modifiability.from_state_mutability(self.func.mutability)
+        ok = current_modifiability >= modifiability
+        if ok:
+            raise StateAccessViolation(
+                f"Cannot call a {modifiability} function from a {self.func.mutability} function"
+            )
+
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
         self.visit(node.func, call_type)
 
         # check mutability level of the function when the function call is
         # an attr (ex. `foo.bar()`)
-        # TODO: this is not really correct; we need to check touched variables,
-        # not just function mutability as there could be false positives.
-        if (
-            self.function_analyzer is not None
-            and getattr(call_type, "modifiability", None) == Modifiability.MODIFIABLE
-        ):
-            self.function_analyzer._handle_modification(node.func)
+        if hasattr(call_type, "modifiability"):
+            self._check_call_modifiability(call_type.modifiability)
+            if self.function_analyzer is not None:
+                # TODO: this is not really correct; we need to check touched
+                # variables, not just function mutability as there could be
+                # false positives.
+                self.function_analyzer._log_used_module(node.func)
 
         if isinstance(call_type, ContractFunctionT):
             # function calls
@@ -630,17 +639,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                 if call_type.is_internal:
                     self.func.called_functions.add(call_type)
 
-                # note: payable can be called from nonpayable functions
-                mutability_ok = (
-                    call_type.mutability <= self.func.mutability
-                    or self.func.mutability >= StateMutability.NONPAYABLE
-                )
-                if not mutability_ok:
-                    raise StateAccessViolation(
-                        f"Cannot call a {call_type.mutability} function from a "
-                        f"{self.func.mutability} function",
-                        node,
-                    )
                 if call_type.is_deploy and not self.func.is_deploy:
                     raise StateAccessViolation(
                         f"Cannot call an @{call_type.visibility} function from "
