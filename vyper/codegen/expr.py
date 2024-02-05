@@ -263,6 +263,9 @@ class Expr:
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
         # self.x: global attribute
         elif (varinfo := self.expr._expr_info.var_info) is not None:
+            if varinfo.is_constant:
+                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
             location = TRANSIENT if varinfo.is_transient else STORAGE
 
             ret = IRnode.from_list(
