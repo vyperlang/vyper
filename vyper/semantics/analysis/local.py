@@ -495,7 +495,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
-        if not isinstance(typ, TYPE_T) and not isinstance(node, (vy_ast.Tuple,)):
+        if not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
 
         # recurse and typecheck in case we are being fed the wrong type for
@@ -675,9 +675,12 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
+        # these guarantees should be provided by validate_expected_type
         assert isinstance(typ, TupleT)
-        for element, subtype in zip(node.elements, typ.member_types):
-            self.visit(element, subtype)
+        assert len(node.elements) == len(typ.member_types)
+
+        for item_ast, item_type in zip(node.elements, typ.member_types):
+            self.visit(item_ast, item_type)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
         self.visit(node.operand, typ)
