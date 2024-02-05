@@ -262,6 +262,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # check all `initializes:` modules have `__init__()` called exactly once
         module_t = self.ast._metadata["type"]
         should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
+        # don't call `__init__()` for modules which don't have
+        # `__init__()` function
+        for m in should_initialize.copy():
+            for f in m.functions.values():
+                if f.is_constructor:
+                    break
+            else:
+                del should_initialize[m]
 
         init_calls = []
         for f in self.ast.get_children(vy_ast.FunctionDef):

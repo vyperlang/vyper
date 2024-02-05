@@ -393,6 +393,10 @@ class ModuleT(VyperType):
         return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
 
     @cached_property
+    def functions(self):
+        return {f.name: f._metadata["func_type"] for f in self.function_defs}
+
+    @cached_property
     def immutables(self):
         return [t for t in self.variables.values() if t.is_immutable]
 
