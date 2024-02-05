@@ -78,7 +78,7 @@ def foo():
         """
 f:int128
 
-@external
+@internal
 def a (x:int128):
     self.f = 100
 
