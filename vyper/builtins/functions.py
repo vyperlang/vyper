@@ -113,10 +113,7 @@ class TypenameFoldedFunctionT(FoldedFunctionT):
     # Base class for builtin functions that:
     # (1) take a typename as the only argument; and
     # (2) should always be folded.
-
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`.
-    _inputs = [("typename", "TYPE_DEFINITION")]
+    _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
@@ -711,7 +708,7 @@ class Sha256(BuiltinFunctionT):
 class MethodID(FoldedFunctionT):
     _id = "method_id"
     _inputs = [("value", StringT.any())]
-    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BytesT(4))}
+    _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BytesT(4))}
 
     def _try_fold(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -848,10 +845,7 @@ def _storage_element_getter(index):
 class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
-    # (note that it is ignored in _validate_arg_types)
-    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BYTES32_T)}
+    _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BYTES32_T)}
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -2478,7 +2472,7 @@ class ABIEncode(BuiltinFunctionT):
 
 class ABIDecode(BuiltinFunctionT):
     _id = "_abi_decode"
-    _inputs = [("data", BytesT.any()), ("output_type", "TYPE_DEFINITION")]
+    _inputs = [("data", BytesT.any()), ("output_type", TYPE_T.any())]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def fetch_call_return(self, node):

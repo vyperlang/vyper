@@ -92,11 +92,9 @@ class BuiltinFunctionT(VyperType):
     def modifiability(self):
         return self._modifiability
 
-    # helper function to deal with TYPE_DEFINITIONs
+    # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
-        # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
-        # refactor me.
-        if expected_type == "TYPE_DEFINITION":
+        if TYPE_T.any().compare_type(expected_type):
             # try to parse the type - call type_from_annotation
             # for its side effects (will throw if is not a type)
             type_from_annotation(arg)
