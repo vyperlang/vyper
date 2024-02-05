@@ -458,7 +458,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
         f.fetch_call_return(node.value)
+        # CMC 2024-02-05 annotate the event type for codegen usage
+        # TODO: refactor this
         node._metadata["type"] = f.typedef
+        # pass expected_type=TYPE_T(EventT) so that in visit(),
+        # validate_expected_type is skipped for the return value
         self.expr_visitor.visit(node.value, f)
 
     def visit_Raise(self, node):
