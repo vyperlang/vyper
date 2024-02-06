@@ -101,15 +101,6 @@ class _ExprAnalyser:
             # it's something else, like my_struct.foo
             return info.copy_with_type(t, attribute_chain=attribute_chain)
 
-        if isinstance(node, vy_ast.Tuple):
-            # always use the most restrictive location re: modification
-            # kludge! for validate_modification in local analysis of Assign
-            types = [self.get_expr_info(n) for n in node.elements]
-            location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            modifiability = sorted((i.modifiability for i in types), key=lambda k: k.value)[-1]
-
-            return ExprInfo(t, location=location, modifiability=modifiability)
-
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
             info = self.get_expr_info(node.value)
