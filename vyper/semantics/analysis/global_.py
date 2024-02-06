@@ -22,8 +22,14 @@ def _collect_used_modules_r(module_t):
         for used_module in uses_decl._metadata["uses_info"].used_modules:
             ret[used_module.module_t].append(uses_decl)
 
-    for m_info in module_t.used_modules:
-        used_modules = _collect_used_modules_r(m_info.module_t)
+            # recurse
+            used_modules = _collect_used_modules_r(used_module.module_t)
+            for k, v in used_modules.items():
+                ret[k].extend(v)
+
+    # also recurse into modules used by initialized modules
+    for i in module_t.initialized_modules:
+        used_modules = _collect_used_modules_r(i.module_info.module_t)
         for k, v in used_modules.items():
             ret[k].extend(v)
 
@@ -58,12 +64,15 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
 
     for u, uses in all_used_modules.items():
         if u not in all_initialized_modules:
+            found_module = module_t.find_module(u)
+            if found_module is not None:
+                hint = f"add `initializes: {found_module.alias}` to the top level of "
+                hint += "your main contract"
+            else:
+                # CMC 2024-02-06 is this actually reachable?
+                hint = f"ensure {module_t} is imported in your main contract!"
             err_list.append(
-                InitializerException(
-                    f"module {u} is used but never initialized!",
-                    *uses,
-                    hint="add `initializes: module_name` to your main contract",
-                )
+                InitializerException(f"module {u} is used but never initialized!", *uses, hint=hint)
             )
 
     err_list.raise_if_not_empty()
