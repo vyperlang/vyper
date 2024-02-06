@@ -112,6 +112,9 @@ class ContractFunctionT(VyperType):
         # recursively reachable from this function
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
+        # writes to variables from this function
+        self._variable_writes: list[vy_ast.VyperNode] = []
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None

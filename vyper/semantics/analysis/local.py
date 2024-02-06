@@ -6,6 +6,7 @@ from vyper import ast as vy_ast
 from vyper.ast.utils import get_attribute_root
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    CallViolation,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
@@ -321,22 +322,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                         )
                     info.var_info._modification_count += 1
             else:
+                self._check_module_uses(target)
+
                 raise ImmutableViolation("Environment variable cannot be written to")
 
         if info.modifiability == Modifiability.CONSTANT:
-            msg = "Constant value cannot be written to."
-            hint = None
+            raise ImmutableViolation("Constant value cannot be written to.")
 
-            module_ref = get_attribute_root(target)
-            module_info = get_expr_info(module_ref).module_info
-            if module_info is not None:
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-
-            raise ImmutableViolation(msg, hint=hint)
-
+        self.func._variable_writes.append(target)
         self._log_used_module(target)
+
+    def _check_module_uses(self, target: vy_ast.VyperNode):
+        module_ref = get_attribute_root(target)
+        module_info = get_expr_info(module_ref).module_info
+        if module_info is None:
+            return
+
+        msg = f"Cannot modify `{module_info.alias}`"
+        hint = f"add `uses: {module_info.alias}` or "
+        hint += f"`initializes: {module_info.alias}` as "
+        hint += "a top-level statement to your contract"
+        raise ImmutableViolation(msg, hint=hint)
 
     def _log_used_module(self, target: vy_ast.VyperNode):
         if not isinstance(target, vy_ast.Attribute):
@@ -623,7 +629,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             raise StateAccessViolation(msg)
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        call_type = get_exact_type_from_node(node.func)
+        func_info = get_expr_info(node.func)
+        call_type = func_info.typ
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -634,6 +641,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     self.func.called_functions.add(call_type)
 
                 self._check_call_mutability(call_type.mutability)
+                if len(call_type._variable_writes) > 0:
+                    # this should raise if node.func.value != self
+                    self.function_analyzer._check_module_uses(node.func)
+                    assert node.func.get("value.id") == "self", "unreachable"
 
                 # log used module when the function is modifiable
                 # TODO: this is not really correct; we need to check touched
@@ -643,7 +654,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     self.function_analyzer._log_used_module(node.func)
 
                 if call_type.is_deploy and not self.func.is_deploy:
-                    raise StateAccessViolation(
+                    raise CallViolation(
                         f"Cannot call an @{call_type.visibility} function from "
                         f"an @{self.func.visibility} function!",
                         node,
@@ -669,6 +680,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(value, arg_type)
         elif isinstance(call_type, MemberFunctionT):
             if call_type.is_modifying and self.function_analyzer is not None:
+                # TODO refactor this
                 self.function_analyzer._handle_modification(node.func)
             assert len(node.args) == len(call_type.arg_types)
             for arg, arg_type in zip(node.args, call_type.arg_types):
