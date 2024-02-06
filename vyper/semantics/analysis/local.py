@@ -232,7 +232,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         used_modules: OrderedSet[ModuleInfo] = OrderedSet()
         for expr in self.func._variable_accesses:
             info = get_expr_info(expr)
-            module_info = info.get_root_module()
+            module_info = info.get_root_moduleinfo()
             if module_info is None:
                 continue
 
@@ -332,21 +332,25 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                         )
                     info.var_info._modification_count += 1
             else:
-                self._check_module_uses(target)
-
                 raise ImmutableViolation("Environment variable cannot be written to")
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        info._writes.append(target)
+        var_info = info.get_root_varinfo()
+        assert var_info is not None
+
+        if var_info.is_module_variable():
+            info._writes.append(target)
 
     def _check_module_uses(self, target: vy_ast.VyperNode):
-        module_info = get_expr_info(target).get_root_module()
+        module_info = get_expr_info(target).get_root_moduleinfo()
         if module_info is None:
             return
+        if module_info.ownership >= ModuleOwnership.USES:
+            return
 
-        msg = f"Cannot modify `{module_info.alias}`"
+        msg = f"Cannot access `{module_info.alias}` state!"
         hint = f"add `uses: {module_info.alias}` or "
         hint += f"`initializes: {module_info.alias}` as "
         hint += "a top-level statement to your contract"
@@ -573,11 +577,16 @@ class ExprVisitor(VyperNodeVisitorBase):
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info
 
-            # it's a variable access, and not a write -- must be a read.
-            if info.var_info is not None and len(info._writes) == 0:
+            # log variable accesses.
+            # (note writes will get logged as both read+write)
+            varinfo = info.var_info
+            if varinfo is not None and varinfo.is_module_variable():
                 info._reads.append(node)
 
             if self.func:
+                if len(info._writes) > 0 or len(info._reads) > 0:
+                    self.function_analyzer._check_module_uses(node)
+
                 self.func._variable_writes.extend(info._writes)
                 self.func._variable_reads.extend(info._reads)
 
@@ -651,13 +660,10 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 self._check_call_mutability(func_type.mutability)
 
-                # check that the function has been declared either `uses` or `initializes`.
-                expr_root = func_info.get_root_module()
-                if expr_root is not None and expr_root.ownership == ModuleOwnership.NO_OWNERSHIP:
-                    if len(func_type._variable_accesses) > 0:
-                        # this should raise if node.func.value != self
-                        self.function_analyzer._check_module_uses(node.func)
-                        assert node.func.get("value.id") == "self", "unreachable"
+                # check that if the function accesses state, the defining
+                # module has been `used` or `initialized`.
+                if len(func_type._variable_accesses) > 0:
+                    self.function_analyzer._check_module_uses(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(

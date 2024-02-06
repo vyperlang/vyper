@@ -226,6 +226,9 @@ class VarInfo:
                 raise CompilerPanic("Incompatible locations")
         self.position = position
 
+    def is_module_variable(self):
+        return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
+
     @property
     def is_transient(self):
         return self.location == DataLocation.TRANSIENT
@@ -266,11 +269,20 @@ class ExprInfo:
         self._writes = []
         self._reads = []
 
-    def get_root_module(self) -> Optional[ModuleInfo]:
+    def get_root_moduleinfo(self) -> Optional[ModuleInfo]:
         chain = self.attribute_chain
         if len(chain) == 0:
             return None
         return chain[0].module_info
+
+    # find an exprinfo in the attribute chain which has a varinfo
+    # e.x. `x` will return exprinfo for `x`
+    # `module.foo` will return exprinfo for `module.foo`
+    def get_root_varinfo(self) -> Optional[VarInfo]:
+        for expr_info in self.attribute_chain + [self]:
+            if expr_info.var_info is not None:
+                return expr_info.var_info
+        return None
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, attribute_chain=None) -> "ExprInfo":
