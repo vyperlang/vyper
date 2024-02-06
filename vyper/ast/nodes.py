@@ -1251,7 +1251,13 @@ class keyword(VyperNode):
 
 
 class Attribute(ExprNode):
-    __slots__ = ("attr", "value")
+    __slots__ = ("value", "attr")
+
+    def get_attribute_root(self):
+        ret = self.value
+        while isinstance(ret, Attribute):
+            ret = ret.value
+        return ret
 
 
 class Subscript(ExprNode):

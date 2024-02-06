@@ -324,14 +324,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         if info.modifiability == Modifiability.CONSTANT:
             msg = "Constant value cannot be written to."
-            while isinstance(target, vy_ast.Attribute):
-                target = target.value
-            module_info = get_expr_info(target).module_info
             hint = None
+
+            module_ref = target.get_attribute_root()
+            module_info = get_expr_info(module_ref).module_info
             if module_info is not None:
                 hint = f"add `uses: {module_info.alias}` or "
                 hint += f"`initializes: {module_info.alias}` as "
                 hint += "a top-level statement to your contract"
+
             raise ImmutableViolation(msg, hint=hint)
 
         self._log_used_module(target)
@@ -341,11 +342,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             return
 
         # extract the outer references, e.g. `foo.bar.baz` => `foo`
-        module = target.value
-        while isinstance(module, vy_ast.Attribute):
-            module = module.value
+        module = target.get_attribute_root()
         module_info = get_expr_info(target.value).module_info
         if module_info is None:
+            # e.g. struct references, self references
             return
 
         assert isinstance(module, vy_ast.Name)
