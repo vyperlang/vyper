@@ -35,7 +35,7 @@ def __init__():
 @internal
 def foo():
     self.__init__()
-    """
+    """,
 ]
 
 
