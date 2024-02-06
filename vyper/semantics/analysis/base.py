@@ -125,7 +125,7 @@ class CodeOffset(DataPosition):
         return f"<CodeOffset: {self.offset}>"
 
 
-class ModuleOwnership(enum.IntEnum):
+class ModuleOwnership(StringEnum):
     NO_OWNERSHIP = enum.auto()  # readable
     USES = enum.auto()  # writeable
     INITIALIZES = enum.auto()  # initializes
@@ -155,7 +155,7 @@ class ModuleInfo(AnalysisResult):
     def set_ownership(self, module_ownership: ModuleOwnership, node: Optional[vy_ast.VyperNode]):
         if self.ownership != ModuleOwnership.NO_OWNERSHIP:
             raise StructureException(
-                f"ownership already set to {self.ownership}", node, self.ownership_decl
+                f"ownership already set to `{self.ownership}`", node, self.ownership_decl
             )
         self.ownership = module_ownership
 
