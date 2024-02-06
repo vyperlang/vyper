@@ -12,6 +12,7 @@ from vyper.exceptions import (
     CallViolation,
     DuplicateImport,
     ExceptionList,
+    UndeclaredDefinition,
     ImmutableViolation,
     InitializerException,
     InvalidLiteral,
@@ -382,11 +383,30 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         for named_expr in dependencies_ast:
             assert isinstance(named_expr, vy_ast.NamedExpr)
 
+            rhs_module = get_expr_info(named_expr.value).module_info
+
             with module_info.module_node.namespace():
                 # lhs of the named_expr is evaluated in the namespace of the
                 # initialized module!
-                lhs_module = get_expr_info(named_expr.target).module_info
-            rhs_module = get_expr_info(named_expr.value).module_info
+                try:
+                    lhs_module = get_expr_info(named_expr.target).module_info
+                except VyperException as e:
+                    # try to report a common problem - user names the module in
+                    # the current namespace instead of the initialized module
+                    # namespace.
+
+                    # search for the module in the initialized module
+                    for s in module_info.module_t.imported_modules.values():
+                        if s.module_t == rhs_module.module_t:
+                            found_module = s
+                            break
+                    else:
+                        raise e from None
+
+                    msg = f"unknown module `{named_expr.target.id}`"
+                    hint = f"did you mean `{found_module.alias} := {rhs_module.alias}`?"
+                    raise UndeclaredDefinition(msg, named_expr.target, hint=hint)
+
 
             if lhs_module.module_t != rhs_module.module_t:
                 raise StructureException(

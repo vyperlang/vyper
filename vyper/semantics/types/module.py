@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
@@ -22,6 +22,10 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
+
+
+if TYPE_CHECKING:
+    from vyper.semantics.analysis.base import ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -355,6 +359,17 @@ class ModuleT(VyperType):
     @property
     def import_stmts(self):
         return self._module.get_children((vy_ast.Import, vy_ast.ImportFrom))
+
+    @cached_property
+    def imported_modules(self) -> dict[str, "ModuleInfo"]:
+        ret = {}
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+            module_info = info.typ
+            if isinstance(module_info, InterfaceT):
+                continue
+            ret[info.alias] = module_info
+        return ret
 
     @property
     def variable_decls(self):
