@@ -177,7 +177,7 @@ class ImportInfo(AnalysisResult):
 @dataclass
 class InitializesInfo(AnalysisResult):
     module_info: ModuleInfo
-    dependencies: list["ModuleT"]
+    dependencies: list[ModuleInfo]
     node: Optional[vy_ast.VyperNode] = None
 
 
