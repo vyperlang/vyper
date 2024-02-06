@@ -370,6 +370,12 @@ class ModuleT(VyperType):
             ret[info.alias] = module_info
         return ret
 
+    def find_module(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
+        for s in self.imported_modules.values():
+            if s.module_t == needle:
+                return s
+        return None
+
     @property
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)

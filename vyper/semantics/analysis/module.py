@@ -396,16 +396,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # namespace.
 
                     # search for the module in the initialized module
-                    for s in module_info.module_t.imported_modules.values():
-                        if s.module_t == rhs_module.module_t:
-                            found_module = s
-                            break
-                    else:
-                        raise e from None
+                    found_module = module_info.module_t.find_module_info(rhs_module.module_t)
+                    if found_module is not None:
+                        msg = f"unknown module `{named_expr.target.id}`"
+                        hint = f"did you mean `{found_module.alias} := {rhs_module.alias}`?"
+                        raise UndeclaredDefinition(msg, named_expr.target, hint=hint)
 
-                    msg = f"unknown module `{named_expr.target.id}`"
-                    hint = f"did you mean `{found_module.alias} := {rhs_module.alias}`?"
-                    raise UndeclaredDefinition(msg, named_expr.target, hint=hint)
+                    raise e from None
 
             if lhs_module.module_t != rhs_module.module_t:
                 raise StructureException(
