@@ -91,10 +91,14 @@ class _ExprAnalyser:
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t)
+                ret = ExprInfo.from_varinfo(t)
+                ret.modifiability = min(info.modifiability, ret.modifiability)
+                return ret
 
             if isinstance(t, ModuleInfo):
-                return ExprInfo.from_moduleinfo(t)
+                ret = ExprInfo.from_moduleinfo(t)
+                ret.modifiability = min(info.modifiability, ret.modifiability)
+                return ret
 
             # it's something else, like my_struct.foo
             return info.copy_with_type(t)
