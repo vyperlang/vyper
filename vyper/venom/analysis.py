@@ -52,10 +52,6 @@ def _calculate_liveness(bb: IRBasicBlock) -> bool:
     for instruction in reversed(bb.instructions):
         ops = instruction.get_inputs()
 
-        for op in ops:
-            if op in liveness:
-                instruction.dup_requirements.add(op)
-
         liveness = liveness.union(OrderedSet.fromkeys(ops))
         out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
         if out in liveness:
@@ -87,6 +83,18 @@ def calculate_liveness(ctx: IRFunction) -> None:
 
         if not changed:
             break
+
+
+def calculate_dup_requirements(ctx: IRFunction) -> None:
+    for bb in ctx.basic_blocks:
+        last_liveness = bb.out_vars
+        for inst in reversed(bb.instructions):
+            inst.dup_requirements = OrderedSet()
+            ops = inst.get_inputs()
+            for op in ops:
+                if op in last_liveness:
+                    inst.dup_requirements.add(op)
+            last_liveness = inst.liveness
 
 
 # calculate the input variables into self from source

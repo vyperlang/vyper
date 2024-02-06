@@ -2,7 +2,12 @@ from typing import Any
 
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
-from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
+from vyper.venom.analysis import (
+    calculate_cfg,
+    calculate_dup_requirements,
+    calculate_liveness,
+    input_vars_from,
+)
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -109,9 +114,10 @@ class VenomCompiler:
         # This is a side-effect of how dynamic jumps are temporarily being used
         # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
-            calculate_cfg(ctx)
             NormalizationPass.run_pass(ctx)
+            calculate_cfg(ctx)
             calculate_liveness(ctx)
+            calculate_dup_requirements(ctx)
 
             assert ctx.normalized, "Non-normalized CFG!"
 
