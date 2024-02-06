@@ -154,12 +154,15 @@ def _handle_self_call(
 
     for arg in args_ir:
         if arg.is_literal:
-            sym = symbols.get(f"&{arg.value}", None)
+            sym = _get_variable_from_address(variables, arg.value)
             if sym is None:
                 ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
                 ret_args.append(ret)
             else:
-                ret_args.append(sym)  # type: ignore
+                if allocated_variables.get(sym.name) is None:
+                    ret_args.append(sym)  # type: ignore
+                else:
+                    ret_args.append(allocated_variables.get(sym.name))
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
             if arg.location and arg.location.load_op == "calldataload":
@@ -180,7 +183,11 @@ def _handle_self_call(
 
 
 def _handle_internal_func(
-    ctx: IRFunction, ir: IRnode, func_t: ContractFunctionT, symbols: SymbolTable
+    ctx: IRFunction,
+    ir: IRnode,
+    func_t: ContractFunctionT,
+    symbols: SymbolTable,
+    allocated_variables: dict[str, IRVariable],
 ) -> IRnode:
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
@@ -189,7 +196,9 @@ def _handle_internal_func(
     old_ir_mempos += 64
 
     for arg in func_t.arguments:
-        symbols[f"&{old_ir_mempos}"] = bb.append_instruction("param")
+        new_var = bb.append_instruction("param")
+        symbols[f"&{old_ir_mempos}"] = new_var
+        allocated_variables[arg.name] = new_var
         bb.instructions[-1].annotation = arg.name
         old_ir_mempos += 32  # arg.typ.memory_bytes_required
 
@@ -318,7 +327,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 {v: True for v in ir.passthrough_metadata["frame_info"].frame_vars.values()}
             )
             if func_t.is_internal:
-                ir = _handle_internal_func(ctx, ir, func_t, symbols)
+                ir = _handle_internal_func(ctx, ir, func_t, symbols, allocated_variables)
             # fallthrough
 
         ret = None
@@ -429,10 +438,14 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         sym = ir.args[0]
         if isinstance(ret, IRLiteral):
+            var = _get_variable_from_address(variables, int(ret.value))
+            if var is not None:
+                with_symbols[f"&{ret}"] = allocated_variables[var.name]
+            else:
+                with_symbols[sym.value] = ret
+        else:
             new_var = ctx.get_basic_block().append_instruction("store", ret)  # type: ignore
             with_symbols[sym.value] = new_var
-        else:
-            with_symbols[sym.value] = ret  # type: ignore
 
         return _convert_ir_bb(ctx, ir.args[2], with_symbols, variables, allocated_variables)  # body
     elif ir.value == "goto":
@@ -641,6 +654,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         if allocated_variables.get(var.name, None) is None:
                             allocated_variables[var.name] = new_var
                             return new_var
+                        else:
+                            return allocated_variables[var.name]
                     else:
                         return sym
 
