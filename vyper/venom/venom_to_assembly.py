@@ -164,11 +164,6 @@ class VenomCompiler:
     ) -> None:
         stack_ops_count = len(stack_ops)
 
-        if stack_ops_count > stack.height:
-            raise CompilerPanic(
-                f"Stack has {stack.height} items, but {stack_ops_count} are required"
-            )
-
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
@@ -241,8 +236,12 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        for inst in basicblock.instructions:
+        for i, inst in enumerate(basicblock.instructions):
             asm = self._generate_evm_for_instruction(asm, inst, stack)
+            if inst.volatile and i + 1 < len(basicblock.instructions):
+                liveness = basicblock.instructions[i + 1].liveness
+                if inst.output is not None and inst.output not in liveness:
+                    self.pop(asm, stack)
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
@@ -399,8 +398,6 @@ class VenomCompiler:
                 ]
             )
             self.label_counter += 1
-            if stack.height > 0 and stack.peek(0) in inst.dup_requirements:
-                self.pop(assembly, stack)
         elif opcode == "call":
             assembly.append("CALL")
         elif opcode == "staticcall":
