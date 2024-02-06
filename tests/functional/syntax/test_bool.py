@@ -2,18 +2,15 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, InvalidType, SyntaxException, TypeMismatch
+from vyper.exceptions import InvalidOperation, SyntaxException, TypeMismatch
 
 fail_list = [
-    (
-        """
+    """
 @external
 def foo():
     x: bool = True
     x = 5
     """,
-        InvalidType,
-    ),
     (
         """
 @external
@@ -22,15 +19,12 @@ def foo():
     """,
         SyntaxException,
     ),
-    (
-        """
+    """
 @external
 def foo():
     x: bool = True
     x = 129
     """,
-        InvalidType,
-    ),
     (
         """
 @external
@@ -63,15 +57,12 @@ def foo(a: address) -> bool:
     """,
         InvalidOperation,
     ),
-    (
-        """
+    """
 @external
 def test(a: address) -> bool:
     assert(a)
     return True
     """,
-        TypeMismatch,
-    ),
 ]
 
 
