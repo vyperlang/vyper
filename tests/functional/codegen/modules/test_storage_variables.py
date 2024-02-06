@@ -31,8 +31,7 @@ def get_counter() -> uint256:
 
 
 def test_import_namespace(get_contract, make_input_bundle):
-    # test what happens when things in current and imported modules share
-    # names
+    # test what happens when things in current and imported modules share names
     lib = """
 counter: uint256
 
