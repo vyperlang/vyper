@@ -406,9 +406,7 @@ class IRBasicBlock:
         self, args: list[IROperand | int], returns: bool
     ) -> Optional[IRVariable]:
         """
-        Append an instruction to the basic block
-
-        Returns the output variable if the instruction supports one
+        Append an invoke to the basic block
         """
         assert not self.is_terminated, self
         ret = None
