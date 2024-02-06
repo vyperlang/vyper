@@ -27,6 +27,15 @@ def goo():
 def foo():
     self.goo()
     """,
+    """
+@deploy
+def __init__():
+    pass
+
+@internal
+def foo():
+    self.__init__()
+    """
 ]
 
 
