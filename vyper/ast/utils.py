@@ -26,9 +26,3 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     if isinstance(ast_struct, list):
         return [vy_ast.get_node(i) for i in ast_struct]
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
-
-
-def get_attribute_root(node: vy_ast.VyperNode):
-    while isinstance(node, vy_ast.Attribute):
-        node = node.value
-    return node

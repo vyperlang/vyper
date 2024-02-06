@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from vyper import ast as vy_ast
@@ -253,6 +253,9 @@ class ExprInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
 
+    # the chain of attribute parents for this expr
+    attribute_chain: list["ExprInfo"] = field(default_factory=list)
+
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
         if self.var_info is not None:
@@ -260,27 +263,44 @@ class ExprInfo:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
+        self._writes = []
+        self._reads = []
+
+    def get_root_module(self) -> Optional[ModuleInfo]:
+        chain = self.attribute_chain
+        if len(chain) == 0:
+            return None
+        return chain[0].module_info
+
     @classmethod
-    def from_varinfo(cls, var_info: VarInfo) -> "ExprInfo":
+    def from_varinfo(cls, var_info: VarInfo, attribute_chain=None) -> "ExprInfo":
         return cls(
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
             modifiability=var_info.modifiability,
+            attribute_chain=attribute_chain or [],
         )
 
     @classmethod
-    def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
+    def from_moduleinfo(cls, module_info: ModuleInfo, attribute_chain=None) -> "ExprInfo":
         modifiability = Modifiability.RUNTIME_CONSTANT
         if module_info.ownership >= ModuleOwnership.USES:
             modifiability = Modifiability.MODIFIABLE
 
-        return cls(module_info.module_t, module_info=module_info, modifiability=modifiability)
+        return cls(
+            module_info.module_t,
+            module_info=module_info,
+            modifiability=modifiability,
+            attribute_chain=attribute_chain or [],
+        )
 
-    def copy_with_type(self, typ: VyperType) -> "ExprInfo":
+    def copy_with_type(self, typ: VyperType, attribute_chain=None) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
         to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
+        if attribute_chain is not None:
+            fields["attribute_chain"] = attribute_chain
         return self.__class__(typ=typ, **fields)

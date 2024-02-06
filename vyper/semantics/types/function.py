@@ -115,9 +115,16 @@ class ContractFunctionT(VyperType):
         # writes to variables from this function
         self._variable_writes: list[vy_ast.VyperNode] = []
 
+        # reads of variables from this function
+        self._variable_reads: list[vy_ast.VyperNode] = []
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
+
+    @property
+    def _variable_accesses(self):
+        return self._variable_reads + self._variable_writes
 
     @property
     def modifiability(self):

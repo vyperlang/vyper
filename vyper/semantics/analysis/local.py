@@ -3,7 +3,6 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.utils import get_attribute_root
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
@@ -20,7 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import Modifiability, ModuleInfo, ModuleOwnership, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -198,8 +197,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.func = fn_node._metadata["func_type"]
         self.expr_visitor = ExprVisitor(self)
 
-        self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
-
     def analyze(self):
         # allow internal function params to be mutable
         if self.func.is_internal:
@@ -229,7 +226,20 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
-        self.fn_node._metadata["used_modules"] = self._used_modules
+        self._analyze_used_modules()
+
+    def _analyze_used_modules(self):
+        used_modules: OrderedSet[ModuleInfo] = OrderedSet()
+        for expr in self.func._variable_accesses:
+            info = get_expr_info(expr)
+            module_info = info.get_root_module()
+            if module_info is None:
+                continue
+
+            used_modules.add(module_info)
+
+        # leave it somewhere that ModuleAnalyzer can find it
+        self.fn_node._metadata["used_modules"] = used_modules
 
     def visit(self, node):
         super().visit(node)
@@ -329,12 +339,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        self.func._variable_writes.append(target)
-        self._log_used_module(target)
+        info._writes.append(target)
 
     def _check_module_uses(self, target: vy_ast.VyperNode):
-        module_ref = get_attribute_root(target)
-        module_info = get_expr_info(module_ref).module_info
+        module_info = get_expr_info(target).get_root_module()
         if module_info is None:
             return
 
@@ -343,21 +351,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         hint += f"`initializes: {module_info.alias}` as "
         hint += "a top-level statement to your contract"
         raise ImmutableViolation(msg, hint=hint)
-
-    def _log_used_module(self, target: vy_ast.VyperNode):
-        if not isinstance(target, vy_ast.Attribute):
-            return
-
-        # extract the outer references, e.g. `foo.bar.baz` => `foo`
-        module = get_attribute_root(target)
-        module_info = get_expr_info(target.value).module_info
-        if module_info is None:
-            # e.g. struct references, self references
-            return
-
-        assert isinstance(module, vy_ast.Name)
-
-        self._used_modules.add(module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -578,7 +571,15 @@ class ExprVisitor(VyperNodeVisitorBase):
         node._metadata["type"] = typ
 
         if not isinstance(typ, TYPE_T):
-            _ = get_expr_info(node)  # get_expr_info fills in node._expr_info
+            info = get_expr_info(node)  # get_expr_info fills in node._expr_info
+
+            # it's a variable access, and not a write -- must be a read.
+            if info.var_info is not None and len(info._writes) == 0:
+                info._reads.append(node)
+
+            if self.func:
+                self.func._variable_writes.extend(info._writes)
+                self.func._variable_reads.extend(info._reads)
 
         # validate and annotate folded value
         if node.has_folded_value:
@@ -630,67 +631,72 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         func_info = get_expr_info(node.func)
-        call_type = func_info.typ
-        self.visit(node.func, call_type)
+        func_type = func_info.typ
+        self.visit(node.func, func_type)
 
-        if isinstance(call_type, ContractFunctionT):
+        if isinstance(func_type, ContractFunctionT):
             # function calls
 
+            # for the purpose of analyzing used modules,
+            # we don't need to know what variables are accessed;
+            # we just log that they are accessed.
+            if len(func_type._variable_writes) > 0:
+                func_info._writes.append(node.func)
+            if len(func_type._variable_reads) > 0:
+                func_info._reads.append(node.func)
+
             if self.function_analyzer:
-                if call_type.is_internal:
-                    self.func.called_functions.add(call_type)
+                if func_type.is_internal:
+                    self.func.called_functions.add(func_type)
 
-                self._check_call_mutability(call_type.mutability)
-                if len(call_type._variable_writes) > 0:
-                    # this should raise if node.func.value != self
-                    self.function_analyzer._check_module_uses(node.func)
-                    assert node.func.get("value.id") == "self", "unreachable"
+                self._check_call_mutability(func_type.mutability)
 
-                # log used module when the function is modifiable
-                # TODO: this is not really correct; we need to check touched
-                # variables, not just function mutability as there could be
-                # false positives.
-                if call_type.modifiability == Modifiability.MODIFIABLE:
-                    self.function_analyzer._log_used_module(node.func)
+                # check that the function has been declared either `uses` or `initializes`.
+                expr_root = func_info.get_root_module()
+                if expr_root is not None and expr_root.ownership == ModuleOwnership.NO_OWNERSHIP:
+                    if len(func_type._variable_accesses) > 0:
+                        # this should raise if node.func.value != self
+                        self.function_analyzer._check_module_uses(node.func)
+                        assert node.func.get("value.id") == "self", "unreachable"
 
-                if call_type.is_deploy and not self.func.is_deploy:
+                if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
-                        f"Cannot call an @{call_type.visibility} function from "
+                        f"Cannot call an @{func_type.visibility} function from "
                         f"an @{self.func.visibility} function!",
                         node,
                     )
 
-            for arg, typ in zip(node.args, call_type.argument_types):
+            for arg, typ in zip(node.args, func_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                typ = call_type.call_site_kwargs[kwarg.arg].typ
+                typ = func_type.call_site_kwargs[kwarg.arg].typ
                 self.visit(kwarg.value, typ)
 
-        elif is_type_t(call_type, EventT):
+        elif is_type_t(func_type, EventT):
             # events have no kwargs
-            expected_types = call_type.typedef.arguments.values()
+            expected_types = func_type.typedef.arguments.values()
             for arg, typ in zip(node.args, expected_types):
                 self.visit(arg, typ)
-        elif is_type_t(call_type, StructT):
+        elif is_type_t(func_type, StructT):
             # struct ctors
             # ctors have no kwargs
-            expected_types = call_type.typedef.members.values()
+            expected_types = func_type.typedef.members.values()
             for value, arg_type in zip(node.args[0].values, expected_types):
                 self.visit(value, arg_type)
-        elif isinstance(call_type, MemberFunctionT):
-            if call_type.is_modifying and self.function_analyzer is not None:
+        elif isinstance(func_type, MemberFunctionT):
+            if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
                 self.function_analyzer._handle_modification(node.func)
-            assert len(node.args) == len(call_type.arg_types)
-            for arg, arg_type in zip(node.args, call_type.arg_types):
+            assert len(node.args) == len(func_type.arg_types)
+            for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node, expected_return_typ=typ)
+            arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
-            kwarg_types = call_type.infer_kwarg_types(node)
+            kwarg_types = func_type.infer_kwarg_types(node)
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
@@ -746,8 +752,10 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func and self.func.mutability == StateMutability.PURE:
-            _validate_self_reference(node)
+        if self.func:
+            # TODO: refactor to use expr_info mutability
+            if self.func.mutability == StateMutability.PURE:
+                _validate_self_reference(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

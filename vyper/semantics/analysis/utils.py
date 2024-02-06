@@ -87,21 +87,19 @@ class _ExprAnalyser:
             name = node.attr
             info = self.get_expr_info(node.value)
 
+            attribute_chain = info.attribute_chain + [info]
+
             t = info.typ.get_member(name, node)
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                ret = ExprInfo.from_varinfo(t)
-                ret.modifiability = min(info.modifiability, ret.modifiability)
-                return ret
+                return ExprInfo.from_varinfo(t, attribute_chain=attribute_chain)
 
             if isinstance(t, ModuleInfo):
-                ret = ExprInfo.from_moduleinfo(t)
-                ret.modifiability = min(info.modifiability, ret.modifiability)
-                return ret
+                return ExprInfo.from_moduleinfo(t, attribute_chain=attribute_chain)
 
             # it's something else, like my_struct.foo
-            return info.copy_with_type(t)
+            return info.copy_with_type(t, attribute_chain=attribute_chain)
 
         if isinstance(node, vy_ast.Tuple):
             # always use the most restrictive location re: modification
@@ -194,6 +192,7 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         is_self_reference = node.get("value.id") == "self"
+
         # variable attribute, e.g. `foo.bar`
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
