@@ -86,3 +86,41 @@ def get_lib_counter() -> uint256:
     c.increment_lib_counter2(transact={})
     assert c.get_lib_counter() == 6
     assert c.get_counter() == 1
+
+
+def test_init_function_side_effects(get_contract, make_input_bundle):
+    lib = """
+counter: uint256
+
+@deploy
+def __init__(initial_value: uint256):
+    self.counter = initial_value
+
+@internal
+def increment_counter():
+    self.counter += 1
+    """
+
+    contract = """
+import library as lib
+
+counter: public(uint256)
+
+initializes: lib
+
+@deploy
+def __init__():
+    self.counter = 1
+    lib.__init__(5)
+
+@external
+def get_lib_counter() -> uint256:
+    return lib.counter
+    """
+
+    input_bundle = make_input_bundle({"library.vy": lib})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.counter() == 1
+    assert c.get_lib_counter() == 5
