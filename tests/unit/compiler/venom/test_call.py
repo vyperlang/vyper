@@ -4,7 +4,7 @@ import pytest
 @pytest.fixture
 def market_maker(get_contract):
     contract_code = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 unused: public(uint256)
 token_address: ERC20
