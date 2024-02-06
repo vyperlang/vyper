@@ -5,7 +5,12 @@ import random
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
+from vyper.exceptions import (
+    InvalidOperation,
+    OverflowException,
+    TypeMismatch,
+    ZeroDivisionException,
+)
 from vyper.semantics.types import IntegerT
 from vyper.utils import SizeLimits, evm_div, evm_mod
 
@@ -164,7 +169,7 @@ def foo() -> {typ}:
                 get_contract(code_2).foo(x)
             with tx_failed():
                 get_contract(code_3).foo(y)
-            with pytest.raises((InvalidType, OverflowException)):
+            with pytest.raises((TypeMismatch, OverflowException)):
                 get_contract(code_4)
 
 
@@ -223,7 +228,7 @@ def test() -> {typ}:
 
     for val in bad_cases:
         exc = (
-            InvalidType
+            TypeMismatch
             if SizeLimits.MIN_INT256 <= val <= SizeLimits.MAX_UINT256
             else OverflowException
         )
