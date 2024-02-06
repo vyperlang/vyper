@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
@@ -22,7 +22,6 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
-
 
 if TYPE_CHECKING:
     from vyper.semantics.analysis.base import ModuleInfo

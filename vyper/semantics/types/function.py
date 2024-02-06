@@ -550,20 +550,14 @@ class ContractFunctionT(VyperType):
                 modified_line = re.sub(
                     kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
                 )
-                error_suggestion = (
-                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
-                    if modified_line != node.node_source_code
-                    else ""
-                )
 
-                raise ArgumentException(
-                    (
-                        "Usage of kwarg in Vyper is restricted to "
-                        + ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
-                        + f". {error_suggestion}"
-                    ),
-                    kwarg,
-                )
+                msg = "Usage of kwarg in Vyper is restricted to "
+                msg += ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
+
+                hint = None
+                if modified_line != node.node_source_code:
+                    hint = f"Try removing the kwarg: `{modified_line}`"
+                raise ArgumentException(msg, kwarg, hint=hint)
 
         return self.return_type
 

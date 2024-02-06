@@ -60,9 +60,9 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
         if u not in all_initialized_modules:
             err_list.append(
                 InitializerException(
-                    f"module {u} is used but never initialized!\n  "
-                    f"(hint: add `initializes: module_name` to your main contract",
+                    f"module {u} is used but never initialized!",
                     *uses,
+                    hint="add `initializes: module_name` to your main contract",
                 )
             )
 

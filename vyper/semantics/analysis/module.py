@@ -12,7 +12,6 @@ from vyper.exceptions import (
     CallViolation,
     DuplicateImport,
     ExceptionList,
-    UndeclaredDefinition,
     ImmutableViolation,
     InitializerException,
     InvalidLiteral,
@@ -21,6 +20,7 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
 )
@@ -253,9 +253,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             err_list = ExceptionList()
             for used_module_info, uses_info in should_use.values():
                 msg = f"`{used_module_info.alias}` is declared as used, but "
-                msg += f"it is not actually used in {module_t}!\n"
-                msg += f"  (hint: delete `uses: {used_module_info.alias}`)\n"
-                err_list.append(BorrowException(msg, uses_info.node))
+                msg += f"it is not actually used in {module_t}!"
+                hint = f"delete `uses: {used_module_info.alias}`"
+                err_list.append(BorrowException(msg, uses_info.node, hint=hint))
 
             err_list.raise_if_not_empty()
 
@@ -305,10 +305,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             if initialized_module.module_t not in should_initialize:
                 msg = f"tried to initialize `{initialized_module.alias}`, "
-                msg += "but it is not in initializer list!\n\n"
-                msg += f"  (hint: add `initializes: {initialized_module.alias}` "
-                msg += "as a top-level statement to your contract\n"
-                raise InitializerException(msg, call_node.func)
+                msg += "but it is not in initializer list!"
+                hint = f"add `initializes: {initialized_module.alias}` "
+                hint += "as a top-level statement to your contract"
+                raise InitializerException(msg, call_node.func, hint=hint)
 
             del should_initialize[initialized_module.module_t]
             seen_initializers[initialized_module.module_t] = call_node.func
@@ -316,10 +316,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if len(should_initialize) > 0:
             err_list = ExceptionList()
             for s in should_initialize.values():
-                msg = "not initialized!\n"
-                msg += f"  (hint: add `{s.module_info.alias}.__init__()` to "
-                msg += "your `__init__()` function)\n"
-                err_list.append(InitializerException(msg, s.node))
+                msg = "not initialized!"
+                hint = f"add `{s.module_info.alias}.__init__()` to "
+                hint += "your `__init__()` function)"
+                err_list.append(InitializerException(msg, s.node, hint=hint))
 
             err_list.raise_if_not_empty()
 
@@ -407,7 +407,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     hint = f"did you mean `{found_module.alias} := {rhs_module.alias}`?"
                     raise UndeclaredDefinition(msg, named_expr.target, hint=hint)
 
-
             if lhs_module.module_t != rhs_module.module_t:
                 raise StructureException(
                     f"{lhs_module.alias} is not {rhs_module.alias}!", named_expr
@@ -425,12 +424,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         if len(used_modules) > 0:
             item = next(iter(used_modules.values()))  # just pick one
-            raise InitializerException(
-                f"`{module_info.alias}` uses `{item.alias}`, but it is not "
-                f"initialized with `{item.alias}`\n"
-                f"  (hint: add `{item.alias}` to its initializer list)\n",
-                node,
-            )
+            msg = f"`{module_info.alias}` uses `{item.alias}`, but it is not "
+            msg += f"initialized with `{item.alias}`"
+            hint = f"add `{item.alias}` to its initializer list"
+            raise InitializerException(msg, node, hint=hint)
 
         # note: try to refactor. not a huge fan of mutating the
         # ModuleInfo after it's constructed
@@ -579,11 +576,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # don't handle things like `import x.y`
         if "." in alias:
+            msg = "import requires an accompanying `as` statement"
             suggested_alias = node.name[node.name.rfind(".") :]
-            suggestion = f"hint: try `import {node.name} as {suggested_alias}`"
-            raise StructureException(
-                f"import requires an accompanying `as` statement ({suggestion})", node
-            )
+            hint = f"try `import {node.name} as {suggested_alias}`"
+            raise StructureException(msg, node, hint=hint)
 
         self._add_import(node, 0, node.name, alias)
 

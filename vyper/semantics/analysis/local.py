@@ -327,11 +327,12 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             while isinstance(target, vy_ast.Attribute):
                 target = target.value
             module_info = get_expr_info(target).module_info
+            hint = None
             if module_info is not None:
-                msg += f"\n\n  (hint: add `uses: {module_info.alias}` or "
-                msg += f"`initializes: {module_info.alias}` as "
-                msg += "a top-level statement to your contract).\n"
-            raise ImmutableViolation(msg)
+                hint = f"add `uses: {module_info.alias}` or "
+                hint += f"`initializes: {module_info.alias}` as "
+                hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
 
         self._log_used_module(target)
 
