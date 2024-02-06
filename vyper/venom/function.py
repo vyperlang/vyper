@@ -1,3 +1,4 @@
+from collections.abc import Generator
 from typing import Optional
 
 from vyper.utils import OrderedSet
@@ -88,6 +89,14 @@ class IRFunction:
             if bb.label.value == label.value:
                 return self.basic_blocks[i + 1]
         raise AssertionError(f"Basic block after '{label}' not found")
+
+    def get_terminal_basicblocks(self) -> Generator[IRBasicBlock]:
+        """
+        Get basic blocks that are terminal.
+        """
+        for bb in self.basic_blocks:
+            if bb.is_terminal:
+                yield bb
 
     def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
         """

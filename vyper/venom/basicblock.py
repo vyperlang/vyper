@@ -470,6 +470,13 @@ class IRBasicBlock:
             return False
         return self.instructions[-1].opcode in BB_TERMINATORS
 
+    @property
+    def is_terminal(self) -> bool:
+        """
+        Check if the basic block is terminal.
+        """
+        return len(self.cfg_out) == 0
+
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)
         bb.instructions = self.instructions.copy()
