@@ -271,7 +271,7 @@ class ExprInfo:
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo) -> "ExprInfo":
-        modifiability = Modifiability.CONSTANT
+        modifiability = Modifiability.RUNTIME_CONSTANT
         if module_info.ownership >= ModuleOwnership.USES:
             modifiability = Modifiability.MODIFIABLE
 
