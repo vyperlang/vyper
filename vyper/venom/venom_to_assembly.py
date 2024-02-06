@@ -164,6 +164,11 @@ class VenomCompiler:
     ) -> None:
         stack_ops_count = len(stack_ops)
 
+        if stack_ops_count > stack.height:
+            raise CompilerPanic(
+                f"Stack has {stack.height} items, but {stack_ops_count} are required"
+            )
+
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
