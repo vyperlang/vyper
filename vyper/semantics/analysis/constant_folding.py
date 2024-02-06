@@ -217,7 +217,7 @@ class ConstantFolder(VyperNodeVisitorBase):
         return typ._try_fold(node)  # type: ignore
 
     def visit_Subscript(self, node) -> vy_ast.ExprNode:
-        slice_ = node.slice.value.get_folded_value()
+        slice_ = node.slice.get_folded_value()
         value = node.value.get_folded_value()
 
         if not isinstance(value, vy_ast.List):

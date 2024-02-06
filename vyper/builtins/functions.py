@@ -1114,13 +1114,16 @@ class RawCall(BuiltinFunctionT):
 
         if delegate_call and static_call:
             raise ArgumentException(
-                "Call may use one of `is_delegate_call` or `is_static_call`, not both", expr
+                "Call may use one of `is_delegate_call` or `is_static_call`, not both"
             )
+
+        if (delegate_call or static_call) and value.value != 0:
+            raise ArgumentException("value= may not be passed for static or delegate calls!")
+
         if not static_call and context.is_constant():
             raise StateAccessViolation(
                 f"Cannot make modifying calls from {context.pp_constancy()},"
-                " use `is_static_call=True` to perform this action",
-                expr,
+                " use `is_static_call=True` to perform this action"
             )
 
         if data.value == "~calldata":

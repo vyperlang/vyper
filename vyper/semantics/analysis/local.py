@@ -32,6 +32,7 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
+    VOID_TYPE,
     AddressT,
     BoolT,
     DArrayT,
@@ -45,6 +46,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_type_t,
+    map_void,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
@@ -235,12 +237,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        validate_expected_type(node.value, typ)
+
+        # validate the value before adding it to the namespace
+        self.expr_visitor.visit(node.value, typ)
 
         self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
         self.expr_visitor.visit(node.target, typ)
-        self.expr_visitor.visit(node.value, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
         if isinstance(msg_node, vy_ast.Str):
@@ -259,10 +262,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if node.msg:
             self._validate_revert_reason(node.msg)
 
-        try:
-            validate_expected_type(node.test, BoolT())
-        except InvalidType:
-            raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test, BoolT())
 
     # repeated code for Assign and AugAssign
@@ -276,7 +275,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 "Left-hand side of assignment cannot be a HashMap without a key", node
             )
 
-        validate_expected_type(node.value, target.typ)
         target.validate_modification(node, self.func.mutability)
 
         self.expr_visitor.visit(node.value, target.typ)
@@ -341,16 +339,16 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = fn_type.fetch_call_return(node.value)
+        return_value = map_void(fn_type.fetch_call_return(node.value))
         if (
-            return_value
+            return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
                 f"Function '{fn_type._id}' cannot be called without assigning the result", node
             )
-        self.expr_visitor.visit(node.value, fn_type)
+        self.expr_visitor.visit(node.value, return_value)
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -443,7 +441,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 self.expr_visitor.visit(node.iter, iter_type)
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())
         with self.namespace.enter_scope():
             for n in node.body:
@@ -462,9 +459,11 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
             )
-        f.fetch_call_return(node.value)
+        t = map_void(f.fetch_call_return(node.value))
+        # CMC 2024-02-05 annotate the event type for codegen usage
+        # TODO: refactor this
         node._metadata["type"] = f.typedef
-        self.expr_visitor.visit(node.value, f.typedef)
+        self.expr_visitor.visit(node.value, t)
 
     def visit_Raise(self, node):
         if node.exc:
@@ -489,10 +488,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.member_types):
-                validate_expected_type(given, expected)
-        else:
-            validate_expected_type(values, self.func.return_type)
+
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
@@ -503,14 +499,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.func = fn_node
 
     def visit(self, node, typ):
+        if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
+            validate_expected_type(node, typ)
+
         # recurse and typecheck in case we are being fed the wrong type for
-        # some reason. note that `validate_expected_type` is unnecessary
-        # for nodes that already call `get_exact_type_from_node` and
-        # `get_possible_types_from_node` because `validate_expected_type`
-        # would be calling the same function again.
-        # CMC 2023-06-27 would be cleanest to call validate_expected_type()
-        # before recursing but maybe needs some refactoring before that
-        # can happen.
+        # some reason.
         super().visit(node, typ)
 
         # annotate
@@ -541,28 +534,21 @@ class ExprVisitor(VyperNodeVisitorBase):
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: VyperType) -> None:
-        validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
 
         rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
             rtyp = get_possible_types_from_node(node.right).pop()
 
-        validate_expected_type(node.right, rtyp)
-
         self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
         assert typ == BoolT()  # sanity check
         for value in node.values:
-            validate_expected_type(value, BoolT())
             self.visit(value, BoolT())
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         call_type = get_exact_type_from_node(node.func)
-        # except for builtin functions, `get_exact_type_from_node`
-        # already calls `validate_expected_type` on the call args
-        # and kwargs via `call_type.fetch_call_return`
         self.visit(node.func, call_type)
 
         if isinstance(call_type, ContractFunctionT):
@@ -594,7 +580,6 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # builtin functions
             arg_types = call_type.infer_arg_types(node, expected_return_typ=typ)
-            # `infer_arg_types` already calls `validate_expected_type`
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
             kwarg_types = call_type.infer_kwarg_types(node)
@@ -610,7 +595,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 rlen = len(node.right.elements)
                 rtyp = SArrayT(ltyp, rlen)
-                validate_expected_type(node.right, rtyp)
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
@@ -620,8 +604,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                     # array membership - `x in my_list_variable`
                     assert isinstance(rtyp, (SArrayT, DArrayT))
                     ltyp = rtyp.value_type
-
-            validate_expected_type(node.left, ltyp)
 
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
@@ -638,31 +620,26 @@ class ExprVisitor(VyperNodeVisitorBase):
                 rtyp = get_exact_type_from_node(node.right)
             else:
                 ltyp = rtyp = cmp_typ
-                validate_expected_type(node.left, ltyp)
-                validate_expected_type(node.right, rtyp)
 
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        validate_expected_type(node, typ)
+        pass
 
-    def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
-        validate_expected_type(node.value, typ)
-        self.visit(node.value, typ)
+    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
+        self.visit(node.test, BoolT())
+        self.visit(node.body, typ)
+        self.visit(node.orelse, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
-            validate_expected_type(element, typ.value_type)
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
         if self.func and self.func.mutability == StateMutability.PURE:
             _validate_self_reference(node)
-
-        if not isinstance(typ, TYPE_T):
-            validate_expected_type(node, typ)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
@@ -687,7 +664,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # get the correct type for the index, it might
         # not be exactly base_type.key_type
         # note: index_type is validated in types_from_Subscript
-        index_types = get_possible_types_from_node(node.slice.value)
+        index_types = get_possible_types_from_node(node.slice)
         index_type = index_types.pop()
 
         self.visit(node.slice, index_type)
@@ -698,22 +675,15 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
+        # these guarantees should be provided by validate_expected_type
         assert isinstance(typ, TupleT)
-        for element, subtype in zip(node.elements, typ.member_types):
-            validate_expected_type(element, subtype)
-            self.visit(element, subtype)
+        assert len(node.elements) == len(typ.member_types)
+
+        for item_ast, item_type in zip(node.elements, typ.member_types):
+            self.visit(item_ast, item_type)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
-        validate_expected_type(node.operand, typ)
         self.visit(node.operand, typ)
-
-    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
-        validate_expected_type(node.test, BoolT())
-        self.visit(node.test, BoolT())
-        validate_expected_type(node.body, typ)
-        self.visit(node.body, typ)
-        validate_expected_type(node.orelse, typ)
-        self.visit(node.orelse, typ)
 
 
 def _validate_range_call(node: vy_ast.Call):

@@ -16,7 +16,7 @@ Prior to testing, the Vyper specific contract conversion and the blockchain rela
 
     Since the testing is done in the pytest framework, you can make use of `pytest.ini, tox.ini and setup.cfg <https://docs.pytest.org/en/latest/customize.html>`_ and you can use most IDEs' pytest plugins.
 
-.. literalinclude:: ../tests/base_conftest.py
+.. literalinclude:: ../tests/conftest.py
     :language: python
     :linenos:
 
@@ -35,7 +35,7 @@ Assume the following simple contract ``storage.vy``. It has a single integer var
 
 We create a test file ``test_storage.py`` where we write our tests in pytest style.
 
-.. literalinclude:: ../tests/examples/storage/test_storage.py
+.. literalinclude:: ../tests/functional/examples/storage/test_storage.py
   :linenos:
   :language: python
 
@@ -61,7 +61,7 @@ Next, we take a look at the two fixtures that will allow us to read the event lo
 
 The fixture to assert failed transactions defaults to check for a ``TransactionFailed`` exception, but can be used to check for different exceptions too, as shown below. Also note that the chain gets reverted to the state before the failed transaction.
 
-.. literalinclude:: ../tests/base_conftest.py
+.. literalinclude:: ../tests/conftest.py
     :language: python
     :pyobject: get_logs
 
@@ -69,6 +69,6 @@ This fixture will return a tuple with all the logs for a certain event and trans
 
 Finally, we create a new file ``test_advanced_storage.py`` where we use the new fixtures to test failed transactions and events.
 
-.. literalinclude:: ../tests/examples/storage/test_advanced_storage.py
+.. literalinclude:: ../tests/functional/examples/storage/test_advanced_storage.py
   :linenos:
   :language: python

@@ -43,10 +43,10 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
                 raise CompilerPanic("Mismatch between node and input type while building getter")
             if annotation.value.get("id") == "HashMap":  # type: ignore
                 # for a HashMap, split the key/value types and use the key type as the next arg
-                arg, annotation = annotation.slice.value.elements  # type: ignore
+                arg, annotation = annotation.slice.elements  # type: ignore
             elif annotation.value.get("id") == "DynArray":
                 arg = vy_ast.Name(id=type_._id)
-                annotation = annotation.slice.value.elements[0]  # type: ignore
+                annotation = annotation.slice.elements[0]  # type: ignore
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
@@ -55,9 +55,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             input_nodes.append(vy_ast.arg(arg=f"arg{i}", annotation=arg))
 
             # wrap the return statement in a `Subscript`
-            return_stmt = vy_ast.Subscript(
-                value=return_stmt, slice=vy_ast.Index(value=vy_ast.Name(id=f"arg{i}"))
-            )
+            return_stmt = vy_ast.Subscript(value=return_stmt, slice=vy_ast.Name(id=f"arg{i}"))
 
         # after iterating the input types, the remaining annotation node is our return type
         return_node = copy.copy(annotation)

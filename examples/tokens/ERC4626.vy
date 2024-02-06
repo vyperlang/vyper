@@ -6,8 +6,8 @@
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
 
-from vyper.interfaces import ERC20
-from vyper.interfaces import ERC4626
+from ethereum.ercs import ERC20
+from ethereum.ercs import ERC4626
 
 implements: ERC20
 implements: ERC4626

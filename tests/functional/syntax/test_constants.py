@@ -42,7 +42,7 @@ VAL: constant(uint256) = -1
     """,
         InvalidType,
     ),
-    # reserverd keyword
+    # reserved keyword
     (
         """
 wei: constant(uint256) = 1
@@ -277,6 +277,13 @@ struct Foo:
     b: uint256
 
 CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
+    """,
+    """
+CONST_EMPTY: constant(bytes32) = empty(bytes32)
+
+@internal
+def foo() -> bytes32:
+    return CONST_EMPTY
     """,
     """
 struct Foo:

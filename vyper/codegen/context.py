@@ -83,7 +83,7 @@ class Context:
         # Active scopes
         self._scopes = set()
 
-        # Memory alloctor, keeps track of currently allocated memory.
+        # Memory allocator, keeps track of currently allocated memory.
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
 
@@ -101,7 +101,7 @@ class Context:
         if self.is_constant():
             raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
 
-    # convenience propreties
+    # convenience properties
     @property
     def is_payable(self):
         return self.func_t.is_payable

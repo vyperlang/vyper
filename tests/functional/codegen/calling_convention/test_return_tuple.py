@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import InvalidType
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
@@ -159,5 +159,5 @@ def test_tuple_return_typecheck(tx_failed, get_contract_with_gas_estimation):
 def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """
-    with pytest.raises(TypeMismatch):
+    with pytest.raises(InvalidType):
         compile_code(code)

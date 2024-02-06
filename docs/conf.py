@@ -56,7 +56,7 @@ master_doc = "toctree"
 
 # General information about the project.
 project = "Vyper"
-copyright = "2017-2020 CC-BY-4.0 Vyper Team"
+copyright = "2017-2024 CC-BY-4.0 Vyper Team"
 author = "Vyper Team (originally created by Vitalik Buterin)"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -190,5 +190,5 @@ source_parsers = {
 intersphinx_mapping = {
     "brownie": ("https://eth-brownie.readthedocs.io/en/stable", None),
     "pytest": ("https://docs.pytest.org/en/latest/", None),
-    "python": ("https://docs.python.org/3.8/", None),
+    "python": ("https://docs.python.org/3.10/", None),
 }

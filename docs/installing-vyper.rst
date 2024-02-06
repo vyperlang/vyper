@@ -79,10 +79,10 @@ To install a specific version use:
     pip install vyper==0.3.7
 
 You can check if Vyper is installed completely or not by typing the following in your terminal/cmd:
-
 ::
 
     vyper --version
+
 nix
 ***
 

@@ -46,7 +46,7 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
     ]
 )
 
-# Instuctions that are mapped to their inverse
+# Instructions that are mapped to their inverse
 INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
 
 # Instructions that have a direct EVM opcode equivalent and can

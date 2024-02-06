@@ -25,7 +25,7 @@ class _GenericTypeAcceptor:
         self.type_ = type_
 
     def compare_type(self, other):
-        return isinstance(other, self.type_)
+        return isinstance(other, self.type_) or self == other
 
 
 class VyperType:
@@ -274,7 +274,7 @@ class VyperType:
         raise StructureException(f"{self} is not callable", node)
 
     @classmethod
-    def get_subscripted_type(self, node: vy_ast.Index) -> None:
+    def get_subscripted_type(self, node: vy_ast.VyperNode) -> None:
         """
         Return the type of a subscript expression, e.g. x[1]
 
@@ -322,6 +322,20 @@ class KwargSettings:
         self.typ = typ
         self.default = default
         self.require_literal = require_literal
+
+
+class _VoidType(VyperType):
+    _id = "(void)"
+
+
+# sentinel for function calls which return nothing
+VOID_TYPE = _VoidType()
+
+
+def map_void(typ: Optional[VyperType]) -> VyperType:
+    if typ is None:
+        return VOID_TYPE
+    return typ
 
 
 # A type type. Used internally for types which can live in expression

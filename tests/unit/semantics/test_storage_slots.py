@@ -19,7 +19,7 @@ c: public(Bytes[32])
 d: public(int128[4])
 foo: public(HashMap[uint256, uint256[3]])
 dyn_array: DynArray[uint256, 3]
-e: public(String[47])
+e: public(String[48])
 f: public(int256[1])
 g: public(StructTwo[2])
 h: public(int256[1])
@@ -31,7 +31,7 @@ def __init__():
     self.b = [7, 8]
     self.c = b"thisisthirtytwobytesokhowdoyoudo"
     self.d = [-1, -2, -3, -4]
-    self.e = "A realllllly long string but we wont use it all"
+    self.e = "A realllllly long string but we won't use it all"
     self.f = [33]
     self.g = [
         StructTwo({a: b"hello", b: [-66, 420], c: "another string"}),
@@ -65,7 +65,7 @@ def test_storage_slots(get_contract):
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A realllllly long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we won't use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
@@ -90,7 +90,7 @@ def test_reentrancy_lock(get_contract):
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A realllllly long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we won't use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
