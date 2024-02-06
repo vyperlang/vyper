@@ -343,7 +343,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if var_info.is_module_variable():
             info._writes.append(target)
 
-    def _check_module_uses(self, target: vy_ast.VyperNode):
+    def _check_module_uses(self, target: vy_ast.ExprNode):
         module_info = get_expr_info(target).get_root_moduleinfo()
         if module_info is None:
             return
@@ -681,13 +681,13 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         elif is_type_t(func_type, EventT):
             # events have no kwargs
-            expected_types = func_type.typedef.arguments.values()
+            expected_types = func_type.typedef.arguments.values()  # type: ignore
             for arg, typ in zip(node.args, expected_types):
                 self.visit(arg, typ)
         elif is_type_t(func_type, StructT):
             # struct ctors
             # ctors have no kwargs
-            expected_types = func_type.typedef.members.values()
+            expected_types = func_type.typedef.members.values()  # type: ignore
             for value, arg_type in zip(node.args[0].values, expected_types):
                 self.visit(value, arg_type)
         elif isinstance(func_type, MemberFunctionT):
@@ -699,10 +699,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)
+            arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
-            kwarg_types = func_type.infer_kwarg_types(node)
+            kwarg_types = func_type.infer_kwarg_types(node)  # type: ignore
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
 
