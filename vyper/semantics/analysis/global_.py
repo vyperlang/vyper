@@ -70,9 +70,11 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
                 hint += "your main contract"
             else:
                 # CMC 2024-02-06 is this actually reachable?
-                hint = f"ensure {module_t} is imported in your main contract!"
+                hint = f"ensure `{module_t}` is imported in your main contract!"
             err_list.append(
-                InitializerException(f"module {u} is used but never initialized!", *uses, hint=hint)
+                InitializerException(
+                    f"module `{u}` is used but never initialized!", *uses, hint=hint
+                )
             )
 
     err_list.raise_if_not_empty()
