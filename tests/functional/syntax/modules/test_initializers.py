@@ -275,6 +275,45 @@ initializes: lib1
     assert e.value._hint == expected_hint
 
 
+def test_missing_uses2(make_input_bundle):
+    # test missing uses through function
+    lib1 = """
+counter: uint256
+
+@internal
+def update_counter(new_value: uint256):
+    self.counter = new_value
+    """
+    lib2 = """
+import lib1
+
+# forgot `uses: lib1`!
+
+counter: uint256
+
+@internal
+def foo():
+    lib1.update_counter(lib1.counter + 1)
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2
+initializes: lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Constant value cannot be written to."
+
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
 def test_invalid_uses(make_input_bundle):
     lib1 = """
 counter: uint256

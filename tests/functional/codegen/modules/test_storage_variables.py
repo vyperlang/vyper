@@ -124,3 +124,48 @@ def get_lib_counter() -> uint256:
 
     assert c.counter() == 1
     assert c.get_lib_counter() == 5
+
+
+def test_variables_readable_no_uses(get_contract, make_input_bundle):
+    # test we can read imported variables without using `uses`
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__(initial_value: uint256):
+    self.counter = initial_value
+
+@internal
+def increment_counter():
+    self.counter += 1
+    """
+
+    lib2 = """
+import lib1
+
+# no uses!
+
+@internal
+def get_lib1_counter():
+    return lib1.counter
+    """
+
+    contract = """
+import lib1
+import lib2
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__(5)
+
+@external
+def get_lib1_counter() -> uint256:
+    return lib2.get_lib1_counter()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.get_lib1_counter() == 5
