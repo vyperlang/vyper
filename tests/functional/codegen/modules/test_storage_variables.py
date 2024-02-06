@@ -146,7 +146,7 @@ import lib1
 # no uses!
 
 @internal
-def get_lib1_counter():
+def get_lib1_counter() -> uint256:
     return lib1.counter
     """
 

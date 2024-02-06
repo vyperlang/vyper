@@ -268,7 +268,7 @@ initializes: lib1
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    assert e.value._message == "Constant value cannot be written to."
+    assert e.value._message == "Cannot modify `lib1`"
 
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
@@ -307,7 +307,7 @@ initializes: lib1
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    assert e.value._message == "Constant value cannot be written to."
+    assert e.value._message == "Cannot modify `lib1`"
 
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
@@ -484,11 +484,38 @@ counter: uint256
 
 @deploy
 def __init__():
-    self.counter = 5
+    pass
     """
     main = """
 import lib1
 
+# missing `initializes: lib1`!
+
+@deploy
+def __init__():
+    lib1.__init__()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "tried to initialize `lib1`, but it is not in initializer list!"
+    assert e.value._hint == "add `initializes: lib1` as a top-level statement to your contract"
+
+
+def test_init_uninitialized_function2(make_input_bundle):
+    # test that we can't call module.__init__() even when we call `uses`
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    main = """
+import lib1
+
+uses: lib1
 # missing `initializes: lib1`!
 
 @deploy
