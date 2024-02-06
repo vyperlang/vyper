@@ -318,7 +318,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             for s in should_initialize.values():
                 msg = "not initialized!"
                 hint = f"add `{s.module_info.alias}.__init__()` to "
-                hint += "your `__init__()` function)"
+                hint += "your `__init__()` function"
                 err_list.append(InitializerException(msg, s.node, hint=hint))
 
             err_list.raise_if_not_empty()
