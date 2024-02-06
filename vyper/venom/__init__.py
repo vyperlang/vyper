@@ -48,8 +48,6 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
         MakeSSA.run_pass(ctx, entry)
-    calculate_cfg(ctx)
-    calculate_liveness(ctx)
 
     while True:
         changes = 0
