@@ -278,8 +278,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # specific error message than "invalid type annotation"
             raise SyntaxException(
                 "missing type annotation\n\n"
-                "(hint: did you mean something like "
-                f"`for {node.target.id}: uint256 in ...`?)\n",
+                "  (hint: did you mean something like "
+                f"`for {node.target.id}: uint256 in ...`?)",
                 self._source_code,
                 node.lineno,
                 node.col_offset,
