@@ -1,4 +1,5 @@
 from typing import Any
+from vyper.exceptions import CompilerPanic
 
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
@@ -167,6 +168,9 @@ class VenomCompiler:
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
             depth = stack.get_depth(op)  # type: ignore
+
+            if depth == StackModel.NOT_IN_STACK:
+                raise CompilerPanic(f"Variable {op} not in stack")
 
             if depth == final_stack_depth:
                 continue
