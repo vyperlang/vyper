@@ -639,7 +639,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             raise StateAccessViolation(msg)
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        func_info = get_expr_info(node.func)
+        func_info = get_expr_info(node.func, is_callable=True)
         func_type = func_info.typ
         self.visit(node.func, func_type)
 
