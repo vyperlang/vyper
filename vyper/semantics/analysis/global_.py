@@ -64,7 +64,7 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
 
     for u, uses in all_used_modules.items():
         if u not in all_initialized_modules:
-            found_module = module_t.find_module(u)
+            found_module = module_t.find_module_info(u)
             if found_module is not None:
                 hint = f"add `initializes: {found_module.alias}` to the top level of "
                 hint += "your main contract"

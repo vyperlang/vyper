@@ -370,7 +370,7 @@ class ModuleT(VyperType):
             ret[info.alias] = module_info
         return ret
 
-    def find_module(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
+    def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
         for s in self.imported_modules.values():
             if s.module_t == needle:
                 return s
