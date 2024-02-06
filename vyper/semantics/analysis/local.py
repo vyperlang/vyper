@@ -3,6 +3,7 @@
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.ast.utils import get_attribute_root
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ExceptionList,
@@ -326,7 +327,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             msg = "Constant value cannot be written to."
             hint = None
 
-            module_ref = target.get_attribute_root()
+            module_ref = get_attribute_root(target)
             module_info = get_expr_info(module_ref).module_info
             if module_info is not None:
                 hint = f"add `uses: {module_info.alias}` or "
@@ -342,7 +343,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             return
 
         # extract the outer references, e.g. `foo.bar.baz` => `foo`
-        module = target.get_attribute_root()
+        module = get_attribute_root(target)
         module_info = get_expr_info(target.value).module_info
         if module_info is None:
             # e.g. struct references, self references
