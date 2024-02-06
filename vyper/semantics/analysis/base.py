@@ -48,19 +48,19 @@ class StateMutability(StringEnum):
 # and variables) and Constancy (in codegen). context.Constancy can/should
 # probably be refactored away though as those kinds of checks should be done
 # during analysis.
-class Modifiability(enum.IntEnum):
-    # is writeable/can result in arbitrary state or memory changes
-    MODIFIABLE = enum.auto()
-
-    # could potentially add more fine-grained here as needed, like
-    # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
+class Modifiability(StringEnum):
+    # compile-time / always constant
+    CONSTANT = enum.auto()
 
     # things that are constant within the current message call, including
     # block.*, msg.*, tx.* and immutables
     RUNTIME_CONSTANT = enum.auto()
 
-    # compile-time / always constant
-    CONSTANT = enum.auto()
+    # could potentially add more fine-grained here as needed, like
+    # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
+
+    # is writeable/can result in arbitrary state or memory changes
+    MODIFIABLE = enum.auto()
 
     @classmethod
     def from_state_mutability(cls, mutability: StateMutability):
