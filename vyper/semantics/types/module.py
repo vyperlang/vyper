@@ -422,7 +422,15 @@ class ModuleT(VyperType):
 
     @cached_property
     def immutable_section_bytes(self):
-        return sum([imm.typ.memory_bytes_required for imm in self.immutables])
+        ret = 0
+        for s in self.immutables:
+            ret += s.typ.memory_bytes_required
+
+        for initializes_info in self.initialized_modules:
+            module_t = initializes_info.module_info.module_t
+            ret += module_t.immutable_section_bytes
+
+        return ret
 
     @cached_property
     def interface(self):

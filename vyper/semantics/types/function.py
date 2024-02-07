@@ -21,8 +21,8 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     StateMutability,
-    StorageSlot,
     VarInfo,
+    VarOffset,
 )
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -370,14 +370,11 @@ class ContractFunctionT(VyperType):
             ast_def=funcdef,
         )
 
-    def set_reentrancy_key_position(self, position: StorageSlot) -> None:
+    def set_reentrancy_key_position(self, position: VarOffset) -> None:
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
             raise CompilerPanic(f"No reentrant key {self}")
-        # sanity check even though implied by the type
-        if position._location != DataLocation.STORAGE:
-            raise CompilerPanic("Non-storage reentrant key")
         self.reentrancy_key_position = position
 
     @classmethod

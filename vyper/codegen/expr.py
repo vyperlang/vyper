@@ -6,6 +6,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
+    data_location_to_address_space,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,7 +24,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
@@ -191,17 +192,18 @@ class Expr:
 
             assert varinfo.is_immutable, "not an immutable!"
 
-            ofst = varinfo.position.offset
+            mutable = self.context.is_ctor_context
 
-            if self.context.is_ctor_context:
-                mutable = True
-                location = IMMUTABLES
-            else:
-                mutable = False
-                location = DATA
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
 
             ret = IRnode.from_list(
-                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation=self.expr.id,
+                mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
@@ -266,7 +268,9 @@ class Expr:
             if varinfo.is_constant:
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
-            location = TRANSIENT if varinfo.is_transient else STORAGE
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
 
             ret = IRnode.from_list(
                 varinfo.position.position,

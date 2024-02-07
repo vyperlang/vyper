@@ -2,7 +2,7 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import StorageLayoutException
-from vyper.semantics.analysis.base import CodeOffset, StorageSlot
+from vyper.semantics.analysis.base import VarOffset
 from vyper.typing import StorageLayout
 from vyper.utils import ceil32
 
@@ -89,7 +89,7 @@ def set_storage_slots_with_overrides(
         # re-entrant key was already identified
         if variable_name in ret:
             _slot = ret[variable_name]["slot"]
-            type_.set_reentrancy_key_position(StorageSlot(_slot))
+            type_.set_reentrancy_key_position(VarOffset(_slot))
             continue
 
         # Expect to find this variable within the storage layout override
@@ -99,7 +99,7 @@ def set_storage_slots_with_overrides(
             # from using the same slot
             reserved_slots.reserve_slot_range(reentrant_slot, 1, variable_name)
 
-            type_.set_reentrancy_key_position(StorageSlot(reentrant_slot))
+            type_.set_reentrancy_key_position(VarOffset(reentrant_slot))
 
             ret[variable_name] = {"type": "nonreentrant lock", "slot": reentrant_slot}
         else:
@@ -124,7 +124,7 @@ def set_storage_slots_with_overrides(
             # Ensure that all required storage slots are reserved, and prevents other variables
             # from using these slots
             reserved_slots.reserve_slot_range(var_slot, storage_length, node.target.id)
-            varinfo.set_position(StorageSlot(var_slot))
+            varinfo.set_position(VarOffset(var_slot))
 
             ret[node.target.id] = {"type": str(varinfo.typ), "slot": var_slot}
         else:
@@ -185,7 +185,7 @@ def set_storage_slots_r(
         # increment the storage slot.
         if variable_name in ret:
             _slot = ret[variable_name]["slot"]
-            type_.set_reentrancy_key_position(StorageSlot(_slot))
+            type_.set_reentrancy_key_position(VarOffset(_slot))
             continue
 
         # TODO use one byte - or bit - per reentrancy key
@@ -193,7 +193,7 @@ def set_storage_slots_r(
         # location in memory at entrance
         slot = allocator.allocate_slot(1, variable_name, node)
 
-        type_.set_reentrancy_key_position(StorageSlot(slot))
+        type_.set_reentrancy_key_position(VarOffset(slot))
 
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
@@ -219,9 +219,13 @@ def set_storage_slots_r(
         # for HashMaps because downstream code might use the slot
         # ID as a salt.
         n_slots = type_.storage_size_in_words
+        # CMC 2024-02-07 note we use the same allocator for transient
+        # storage and regular storage. this is slightly inefficient
+        # in terms of code size (since we don't get to reuse the same
+        # small integer slots)
         slot = allocator.allocate_slot(n_slots, node.target.id, node)
 
-        varinfo.set_position(StorageSlot(slot))
+        varinfo.set_position(VarOffset(slot))
 
         # this could have better typing but leave it untyped until
         # we understand the use case better
@@ -250,7 +254,7 @@ def set_code_offsets_r(vyper_module: vy_ast.Module, allocator: SimpleAllocator =
         type_ = varinfo.typ
         len_ = ceil32(type_.size_in_bytes)
         offset = allocator.allocate_slot(len_, node.target.id, node)
-        varinfo.set_position(CodeOffset(offset))
+        varinfo.set_position(VarOffset(offset))
 
         # this could have better typing but leave it untyped until
         # we understand the use case better

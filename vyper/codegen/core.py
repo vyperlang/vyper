@@ -3,9 +3,18 @@ from typing import Generator
 
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import (
+    CALLDATA,
+    DATA,
+    IMMUTABLES,
+    MEMORY,
+    STORAGE,
+    TRANSIENT,
+    AddrSpace,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -98,6 +107,21 @@ def _calldatacopy_gas_bound(num_bytes):
 
 def _codecopy_gas_bound(num_bytes):
     return GAS_COPY_WORD * ceil32(num_bytes) // 32
+
+
+def data_location_to_address_space(s: DataLocation, is_ctor_ctx: bool) -> AddrSpace:
+    if s == DataLocation.MEMORY:
+        return MEMORY
+    if s == DataLocation.STORAGE:
+        return STORAGE
+    if s == DataLocation.TRANSIENT:
+        return TRANSIENT
+    if s == DataLocation.CODE:
+        if is_ctor_ctx:
+            return IMMUTABLES
+        return DATA
+
+    raise CompilerPanic("unreachable!")  # pragma: nocover
 
 
 # Copy byte array word-for-word (including layout)

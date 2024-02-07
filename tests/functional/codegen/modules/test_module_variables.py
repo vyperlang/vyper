@@ -92,9 +92,12 @@ def test_init_function_side_effects(get_contract, make_input_bundle):
     lib = """
 counter: uint256
 
+MY_IMMUTABLE: immutable(uint256)
+
 @deploy
 def __init__(initial_value: uint256):
     self.counter = initial_value
+    MY_IMMUTABLE = initial_value * 2
 
 @internal
 def increment_counter():
@@ -106,16 +109,23 @@ import library as lib
 
 counter: public(uint256)
 
+MY_IMMUTABLE: public(immutable(uint256))
+
 initializes: lib
 
 @deploy
 def __init__():
     self.counter = 1
+    MY_IMMUTABLE = 3
     lib.__init__(5)
 
 @external
 def get_lib_counter() -> uint256:
     return lib.counter
+
+@external
+def get_lib_immutable() -> uint256:
+    return lib.MY_IMMUTABLE
     """
 
     input_bundle = make_input_bundle({"library.vy": lib})
@@ -123,7 +133,9 @@ def get_lib_counter() -> uint256:
     c = get_contract(contract, input_bundle=input_bundle)
 
     assert c.counter() == 1
+    assert c.MY_IMMUTABLE() == 3
     assert c.get_lib_counter() == 5
+    assert c.get_lib_immutable() == 10
 
 
 def test_import_complex_types(get_contract, make_input_bundle):

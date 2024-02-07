@@ -73,56 +73,9 @@ class Modifiability(StringEnum):
         return cls.MODIFIABLE
 
 
-class DataPosition:
-    _location: DataLocation
-
-
-class CalldataOffset(DataPosition):
-    __slots__ = ("dynamic_offset", "static_offset")
-    _location = DataLocation.CALLDATA
-
-    def __init__(self, static_offset, dynamic_offset=None):
-        self.static_offset = static_offset
-        self.dynamic_offset = dynamic_offset
-
-    def __repr__(self):
-        if self.dynamic_offset is not None:
-            return f"<CalldataOffset: static {self.static_offset}, dynamic {self.dynamic_offset})>"
-        else:
-            return f"<CalldataOffset: static {self.static_offset}, no dynamic>"
-
-
-class MemoryOffset(DataPosition):
-    __slots__ = ("offset",)
-    _location = DataLocation.MEMORY
-
-    def __init__(self, offset):
-        self.offset = offset
-
-    def __repr__(self):
-        return f"<MemoryOffset: {self.offset}>"
-
-
-class StorageSlot(DataPosition):
-    __slots__ = ("position",)
-    _location = DataLocation.STORAGE
-
-    def __init__(self, position):
-        self.position = position
-
-    def __repr__(self):
-        return f"<StorageSlot: {self.position}>"
-
-
-class CodeOffset(DataPosition):
-    __slots__ = ("offset",)
-    _location = DataLocation.CODE
-
-    def __init__(self, offset):
-        self.offset = offset
-
-    def __repr__(self):
-        return f"<CodeOffset: {self.offset}>"
+@dataclass
+class VarOffset:
+    position: int
 
 
 class ModuleOwnership(StringEnum):
@@ -210,20 +163,13 @@ class VarInfo:
         return hash(id(self))
 
     def __post_init__(self):
+        self.position = None
         self._modification_count = 0
 
-    def set_position(self, position: DataPosition) -> None:
-        if hasattr(self, "position"):
+    def set_position(self, position: VarOffset) -> None:
+        if self.position is not None:
             raise CompilerPanic("Position was already assigned")
-        if self.location != position._location:
-            if self.location == DataLocation.UNSET:
-                self.location = position._location
-            elif self.is_transient and position._location == DataLocation.STORAGE:
-                # CMC 2023-12-31 - use same allocator for storage and transient
-                # for now, this should be refactored soon.
-                pass
-            else:
-                raise CompilerPanic("Incompatible locations")
+        assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
     def is_module_variable(self):
