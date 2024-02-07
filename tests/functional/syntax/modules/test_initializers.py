@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     BorrowException,
+    CodegenPanic,
     ImmutableViolation,
     InitializerException,
     StructureException,
@@ -423,6 +424,123 @@ initializes: lib1
     assert e.value._message == "Cannot access `lib1` state!"
 
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+def test_missing_uses_nested_attribute(make_input_bundle):
+    # test missing uses through nested attribute access
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+import lib1
+
+counter: uint256
+
+@internal
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+
+# did not `use` or `initialize` lib2!
+
+@external
+def foo(new_value: uint256):
+    # cannot access lib1 state through lib2
+    lib2.lib1.counter = new_value
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib2` state!"
+
+    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+def test_missing_uses_nested_attribute_function_call(make_input_bundle):
+    # test missing uses through nested attribute access
+    lib1 = """
+counter: uint256
+
+@internal
+def update_counter(new_value: uint256):
+    self.counter = new_value
+    """
+    lib2 = """
+import lib1
+
+counter: uint256
+
+@internal
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+
+# did not `use` or `initialize` lib2!
+
+@external
+def foo(new_value: uint256):
+    # cannot access lib1 state through lib2
+    lib2.lib1.update_counter(new_value)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib2` state!"
+
+    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+@pytest.mark.xfail(raises=CodegenPanic, reason="initializer analysis bug")
+def test_uses_skip_import(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+import lib1
+
+@internal
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2
+
+@external
+def foo(new_value: uint256):
+    # can access lib1 state through lib2?
+    lib2.lib1.counter = new_value
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib2` state!"
+
+    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
