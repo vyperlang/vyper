@@ -85,7 +85,7 @@ class _ExprAnalyser:
             # note: Attribute(expr value, identifier attr)
 
             name = node.attr
-            info = self.get_expr_info(node.value)
+            info = self.get_expr_info(node.value, is_callable=is_callable)
 
             attribute_chain = info.attribute_chain + [info]
 
