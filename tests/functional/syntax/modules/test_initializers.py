@@ -510,7 +510,6 @@ def foo(new_value: uint256):
     assert e.value._hint == expected_hint
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="initializer analysis bug")
 def test_uses_skip_import(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -538,9 +537,9 @@ def foo(new_value: uint256):
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
 
-    assert e.value._message == "Cannot access `lib2` state!"
+    assert e.value._message == "Cannot access `lib1` state!"
 
-    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
 
