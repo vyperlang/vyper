@@ -147,11 +147,11 @@ def foo():
     m.counter += 1
     """
     main = """
-import lib1
+import lib1 as some_module
 import lib2
 
-initializes: lib2[m := lib1]
-initializes: lib1
+initializes: lib2[m := some_module]
+initializes: some_module
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
