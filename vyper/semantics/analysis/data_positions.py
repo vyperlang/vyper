@@ -29,6 +29,13 @@ def set_data_positions(
     return {"storage_layout": storage_slots, "code_layout": code_offsets}
 
 
+class InsertableOnceDict(dict):
+    def __setitem__(self, k, v):
+        if k in self:
+            raise ValueError(f"{k} is already in dict!")
+        super().__setitem__(k, v)
+
+
 class StorageAllocator:
     """
     Keep track of which storage slots have been used. If there is a collision of
@@ -73,7 +80,7 @@ def set_storage_slots_with_overrides(
     Returns the layout as a dict of variable name -> variable info
     """
 
-    ret: dict[str, dict] = {}
+    ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
     reserved_slots = StorageAllocator()
 
     # Search through function definitions to find non-reentrant functions
@@ -171,7 +178,7 @@ def set_storage_slots_r(
     if allocator is None:
         allocator = SimpleAllocator(max_slot=2**256)
 
-    ret: dict[str, dict] = {}
+    ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
         type_ = node._metadata["func_type"]
@@ -201,8 +208,9 @@ def set_storage_slots_r(
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
-            module_t = node._metadata["initializes_info"].module_info.module_t
-            set_storage_slots_r(module_t._module, allocator)
+            module_info = node._metadata["initializes_info"].module_info
+            module_layout = set_storage_slots_r(module_info.module_node, allocator)
+            ret[module_info.alias] = module_layout
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
@@ -238,12 +246,13 @@ def set_code_offsets_r(vyper_module: vy_ast.Module, allocator: SimpleAllocator =
     if allocator is None:
         allocator = SimpleAllocator(max_slot=0x6000)
 
-    ret = {}
+    ret = InsertableOnceDict()
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
-            module_t = node._metadata["initializes_info"].module_info.module_t
-            set_code_offsets_r(module_t._module, allocator)
+            module_info = node._metadata["initializes_info"].module_info
+            module_layout = set_code_offsets_r(module_info.module_node, allocator)
+            ret[module_info.alias] = module_layout
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)

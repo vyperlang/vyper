@@ -72,3 +72,99 @@ def __init__():
 
     out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected_layout
+
+
+def test_storage_layout_module(make_input_bundle):
+    lib1 = """
+supply: uint256
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@deploy
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+    code = """
+import lib1 as a_library
+
+counter: uint256
+some_immutable: immutable(DynArray[uint256, 10])
+
+counter2: uint256
+
+initializes: a_library
+
+@deploy
+def __init__():
+    some_immutable = [1, 2, 3]
+    a_library.__init__()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    expected_layout = {
+        "code_layout": {
+            "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
+            "a_library": {
+                "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
+                "SYMBOL": {"length": 64, "offset": 352, "type": "String[32]"},
+            },
+        },
+        "storage_layout": {
+            "counter": {"slot": 0, "type": "uint256"},
+            "counter2": {"slot": 1, "type": "uint256"},
+            "a_library": {"supply": {"slot": 2, "type": "uint256"}},
+        },
+    }
+
+    out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
+    assert out["layout"] == expected_layout
+
+
+def test_storage_layout_module2(make_input_bundle):
+    # test module storage layout, but initializes is in a different order
+    lib1 = """
+supply: uint256
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@deploy
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+    code = """
+import lib1 as a_library
+
+counter: uint256
+some_immutable: immutable(DynArray[uint256, 10])
+
+initializes: a_library
+
+counter2: uint256
+
+@deploy
+def __init__():
+    a_library.__init__()
+    some_immutable = [1, 2, 3]
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    expected_layout = {
+        "code_layout": {
+            "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
+            "a_library": {
+                "SYMBOL": {"length": 64, "offset": 352, "type": "String[32]"},
+                "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
+            },
+        },
+        "storage_layout": {
+            "counter": {"slot": 0, "type": "uint256"},
+            "a_library": {"supply": {"slot": 1, "type": "uint256"}},
+            "counter2": {"slot": 2, "type": "uint256"},
+        },
+    }
+
+    out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
+    assert out["layout"] == expected_layout
