@@ -180,7 +180,7 @@ import lib2
 import lib3
 
 initializes: lib1
-initializes: lib3[lib1 := lib2]  # typo -- should be [lib1 := lib2]
+initializes: lib3[lib1 := lib2]  # typo -- should be [lib1 := lib1]
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
 
