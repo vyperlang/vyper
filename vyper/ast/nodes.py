@@ -1251,7 +1251,7 @@ class keyword(VyperNode):
 
 
 class Attribute(ExprNode):
-    __slots__ = ("value", "attr")
+    __slots__ = ("attr", "value")
 
 
 class Subscript(ExprNode):
