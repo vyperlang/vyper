@@ -238,8 +238,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         all_used_modules = OrderedSet()
 
-        for f in self.ast.get_children(vy_ast.FunctionDef):
-            for u in f._metadata["used_modules"]:
+        for f in module_t.functions.values():
+            for u in f._used_modules:
                 all_used_modules.add(u.module_t)
 
         for used_module in all_used_modules:

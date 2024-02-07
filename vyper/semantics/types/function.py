@@ -19,6 +19,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
     Modifiability,
+    ModuleInfo,
     StateMutability,
     StorageSlot,
 )
@@ -117,6 +118,9 @@ class ContractFunctionT(VyperType):
 
         # reads of variables from this function
         self._variable_reads: list[vy_ast.VyperNode] = []
+
+        # list of modules used (accessed state) by this function
+        self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
 
         # to be populated during codegen
         self._ir_info: Any = None

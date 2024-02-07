@@ -19,7 +19,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Modifiability, ModuleInfo, ModuleOwnership, VarInfo
+from vyper.semantics.analysis.base import Modifiability, ModuleOwnership, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -53,7 +53,6 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import OrderedSet
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
@@ -226,21 +225,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
-        self._analyze_used_modules()
-
-    def _analyze_used_modules(self):
-        used_modules: OrderedSet[ModuleInfo] = OrderedSet()
-        for expr in self.func._variable_accesses:
-            info = get_expr_info(expr)
-            module_info = info.get_root_moduleinfo()
-            if module_info is None:
-                continue
-
-            used_modules.add(module_info)
-
-        # leave it somewhere that ModuleAnalyzer can find it
-        self.fn_node._metadata["used_modules"] = used_modules
-
     def visit(self, node):
         super().visit(node)
 
@@ -348,10 +332,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if var_info.is_module_variable():
             info._writes.append(target)
 
-    def _check_module_uses(self, target: vy_ast.ExprNode):
+    def _check_module_use(self, target: vy_ast.ExprNode):
         module_info = get_expr_info(target).get_root_moduleinfo()
         if module_info is None:
             return
+
+        # log the access
+        self.func._used_modules.add(module_info)
+
         if module_info.ownership >= ModuleOwnership.USES:
             return
 
@@ -590,7 +578,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if self.func:
                 if len(info._writes) > 0 or len(info._reads) > 0:
-                    self.function_analyzer._check_module_uses(node)
+                    self.function_analyzer._check_module_use(node)
 
                 self.func._variable_writes.extend(info._writes)
                 self.func._variable_reads.extend(info._reads)
@@ -651,13 +639,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(func_type, ContractFunctionT):
             # function calls
 
-            # for the purpose of analyzing used modules,
-            # we don't need to know what variables are accessed;
-            # we just log that they are accessed.
-            if len(func_type._variable_writes) > 0:
-                func_info._writes.append(node.func)
-            if len(func_type._variable_reads) > 0:
-                func_info._reads.append(node.func)
+            func_info._writes.extend(func_type._variable_writes)
+            func_info._reads.extend(func_type._variable_reads)
 
             if self.function_analyzer:
                 if func_type.is_internal:
@@ -668,7 +651,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 # check that if the function accesses state, the defining
                 # module has been `used` or `initialized`.
                 if len(func_type._variable_accesses) > 0:
-                    self.function_analyzer._check_module_uses(node.func)
+                    self.function_analyzer._check_module_use(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
