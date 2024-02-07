@@ -86,7 +86,7 @@ def a (x:int128):
 @external
 def b():
     self.a(10)""",
-    """
+        """
 interface A:
     def bar() -> uint16: view
 @external
@@ -95,7 +95,7 @@ def test(to:address):
     a:A = A(to)
     x:uint16 = a.bar()
     """,
-    """
+        """
 interface A:
     def bar() -> uint16: view
 @external
@@ -104,7 +104,7 @@ def test(to:address):
     a:A = A(to)
     a.bar()
     """,
-    """
+        """
 interface A:
     def bar() -> uint16: nonpayable
 @external
@@ -113,7 +113,7 @@ def test(to:address):
     a:A = A(to)
     x:uint16 = a.bar()
     """,
-    """
+        """
 interface A:
     def bar() -> uint16: nonpayable
 @external
@@ -122,7 +122,7 @@ def test(to:address):
     a:A = A(to)
     a.bar()
     """,
-    """
+        """
 a:DynArray[uint16,3]
 @deploy
 def __init__():
@@ -133,7 +133,7 @@ def bar()->DynArray[uint16,3]:
     x:uint16 = self.a.pop()
     return self.a # return [1,2]
     """,
-    """
+        """
 from ethereum.ercs import ERC20
 
 token: ERC20
