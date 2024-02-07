@@ -49,6 +49,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "mstore",
         "timestamp",
         "caller",
+        "blockhash",
         "selfdestruct",
         "signextend",
         "stop",
