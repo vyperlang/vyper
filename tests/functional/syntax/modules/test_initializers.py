@@ -581,6 +581,47 @@ initializes: lib1
     assert e.value._hint == "delete `uses: lib1`"
 
 
+def test_invalid_uses2(make_input_bundle):
+    # test a more complicated invalid uses
+    lib1 = """
+counter: uint256
+
+@internal
+def foo(addr: address):
+    # sends value -- modifies ethereum state
+    to_send_value: uint256 = 100
+    raw_call(addr, b"someFunction()", value=to_send_value)
+    """
+    lib2 = """
+import lib1
+
+uses: lib1  # not necessary!
+
+counter: uint256
+
+@internal
+def foo():
+    lib1.foo(msg.sender)
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@external
+def foo():
+    lib2.foo()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(BorrowException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "`lib1` is declared as used, but it is not actually used in lib2.vy!"
+    assert e.value._hint == "delete `uses: lib1`"
+
+
 def test_initializes_uses_conflict(make_input_bundle):
     lib1 = """
 counter: uint256
