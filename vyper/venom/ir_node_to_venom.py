@@ -650,7 +650,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         new_var = _convert_ir_bb(
                             ctx, sym_ir, symbols, variables, allocated_variables
                         )
-                        symbols[f"&{sym_ir.value}"] = new_var
+                        if not isinstance(new_var, IRLiteral):
+                            symbols[f"&{sym_ir.value}"] = new_var
                         if allocated_variables.get(var.name, None) is None:
                             allocated_variables[var.name] = new_var
                             return new_var
