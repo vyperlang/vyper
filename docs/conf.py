@@ -25,22 +25,13 @@ language = "vyper"
 html_theme = "shibuya"
 html_theme_options = {
     "accent_color": "purple",
-    "light_logo": "_static/vyper-logo-light.svg",
-    "dark_logo": "_static/vyper-logo-dark.svg",
     "twitter_creator": "vyperlang",
     "twitter_site": "vyperlang",
     "twitter_url": "https://twitter.com/vyperlang",
     "github_url": "https://github.com/vyperlang",
-    # Customize the left sidebar
-    "globaltoc_expand_depth": 1,
-    "toctree_titles_only": False,
-    "toctree_collapse": True,
 }
-html_favicon = "vyper-logo-color.svg"
-html_static_path = ["_static"]
-html_css_files = ["custom.css"]
-# Customize the right sidebar
-html_sidebars = {"**": []}
+html_favicon = "logo.svg"
+html_logo = "logo.svg"
 
 # For the "Edit this page ->" link
 html_context = {
