@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import re
 from enum import Enum, auto
 from functools import cached_property
@@ -391,6 +392,11 @@ class IRnode:
         else:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
+
+    def __deepcopy__(self, memo):
+        ret = copy.copy(self)
+        ret.args = [copy.deepcopy(arg) for arg in ret.args]
+        return ret
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
