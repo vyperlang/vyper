@@ -158,6 +158,38 @@ initializes: some_module
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_initializer_list_module_mismatch(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+something: uint256
+    """
+    lib3 = """
+import lib1
+
+uses: lib1
+
+@internal
+def foo():
+    lib1.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib3[lib1 := lib2]  # typo -- should be [lib1 := lib2]
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle) is not None
+
+    assert e.value._message == "lib1 is not lib2!"
+
+
 def test_imported_as_different_names_error(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -458,6 +490,50 @@ something: uint256
 @internal
 def foo() -> uint256:
     lib1.counter[1][2], self.something = Foo(msg.sender).foo()
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+initializes: lib2
+
+@deploy
+def __init__():
+    lib1.counter = 100
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib1` state!"
+
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+def test_missing_uses_for_tuple_function_call(make_input_bundle):
+    lib1 = """
+counter: HashMap[uint256, HashMap[uint256, uint256]]
+
+something: uint256
+
+interface Foo:
+    def foo() -> (uint256, uint256): nonpayable
+
+@internal
+def write_tuple():
+    self.counter[1][2], self.something = Foo(msg.sender).foo()
+    """
+    lib2 = """
+import lib1
+
+# forgot `uses: lib1`!
+@internal
+def foo():
+    lib1.write_tuple()
     """
     main = """
 import lib1
