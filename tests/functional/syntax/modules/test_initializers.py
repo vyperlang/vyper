@@ -1,9 +1,16 @@
+"""
+tests for the uses/initializes checker
+main properties to test:
+- state usage -- if a module uses state, it must `used` or `initialized`
+- conversely, if a module does not touch state, it should not be `used`
+- global initializer check: each used module is `initialized` exactly once
+"""
+
 import pytest
 
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     BorrowException,
-    CodegenPanic,
     ImmutableViolation,
     InitializerException,
     StructureException,
