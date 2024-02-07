@@ -332,21 +332,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         info._writes.add(var_info)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
-        module_info = get_expr_info(target).get_root_moduleinfo()
-        if module_info is None:
+        module_infos = []
+        for t in get_expr_info(target).attribute_chain:
+            if t.module_info is not None:
+                module_infos.append(t.module_info)
+
+        if len(module_infos) == 0:
             return
+
+        for module_info in module_infos:
+            if module_info.ownership < ModuleOwnership.USES:
+                msg = f"Cannot access `{module_info.alias}` state!"
+                hint = f"add `uses: {module_info.alias}` or "
+                hint += f"`initializes: {module_info.alias}` as "
+                hint += "a top-level statement to your contract"
+                raise ImmutableViolation(msg, hint=hint)
+
+        # the leftmost- referenced module
+        root_module_info = module_infos[0]
 
         # log the access
-        self.func._used_modules.add(module_info)
-
-        if module_info.ownership >= ModuleOwnership.USES:
-            return
-
-        msg = f"Cannot access `{module_info.alias}` state!"
-        hint = f"add `uses: {module_info.alias}` or "
-        hint += f"`initializes: {module_info.alias}` as "
-        hint += "a top-level statement to your contract"
-        raise ImmutableViolation(msg, hint=hint)
+        self.func._used_modules.add(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
