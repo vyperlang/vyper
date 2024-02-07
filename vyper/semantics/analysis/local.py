@@ -329,8 +329,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         var_info = info.get_root_varinfo()
         assert var_info is not None
 
-        if var_info.is_module_variable():
-            info._writes.append(target)
+        info._writes.add(var_info)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
         module_info = get_expr_info(target).get_root_moduleinfo()
@@ -573,15 +572,17 @@ class ExprVisitor(VyperNodeVisitorBase):
             # log variable accesses.
             # (note writes will get logged as both read+write)
             varinfo = info.var_info
-            if varinfo is not None and varinfo.is_module_variable():
-                info._reads.append(node)
+            if varinfo is not None:
+                info._reads.add(varinfo)
 
             if self.func:
-                if len(info._writes) > 0 or len(info._reads) > 0:
-                    self.function_analyzer._check_module_use(node)
+                variable_accesses = info._writes | info._reads
+                for s in variable_accesses:
+                    if s.is_module_variable():
+                        self.function_analyzer._check_module_use(node)
 
-                self.func._variable_writes.extend(info._writes)
-                self.func._variable_reads.extend(info._reads)
+                self.func._variable_writes.update(info._writes)
+                self.func._variable_reads.update(info._reads)
 
         # validate and annotate folded value
         if node.has_folded_value:
@@ -639,8 +640,8 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(func_type, ContractFunctionT):
             # function calls
 
-            func_info._writes.extend(func_type._variable_writes)
-            func_info._reads.extend(func_type._variable_reads)
+            func_info._writes.update(func_type._variable_writes)
+            func_info._reads.update(func_type._variable_reads)
 
             if self.function_analyzer:
                 if func_type.is_internal:
@@ -650,8 +651,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 # check that if the function accesses state, the defining
                 # module has been `used` or `initialized`.
-                if len(func_type._variable_accesses) > 0:
-                    self.function_analyzer._check_module_use(node.func)
+                for s in func_type._variable_accesses:
+                    if s.is_module_variable():
+                        self.function_analyzer._check_module_use(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(

@@ -7,7 +7,7 @@ from vyper.compiler.input_bundle import InputBundle
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.utils import StringEnum
+from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import InterfaceT, ModuleT
@@ -266,8 +266,8 @@ class ExprInfo:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
-        self._writes = []
-        self._reads = []
+        self._writes: OrderedSet[VarInfo] = OrderedSet()
+        self._reads: OrderedSet[VarInfo] = OrderedSet()
 
     def get_root_moduleinfo(self) -> Optional[ModuleInfo]:
         chain = self.attribute_chain
@@ -275,9 +275,10 @@ class ExprInfo:
             return None
         return chain[0].module_info
 
-    # find an exprinfo in the attribute chain which has a varinfo
-    # e.x. `x` will return exprinfo for `x`
-    # `module.foo` will return exprinfo for `module.foo`
+    # find exprinfo in the attribute chain which has a varinfo
+    # e.x. `x` will return varinfo for `x`
+    # `module.foo` will return varinfo for `module.foo`
+    # `self.my_struct.x.y` will return varinfo for `self.my_struct`
     def get_root_varinfo(self) -> Optional[VarInfo]:
         for expr_info in self.attribute_chain + [self]:
             if expr_info.var_info is not None:

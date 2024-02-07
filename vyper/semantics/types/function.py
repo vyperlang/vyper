@@ -22,6 +22,7 @@ from vyper.semantics.analysis.base import (
     ModuleInfo,
     StateMutability,
     StorageSlot,
+    VarInfo,
 )
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -114,10 +115,10 @@ class ContractFunctionT(VyperType):
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
-        self._variable_writes: list[vy_ast.VyperNode] = []
+        self._variable_writes: OrderedSet[VarInfo] = OrderedSet()
 
         # reads of variables from this function
-        self._variable_reads: list[vy_ast.VyperNode] = []
+        self._variable_reads: OrderedSet[VarInfo] = OrderedSet()
 
         # list of modules used (accessed state) by this function
         self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
@@ -128,7 +129,7 @@ class ContractFunctionT(VyperType):
 
     @property
     def _variable_accesses(self):
-        return self._variable_reads + self._variable_writes
+        return self._variable_reads | self._variable_writes
 
     @property
     def modifiability(self):
