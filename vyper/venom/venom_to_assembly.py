@@ -178,6 +178,13 @@ class VenomCompiler:
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
+    def _cleanup_stack_for_ret(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
+        for i, inst in enumerate(bb.instructions):
+            if inst.volatile and i + 1 < len(bb.instructions):
+                liveness = bb.instructions[i + 1].liveness
+                if inst.output is not None and inst.output not in liveness:
+                    self.pop(asm, stack)
+
     def _emit_input_operands(
         self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
     ) -> None:
@@ -236,15 +243,31 @@ class VenomCompiler:
 
         self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        for i, inst in enumerate(basicblock.instructions):
+        param_insts = [inst for inst in basicblock.instructions if inst.opcode == "param"]
+        main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+
+        for inst in param_insts:
             asm = self._generate_evm_for_instruction(asm, inst, stack)
-            if inst.volatile and i + 1 < len(basicblock.instructions):
-                liveness = basicblock.instructions[i + 1].liveness
-                if inst.output is not None and inst.output not in liveness:
-                    self.pop(asm, stack)
+
+        self._clean_unused_params(asm, basicblock, stack)
+
+        for inst in main_insts:
+            asm = self._generate_evm_for_instruction(asm, inst, stack)
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
+
+    def _clean_unused_params(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
+        for i, inst in enumerate(bb.instructions):
+            if inst.opcode != "param":
+                break
+            if inst.volatile and i + 1 < len(bb.instructions):
+                liveness = bb.instructions[i + 1].liveness
+                if inst.output is not None and inst.output not in liveness:
+                    depth = stack.get_depth(inst.output)
+                    if depth != 0:
+                        self.swap(asm, stack, depth)
+                    self.pop(asm, stack)
 
     # pop values from stack at entry to bb
     # note this produces the same result(!) no matter which basic block
