@@ -312,8 +312,44 @@ def __init__():
     assert e.value._hint == expected_hint
 
 
-def test_missing_uses2(make_input_bundle):
-    # test missing uses through function
+def test_missing_uses_for_hashmap(make_input_bundle):
+    lib1 = """
+counter: HashMap[uint256, HashMap[uint256, uint256]]
+    """
+    lib2 = """
+import lib1
+
+# forgot `uses: lib1`!
+
+@internal
+def foo() -> uint256:
+    return lib1.counter[1][2]
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.counter = 100
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib1` state!"
+
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+
+def test_missing_uses_function_call(make_input_bundle):
+    # test missing uses through function call
     lib1 = """
 counter: uint256
 
