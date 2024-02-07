@@ -347,7 +347,6 @@ def __init__():
     assert e.value._hint == expected_hint
 
 
-
 def test_missing_uses_function_call(make_input_bundle):
     # test missing uses through function call
     lib1 = """
