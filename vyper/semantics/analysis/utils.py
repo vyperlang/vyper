@@ -669,5 +669,5 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
         if hasattr(call_type, "check_modifiability_for_call"):
             return call_type.check_modifiability_for_call(node, modifiability)
 
-    value_type = get_expr_info(node)
-    return value_type.modifiability >= modifiability
+    info = get_expr_info(node)
+    return info.modifiability <= modifiability

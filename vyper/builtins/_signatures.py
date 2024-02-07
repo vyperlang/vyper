@@ -133,7 +133,7 @@ class BuiltinFunctionT(VyperType):
             get_exact_type_from_node(arg)
 
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return self._modifiability >= modifiability
+        return self._modifiability <= modifiability
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)
