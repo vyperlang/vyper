@@ -154,15 +154,21 @@ def _handle_self_call(
 
     for arg in args_ir:
         if arg.is_literal:
-            sym = _get_variable_from_address(variables, arg.value)
-            if sym is None:
+            var = _get_variable_from_address(variables, arg.value)
+            if var is None:
                 ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
                 ret_args.append(ret)
             else:
-                if allocated_variables.get(sym.name) is None:
-                    ret_args.append(sym)  # type: ignore
+                if allocated_variables.get(var.name) is not None:
+                    ret_args.append(allocated_variables.get(var.name))
                 else:
-                    ret_args.append(allocated_variables.get(sym.name))
+                    ret = _convert_ir_bb(
+                        ctx, arg._optimized, symbols, variables, allocated_variables
+                    )
+                    if arg.location and arg.location.load_op == "calldataload":
+                        bb = ctx.get_basic_block()
+                        ret = bb.append_instruction(arg.location.load_op, ret)
+                    ret_args.append(ret)
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
             if arg.location and arg.location.load_op == "calldataload":
@@ -440,7 +446,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         if isinstance(ret, IRLiteral):
             var = _get_variable_from_address(variables, int(ret.value))
             if var is not None:
-                with_symbols[f"&{ret}"] = allocated_variables[var.name]
+                if var.size > 32:
+                    new_var = ctx.get_basic_block().append_instruction("store", ret)
+                    allocated_variables[sym.value] = new_var
+                    with_symbols[sym.value] = new_var
+                else:
+                    with_symbols[f"&{ret}"] = allocated_variables.get(var.name)
             else:
                 with_symbols[sym.value] = ret
         else:
