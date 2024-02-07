@@ -203,6 +203,74 @@ def get_immutable_via_lib2() -> uint256:
     assert c.get_immutable_via_lib1() == c.get_immutable_via_lib2() == 10
 
 
+def test_uses_already_initialized(get_contract, make_input_bundle):
+    lib1 = """
+counter: uint256
+MY_IMMUTABLE: immutable(uint256)
+
+@deploy
+def __init__(initial_value: uint256):
+    self.counter = initial_value * 2
+    MY_IMMUTABLE = initial_value * 3
+
+@internal
+def increment_counter():
+    self.counter += 1
+    """
+    lib2 = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__(5)
+
+@internal
+def get_lib1_counter() -> uint256:
+    return lib1.counter
+
+@internal
+def get_lib1_my_immutable() -> uint256:
+    return lib1.MY_IMMUTABLE
+    """
+
+    contract = """
+import lib1
+import lib2
+
+uses: lib1
+initializes: lib2
+
+@deploy
+def __init__():
+    lib2.__init__()
+
+@external
+def get_storage_via_lib1() -> uint256:
+    return lib1.counter
+
+@external
+def get_immutable_via_lib1() -> uint256:
+    return lib1.MY_IMMUTABLE
+
+@external
+def get_storage_via_lib2() -> uint256:
+    return lib2.get_lib1_counter()
+
+@external
+def get_immutable_via_lib2() -> uint256:
+    return lib2.get_lib1_my_immutable()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.get_storage_via_lib1() == c.get_storage_via_lib2() == 10
+    assert c.get_immutable_via_lib1() == c.get_immutable_via_lib2() == 15
+
+
 def test_import_complex_types(get_contract, make_input_bundle):
     lib1 = """
 an_array: uint256[3]
