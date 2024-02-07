@@ -124,3 +124,50 @@ def get_lib_counter() -> uint256:
 
     assert c.counter() == 1
     assert c.get_lib_counter() == 5
+
+
+def test_import_complex_types(get_contract, make_input_bundle):
+    lib1 = """
+an_array: uint256[3]
+a_hashmap: HashMap[address, HashMap[uint256, uint256]]
+
+@internal
+def set_array_value(ix: uint256, new_value: uint256):
+    self.an_array[ix] = new_value
+
+@internal
+def set_hashmap_value(ix0: address, ix1: uint256, new_value: uint256):
+    self.a_hashmap[ix0][ix1] = new_value
+    """
+
+    contract = """
+import lib
+
+initializes: lib
+
+@external
+def do_things():
+    lib.set_array_value(1, 5)
+    lib.set_hashmap_value(msg.sender, 6, 100)
+
+@external
+def get_array_value(ix: uint256) -> uint256:
+    return lib.an_array[ix]
+
+@external
+def get_hashmap_value(ix: uint256) -> uint256:
+    return lib.a_hashmap[msg.sender][ix]
+    """
+
+    input_bundle = make_input_bundle({"lib.vy": lib1})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.get_array_value(0) == 0
+    assert c.get_hashmap_value(0) == 0
+    c.do_things(transact={})
+
+    assert c.get_array_value(0) == 0
+    assert c.get_hashmap_value(0) == 0
+    assert c.get_array_value(1) == 5
+    assert c.get_hashmap_value(6) == 100
