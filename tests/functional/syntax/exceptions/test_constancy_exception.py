@@ -86,6 +86,42 @@ def a (x:int128):
 @external
 def b():
     self.a(10)""",
+    """
+interface A:
+    def bar() -> uint16: view
+@external
+@pure
+def test(to:address):
+    a:A = A(to)
+    x:uint16 = a.bar()
+    """,
+    """
+interface A:
+    def bar() -> uint16: view
+@external
+@pure
+def test(to:address):
+    a:A = A(to)
+    a.bar()
+    """,
+    """
+interface A:
+    def bar() -> uint16: nonpayable
+@external
+@view
+def test(to:address):
+    a:A = A(to)
+    x:uint16 = a.bar()
+    """,
+    """
+interface A:
+    def bar() -> uint16: nonpayable
+@external
+@view
+def test(to:address):
+    a:A = A(to)
+    a.bar()
+    """,
     ],
 )
 def test_statefulness_violations(bad_code):
