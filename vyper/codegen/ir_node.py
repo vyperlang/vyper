@@ -394,7 +394,9 @@ class IRnode:
         assert isinstance(self.args, list)
 
     def __deepcopy__(self, memo):
-        ret = copy.copy(self)
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.__dict__ = self.__dict__.copy()
         ret.args = [copy.deepcopy(arg) for arg in ret.args]
         return ret
 
