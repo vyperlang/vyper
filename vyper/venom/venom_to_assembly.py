@@ -178,13 +178,6 @@ class VenomCompiler:
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
-    def _cleanup_stack_for_ret(self, asm: list, bb: IRBasicBlock, stack: StackModel) -> None:
-        for i, inst in enumerate(bb.instructions):
-            if inst.volatile and i + 1 < len(bb.instructions):
-                liveness = bb.instructions[i + 1].liveness
-                if inst.output is not None and inst.output not in liveness:
-                    self.pop(asm, stack)
-
     def _emit_input_operands(
         self, assembly: list, inst: IRInstruction, ops: list[IROperand], stack: StackModel
     ) -> None:
