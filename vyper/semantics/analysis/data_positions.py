@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Generic, TypeVar
 
 from vyper import ast as vy_ast
 from vyper.evm.opcodes import version_check
@@ -31,7 +32,11 @@ def set_data_positions(
     return dict(ret)  # convert back to dict
 
 
-class InsertableOnceDict(dict):
+_T = TypeVar("_T")
+_K = TypeVar("_K")
+
+
+class InsertableOnceDict(Generic[_T, _K], dict[_T, _K]):
     def __setitem__(self, k, v):
         if k in self:
             raise ValueError(f"{k} is already in dict!")
