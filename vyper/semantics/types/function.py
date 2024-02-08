@@ -288,7 +288,7 @@ class ContractFunctionT(VyperType):
 
         if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
             raise FunctionDeclarationException(
-                "function body in an interface can only be ...!", funcdef
+                "function body in an interface can only be `...`!", funcdef
             )
 
         assert function_visibility is not None  # mypy hint
@@ -657,7 +657,9 @@ def _parse_decorators(
             if FunctionVisibility.is_valid_value(decorator.id):
                 if function_visibility is not None:
                     raise FunctionDeclarationException(
-                        f"Visibility is already set to: {function_visibility}", funcdef
+                        f"Visibility is already set to: {function_visibility}",
+                        decorator,
+                        hint="only one visibility decorator is allowed per function",
                     )
                 function_visibility = FunctionVisibility(decorator.id)
 
