@@ -7,7 +7,6 @@ from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
     ImmutableViolation,
-    InvalidType,
     OverflowException,
     StateAccessViolation,
     TypeMismatch,
@@ -1124,7 +1123,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     x.append({lit})
     return x
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 invalid_appends_pops = [

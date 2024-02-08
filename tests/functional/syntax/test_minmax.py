@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import OverflowException, TypeMismatch
 
 fail_list = [
     (
@@ -10,7 +10,7 @@ fail_list = [
 def foo():
     y: int128 = min(7, 0x1234567890123456789012345678901234567890)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

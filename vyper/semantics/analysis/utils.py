@@ -609,8 +609,7 @@ def validate_expected_type(node, expected_type):
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
+        raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )
