@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 event DataChange:
     setter: indexed(address)
     value: int128

@@ -1,8 +1,9 @@
+#pragma version >0.3.10
+
 ###########################################################################
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
 
-# @version >=0.3.4
 """
 @dev example implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)

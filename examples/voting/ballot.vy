@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Voting with delegation.
 
 # Information about voters

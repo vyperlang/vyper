@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Safe Remote Purchase
 # Originally from
 # https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst

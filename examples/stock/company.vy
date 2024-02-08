@@ -1,3 +1,5 @@
+#pragma version>0.3.10
+
 # Financial events the contract logs
 
 event Transfer:

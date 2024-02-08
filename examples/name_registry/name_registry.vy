@@ -1,3 +1,4 @@
+#pragma version >0.3.10
 
 registry: HashMap[Bytes[100], address]
 
