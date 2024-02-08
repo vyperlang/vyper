@@ -1,10 +1,11 @@
-from typing import Optional
+from collections import defaultdict
 
 from vyper import ast as vy_ast
-from vyper.exceptions import StorageLayoutException
+from vyper.evm.opcodes import version_check
+from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.analysis.base import VarOffset
+from vyper.semantics.data_locations import DataLocation
 from vyper.typing import StorageLayout
-from vyper.utils import ceil32
 
 
 def set_data_positions(
@@ -19,14 +20,15 @@ def set_data_positions(
     vyper_module : vy_ast.Module
         Top-level Vyper AST node that has already been annotated with type data.
     """
-    code_offsets = set_code_offsets_r(vyper_module)
-
-    if storage_layout_overrides is None:
-        storage_slots = set_storage_slots_r(vyper_module)
-    else:
+    if storage_layout_overrides is not None:
+        # extract code layout with no overrides
+        code_offsets = _allocate_layout_r(vyper_module, immutables_only=True)["code_layout"]
         storage_slots = set_storage_slots_with_overrides(vyper_module, storage_layout_overrides)
+        return {"storage_layout": storage_slots, "code_layout": code_offsets}
 
-    return {"storage_layout": storage_slots, "code_layout": code_offsets}
+    ret = _allocate_layout_r(vyper_module)
+    assert isinstance(ret, defaultdict)
+    return dict(ret)  # convert back to dict
 
 
 class InsertableOnceDict(dict):
@@ -36,7 +38,47 @@ class InsertableOnceDict(dict):
         super().__setitem__(k, v)
 
 
-class StorageAllocator:
+class SimpleAllocator:
+    def __init__(self, max_slot: int = 2**256, starting_slot: int = 0):
+        # Allocate storage slots from 0
+        # note storage is word-addressable, not byte-addressable
+        self._slot = starting_slot
+        self._max_slot = max_slot
+
+    def allocate_slot(self, n, var_name, node=None):
+        ret = self._slot
+        if self._slot + n >= self._max_slot:
+            raise StorageLayoutException(
+                f"Invalid storage slot, tried to allocate"
+                f" slots {self._slot} through {self._slot + n}",
+                node,
+            )
+        self._slot += n
+        return ret
+
+
+class Allocators:
+    storage_allocator: SimpleAllocator
+    transient_storage_allocator: SimpleAllocator
+    immutables_allocator: SimpleAllocator
+
+    def __init__(self):
+        self.storage_allocator = SimpleAllocator(max_slot=2**256)
+        self.transient_storage_allocator = SimpleAllocator(max_slot=2**256)
+        self.immutables_allocator = SimpleAllocator(max_slot=0x6000)
+
+    def get_allocator(self, location: DataLocation):
+        if location == DataLocation.STORAGE:
+            return self.storage_allocator
+        if location == DataLocation.TRANSIENT:
+            return self.transient_storage_allocator
+        if location == DataLocation.CODE:
+            return self.immutables_allocator
+
+        raise CompilerPanic("unreachable")  # pragma: nocover
+
+
+class OverridingStorageAllocator:
     """
     Keep track of which storage slots have been used. If there is a collision of
     storage slots, this will raise an error and fail to compile
@@ -76,12 +118,13 @@ def set_storage_slots_with_overrides(
     vyper_module: vy_ast.Module, storage_layout_overrides: StorageLayout
 ) -> StorageLayout:
     """
-    Parse module-level Vyper AST to calculate the layout of storage variables.
+    Set storage layout given a layout override file.
     Returns the layout as a dict of variable name -> variable info
+    (Doesn't handle modules, or transient storage)
     """
 
     ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
-    reserved_slots = StorageAllocator()
+    reserved_slots = OverridingStorageAllocator()
 
     # Search through function definitions to find non-reentrant functions
     for node in vyper_module.get_children(vy_ast.FunctionDef):
@@ -144,129 +187,108 @@ def set_storage_slots_with_overrides(
     return ret
 
 
-class SimpleAllocator:
-    def __init__(self, max_slot: int = 2**256, starting_slot: int = 0):
-        # Allocate storage slots from 0
-        # note storage is word-addressable, not byte-addressable
-        self._slot = starting_slot
-        self._max_slot = max_slot
-
-    def allocate_slot(self, n, var_name, node=None):
-        ret = self._slot
-        if self._slot + n >= self._max_slot:
-            raise StorageLayoutException(
-                f"Invalid storage slot, tried to allocate"
-                f" slots {self._slot} through {self._slot + n}",
-                node,
-            )
-        self._slot += n
-        return ret
-
-
 def _get_allocatable(vyper_module: vy_ast.Module) -> list[vy_ast.VyperNode]:
     allocable = (vy_ast.InitializesDecl, vy_ast.VariableDecl)
     return [node for node in vyper_module.body if isinstance(node, allocable)]
 
 
-def set_storage_slots_r(
-    vyper_module: vy_ast.Module, allocator: Optional[SimpleAllocator] = None
+def get_reentrancy_key_location() -> DataLocation:
+    if version_check(begin="cancun"):
+        return DataLocation.TRANSIENT
+    return DataLocation.STORAGE
+
+
+_LAYOUT_KEYS = {
+    DataLocation.CODE: "code_layout",
+    DataLocation.TRANSIENT: "transient_storage_layout",
+    DataLocation.STORAGE: "storage_layout",
+}
+
+
+def _allocate_layout_r(
+    vyper_module: vy_ast.Module, allocators: Allocators = None, immutables_only=False
 ) -> StorageLayout:
     """
     Parse module-level Vyper AST to calculate the layout of storage variables.
     Returns the layout as a dict of variable name -> variable info
     """
-    if allocator is None:
-        allocator = SimpleAllocator(max_slot=2**256)
+    if allocators is None:
+        allocators = Allocators()
 
-    ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
+    ret: defaultdict[str, InsertableOnceDict[str, dict]] = defaultdict(InsertableOnceDict)
 
     for node in vyper_module.get_children(vy_ast.FunctionDef):
+        if immutables_only:
+            break
+
         type_ = node._metadata["func_type"]
         if type_.nonreentrant is None:
             continue
 
         variable_name = f"nonreentrant.{type_.nonreentrant}"
+        reentrancy_key_location = get_reentrancy_key_location()
+        layout_key = _LAYOUT_KEYS[reentrancy_key_location]
 
         # a nonreentrant key can appear many times in a module but it
         # only takes one slot. after the first time we see it, do not
         # increment the storage slot.
-        if variable_name in ret:
-            _slot = ret[variable_name]["slot"]
+        if variable_name in ret[layout_key]:
+            _slot = ret[layout_key][variable_name]["slot"]
             type_.set_reentrancy_key_position(VarOffset(_slot))
             continue
 
         # TODO use one byte - or bit - per reentrancy key
         # requires either an extra SLOAD or caching the value of the
         # location in memory at entrance
+        allocator = allocators.get_allocator(reentrancy_key_location)
         slot = allocator.allocate_slot(1, variable_name, node)
 
         type_.set_reentrancy_key_position(VarOffset(slot))
 
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
-        ret[variable_name] = {"type": "nonreentrant lock", "slot": slot}
+        ret[layout_key][variable_name] = {"type": "nonreentrant lock", "slot": slot}
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
             module_info = node._metadata["initializes_info"].module_info
-            module_layout = set_storage_slots_r(module_info.module_node, allocator)
-            ret[module_info.alias] = module_layout
+            module_layout = _allocate_layout_r(module_info.module_node, allocators)
+            module_alias = module_info.alias
+            for layout_key in module_layout.keys():
+                assert layout_key in _LAYOUT_KEYS.values()
+                ret[layout_key][module_alias] = module_layout[layout_key]
             continue
 
         assert isinstance(node, vy_ast.VariableDecl)
-
         # skip non-storage variables
-        if node.is_constant or node.is_immutable:
-            continue
-
         varinfo = node.target._metadata["varinfo"]
-        type_ = varinfo.typ
+        if not varinfo.is_module_variable():
+            continue
+        location = varinfo.location
 
-        # CMC 2021-07-23 note that HashMaps get assigned a slot here.
-        # I'm not sure if it's safe to avoid allocating that slot
-        # for HashMaps because downstream code might use the slot
-        # ID as a salt.
-        n_slots = type_.storage_size_in_words
-        # CMC 2024-02-07 note we use the same allocator for transient
-        # storage and regular storage. this is slightly inefficient
-        # in terms of code size (since we don't get to reuse the same
-        # small integer slots)
-        slot = allocator.allocate_slot(n_slots, node.target.id, node)
-
-        varinfo.set_position(VarOffset(slot))
-
-        # this could have better typing but leave it untyped until
-        # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "slot": slot}
-
-    return ret
-
-
-def set_code_offsets_r(vyper_module: vy_ast.Module, allocator: SimpleAllocator = None) -> dict:
-    if allocator is None:
-        allocator = SimpleAllocator(max_slot=0x6000)
-
-    ret = InsertableOnceDict()
-
-    for node in _get_allocatable(vyper_module):
-        if isinstance(node, vy_ast.InitializesDecl):
-            module_info = node._metadata["initializes_info"].module_info
-            module_layout = set_code_offsets_r(module_info.module_node, allocator)
-            ret[module_info.alias] = module_layout
+        if immutables_only and location != DataLocation.CODE:
             continue
 
-        assert isinstance(node, vy_ast.VariableDecl)
-        if not node.is_immutable:
-            continue
+        allocator = allocators.get_allocator(location)
+        size = varinfo.get_size()
 
-        varinfo = node.target._metadata["varinfo"]
-        type_ = varinfo.typ
-        len_ = ceil32(type_.size_in_bytes)
-        offset = allocator.allocate_slot(len_, node.target.id, node)
+        # CMC 2021-07-23 note that HashMaps get assigned a slot here
+        # using the same allocator (even though there is not really
+        # any risk of physical overlap)
+        offset = allocator.allocate_slot(size, node.target.id, node)
+
         varinfo.set_position(VarOffset(offset))
 
+        layout_key = _LAYOUT_KEYS[location]
+        type_ = varinfo.typ
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        ret[node.target.id] = {"type": str(type_), "offset": offset, "length": len_}
+        if location == DataLocation.CODE:
+            item = {"type": str(type_), "length": size, "offset": offset}
+        elif location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            item = {"type": str(type_), "slot": offset}
+        else:  # pragma: nocover
+            raise CompilerPanic("unreachable")
+        ret[layout_key][node.target.id] = item
 
     return ret

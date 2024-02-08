@@ -13,6 +13,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -123,6 +124,16 @@ class VyperType:
         The ABI type corresponding to this type
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
+
+    def get_size_in(self, location: DataLocation):
+        if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            return self.storage_size_in_words
+        if location == DataLocation.MEMORY:
+            return self.memory_bytes_required
+        if location == DataLocation.CODE:
+            return self.memory_bytes_required
+
+        raise CompilerPanic("unreachable: invalid location {location}")  # pragma: nocover
 
     @property
     def memory_bytes_required(self) -> int:

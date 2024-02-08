@@ -175,6 +175,9 @@ class VarInfo:
     def is_module_variable(self):
         return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
 
+    def get_size(self) -> int:
+        return self.typ.get_size_in(self.location)
+
     @property
     def is_transient(self):
         return self.location == DataLocation.TRANSIENT

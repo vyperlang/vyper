@@ -124,6 +124,21 @@ def data_location_to_address_space(s: DataLocation, is_ctor_ctx: bool) -> AddrSp
     raise CompilerPanic("unreachable!")  # pragma: nocover
 
 
+def address_space_to_data_location(s: AddrSpace) -> DataLocation:
+    if s == MEMORY:
+        return DataLocation.MEMORY
+    if s == STORAGE:
+        return DataLocation.STORAGE
+    if s == TRANSIENT:
+        return DataLocation.TRANSIENT
+    if s in (IMMUTABLES, DATA):
+        return DataLocation.CODE
+    if s == CALLDATA:
+        return DataLocation.CALLDATA
+
+    raise CompilerPanic("unreachable!")  # pragma: nocover
+
+
 # Copy byte array word-for-word (including layout)
 # TODO make this a private function
 def make_byte_array_copier(dst, src):
@@ -506,14 +521,10 @@ def _get_element_ptr_tuplelike(parent, key):
 
         return _getelemptr_abi_helper(parent, member_t, ofst)
 
-    if parent.location.word_addressable:
-        for i in range(index):
-            ofst += typ.member_types[attrs[i]].storage_size_in_words
-    elif parent.location.byte_addressable:
-        for i in range(index):
-            ofst += typ.member_types[attrs[i]].memory_bytes_required
-    else:
-        raise CompilerPanic(f"bad location {parent.location}")  # pragma: notest
+    data_location = address_space_to_data_location(parent.location)
+    for i in range(index):
+        subtype = typ.member_types[attrs[i]]
+        ofst += subtype.get_size_in(data_location)
 
     return IRnode.from_list(
         add_ofst(parent, ofst),
@@ -574,12 +585,8 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, subtype, ofst)
 
-    if parent.location.word_addressable:
-        element_size = subtype.storage_size_in_words
-    elif parent.location.byte_addressable:
-        element_size = subtype.memory_bytes_required
-    else:
-        raise CompilerPanic("unreachable")  # pragma: notest
+    data_location = address_space_to_data_location(parent.location)
+    element_size = subtype.get_size_in(data_location)
 
     ofst = _mul(ix, element_size)
 
