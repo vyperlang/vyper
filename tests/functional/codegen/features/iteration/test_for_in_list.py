@@ -790,7 +790,7 @@ def test_for() -> int128:
         a = i
     return a
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

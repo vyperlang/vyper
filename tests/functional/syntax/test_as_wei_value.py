@@ -4,9 +4,9 @@ from vyper import compile_code
 from vyper.exceptions import (
     ArgumentException,
     InvalidLiteral,
-    InvalidType,
     OverflowException,
     StructureException,
+    TypeMismatch,
     UndeclaredDefinition,
 )
 
@@ -44,7 +44,7 @@ def foo() -> int128:
 def foo():
     x: int128 = as_wei_value(0xf5, "szabo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

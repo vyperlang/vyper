@@ -3,9 +3,9 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     InvalidLiteral,
-    InvalidType,
     NonPayableViolation,
     StateAccessViolation,
+    TypeMismatch,
     UndeclaredDefinition,
 )
 
@@ -404,7 +404,7 @@ def foo(xx: int128, y: int128 = xx): pass
 @external
 def foo(a: uint256 = -1): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -412,7 +412,7 @@ def foo(a: uint256 = -1): pass
 @external
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -420,7 +420,7 @@ def foo(a: int128 = 170141183460469231731687303715884105728): pass
 @external
 def foo(a: uint256[2] = [13, -42]): pass
      """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -428,7 +428,7 @@ def foo(a: uint256[2] = [13, -42]): pass
 @external
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -444,7 +444,7 @@ def foo(a: uint256[2] = [12, True]): pass
 @external
 def foo(a: uint256[2] = [1, 2, 3]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

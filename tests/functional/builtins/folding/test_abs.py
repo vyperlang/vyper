@@ -3,7 +3,7 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 
 
 @pytest.mark.fuzzing
@@ -34,7 +34,7 @@ def test_abs_upper_bound_folding(get_contract, a):
 def foo(a: int256) -> int256:
     return abs({a})
     """
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         get_contract(source)
 
 
@@ -56,5 +56,5 @@ def test_abs_lower_bound_folded(get_contract, tx_failed):
 def foo() -> int256:
     return abs(min_value(int256))
     """
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         get_contract(source)

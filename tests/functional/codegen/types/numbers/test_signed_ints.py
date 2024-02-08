@@ -5,7 +5,12 @@ import random
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidOperation, InvalidType, OverflowException, ZeroDivisionException
+from vyper.exceptions import (
+    InvalidOperation,
+    OverflowException,
+    TypeMismatch,
+    ZeroDivisionException,
+)
 from vyper.semantics.types import IntegerT
 from vyper.utils import evm_div, evm_mod
 
@@ -214,7 +219,7 @@ def num_sub() -> {typ}:
     return 1-2**{typ.bits}
     """
 
-    exc = OverflowException if typ.bits == 256 else InvalidType
+    exc = OverflowException if typ.bits == 256 else TypeMismatch
     with pytest.raises(exc):
         compile_code(code)
 
@@ -331,7 +336,7 @@ def foo() -> {typ}:
                 get_contract(code_2).foo(x)
             with tx_failed():
                 get_contract(code_3).foo(y)
-            with pytest.raises((InvalidType, OverflowException)):
+            with pytest.raises((TypeMismatch, OverflowException)):
                 compile_code(code_4)
 
 
@@ -430,5 +435,5 @@ def test_binop_nested_intermediate_underflow():
 def foo():
     a: int256 = -2**255 * 2 - 10 + 100
     """
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         compile_code(code)

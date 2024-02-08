@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -12,7 +12,7 @@ def foo():
         -57896044618658097711785492504343953926634992332820282019728792003956564819968
     )
     """,
-        InvalidType,
+        TypeMismatch,
     )
 ]
 
