@@ -340,3 +340,9 @@ class AddressT(_PrimT):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
             )
+
+
+# type for "self"
+# refactoring note: it might be best for this to be a ModuleT actually
+class SelfT(AddressT):
+    pass

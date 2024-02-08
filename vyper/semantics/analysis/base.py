@@ -7,6 +7,7 @@ from vyper.compiler.input_bundle import InputBundle
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
@@ -224,7 +225,7 @@ class ExprInfo:
     # `self.my_struct.x.y` will return varinfo for `self.my_struct`
     def get_root_varinfo(self) -> Optional[VarInfo]:
         for expr_info in self.attribute_chain + [self]:
-            if expr_info.var_info is not None:
+            if expr_info.var_info is not None and not isinstance(expr_info.typ, SelfT):
                 return expr_info.var_info
         return None
 
