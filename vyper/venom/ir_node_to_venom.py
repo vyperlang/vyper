@@ -401,7 +401,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 assert isinstance(else_ret_val.value, int)  # help mypy
                 else_ret_val = ctx.get_basic_block().append_instruction("store", else_ret_val)
 
-        else_block = ctx.get_basic_block()
+        else_block_finish = ctx.get_basic_block()
 
         # convert "then"
         then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
@@ -415,22 +415,22 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         cond_block.append_instruction("jnz", cont_ret, then_block.label, else_block.label)
 
-        then_block = ctx.get_basic_block()
+        then_block_finish = ctx.get_basic_block()
 
         # exit bb
         exit_bb = IRBasicBlock(ctx.get_next_label("if_exit"), ctx)
         exit_bb = ctx.append_basic_block(exit_bb)
 
-        if_ret = ctx.get_next_variable("if_ret")
+        if_ret = ctx.get_next_variable()
         if then_ret_val is not None and else_ret_val is not None:
-            then_block.append_instruction("store", then_ret_val, ret=if_ret)
-            else_block.append_instruction("store", else_ret_val, ret=if_ret)
+            then_block_finish.append_instruction("store", then_ret_val, ret=if_ret)
+            else_block_finish.append_instruction("store", else_ret_val, ret=if_ret)
 
         if not else_block.is_terminated:
-            else_block.append_instruction("jmp", exit_bb.label)
+            else_block_finish.append_instruction("jmp", exit_bb.label)
 
         if not then_block.is_terminated:
-            then_block.append_instruction("jmp", exit_bb.label)
+            then_block_finish.append_instruction("jmp", exit_bb.label)
 
         return if_ret
 
