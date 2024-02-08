@@ -523,8 +523,8 @@ def _get_element_ptr_tuplelike(parent, key):
 
     data_location = address_space_to_data_location(parent.location)
     for i in range(index):
-        subtype = typ.member_types[attrs[i]]
-        ofst += subtype.get_size_in(data_location)
+        t = typ.member_types[attrs[i]]
+        ofst += t.get_size_in(data_location)
 
     return IRnode.from_list(
         add_ofst(parent, ofst),
