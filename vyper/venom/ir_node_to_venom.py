@@ -441,24 +441,16 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         # Handle with nesting with same symbol
         with_symbols = symbols.copy()
+        with_allocated_variables = allocated_variables.copy()
 
         sym = ir.args[0]
-        if isinstance(ret, IRLiteral):
-            var = _get_variable_from_address(variables, int(ret.value))
-            if var is not None:
-                if var.size > 32:
-                    new_var = ctx.get_basic_block().append_instruction("store", ret)
-                    allocated_variables[sym.value] = new_var
-                    with_symbols[sym.value] = new_var
-                else:
-                    with_symbols[f"&{ret}"] = allocated_variables.get(var.name)
-            else:
-                with_symbols[sym.value] = ret
-        else:
-            new_var = ctx.get_basic_block().append_instruction("store", ret)  # type: ignore
-            with_symbols[sym.value] = new_var
+        new_var = ctx.get_basic_block().append_instruction("store", ret)
+        with_allocated_variables[sym.value] = new_var
+        with_symbols[sym.value] = new_var
 
-        return _convert_ir_bb(ctx, ir.args[2], with_symbols, variables, allocated_variables)  # body
+        return _convert_ir_bb(
+            ctx, ir.args[2], with_symbols, variables, with_allocated_variables
+        )  # body
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "djump":
