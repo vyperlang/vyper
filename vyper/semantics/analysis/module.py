@@ -482,10 +482,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
+    module_path = file.resolved_path  # for error messages
+    try:
+        # try to get a relative path, to simplify the error message
+        module_path = module_path.relative_to(".")
+    except ValueError:
+        pass
+
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
-        module_path=str(file.path),
+        module_path=str(module_path),
         resolved_path=str(file.resolved_path),
     )
     return ret
