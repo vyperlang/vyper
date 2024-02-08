@@ -10,6 +10,12 @@ def __init__():
     pass
     """,
     """
+@deploy
+@payable
+def __init__():
+    pass
+    """,
+    """
 counter: uint256
 SOME_IMMUTABLE: immutable(uint256)
 
@@ -29,6 +35,18 @@ def test_good_init_funcs(code):
 fail_list = [
     """
 @internal
+def __init__():
+    pass
+    """,
+    """
+@deploy
+@view
+def __init__():
+    pass
+    """,
+    """
+@deploy
+@pure
 def __init__():
     pass
     """,
