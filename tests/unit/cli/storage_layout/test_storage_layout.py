@@ -168,3 +168,155 @@ def __init__():
 
     out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
     assert out["layout"] == expected_layout
+
+
+def test_storage_layout_module_uses(make_input_bundle):
+    # test module storage layout, with initializes/uses
+    lib1 = """
+supply: uint256
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@deploy
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+    lib2 = """
+import lib1
+
+uses: lib1
+
+storage_variable: uint256
+immutable_variable: immutable(uint256)
+
+@deploy
+def __init__(s: uint256):
+    immutable_variable = s
+
+@internal
+def decimals() -> uint8:
+    return lib1.DECIMALS
+    """
+    code = """
+import lib1 as a_library
+import lib2
+
+counter: uint256
+some_immutable: immutable(DynArray[uint256, 10])
+
+# for fun: initialize lib2 in front of lib1
+initializes: lib2[lib1 := a_library]
+
+counter2: uint256
+
+initializes: a_library
+
+@deploy
+def __init__():
+    a_library.__init__()
+    some_immutable = [1, 2, 3]
+
+    lib2.__init__(17)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    expected_layout = {
+        "code_layout": {
+            "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
+            "lib2": {"immutable_variable": {"length": 32, "offset": 352, "type": "uint256"}},
+            "a_library": {
+                "SYMBOL": {"length": 64, "offset": 384, "type": "String[32]"},
+                "DECIMALS": {"length": 32, "offset": 448, "type": "uint8"},
+            },
+        },
+        "storage_layout": {
+            "counter": {"slot": 0, "type": "uint256"},
+            "lib2": {"storage_variable": {"slot": 1, "type": "uint256"}},
+            "counter2": {"slot": 2, "type": "uint256"},
+            "a_library": {"supply": {"slot": 3, "type": "uint256"}},
+        },
+    }
+
+    out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
+    assert out["layout"] == expected_layout
+
+
+def test_storage_layout_module_nested_initializes(make_input_bundle):
+    # test module storage layout, with initializes in an imported module
+    lib1 = """
+supply: uint256
+SYMBOL: immutable(String[32])
+DECIMALS: immutable(uint8)
+
+@deploy
+def __init__():
+    SYMBOL = "VYPR"
+    DECIMALS = 18
+    """
+    lib2 = """
+import lib1
+
+initializes: lib1
+
+storage_variable: uint256
+immutable_variable: immutable(uint256)
+
+@deploy
+def __init__(s: uint256):
+    immutable_variable = s
+    lib1.__init__()
+
+@internal
+def decimals() -> uint8:
+    return lib1.DECIMALS
+    """
+    code = """
+import lib1 as a_library
+import lib2
+
+counter: uint256
+some_immutable: immutable(DynArray[uint256, 10])
+
+# for fun: initialize lib2 in front of lib1
+initializes: lib2
+
+counter2: uint256
+
+uses: a_library
+
+@deploy
+def __init__():
+    some_immutable = [1, 2, 3]
+
+    lib2.__init__(17)
+
+@external
+def foo() -> uint256:
+    return a_library.supply
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    expected_layout = {
+        "code_layout": {
+            "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
+            "lib2": {
+                "lib1": {
+                    "SYMBOL": {"length": 64, "offset": 352, "type": "String[32]"},
+                    "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
+                },
+                "immutable_variable": {"length": 32, "offset": 448, "type": "uint256"},
+            },
+        },
+        "storage_layout": {
+            "counter": {"slot": 0, "type": "uint256"},
+            "lib2": {
+                "lib1": {"supply": {"slot": 1, "type": "uint256"}},
+                "storage_variable": {"slot": 2, "type": "uint256"},
+            },
+            "counter2": {"slot": 3, "type": "uint256"},
+        },
+    }
+
+    out = compile_code(code, input_bundle=input_bundle, output_formats=["layout"])
+    assert out["layout"] == expected_layout
