@@ -185,7 +185,7 @@ initializes: lib3[lib1 := lib2]  # typo -- should be [lib1 := lib1]
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
 
     with pytest.raises(StructureException) as e:
-        compile_code(main, input_bundle=input_bundle) is not None
+        assert compile_code(main, input_bundle=input_bundle) is not None
 
     assert e.value._message == "lib1 is not lib2!"
 
