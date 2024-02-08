@@ -335,6 +335,10 @@ class ContractFunctionT(VyperType):
                     "Default function may not receive any arguments", funcdef.args.args[0]
                 )
 
+        if function_visibility == FunctionVisibility.DEPLOY and funcdef.name != "__init__":
+            raise FunctionDeclarationException(
+                "Only constructors can be marked as `@deploy`!", funcdef
+            )
         if funcdef.name == "__init__":
             if state_mutability in (StateMutability.PURE, StateMutability.VIEW):
                 raise FunctionDeclarationException(
