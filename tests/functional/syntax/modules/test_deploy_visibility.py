@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import CallViolation
 
+
 def test_call_deploy_from_external(make_input_bundle):
     lib1 = """
 @deploy
