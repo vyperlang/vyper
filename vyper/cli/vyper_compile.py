@@ -246,7 +246,6 @@ def compile_files(
     # to the last in the list)
     search_paths.reverse()
 
-
     paths = paths or []
 
     for p in paths:
