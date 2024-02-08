@@ -51,6 +51,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "chainid",
     "basefee",
     "timestamp",
+    "blobbasefee",
     "blockhash",
     "caller",
     "selfbalance",

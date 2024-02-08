@@ -293,6 +293,14 @@ class Expr:
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
             elif key == "msg.gas":
                 return IRnode.from_list(["gas"], typ=UINT256_T)
+            elif key == "block.blobbasefee":
+                if not version_check(begin="cancun"):
+                    warning = VyperException(
+                        "tried to use block.blobbasefee in pre-cancun",
+                        self.expr,
+                    )
+                    vyper_warn(str(warning))
+                return IRnode.from_list(["blobbasefee"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
                     warning = VyperException(

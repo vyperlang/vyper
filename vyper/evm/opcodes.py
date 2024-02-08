@@ -77,6 +77,7 @@ OPCODES: OpcodeMap = {
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
     "BASEFEE": (0x48, 0, 1, (None, 2)),
+    "BLOBBASEFEE": (0x4a, 0, 1, 2),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),

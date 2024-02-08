@@ -15,6 +15,7 @@ Block and Transaction Properties
 Name                 Type             Value
 ==================== ================ =========================================================
 ``block.coinbase``   ``address``      Current block miner's address
+``block.blobbasefee``   ``bytes32``   Current value of the blob base fee
 ``block.difficulty`` ``uint256``      Current block difficulty
 ``block.prevrandao`` ``uint256``      Current randomness beacon provided by the beacon chain
 ``block.number``     ``uint256``      Current block number
