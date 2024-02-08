@@ -4,6 +4,7 @@ import contextlib
 from typing import Optional
 
 from vyper import ast as vy_ast
+from vyper.utils import OrderedSet
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
@@ -60,15 +61,31 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
     namespace = get_namespace()
-    for node in vy_module.get_children(vy_ast.FunctionDef):
-        with namespace.enter_scope():
-            try:
-                analyzer = FunctionAnalyzer(vy_module, node, namespace)
-                analyzer.analyze()
-            except VyperException as e:
-                err_list.append(e)
 
-    err_list.raise_if_not_empty()
+    seen = OrderedSet()
+    for node in vy_module.get_children(vy_ast.FunctionDef):
+        _validate_function_r(vy_module, node, seen, err_list)
+
+def _validate_function_r(vy_module: vy_ast.Module, node: vy_ast.FunctionDef, seen: OrderedSet, err_list: ExceptionList):
+    func_t = node._metadata["func_type"]
+
+    if func_t in seen:
+        return
+
+    for call_t in func_t.called_functions:
+        if call_t in seen:
+            continue
+        if isinstance(call_t, ContractFunctionT):
+            _validate_function_r(vy_module, call_t.ast_def, seen, err_list)
+
+    namespace = get_namespace()
+
+    try:
+        analyzer = FunctionAnalyzer(vy_module, node, namespace)
+        analyzer.analyze()
+        seen.add(func_t)
+    except VyperException as e:
+        err_list.append(e)
 
 
 # finds the terminus node for a list of nodes.
