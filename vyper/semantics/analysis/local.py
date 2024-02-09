@@ -437,6 +437,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         except (TypeMismatch, InvalidType):
             raise InvalidType("Not an iterable type", iter_node)
 
+        # get the root varinfo from iter_val in case we need to peer
+        # through folded constants
         info = get_expr_info(iter_val)
         return info.get_root_varinfo()
 
