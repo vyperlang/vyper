@@ -57,6 +57,111 @@ def __init__():
 
     assert compile_code(main, input_bundle=input_bundle) is not None
 
+def test_initialize_multiple_uses(make_input_bundle):
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    lib2 = """
+totalSupply: uint256
+    """
+    lib3 = """
+import lib1
+import lib2
+
+# multiple uses on one line
+uses: (
+    lib1,
+    lib2
+)
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def foo():
+    x: uint256 = lib2.totalSupply
+    lib1.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2
+initializes: lib3[
+    lib1 := lib1,
+    lib2 := lib2
+]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib3.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_initialize_multi_line_uses(make_input_bundle):
+    lib1 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+    """
+    lib2 = """
+totalSupply: uint256
+    """
+    lib3 = """
+import lib1
+import lib2
+
+uses: lib1
+uses: lib2
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def foo():
+    x: uint256 = lib2.totalSupply
+    lib1.counter += 1
+    """
+    main = """
+import lib1
+import lib2
+import lib3
+
+initializes: lib1
+initializes: lib2
+initializes: lib3[
+    lib1 := lib1,
+    lib2 := lib2
+]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib3.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 
 def test_initialize_uses_attribute(make_input_bundle):
     lib1 = """
