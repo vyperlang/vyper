@@ -218,12 +218,6 @@ class ExprInfo:
         self._writes: OrderedSet[VarInfo] = OrderedSet()
         self._reads: OrderedSet[VarInfo] = OrderedSet()
 
-    def get_root_moduleinfo(self) -> Optional[ModuleInfo]:
-        chain = self.attribute_chain
-        if len(chain) == 0:
-            return None
-        return chain[0].module_info
-
     # find exprinfo in the attribute chain which has a varinfo
     # e.x. `x` will return varinfo for `x`
     # `module.foo` will return varinfo for `module.foo`
