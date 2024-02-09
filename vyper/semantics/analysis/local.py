@@ -86,8 +86,10 @@ def _validate_function_r(
     namespace = get_namespace()
 
     try:
-        analyzer = FunctionAnalyzer(vy_module, node, namespace)
-        analyzer.analyze()
+        with namespace.enter_scope():
+            analyzer = FunctionAnalyzer(vy_module, node, namespace)
+            analyzer.analyze()
+
         seen.add(func_t)
     except VyperException as e:
         err_list.append(e)
