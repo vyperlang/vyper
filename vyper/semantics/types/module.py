@@ -317,7 +317,6 @@ class ModuleT(VyperType):
         for i in self.interface_defs:
             # add the type of the interface so it can be used in call position
             self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
-            self._helper.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])
@@ -325,6 +324,10 @@ class ModuleT(VyperType):
         for i in self.import_stmts:
             import_info = i._metadata["import_info"]
             self.add_member(import_info.alias, import_info.typ)
+
+        for name, interface_t in self.interfaces.items():
+            # can access interfaces in type position
+            self._helper.add_member(name, TYPE_T(interface_t))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
@@ -354,6 +357,21 @@ class ModuleT(VyperType):
     @property
     def interface_defs(self):
         return self._module.get_children(vy_ast.InterfaceDef)
+
+    @cached_property
+    def interfaces(self) -> dict[str, InterfaceT]:
+        ret = {}
+        for i in self.interface_defs:
+            assert i.name not in ret  # precondition
+            ret[i.name] = i._metadata["interface_type"]
+
+        for i in self.import_stmts:
+            import_info = i._metadata["import_info"]
+            if isinstance(import_info.typ, InterfaceT):
+                assert import_info.alias not in ret  # precondition
+                ret[import_info.alias] = import_info.typ
+
+        return ret
 
     @property
     def import_stmts(self):
