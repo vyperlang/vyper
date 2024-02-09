@@ -4,7 +4,6 @@ import contextlib
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.utils import OrderedSet
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     CallViolation,
@@ -55,18 +54,23 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.utils import OrderedSet
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
-    namespace = get_namespace()
+    seen: OrderedSet[ContractFunctionT] = OrderedSet()
 
-    seen = OrderedSet()
     for node in vy_module.get_children(vy_ast.FunctionDef):
         _validate_function_r(vy_module, node, seen, err_list)
 
-def _validate_function_r(vy_module: vy_ast.Module, node: vy_ast.FunctionDef, seen: OrderedSet, err_list: ExceptionList):
+    err_list.raise_if_not_empty()
+
+
+def _validate_function_r(
+    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, seen: OrderedSet, err_list: ExceptionList
+):
     func_t = node._metadata["func_type"]
 
     if func_t in seen:
@@ -76,6 +80,7 @@ def _validate_function_r(vy_module: vy_ast.Module, node: vy_ast.FunctionDef, see
         if call_t in seen:
             continue
         if isinstance(call_t, ContractFunctionT):
+            assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
             _validate_function_r(vy_module, call_t.ast_def, seen, err_list)
 
     namespace = get_namespace()
@@ -401,6 +406,40 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
         self.expr_visitor.visit(node.value, return_value)
 
+    def _analyse_range_iter(self, iter_node, target_type):
+        # iteration via range()
+        if iter_node.get("func.id") != "range":
+            raise IteratorException("Cannot iterate over the result of a function call", iter_node)
+        _validate_range_call(iter_node)
+
+        args = iter_node.args
+        kwargs = [s.value for s in iter_node.keywords]
+        for arg in (*args, *kwargs):
+            self.expr_visitor.visit(arg, target_type)
+
+    def _analyse_list_iter(self, iter_node, target_type):
+        # iteration over a variable or literal list
+        iter_val = iter_node
+        if iter_val.has_folded_value:
+            iter_val = iter_val.get_folded_value()
+
+        if isinstance(iter_val, vy_ast.List):
+            len_ = len(iter_val.elements)
+            if len_ == 0:
+                raise StructureException("For loop must have at least 1 iteration", iter_node)
+            self.expr_visitor.visit(iter_node, SArrayT(target_type, len_))
+        else:
+            iter_type = get_exact_type_from_node(iter_node)
+            self.expr_visitor.visit(iter_node, iter_type)
+
+        try:
+            validate_expected_type(iter_node, (DArrayT.any(), SArrayT.any()))
+        except (TypeMismatch, InvalidType):
+            raise InvalidType("Not an iterable type", iter_node)
+
+        info = get_expr_info(iter_val)
+        return info.get_root_varinfo()
+
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
             raise StructureException("Invalid syntax for loop iterator", node.target.target)
@@ -408,54 +447,21 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         iter_varinfo = None
-
         if isinstance(node.iter, vy_ast.Call):
-            # iteration via range()
-            if node.iter.get("func.id") != "range":
-                raise IteratorException(
-                    "Cannot iterate over the result of a function call", node.iter
-                )
-            _validate_range_call(node.iter)
-
+            self._analyse_range_iter(node.iter, target_type)
         else:
-            # iteration over a variable or literal list
-            iter_val = node.iter
-            if iter_val.has_folded_value:
-                iter_val = node.iter.get_folded_value()
-
-            if isinstance(iter_val, vy_ast.List) and len(iter_val.elements) == 0:
-                raise StructureException("For loop must have at least 1 iteration", node.iter)
-
-            if not any(
-                isinstance(i, (DArrayT, SArrayT)) for i in get_possible_types_from_node(node.iter)
-            ):
-                raise InvalidType("Not an iterable type", node.iter)
-
-            info = get_expr_info(iter_val)
-            iter_varinfo = info.get_root_varinfo()
+            iter_varinfo = self._analyse_list_iter(node.iter, target_type)
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_varinfo):
             target_name = node.target.target.id
+            # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
+            self.expr_visitor.visit(node.target.target, target_type)
 
             for stmt in node.body:
                 self.visit(stmt)
-
-            self.expr_visitor.visit(node.target.target, target_type)
-
-            if isinstance(node.iter, vy_ast.List):
-                len_ = len(node.iter.elements)
-                self.expr_visitor.visit(node.iter, SArrayT(target_type, len_))
-            elif isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                args = node.iter.args
-                kwargs = [s.value for s in node.iter.keywords]
-                for arg in (*args, *kwargs):
-                    self.expr_visitor.visit(arg, target_type)
-            else:
-                iter_type = get_exact_type_from_node(node.iter)
-                self.expr_visitor.visit(node.iter, iter_type)
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
