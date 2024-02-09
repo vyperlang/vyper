@@ -431,7 +431,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
             iter_type = SArrayT(target_type, len_)
         else:
-            iter_type = get_exact_type_from_node(iter_node)
+            try:
+                iter_type = get_exact_type_from_node(iter_node)
+            except (InvalidType, StructureException):
+                raise InvalidType("Not an iterable type", iter_node)
 
         # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
         # with generic length.
