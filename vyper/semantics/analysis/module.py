@@ -487,6 +487,8 @@ def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
         # try to get a relative path, to simplify the error message
         module_path = module_path.relative_to(".")
     except ValueError:
+        # we couldn't get a relative path (cf. docs for Path.relative_to),
+        # use the resolved path given to us by the InputBundle
         pass
 
     ret = vy_ast.parse_to_ast(
