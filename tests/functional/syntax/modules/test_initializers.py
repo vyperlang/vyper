@@ -57,6 +57,7 @@ def __init__():
 
     assert compile_code(main, input_bundle=input_bundle) is not None
 
+
 def test_initialize_multiple_uses(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -160,7 +161,6 @@ def __init__():
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
 
     assert compile_code(main, input_bundle=input_bundle) is not None
-
 
 
 def test_initialize_uses_attribute(make_input_bundle):
@@ -1121,6 +1121,7 @@ initializes: lib1
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "not initialized!"
     assert e.value._hint == "add `lib1.__init__()` to your `__init__()` function"
+
 
 def test_ownership_decl_errors_not_swallowed(make_input_bundle):
     lib1 = """
