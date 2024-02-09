@@ -102,6 +102,12 @@ class StringEnum(enum.Enum):
     def __le__(self, other: object) -> bool:
         return self.__eq__(other) or self.__lt__(other)
 
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return not self.__lt__(other)
+
     def __str__(self) -> str:
         return self.value
 
