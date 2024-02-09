@@ -54,40 +54,30 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
-from vyper.utils import OrderedSet
 
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
-    seen: OrderedSet[ContractFunctionT] = OrderedSet()
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        _validate_function_r(vy_module, node, seen, err_list)
+        _validate_function_r(vy_module, node, err_list)
 
     err_list.raise_if_not_empty()
 
 
 def _validate_function_r(
-    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, seen: OrderedSet, err_list: ExceptionList
+    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
 ):
     func_t = node._metadata["func_type"]
 
-    if func_t in seen:
-        return
-
     for call_t in func_t.called_functions:
-        if call_t in seen:
-            continue
         if isinstance(call_t, ContractFunctionT):
             assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
-            _validate_function_r(vy_module, call_t.ast_def, seen, err_list)
+            _validate_function_r(vy_module, call_t.ast_def, err_list)
 
     namespace = get_namespace()
 
-    # add to seen before analysing, if it throws an exception which gets
-    # caught, we don't want to analyse again.
-    seen.add(func_t)
     try:
         with namespace.enter_scope():
             analyzer = FunctionAnalyzer(vy_module, node, namespace)
@@ -195,6 +185,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.loop_variables: list[Optional[VarInfo]] = []
 
     def analyze(self):
+        if self.func._analyzed:
+            return
+
+        # mark seen before analysing, if analysis throws an exception which
+        # gets caught, we don't want to analyse again.
+        self.func._analyzed = True
+
         # allow internal function params to be mutable
         if self.func.is_internal:
             location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)

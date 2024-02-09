@@ -107,6 +107,8 @@ class ContractFunctionT(VyperType):
 
         self.ast_def = ast_def
 
+        self._analyzed = False
+
         # a list of internal functions this function calls.
         # to be populated during analysis
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
