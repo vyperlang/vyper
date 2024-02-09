@@ -345,4 +345,8 @@ class AddressT(_PrimT):
 # type for "self"
 # refactoring note: it might be best for this to be a ModuleT actually
 class SelfT(AddressT):
-    pass
+    _id = "self"
+
+    def compare_type(self, other):
+        # compares true to AddressT
+        return isinstance(other, type(self)) or isinstance(self, type(other))
