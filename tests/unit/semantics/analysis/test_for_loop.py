@@ -134,6 +134,31 @@ def baz():
         validate_semantics(vyper_module, dummy_input_bundle)
 
 
+def test_modify_iterator_recursive_function_call_topsort(dummy_input_bundle):
+    # test the analysis works no matter the order of functions
+    code = """
+a: uint256[3]
+
+@internal
+def baz():
+    for i: uint256 in self.a:
+        self.bar()
+
+@internal
+def bar():
+    self.foo()
+
+@internal
+def foo():
+    self.a[0] = 1
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        validate_semantics(vyper_module, dummy_input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `a`"
+
+
 def test_modify_iterator_through_struct(dummy_input_bundle):
     # GH issue 3429
     code = """
