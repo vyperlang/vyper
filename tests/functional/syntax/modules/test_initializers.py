@@ -1121,3 +1121,18 @@ initializes: lib1
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "not initialized!"
     assert e.value._hint == "add `lib1.__init__()` to your `__init__()` function"
+
+def test_ownership_decl_errors_not_swallowed(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    main = """
+import lib1
+# forgot to import lib2
+
+uses: (lib1, lib2)  # should get UndeclaredDefinition
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(UndeclaredDefinition) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "'lib2' has not been declared. "

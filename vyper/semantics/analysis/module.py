@@ -154,6 +154,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(node)
             to_visit.remove(node)
 
+        ownership_decls = self.ast.get_children((vy_ast.UsesDecl, vy_ast.InitializesDecl))
+        for node in ownership_decls:
+            self.visit(node)
+            to_visit.remove(node)
+
         # we can resolve constants after imports are handled.
         constant_fold(self.ast)
 
