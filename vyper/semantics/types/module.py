@@ -325,6 +325,9 @@ class ModuleT(VyperType):
             import_info = i._metadata["import_info"]
             self.add_member(import_info.alias, import_info.typ)
 
+            if hasattr(import_info.typ, "module_t"):
+                self._helper.add_member(import_info.alias, TYPE_T(import_info.typ))
+
         for name, interface_t in self.interfaces.items():
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
