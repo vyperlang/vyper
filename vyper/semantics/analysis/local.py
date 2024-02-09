@@ -26,7 +26,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
-    validate_expected_type,
+    infer_type,
 )
 from vyper.semantics.data_locations import DataLocation
 
@@ -254,7 +254,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
         elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
             try:
-                validate_expected_type(msg_node, StringT(1024))
+                _ = infer_type(msg_node, StringT(1024))
             except TypeMismatch as e:
                 raise InvalidType("revert reason must fit within String[1024]") from e
             self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
@@ -563,14 +563,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
-            validate_expected_type(node, typ)
+            infer_type(node, expected_type=typ)
 
-        # recurse and typecheck in case we are being fed the wrong type for
-        # some reason.
         super().visit(node, typ)
-
-        # annotate
-        node._metadata["type"] = typ
 
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info
@@ -793,7 +788,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        # these guarantees should be provided by validate_expected_type
+        # these guarantees should be provided by infer_type
         assert isinstance(typ, TupleT)
         assert len(node.elements) == len(typ.member_types)
 

@@ -224,7 +224,7 @@ class _ExprAnalyser:
             # can be different types
             types_list = get_possible_types_from_node(node.left)
             # check rhs is unsigned integer
-            validate_expected_type(node.right, IntegerT.unsigneds())
+            _ = infer_type(node.right, IntegerT.unsigneds())
         else:
             types_list = get_common_types(node.left, node.right)
 
@@ -319,7 +319,7 @@ class _ExprAnalyser:
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
     def types_from_IfExp(self, node):
-        validate_expected_type(node.test, BoolT())
+        _ = infer_type(node.test, expected_type=BoolT())
         types_list = get_common_types(node.body, node.orelse)
 
         if not types_list:
@@ -529,14 +529,14 @@ def _validate_literal_array(node, expected):
 
     for item in node.elements:
         try:
-            validate_expected_type(item, expected.value_type)
+            _ = infer_type(item, expected.value_type)
         except (InvalidType, TypeMismatch):
             return False
 
     return True
 
 
-def validate_expected_type(node, expected_type):
+def infer_type(node, expected_type):
     """
     Validate that the given node matches the expected type(s)
 
@@ -551,8 +551,15 @@ def validate_expected_type(node, expected_type):
 
     Returns
     -------
-    None
+    The inferred type. The inferred type must be a concrete type which
+    is compatible with the expected type (although the expected type may
+    be generic).
     """
+    ret = _infer_type_helper(node, expected_type)
+    node._metadata["type"] = ret
+    return ret
+
+def _infer_type_helper(node, expected_type):
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
 
@@ -561,15 +568,15 @@ def validate_expected_type(node, expected_type):
         for t in possible_tuple_types:
             if len(t.member_types) != len(node.elements):
                 continue
-            for item_ast, item_type in zip(node.elements, t.member_types):
+            ret = []
+            for item_ast, expected_item_type in zip(node.elements, t.member_types):
                 try:
-                    validate_expected_type(item_ast, item_type)
-                    return
+                    item_t = infer_type(item_ast, expected_type=expected_item_type)
+                    ret.append(item_t)
                 except VyperException:
-                    pass
-        else:
-            # fail block
-            pass
+                    break  # go to fail block
+            else:
+                return TupleT(tuple(ret))
 
     given_types = _ExprAnalyser().get_possible_types_from_node(node)
 
@@ -579,11 +586,11 @@ def validate_expected_type(node, expected_type):
             if not isinstance(expected, (DArrayT, SArrayT)):
                 continue
             if _validate_literal_array(node, expected):
-                return
+                return expected
     else:
         for given, expected in itertools.product(given_types, expected_type):
             if expected.compare_type(given):
-                return
+                return given
 
     # validation failed, prepare a meaningful error message
     if len(expected_type) > 1:

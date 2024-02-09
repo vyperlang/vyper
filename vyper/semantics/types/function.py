@@ -27,7 +27,7 @@ from vyper.semantics.analysis.base import (
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
-    validate_expected_type,
+    infer_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
@@ -542,7 +542,7 @@ class ContractFunctionT(VyperType):
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
         for arg, expected in zip(node.args, self.argument_types):
-            validate_expected_type(arg, expected)
+            infer_type(arg, expected)
 
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
@@ -553,7 +553,7 @@ class ContractFunctionT(VyperType):
                         f"`{kwarg.arg}=` specified but {self.name}() does not return anything",
                         kwarg.value,
                     )
-                validate_expected_type(kwarg.value, kwarg_settings.typ)
+                infer_type(kwarg.value, kwarg_settings.typ)
                 if kwarg_settings.require_literal:
                     if not isinstance(kwarg.value, vy_ast.Constant):
                         raise InvalidType(
@@ -730,7 +730,7 @@ def _parse_args(
             value = funcdef.args.defaults[i - n_positional_args]
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
-            validate_expected_type(value, type_)
+            infer_type(value, expected_type=type_)
             keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))
 
         argnames.add(argname)
@@ -788,7 +788,7 @@ class MemberFunctionT(VyperType):
         assert len(node.args) == len(self.arg_types)  # validate_call_args postcondition
         for arg, expected_type in zip(node.args, self.arg_types):
             # CMC 2022-04-01 this should probably be in the validation module
-            validate_expected_type(arg, expected_type)
+            infer_type(arg, expected_type=expected_type)
 
         return self.return_type
 

@@ -54,7 +54,7 @@ from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
-    validate_expected_type,
+    infer_type,
 )
 from vyper.semantics.types import (
     TYPE_T,
@@ -508,8 +508,7 @@ class Concat(BuiltinFunctionT):
         ret = []
         prev_typeclass = None
         for arg in node.args:
-            validate_expected_type(arg, (BytesT.any(), StringT.any(), BytesM_T.any()))
-            arg_t = get_possible_types_from_node(arg).pop()
+            arg_t = infer_type(arg, (BytesT.any(), StringT.any(), BytesM_T.any()))
             current_typeclass = "String" if isinstance(arg_t, StringT) else "Bytes"
             if prev_typeclass and current_typeclass != prev_typeclass:
                 raise TypeMismatch(
@@ -865,7 +864,7 @@ class Extract32(BuiltinFunctionT):
                     "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
             output_typedef = TYPE_T(output_type)
-            node.keywords[0].value._metadata["type"] = output_typedef
+            #node.keywords[0].value._metadata["type"] = output_typedef
         else:
             output_typedef = TYPE_T(BYTES32_T)
 
@@ -2376,8 +2375,8 @@ class ABIEncode(BuiltinFunctionT):
         ret = {}
         for kwarg in node.keywords:
             kwarg_name = kwarg.arg
-            validate_expected_type(kwarg.value, self._kwargs[kwarg_name].typ)
-            ret[kwarg_name] = get_exact_type_from_node(kwarg.value)
+            typ = infer_type(kwarg.value, self._kwargs[kwarg_name].typ)
+            ret[kwarg_name] = typ
         return ret
 
     def fetch_call_return(self, node):

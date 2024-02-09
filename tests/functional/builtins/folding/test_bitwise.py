@@ -4,7 +4,7 @@ from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
 from vyper.exceptions import InvalidType, OverflowException
-from vyper.semantics.analysis.utils import validate_expected_type
+from vyper.semantics.analysis.utils import infer_type
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import unsigned_to_signed
 
@@ -55,7 +55,7 @@ def foo(a: uint256, b: uint256) -> uint256:
         # force bounds check, no-op because validate_numeric_bounds
         # already does this, but leave in for hygiene (in case
         # more types are added).
-        validate_expected_type(new_node, UINT256_T)
+        _ = infer_type(new_node, UINT256_T)
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
     except OverflowException:  # here: check the wrapped value matches runtime
@@ -81,7 +81,7 @@ def foo(a: int256, b: uint256) -> int256:
         vyper_ast = parse_and_fold(f"{a} {op} {b}")
         old_node = vyper_ast.body[0].value
         new_node = old_node.get_folded_value()
-        validate_expected_type(new_node, INT256_T)  # force bounds check
+        _ = infer_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
     except (InvalidType, OverflowException):

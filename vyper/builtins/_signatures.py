@@ -10,7 +10,7 @@ from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
-    validate_expected_type,
+    infer_type,
 )
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
@@ -99,7 +99,7 @@ class BuiltinFunctionT(VyperType):
             # for its side effects (will throw if is not a type)
             type_from_annotation(arg)
         else:
-            validate_expected_type(arg, expected_type)
+            infer_type(arg, expected_type)
 
     def _validate_arg_types(self, node: vy_ast.Call) -> None:
         num_args = len(self._inputs)  # the number of args the signature indicates
