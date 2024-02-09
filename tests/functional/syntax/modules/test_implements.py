@@ -1,5 +1,6 @@
 from vyper.compiler import compile_code
 
+
 def test_implements_from_vyi(make_input_bundle):
     vyi = """
 @external
