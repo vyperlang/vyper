@@ -134,6 +134,45 @@ def baz():
         validate_semantics(vyper_module, dummy_input_bundle)
 
 
+def test_modify_iterator_through_struct(dummy_input_bundle):
+    # GH issue 3429
+    code = """
+struct A:
+    iter: DynArray[uint256, 5]
+
+a: A
+
+@external
+def foo():
+    self.a.iter = [1, 2, 3]
+    for i: uint256 in self.a.iter:
+        self.a = A({iter: [1, 2, 3, 4]})
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        validate_semantics(vyper_module, dummy_input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `a`"
+
+
+def test_modify_iterator_complex_expr(dummy_input_bundle):
+    # GH issue 3429
+    # avoid false positive!
+    code = """
+a: DynArray[uint256, 5]
+b: uint256[10]
+
+@external
+def foo():
+    self.a = [1, 2, 3]
+    for i: uint256 in self.a:
+        self.b[self.a[1]] = i
+    """
+
+    vyper_module = parse_to_ast(code)
+    validate_semantics(vyper_module, dummy_input_bundle)
+
+
 iterator_inference_codes = [
     """
 @external
