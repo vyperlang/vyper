@@ -85,12 +85,13 @@ def _validate_function_r(
 
     namespace = get_namespace()
 
+    # add to seen before analysing, if it throws an exception which gets
+    # caught, we don't want to analyse again.
+    seen.add(func_t)
     try:
         with namespace.enter_scope():
             analyzer = FunctionAnalyzer(vy_module, node, namespace)
             analyzer.analyze()
-
-        seen.add(func_t)
     except VyperException as e:
         err_list.append(e)
 
