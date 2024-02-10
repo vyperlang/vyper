@@ -47,14 +47,8 @@ def __init__():
     self.foo[1] = [123, 456, 789]
 
 @external
-@nonreentrant('lock')
+@nonreentrant
 def with_lock():
-    pass
-
-
-@external
-@nonreentrant('otherlock')
-def with_other_lock():
     pass
 """
 
@@ -84,7 +78,6 @@ def test_reentrancy_lock(get_contract):
     # if re-entrancy locks are incorrectly placed within storage, these
     # calls will either revert or correupt the data that we read later
     c.with_lock()
-    c.with_other_lock()
 
     assert c.a() == ("ok", [4, 5, 6])
     assert [c.b(i) for i in range(2)] == [7, 8]
@@ -105,7 +98,7 @@ def test_reentrancy_lock(get_contract):
 
 def test_allocator_overflow(get_contract):
     code = """
-x: uint256
+# --> global nonreentrancy slot allocated here <--
 y: uint256[max_value(uint256)]
     """
     with pytest.raises(

@@ -39,7 +39,7 @@ def set_callback(c: address):
     self.callback = Callback(c)
 
 @external
-@nonreentrant('protect_special_value')
+@nonreentrant
 def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
 
@@ -50,7 +50,7 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
         return 2
 
 @external
-@nonreentrant('protect_special_value')
+@nonreentrant
 def protected_function2(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     if do_callback:
@@ -60,7 +60,7 @@ def protected_function2(val: String[100], do_callback: bool) -> uint256:
     return 2
 
 @external
-@nonreentrant('protect_special_value')
+@nonreentrant
 def protected_function3(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     if do_callback:
@@ -71,7 +71,7 @@ def protected_function3(val: String[100], do_callback: bool) -> uint256:
 
 
 @external
-@nonreentrant('protect_special_value')
+@nonreentrant
 def protected_view_fn() -> String[100]:
     return self.special_value
 
@@ -145,7 +145,7 @@ def set_callback(c: address):
 
 @external
 @payable
-@nonreentrant("lock")
+@nonreentrant
 def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
     _amount: uint256 = msg.value
@@ -169,7 +169,7 @@ def unprotected_function(val: String[100], do_callback: bool):
 
 @external
 @payable
-@nonreentrant("lock")
+@nonreentrant
 def __default__():
     pass
     """
@@ -209,7 +209,7 @@ def test_disallow_on_init_function(get_contract):
     code = """
 
 @external
-@nonreentrant("lock")
+@nonreentrant
 def __init__():
     foo: uint256 = 0
 """
