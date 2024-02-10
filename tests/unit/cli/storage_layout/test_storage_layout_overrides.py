@@ -28,18 +28,18 @@ def test_storage_layout_for_more_complex():
 foo: HashMap[address, uint256]
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo1():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo2():
     pass
 
 
 @internal
-@nonreentrant("bar")
+@nonreentrant
 def _bar():
     pass
 
@@ -48,19 +48,18 @@ baz: Bytes[65]
 bar: uint256
 
 @external
-@nonreentrant("bar")
+@nonreentrant
 def public_bar():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo3():
     pass
     """
 
     storage_layout_override = {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 7},
+        "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 8},
         "foo": {"type": "HashMap[address, uint256]", "slot": 1},
         "baz": {"type": "Bytes[65]", "slot": 2},
         "bar": {"type": "uint256", "slot": 6},
