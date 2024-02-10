@@ -175,7 +175,8 @@ def __init__():
 
 
 def test_storage_layout_module_uses(make_input_bundle):
-    # test module storage layout, with initializes/uses
+    # test module storage layout, with initializes/uses and a nonreentrant
+    # lock
     lib1 = """
 supply: uint256
 SYMBOL: immutable(String[32])
@@ -201,6 +202,11 @@ def __init__(s: uint256):
 @internal
 def decimals() -> uint8:
     return lib1.DECIMALS
+
+@external
+@nonreentrant
+def foo():
+    pass
     """
     code = """
 import lib1 as a_library
@@ -222,6 +228,11 @@ def __init__():
     some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
+
+@external
+@nonreentrant
+def bar():
+    pass
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
