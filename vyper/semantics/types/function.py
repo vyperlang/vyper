@@ -5,7 +5,6 @@ from functools import cached_property
 from typing import Any, Dict, List, Optional, Tuple
 
 from vyper import ast as vy_ast
-from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     ArgumentException,
@@ -78,8 +77,8 @@ class ContractFunctionT(VyperType):
         enum indicating the external visibility of a function.
     state_mutability : StateMutability
         enum indicating the authority a function has to mutate it's own state.
-    nonreentrant : Optional[str]
-        Re-entrancy lock name.
+    nonreentrant : bool
+        Whether this function is marked `@nonreentrant` or not
     """
 
     _is_callable = True
@@ -92,7 +91,7 @@ class ContractFunctionT(VyperType):
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
-        nonreentrant: Optional[str] = None,
+        nonreentrant: bool = False,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__()
@@ -248,7 +247,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant=None,
+            nonreentrant=False,
             ast_def=funcdef,
         )
 
@@ -267,12 +266,10 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant_key = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
-        if nonreentrant_key is not None:
-            raise FunctionDeclarationException(
-                "nonreentrant key not allowed in interfaces", funcdef
-            )
+        if nonreentrant is not None:
+            raise FunctionDeclarationException("`@nonreentrant` not allowed in interfaces", funcdef)
 
         if funcdef.name == "__init__":
             raise FunctionDeclarationException("Constructors cannot appear in interfaces", funcdef)
@@ -300,7 +297,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant=nonreentrant_key,
+            nonreentrant=nonreentrant,
             ast_def=funcdef,
         )
 
@@ -318,7 +315,7 @@ class ContractFunctionT(VyperType):
         -------
         ContractFunctionT
         """
-        function_visibility, state_mutability, nonreentrant_key = _parse_decorators(funcdef)
+        function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
         positional_args, keyword_args = _parse_args(funcdef)
 
@@ -370,7 +367,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
-            nonreentrant=nonreentrant_key,
+            nonreentrant=nonreentrant,
             ast_def=funcdef,
         )
 
@@ -378,7 +375,8 @@ class ContractFunctionT(VyperType):
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
-            raise CompilerPanic(f"No reentrant key {self}")
+            raise CompilerPanic(f"Not nonreentrant {self}", self.ast_def)
+
         self.reentrancy_key_position = position
 
     @classmethod
@@ -626,32 +624,30 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[Optional[FunctionVisibility], StateMutability, Optional[str]]:
+) -> tuple[Optional[FunctionVisibility], StateMutability, bool]:
     function_visibility = None
     state_mutability = None
-    nonreentrant_key = None
+    nonreentrant_node = None
 
     for decorator in funcdef.decorator_list:
         if isinstance(decorator, vy_ast.Call):
-            if nonreentrant_key is not None:
-                raise StructureException(
-                    "nonreentrant decorator is already set with key: " f"{nonreentrant_key}",
-                    funcdef,
-                )
+            msg = "Decorator is not callable"
+            hint = None
+            if decorator.get("func.id") == "nonreentrant":
+                hint = "use `@nonreentrant` with no arguments. the "
+                hint += "`@nonreentrant` decorator does not accept any "
+                hint += "arguments since vyper 0.4.0."
+            raise StructureException(msg, decorator, hint=hint)
 
-            if decorator.get("func.id") != "nonreentrant":
-                raise StructureException("Decorator is not callable", decorator)
-            if len(decorator.args) != 1 or not isinstance(decorator.args[0], vy_ast.Str):
-                raise StructureException(
-                    "@nonreentrant name must be given as a single string literal", decorator
-                )
+        if decorator.get("id") == "nonreentrant":
+            if nonreentrant_node is not None:
+                raise StructureException("nonreentrant decorator is already set", nonreentrant_node)
 
             if funcdef.name == "__init__":
-                msg = "Nonreentrant decorator disallowed on `__init__`"
+                msg = "`@nonreentrant` decorator disallowed on `__init__`"
                 raise FunctionDeclarationException(msg, decorator)
 
-            nonreentrant_key = decorator.args[0].value
-            validate_identifier(nonreentrant_key, decorator.args[0])
+            nonreentrant_node = decorator
 
         elif isinstance(decorator, vy_ast.Name):
             if FunctionVisibility.is_valid_value(decorator.id):
@@ -692,12 +688,13 @@ def _parse_decorators(
         # default to nonpayable
         state_mutability = StateMutability.NONPAYABLE
 
-    if state_mutability == StateMutability.PURE and nonreentrant_key is not None:
-        raise StructureException("Cannot use reentrancy guard on pure functions", funcdef)
+    if state_mutability == StateMutability.PURE and nonreentrant_node is not None:
+        raise StructureException("Cannot use reentrancy guard on pure functions", nonreentrant_node)
 
     # assert function_visibility is not None  # mypy
     # assert state_mutability is not None  # mypy
-    return function_visibility, state_mutability, nonreentrant_key
+    nonreentrant = nonreentrant_node is not None
+    return function_visibility, state_mutability, nonreentrant
 
 
 def _parse_args(

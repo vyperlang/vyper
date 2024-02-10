@@ -43,10 +43,15 @@ class InsertableOnceDict(Generic[_T, _K], dict[_T, _K]):
         super().__setitem__(k, v)
 
 
+# some name that the user cannot assign to a variable
+GLOBAL_NONREENTRANT_KEY = "$.nonreentrant_key"
+
+
 class SimpleAllocator:
     def __init__(self, max_slot: int = 2**256, starting_slot: int = 0):
         # Allocate storage slots from 0
         # note storage is word-addressable, not byte-addressable
+        self._starting_slot = starting_slot
         self._slot = starting_slot
         self._max_slot = max_slot
 
@@ -61,11 +66,18 @@ class SimpleAllocator:
         self._slot += n
         return ret
 
+    def allocate_global_nonreentrancy_slot(self):
+        slot = self.allocate_slot(1, GLOBAL_NONREENTRANT_KEY)
+        assert slot == self._starting_slot
+        return slot
+
 
 class Allocators:
     storage_allocator: SimpleAllocator
     transient_storage_allocator: SimpleAllocator
     immutables_allocator: SimpleAllocator
+
+    _global_nonreentrancy_key_slot: int
 
     def __init__(self):
         self.storage_allocator = SimpleAllocator(max_slot=2**256)
@@ -81,6 +93,16 @@ class Allocators:
             return self.immutables_allocator
 
         raise CompilerPanic("unreachable")  # pragma: nocover
+
+    def allocate_global_nonreentrancy_slot(self):
+        location = get_reentrancy_key_location()
+
+        allocator = self.get_allocator(location)
+        slot = allocator.allocate_global_nonreentrancy_slot()
+        self._global_nonreentrancy_key_slot = slot
+
+    def get_global_nonreentrant_key_slot(self):
+        return self._global_nonreentrancy_key_slot
 
 
 class OverridingStorageAllocator:
@@ -127,7 +149,6 @@ def set_storage_slots_with_overrides(
     Returns the layout as a dict of variable name -> variable info
     (Doesn't handle modules, or transient storage)
     """
-
     ret: InsertableOnceDict[str, dict] = InsertableOnceDict()
     reserved_slots = OverridingStorageAllocator()
 
@@ -136,15 +157,13 @@ def set_storage_slots_with_overrides(
         type_ = node._metadata["func_type"]
 
         # Ignore functions without non-reentrant
-        if type_.nonreentrant is None:
+        if not type_.nonreentrant:
             continue
 
-        variable_name = f"nonreentrant.{type_.nonreentrant}"
+        variable_name = GLOBAL_NONREENTRANT_KEY
 
         # re-entrant key was already identified
         if variable_name in ret:
-            _slot = ret[variable_name]["slot"]
-            type_.set_reentrancy_key_position(VarOffset(_slot))
             continue
 
         # Expect to find this variable within the storage layout override
@@ -210,6 +229,20 @@ _LAYOUT_KEYS = {
 }
 
 
+def _allocate_nonreentrant_keys(vyper_module, allocators):
+    SLOT = allocators.get_global_nonreentrant_key_slot()
+
+    for node in vyper_module.get_children(vy_ast.FunctionDef):
+        type_ = node._metadata["func_type"]
+        if not type_.nonreentrant:
+            continue
+
+        # a nonreentrant key can appear many times in a module but it
+        # only takes one slot. after the first time we see it, do not
+        # increment the storage slot.
+        type_.set_reentrancy_key_position(VarOffset(SLOT))
+
+
 def _allocate_layout_r(
     vyper_module: vy_ast.Module, allocators: Allocators = None, immutables_only=False
 ) -> StorageLayout:
@@ -217,42 +250,26 @@ def _allocate_layout_r(
     Parse module-level Vyper AST to calculate the layout of storage variables.
     Returns the layout as a dict of variable name -> variable info
     """
+    global_ = False
     if allocators is None:
+        global_ = True
         allocators = Allocators()
+        # always allocate nonreentrancy slot, so that adding or removing
+        # reentrancy protection from a contract does not change its layout
+        allocators.allocate_global_nonreentrancy_slot()
 
     ret: defaultdict[str, InsertableOnceDict[str, dict]] = defaultdict(InsertableOnceDict)
 
-    for node in vyper_module.get_children(vy_ast.FunctionDef):
-        if immutables_only:
-            break
+    # tag functions with the global nonreentrant key
+    if not immutables_only:
+        _allocate_nonreentrant_keys(vyper_module, allocators)
 
-        type_ = node._metadata["func_type"]
-        if type_.nonreentrant is None:
-            continue
-
-        variable_name = f"nonreentrant.{type_.nonreentrant}"
-        reentrancy_key_location = get_reentrancy_key_location()
-        layout_key = _LAYOUT_KEYS[reentrancy_key_location]
-
-        # a nonreentrant key can appear many times in a module but it
-        # only takes one slot. after the first time we see it, do not
-        # increment the storage slot.
-        if variable_name in ret[layout_key]:
-            _slot = ret[layout_key][variable_name]["slot"]
-            type_.set_reentrancy_key_position(VarOffset(_slot))
-            continue
-
-        # TODO use one byte - or bit - per reentrancy key
-        # requires either an extra SLOAD or caching the value of the
-        # location in memory at entrance
-        allocator = allocators.get_allocator(reentrancy_key_location)
-        slot = allocator.allocate_slot(1, variable_name, node)
-
-        type_.set_reentrancy_key_position(VarOffset(slot))
-
+        layout_key = _LAYOUT_KEYS[get_reentrancy_key_location()]
         # TODO this could have better typing but leave it untyped until
         # we nail down the format better
-        ret[layout_key][variable_name] = {"type": "nonreentrant lock", "slot": slot}
+        if global_ and GLOBAL_NONREENTRANT_KEY not in ret[layout_key]:
+            slot = allocators.get_global_nonreentrant_key_slot()
+            ret[layout_key][GLOBAL_NONREENTRANT_KEY] = {"type": "nonreentrant lock", "slot": slot}
 
     for node in _get_allocatable(vyper_module):
         if isinstance(node, vy_ast.InitializesDecl):
