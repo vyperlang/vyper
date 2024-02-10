@@ -182,13 +182,9 @@ loop_variable: NAME ":" type
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
-// ternary operator
-ternary: _expr "if" _expr "else" _expr
-
 // Expressions
 _expr: operation
      | dict
-     | ternary
 
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -214,7 +210,15 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 // See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
-?operation: bool_or
+?operation: assignment_expr
+
+// "walrus" operator
+?assignment_expr: ternary
+                  | NAME ":=" assignment_expr
+
+// ternary operator
+?ternary: bool_or
+          | ternary "if" ternary "else" ternary
 
 _AND: "and"
 _OR: "or"

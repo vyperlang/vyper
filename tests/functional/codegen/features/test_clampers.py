@@ -67,7 +67,7 @@ def test_bytes_clamper_on_init(tx_failed, get_contract_with_gas_estimation):
     clamper_test_code = """
 foo: Bytes[3]
 
-@external
+@deploy
 def __init__(x: Bytes[3]):
     self.foo = x
 

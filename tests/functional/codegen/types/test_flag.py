@@ -160,7 +160,7 @@ flag Roles:
 
 roles: public(HashMap[address, Roles])
 
-@external
+@deploy
 def __init__():
     self.roles[msg.sender] = Roles.ADMIN
 

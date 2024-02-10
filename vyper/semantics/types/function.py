@@ -19,8 +19,10 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
     Modifiability,
+    ModuleInfo,
     StateMutability,
-    StorageSlot,
+    VarInfo,
+    VarOffset,
 )
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -112,9 +114,26 @@ class ContractFunctionT(VyperType):
         # recursively reachable from this function
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
+        # writes to variables from this function
+        self._variable_writes: OrderedSet[VarInfo] = OrderedSet()
+
+        # reads of variables from this function
+        self._variable_reads: OrderedSet[VarInfo] = OrderedSet()
+
+        # list of modules used (accessed state) by this function
+        self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
+
+    @property
+    def _variable_accesses(self):
+        return self._variable_reads | self._variable_writes
+
+    @property
+    def modifiability(self):
+        return Modifiability.from_state_mutability(self.mutability)
 
     @cached_property
     def call_site_kwargs(self):
@@ -269,8 +288,10 @@ class ContractFunctionT(VyperType):
 
         if len(funcdef.body) != 1 or not isinstance(funcdef.body[0].get("value"), vy_ast.Ellipsis):
             raise FunctionDeclarationException(
-                "function body in an interface can only be ...!", funcdef
+                "function body in an interface can only be `...`!", funcdef
             )
+
+        assert function_visibility is not None  # mypy hint
 
         return cls(
             funcdef.name,
@@ -314,13 +335,19 @@ class ContractFunctionT(VyperType):
                     "Default function may not receive any arguments", funcdef.args.args[0]
                 )
 
+        if function_visibility == FunctionVisibility.DEPLOY and funcdef.name != "__init__":
+            raise FunctionDeclarationException(
+                "Only constructors can be marked as `@deploy`!", funcdef
+            )
         if funcdef.name == "__init__":
-            if (
-                state_mutability in (StateMutability.PURE, StateMutability.VIEW)
-                or function_visibility == FunctionVisibility.INTERNAL
-            ):
+            if state_mutability in (StateMutability.PURE, StateMutability.VIEW):
                 raise FunctionDeclarationException(
-                    "Constructor cannot be marked as `@pure`, `@view` or `@internal`", funcdef
+                    "Constructor cannot be marked as `@pure` or `@view`", funcdef
+                )
+            if function_visibility != FunctionVisibility.DEPLOY:
+                raise FunctionDeclarationException(
+                    f"Constructor must be marked as `@deploy`, not `@{function_visibility}`",
+                    funcdef,
                 )
             if return_type is not None:
                 raise FunctionDeclarationException(
@@ -333,6 +360,9 @@ class ContractFunctionT(VyperType):
                     "Constructor may not use default arguments", funcdef.args.defaults[0]
                 )
 
+        # sanity check
+        assert function_visibility is not None
+
         return cls(
             funcdef.name,
             positional_args,
@@ -344,14 +374,11 @@ class ContractFunctionT(VyperType):
             ast_def=funcdef,
         )
 
-    def set_reentrancy_key_position(self, position: StorageSlot) -> None:
+    def set_reentrancy_key_position(self, position: VarOffset) -> None:
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
         if self.nonreentrant is None:
             raise CompilerPanic(f"No reentrant key {self}")
-        # sanity check even though implied by the type
-        if position._location != DataLocation.STORAGE:
-            raise CompilerPanic("Non-storage reentrant key")
         self.reentrancy_key_position = position
 
     @classmethod
@@ -457,16 +484,20 @@ class ContractFunctionT(VyperType):
         return self.visibility == FunctionVisibility.INTERNAL
 
     @property
+    def is_deploy(self) -> bool:
+        return self.visibility == FunctionVisibility.DEPLOY
+
+    @property
+    def is_constructor(self) -> bool:
+        return self.name == "__init__"
+
+    @property
     def is_mutable(self) -> bool:
         return self.mutability > StateMutability.VIEW
 
     @property
     def is_payable(self) -> bool:
         return self.mutability == StateMutability.PAYABLE
-
-    @property
-    def is_constructor(self) -> bool:
-        return self.name == "__init__"
 
     @property
     def is_fallback(self) -> bool:
@@ -535,20 +566,14 @@ class ContractFunctionT(VyperType):
                 modified_line = re.sub(
                     kwarg_pattern, kwarg.value.node_source_code, node.node_source_code
                 )
-                error_suggestion = (
-                    f"\n(hint: Try removing the kwarg: `{modified_line}`)"
-                    if modified_line != node.node_source_code
-                    else ""
-                )
 
-                raise ArgumentException(
-                    (
-                        "Usage of kwarg in Vyper is restricted to "
-                        + ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
-                        + f". {error_suggestion}"
-                    ),
-                    kwarg,
-                )
+                msg = "Usage of kwarg in Vyper is restricted to "
+                msg += ", ".join([f"{k}=" for k in self.call_site_kwargs.keys()])
+
+                hint = None
+                if modified_line != node.node_source_code:
+                    hint = f"Try removing the kwarg: `{modified_line}`"
+                raise ArgumentException(msg, kwarg, hint=hint)
 
         return self.return_type
 
@@ -601,7 +626,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
 
 def _parse_decorators(
     funcdef: vy_ast.FunctionDef,
-) -> tuple[FunctionVisibility, StateMutability, Optional[str]]:
+) -> tuple[Optional[FunctionVisibility], StateMutability, Optional[str]]:
     function_visibility = None
     state_mutability = None
     nonreentrant_key = None
@@ -632,7 +657,9 @@ def _parse_decorators(
             if FunctionVisibility.is_valid_value(decorator.id):
                 if function_visibility is not None:
                     raise FunctionDeclarationException(
-                        f"Visibility is already set to: {function_visibility}", funcdef
+                        f"Visibility is already set to: {function_visibility}",
+                        decorator,
+                        hint="only one visibility decorator is allowed per function",
                     )
                 function_visibility = FunctionVisibility(decorator.id)
 
@@ -747,6 +774,10 @@ class MemberFunctionT(VyperType):
         self.arg_types = arg_types
         self.return_type = return_type
         self.is_modifying = is_modifying
+
+    @property
+    def modifiability(self):
+        return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"

@@ -165,7 +165,7 @@ def test_address_code_self_success(get_contract, optimize):
     code = """
 code_deployment: public(Bytes[32])
 
-@external
+@deploy
 def __init__():
     self.code_deployment = slice(self.code, 0, 32)
 
@@ -186,7 +186,7 @@ def test_address_code_self_runtime_error_deployment(get_contract):
     code = """
 dummy: public(Bytes[1000000])
 
-@external
+@deploy
 def __init__():
     self.dummy = slice(self.code, 0, 1000000)
 """

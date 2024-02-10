@@ -41,7 +41,7 @@ e: public(immutable(uint256[2]))
 f: public(constant(uint256[2])) = [3, 7]
 g: public(constant(V)) = V(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 
-@external
+@deploy
 def __init__():
     self.x = as_wei_value(7, "wei")
     self.y[1] = 9
@@ -87,7 +87,7 @@ potatoes: public(HashMap[uint256, HashMap[bytes32, uint256[4]]])
 nyoro: public(constant(uint256)) = 2
 kune: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     kune = 2
 """

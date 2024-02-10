@@ -94,7 +94,7 @@ n: public(HashMap[uint256, uint256][a])
 a: immutable(uint256)
 n: public(HashMap[uint256, bool][a])
 
-@external
+@deploy
 def __init__():
     a = 3
     """,
@@ -105,14 +105,14 @@ n: HashMap[uint256, bool][3][3]
 m1: HashMap[uint8, uint8]
 m2: HashMap[uint8, uint8]
 
-@external
+@deploy
 def __init__():
     self.m1 = self.m2
     """,
     """
 m1: HashMap[uint8, uint8]
 
-@external
+@deploy
 def __init__():
     self.m1 = 234
     """,

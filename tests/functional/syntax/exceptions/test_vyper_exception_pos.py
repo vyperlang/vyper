@@ -22,7 +22,7 @@ struct A:
 
 foo: immutable(uint256)
 bar: immutable(uint256)
-@external
+@deploy
 def __init__():
     self.foo = 1  # SyntaxException
     self.bar = 2  # SyntaxException

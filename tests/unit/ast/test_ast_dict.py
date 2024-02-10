@@ -109,16 +109,6 @@ def foo() -> uint256:
         "node_id": 9,
         "src": "48:15:0",
         "ast_type": "ImplementsDecl",
-        "target": {
-            "col_offset": 0,
-            "end_col_offset": 10,
-            "node_id": 10,
-            "src": "48:10:0",
-            "ast_type": "Name",
-            "end_lineno": 5,
-            "lineno": 5,
-            "id": "implements",
-        },
         "end_lineno": 5,
         "lineno": 5,
     }

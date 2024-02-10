@@ -214,7 +214,7 @@ def test_create_from_blueprint_bad_code_offset(
     deployer_code = """
 BLUEPRINT: immutable(address)
 
-@external
+@deploy
 def __init__(blueprint_address: address):
     BLUEPRINT = blueprint_address
 
@@ -269,7 +269,7 @@ struct Bar:
 FOO: immutable(String[128])
 BAR: immutable(Bar)
 
-@external
+@deploy
 def __init__(foo: String[128], bar: Bar):
     FOO = foo
     BAR = bar
@@ -450,7 +450,7 @@ def test_create_from_blueprint_complex_value(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__(x: uint256):
     self.var = x
@@ -507,7 +507,7 @@ def test_create_from_blueprint_complex_salt_raw_args(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__(x: uint256):
     self.var = x
@@ -565,7 +565,7 @@ def test_create_from_blueprint_complex_salt_no_constructor_args(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__():
     self.var = 12

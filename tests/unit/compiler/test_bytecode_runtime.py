@@ -35,7 +35,7 @@ def foo5():
 has_immutables = """
 A_GOOD_PRIME: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     A_GOOD_PRIME = 967
 """

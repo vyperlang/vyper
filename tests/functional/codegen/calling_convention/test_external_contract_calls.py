@@ -41,7 +41,7 @@ def test_complicated_external_contract_calls(get_contract, get_contract_with_gas
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
 
@@ -898,26 +898,31 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-def test_constant_external_contract_call_cannot_change_state(
-    assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_constant_external_contract_call_cannot_change_state():
     c = """
 interface Foo:
     def set_lucky(_lucky: int128) -> int128: nonpayable
 
 @external
 @view
-def set_lucky_expr(arg1: address, arg2: int128):
+def set_lucky_stmt(arg1: address, arg2: int128):
     Foo(arg1).set_lucky(arg2)
+    """
 
+    with pytest.raises(StateAccessViolation):
+        compile_code(c)
+
+    c2 = """
+interface Foo:
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 @external
 @view
-def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
+def set_lucky_expr(arg1: address, arg2: int128) -> int128:
     return Foo(arg1).set_lucky(arg2)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
 
-    print("Successfully blocked an external contract call from a constant function")
+    with pytest.raises(StateAccessViolation):
+        compile_code(c2)
 
 
 def test_external_contract_can_be_changed_based_on_address(get_contract):
@@ -968,7 +973,7 @@ def test_external_contract_calls_with_public_globals(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -994,7 +999,7 @@ def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -1008,7 +1013,7 @@ interface Foo:
 
 magic_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
     self.magic_number = Foo(arg1).lucky()
     """
@@ -1020,7 +1025,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
     self.best_number = Bar(arg1).magic_number()
     """
@@ -1145,7 +1150,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__():
     pass
 """

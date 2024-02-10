@@ -118,7 +118,7 @@ interface PurchaseContract:
 purchase_contract: PurchaseContract
 
 
-@external
+@deploy
 def __init__(_purchase_contract: address):
     self.purchase_contract = PurchaseContract(_purchase_contract)
 

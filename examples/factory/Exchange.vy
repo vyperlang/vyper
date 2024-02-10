@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 from ethereum.ercs import ERC20
 
 
@@ -9,7 +11,7 @@ token: public(ERC20)
 factory: Factory
 
 
-@external
+@deploy
 def __init__(_token: ERC20, _factory: Factory):
     self.token = _token
     self.factory = _factory
