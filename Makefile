@@ -17,11 +17,9 @@ dev-init:
 test:
 	pytest
 
-mypy:
-	tox -e mypy
-
 lint:
 	tox -e lint
+	tox -e mypy
 
 docs:
 	rm -f docs/vyper.rst
