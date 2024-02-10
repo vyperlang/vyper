@@ -510,7 +510,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
             raise StructureException(
-                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+                f"Cannot emit logs from {self.func.mutability} functions", node
             )
         t = map_void(f.fetch_call_return(node.value))
         # CMC 2024-02-05 annotate the event type for codegen usage
