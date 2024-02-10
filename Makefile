@@ -18,8 +18,7 @@ test:
 	pytest
 
 lint:
-	tox -e lint
-	tox -e mypy
+	tox -e lint,mypy
 
 docs:
 	rm -f docs/vyper.rst
