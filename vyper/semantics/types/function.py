@@ -268,7 +268,7 @@ class ContractFunctionT(VyperType):
         """
         function_visibility, state_mutability, nonreentrant = _parse_decorators(funcdef)
 
-        if nonreentrant is not None:
+        if nonreentrant:
             raise FunctionDeclarationException("`@nonreentrant` not allowed in interfaces", funcdef)
 
         if funcdef.name == "__init__":
@@ -374,7 +374,7 @@ class ContractFunctionT(VyperType):
     def set_reentrancy_key_position(self, position: VarOffset) -> None:
         if hasattr(self, "reentrancy_key_position"):
             raise CompilerPanic("Position was already assigned")
-        if self.nonreentrant is None:
+        if not self.nonreentrant:
             raise CompilerPanic(f"Not nonreentrant {self}", self.ast_def)
 
         self.reentrancy_key_position = position
