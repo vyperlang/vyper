@@ -246,6 +246,9 @@ def compile_files(
     # to the last in the list)
     search_paths.reverse()
 
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
+
     paths = paths or []
 
     for p in paths:
