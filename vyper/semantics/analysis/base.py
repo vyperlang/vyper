@@ -194,27 +194,15 @@ class VarInfo:
         return res
 
 
-@dataclass(kw_only=True)
-class VarAttributeInfo(VarInfo):
-    attr: str
-    parent: VarInfo
+@dataclass(frozen=True)
+class VarAccess:
+    variable: VarInfo
+    attrs: tuple[str, ...]
 
-    def __hash__(self):
-        return super().__hash__()
-
-    @classmethod
-    def from_varinfo(cls, varinfo: VarInfo, attr: str, typ: VyperType):
-        location = varinfo.location
-        modifiability = varinfo.modifiability
-        return cls(
-            typ=typ, location=location, modifiability=modifiability, attr=attr, parent=varinfo
-        )
-
-
-@dataclass
-class AttributeInfo:
-    attr: str
-    expr_info: "ExprInfo"
+    def contains(self, other):
+        # VarAccess("v", ("a")) `contains` VarAccess("v", ("a", "b", "c"))
+        sub_attrs = other.attrs[: len(self.attrs)]
+        return self.variable == other.variable and sub_attrs == self.attrs
 
 
 @dataclass
@@ -228,7 +216,8 @@ class ExprInfo:
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
-    attribute_chain: list[AttributeInfo] = field(default_factory=list)
+    attribute_chain: list["ExprInfo"] = field(default_factory=list)
+    attr: Optional[str] = None
 
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
@@ -239,18 +228,24 @@ class ExprInfo:
 
         self.attribute_chain = self.attribute_chain or []
 
-        self._writes: OrderedSet[VarInfo] = OrderedSet()
-        self._reads: OrderedSet[VarInfo] = OrderedSet()
+        self._writes: OrderedSet[VarAccess] = OrderedSet()
+        self._reads: OrderedSet[VarAccess] = OrderedSet()
 
     # find exprinfo in the attribute chain which has a varinfo
     # e.x. `x` will return varinfo for `x`
     # `module.foo` will return varinfo for `module.foo`
-    # `self.my_struct.x.y` will return varinfo for `self.my_struct`
-    def get_closest_varinfo(self) -> Optional[VarInfo]:
-        for attr_info in reversed(self.attribute_chain + [self]):
-            var_info = getattr(attr_info, "expr_info", attr_info).var_info  # type: ignore
-            if var_info is not None and not isinstance(var_info, SelfT):
-                return var_info
+    # `self.my_struct.x.y` will return varinfo for `self.my_struct.x.y`
+    def get_variable_access(self) -> Optional[VarAccess]:
+        chain = self.attribute_chain + [self]
+        for i, expr_info in enumerate(chain):
+            varinfo = expr_info.var_info
+            if varinfo is not None and not isinstance(varinfo, SelfT):
+                attrs = []
+                for expr_info in chain[i:]:
+                    if expr_info.attr is None:
+                        continue
+                    attrs.append(expr_info.attr)
+                return VarAccess(varinfo, tuple(attrs))
         return None
 
     @classmethod
@@ -281,5 +276,4 @@ class ExprInfo:
         fields = {k: getattr(self, k) for k in to_copy}
         for t in to_copy:
             assert t not in kwargs
-        fields.update(kwargs)
-        return self.__class__(typ=typ, **fields)
+        return self.__class__(typ=typ, **fields, **kwargs)

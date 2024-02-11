@@ -20,7 +20,7 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Modifiability, ModuleOwnership, VarInfo
+from vyper.semantics.analysis.base import Modifiability, ModuleOwnership, VarAccess, VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -182,7 +182,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.func = fn_node._metadata["func_type"]
         self.expr_visitor = ExprVisitor(self)
 
-        self.loop_variables: list[Optional[VarInfo]] = []
+        self.loop_variables: list[Optional[VarAccess]] = []
 
     def analyze(self):
         if self.func.analysed:
@@ -221,8 +221,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
 
     @contextlib.contextmanager
-    def enter_for_loop(self, varinfo: Optional[VarInfo]):
-        self.loop_variables.append(varinfo)
+    def enter_for_loop(self, varaccess: Optional[VarAccess]):
+        self.loop_variables.append(varaccess)
         try:
             yield
         finally:
@@ -329,14 +329,19 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        assert (varinfo := info.get_closest_varinfo()) is not None
-        info._writes.add(varinfo)
+        base_var = target
+        while isinstance(base_var, vy_ast.Subscript):
+            base_var = base_var.value
+
+        base_info = get_expr_info(base_var)
+        assert (var_access := base_info.get_variable_access()) is not None
+        info._writes.add(var_access)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
         module_infos = []
         for t in get_expr_info(target).attribute_chain:
-            if t.expr_info.module_info is not None:
-                module_infos.append(t.expr_info.module_info)
+            if t.module_info is not None:
+                module_infos.append(t.module_info)
 
         if len(module_infos) == 0:
             return
@@ -442,7 +447,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # get the root varinfo from iter_val in case we need to peer
         # through folded constants
         info = get_expr_info(iter_val)
-        return info.get_closest_varinfo()
+        return info.get_variable_access()
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -450,13 +455,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
-        iter_varinfo = None
+        iter_var = None
         if isinstance(node.iter, vy_ast.Call):
             self._analyse_range_iter(node.iter, target_type)
         else:
-            iter_varinfo = self._analyse_list_iter(node.iter, target_type)
+            iter_var = self._analyse_list_iter(node.iter, target_type)
 
-        with self.namespace.enter_scope(), self.enter_for_loop(iter_varinfo):
+        with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
             # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
@@ -551,24 +556,28 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             # log variable accesses.
             # (note writes will get logged as both read+write)
-            varinfo = info.var_info
-            if varinfo is not None:
-                info._reads.add(varinfo)
+            var_access = info.get_variable_access()
+            if var_access is not None:
+                info._reads.add(var_access)
 
             if self.function_analyzer:
                 for s in self.function_analyzer.loop_variables:
                     if s is None:
                         continue
 
-                    if s in info._writes:
+                    for v in info._writes:
+                        if not v.contains(s):
+                            continue
+
                         msg = "Cannot modify loop variable"
-                        if s.decl_node is not None:
+                        var = s.variable
+                        if var.decl_node is not None:
                             msg += f" `{s.decl_node.target.id}`"
-                        raise ImmutableViolation(msg, s.decl_node, node)
+                        raise ImmutableViolation(msg, var.decl_node, node)
 
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
-                    if s.is_module_variable():
+                    if s.variable.is_module_variable():
                         self.function_analyzer._check_module_use(node)
 
                 self.func.mark_variable_writes(info._writes)

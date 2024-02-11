@@ -17,13 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import (
-    ExprInfo,
-    Modifiability,
-    ModuleInfo,
-    VarAttributeInfo,
-    VarInfo,
-)
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -91,28 +85,25 @@ class _ExprAnalyser:
             # note: Attribute(expr value, identifier attr)
 
             info = self.get_expr_info(node.value, is_callable=is_callable)
+            attr = node.attr
+
             attribute_chain = info.attribute_chain + [info]
 
-            attr = node.attr
             t = info.typ.get_member(attr, node)
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t, attribute_chain=attribute_chain)
+                return ExprInfo.from_varinfo(t, attribute_chain=attribute_chain, attr=attr)
 
             if isinstance(t, ModuleInfo):
-                return ExprInfo.from_moduleinfo(t, attribute_chain=attribute_chain)
+                return ExprInfo.from_moduleinfo(t, attribute_chain=attribute_chain, attr=attr)
 
-            # it's something else, like my_struct.foo
-            assert (varinfo := info.var_info) is not None
-            child_varinfo = VarAttributeInfo.from_varinfo(varinfo=varinfo, attr=attr, typ=t)
-            return ExprInfo.from_varinfo(child_varinfo)
+            return info.copy_with_type(t, attribute_chain=attribute_chain, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
             info = self.get_expr_info(node.value)
-            attribute_chain = info.attribute_chain + [info]
-            return info.copy_with_type(t, attribute_chain=attribute_chain)
+            return info.copy_with_type(t)
 
         return ExprInfo(t)
 
