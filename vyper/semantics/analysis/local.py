@@ -185,12 +185,12 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.loop_variables: list[Optional[VarInfo]] = []
 
     def analyze(self):
-        if self.func._analyzed:
+        if self.func.analysed:
             return
 
         # mark seen before analysing, if analysis throws an exception which
         # gets caught, we don't want to analyse again.
-        self.func._analyzed = True
+        self.func.mark_analysed()
 
         # allow internal function params to be mutable
         if self.func.is_internal:
@@ -355,7 +355,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         root_module_info = module_infos[0]
 
         # log the access
-        self.func._used_modules.add(root_module_info)
+        self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -573,8 +573,8 @@ class ExprVisitor(VyperNodeVisitorBase):
                     if s.is_module_variable():
                         self.function_analyzer._check_module_use(node)
 
-                self.func._variable_writes.update(info._writes)
-                self.func._variable_reads.update(info._reads)
+                self.func.mark_variable_writes(info._writes)
+                self.func.mark_variable_reads(info._reads)
 
         # validate and annotate folded value
         if node.has_folded_value:
@@ -631,13 +631,14 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(func_type, ContractFunctionT):
             # function calls
 
-            func_info._writes.update(func_type._variable_writes)
-            func_info._reads.update(func_type._variable_reads)
+            if not func_type.from_interface:
+                func_info._writes.update(func_type.get_variable_writes())
+                func_info._reads.update(func_type.get_variable_reads())
 
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
-                for s in func_type._variable_accesses:
+                for s in func_type.get_variable_accesses():
                     if s.is_module_variable():
                         self.function_analyzer._check_module_use(node.func)
 

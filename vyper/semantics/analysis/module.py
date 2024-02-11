@@ -244,7 +244,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         all_used_modules = OrderedSet()
 
         for f in module_t.functions.values():
-            for u in f._used_modules:
+            for u in f.get_used_modules():
                 all_used_modules.add(u.module_t)
 
         for used_module in all_used_modules:
