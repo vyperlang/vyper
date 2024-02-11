@@ -115,7 +115,7 @@ def test_ownership(w3, tx_failed, get_contract_with_gas_estimation):
 
 owners: address[2]
 
-@external
+@deploy
 def __init__():
     self.owners[0] = msg.sender
 

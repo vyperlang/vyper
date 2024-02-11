@@ -25,7 +25,7 @@ g: public(StructTwo[2])
 h: public(int256[1])
 
 
-@external
+@deploy
 def __init__():
     self.a = StructOne({a: "ok", b: [4,5,6]})
     self.b = [7, 8]
@@ -110,6 +110,6 @@ y: uint256[max_value(uint256)]
     """
     with pytest.raises(
         StorageLayoutException,
-        match=f"Invalid storage slot for var y, tried to allocate slots 1 through {2**256}",
+        match=f"Invalid storage slot, tried to allocate slots 1 through {2**256}",
     ):
         get_contract(code)

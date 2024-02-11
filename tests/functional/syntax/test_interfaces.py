@@ -304,7 +304,7 @@ interface MyInterface:
 my_interface: MyInterface[3]
 idx: uint256
 
-@external
+@deploy
 def __init__():
     self.my_interface[self.idx] = MyInterface(empty(address))
     """,
@@ -348,7 +348,7 @@ implements: ITestInterface
 
 foo: public(immutable(uint256))
 
-@external
+@deploy
 def __init__(x: uint256):
     foo = x
     """,

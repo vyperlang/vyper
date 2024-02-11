@@ -20,7 +20,7 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@external
+@deploy
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
@@ -64,7 +64,7 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@external
+@deploy
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
@@ -108,7 +108,7 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@external
+@deploy
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)
@@ -134,7 +134,7 @@ interface ConstBar:
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
 
-@external
+@deploy
 def __init__(contract_address: address):
     self.modifiable_bar_contract = ModBar(contract_address)
     self.static_bar_contract = ConstBar(contract_address)

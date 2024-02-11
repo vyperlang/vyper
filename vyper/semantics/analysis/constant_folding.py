@@ -113,7 +113,7 @@ class ConstantFolder(VyperNodeVisitorBase):
             varinfo = module_t.get_member(node.attr, node)
 
             return varinfo.decl_node.value.get_folded_value()
-        except (VyperException, AttributeError):
+        except (VyperException, AttributeError, KeyError):
             raise UnfoldableNode("not a module")
 
     def visit_UnaryOp(self, node):

@@ -117,15 +117,15 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if isinstance(node, vy_ast.Attribute):
         # ex. SomeModule.SomeStruct
 
-        # sanity check - we only allow modules/interfaces to be
-        # imported as `Name`s currently.
-        if not isinstance(node.value, vy_ast.Name):
+        if isinstance(node.value, vy_ast.Attribute):
+            module_or_interface = _type_from_annotation(node.value)
+        elif isinstance(node.value, vy_ast.Name):
+            try:
+                module_or_interface = namespace[node.value.id]  # type: ignore
+            except UndeclaredDefinition:
+                raise InvalidType(err_msg, node) from None
+        else:
             raise InvalidType(err_msg, node)
-
-        try:
-            module_or_interface = namespace[node.value.id]  # type: ignore
-        except UndeclaredDefinition:
-            raise InvalidType(err_msg, node) from None
 
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
             module_or_interface = module_or_interface.module_t

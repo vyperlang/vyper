@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 
 def test_test_bytes(get_contract_with_gas_estimation, tx_failed):
@@ -51,7 +51,7 @@ x: int128
 maa: Bytes[60]
 y: int128
 
-@external
+@deploy
 def __init__():
     self.x = 27
     self.y = 37
@@ -310,7 +310,7 @@ def assign():
 def assign():
     xs: bytes6 = b"abcdef"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -318,7 +318,7 @@ def assign():
 def assign():
     xs: bytes4 = 0xabcdef  # bytes3 literal
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -326,7 +326,7 @@ def assign():
 def assign():
     xs: bytes4 = 0x1234abcdef # bytes5 literal
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

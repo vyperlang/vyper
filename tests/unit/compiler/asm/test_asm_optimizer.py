@@ -20,7 +20,7 @@ def runtime_only():
 def bar():
     self.runtime_only()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,
@@ -44,7 +44,7 @@ def ctor_only():
 def bar():
     self.foo()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,
@@ -65,7 +65,7 @@ def runtime_only():
 def bar():
     self.runtime_only()
 
-@external
+@deploy
 def __init__():
     self.ctor_only()
     """,
@@ -73,6 +73,9 @@ def __init__():
 
 
 # check dead code eliminator works on unreachable functions
+# CMC 2024-02-05 this is not really the asm eliminator anymore,
+# it happens during function code generation in module.py. so we don't
+# need to test this using asm anymore.
 @pytest.mark.parametrize("code", codes)
 def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
@@ -88,19 +91,8 @@ def test_dead_code_eliminator(code):
     assert any(ctor_only in instr for instr in initcode_asm)
     assert all(runtime_only not in instr for instr in initcode_asm)
 
-    # all labels should be in unoptimized runtime asm
-    for s in (ctor_only, runtime_only):
-        assert any(s in instr for instr in runtime_asm)
-
-    c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.GAS))
-    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
-    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
-
-    # ctor only label should not be in runtime code
+    assert any(runtime_only in instr for instr in runtime_asm)
     assert all(ctor_only not in instr for instr in runtime_asm)
-
-    # runtime only label should not be in initcode asm
-    assert all(runtime_only not in instr for instr in initcode_asm)
 
 
 def test_library_code_eliminator(make_input_bundle):

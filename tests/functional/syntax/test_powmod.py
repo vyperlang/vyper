@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -10,7 +10,7 @@ fail_list = [
 def foo():
     a: uint256 = pow_mod256(-1, -1)
     """,
-        InvalidType,
+        TypeMismatch,
     )
 ]
 

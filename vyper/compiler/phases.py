@@ -152,23 +152,18 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
-    def _annotated_module(self):
-        return generate_annotated_ast(
-            self.vyper_module, self.input_bundle, self.storage_layout_override
-        )
-
-    @property
     def annotated_vyper_module(self) -> vy_ast.Module:
-        module, storage_layout = self._annotated_module
-        return module
+        return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
-    @property
+    @cached_property
     def storage_layout(self) -> StorageLayout:
-        module, storage_layout = self._annotated_module
-        return storage_layout
+        module_ast = self.annotated_vyper_module
+        return set_data_positions(module_ast, self.storage_layout_override)
 
     @property
     def global_ctx(self) -> ModuleT:
+        # ensure storage layout is computed
+        _ = self.storage_layout
         return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
@@ -243,11 +238,7 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-def generate_annotated_ast(
-    vyper_module: vy_ast.Module,
-    input_bundle: InputBundle,
-    storage_layout_overrides: StorageLayout = None,
-) -> tuple[vy_ast.Module, StorageLayout]:
+def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     """
     Validates and annotates the Vyper AST.
 
@@ -268,9 +259,7 @@ def generate_annotated_ast(
         # note: validate_semantics does type inference on the AST
         validate_semantics(vyper_module, input_bundle)
 
-    symbol_tables = set_data_positions(vyper_module, storage_layout_overrides)
-
-    return vyper_module, symbol_tables
+    return vyper_module
 
 
 def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:

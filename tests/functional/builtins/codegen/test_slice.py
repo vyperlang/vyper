@@ -57,7 +57,7 @@ def test_slice_immutable(
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
-@external
+@deploy
 def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
     IMMUTABLE_BYTES = inp
     IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
@@ -119,7 +119,7 @@ foo: Bytes[{length_bound}]
     elif location == "code":
         preamble = f"""
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
-@external
+@deploy
 def __init__(foo: Bytes[{length_bound}]):
     IMMUTABLE_BYTES = foo
     """
@@ -230,7 +230,7 @@ def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
     code = """
 LENGTH: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     LENGTH = 5
 
@@ -314,7 +314,7 @@ code_bytes32 = [
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
@@ -325,7 +325,7 @@ def bar() -> Bytes[{length}]:
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 

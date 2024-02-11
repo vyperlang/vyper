@@ -3,7 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import EVM_VERSIONS
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 
 @pytest.mark.parametrize("evm_version", list(EVM_VERSIONS))
@@ -25,7 +25,7 @@ fail_list = [
 def foo() -> int128[2]:
     return [3,chain.id]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     """
 @external
@@ -60,7 +60,7 @@ def add_record():
 def foo(inp: Bytes[10]) -> Bytes[3]:
     return slice(inp, chain.id, -3)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

@@ -61,8 +61,8 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode) -> ExprInfo:
-        t = self.get_exact_type_from_node(node)
+    def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
+        t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
@@ -74,7 +74,10 @@ class _ExprAnalyser:
             if isinstance(info, ModuleInfo):
                 return ExprInfo.from_moduleinfo(info)
 
-            raise CompilerPanic("unreachable!", node)
+            if isinstance(info, VyperType):
+                return ExprInfo(TYPE_T(info))
+
+            raise CompilerPanic(f"unreachable! {info}", node)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
@@ -82,30 +85,27 @@ class _ExprAnalyser:
             # note: Attribute(expr value, identifier attr)
 
             name = node.attr
-            info = self.get_expr_info(node.value)
+            info = self.get_expr_info(node.value, is_callable=is_callable)
+
+            attribute_chain = info.attribute_chain + [info]
 
             t = info.typ.get_member(name, node)
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t)
+                return ExprInfo.from_varinfo(t, attribute_chain=attribute_chain)
+
+            if isinstance(t, ModuleInfo):
+                return ExprInfo.from_moduleinfo(t, attribute_chain=attribute_chain)
 
             # it's something else, like my_struct.foo
-            return info.copy_with_type(t)
-
-        if isinstance(node, vy_ast.Tuple):
-            # always use the most restrictive location re: modification
-            # kludge! for validate_modification in local analysis of Assign
-            types = [self.get_expr_info(n) for n in node.elements]
-            location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            modifiability = sorted((i.modifiability for i in types), key=lambda k: k.value)[-1]
-
-            return ExprInfo(t, location=location, modifiability=modifiability)
+            return info.copy_with_type(t, attribute_chain=attribute_chain)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
             info = self.get_expr_info(node.value)
-            return info.copy_with_type(t)
+            attribute_chain = info.attribute_chain + [info]
+            return info.copy_with_type(t, attribute_chain=attribute_chain)
 
         return ExprInfo(t)
 
@@ -184,6 +184,7 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         is_self_reference = node.get("value.id") == "self"
+
         # variable attribute, e.g. `foo.bar`
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
@@ -476,8 +477,10 @@ def get_exact_type_from_node(node):
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
-def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
-    return _ExprAnalyser().get_expr_info(node)
+def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
+    if node._expr_info is None:
+        node._expr_info = _ExprAnalyser().get_expr_info(node, is_callable)
+    return node._expr_info
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
@@ -609,8 +612,7 @@ def validate_expected_type(node, expected_type):
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
+        raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )
@@ -640,7 +642,7 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) -> bool:
+def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
     """
     Check if the given node is not more modifiable than the given modifiability.
     """
@@ -666,5 +668,5 @@ def check_modifiability(node: vy_ast.VyperNode, modifiability: Modifiability) ->
         if hasattr(call_type, "check_modifiability_for_call"):
             return call_type.check_modifiability_for_call(node, modifiability)
 
-    value_type = get_expr_info(node)
-    return value_type.modifiability >= modifiability
+    info = get_expr_info(node)
+    return info.modifiability <= modifiability

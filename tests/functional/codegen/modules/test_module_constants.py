@@ -76,3 +76,23 @@ def foo(ix: uint256) -> uint256:
     assert c.foo(2) == 3
     with tx_failed():
         c.foo(3)
+
+
+def test_module_constant_builtin(make_input_bundle, get_contract):
+    # test empty builtin, which is not (currently) foldable 2024-02-06
+    mod1 = """
+X: constant(uint256) = empty(uint256)
+    """
+    contract = """
+import mod1
+
+@external
+def foo() -> uint256:
+    return mod1.X
+    """
+
+    input_bundle = make_input_bundle({"mod1.vy": mod1})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo() == 0

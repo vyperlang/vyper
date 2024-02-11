@@ -11,7 +11,7 @@ def test_get_extcodehash(get_contract, evm_version, optimize):
     code = """
 a: address
 
-@external
+@deploy
 def __init__():
     self.a = self
 

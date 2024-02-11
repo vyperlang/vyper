@@ -565,7 +565,7 @@ def foo_():
     log MyLog(b'yo')
 """
 
-    with tx_failed(InvalidType):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
@@ -580,7 +580,7 @@ def foo():
     log MyLog(b'bars')
 """
 
-    with tx_failed(InvalidType):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
@@ -608,7 +608,7 @@ def foo():
     log MyLog(b'bars')
 """
 
-    with tx_failed(InvalidType):
+    with tx_failed(TypeMismatch):
         get_contract_with_gas_estimation(loggy_code)
 
 
@@ -646,7 +646,7 @@ event MyLog:
     arg3: indexed(int128)
     arg4: indexed(int128)
 
-@external
+@deploy
 def __init__():
     log MyLog(1, 2, 3, 4)
     """
@@ -1033,7 +1033,7 @@ event Bar:
 x: int128[4]
 y: int128[2]
 
-@external
+@deploy
 def __init__():
     self.y = [1024, 2048]
 
@@ -1241,7 +1241,7 @@ fail_list = [
 def foo():
     raw_log([1, 2], b"moo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -1249,7 +1249,7 @@ def foo():
 def foo():
     raw_log([1, 2], b"moo")
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -1266,7 +1266,7 @@ def foo():
 def foo():
     raw_log([b"cow"], b"dog")
     """,
-        (StructureException, InvalidType),
+        (StructureException, TypeMismatch),
     ),
     (
         """
@@ -1275,7 +1275,7 @@ def foo():
     # bytes20 instead of bytes32
     raw_log([], 0x1234567890123456789012345678901234567890)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

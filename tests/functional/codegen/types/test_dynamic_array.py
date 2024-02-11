@@ -7,7 +7,6 @@ from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
     ImmutableViolation,
-    InvalidType,
     OverflowException,
     StateAccessViolation,
     TypeMismatch,
@@ -1124,7 +1123,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     x.append({lit})
     return x
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 invalid_appends_pops = [
@@ -1666,7 +1665,7 @@ def ix(i: uint256) -> decimal:
 def test_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[uint256, 5])
-@external
+@deploy
 def __init__():
     self.my_list = [1,2,3]
     """
@@ -1679,7 +1678,7 @@ def __init__():
 def test_nested_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[DynArray[uint256, 5], 5])
-@external
+@deploy
 def __init__():
     self.my_list = [[1,2,3]]
     """

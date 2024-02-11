@@ -4,7 +4,10 @@ from typing import Any, List
 
 from vyper.codegen import core, jumptable_utils
 from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import generate_ir_for_function
+from vyper.codegen.function_definitions import (
+    generate_ir_for_external_function,
+    generate_ir_for_internal_function,
+)
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
@@ -89,7 +92,7 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
         callvalue_check = ["assert", ["iszero", "callvalue"]]
         ret.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
 
-    func_ir = generate_ir_for_function(func_ast, *args, **kwargs)
+    func_ir = generate_ir_for_external_function(func_ast, *args, **kwargs)
     assert len(func_ir.entry_points) == 1
 
     # add a goto to make the function entry look like other functions
@@ -101,7 +104,7 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
 
 
 def _ir_for_internal_function(func_ast, *args, **kwargs):
-    return generate_ir_for_function(func_ast, *args, **kwargs).func_ir
+    return generate_ir_for_internal_function(func_ast, *args, **kwargs).func_ir
 
 
 def _generate_external_entry_points(external_functions, module_ctx):
@@ -109,7 +112,7 @@ def _generate_external_entry_points(external_functions, module_ctx):
     sig_of = {}  # reverse map from method ids to abi sig
 
     for code in external_functions:
-        func_ir = generate_ir_for_function(code, module_ctx)
+        func_ir = generate_ir_for_external_function(code, module_ctx)
         for abi_sig, entry_point in func_ir.entry_points.items():
             method_id = method_id_int(abi_sig)
             assert abi_sig not in entry_points
@@ -424,12 +427,13 @@ def _selector_section_linear(external_functions, module_ctx):
 
 # take a ModuleT, and generate the runtime and deploy IR
 def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
+    # XXX: rename `module_ctx` to `compilation_target`
     # order functions so that each function comes after all of its callees
     function_defs = _topsort(module_ctx.function_defs)
     reachable = _globally_reachable_functions(module_ctx.function_defs)
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
-    init_function = next((f for f in function_defs if _is_constructor(f)), None)
+    init_function = next((f for f in module_ctx.function_defs if _is_constructor(f)), None)
 
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
 
@@ -475,24 +479,21 @@ def generate_ir_for_module(module_ctx: ModuleT) -> tuple[IRnode, IRnode]:
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = module_ctx.immutable_section_bytes
-    if init_function:
+    if init_function is not None:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
         init_func_t = init_function._metadata["func_type"]
         ctor_internal_func_irs = []
-        internal_functions = [f for f in runtime_functions if _is_internal(f)]
-        for f in internal_functions:
-            func_t = f._metadata["func_type"]
-            if func_t not in init_func_t.reachable_internal_functions:
-                # unreachable code, delete it
-                continue
 
-            func_ir = _ir_for_internal_function(f, module_ctx, is_ctor_context=True)
+        reachable_from_ctor = init_func_t.reachable_internal_functions
+        for func_t in reachable_from_ctor:
+            fn_ast = func_t.ast_def
+            func_ir = _ir_for_internal_function(fn_ast, module_ctx, is_ctor_context=True)
             ctor_internal_func_irs.append(func_ir)
 
         # generate init_func_ir after callees to ensure they have analyzed
         # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_ctx, is_ctor_context=True)
+        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_ctx)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables

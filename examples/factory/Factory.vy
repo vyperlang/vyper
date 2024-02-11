@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 from ethereum.ercs import ERC20
 
 interface Exchange:
@@ -11,7 +13,7 @@ exchange_codehash: public(bytes32)
 exchanges: public(HashMap[ERC20, Exchange])
 
 
-@external
+@deploy
 def __init__(_exchange_codehash: bytes32):
     # Register the exchange code hash during deployment of the factory
     self.exchange_codehash = _exchange_codehash
