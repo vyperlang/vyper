@@ -131,12 +131,6 @@ class ContractFunctionT(VyperType):
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
 
-    def _protect_analysed(self):
-        if self.from_interface:
-            return
-        if not self._analysed:  # pragma: nocover
-            raise CompilerPanic(f"unreachable {self}")
-
     def mark_analysed(self):
         assert not self._analysed
         self._analysed = True
@@ -146,19 +140,15 @@ class ContractFunctionT(VyperType):
         return self._analysed
 
     def get_variable_reads(self):
-        self._protect_analysed()
         return self._variable_reads
 
     def get_variable_writes(self):
-        self._protect_analysed()
         return self._variable_writes
 
     def get_variable_accesses(self):
-        self._protect_analysed()
         return self._variable_reads | self._variable_writes
 
     def get_used_modules(self):
-        self._protect_analysed()
         return self._used_modules
 
     def mark_used_module(self, module_info):
