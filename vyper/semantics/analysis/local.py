@@ -329,16 +329,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        var_info = info.get_root_varinfo()
-        assert var_info is not None
-
-        info._writes.add(var_info)
+        assert (varinfo := info.get_closest_varinfo()) is not None
+        info._writes.add(varinfo)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
         module_infos = []
         for t in get_expr_info(target).attribute_chain:
-            if t.module_info is not None:
-                module_infos.append(t.module_info)
+            if t.expr_info.module_info is not None:
+                module_infos.append(t.expr_info.module_info)
 
         if len(module_infos) == 0:
             return
@@ -444,7 +442,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # get the root varinfo from iter_val in case we need to peer
         # through folded constants
         info = get_expr_info(iter_val)
-        return info.get_root_varinfo()
+        return info.get_closest_varinfo()
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):

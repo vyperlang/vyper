@@ -194,6 +194,29 @@ class VarInfo:
         return res
 
 
+@dataclass(kw_only=True)
+class VarAttributeInfo(VarInfo):
+    attr: str
+    parent: VarInfo
+
+    def __hash__(self):
+        return super().__hash__()
+
+    @classmethod
+    def from_varinfo(cls, varinfo: VarInfo, attr: str, typ: VyperType):
+        location = varinfo.location
+        modifiability = varinfo.modifiability
+        return cls(
+            typ=typ, location=location, modifiability=modifiability, attr=attr, parent=varinfo
+        )
+
+
+@dataclass
+class AttributeInfo:
+    attr: str
+    expr_info: "ExprInfo"
+
+
 @dataclass
 class ExprInfo:
     """
@@ -205,9 +228,7 @@ class ExprInfo:
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
-
-    # the chain of attribute parents for this expr
-    attribute_chain: list["ExprInfo"] = field(default_factory=list)
+    attribute_chain: list[AttributeInfo] = field(default_factory=list)
 
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
@@ -216,6 +237,8 @@ class ExprInfo:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
+        self.attribute_chain = self.attribute_chain or []
+
         self._writes: OrderedSet[VarInfo] = OrderedSet()
         self._reads: OrderedSet[VarInfo] = OrderedSet()
 
@@ -223,41 +246,40 @@ class ExprInfo:
     # e.x. `x` will return varinfo for `x`
     # `module.foo` will return varinfo for `module.foo`
     # `self.my_struct.x.y` will return varinfo for `self.my_struct`
-    def get_root_varinfo(self) -> Optional[VarInfo]:
-        for expr_info in self.attribute_chain + [self]:
-            if expr_info.var_info is not None and not isinstance(expr_info.typ, SelfT):
-                return expr_info.var_info
+    def get_closest_varinfo(self) -> Optional[VarInfo]:
+        for attr_info in reversed(self.attribute_chain + [self]):
+            var_info = getattr(attr_info, "expr_info", attr_info).var_info  # type: ignore
+            if var_info is not None and not isinstance(var_info, SelfT):
+                return var_info
         return None
 
     @classmethod
-    def from_varinfo(cls, var_info: VarInfo, attribute_chain=None) -> "ExprInfo":
+    def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":
         return cls(
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
             modifiability=var_info.modifiability,
-            attribute_chain=attribute_chain or [],
+            **kwargs,
         )
 
     @classmethod
-    def from_moduleinfo(cls, module_info: ModuleInfo, attribute_chain=None) -> "ExprInfo":
+    def from_moduleinfo(cls, module_info: ModuleInfo, **kwargs) -> "ExprInfo":
         modifiability = Modifiability.RUNTIME_CONSTANT
         if module_info.ownership >= ModuleOwnership.USES:
             modifiability = Modifiability.MODIFIABLE
 
         return cls(
-            module_info.module_t,
-            module_info=module_info,
-            modifiability=modifiability,
-            attribute_chain=attribute_chain or [],
+            module_info.module_t, module_info=module_info, modifiability=modifiability, **kwargs
         )
 
-    def copy_with_type(self, typ: VyperType, attribute_chain=None) -> "ExprInfo":
+    def copy_with_type(self, typ: VyperType, **kwargs) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
         to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
-        if attribute_chain is not None:
-            fields["attribute_chain"] = attribute_chain
+        for t in to_copy:
+            assert t not in kwargs
+        fields.update(kwargs)
         return self.__class__(typ=typ, **fields)
