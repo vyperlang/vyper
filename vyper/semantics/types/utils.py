@@ -158,6 +158,12 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
 
+    if hasattr(typ_, "module_t"):  # it's a ModuleInfo
+        typ_ = typ_.module_t
+
+    if not isinstance(typ_, VyperType):
+        raise CompilerPanic("Not a type: {typ_}", node)
+
     return typ_
 
 
