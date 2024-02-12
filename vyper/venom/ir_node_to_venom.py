@@ -235,6 +235,16 @@ _break_target: Optional[IRBasicBlock] = None
 _continue_target: Optional[IRBasicBlock] = None
 
 
+def _get_variable_from_op(
+    variables: OrderedSet[VariableRecord], allocated_variables: [], var: IRVariable
+) -> VariableRecord:
+    for name, ivar in allocated_variables.items():
+        if var.name == name:
+            for v in variables.keys():
+                if v.name == ivar:
+                    return v
+
+
 def _get_variable_from_address(
     variables: OrderedSet[VariableRecord], addr: int
 ) -> Optional[VariableRecord]:
@@ -323,6 +333,15 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.immutables_len = ir.args[2].value
         return None
     elif ir.value == "seq":
+        # Special case when all args are mstores
+        if len([arg for arg in ir.args if arg.value != "mstore"]) == 0:
+            bb = ctx.get_basic_block()
+            for ir_node in ir.args:  # NOTE: skip the last one
+                ret = _convert_ir_bb(ctx, ir_node.args[1], symbols, variables, allocated_variables)
+                bb.append_instruction("mstore", ret)
+
+            return None
+
         func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols, variables, allocated_variables)
@@ -337,7 +356,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             # fallthrough
 
         ret = None
-        for ir_node in ir.args:  # NOTE: skip the last one
+        for ir_node in ir.args:
             ret = _convert_ir_bb(ctx, ir_node, symbols, variables, allocated_variables)
 
         return ret
@@ -370,6 +389,14 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 raise CompilerPanic("unreachable")
         else:
             argsOffsetVar = argsOffset
+
+        bb = ctx.get_basic_block()
+        if isinstance(address, IRVariable):
+            var = _get_variable_from_op(variables, allocated_variables, address)
+
+        var = _get_variable_from_address(variables, offset)
+        if var:
+            bb.append_instruction("mstore", offset, allocated_variables[var.name])
 
         if ir.value == "call":
             args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
