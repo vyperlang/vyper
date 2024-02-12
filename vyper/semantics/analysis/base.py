@@ -7,7 +7,6 @@ from vyper.compiler.input_bundle import InputBundle
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
@@ -230,26 +229,6 @@ class ExprInfo:
 
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()
-
-    # find exprinfo in the attribute chain which has a varinfo
-    # e.x. `x` will return varinfo for `x`
-    # `module.foo` will return varinfo for `module.foo`
-    # `self.my_struct.x.y` will return varinfo for `self.my_struct.x.y`
-    def get_variable_access(self) -> Optional[VarAccess]:
-        chain = self.attribute_chain + [self]
-        for i, expr_info in enumerate(chain):
-            varinfo = expr_info.var_info
-            if varinfo is None or isinstance(varinfo.typ, SelfT):
-                continue
-
-            attrs = []
-            for expr_info in chain[i:]:
-                if expr_info.attr is None:
-                    continue
-                attrs.append(expr_info.attr)
-            return VarAccess(varinfo, tuple(attrs))
-
-        return None
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":

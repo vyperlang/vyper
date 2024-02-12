@@ -169,14 +169,37 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
-def _get_base_var(node: vy_ast.ExprNode):
+# analyse the variable access for the attribute chain for a node
+# e.x. `x` will return varinfo for `x`
+# `module.foo` will return VarAccess for `module.foo`
+# `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
+def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
+    attrs: list[str] = []
     info = get_expr_info(node)
-    while (var_access := info.get_variable_access()) is None:
+
+    while info.var_info is None:
         if not isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+            # it's something like a literal
             return None
+
+        if isinstance(node, vy_ast.Subscript):
+            # Subscript is an analysis barrier
+            # we cannot analyse if `x.y[ix1].z` overlaps with `x.y[ix2].z`.
+            attrs.clear()
+
+        if (attr := info.attr) is not None:
+            attrs.append(attr)
+
+        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
-    return var_access
+
+    # ignore `self.` as it interferes with VarAccess comparison across modules
+    if len(attrs) > 0 and attrs[-1] == "self":
+        attrs.pop()
+    attrs.reverse()
+
+    return VarAccess(info.var_info, tuple(attrs))
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
@@ -339,7 +362,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        var_access = _get_base_var(target)
+        var_access = _get_variable_access(target)
         assert var_access is not None
 
         info._writes.add(var_access)
@@ -453,7 +476,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         # get the root varinfo from iter_val in case we need to peer
         # through folded constants
-        return _get_base_var(iter_val)
+        return _get_variable_access(iter_val)
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -562,7 +585,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             # log variable accesses.
             # (note writes will get logged as both read+write)
-            var_access = info.get_variable_access()
+            var_access = _get_variable_access(node)
             if var_access is not None:
                 info._reads.add(var_access)
 
