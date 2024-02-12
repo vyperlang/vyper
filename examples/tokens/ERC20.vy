@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 ###########################################################################
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
@@ -29,7 +31,7 @@ decimals: public(uint8)
 # NOTE: By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
 #       method to allow access to account balances.
 #       The _KeyType will become a required parameter for the getter and it will return _ValueType.
-#       See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
+#       See: https://docs.vyperlang.org/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
 balanceOf: public(HashMap[address, uint256])
 # By declaring `allowance` as public, vyper automatically generates the `allowance()` getter
 allowance: public(HashMap[address, HashMap[address, uint256]])
@@ -38,7 +40,7 @@ totalSupply: public(uint256)
 minter: address
 
 
-@external
+@deploy
 def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** convert(_decimals, uint256)
     self.name = _name

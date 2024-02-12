@@ -51,7 +51,7 @@ x: int128
 maa: Bytes[60]
 y: int128
 
-@external
+@deploy
 def __init__():
     self.x = 27
     self.y = 37

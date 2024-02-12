@@ -8,38 +8,50 @@ from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    BorrowException,
     CallViolation,
     DuplicateImport,
     ExceptionList,
+    ImmutableViolation,
+    InitializerException,
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
-    SyntaxException,
+    UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import ImportInfo, Modifiability, ModuleInfo, VarInfo
+from vyper.semantics.analysis.base import (
+    ImportInfo,
+    InitializesInfo,
+    Modifiability,
+    ModuleInfo,
+    ModuleOwnership,
+    UsesInfo,
+    VarInfo,
+)
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
-from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node
+from vyper.semantics.analysis.utils import (
+    check_modifiability,
+    get_exact_type_from_node,
+    get_expr_info,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.utils import OrderedSet
 
 
-def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
-    return validate_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
-
-
-def validate_semantics_r(
+def validate_module_semantics_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph,
@@ -49,6 +61,11 @@ def validate_semantics_r(
     Analyze a Vyper module AST node, add all module-level objects to the
     namespace, type-check/validate semantics and annotate with type and analysis info
     """
+    if "type" in module_ast._metadata:
+        # we don't need to analyse again, skip out
+        assert isinstance(module_ast._metadata["type"], ModuleT)
+        return module_ast._metadata["type"]
+
     validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
@@ -64,6 +81,8 @@ def validate_semantics_r(
         # in `ContractFunction.from_vyi()`
         if not is_interface:
             validate_functions(module_ast)
+            analyzer.validate_initialized_modules()
+            analyzer.validate_used_modules()
 
     return ret
 
@@ -121,11 +140,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def analyze(self) -> ModuleT:
         # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
-        if "type" in self.ast._metadata:
-            assert isinstance(self.ast._metadata["type"], ModuleT)
-            # we don't need to analyse again, skip out
-            self.module_t = self.ast._metadata["type"]
-            return self.module_t
+
+        assert "type" not in self.ast._metadata
 
         to_visit = self.ast.body.copy()
 
@@ -135,6 +151,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # exception swallowing).
         import_stmts = self.ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
         for node in import_stmts:
+            self.visit(node)
+            to_visit.remove(node)
+
+        ownership_decls = self.ast.get_children((vy_ast.UsesDecl, vy_ast.InitializesDecl))
+        for node in ownership_decls:
             self.visit(node)
             to_visit.remove(node)
 
@@ -179,6 +200,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def analyze_call_graph(self):
         # get list of internal function calls made by each function
+        # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
         function_defs = self.module_t.function_defs
 
         for func in function_defs:
@@ -195,7 +217,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # we just want to be able to construct the call graph.
                     continue
 
-                if isinstance(call_t, ContractFunctionT) and call_t.is_internal:
+                if isinstance(call_t, ContractFunctionT) and (
+                    call_t.is_internal or call_t.is_constructor
+                ):
                     fn_t.called_functions.add(call_t)
 
         for func in function_defs:
@@ -203,6 +227,106 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
+
+    def validate_used_modules(self):
+        # check all `uses:` modules are actually used
+        should_use = {}
+
+        module_t = self.ast._metadata["type"]
+        uses_decls = module_t.uses_decls
+        for decl in uses_decls:
+            info = decl._metadata["uses_info"]
+            for m in info.used_modules:
+                should_use[m.module_t] = (m, info)
+
+        initialized_modules = {t.module_info.module_t: t for t in module_t.initialized_modules}
+
+        all_used_modules = OrderedSet()
+
+        for f in module_t.functions.values():
+            for u in f._used_modules:
+                all_used_modules.add(u.module_t)
+
+        for used_module in all_used_modules:
+            if used_module in initialized_modules:
+                continue
+
+            if used_module in should_use:
+                del should_use[used_module]
+
+        if len(should_use) > 0:
+            err_list = ExceptionList()
+            for used_module_info, uses_info in should_use.values():
+                msg = f"`{used_module_info.alias}` is declared as used, but "
+                msg += f"it is not actually used in {module_t}!"
+                hint = f"delete `uses: {used_module_info.alias}`"
+                err_list.append(BorrowException(msg, uses_info.node, hint=hint))
+
+            err_list.raise_if_not_empty()
+
+    def validate_initialized_modules(self):
+        # check all `initializes:` modules have `__init__()` called exactly once
+        module_t = self.ast._metadata["type"]
+        should_initialize = {t.module_info.module_t: t for t in module_t.initialized_modules}
+        # don't call `__init__()` for modules which don't have
+        # `__init__()` function
+        for m in should_initialize.copy():
+            for f in m.functions.values():
+                if f.is_constructor:
+                    break
+            else:
+                del should_initialize[m]
+
+        init_calls = []
+        for f in self.ast.get_children(vy_ast.FunctionDef):
+            if f._metadata["func_type"].is_constructor:
+                init_calls = f.get_descendants(vy_ast.Call)
+                break
+
+        seen_initializers = {}
+        for call_node in init_calls:
+            expr_info = call_node.func._expr_info
+            if expr_info is None:
+                # this can happen for range() calls; CMC 2024-02-05 try to
+                # refactor so that range() is properly tagged.
+                continue
+
+            call_t = call_node.func._expr_info.typ
+
+            if not isinstance(call_t, ContractFunctionT):
+                continue
+
+            if not call_t.is_constructor:
+                continue
+
+            # XXX: check this works as expected for nested attributes
+            initialized_module = call_node.func.value._expr_info.module_info
+
+            if initialized_module.module_t in seen_initializers:
+                seen_location = seen_initializers[initialized_module.module_t]
+                msg = f"tried to initialize `{initialized_module.alias}`, "
+                msg += "but its __init__() function was already called!"
+                raise InitializerException(msg, call_node.func, seen_location)
+
+            if initialized_module.module_t not in should_initialize:
+                msg = f"tried to initialize `{initialized_module.alias}`, "
+                msg += "but it is not in initializer list!"
+                hint = f"add `initializes: {initialized_module.alias}` "
+                hint += "as a top-level statement to your contract"
+                raise InitializerException(msg, call_node.func, hint=hint)
+
+            del should_initialize[initialized_module.module_t]
+            seen_initializers[initialized_module.module_t] = call_node.func
+
+        if len(should_initialize) > 0:
+            err_list = ExceptionList()
+            for s in should_initialize.values():
+                msg = "not initialized!"
+                hint = f"add `{s.module_info.alias}.__init__()` to "
+                hint += "your `__init__()` function"
+                err_list.append(InitializerException(msg, s.node, hint=hint))
+
+            err_list.raise_if_not_empty()
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.
@@ -218,9 +342,99 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_ = type_from_annotation(node.annotation)
 
         if not isinstance(type_, InterfaceT):
-            raise StructureException("Invalid interface name", node.annotation)
+            raise StructureException("not an interface!", node.annotation)
 
         type_.validate_implements(node)
+
+    def visit_UsesDecl(self, node):
+        # TODO: check duplicate uses declarations, e.g.
+        # uses: x
+        # ...
+        # uses: x
+        items = vy_ast.as_tuple(node.annotation)
+
+        used_modules = []
+
+        for item in items:
+            module_info = get_expr_info(item).module_info
+            if module_info is None:
+                raise StructureException("not a valid module!", item)
+
+            # note: try to refactor - not a huge fan of mutating the
+            # ModuleInfo after it's constructed
+            module_info.set_ownership(ModuleOwnership.USES, item)
+
+            used_modules.append(module_info)
+
+        node._metadata["uses_info"] = UsesInfo(used_modules, node)
+
+    def visit_InitializesDecl(self, node):
+        module_ref = node.annotation
+        dependencies_ast = ()
+        if isinstance(module_ref, vy_ast.Subscript):
+            dependencies_ast = vy_ast.as_tuple(module_ref.slice)
+            module_ref = module_ref.value
+
+        # postcondition of InitializesDecl.validates()
+        assert isinstance(module_ref, (vy_ast.Name, vy_ast.Attribute))
+
+        module_info = get_expr_info(module_ref).module_info
+        if module_info is None:
+            raise StructureException("Not a module!", module_ref)
+
+        used_modules = {i.module_t: i for i in module_info.module_t.used_modules}
+
+        dependencies = []
+        for named_expr in dependencies_ast:
+            assert isinstance(named_expr, vy_ast.NamedExpr)
+
+            rhs_module = get_expr_info(named_expr.value).module_info
+
+            with module_info.module_node.namespace():
+                # lhs of the named_expr is evaluated in the namespace of the
+                # initialized module!
+                try:
+                    lhs_module = get_expr_info(named_expr.target).module_info
+                except VyperException as e:
+                    # try to report a common problem - user names the module in
+                    # the current namespace instead of the initialized module
+                    # namespace.
+
+                    # search for the module in the initialized module
+                    found_module = module_info.module_t.find_module_info(rhs_module.module_t)
+                    if found_module is not None:
+                        msg = f"unknown module `{named_expr.target.id}`"
+                        hint = f"did you mean `{found_module.alias} := {rhs_module.alias}`?"
+                        raise UndeclaredDefinition(msg, named_expr.target, hint=hint)
+
+                    raise e from None
+
+            if lhs_module.module_t != rhs_module.module_t:
+                raise StructureException(
+                    f"{lhs_module.alias} is not {rhs_module.alias}!", named_expr
+                )
+            dependencies.append(lhs_module)
+
+            if lhs_module.module_t not in used_modules:
+                raise InitializerException(
+                    f"`{module_info.alias}` is initialized with `{lhs_module.alias}`, "
+                    f"but `{module_info.alias}` does not use `{lhs_module.alias}`!",
+                    named_expr,
+                )
+
+            del used_modules[lhs_module.module_t]
+
+        if len(used_modules) > 0:
+            item = next(iter(used_modules.values()))  # just pick one
+            msg = f"`{module_info.alias}` uses `{item.alias}`, but it is not "
+            msg += f"initialized with `{item.alias}`"
+            hint = f"add `{item.alias}` to its initializer list"
+            raise InitializerException(msg, node, hint=hint)
+
+        # note: try to refactor. not a huge fan of mutating the
+        # ModuleInfo after it's constructed
+        module_info.set_ownership(ModuleOwnership.INITIALIZES, node)
+        node._metadata["initializes_info"] = InitializesInfo(module_info, dependencies, node)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
@@ -250,7 +464,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     if len(wrong_self_attribute) > 0
                     else "Immutable definition requires an assignment in the constructor"
                 )
-                raise SyntaxException(message, node.node_source_code, node.lineno, node.col_offset)
+                raise ImmutableViolation(message, node)
 
         data_loc = (
             DataLocation.CODE
@@ -364,11 +578,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # don't handle things like `import x.y`
         if "." in alias:
+            msg = "import requires an accompanying `as` statement"
             suggested_alias = node.name[node.name.rfind(".") :]
-            suggestion = f"hint: try `import {node.name} as {suggested_alias}`"
-            raise StructureException(
-                f"import requires an accompanying `as` statement ({suggestion})", node
-            )
+            hint = f"try `import {node.name} as {suggested_alias}`"
+            raise StructureException(msg, node, hint=hint)
 
         self._add_import(node, 0, node.name, alias)
 
@@ -436,14 +649,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                module_t = validate_semantics_r(
+                module_t = validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t)
+                return ModuleInfo(module_t, alias)
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things
@@ -456,7 +669,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_semantics_r(
+                validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -481,7 +694,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         raise ModuleNotFound(module_str, node) from err
 
 
-def _parse_and_fold_ast(file: FileInput) -> vy_ast.VyperNode:
+def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
     module_path = file.resolved_path  # for error messages
     try:
         # try to get a relative path, to simplify the error message
@@ -551,5 +764,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
-        module_t = validate_semantics(interface_ast, input_bundle, is_interface=True)
+        module_t = validate_module_semantics_r(
+            interface_ast, input_bundle, ImportGraph(), is_interface=True
+        )
     return module_t.interface

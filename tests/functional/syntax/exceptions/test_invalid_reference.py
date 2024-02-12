@@ -47,7 +47,7 @@ def foo():
     """
 a: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     a = 123
 

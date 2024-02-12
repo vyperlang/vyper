@@ -31,7 +31,7 @@ class _BaseVyperException(Exception):
     order to display source annotations in the error string.
     """
 
-    def __init__(self, message="Error Message not found.", *items):
+    def __init__(self, message="Error Message not found.", *items, hint=None):
         """
         Exception initializer.
 
@@ -47,7 +47,9 @@ class _BaseVyperException(Exception):
             A single tuple of (lineno, col_offset) is also understood to support
             the old API, but new exceptions should not use this approach.
         """
-        self.message = message
+        self._message = message
+        self._hint = hint
+
         self.lineno = None
         self.col_offset = None
         self.annotations = None
@@ -76,6 +78,13 @@ class _BaseVyperException(Exception):
         exc = copy.copy(self)
         exc.annotations = annotations
         return exc
+
+    @property
+    def message(self):
+        msg = self._message
+        if self._hint:
+            msg += f"\n\n  (hint: {self._hint})"
+        return msg
 
     def __str__(self):
         from vyper import ast as vy_ast
@@ -131,7 +140,7 @@ class _BaseVyperException(Exception):
             annotation_list.append(node_msg)
 
         annotation_msg = "\n".join(annotation_list)
-        return f"{self.message}\n{annotation_msg}"
+        return f"{self.message}\n\n{annotation_msg}"
 
 
 class VyperException(_BaseVyperException):
@@ -252,6 +261,14 @@ class ImmutableViolation(VyperException):
     """Modifying an immutable variable, constant, or definition."""
 
 
+class InitializerException(VyperException):
+    """An issue with initializing/constructing a module"""
+
+
+class BorrowException(VyperException):
+    """An issue with borrowing/using a module"""
+
+
 class StateAccessViolation(VyperException):
     """Violating the mutability of a function definition."""
 
@@ -369,7 +386,7 @@ def tag_exceptions(node, fallback_exception_type=CompilerPanic, note=None):
     except _BaseVyperException as e:
         if not e.annotations and not e.lineno:
             tb = e.__traceback__
-            raise e.with_annotation(node).with_traceback(tb)
+            raise e.with_annotation(node).with_traceback(tb) from None
         raise e from None
     except Exception as e:
         tb = e.__traceback__

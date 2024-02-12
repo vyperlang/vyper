@@ -6,7 +6,7 @@ def test_init_argument_test(get_contract_with_gas_estimation):
     init_argument_test = """
 moose: int128
 
-@external
+@deploy
 def __init__(_moose: int128):
     self.moose = _moose
 
@@ -26,7 +26,7 @@ foo: HashMap[bytes4, bool]
 
 X: constant(bytes4) = 0x01ffc9a7
 
-@external
+@deploy
 def __init__():
     self.foo[X] = True
 
@@ -44,7 +44,7 @@ def test_constructor_advanced_code(get_contract_with_gas_estimation):
     constructor_advanced_code = """
 twox: int128
 
-@external
+@deploy
 def __init__(x: int128):
     self.twox = x * 2
 
@@ -60,7 +60,7 @@ def test_constructor_advanced_code2(get_contract_with_gas_estimation):
     constructor_advanced_code2 = """
 comb: uint256
 
-@external
+@deploy
 def __init__(x: uint256[2], y: Bytes[3], z: uint256):
     self.comb = x[0] * 1000 + x[1] * 100 + len(y) * 10 + z
 
@@ -90,7 +90,7 @@ def foo(x: int128) -> int128:
 
 def test_large_input_code_2(w3, get_contract_with_gas_estimation):
     large_input_code_2 = """
-@external
+@deploy
 def __init__(x: int128):
     y: int128 = x
 
@@ -113,7 +113,7 @@ X: constant(uint256) = 4
 
 foo: int16[X]
 
-@external
+@deploy
 def __init__():
     self.foo[X-1] = -2
 
@@ -133,7 +133,7 @@ X: constant(int16) = 4
 
 foo: DynArray[int16, X]
 
-@external
+@deploy
 def __init__():
     self.foo = [X - 3, X - 4, X - 5, X - 6]
 
@@ -151,7 +151,7 @@ def test_nested_dynamic_array_constructor_arg(w3, get_contract_with_gas_estimati
     code = """
 foo: uint256
 
-@external
+@deploy
 def __init__(x: DynArray[DynArray[uint256, 3], 3]):
     self.foo = x[0][2] + x[1][1] + x[2][0]
 
@@ -167,7 +167,7 @@ def test_nested_dynamic_array_constructor_arg_2(w3, get_contract_with_gas_estima
     code = """
 foo: int128
 
-@external
+@deploy
 def __init__(x: DynArray[DynArray[DynArray[int128, 3], 3], 3]):
     self.foo = x[0][1][2] * x[1][1][1] * x[2][1][0] - x[0][0][0] - x[1][1][1] - x[2][2][2]
 
@@ -192,7 +192,7 @@ def test_initialise_nested_dynamic_array(w3, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[uint256, 3], 3]
 
-@external
+@deploy
 def __init__(x: uint256, y: uint256, z: uint256):
     self.foo = [
         [x, y, z],
@@ -212,7 +212,7 @@ def test_initialise_nested_dynamic_array_2(w3, get_contract_with_gas_estimation)
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
 
-@external
+@deploy
 def __init__(x: int128, y: int128, z: int128):
     self.foo = [
         [[x, y, z], [y, z, x], [z, y, x]],

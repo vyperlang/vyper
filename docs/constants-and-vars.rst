@@ -56,7 +56,7 @@ Accessing State Variables
 
 ``self`` is used to access a contract's :ref:`state variables<structure-state-variables>`, as shown in the following example:
 
-.. code-block:: python
+.. code-block:: vyper
 
     state_var: uint256
 
@@ -76,7 +76,7 @@ Calling Internal Functions
 
 ``self`` is also used to call :ref:`internal functions<structure-functions-internal>` within a contract:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @internal
     def _times_two(amount: uint256) -> uint256:
@@ -93,7 +93,7 @@ Custom Constants
 
 Custom constants can be defined at a global level in Vyper. To define a constant, make use of the ``constant`` keyword.
 
-.. code-block:: python
+.. code-block:: vyper
 
     TOTAL_SUPPLY: constant(uint256) = 10000000
     total_supply: public(uint256)

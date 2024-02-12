@@ -90,7 +90,7 @@ def test_private_string(get_contract_with_gas_estimation):
     private_test_code = """
 greeting: public(String[100])
 
-@external
+@deploy
 def __init__():
     self.greeting = "Hello "
 

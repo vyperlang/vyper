@@ -120,7 +120,7 @@ def test_private_bytes(get_contract_with_gas_estimation):
     private_test_code = """
 greeting: public(Bytes[100])
 
-@external
+@deploy
 def __init__():
     self.greeting = b"Hello "
 
@@ -143,7 +143,7 @@ def test_private_statement(get_contract_with_gas_estimation):
     private_test_code = """
 greeting: public(Bytes[20])
 
-@external
+@deploy
 def __init__():
     self.greeting = b"Hello "
 
