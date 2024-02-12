@@ -567,8 +567,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                 info._reads.add(var_access)
 
             if self.function_analyzer:
-                # note to self: check if moving this to _handle_modification
-                # breaks tests
                 for s in self.function_analyzer.loop_variables:
                     if s is None:
                         continue
