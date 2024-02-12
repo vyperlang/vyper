@@ -169,6 +169,15 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
+def _get_base_var(node: vy_ast.ExprNode):
+    info = get_expr_info(node)
+    while (var_access := info.get_variable_access()) is None:
+        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))
+        node = node.value
+        info = get_expr_info(node)
+    return var_access
+
+
 class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
@@ -329,12 +338,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
-        base_var = target
-        while isinstance(base_var, vy_ast.Subscript):
-            base_var = base_var.value
+        var_access = _get_base_var(target)
+        assert var_access is not None
 
-        base_info = get_expr_info(base_var)
-        assert (var_access := base_info.get_variable_access()) is not None
         info._writes.add(var_access)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
@@ -446,8 +452,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         # get the root varinfo from iter_val in case we need to peer
         # through folded constants
-        info = get_expr_info(iter_val)
-        return info.get_variable_access()
+        return _get_base_var(iter_val)
 
     def visit_For(self, node):
         if not isinstance(node.target.target, vy_ast.Name):
@@ -561,6 +566,8 @@ class ExprVisitor(VyperNodeVisitorBase):
                 info._reads.add(var_access)
 
             if self.function_analyzer:
+                # note to self: check if moving this to _handle_modification
+                # breaks tests
                 for s in self.function_analyzer.loop_variables:
                     if s is None:
                         continue
