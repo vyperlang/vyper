@@ -689,6 +689,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         elif isinstance(func_type, MemberFunctionT):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
+                assert isinstance(node.func, vy_ast.Attribute)  # help mypy
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
