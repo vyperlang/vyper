@@ -193,9 +193,50 @@ def foo():
     for i: uint256 in self.a:
         self.b[self.a[1]] = i
     """
-
     vyper_module = parse_to_ast(code)
     validate_semantics(vyper_module, dummy_input_bundle)
+
+
+def test_modify_iterator_siblings(dummy_input_bundle):
+    # test we can modify siblings in an access tree
+    code = """
+struct Foo:
+    a: uint256[2]
+    b: uint256
+
+f: Foo
+
+@external
+def foo():
+    for i: uint256 in self.f.a:
+        self.f.b += i
+    """
+    vyper_module = parse_to_ast(code)
+    validate_semantics(vyper_module, dummy_input_bundle)
+
+
+def test_modify_subscript_barrier(dummy_input_bundle):
+    # test that Subscript nodes are a barrier for analysis
+    code = """
+struct Foo:
+    x: uint256[2]
+    y: uint256
+
+struct Bar:
+    f: Foo[2]
+
+b: Bar
+
+@external
+def foo():
+    for i: uint256 in self.b.f[1].x:
+        self.b.f[0].y += i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        validate_semantics(vyper_module, dummy_input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `b`"
 
 
 iterator_inference_codes = [
