@@ -20,7 +20,13 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import Modifiability, ModuleOwnership, VarAccess, VarInfo
+from vyper.semantics.analysis.base import (
+    Modifiability,
+    ModuleInfo,
+    ModuleOwnership,
+    VarAccess,
+    VarInfo,
+)
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -202,6 +208,26 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     return VarAccess(info.var_info, tuple(attrs))
 
 
+# get the chain of modules, e.g.
+# mod1.mod2.x.y -> [ModuleInfo(mod1), ModuleInfo(mod2)]
+# CMC 2024-02-12 note that the Attribute/Subscript traversal in this and
+# _get_variable_access() are a bit gross and could probably
+# be refactored into data on ExprInfo.
+def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
+    ret: list[ModuleInfo] = []
+    info = get_expr_info(node)
+
+    while isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+        if info.module_info is not None:
+            ret.append(info.module_info)
+
+        node = node.value
+        info = get_expr_info(node)
+
+    ret.reverse()
+    return ret
+
+
 class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
@@ -368,10 +394,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         info._writes.add(var_access)
 
     def _check_module_use(self, target: vy_ast.ExprNode):
-        module_infos = []
-        for t in get_expr_info(target).attribute_chain:
-            if t.module_info is not None:
-                module_infos.append(t.module_info)
+        module_infos = _get_module_chain(target)
 
         if len(module_infos) == 0:
             return

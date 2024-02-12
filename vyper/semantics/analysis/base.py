@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from vyper import ast as vy_ast
@@ -215,7 +215,6 @@ class ExprInfo:
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
-    attribute_chain: list["ExprInfo"] = field(default_factory=list)
     attr: Optional[str] = None
 
     def __post_init__(self):
@@ -224,8 +223,6 @@ class ExprInfo:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
-
-        self.attribute_chain = self.attribute_chain or []
 
         self._writes: OrderedSet[VarAccess] = OrderedSet()
         self._reads: OrderedSet[VarAccess] = OrderedSet()
