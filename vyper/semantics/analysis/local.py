@@ -172,7 +172,8 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
 def _get_base_var(node: vy_ast.ExprNode):
     info = get_expr_info(node)
     while (var_access := info.get_variable_access()) is None:
-        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))
+        if not isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+            return None
         node = node.value
         info = get_expr_info(node)
     return var_access
@@ -579,7 +580,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         msg = "Cannot modify loop variable"
                         var = s.variable
                         if var.decl_node is not None:
-                            msg += f" `{s.decl_node.target.id}`"
+                            msg += f" `{var.decl_node.target.id}`"
                         raise ImmutableViolation(msg, var.decl_node, node)
 
                 variable_accesses = info._writes | info._reads
@@ -646,14 +647,18 @@ class ExprVisitor(VyperNodeVisitorBase):
             # function calls
 
             if not func_type.from_interface:
-                func_info._writes.update(func_type.get_variable_writes())
-                func_info._reads.update(func_type.get_variable_reads())
+                for s in func_type.get_variable_writes():
+                    if s.variable.is_module_variable():
+                        func_info._writes.add(s)
+                for s in func_type.get_variable_reads():
+                    if s.variable.is_module_variable():
+                        func_info._reads.add(s)
 
             if self.function_analyzer:
                 self._check_call_mutability(func_type.mutability)
 
                 for s in func_type.get_variable_accesses():
-                    if s.is_module_variable():
+                    if s.variable.is_module_variable():
                         self.function_analyzer._check_module_use(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
@@ -684,7 +689,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         elif isinstance(func_type, MemberFunctionT):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
-                self.function_analyzer._handle_modification(node.func)
+                self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)

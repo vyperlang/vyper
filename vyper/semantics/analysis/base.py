@@ -239,13 +239,16 @@ class ExprInfo:
         chain = self.attribute_chain + [self]
         for i, expr_info in enumerate(chain):
             varinfo = expr_info.var_info
-            if varinfo is not None and not isinstance(varinfo, SelfT):
-                attrs = []
-                for expr_info in chain[i:]:
-                    if expr_info.attr is None:
-                        continue
-                    attrs.append(expr_info.attr)
-                return VarAccess(varinfo, tuple(attrs))
+            if varinfo is None or isinstance(varinfo.typ, SelfT):
+                continue
+
+            attrs = []
+            for expr_info in chain[i:]:
+                if expr_info.attr is None:
+                    continue
+                attrs.append(expr_info.attr)
+            return VarAccess(varinfo, tuple(attrs))
+
         return None
 
     @classmethod
