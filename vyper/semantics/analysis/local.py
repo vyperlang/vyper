@@ -217,9 +217,12 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
     ret: list[ModuleInfo] = []
     info = get_expr_info(node)
 
-    while isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+    while True:
         if info.module_info is not None:
             ret.append(info.module_info)
+
+        if not isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+            break
 
         node = node.value
         info = get_expr_info(node)
