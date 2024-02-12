@@ -1,9 +1,9 @@
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from tests.utils import parse_and_fold
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import OverflowException, TypeMismatch
 from vyper.semantics.analysis.utils import validate_expected_type
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 from vyper.utils import unsigned_to_signed
@@ -66,9 +66,10 @@ def foo(a: uint256, b: uint256) -> uint256:
 
 
 @pytest.mark.fuzzing
-@settings(max_examples=50)
+@settings(max_examples=51)
 @pytest.mark.parametrize("op", ["<<", ">>"])
 @given(a=st_sint256, b=st.integers(min_value=0, max_value=256))
+@example(a=128, b=248)  # throws TypeMismatch
 def test_bitwise_shift_signed(get_contract, a, b, op):
     source = f"""
 @external
@@ -84,7 +85,7 @@ def foo(a: int256, b: uint256) -> int256:
         validate_expected_type(new_node, INT256_T)  # force bounds check
     # compile time behavior does not match runtime behavior.
     # compile-time will throw on OOB, runtime will wrap.
-    except (InvalidType, OverflowException):
+    except (TypeMismatch, OverflowException):
         # check the wrapped value matches runtime
         assert op == "<<"
         assert contract.foo(a, b) == unsigned_to_signed((a << b) % (2**256), 256)
