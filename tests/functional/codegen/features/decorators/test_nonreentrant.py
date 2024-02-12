@@ -72,6 +72,7 @@ def protected_function3(val: String[100], do_callback: bool) -> uint256:
 
 @external
 @nonreentrant
+@view
 def protected_view_fn() -> String[100]:
     return self.special_value
 
