@@ -10,7 +10,7 @@ Functions
 
 Functions are executable units of code within a contract. Functions may only be declared within a contract's :ref:`module scope <scoping-module>`.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def bid():
@@ -30,7 +30,7 @@ External Functions
 
 External functions (marked with the ``@external`` decorator) are a part of the contract interface and may only be called via transactions or from other contracts.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def add_seven(a: int128) -> int128:
@@ -52,7 +52,7 @@ Internal Functions
 
 Internal functions (marked with the ``@internal`` decorator) are only accessible from other functions within the same contract. They are called via the :ref:`self<constants-self>` object:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @internal
     def _times_two(amount: uint256, two: uint256 = 2) -> uint256:
@@ -77,7 +77,7 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
     * **Nonpayable**: may read from and write to the contract state, but cannot receive Ether.
     * **Payable**: may read from and write to the contract state, and can receive Ether.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @view
     @external
@@ -102,7 +102,7 @@ Re-entrancy Locks
 
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     @nonreentrant
@@ -137,7 +137,7 @@ This function is always named ``__default__``. It must be annotated with ``@exte
 
 If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Payment:
         amount: uint256
@@ -173,7 +173,7 @@ The ``__init__`` Function
 
 ``__init__`` is a special initialization function that may only be called at the time of deploying a contract. It can be used to set initial values for storage variables. A common use case is to set an ``owner`` variable with the creator the contract:
 
-.. code-block:: python
+.. code-block:: vyper
 
     owner: address
 
@@ -206,7 +206,7 @@ Decorator                       Description
 
 The ``if`` statement is a control flow construct used for conditional execution:
 
-.. code-block:: python
+.. code-block:: vyper
 
     if CONDITION:
         ...
@@ -217,7 +217,7 @@ Note that unlike Python, Vyper does not allow implicit conversion from non-boole
 
 You can also include ``elif`` and ``else`` statements, to add more conditional statements and a body that executes when the conditionals are false:
 
-.. code-block:: python
+.. code-block:: vyper
 
     if CONDITION:
         ...
@@ -231,7 +231,7 @@ You can also include ``elif`` and ``else`` statements, to add more conditional s
 
 The ``for`` statement is a control flow construct used to iterate over a value:
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in <ITERABLE>:
         ...
@@ -243,7 +243,7 @@ Array Iteration
 
 You can use ``for`` to iterate through the values of any array variable:
 
-.. code-block:: python
+.. code-block:: vyper
 
     foo: int128[3] = [4, 23, 42]
     for i in foo:
@@ -253,7 +253,7 @@ In the above, example, the loop executes three times with ``i`` assigned the val
 
 You can also iterate over a literal array, as long as a common type can be determined for each item in the array:
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in [4, 23, 42]:
         ...
@@ -268,14 +268,14 @@ Range Iteration
 
 Ranges are created using the ``range`` function. The following examples are valid uses of ``range``:
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in range(STOP):
         ...
 
 ``STOP`` is a literal integer greater than zero. ``i`` begins as zero and increments by one until it is equal to ``STOP``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in range(stop, bound=N):
         ...
@@ -284,7 +284,7 @@ Here, ``stop`` can be a variable with integer type, greater than zero. ``N`` mus
 
 Another use of range can be with ``START`` and ``STOP`` bounds.
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in range(START, STOP):
         ...
@@ -295,7 +295,7 @@ Finally, it is possible to use ``range`` with runtime `start` and `stop` values 
 In this case, Vyper checks at runtime that `end - start <= bound`.
 ``N`` must be a compile-time constant.
 
-.. code-block:: python
+.. code-block:: vyper
 
     for i in range(start, end, bound=N):
         ...

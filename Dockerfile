@@ -6,7 +6,7 @@ ARG VCS_REF
 LABEL org.label-schema.build-date=$BUILD_DATE \
     org.label-schema.name="Vyper" \
     org.label-schema.description="Vyper is an experimental programming language" \
-    org.label-schema.url="https://vyper.readthedocs.io/en/latest/" \
+    org.label-schema.url="https://docs.vyperlang.org/en/latest/" \
     org.label-schema.vcs-ref=$VCS_REF \
     org.label-schema.vcs-url="https://github.com/vyperlang/vyper" \
     org.label-schema.vendor="Vyper Team" \
