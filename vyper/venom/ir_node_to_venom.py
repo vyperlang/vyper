@@ -165,9 +165,8 @@ def _handle_self_call(
                     ret = _convert_ir_bb(
                         ctx, arg._optimized, symbols, variables, allocated_variables
                     )
-                    if arg.location and arg.location.load_op == "calldataload":
-                        bb = ctx.get_basic_block()
-                        ret = bb.append_instruction(arg.location.load_op, ret)
+                    bb = ctx.get_basic_block()
+                    ret = bb.append_instruction(arg.location.load_op, ret)
                     ret_args.append(ret)
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
@@ -555,7 +554,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 )
                 if var is not None:
                     allocated_var = allocated_variables.get(var.name, None)
-                    assert allocated_var is not None, "unallocated variable"
                     new_var = symbols.get(f"&{ret_ir.value}", allocated_var)  # type: ignore
 
                     if var.size and int(var.size) > 32:
@@ -566,6 +564,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                             ptr_var = allocated_var
                         bb.append_instruction("return", last_ir, ptr_var)
                     else:
+                        new_var = bb.append_instruction(var.location.load_op, ret_ir)
                         _append_return_for_stack_operand(ctx, symbols, new_var, last_ir)
                 else:
                     if isinstance(ret_ir, IRLiteral):
@@ -624,115 +623,25 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         return None
 
     elif ir.value == "mload":
-        sym_ir = ir.args[0]
-        var = (
-            _get_variable_from_address(variables, int(sym_ir.value)) if sym_ir.is_literal else None
-        )
-        bb = ctx.get_basic_block()
-        if var is not None:
-            if var.size and var.size > 32:
-                if is_array_like(var.typ):
-                    return bb.append_instruction("store", var.pos)
-
-                if allocated_variables.get(var.name, None) is None:
-                    allocated_variables[var.name] = bb.append_instruction(
-                        "alloca", var.size, var.pos
-                    )
-
-                offset = int(sym_ir.value) - var.pos
-                if offset > 0:
-                    ptr_var = bb.append_instruction("add", var.pos, offset)
-                else:
-                    ptr_var = allocated_variables[var.name]
-
-                return bb.append_instruction("mload", ptr_var)
-            else:
-                if sym_ir.is_literal:
-                    sym = symbols.get(f"&{sym_ir.value}", None)
-                    if sym is None:
-                        new_var = _convert_ir_bb(
-                            ctx, sym_ir, symbols, variables, allocated_variables
-                        )
-                        if not isinstance(new_var, IRLiteral):
-                            symbols[f"&{sym_ir.value}"] = new_var
-                        if allocated_variables.get(var.name, None) is None:
-                            allocated_variables[var.name] = new_var
-                            return new_var
-                        else:
-                            return allocated_variables[var.name]
-                    else:
-                        return sym
-
-                sym = symbols.get(f"&{sym_ir.value}", None)
-                assert sym is not None, "unallocated variable"
-                return sym
-        else:
-            if sym_ir.is_literal:
-                new_var = symbols.get(f"&{sym_ir.value}", None)
-                if new_var is not None:
-                    return bb.append_instruction("mload", new_var)
-                else:
-                    return bb.append_instruction("mload", sym_ir.value)
-            else:
-                new_var = _convert_ir_bb(ctx, sym_ir, symbols, variables, allocated_variables)
-                #
-                # Old IR gets it's return value as a reference in the stack
-                # New IR gets it's return value in stack in case of 32 bytes or less
-                # So here we detect ahead of time if this mload leads a self call and
-                # and we skip the mload
-                #
-                if sym_ir.is_self_call:
-                    return new_var
-                return ctx.get_basic_block().append_instruction("mload", new_var)
-
+        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
+        # return_buffer special case
+        if allocated_variables.get("return_buffer") == arg_0.name:
+            return arg_0
+        sym = symbols.get(f"&{arg_0.value}")
+        if sym is not None:
+            return sym
+        if isinstance(arg_0, IRLiteral):
+            var = _get_variable_from_address(variables, arg_0.value)
+            if var is not None:
+                avar = allocated_variables.get(var.name)
+                if avar is not None:
+                    return avar
+        return ctx.get_basic_block().append_instruction("mload", arg_0)
     elif ir.value == "mstore":
-        sym_ir, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
-
-        bb = ctx.get_basic_block()
-
-        var = None
-        if isinstance(sym_ir, IRLiteral):
-            var = _get_variable_from_address(variables, int(sym_ir.value))
-
-        if var is not None and var.size is not None:
-            if var.size and var.size > 32:
-                if allocated_variables.get(var.name, None) is None:
-                    new_var = IRVariable(var.name)
-                    allocated_variables[var.name] = new_var
-                    bb.append_instruction("alloca", var.size, var.pos, ret=new_var)
-
-                offset = int(sym_ir.value) - var.pos
-                if offset > 0:
-                    ptr_var = bb.append_instruction("add", var.pos, offset)
-                else:
-                    ptr_var = allocated_variables[var.name]
-
-                bb.append_instruction("mstore", arg_1, ptr_var)
-            else:
-                if isinstance(sym_ir, IRLiteral):
-                    new_var = IRVariable(var.name)
-                    bb.append_instruction("store", arg_1, ret=new_var)
-                    symbols[f"&{sym_ir.value}"] = new_var
-                    allocated_variables[var.name] = new_var
-                return new_var
-        else:
-            if not isinstance(sym_ir, IRLiteral):
-                bb.append_instruction("mstore", arg_1, sym_ir)
-                return None
-
-            sym = symbols.get(f"&{sym_ir.value}", None)
-            if sym is None:
-                bb.append_instruction("mstore", arg_1, sym_ir)
-                if arg_1 and not isinstance(sym_ir, IRLiteral):
-                    symbols[f"&{sym_ir.value}"] = arg_1
-                return None
-
-            if isinstance(sym_ir, IRLiteral):
-                bb.append_instruction("mstore", arg_1, sym)
-                return None
-            else:
-                symbols[sym_ir.value] = arg_1
-                return arg_1
+        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
+        if isinstance(arg_1, IRVariable):
+            symbols[f"&{arg_0.value}"] = arg_1
+        ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
