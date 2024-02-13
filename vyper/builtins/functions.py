@@ -203,12 +203,14 @@ class Convert(BuiltinFunctionT):
         target_type = type_from_annotation(node.args[1])
         value_types = get_possible_types_from_node(node.args[0])
 
-        # For `convert` of integer literals, we need to match type inference rules in
-        # convert.py codegen routines.
+        # For `convert` of integer literals, we need to match type inference
+        # rules in convert.py codegen routines.
         # TODO: This can probably be removed once constant folding for `convert` is implemented
         if len(value_types) > 1 and all(isinstance(v, IntegerT) for v in value_types):
-            # Get the smallest (and unsigned if available) type for non-integer target types
-            # (note this is different from the ordering returned by `get_possible_types_from_node`)
+            # Get the smallest (and unsigned if available) type for
+            # non-integer target types
+            # (note this is different from the ordering returned by
+            # `get_possible_types_from_node`)
             if not isinstance(target_type, IntegerT):
                 value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
