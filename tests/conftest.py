@@ -377,11 +377,12 @@ def get_contract_module(optimize, output_formats):
     return get_contract_module
 
 
-
 ERC5202_PREFIX = b"\xFE\x71\x00"
 
 
-def _deploy_blueprint_for(w3, source_code, no_optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs):
+def _deploy_blueprint_for(
+    w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
+):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize

@@ -146,9 +146,12 @@ def test(_salt: bytes32) -> address:
         c.test(salt, transact={})
 
 
+ERC5202_PREFIX = b"\xFE\x71\x00"
+
+
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
 # contract, and 0xfe7100 is ERC5202 magic
-@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", ERC5202_PREFIX])
 def test_create_from_blueprint(
     get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed, blueprint_prefix
 ):
@@ -208,18 +211,10 @@ def test2(target: address, salt: bytes32):
         d.test2(f.address, salt)
 
 
-ERC5202_PREFIX = b"\xFE\x71\x00"
-
-
 # test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
 # code offset by default should be 3 here.
 def test_create_from_blueprint_default_offset(
-    get_contract,
-    deploy_blueprint_for,
-    w3,
-    keccak,
-    create2_address_of,
-    assert_tx_failed,
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed
 ):
     code = """
 @external
@@ -243,7 +238,7 @@ def test2(target: address, salt: bytes32):
     foo_contract = get_contract(code)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
-    f, FooContract = deploy_blueprint_for(code, initcode_prefix=ERC5202_PREFIX)
+    f, FooContract = deploy_blueprint_for(code)
 
     d = get_contract(deployer_code)
 
@@ -255,7 +250,8 @@ def test2(target: address, salt: bytes32):
 
     # extcodesize check
     zero_address = "0x" + "00" * 20
-    assert_tx_failed(lambda: d.test(zero_address))
+    with tx_failed():
+        d.test(zero_address)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -267,11 +263,12 @@ def test2(target: address, salt: bytes32):
 
     # check if the create2 address matches our offchain calculation
     initcode = w3.eth.get_code(f.address)
-    initcode = initcode[len(blueprint_prefix) :]  # strip the prefix
+    initcode = initcode[len(ERC5202_PREFIX) :]  # strip the prefix
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, salt))
+    with tx_failed():
+        d.test2(f.address, salt)
 
 
 def test_create_from_blueprint_bad_code_offset(
@@ -304,8 +301,8 @@ def test(code_ofst: uint256) -> address:
     tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
     tx_hash = deploy_transaction.transact(tx_info)
     blueprint_address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    blueprint_code = w3.eth.get_code(blueprint_address)
-    print("BLUEPRINT CODE:", blueprint_code)
+    # blueprint_code = w3.eth.get_code(blueprint_address)
+    # print("BLUEPRINT CODE:", blueprint_code)
 
     d = get_contract(deployer_code, blueprint_address)
 
