@@ -21,7 +21,7 @@ from vyper.semantics.analysis.base import (
     Modifiability,
     ModuleInfo,
     StateMutability,
-    VarInfo,
+    VarAccess,
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
@@ -92,6 +92,7 @@ class ContractFunctionT(VyperType):
         return_type: Optional[VyperType],
         function_visibility: FunctionVisibility,
         state_mutability: StateMutability,
+        from_interface: bool = False,
         nonreentrant: Optional[str] = None,
         ast_def: Optional[vy_ast.VyperNode] = None,
     ) -> None:
@@ -104,8 +105,11 @@ class ContractFunctionT(VyperType):
         self.visibility = function_visibility
         self.mutability = state_mutability
         self.nonreentrant = nonreentrant
+        self.from_interface = from_interface
 
         self.ast_def = ast_def
+
+        self._analysed = False
 
         # a list of internal functions this function calls.
         # to be populated during analysis
@@ -115,10 +119,10 @@ class ContractFunctionT(VyperType):
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
-        self._variable_writes: OrderedSet[VarInfo] = OrderedSet()
+        self._variable_writes: OrderedSet[VarAccess] = OrderedSet()
 
         # reads of variables from this function
-        self._variable_reads: OrderedSet[VarInfo] = OrderedSet()
+        self._variable_reads: OrderedSet[VarAccess] = OrderedSet()
 
         # list of modules used (accessed state) by this function
         self._used_modules: OrderedSet[ModuleInfo] = OrderedSet()
@@ -127,9 +131,34 @@ class ContractFunctionT(VyperType):
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
 
+    def mark_analysed(self):
+        assert not self._analysed
+        self._analysed = True
+
     @property
-    def _variable_accesses(self):
+    def analysed(self):
+        return self._analysed
+
+    def get_variable_reads(self):
+        return self._variable_reads
+
+    def get_variable_writes(self):
+        return self._variable_writes
+
+    def get_variable_accesses(self):
         return self._variable_reads | self._variable_writes
+
+    def get_used_modules(self):
+        return self._used_modules
+
+    def mark_used_module(self, module_info):
+        self._used_modules.add(module_info)
+
+    def mark_variable_writes(self, var_infos):
+        self._variable_writes.update(var_infos)
+
+    def mark_variable_reads(self, var_infos):
+        self._variable_reads.update(var_infos)
 
     @property
     def modifiability(self):
@@ -189,6 +218,7 @@ class ContractFunctionT(VyperType):
             positional_args,
             [],
             return_type,
+            from_interface=True,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.from_abi(abi),
         )
@@ -248,6 +278,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
+            from_interface=True,
             nonreentrant=None,
             ast_def=funcdef,
         )
@@ -300,6 +331,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
+            from_interface=True,
             nonreentrant=nonreentrant_key,
             ast_def=funcdef,
         )
@@ -370,6 +402,7 @@ class ContractFunctionT(VyperType):
             return_type,
             function_visibility,
             state_mutability,
+            from_interface=False,
             nonreentrant=nonreentrant_key,
             ast_def=funcdef,
         )
@@ -410,6 +443,7 @@ class ContractFunctionT(VyperType):
             args,
             [],
             return_type,
+            from_interface=False,
             function_visibility=FunctionVisibility.EXTERNAL,
             state_mutability=StateMutability.VIEW,
             ast_def=node,
