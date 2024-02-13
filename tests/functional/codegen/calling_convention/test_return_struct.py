@@ -13,7 +13,7 @@ struct Voter:
 
 @external
 def test() -> Voter:
-    a: Voter = Voter({weight: 123, voted: True})
+    a: Voter = Voter(weight=123, voted=True)
     return a
     """
 
@@ -34,7 +34,7 @@ struct Voter:
 
 @external
 def test() -> Voter:
-    a: Voter = Voter({voted: True})
+    a: Voter = Voter(voted=True)
     return a
     """
 
@@ -60,14 +60,14 @@ _foos: HashMap[int128, Foo]
 
 @internal
 def priv1() -> Foo:
-    return Foo({x: 1, y: 2})
+    return Foo(x=1, y=2)
 @external
 def pub1() -> Foo:
     return self.priv1()
 
 @internal
 def priv2() -> Foo:
-    foo: Foo = Foo({x: 0, y: 0})
+    foo: Foo = Foo(x=0, y=0)
     foo.x = 3
     foo.y = 4
     return foo
@@ -77,12 +77,12 @@ def pub2() -> Foo:
 
 @external
 def pub3() -> Foo:
-    self._foo = Foo({x: 5, y: 6})
+    self._foo = Foo(x=5, y=6)
     return self._foo
 
 @external
 def pub4() -> Foo:
-   self._foos[0] = Foo({x: 7, y: 8})
+   self._foos[0] = Foo(x=7, y=8)
    return self._foos[0]
 
 @internal
@@ -93,7 +93,7 @@ def pub5(foo: Foo) -> Foo:
     return self.return_arg(foo)
 @external
 def pub6() -> Foo:
-    foo: Foo = Foo({x: 123, y: 456})
+    foo: Foo = Foo(x=123, y=456)
     return self.return_arg(foo)
     """
     foo = (123, 456)
@@ -118,14 +118,14 @@ _foos: HashMap[int128, Foo]
 
 @internal
 def priv1() -> Foo:
-    return Foo({x: 1})
+    return Foo(x=1)
 @external
 def pub1() -> Foo:
     return self.priv1()
 
 @internal
 def priv2() -> Foo:
-    foo: Foo = Foo({x: 0})
+    foo: Foo = Foo(x=0)
     foo.x = 3
     return foo
 @external
@@ -134,12 +134,12 @@ def pub2() -> Foo:
 
 @external
 def pub3() -> Foo:
-    self._foo = Foo({x: 5})
+    self._foo = Foo(x=5)
     return self._foo
 
 @external
 def pub4() -> Foo:
-   self._foos[0] = Foo({x: 7})
+   self._foos[0] = Foo(x=7)
    return self._foos[0]
 
 @internal
@@ -150,7 +150,7 @@ def pub5(foo: Foo) -> Foo:
     return self.return_arg(foo)
 @external
 def pub6() -> Foo:
-    foo: Foo = Foo({x: 123})
+    foo: Foo = Foo(x=123)
     return self.return_arg(foo)
     """
     foo = (123,)
@@ -181,7 +181,7 @@ def _foo() -> uint256:
 
 @external
 def foo() -> Foo:
-    return Foo({a:1, b:2, c:self._foo(), d:4, e:5})
+    return Foo(a=1, b=2, c=self._foo(), d=4, e=5)
     """
 
     c = get_contract(code)
@@ -201,7 +201,7 @@ def _foo() -> uint256:
 
 @external
 def foo() -> Foo:
-    return Foo({a:self._foo()})
+    return Foo(a=self._foo())
     """
 
     c = get_contract(code)
@@ -220,7 +220,7 @@ struct Foo:
 
 @internal
 def _foo(a: uint256, b: uint256, c: uint256) -> Foo:
-    return Foo({a:1, b:a, c:b, d:c, e:5})
+    return Foo(a=1, b=a, c=b, d=c, e=5)
 
 @internal
 def _foo2() -> uint256:
@@ -244,7 +244,7 @@ struct Foo:
 
 @internal
 def _foo(a: uint256) -> Foo:
-    return Foo({a:a})
+    return Foo(a=a)
 
 @internal
 def _foo2() -> uint256:
@@ -275,7 +275,7 @@ struct Bar:
 
 @internal
 def _bar(a: uint256, b: uint256, c: uint256) -> Bar:
-    return Bar({a:415, b:3})
+    return Bar(a=415, b=3)
 
 @internal
 def _foo2(a: uint256) -> uint256:
@@ -294,13 +294,13 @@ def _foo4() -> uint256:
 
 @external
 def foo() -> Foo:
-    return Foo({
-        a:1,
-        b:2,
-        c:self._bar(6, 7, self._foo2(self._foo3(9, 11))).b,
-        d:self._foo4(),
-        e:5
-    })
+    return Foo(
+        a=1,
+        b=2,
+        c=self._bar(6, 7, self._foo2(self._foo3(9, 11))).b,
+        d=self._foo4(),
+        e=5
+    )
     """
 
     c = get_contract(code)
@@ -318,7 +318,7 @@ struct Bar:
 
 @internal
 def _bar(a: uint256, b: uint256, c: uint256) -> Bar:
-    return Bar({a:415, b:3})
+    return Bar(a=415, b=3)
 
 @internal
 def _foo2(a: uint256) -> uint256:
@@ -337,9 +337,9 @@ def _foo4() -> uint256:
 
 @external
 def foo() -> Foo:
-    return Foo({
-        a:self._bar(6, self._foo4(), self._foo2(self._foo3(9, 11))).b,
-    })
+    return Foo(
+        a=self._bar(6, self._foo4(), self._foo2(self._foo3(9, 11))).b,
+    )
     """
 
     c = get_contract(code)
@@ -355,7 +355,7 @@ struct Bar:
 @view
 @external
 def bar() -> Bar:
-    return Bar({a:3, b:4})
+    return Bar(a=3, b=4)
     """
 
     code2 = """
@@ -373,13 +373,13 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo({
-        a:1,
-        b:2,
-        c:IBar(addr).bar().a,
-        d:4,
-        e:5
-    })
+    return Foo(
+        a=1,
+        b=2,
+        c=IBar(addr).bar().a,
+        d=4,
+        e=5
+    )
     """
 
     c = get_contract(code)
@@ -395,7 +395,7 @@ struct Bar:
 @view
 @external
 def bar() -> Bar:
-    return Bar({a:3})
+    return Bar(a=3)
     """
 
     code2 = """
@@ -408,9 +408,7 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo({
-        a:IBar(addr).bar().a
-    })
+    return Foo(a=IBar(addr).bar().a)
     """
 
     c = get_contract(code)
@@ -428,7 +426,7 @@ struct Bar:
 @view
 @external
 def bar() -> Bar:
-    return Bar({a:3, b:4})
+    return Bar(a=3, b=4)
 
 @view
 @external
@@ -453,13 +451,13 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo({
-        a:1,
-        b:2,
-        c:IBar(addr).bar().a,
-        d:4,
-        e:IBar(addr).baz(IBar(addr).bar().b)
-    })
+    return Foo(
+        a=1,
+        b=2,
+        c=IBar(addr).bar().a,
+        d=4,
+        e=IBar(addr).baz(IBar(addr).bar().b)
+    )
     """
 
     c = get_contract(code)
@@ -476,7 +474,7 @@ struct Bar:
 @view
 @external
 def bar() -> Bar:
-    return Bar({a:3})
+    return Bar(a=3)
 
 @view
 @external
@@ -496,9 +494,9 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo({
-        a:IBar(addr).baz(IBar(addr).bar().a)
-    })
+    return Foo(
+        a=IBar(addr).baz(IBar(addr).bar().a)
+    )
     """
 
     c = get_contract(code)

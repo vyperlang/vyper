@@ -62,7 +62,7 @@ struct Person:
 
 @external
 def test_return() -> Person:
-    return Person({{ name:"{string}", age:42 }})
+    return Person(name="{string}", age=42)
     """
     c1 = get_contract(code)
 
@@ -91,7 +91,7 @@ struct Person:
 
 @external
 def test_return() -> Person:
-    return Person({{ name:"{string}"}})
+    return Person(name="{string}")
     """
     c1 = get_contract(code)
 

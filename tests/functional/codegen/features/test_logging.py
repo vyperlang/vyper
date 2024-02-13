@@ -493,7 +493,7 @@ event YourLog:
 @external
 def foo():
     log MyLog(1, b'bar')
-    log YourLog(self, MyStruct({x: 1, y: b'abc', z: SmallStruct({t: 'house', w: 13.5})}))
+    log YourLog(self, MyStruct(x=1, y=b'abc', z=SmallStruct(t='house', w=13.5)))
     """
 
     c = get_contract_with_gas_estimation(loggy_code)

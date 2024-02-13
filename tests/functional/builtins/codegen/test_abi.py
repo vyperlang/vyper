@@ -112,8 +112,8 @@ struct NestedStruct:
 @external
 def getStructList() -> {type}:
     return [
-        NestedStruct({{t: MyStruct({{a: msg.sender, b: block.prevhash}}), foo: 1}}),
-        NestedStruct({{t: MyStruct({{a: msg.sender, b: block.prevhash}}), foo: 2}})
+        NestedStruct(t=MyStruct(a=msg.sender, b=block.prevhash), foo=1),
+        NestedStruct(t=MyStruct(a=msg.sender, b=block.prevhash), foo=2)
     ]
     """
 

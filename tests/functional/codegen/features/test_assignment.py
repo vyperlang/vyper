@@ -78,7 +78,7 @@ struct Foo:
 
 @internal
 def foo(x: Foo) -> Foo:
-    x = Foo({a: 789, b: [Bar.BAZ, Bar.BAK, Bar.BAD], c: \"conda\"})
+    x = Foo(a=789, b=[Bar.BAZ, Bar.BAK, Bar.BAD], c=\"conda\")
     return x
 
 @external
@@ -437,7 +437,7 @@ struct Point:
 @external
 def bug(p: Point) -> Point:
     t: Point = p
-    t = Point({x: t.y, y: t.x})
+    t = Point(x=t.y, y=t.x)
     return t
     """
     c = get_contract(code)

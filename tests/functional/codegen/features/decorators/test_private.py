@@ -594,7 +594,7 @@ struct A:
 
 @internal
 def _foo(_one: uint8) ->A:
-    return A({one: _one})
+    return A(one=_one)
 
 @external
 def foo() -> A:
@@ -611,7 +611,7 @@ struct A:
 
 @internal
 def _foo(_many: uint256[4], _one: uint256) -> A:
-    return A({many: _many, one: _one})
+    return A(many=_many, one=_one)
 
 @external
 def foo() -> A:
@@ -628,7 +628,7 @@ struct A:
 
 @internal
 def _foo(_many: uint256[4], _one: uint256) -> A:
-    return A({many: _many, one: _one})
+    return A(many=_many, one=_one)
 
 @external
 def foo() -> (uint256[4], uint256):
