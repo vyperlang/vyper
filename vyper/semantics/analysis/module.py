@@ -348,7 +348,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 path = type_._module.path
                 msg += " (Since vyper v0.4.0, interface files are required"
                 msg += " to have a .vyi suffix.)"
-                #hint += f".vyi suffix.\n"
                 hint = f"try renaming `{path}` to `{path}i`"
             raise StructureException(msg, node.annotation, hint=hint)
 
