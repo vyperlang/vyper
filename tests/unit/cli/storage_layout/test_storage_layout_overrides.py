@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from vyper.compiler import compile_code
@@ -28,18 +30,18 @@ def test_storage_layout_for_more_complex():
 foo: HashMap[address, uint256]
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo1():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo2():
     pass
 
 
 @internal
-@nonreentrant("bar")
+@nonreentrant
 def _bar():
     pass
 
@@ -48,19 +50,18 @@ baz: Bytes[65]
 bar: uint256
 
 @external
-@nonreentrant("bar")
+@nonreentrant
 def public_bar():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo3():
     pass
     """
 
     storage_layout_override = {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 8},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 7},
+        "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 8},
         "foo": {"type": "HashMap[address, uint256]", "slot": 1},
         "baz": {"type": "Bytes[65]", "slot": 2},
         "bar": {"type": "uint256", "slot": 6},
@@ -105,6 +106,25 @@ x: uint256[2]
     with pytest.raises(
         StorageLayoutException, match=f"Invalid storage slot for var x, out of bounds: {2**256}"
     ):
+        compile_code(
+            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        )
+
+
+def test_override_nonreentrant_slot():
+    code = """
+@nonreentrant
+@external
+def foo():
+    pass
+    """
+
+    storage_layout_override = {"$.nonreentrant_key": {"slot": 2**256, "type": "nonreentrant key"}}
+
+    exception_regex = re.escape(
+        f"Invalid storage slot for var $.nonreentrant_key, out of bounds: {2**256}"
+    )
+    with pytest.raises(StorageLayoutException, match=exception_regex):
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override
         )

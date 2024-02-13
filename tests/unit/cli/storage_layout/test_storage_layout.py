@@ -6,18 +6,18 @@ def test_storage_layout():
 foo: HashMap[address, uint256]
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo1():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo2():
     pass
 
 
 @internal
-@nonreentrant("bar")
+@nonreentrant
 def _bar():
     pass
 
@@ -28,12 +28,12 @@ baz: Bytes[65]
 bar: uint256
 
 @external
-@nonreentrant("bar")
+@nonreentrant
 def public_bar():
     pass
 
 @external
-@nonreentrant("foo")
+@nonreentrant
 def public_foo3():
     pass
     """
@@ -41,12 +41,11 @@ def public_foo3():
     out = compile_code(code, output_formats=["layout"])
 
     assert out["layout"]["storage_layout"] == {
-        "nonreentrant.foo": {"type": "nonreentrant lock", "slot": 0},
-        "nonreentrant.bar": {"type": "nonreentrant lock", "slot": 1},
-        "foo": {"type": "HashMap[address, uint256]", "slot": 2},
-        "arr": {"type": "DynArray[uint256, 3]", "slot": 3},
-        "baz": {"type": "Bytes[65]", "slot": 7},
-        "bar": {"type": "uint256", "slot": 11},
+        "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+        "foo": {"slot": 1, "type": "HashMap[address, uint256]"},
+        "arr": {"slot": 2, "type": "DynArray[uint256, 3]"},
+        "baz": {"slot": 6, "type": "Bytes[65]"},
+        "bar": {"slot": 10, "type": "uint256"},
     }
 
 
@@ -64,10 +63,13 @@ def __init__():
 
     expected_layout = {
         "code_layout": {
-            "DECIMALS": {"length": 32, "offset": 64, "type": "uint8"},
             "SYMBOL": {"length": 64, "offset": 0, "type": "String[32]"},
+            "DECIMALS": {"length": 32, "offset": 64, "type": "uint8"},
         },
-        "storage_layout": {"name": {"slot": 0, "type": "String[32]"}},
+        "storage_layout": {
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+            "name": {"slot": 1, "type": "String[32]"},
+        },
     }
 
     out = compile_code(code, output_formats=["layout"])
@@ -107,14 +109,15 @@ def __init__():
         "code_layout": {
             "some_immutable": {"length": 352, "offset": 0, "type": "DynArray[uint256, 10]"},
             "a_library": {
-                "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
                 "SYMBOL": {"length": 64, "offset": 352, "type": "String[32]"},
+                "DECIMALS": {"length": 32, "offset": 416, "type": "uint8"},
             },
         },
         "storage_layout": {
-            "counter": {"slot": 0, "type": "uint256"},
-            "counter2": {"slot": 1, "type": "uint256"},
-            "a_library": {"supply": {"slot": 2, "type": "uint256"}},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+            "counter": {"slot": 1, "type": "uint256"},
+            "counter2": {"slot": 2, "type": "uint256"},
+            "a_library": {"supply": {"slot": 3, "type": "uint256"}},
         },
     }
 
@@ -160,9 +163,10 @@ def __init__():
             },
         },
         "storage_layout": {
-            "counter": {"slot": 0, "type": "uint256"},
-            "a_library": {"supply": {"slot": 1, "type": "uint256"}},
-            "counter2": {"slot": 2, "type": "uint256"},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+            "counter": {"slot": 1, "type": "uint256"},
+            "a_library": {"supply": {"slot": 2, "type": "uint256"}},
+            "counter2": {"slot": 3, "type": "uint256"},
         },
     }
 
@@ -171,7 +175,8 @@ def __init__():
 
 
 def test_storage_layout_module_uses(make_input_bundle):
-    # test module storage layout, with initializes/uses
+    # test module storage layout, with initializes/uses and a nonreentrant
+    # lock
     lib1 = """
 supply: uint256
 SYMBOL: immutable(String[32])
@@ -197,6 +202,11 @@ def __init__(s: uint256):
 @internal
 def decimals() -> uint8:
     return lib1.DECIMALS
+
+@external
+@nonreentrant
+def foo():
+    pass
     """
     code = """
 import lib1 as a_library
@@ -218,6 +228,11 @@ def __init__():
     some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
+
+@external
+@nonreentrant
+def bar():
+    pass
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
@@ -231,10 +246,11 @@ def __init__():
             },
         },
         "storage_layout": {
-            "counter": {"slot": 0, "type": "uint256"},
-            "lib2": {"storage_variable": {"slot": 1, "type": "uint256"}},
-            "counter2": {"slot": 2, "type": "uint256"},
-            "a_library": {"supply": {"slot": 3, "type": "uint256"}},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+            "counter": {"slot": 1, "type": "uint256"},
+            "lib2": {"storage_variable": {"slot": 2, "type": "uint256"}},
+            "counter2": {"slot": 3, "type": "uint256"},
+            "a_library": {"supply": {"slot": 4, "type": "uint256"}},
         },
     }
 
@@ -309,12 +325,13 @@ def foo() -> uint256:
             },
         },
         "storage_layout": {
-            "counter": {"slot": 0, "type": "uint256"},
+            "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
+            "counter": {"slot": 1, "type": "uint256"},
             "lib2": {
-                "lib1": {"supply": {"slot": 1, "type": "uint256"}},
-                "storage_variable": {"slot": 2, "type": "uint256"},
+                "lib1": {"supply": {"slot": 2, "type": "uint256"}},
+                "storage_variable": {"slot": 3, "type": "uint256"},
             },
-            "counter2": {"slot": 3, "type": "uint256"},
+            "counter2": {"slot": 4, "type": "uint256"},
         },
     }
 

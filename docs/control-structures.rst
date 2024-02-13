@@ -100,21 +100,23 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 Re-entrancy Locks
 -----------------
 
-The ``@nonreentrant(<key>)`` decorator places a lock on a function, and all functions with the same ``<key>`` value. An attempt by an external contract to call back into any of these functions causes the transaction to revert.
+The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
 .. code-block:: vyper
 
     @external
-    @nonreentrant("lock")
+    @nonreentrant
     def make_a_call(_addr: address):
         # this function is protected from re-entrancy
         ...
 
-You can put the ``@nonreentrant(<key>)`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
+You can put the ``@nonreentrant`` decorator on a ``__default__`` function but we recommend against it because in most circumstances it will not work in a meaningful way.
 
 Nonreentrancy locks work by setting a specially allocated storage slot to a ``<locked>`` value on function entrance, and setting it to an ``<unlocked>`` value on function exit. On function entrance, if the storage slot is detected to be the ``<locked>`` value, execution reverts.
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
+
+You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overriden, the compiler will allocate it at slot ``0``.
 
 .. note::
     A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected by the use of the ``STATICCALL`` opcode.
@@ -123,6 +125,8 @@ You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can p
 
     A nonreentrant lock has an ``<unlocked>`` value of 3, and a ``<locked>`` value of 2. Nonzero values are used to take advantage of net gas metering - as of the Berlin hard fork, the net cost for utilizing a nonreentrant lock is 2300 gas. Prior to v0.3.4, the ``<unlocked>`` and ``<locked>`` values were 0 and 1, respectively.
 
+.. note::
+   Prior to 0.4.0, nonreentrancy keys took a "key" argument for fine-grained nonreentrancy control. As of 0.4.0, only a global nonreentrancy lock is available.
 
 The ``__default__`` Function
 ----------------------------
@@ -194,7 +198,7 @@ Decorator                       Description
 ``@pure``                       Function does not read contract state or environment variables
 ``@view``                       Function does not alter contract state
 ``@payable``                    Function is able to receive Ether
-``@nonreentrant(<unique_key>)`` Function cannot be called back into during an external call
+``@nonreentrant``               Function cannot be called back into during an external call
 =============================== ===========================================================
 
 ``if`` statements
