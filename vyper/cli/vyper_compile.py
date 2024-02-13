@@ -229,6 +229,27 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
+def get_search_paths(paths: list[str] = None) -> list[Path]:
+    # given `paths` input, get the full search path, including
+    # the system search path.
+    paths = paths or []
+
+    # lowest precedence search path is always sys path
+    # note python sys path uses opposite resolution order from us
+    # (first in list is highest precedence; we give highest precedence
+    # to the last in the list)
+    search_paths = [Path(p) for p in reversed(sys.path)]
+
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
+
+    for p in paths:
+        path = Path(p).resolve(strict=True)
+        search_paths.append(path)
+
+    return search_paths
+
+
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -238,23 +259,7 @@ def compile_files(
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
-    # lowest precedence search path is always sys path
-    search_paths = [Path(p) for p in sys.path]
-
-    # python sys path uses opposite resolution order from us
-    # (first in list is highest precedence; we give highest precedence
-    # to the last in the list)
-    search_paths.reverse()
-
-    if Path(".") not in search_paths:
-        search_paths.append(Path("."))
-
-    paths = paths or []
-
-    for p in paths:
-        path = Path(p).resolve(strict=True)
-        search_paths.append(path)
-
+    search_paths = get_search_paths(paths)
     input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
