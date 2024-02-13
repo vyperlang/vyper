@@ -313,17 +313,20 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
+            return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                _ = infer_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
+        try:
+            self.expr_visitor.visit(msg_node, StringT.any())
+        except TypeMismatch as e:
+            # improve the error message
+            msg = "reason must be a string or the special `UNREACHABLE` value"
+            raise TypeMismatch(msg, msg_node) from e
+
 
     def visit_Assert(self, node):
         if node.msg:
