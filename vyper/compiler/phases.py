@@ -16,6 +16,7 @@ from vyper.semantics import set_data_positions, validate_semantics
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
+from vyper.utils import ERC5202_PREFIX
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -228,8 +229,7 @@ class CompilerData:
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
-        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
-        blueprint_bytecode = blueprint_preamble + self.bytecode
+        blueprint_bytecode = ERC5202_PREFIX + self.bytecode
 
         # the length of the deployed code in bytes
         len_bytes = len(blueprint_bytecode).to_bytes(2, "big")

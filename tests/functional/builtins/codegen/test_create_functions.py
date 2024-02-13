@@ -6,7 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
+from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
 # initcode used by create_minimal_proxy_to
@@ -144,9 +144,6 @@ def test(_salt: bytes32) -> address:
     # revert on collision
     with tx_failed():
         c.test(salt, transact={})
-
-
-ERC5202_PREFIX = b"\xFE\x71\x00"
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
