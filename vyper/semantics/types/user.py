@@ -381,15 +381,8 @@ class StructT(_UserType):
         components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
-    # TODO breaking change: use kwargs instead of dict
-    # when using the type itself (not an instance) in the call position
-    # maybe rename to _ctor_call_return
     def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
-        validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Dict):
-            raise VariableDeclarationException(
-                "Struct values must be declared via dictionary", node.args[0]
-            )
+        validate_call_args(node, 0, kwargs=self.member_types.keys())
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
@@ -397,22 +390,23 @@ class StructT(_UserType):
 
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
-        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
-            if key is None or key.get("id") not in members:
-                suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
+        for i, key in enumerate(node.keywords):
+            value = key.value
+            if key.arg not in members:
+                suggestions_str = get_levenshtein_error_suggestions(key.arg, members, 1.0)
                 raise UnknownAttribute(
                     f"Unknown or duplicate struct member. {suggestions_str}", key or value
                 )
             expected_key = keys[i]
-            if key.id != expected_key:
+            if key.arg != expected_key:
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
-                    f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
+                    f"`{key.arg}` instead of `{expected_key}`. (Reminder: the "
                     f"keys in this struct are {list(self.member_types.items())})",
                     key,
                 )
 
-            validate_expected_type(value, members.pop(key.id))
+            validate_expected_type(value, members.pop(key.arg))
 
         if members:
             raise VariableDeclarationException(
