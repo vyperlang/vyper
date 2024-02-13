@@ -493,7 +493,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             except (InvalidType, StructureException):
                 raise InvalidType("Not an iterable type", iter_node)
 
-        # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
+        # CMC 2024-02-09 TODO: use infer_type once we have DArrays
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
