@@ -443,9 +443,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         with_allocated_variables = allocated_variables.copy()
 
         sym = ir.args[0]
-        new_var = ctx.get_basic_block().append_instruction("store", ret)
-        with_allocated_variables[sym.value] = new_var
-        with_symbols[sym.value] = new_var
+        with_allocated_variables[sym.value] = ret
+        with_symbols[sym.value] = ret
 
         return _convert_ir_bb(
             ctx, ir.args[2], with_symbols, variables, with_allocated_variables
@@ -461,8 +460,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
-        new_var = ctx.get_basic_block().append_instruction("store", arg_1)  # type: ignore
-        symbols[sym.value] = new_var
+        symbols[sym.value] = arg_1
 
     elif ir.value == "calldatacopy":
         arg_0, arg_1, size = _convert_ir_bb_list(
