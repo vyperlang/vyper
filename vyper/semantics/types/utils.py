@@ -3,6 +3,7 @@ from typing import Dict
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     InstantiationException,
     InvalidType,
     StructureException,
