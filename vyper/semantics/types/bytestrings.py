@@ -6,6 +6,9 @@ from vyper.semantics.types.utils import get_index_value
 from vyper.utils import ceil32
 
 
+UNKNOWN_LENGTH = object()
+
+
 class _BytestringT(VyperType):
     """
     Private base class for single-value types which occupy multiple memory slots
@@ -68,58 +71,19 @@ class _BytestringT(VyperType):
 
     @property
     def size_in_bytes(self):
-        # the first slot (32 bytes) stores the actual length, and then we reserve
-        # enough additional slots to store the data if it uses the max available length
-        # because this data type is single-bytes, we make it so it takes the max 32 byte
-        # boundary as it's size, instead of giving it a size that is not cleanly divisible by 32
-
+        # the first slot (32 bytes) stores the actual length, and then we
+        # reserve enough additional slots to store the data. allocate 32-byte
+        # aligned buffer for the data.
         return 32 + ceil32(self.length)
-
-    def set_length(self, length):
-        """
-        Sets the exact length of the type.
-
-        May only be called once, and only on a type that does not yet have
-        a fixed length.
-        """
-        if self._length:
-            raise CompilerPanic("Type already has a fixed length")
-        self._length = length
-        self._min_length = length
-
-    def set_min_length(self, min_length):
-        """
-        Sets the minimum length of the type.
-
-        May only be used to increase the minimum length. May not be called if
-        an exact length has been set.
-        """
-        if self._length:
-            raise CompilerPanic("Type already has a fixed length")
-        if self._min_length > min_length:
-            raise CompilerPanic("Cannot reduce the min_length of ArrayValueType")
-        self._min_length = min_length
 
     def compare_type(self, other):
         if not super().compare_type(other):
             return False
 
-        # CMC 2022-03-18 TODO this method should be refactored so it does not have side effects
-
-        # when comparing two literals, both now have an equal min-length
-        if not self._length and not other._length:
-            min_length = max(self._min_length, other._min_length)
-            self.set_min_length(min_length)
-            other.set_min_length(min_length)
+        if UNKNOWN_LENGTH in (self._length, other._length):
             return True
 
-        # comparing a defined length to a literal causes the literal to have a fixed length
-        if self._length:
-            if not other._length:
-                other.set_length(max(self._length, other._min_length))
-            return self._length >= other._length
-
-        return other.compare_type(self)
+        return self._length >= other._length
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":
