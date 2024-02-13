@@ -106,6 +106,9 @@ class ContractFunctionT(VyperType):
         self.nonreentrant = nonreentrant
         self.from_interface = from_interface
 
+        # sanity check, nonreentrant used to be Optional[str]
+        assert isinstance(self.nonreentrant, bool)
+
         self.ast_def = ast_def
 
         self._analysed = False
