@@ -698,7 +698,10 @@ def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
     module_path = file.resolved_path  # for error messages
     try:
         # try to get a relative path, to simplify the error message
-        module_path = module_path.relative_to(".")
+        cwd = Path(".")
+        if module_path.is_absolute():
+            cwd = cwd.resolve()
+        module_path = module_path.relative_to(cwd)
     except ValueError:
         # we couldn't get a relative path (cf. docs for Path.relative_to),
         # use the resolved path given to us by the InputBundle
