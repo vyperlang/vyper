@@ -3,6 +3,7 @@ from typing import Dict
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     InstantiationException,
     InvalidType,
     StructureException,
@@ -157,6 +158,12 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
+
+    if hasattr(typ_, "module_t"):  # it's a ModuleInfo
+        typ_ = typ_.module_t
+
+    if not isinstance(typ_, VyperType):
+        raise CompilerPanic("Not a type: {typ_}", node)
 
     return typ_
 
