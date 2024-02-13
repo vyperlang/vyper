@@ -65,6 +65,7 @@ class OrderedSet(Generic[_T], dict[_T, None]):
 
 class StringEnum(enum.Enum):
     # Must be first, or else won't work, specifies what .value is
+    @staticmethod
     def _generate_next_value_(name, start, count, last_values):
         return name.lower()
 

@@ -244,7 +244,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         all_used_modules = OrderedSet()
 
         for f in module_t.functions.values():
-            for u in f._used_modules:
+            for u in f.get_used_modules():
                 all_used_modules.add(u.module_t)
 
         for used_module in all_used_modules:
@@ -342,7 +342,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_ = type_from_annotation(node.annotation)
 
         if not isinstance(type_, InterfaceT):
-            raise StructureException("not an interface!", node.annotation)
+            msg = "Not an interface!"
+            hint = None
+            if isinstance(type_, ModuleT):
+                path = type_._module.path
+                msg += " (Since vyper v0.4.0, interface files are required"
+                msg += " to have a .vyi suffix.)"
+                hint = f"try renaming `{path}` to `{path}i`"
+            raise StructureException(msg, node.annotation, hint=hint)
 
         type_.validate_implements(node)
 
@@ -627,6 +634,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> Any:
+        if module_str.startswith("vyper.interfaces"):
+            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
+            raise ModuleNotFound(module_str, hint=hint)
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -695,10 +705,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
+    module_path = file.resolved_path  # for error messages
+    try:
+        # try to get a relative path, to simplify the error message
+        cwd = Path(".")
+        if module_path.is_absolute():
+            cwd = cwd.resolve()
+        module_path = module_path.relative_to(cwd)
+    except ValueError:
+        # we couldn't get a relative path (cf. docs for Path.relative_to),
+        # use the resolved path given to us by the InputBundle
+        pass
+
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
-        module_path=str(file.path),
+        module_path=str(module_path),
         resolved_path=str(file.resolved_path),
     )
     return ret
@@ -724,7 +746,7 @@ def _is_builtin(module_str):
 
 def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info

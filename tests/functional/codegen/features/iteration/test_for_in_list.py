@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
@@ -841,6 +842,59 @@ bad_code_names = [
 ]
 
 
+# TODO: move these to tests/functional/syntax
 @pytest.mark.parametrize("code,err", BAD_CODE, ids=bad_code_names)
 def test_bad_code(assert_compile_failed, get_contract, code, err):
-    assert_compile_failed(lambda: get_contract(code), err)
+    with pytest.raises(err):
+        compile_code(code)
+
+
+def test_iterator_modification_module_attribute(make_input_bundle):
+    # test modifying iterator via attribute
+    lib1 = """
+queue: DynArray[uint256, 5]
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.queue.pop()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"
+
+
+def test_iterator_modification_module_function_call(make_input_bundle):
+    lib1 = """
+queue: DynArray[uint256, 5]
+
+@internal
+def popqueue():
+    self.queue.pop()
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.popqueue()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"

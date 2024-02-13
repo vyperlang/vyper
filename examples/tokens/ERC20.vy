@@ -31,7 +31,7 @@ decimals: public(uint8)
 # NOTE: By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
 #       method to allow access to account balances.
 #       The _KeyType will become a required parameter for the getter and it will return _ValueType.
-#       See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
+#       See: https://docs.vyperlang.org/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
 balanceOf: public(HashMap[address, uint256])
 # By declaring `allowance` as public, vyper automatically generates the `allowance()` getter
 allowance: public(HashMap[address, HashMap[address, uint256]])

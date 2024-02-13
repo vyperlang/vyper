@@ -238,10 +238,18 @@ def compile_files(
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
 ) -> dict:
-    paths = paths or []
+    # lowest precedence search path is always sys path
+    search_paths = [Path(p) for p in sys.path]
 
-    # lowest precedence search path is always `.`
-    search_paths = [Path(".")]
+    # python sys path uses opposite resolution order from us
+    # (first in list is highest precedence; we give highest precedence
+    # to the last in the list)
+    search_paths.reverse()
+
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
+
+    paths = paths or []
 
     for p in paths:
         path = Path(p).resolve(strict=True)

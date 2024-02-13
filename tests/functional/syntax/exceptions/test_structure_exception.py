@@ -44,39 +44,8 @@ def foo() -> int128:
     return x.codesize()
     """,
     """
-@external
-@nonreentrant("B")
-@nonreentrant("C")
-def double_nonreentrant():
-    pass
-    """,
-    """
 struct X:
     int128[5]: int128[7]
-    """,
-    """
-@external
-@nonreentrant(" ")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("123")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("!123abcd")
-def invalid_nonreentrant_key():
-    pass
     """,
     """
 @external

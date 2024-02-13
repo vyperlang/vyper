@@ -326,7 +326,7 @@ initializes: lib1
     assert e.value._hint == "did you mean `m := lib1`?"
 
 
-def test_global_initializer_constraint(make_input_bundle):
+def test_global_initializer_constraint(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -741,6 +741,48 @@ def foo(new_value: uint256):
     assert e.value._hint == expected_hint
 
 
+def test_missing_uses_subscript(make_input_bundle):
+    # test missing uses through nested subscript/attribute access
+    lib1 = """
+struct Foo:
+    array: uint256[5]
+
+foos: Foo[5]
+    """
+    lib2 = """
+import lib1
+
+counter: uint256
+
+@internal
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+
+# did not `use` or `initialize` lib2!
+
+@external
+def foo(new_value: uint256):
+    # cannot access lib1 state through lib2
+    lib2.lib1.foos[0].array[1] = new_value
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot access `lib2` state!"
+
+    expected_hint = "add `uses: lib2` or `initializes: lib2` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
 def test_missing_uses_nested_attribute_function_call(make_input_bundle):
     # test missing uses through nested attribute access
     lib1 = """
@@ -818,7 +860,7 @@ def foo(new_value: uint256):
     assert e.value._hint == expected_hint
 
 
-def test_invalid_uses(make_input_bundle):
+def test_invalid_uses(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -848,7 +890,7 @@ initializes: lib1
     assert e.value._hint == "delete `uses: lib1`"
 
 
-def test_invalid_uses2(make_input_bundle):
+def test_invalid_uses2(make_input_bundle, chdir_tmp_path):
     # test a more complicated invalid uses
     lib1 = """
 counter: uint256
