@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from vyper.compiler import compile_code
@@ -104,6 +106,25 @@ x: uint256[2]
     with pytest.raises(
         StorageLayoutException, match=f"Invalid storage slot for var x, out of bounds: {2**256}"
     ):
+        compile_code(
+            code, output_formats=["layout"], storage_layout_override=storage_layout_override
+        )
+
+
+def test_override_nonreentrant_slot():
+    code = """
+@nonreentrant
+@external
+def foo():
+    pass
+    """
+
+    storage_layout_override = {"$.nonreentrant_key": {"slot": 2**256, "type": "nonreentrant key"}}
+
+    exception_regex = re.escape(
+        f"Invalid storage slot for var $.nonreentrant_key, out of bounds: {2**256}"
+    )
+    with pytest.raises(StorageLayoutException, match=exception_regex):
         compile_code(
             code, output_formats=["layout"], storage_layout_override=storage_layout_override
         )
