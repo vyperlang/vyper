@@ -600,7 +600,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
-            infer_type(node, expected_type=typ)
+            typ = infer_type(node, expected_type=typ)
 
         super().visit(node, typ)
 
