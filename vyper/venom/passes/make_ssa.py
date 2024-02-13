@@ -1,9 +1,11 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import calculate_cfg
+from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+
+count = 1
 
 
 class MakeSSA(IRPass):
@@ -11,6 +13,7 @@ class MakeSSA(IRPass):
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
+        global count
         self.ctx = ctx
 
         calculate_cfg(ctx)
@@ -23,6 +26,14 @@ class MakeSSA(IRPass):
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
+
+        # if count == 3:
+        #     calculate_liveness(ctx)
+        #     print(ctx.as_graph())
+        #     import sys
+
+        #     sys.exit()
+        # count += 1
 
         return 0
 
@@ -120,7 +131,7 @@ class MakeSSA(IRPass):
             self.stacks[op_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
-        for inst in entry.instructions:
+        for inst in entry.instructions.copy():
             if inst.opcode != "phi":
                 continue
 
@@ -130,12 +141,8 @@ class MakeSSA(IRPass):
                     continue
                 new_ops.extend([label, op])
             new_ops_len = len(new_ops)
-            if new_ops_len == 0:
+            if new_ops_len <= 2:
                 entry.instructions.remove(inst)
-            elif new_ops_len == 2:
-                inst.opcode = "store"
-                inst.output = new_ops[1]
-                inst.operands = [new_ops[0]]
             else:
                 inst.operands = new_ops
 
