@@ -326,7 +326,7 @@ initializes: lib1
     assert e.value._hint == "did you mean `m := lib1`?"
 
 
-def test_global_initializer_constraint(make_input_bundle):
+def test_global_initializer_constraint(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -818,7 +818,7 @@ def foo(new_value: uint256):
     assert e.value._hint == expected_hint
 
 
-def test_invalid_uses(make_input_bundle):
+def test_invalid_uses(make_input_bundle, chdir_tmp_path):
     lib1 = """
 counter: uint256
     """
@@ -848,7 +848,7 @@ initializes: lib1
     assert e.value._hint == "delete `uses: lib1`"
 
 
-def test_invalid_uses2(make_input_bundle):
+def test_invalid_uses2(make_input_bundle, chdir_tmp_path):
     # test a more complicated invalid uses
     lib1 = """
 counter: uint256

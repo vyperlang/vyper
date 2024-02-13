@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
@@ -77,6 +78,12 @@ def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
     _set_debug_mode(debug)
+
+
+@pytest.fixture
+def chdir_tmp_path(tmp_path):
+    with working_directory(tmp_path):
+        yield
 
 
 @pytest.fixture
