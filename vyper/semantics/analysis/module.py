@@ -635,6 +635,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> Any:
+        if module_str.startswith("vyper.interfaces"):
+            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
+            raise ModuleNotFound(module_str, hint=hint)
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -732,7 +735,7 @@ def _is_builtin(module_str):
 
 def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
+        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
