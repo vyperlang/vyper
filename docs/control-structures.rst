@@ -116,7 +116,7 @@ Nonreentrancy locks work by setting a specially allocated storage slot to a ``<l
 
 You cannot put the ``@nonreentrant`` decorator on a ``pure`` function. You can put it on a ``view`` function, but it only checks that the function is not in a callback (the storage slot is not in the ``<locked>`` state), as ``view`` functions can only read the state, not change it.
 
-You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option. Unless it is overriden, the compiler will allocate it at slot ``0``.
+You can view where the nonreentrant key is physically laid out in storage by using ``vyper`` with the ``-f layout`` option (e.g., ``vyper -f layout foo.vy``). Unless it is overriden, the compiler will allocate it at slot ``0``.
 
 .. note::
     A mutable function can protect a ``view`` function from being called back into (which is useful for instance, if a ``view`` function would return inconsistent state during a mutable function), but a ``view`` function cannot protect itself from being called back into. Note that mutable functions can never be called from a ``view`` function because all external calls out from a ``view`` function are protected by the use of the ``STATICCALL`` opcode.
