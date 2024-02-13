@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Blind Auction. Adapted to Vyper from [Solidity by Example](https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst#blind-auction-1)
 
 struct Bid:
@@ -36,7 +38,7 @@ pendingReturns: HashMap[address, uint256]
 # Create a blinded auction with `_biddingTime` seconds bidding time and
 # `_revealTime` seconds reveal time on behalf of the beneficiary address
 # `_beneficiary`.
-@external
+@deploy
 def __init__(_beneficiary: address, _biddingTime: uint256, _revealTime: uint256):
     self.beneficiary = _beneficiary
     self.biddingEnd = block.timestamp + _biddingTime
@@ -107,7 +109,7 @@ def reveal(_numBids: int128, _values: uint256[128], _fakes: bool[128], _secrets:
 
     # Calculate refund for sender
     refund: uint256 = 0
-    for i in range(MAX_BIDS):
+    for i: int128 in range(MAX_BIDS):
         # Note that loop may break sooner than 128 iterations if i >= _numBids
         if (i >= _numBids):
             break

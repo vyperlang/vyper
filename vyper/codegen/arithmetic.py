@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
 
 
@@ -243,10 +242,7 @@ def safe_mul(x, y):
             # in the above sdiv check, if (r==-1 and l==-2**255),
             # -2**255<res> / -1<r> will return -2**255<l>.
             # need to check: not (r == -1 and l == -2**255)
-            if version_check(begin="constantinople"):
-                upper_bound = ["shl", 255, 1]
-            else:
-                upper_bound = -(2**255)
+            upper_bound = ["shl", 255, 1]
 
             check_x = ["ne", x, upper_bound]
             check_y = ["ne", ["not", y], 0]
@@ -301,10 +297,7 @@ def safe_div(x, y):
     with res.cache_when_complex("res") as (b1, res):
         # TODO: refactor this condition / push some things into the optimizer
         if typ.is_signed and typ.bits == 256:
-            if version_check(begin="constantinople"):
-                upper_bound = ["shl", 255, 1]
-            else:
-                upper_bound = -(2**255)
+            upper_bound = ["shl", 255, 1]
 
             if not x.is_literal and not y.is_literal:
                 ok = ["or", ["ne", y, ["not", 0]], ["ne", x, upper_bound]]

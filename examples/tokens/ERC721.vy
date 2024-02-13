@@ -1,9 +1,15 @@
-# @dev Implementation of ERC-721 non-fungible token standard.
+#pragma version >0.3.10
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# @dev example implementation of ERC-721 non-fungible token standard.
 # @author Ryuya Nakamura (@nrryuya)
 # Modified from: https://github.com/vyperlang/vyper/blob/de74722bf2d8718cca46902be165f9fe0e3641dd/examples/tokens/ERC721.vy
 
-from vyper.interfaces import ERC165
-from vyper.interfaces import ERC721
+from ethereum.ercs import ERC165
+from ethereum.ercs import ERC721
 
 implements: ERC721
 implements: ERC165
@@ -24,7 +30,7 @@ interface ERC721Receiver:
 #      transfer, the approved address for that NFT (if any) is reset to none.
 # @param _from Sender of NFT (if address is zero address it indicates token creation).
 # @param _to Receiver of NFT (if address is zero address it indicates token destruction).
-# @param _tokenId The NFT that got transfered.
+# @param _tokenId The NFT that got transferred.
 event Transfer:
     sender: indexed(address)
     receiver: indexed(address)
@@ -78,7 +84,7 @@ SUPPORTED_INTERFACES: constant(bytes4[2]) = [
     0x80ac58cd,
 ]
 
-@external
+@deploy
 def __init__():
     """
     @dev Contract constructor.

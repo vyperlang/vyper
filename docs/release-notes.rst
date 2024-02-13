@@ -14,16 +14,73 @@ Release Notes
     for advisory links:
     :'<,'>s/\v(https:\/\/github.com\/vyperlang\/vyper\/security\/advisories\/)([-A-Za-z0-9]+)/(`\2 <\1\2>`_)/g
 
-v0.3.9
-******
+v0.3.10 ("Black Adder")
+***********************
 
-Date released: 2023-05-23
+Date released: 2023-10-04
+=========================
 
-This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release.
+v0.3.10 is a performance focused release that additionally ships numerous bugfixes. It adds a ``codesize`` optimization mode (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), adds new vyper-specific ``#pragma`` directives  (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_), uses Cancun's ``MCOPY`` opcode for some compiler generated code (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_), and generates selector tables which now feature O(1) performance (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_).
+
+Breaking changes:
+-----------------
+
+- add runtime code layout to initcode (`#3584 <https://github.com/vyperlang/vyper/pull/3584>`_)
+- drop evm versions through istanbul (`#3470 <https://github.com/vyperlang/vyper/pull/3470>`_)
+- remove vyper signature from runtime (`#3471 <https://github.com/vyperlang/vyper/pull/3471>`_)
+- only allow valid identifiers to be nonreentrant keys (`#3605 <https://github.com/vyperlang/vyper/pull/3605>`_)
+
+Non-breaking changes and improvements:
+--------------------------------------
+
+- O(1) selector tables (`#3496 <https://github.com/vyperlang/vyper/pull/3496>`_)
+- implement bound= in ranges (`#3537 <https://github.com/vyperlang/vyper/pull/3537>`_, `#3551 <https://github.com/vyperlang/vyper/pull/3551>`_)
+- add optimization mode to vyper compiler (`#3493 <https://github.com/vyperlang/vyper/pull/3493>`_)
+- improve batch copy performance (`#3483 <https://github.com/vyperlang/vyper/pull/3483>`_, `#3499 <https://github.com/vyperlang/vyper/pull/3499>`_, `#3525 <https://github.com/vyperlang/vyper/pull/3525>`_)
+
+Notable fixes:
+--------------
+
+- fix ``ecrecover()`` behavior when signature is invalid (`GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_, `#3586 <https://github.com/vyperlang/vyper/pull/3586>`_)
+- fix: order of evaluation for some builtins (`#3583 <https://github.com/vyperlang/vyper/pull/3583>`_, `#3587 <https://github.com/vyperlang/vyper/pull/3587>`_)
+- fix: memory allocation in certain builtins using ``msize`` (`#3610 <https://github.com/vyperlang/vyper/pull/3610>`_)
+- fix: ``_abi_decode()`` input validation in certain complex expressions (`#3626 <https://github.com/vyperlang/vyper/pull/3626>`_)
+- fix: pycryptodome for arm builds (`#3485 <https://github.com/vyperlang/vyper/pull/3485>`_)
+- let params of internal functions be mutable (`#3473 <https://github.com/vyperlang/vyper/pull/3473>`_)
+- typechecking of folded builtins in (`#3490 <https://github.com/vyperlang/vyper/pull/3490>`_)
+- update tload/tstore opcodes per latest 1153 EIP spec (`#3484 <https://github.com/vyperlang/vyper/pull/3484>`_)
+- fix: raw_call type when max_outsize=0 is set (`#3572 <https://github.com/vyperlang/vyper/pull/3572>`_)
+- fix: implements check for indexed event arguments (`#3570 <https://github.com/vyperlang/vyper/pull/3570>`_)
+- fix: type-checking for ``_abi_decode()`` arguments (`#3626 <https://github.com/vyperlang/vyper/pull/3623>`__)
+
+Other docs updates, chores and fixes:
+-------------------------------------
+
+- relax restrictions on internal function signatures (`#3573 <https://github.com/vyperlang/vyper/pull/3573>`_)
+- note on security advisory in release notes for versions ``0.2.15``, ``0.2.16``, and ``0.3.0`` (`#3553 <https://github.com/vyperlang/vyper/pull/3553>`_)
+- fix: yanked version in release notes (`#3545 <https://github.com/vyperlang/vyper/pull/3545>`_)
+- update release notes on yanked versions (`#3547 <https://github.com/vyperlang/vyper/pull/3547>`_)
+- improve error message for conflicting methods IDs (`#3491 <https://github.com/vyperlang/vyper/pull/3491>`_)
+- document epsilon builtin (`#3552 <https://github.com/vyperlang/vyper/pull/3552>`_)
+- relax version pragma parsing (`#3511 <https://github.com/vyperlang/vyper/pull/3511>`_)
+- fix: issue with finding installed packages in editable mode (`#3510 <https://github.com/vyperlang/vyper/pull/3510>`_)
+- add note on security advisory for ``ecrecover`` in docs (`#3539 <https://github.com/vyperlang/vyper/pull/3539>`_)
+- add ``asm`` option to cli help (`#3585 <https://github.com/vyperlang/vyper/pull/3585>`_)
+- add message to error map for repeat range check (`#3542 <https://github.com/vyperlang/vyper/pull/3542>`_)
+- fix: public constant arrays (`#3536 <https://github.com/vyperlang/vyper/pull/3536>`_)
+
+
+v0.3.9 ("Common Adder")
+***********************
+
+Date released: 2023-05-29
+
+This is a patch release fix for v0.3.8. @bout3fiddy discovered a codesize regression for blueprint contracts in v0.3.8 which is fixed in this release. @bout3fiddy also discovered a runtime performance (gas) regression for default functions in v0.3.8 which is fixed in this release.
 
 Fixes:
 
 - initcode codesize blowup (`#3450 <https://github.com/vyperlang/vyper/pull/3450>`_)
+- add back global calldatasize check for contracts with default fn (`#3463 <https://github.com/vyperlang/vyper/pull/3463>`_)
 
 
 v0.3.8
@@ -42,6 +99,8 @@ Non-breaking changes and improvements:
 - python 3.11 support (`#3129 <https://github.com/vyperlang/vyper/pull/3129>`_)
 - drop support for python 3.8 and 3.9 (`#3325 <https://github.com/vyperlang/vyper/pull/3325>`_)
 - build for ``aarch64`` (`#2687 <https://github.com/vyperlang/vyper/pull/2687>`_)
+
+Note that with the addition of ``push0`` opcode, ``shanghai`` is now the default compilation target for vyper. When deploying to a chain which does not support ``shanghai``, it is recommended to set ``--evm-version`` to ``paris``, otherwise it could result in hard-to-debug errors.
 
 Major refactoring PRs:
 
@@ -105,7 +164,7 @@ Other docs updates, chores and fixes:
 - fix docs of ``blockhash`` to reflect revert behaviour (`#3168 <https://github.com/vyperlang/vyper/pull/3168>`_)
 - improvements to compiler error messages (`#3121 <https://github.com/vyperlang/vyper/pull/3121>`_, `#3134 <https://github.com/vyperlang/vyper/pull/3134>`_, `#3312 <https://github.com/vyperlang/vyper/pull/3312>`_, `#3304 <https://github.com/vyperlang/vyper/pull/3304>`_, `#3240 <https://github.com/vyperlang/vyper/pull/3240>`_, `#3264 <https://github.com/vyperlang/vyper/pull/3264>`_, `#3343 <https://github.com/vyperlang/vyper/pull/3343>`_, `#3307 <https://github.com/vyperlang/vyper/pull/3307>`_, `#3313 <https://github.com/vyperlang/vyper/pull/3313>`_ and `#3215 <https://github.com/vyperlang/vyper/pull/3215>`_)
 
-These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`_. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
+These are really just the highlights, as many other bugfixes, docs updates and refactoring (over 150 pull requests!) made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.7...v0.3.8>`__. Special thanks to contributions from @tserg, @trocher, @z80dev, @emc415 and @benber86 in this release!
 
 New Contributors:
 
@@ -184,6 +243,7 @@ Bugfixes:
 
 v0.3.5
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 2022-08-05
 
@@ -286,7 +346,7 @@ Notable Fixes:
 * Referencing immutables in constructor (`#2627 <https://github.com/vyperlang/vyper/pull/2627>`_)
 * Arrays of interfaces in for loops (`#2699 <https://github.com/vyperlang/vyper/pull/2699>`_)
 
-Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`_.
+Lots of optimizations, refactoring and other fixes made it into this release! For the full list, please see the `changelog <https://github.com/vyperlang/vyper/compare/v0.3.1...v0.3.2>`__.
 
 Special thanks to @tserg for typechecker fixes and significant testing of new features! Additional contributors to this release include @abdullathedruid, @hi-ogawa, @skellet0r, @fubuloubu, @onlymaresia, @SwapOperator, @hitsuzen-eth, @Sud0u53r, @davidhq.
 
@@ -332,6 +392,7 @@ Special thanks to @skellet0r for some major features in this release!
 
 v0.3.0
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-10-04
 
@@ -364,6 +425,7 @@ Special thanks to contributions from @skellet0r and @benjyz for this release!
 
 v0.2.16
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 2021-08-27
 
@@ -388,6 +450,7 @@ Special thanks to contributions from @skellet0r, @sambacha and @milancermak for 
 
 v0.2.15
 *******
+⚠️ A critical security vulnerability has been discovered in this version and we strongly recommend using version `0.3.1 <https://github.com/vyperlang/vyper/releases/tag/v0.3.1>`_ or higher. For more information, please see the Security Advisory `GHSA-5824-cm3x-3c38 <https://github.com/vyperlang/vyper/security/advisories/GHSA-5824-cm3x-3c38>`_.
 
 Date released: 23-07-2021
 
@@ -400,6 +463,7 @@ Fixes:
 
 v0.2.14
 *******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 20-07-2021
 
@@ -518,6 +582,7 @@ Fixes:
 
 v0.2.6
 ******
+**THIS RELEASE HAS BEEN PULLED**
 
 Date released: 10-10-2020
 
@@ -535,7 +600,7 @@ Fixes:
 
 - Memory corruption issue when performing function calls inside a tuple or another function call (`#2186 <https://github.com/vyperlang/vyper/pull/2186>`_)
 - Incorrect function output when using multidimensional arrays (`#2184 <https://github.com/vyperlang/vyper/pull/2184>`_)
-- Reduced ambiguity bewteen ``address`` and ``Bytes[20]`` (`#2191 <https://github.com/vyperlang/vyper/pull/2191>`_)
+- Reduced ambiguity between ``address`` and ``Bytes[20]`` (`#2191 <https://github.com/vyperlang/vyper/pull/2191>`_)
 
 v0.2.5
 ******
@@ -619,7 +684,7 @@ Breaking changes:
 - ``@public`` and ``@private`` function decorators have been renamed to ``@external`` and ``@internal`` (VIP `#2065 <https://github.com/vyperlang/vyper/issues/2065>`_)
 - The ``@constant`` decorator has been renamed to ``@view`` (VIP `#2040 <https://github.com/vyperlang/vyper/issues/2040>`_)
 - Type units have been removed (VIP `#1881 <https://github.com/vyperlang/vyper/issues/1881>`_)
-- Event declaraion syntax now resembles that of struct declarations (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
+- Event declaration syntax now resembles that of struct declarations (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
 - ``log`` is now a statement (VIP `#1864 <https://github.com/vyperlang/vyper/issues/1864>`_)
 - Mapping declaration syntax changed to ``HashMap[key_type, value_type]`` (VIP `#1969 <https://github.com/vyperlang/vyper/issues/1969>`_)
 - Interfaces are now declared via the ``interface`` keyword instead of ``contract`` (VIP `#1825 <https://github.com/vyperlang/vyper/issues/1825>`_)
@@ -758,7 +823,7 @@ Some of the bug and stability fixes:
 - Fixed stack valency issues in if and for statements (`#1665 <https://github.com/vyperlang/vyper/pull/1665>`_)
 - Prevent overflow when using ``sqrt`` on certain datatypes (`#1679 <https://github.com/vyperlang/vyper/pull/1679>`_)
 - Prevent shadowing of internal variables (`#1601 <https://github.com/vyperlang/vyper/pull/1601>`_)
-- Reject unary substraction on unsigned types  (`#1638 <https://github.com/vyperlang/vyper/pull/1638>`_)
+- Reject unary subtraction on unsigned types  (`#1638 <https://github.com/vyperlang/vyper/pull/1638>`_)
 - Disallow ``orelse`` syntax in ``for`` loops (`#1633 <https://github.com/vyperlang/vyper/pull/1633>`_)
 - Increased clarity and efficiency of zero-padding (`#1605 <https://github.com/vyperlang/vyper/pull/1605>`_)
 
@@ -771,7 +836,7 @@ The following VIPs were implemented for Beta 13:
 
 - Add ``vyper-json`` compilation mode (VIP `#1520 <https://github.com/vyperlang/vyper/issues/1520>`_)
 - Environment variables and constants can now be used as default parameters (VIP `#1525 <https://github.com/vyperlang/vyper/issues/1525>`_)
-- Require unitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
+- Require uninitialized memory be set on creation (VIP `#1493 <https://github.com/vyperlang/vyper/issues/1493>`_)
 
 Some of the bug and stability fixes:
 
@@ -863,7 +928,7 @@ Here is the old changelog:
 * **2019.03.04**: ``create_with_code_of`` has been renamed to ``create_forwarder_to``. (`#1177 <https://github.com/vyperlang/vyper/issues/1177>`_)
 * **2019.02.14**: Assigning a persistent contract address can only be done using the ``bar_contact = ERC20(<address>)`` syntax.
 * **2019.02.12**: ERC20 interface has to be imported using ``from vyper.interfaces import ERC20`` to use.
-* **2019.01.30**: Byte array literals need to be annoted using ``b""``, strings are represented as `""`.
+* **2019.01.30**: Byte array literals need to be annotated using ``b""``, strings are represented as `""`.
 * **2018.12.12**: Disallow use of ``None``, disallow use of ``del``, implemented ``clear()`` built-in function.
 * **2018.11.19**: Change mapping syntax to use ``map()``. (`VIP564 <https://github.com/vyperlang/vyper/issues/564>`_)
 * **2018.10.02**: Change the convert style to use types instead of string. (`VIP1026 <https://github.com/vyperlang/vyper/issues/1026>`_)

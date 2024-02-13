@@ -1,4 +1,6 @@
-from vyper.interfaces import ERC20
+#pragma version >0.3.10
+
+from ethereum.ercs import ERC20
 
 
 totalEthQty: public(uint256)
@@ -9,7 +11,7 @@ invariant: public(uint256)
 token_address: ERC20
 owner: public(address)
 
-# Sets the on chain market maker with its owner, intial token quantity,
+# Sets the on chain market maker with its owner, initial token quantity,
 # and initial ether quantity
 @external
 @payable

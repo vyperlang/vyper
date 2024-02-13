@@ -1,17 +1,20 @@
 import binascii
 import contextlib
 import decimal
+import enum
 import functools
 import sys
 import time
 import traceback
 import warnings
-from typing import List, Union
+from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral
+
+_T = TypeVar("_T")
 
 
-class OrderedSet(dict):
+class OrderedSet(Generic[_T], dict[_T, None]):
     """
     a minimal "ordered set" class. this is needed in some places
     because, while dict guarantees you can recover insertion order
@@ -20,8 +23,98 @@ class OrderedSet(dict):
     functionality as needed.
     """
 
-    def add(self, item):
+    def __init__(self, iterable=None):
+        super().__init__()
+        if iterable is not None:
+            for item in iterable:
+                self.add(item)
+
+    def __repr__(self):
+        keys = ", ".join(repr(k) for k in self.keys())
+        return f"{{{keys}}}"
+
+    def get(self, *args, **kwargs):
+        raise RuntimeError("can't call get() on OrderedSet!")
+
+    def add(self, item: _T) -> None:
         self[item] = None
+
+    def remove(self, item: _T) -> None:
+        del self[item]
+
+    def difference(self, other):
+        ret = self.copy()
+        for k in other.keys():
+            if k in ret:
+                ret.remove(k)
+        return ret
+
+    def union(self, other):
+        return self | other
+
+    def update(self, other):
+        for item in other:
+            self.add(item)
+
+    def __or__(self, other):
+        return self.__class__(super().__or__(other))
+
+    def copy(self):
+        return self.__class__(super().copy())
+
+
+class StringEnum(enum.Enum):
+    # Must be first, or else won't work, specifies what .value is
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise CompilerPanic(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        return self is other
+
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return not self.__lt__(other)
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __hash__(self) -> int:
+        # let `dataclass` know that this class is not mutable
+        return super().__hash__()
 
 
 class DecimalContextOverride(decimal.Context):
@@ -32,7 +125,9 @@ class DecimalContextOverride(decimal.Context):
                 raise DecimalOverrideException("Overriding decimal precision disabled")
             elif value > 78:
                 # not sure it's incorrect, might not be end of the world
-                warnings.warn("Changing decimals precision could have unintended side effects!")
+                warnings.warn(
+                    "Changing decimals precision could have unintended side effects!", stacklevel=2
+                )
             # else: no-op, is ok
 
         super().__setattr__(name, value)
@@ -128,11 +223,6 @@ def method_id(method_str: str) -> bytes:
     return keccak256(bytes(method_str, "utf-8"))[:4]
 
 
-# map a string to only-alphanumeric chars
-def mkalphanum(s):
-    return "".join([c if c.isalnum() else "_" for c in s])
-
-
 def round_towards_zero(d: decimal.Decimal) -> int:
     # TODO double check if this can just be int(d)
     # (but either way keep this util function bc it's easier at a glance
@@ -196,8 +286,7 @@ def calc_mem_gas(memsize):
 # Specific gas usage
 GAS_IDENTITY = 15
 GAS_IDENTITYWORD = 3
-GAS_CODECOPY_WORD = 3
-GAS_CALLDATACOPY_WORD = 3
+GAS_COPY_WORD = 3  # i.e., W_copy from YP
 
 # A decimal value can store multiples of 1/DECIMAL_DIVISOR
 MAX_DECIMAL_PLACES = 10
@@ -299,6 +388,7 @@ VALID_IR_MACROS = {
     "with",
     "label",
     "goto",
+    "djump",  # "dynamic jump", i.e. constrained, multi-destination jump
     "~extcode",
     "~selfcode",
     "~calldata",
@@ -437,3 +527,25 @@ def annotate_source_code(
     cleanup_lines += [""] * (num_lines - len(cleanup_lines))
 
     return "\n".join(cleanup_lines)
+
+
+def ir_pass(func):
+    """
+    Decorator for IR passes. This decorator will run the pass repeatedly until
+    no more changes are made.
+    """
+
+    def wrapper(*args, **kwargs):
+        count = 0
+
+        while True:
+            changes = func(*args, **kwargs) or 0
+            if isinstance(changes, list) or isinstance(changes, set):
+                changes = len(changes)
+            count += changes
+            if changes == 0:
+                break
+
+        return count
+
+    return wrapper
