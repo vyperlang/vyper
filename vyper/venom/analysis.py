@@ -38,6 +38,7 @@ def calculate_cfg(ctx: IRFunction) -> None:
 
 def _reset_liveness(ctx: IRFunction) -> None:
     for bb in ctx.basic_blocks:
+        bb.out_vars = OrderedSet()
         for inst in bb.instructions:
             inst.liveness = OrderedSet()
 
