@@ -1,6 +1,7 @@
 from typing import Optional
 
 from vyper.exceptions import CompilerPanic
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
@@ -50,13 +51,13 @@ def test_deminator_frontier_calculation():
     calculate_cfg(ctx)
     dom = DominatorTree(ctx, bb1)
 
-    assert dom.df[bb1] == set(), dom.df[bb1]
-    assert dom.df[bb2] == {bb2}, dom.df[bb2]
-    assert dom.df[bb3] == {bb3, bb6}, dom.df[bb3]
-    assert dom.df[bb4] == {bb6}, dom.df[bb4]
-    assert dom.df[bb5] == {bb3, bb6}, dom.df[bb5]
-    assert dom.df[bb6] == {bb2}, dom.df[bb6]
-    assert dom.df[bb7] == set(), dom.df[bb7]
+    assert len(dom.df[bb1]) == 0, dom.df[bb1]
+    assert dom.df[bb2] == OrderedSet({bb2}), dom.df[bb2]
+    assert dom.df[bb3] == OrderedSet({bb3, bb6}), dom.df[bb3]
+    assert dom.df[bb4] == OrderedSet({bb6}), dom.df[bb4]
+    assert dom.df[bb5] == OrderedSet({bb3, bb6}), dom.df[bb5]
+    assert dom.df[bb6] == OrderedSet({bb2}), dom.df[bb6]
+    assert len(dom.df[bb7]) == 0, dom.df[bb7]
 
 
 def test_phi_placement():
