@@ -13,7 +13,7 @@ def foo() -> int128:
     """
 struct S:
     x: int128
-s: S = S({x: int128}, 1)
+s: S = S(x=int128, 1)
     """,
     """
 struct S:

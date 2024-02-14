@@ -4,14 +4,14 @@ from vyper import compiler
 from vyper.exceptions import (
     InstantiationException,
     StructureException,
+    SyntaxException,
     TypeMismatch,
     UnknownAttribute,
     VariableDeclarationException,
 )
 
 fail_list = [
-    (
-        """
+    """
 struct A:
     x: int128
 a: A
@@ -19,8 +19,6 @@ a: A
 def foo():
     self.a = A(1)
     """,
-        VariableDeclarationException,
-    ),
     (
         """
 struct A:
@@ -28,24 +26,20 @@ struct A:
 a: A
 @external
 def foo():
-    self.a = A({x: 1, y: 2})
+    self.a = A(x=1, y=2)
     """,
         UnknownAttribute,
     ),
-    (
-        """
+    """
 struct A:
     x: int128
     y: int128
 a: A
 @external
 def foo():
-    self.a = A({x: 1})
+    self.a = A(x=1)
     """,
-        VariableDeclarationException,
-    ),
-    (
-        """
+    """
 struct A:
     x: int128
 struct B:
@@ -56,10 +50,7 @@ b: B
 def foo():
     self.a = A(self.b)
     """,
-        VariableDeclarationException,
-    ),
-    (
-        """
+    """
 struct A:
     x: int128
 a: A
@@ -68,10 +59,7 @@ b: A
 def foo():
     self.a = A(self.b)
     """,
-        VariableDeclarationException,
-    ),
-    (
-        """
+    """
 struct A:
     x: int128
     y: int128
@@ -80,10 +68,7 @@ a: A
 def foo():
     self.a = A({x: 1})
     """,
-        VariableDeclarationException,
-    ),
-    (
-        """
+    """
 struct C:
     c: int128
 struct Mom:
@@ -98,8 +83,6 @@ nom: Nom
 def foo():
     self.nom = Nom(self.mom)
     """,
-        VariableDeclarationException,
-    ),
     """
 struct C1:
     c: int128
@@ -251,7 +234,7 @@ mom: Mom
 nom: C[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: 5.5})
+    self.mom = Mom(a=self.nom, b=5.5)
     """,
         TypeMismatch,
     ),
@@ -268,7 +251,7 @@ mom: Mom
 nom: C2[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: 5})
+    self.mom = Mom(a=self.nom, b=5)
     """,
         TypeMismatch,
     ),
@@ -285,7 +268,7 @@ mom: Mom
 nom: C[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: self.nom})
+    self.mom = Mom(a=self.nom, b=self.nom)
     """,
         TypeMismatch,
     ),
@@ -329,7 +312,7 @@ mom: Mom
 nom: C2[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: 5})
+    self.mom = Mom(a=self.nom, b=5)
     """,
         TypeMismatch,
     ),
@@ -342,9 +325,9 @@ struct Bar:
 bar: int128[3]
 @external
 def foo():
-    self.bar = Bar({0: 5, 1: 7, 2: 9})
+    self.bar = Bar(0=5, 1=7, 2=9)
     """,
-        UnknownAttribute,
+        SyntaxException,
     ),
     (
         """
@@ -355,7 +338,7 @@ struct Bar:
 bar: int128[3]
 @external
 def foo():
-    self.bar = Bar({a: 5, b: 7, c: 9})
+    self.bar = Bar(a=5, b=7, c=9)
     """,
         TypeMismatch,
     ),
@@ -366,7 +349,7 @@ struct Farm:
     dog: int128
 @external
 def foo() -> int128:
-    f: Farm = Farm({cow: 5, dog: 7})
+    f: Farm = Farm(cow=5, dog=7)
     return f
     """,
         TypeMismatch,
@@ -390,7 +373,7 @@ struct B:
 b: B
 @external
 def foo():
-    self.b = B({foo: 1, foo: 2})
+    self.b = B(foo=1, foo=2)
     """,
         UnknownAttribute,
     ),
@@ -425,7 +408,7 @@ struct Foo:
 
 @external
 def foo():
-    Foo({a: 1})
+    Foo(a=1)
     """,
         StructureException,
     ),
@@ -439,6 +422,15 @@ struct Bar:
     """,
         InstantiationException,
     ),
+    # valid syntax in versions <0.4.0
+    """
+struct A:
+    x: int128
+a: A
+@external
+def foo():
+    self.a = A({x: 1, y: 2})
+    """,
 ]
 
 
@@ -459,7 +451,7 @@ struct A:
 a: A
 @external
 def foo():
-    self.a = A({x: 1})
+    self.a = A(x=1)
     """,
     """
 struct C:
@@ -482,7 +474,7 @@ struct Mom:
 nom: C[3]
 @external
 def foo():
-    mom: Mom = Mom({a:[C({c:0}), C({c:0}), C({c:0})], b: 0})
+    mom: Mom = Mom(a=[C(c=0), C(c=0), C(c=0)], b=0)
     mom.a = self.nom
     """,
     """
@@ -495,7 +487,7 @@ mom: Mom
 nom: C[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: 5})
+    self.mom = Mom(a=self.nom, b=5)
     """,
     """
 struct C:
@@ -507,7 +499,7 @@ mom: Mom
 nom: C[3]
 @external
 def foo():
-    self.mom = Mom({a: self.nom, b: 5})
+    self.mom = Mom(a=self.nom, b=5)
     """,
     """
 struct C:
@@ -518,8 +510,8 @@ struct Mom:
 mom: Mom
 @external
 def foo():
-    nom: C[3] = [C({c:0}), C({c:0}), C({c:0})]
-    self.mom = Mom({a: nom, b: 5})
+    nom: C[3] = [C(c=0), C(c=0), C(c=0)]
+    self.mom = Mom(a=nom, b=5)
     """,
     """
 struct B:
@@ -548,7 +540,7 @@ struct C:
     d: bool
 @external
 def get_y() -> int128:
-    return C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True}).c.a.y - 10
+    return C(c=A(a=X(x=1, y=-1), b=777), d=True).c.a.y - 10
     """,
     """
 struct X:
@@ -560,7 +552,7 @@ struct A:
 struct C:
     c: A
     d: bool
-FOO: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+FOO: constant(C) = C(c=A(a=X(x=1, y=-1), b=777), d=True)
 @external
 def get_y() -> int128:
     return FOO.c.a.y - 10
@@ -572,7 +564,7 @@ struct C:
 
 @external
 def foo():
-    bar: C = C({a: 1, b: block.timestamp})
+    bar: C = C(a=1, b=block.timestamp)
     """,
 ]
 

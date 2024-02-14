@@ -165,7 +165,7 @@ x: immutable(Foo)
 
 @deploy
 def __init__():
-    x = Foo({a:1})
+    x = Foo(a=1)
 
 @external
 def hello() :
