@@ -213,7 +213,7 @@ class IRnode:
         self.func_ir = None
         self.common_ir = None
 
-        self._has_optimized = None
+        self.__optimized = None
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -470,13 +470,13 @@ class IRnode:
 
     @property
     def _optimized(self):
-        if self._has_optimized is None:
+        if self.__optimized is None:
             # TODO figure out how to fix this circular import
             from vyper.ir.optimizer import optimize
 
-            self._has_optimized = optimize(self)
+            self.__optimized = optimize(self)
 
-        return self._has_optimized
+        return self.__optimized
 
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
