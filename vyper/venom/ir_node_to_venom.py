@@ -403,6 +403,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         else_block_finish = ctx.get_basic_block()
 
         # convert "then"
+        cond_symbols = symbols.copy()
+        cond_variables = variables.copy()
+        cond_allocated_variables = allocated_variables.copy()
+
         then_block = IRBasicBlock(ctx.get_next_label("then"), ctx)
         ctx.append_basic_block(then_block)
 
