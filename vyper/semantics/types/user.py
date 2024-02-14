@@ -401,7 +401,7 @@ class StructT(_UserType):
             if key is None or key.get("id") not in members:
                 hint = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
                 raise UnknownAttribute(
-                    f"Unknown or duplicate struct member.", key or value, hint=hint
+                    "Unknown or duplicate struct member.", key or value, hint=hint
                 )
             expected_key = keys[i]
             if key.id != expected_key:

@@ -148,9 +148,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if node.id not in namespace:  # type: ignore
         hint = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{node.node_source_code}'.",
-            node,
-            hint=hint
+            f"No builtin or user-defined type named '{node.node_source_code}'.", node, hint=hint
         ) from None
 
     typ_ = namespace[node.id]

@@ -75,7 +75,11 @@ def levenshtein(source: str, target: str) -> int:
 
 def get_levenshtein_error_suggestions(*args, **kwargs) -> Callable:
     return lambda: _get_levenshtein_error_suggestions(*args, **kwargs)
-def _get_levenshtein_error_suggestions(key: str, namespace: dict[str, Any], threshold: float) -> str:
+
+
+def _get_levenshtein_error_suggestions(
+    key: str, namespace: dict[str, Any], threshold: float
+) -> str:
     """
     Generate an error message snippet for the suggested closest values in the provided namespace
     with the shortest normalized Levenshtein distance from the given key if that distance
