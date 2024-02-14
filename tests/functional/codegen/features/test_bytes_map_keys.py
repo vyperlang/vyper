@@ -149,7 +149,7 @@ b: Foo
 def __init__():
     self.a[b"hello"] = 1069
     self.a[b"potato"] = 31337
-    self.b = Foo({one: b"hello", two: b"potato"})
+    self.b = Foo(one=b"hello", two=b"potato")
 
 @external
 def get_one() -> int128:
