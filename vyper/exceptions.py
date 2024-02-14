@@ -80,10 +80,19 @@ class _BaseVyperException(Exception):
         return exc
 
     @property
+    def hint(self):
+        # some hints are expensive to compute, so we wait until the last
+        # minute when the formatted message is actually requested to compute
+        # them.
+        if callable(self._hint):
+            return self._hint()
+        return self._hint
+
+    @property
     def message(self):
         msg = self._message
-        if self._hint:
-            msg += f"\n\n  (hint: {self._hint})"
+        if self.hint:
+            msg += f"\n\n  (hint: {self.hint})"
         return msg
 
     def __str__(self):

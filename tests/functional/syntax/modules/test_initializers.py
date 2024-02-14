@@ -1178,4 +1178,4 @@ uses: (lib1, lib2)  # should get UndeclaredDefinition
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(UndeclaredDefinition) as e:
         compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "'lib2' has not been declared. "
+    assert e.value._message == "'lib2' has not been declared."
