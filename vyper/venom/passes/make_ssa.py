@@ -6,8 +6,6 @@ from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-count = 1
-
 
 class MakeSSA(IRPass):
     dom: DominatorTree
@@ -21,25 +19,13 @@ class MakeSSA(IRPass):
         dom = DominatorTree(ctx, entry)
         self.dom = dom
 
+        calculate_liveness(ctx)
         self._add_phi_nodes()
 
         self.var_names = {var.name: 0 for var in self.defs.keys()}
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
-
-        # if True or "_transfer_in" in entry.label.value:
-        #     if count == 3:
-        #         calculate_liveness(ctx)
-        #         print(ctx.as_graph())
-        #         import sys
-
-        #         sys.exit()
-        #     count += 1
-
-        # calculate_liveness(ctx)
-        # ir_pass_optimize_unused_variables(ctx)
-        # calculate_liveness(ctx)
 
         return 0
 
@@ -66,10 +52,10 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        # if "%529" not in var.name:
-        #     return
-        # if var.name == "%856":
-        #     return
+        liveness = basic_block.instructions[0].liveness
+        if var not in liveness:
+            return
+
         args: list[IROperand] = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
