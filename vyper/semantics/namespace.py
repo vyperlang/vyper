@@ -45,8 +45,8 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         if key not in self:
-            suggestions_str = get_levenshtein_error_suggestions(key, self, 0.2)
-            raise UndeclaredDefinition(f"'{key}' has not been declared. {suggestions_str}")
+            hint = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
         return super().__getitem__(key)
 
     def __enter__(self):

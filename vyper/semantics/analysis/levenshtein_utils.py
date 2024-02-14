@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Callable
 
 
 def levenshtein_norm(source: str, target: str) -> float:
@@ -73,7 +73,9 @@ def levenshtein(source: str, target: str) -> int:
     return matrix[len(source)][len(target)]
 
 
-def get_levenshtein_error_suggestions(key: str, namespace: Dict[str, Any], threshold: float) -> str:
+def get_levenshtein_error_suggestions(*args, **kwargs) -> Callable:
+    return lambda: _get_levenshtein_error_suggestions(*args, **kwargs)
+def _get_levenshtein_error_suggestions(key: str, namespace: dict[str, Any], threshold: float) -> str:
     """
     Generate an error message snippet for the suggested closest values in the provided namespace
     with the shortest normalized Levenshtein distance from the given key if that distance

@@ -82,8 +82,11 @@ class _BaseVyperException(Exception):
     @property
     def message(self):
         msg = self._message
-        if self._hint:
-            msg += f"\n\n  (hint: {self._hint})"
+        hint = self._hint
+        if callable(hint):
+            hint = hint()
+        if hint:
+            msg += f"\n\n  (hint: {hint})"
         return msg
 
     def __str__(self):

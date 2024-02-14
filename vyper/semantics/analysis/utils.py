@@ -208,9 +208,9 @@ class _ExprAnalyser:
             if name in self.namespace:
                 _raise_invalid_reference(name, node)
 
-            suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
+            hint = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+                f"Storage variable '{name}' has not been declared.", node, hint=hint
             ) from None
 
     def types_from_BinOp(self, node):
