@@ -1,3 +1,4 @@
+import functools
 import ast as python_ast
 import contextlib
 import copy
@@ -341,6 +342,7 @@ class VyperNode:
         return cls(**ast_struct)
 
     @classmethod
+    @functools.lru_cache(maxsize=None)
     def get_fields(cls) -> set:
         """
         Return a set of field names for this node.
