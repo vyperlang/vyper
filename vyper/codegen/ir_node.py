@@ -213,6 +213,8 @@ class IRnode:
         self.func_ir = None
         self.common_ir = None
 
+        self._has_optimized = None
+
         assert self.value is not None, "None is not allowed as IRnode value"
 
         # Determine this node's valency (1 if it pushes a value on the stack,
@@ -402,12 +404,12 @@ class IRnode:
         return ret
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
-    @property
+    @cached_property
     def gas(self):
         return self._gas + self.add_gas_estimate
 
     # the IR should be cached and/or evaluated exactly once
-    @property
+    @cached_property
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
@@ -466,12 +468,15 @@ class IRnode:
         # eventually
         return self.location is not None
 
-    @property  # probably could be cached_property but be paranoid
+    @property
     def _optimized(self):
-        # TODO figure out how to fix this circular import
-        from vyper.ir.optimizer import optimize
+        if self._has_optimized is None:
+            # TODO figure out how to fix this circular import
+            from vyper.ir.optimizer import optimize
 
-        return optimize(self)
+            self._has_optimized = optimize(self)
+
+        return self._has_optimized
 
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
