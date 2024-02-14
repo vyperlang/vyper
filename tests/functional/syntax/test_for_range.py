@@ -21,6 +21,7 @@ def foo():
     """,
         StructureException,
         "Invalid syntax for loop iterator",
+        None,
         "a[1]",
     ),
     (
@@ -32,6 +33,7 @@ def bar():
     """,
         StructureException,
         "Bound must be at least 1",
+        None,
         "0",
     ),
     (
@@ -44,6 +46,7 @@ def foo():
     """,
         StateAccessViolation,
         "Bound must be a literal",
+        None,
         "x",
     ),
     (
@@ -55,6 +58,7 @@ def foo():
     """,
         StructureException,
         "Please remove the `bound=` kwarg when using range with constants",
+        None,
         "5",
     ),
     (
@@ -66,6 +70,7 @@ def foo():
     """,
         StructureException,
         "Bound must be at least 1",
+        None,
         "0",
     ),
     (
@@ -78,6 +83,7 @@ def bar():
     """,
         ArgumentException,
         "Invalid keyword argument 'extra'",
+        None,
         "extra=3",
     ),
     (
@@ -89,6 +95,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
+        None,
         "0",
     ),
     (
@@ -101,6 +108,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -113,6 +121,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -125,6 +134,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "n * 10",
     ),
     (
@@ -137,6 +147,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x + 1",
     ),
     (
@@ -148,6 +159,7 @@ def bar():
     """,
         StructureException,
         "End must be greater than start",
+        None,
         "1",
     ),
     (
@@ -160,6 +172,7 @@ def bar():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -172,6 +185,7 @@ def foo():
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -184,6 +198,7 @@ def repeat(n: uint256) -> uint256:
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "n",
     ),
     (
@@ -196,6 +211,7 @@ def foo(x: int128):
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -207,6 +223,7 @@ def bar(x: uint256):
     """,
         StateAccessViolation,
         "Value must be a literal integer, unless a bound is specified",
+        None,
         "x",
     ),
     (
@@ -221,6 +238,7 @@ def foo():
     """,
         TypeMismatch,
         "Given reference has type int128, expected uint256",
+        None,
         "FOO",
     ),
     (
@@ -234,6 +252,7 @@ def foo():
         """,
         StructureException,
         "Bound must be at least 1",
+        None,
         "FOO",
     ),
     (
@@ -244,7 +263,8 @@ def foo():
         pass
     """,
         UnknownType,
-        "No builtin or user-defined type named 'DynArra'. Did you mean 'DynArray'?",
+        "No builtin or user-defined type named 'DynArra'.",
+        "Did you mean 'DynArray'?",
         "DynArra",
     ),
     (
@@ -262,7 +282,8 @@ def foo():
         pass
     """,
         UnknownType,
-        "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
+        "No builtin or user-defined type named 'uint9'.",
+        "Did you mean 'uint96', or maybe 'uint8'?",
         "uint9",
     ),
     (
@@ -278,7 +299,8 @@ def foo():
         pass
     """,
         UnknownType,
-        "No builtin or user-defined type named 'uint9'. Did you mean 'uint96', or maybe 'uint8'?",
+        "No builtin or user-defined type named 'uint9'.",
+        "Did you mean 'uint96', or maybe 'uint8'?",
         "uint9",
     ),
 ]
@@ -289,15 +311,18 @@ fail_test_names = [
         f"{i:02d}: {for_code_regex.search(code).group(1)}"  # type: ignore[union-attr]
         f" raises {type(err).__name__}"
     )
-    for i, (code, err, msg, src) in enumerate(fail_list)
+    for i, (code, err, msg, hint, src) in enumerate(fail_list)
 ]
 
 
-@pytest.mark.parametrize("bad_code,error_type,message,source_code", fail_list, ids=fail_test_names)
-def test_range_fail(bad_code, error_type, message, source_code):
+@pytest.mark.parametrize(
+    "bad_code,error_type,message,hint,source_code", fail_list, ids=fail_test_names
+)
+def test_range_fail(bad_code, error_type, message, hint, source_code):
     with pytest.raises(error_type) as exc_info:
         compiler.compile_code(bad_code)
-    assert message == exc_info.value.message
+    assert message == exc_info.value._message
+    assert hint == exc_info.value.hint
     assert source_code == exc_info.value.args[1].get_original_node().node_source_code
 
 

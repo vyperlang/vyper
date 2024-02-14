@@ -80,19 +80,20 @@ class _BaseVyperException(Exception):
         exc.annotations = annotations
         return exc
 
-    @cached_property
-    def message(self):
-        msg = self._message
-        hint = self._hint
-
+    @property
+    def hint(self):
         # some hints are expensive to compute, so we wait until the last
         # minute when the formatted message is actually requested to compute
         # them.
-        if callable(hint):
-            hint = hint()
+        if callable(self._hint):
+            return self._hint()
+        return self._hint
 
-        if hint:
-            msg += f"\n\n  (hint: {hint})"
+    @property
+    def message(self):
+        msg = self._message
+        if self.hint:
+            msg += f"\n\n  (hint: {self.hint})"
         return msg
 
     def __str__(self):
