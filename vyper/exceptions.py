@@ -2,7 +2,6 @@ import contextlib
 import copy
 import textwrap
 import types
-from functools import cached_property
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
