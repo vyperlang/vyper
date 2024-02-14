@@ -382,12 +382,17 @@ class StructT(_UserType):
         return {"name": name, "type": "tuple", "components": components}
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
-        validate_call_args(node, 0, kwargs=self.member_types.keys())
+        if len(node.args) > 0:
+            raise VariableDeclarationException(
+                "Struct values must be declared as kwargs e.g. Foo(a=1, b=2)", node.args[0]
+            )
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
+        # manually validate kwargs for better error messages instead of
+        # relying on `validate_call_args`
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
         for i, key in enumerate(node.keywords):
