@@ -86,7 +86,7 @@ def scope_multi(ir_nodes, names):
 def scope_together(ir_nodes, names):
     assert len(ir_nodes) == len(names)
 
-    should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
+    should_scope = any(s.optimized.is_complex_ir for s in ir_nodes)
 
     class _Builder:
         def resolve(self, body):
@@ -122,7 +122,7 @@ def scope_together(ir_nodes, names):
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        if should_inline and ir_node._optimized.is_complex_ir:
+        if should_inline and ir_node.optimized.is_complex_ir:
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -213,7 +213,7 @@ class IRnode:
         self.func_ir = None
         self.common_ir = None
 
-        self.__optimized = None
+        self._optimized = None
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -469,14 +469,14 @@ class IRnode:
         return self.location is not None
 
     @property
-    def _optimized(self):
-        if self.__optimized is None:
+    def optimized(self):
+        if self._optimized is None:
             # TODO figure out how to fix this circular import
             from vyper.ir.optimizer import optimize
 
-            self.__optimized = optimize(self)
+            self._optimized = optimize(self)
 
-        return self.__optimized
+        return self._optimized
 
     # This function is slightly confusing but abstracts a common pattern:
     # when an IR value needs to be computed once and then cached as an
@@ -498,7 +498,7 @@ class IRnode:
         # because a non-literal expr could turn into a literal,
         # (e.g. `(add 1 2)`)
         # TODO this could really be moved into optimizer.py
-        should_inline = not self._optimized.is_complex_ir
+        should_inline = not self.optimized.is_complex_ir
 
         return _WithBuilder(self, name, should_inline)
 

@@ -422,8 +422,8 @@ def optimize(node: IRnode) -> IRnode:
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
-    if node.__optimized is not None:
-        return node.__optimized is not node, node.__optimized
+    if node._optimized is not None:
+        return node._optimized is not node, node._optimized
 
     starting_symbols = node.unique_symbols
 

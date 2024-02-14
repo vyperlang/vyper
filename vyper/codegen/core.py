@@ -981,10 +981,10 @@ def _complex_make_setter(left, right):
                 # sstore(add (dst ofst), (sload (add (src ofst)))) is 16 bytes,
                 # whereas loop overhead is 16-17 bytes.
                 base_cost = 3
-                if left._optimized.is_literal:
+                if left.optimized.is_literal:
                     # code size is smaller since add is performed at compile-time
                     base_cost += 1
-                if right._optimized.is_literal:
+                if right.optimized.is_literal:
                     base_cost += 1
                 # the formula is a heuristic, but it works.
                 # (CMC 2023-07-14 could get more detailed for PUSH1 vs
@@ -1008,10 +1008,10 @@ def _complex_make_setter(left, right):
                 # cost for 0th word - (mstore dst (mload src))
                 base_unroll_cost = 12
                 nth_word_cost = base_unroll_cost
-                if not left._optimized.is_literal:
+                if not left.optimized.is_literal:
                     # (mstore (add N dst) (mload src))
                     nth_word_cost += 6
-                if not right._optimized.is_literal:
+                if not right.optimized.is_literal:
                     # (mstore dst (mload (add N src)))
                     nth_word_cost += 6
 
