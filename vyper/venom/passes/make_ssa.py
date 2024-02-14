@@ -1,9 +1,12 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
+from vyper.venom.bb_optimizer import _optimize_unused_variables, ir_pass_optimize_unused_variables
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+
+count = 1
 
 
 class MakeSSA(IRPass):
@@ -24,6 +27,19 @@ class MakeSSA(IRPass):
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
+
+        # if True or "_transfer_in" in entry.label.value:
+        #     if count == 3:
+        #         calculate_liveness(ctx)
+        #         print(ctx.as_graph())
+        #         import sys
+
+        #         sys.exit()
+        #     count += 1
+
+        # calculate_liveness(ctx)
+        # ir_pass_optimize_unused_variables(ctx)
+        # calculate_liveness(ctx)
 
         return 0
 
@@ -50,6 +66,10 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
+        # if "%529" not in var.name:
+        #     return
+        # if var.name == "%856":
+        #     return
         args: list[IROperand] = []
         for bb in basic_block.cfg_in:
             if bb == basic_block:
@@ -131,8 +151,12 @@ class MakeSSA(IRPass):
                     continue
                 new_ops.extend([label, op])
             new_ops_len = len(new_ops)
-            if new_ops_len <= 2:
+            if new_ops_len == 0:
                 entry.instructions.remove(inst)
+            elif new_ops_len == 2:
+                entry.instructions.remove(inst)
+                # inst.opcode = "store"
+                # inst.operands = [new_ops[1]]
             else:
                 inst.operands = new_ops
 
