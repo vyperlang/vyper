@@ -65,6 +65,18 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def copy(self):
         return self.__class__(super().copy())
 
+    @classmethod
+    def intersection(cls, *sets):
+        res = OrderedSet()
+        if not sets:
+            return res
+        if len(sets) == 1:
+            return sets[0].copy()
+        for e in sets[0].keys():
+            if all(e in s for s in sets[1:]):
+                res.add(e)
+        return res
+
 
 class DecimalContextOverride(decimal.Context):
     def __setattr__(self, name, value):
