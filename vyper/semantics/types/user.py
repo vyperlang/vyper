@@ -393,9 +393,9 @@ class StructT(_UserType):
         for i, key in enumerate(node.keywords):
             value = key.value
             if key.arg not in members:
-                suggestions_str = get_levenshtein_error_suggestions(key.arg, members, 1.0)
+                hint = get_levenshtein_error_suggestions(key.arg, members, 1.0)
                 raise UnknownAttribute(
-                    f"Unknown or duplicate struct member. {suggestions_str}", key or value
+                    "Unknown or duplicate struct member.", key or value, hint=hint
                 )
             expected_key = keys[i]
             if key.arg != expected_key:

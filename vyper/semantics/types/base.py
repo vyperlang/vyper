@@ -321,8 +321,8 @@ class VyperType:
         if not self.members:
             raise StructureException(f"{self} instance does not have members", node)
 
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
+        hint = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'.", node, hint=hint)
 
     def __repr__(self):
         return self._id
