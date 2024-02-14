@@ -1,8 +1,8 @@
-import functools
 import ast as python_ast
 import contextlib
 import copy
 import decimal
+import functools
 import operator
 import sys
 import warnings
