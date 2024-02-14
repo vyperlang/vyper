@@ -157,6 +157,9 @@ def _handle_self_call(
             var = _get_variable_from_address(variables, arg.value)
             if var is None:
                 ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
+                if isinstance(ret, IRLiteral):
+                    bb = ctx.get_basic_block()
+                    ret = bb.append_instruction("mload", ret)
                 ret_args.append(ret)
             else:
                 if allocated_variables.get(var.name) is not None:
