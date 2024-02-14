@@ -5,8 +5,6 @@ from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-count = 1
-
 
 class MakeSSA(IRPass):
     dom: DominatorTree
@@ -26,14 +24,6 @@ class MakeSSA(IRPass):
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
-
-        # if count == 3:
-        #     calculate_liveness(ctx)
-        #     print(ctx.as_graph())
-        #     import sys
-
-        #     sys.exit()
-        # count += 1
 
         return 0
 
