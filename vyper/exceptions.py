@@ -2,6 +2,7 @@ import contextlib
 import copy
 import textwrap
 import types
+from functools import cached_property
 
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 
@@ -79,12 +80,17 @@ class _BaseVyperException(Exception):
         exc.annotations = annotations
         return exc
 
-    @property
+    @cached_property
     def message(self):
         msg = self._message
         hint = self._hint
+
+        # some hints are expensive to compute, so we wait until the last
+        # minute when the formatted message is actually requested to compute
+        # them.
         if callable(hint):
             hint = hint()
+
         if hint:
             msg += f"\n\n  (hint: {hint})"
         return msg
