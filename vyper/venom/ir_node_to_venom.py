@@ -529,7 +529,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         bb = ctx.get_basic_block()
         if func_t.is_external:
             # Hardcoded contructor special case
-            if func_t.name == "__init__":
+            if func_t.is_constructor:
                 label = IRLabel(ir.args[0].value, True)
                 bb.append_instruction("jmp", label)
                 return None

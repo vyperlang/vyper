@@ -126,9 +126,8 @@ class VenomCompiler:
             self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
 
             # TODO make this property on IRFunction
+            asm.extend(["_sym__ctor_exit", "JUMPDEST"])
             if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
-                while asm[-1] != "JUMPDEST":
-                    asm.pop()
                 asm.extend(
                     ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
                 )
@@ -231,6 +230,11 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
+        bb_label = basicblock.label.value
+        is_constructor_cleanup = (
+            "__init__" in bb_label and "_cleanup" in bb_label
+        ) or bb_label == "__global"
+
         # assembly entry point into the block
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
@@ -246,6 +250,11 @@ class VenomCompiler:
         self._clean_unused_params(asm, basicblock, stack)
 
         for inst in main_insts:
+            if is_constructor_cleanup and inst.opcode == "stop":
+                asm.append("_sym__ctor_exit")
+                asm.append("JUMP")
+                continue
+
             asm = self._generate_evm_for_instruction(asm, inst, stack)
 
         for bb in basicblock.reachable:
