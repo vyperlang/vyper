@@ -97,7 +97,8 @@ class CompilerData:
             Do not add metadata to bytecode. Defaults to False
         """
         # to force experimental codegen, uncomment:
-        settings.experimental_codegen = True
+        if settings:
+            settings.experimental_codegen = True
 
         if isinstance(file_input, str):
             file_input = FileInput(

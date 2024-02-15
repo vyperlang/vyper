@@ -445,6 +445,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )  # initialization
 
+        if isinstance(ret, IRLiteral):
+            ret = ctx.get_basic_block().append_instruction("store", ret.value)
+
         # Handle with nesting with same symbol
         with_symbols = symbols.copy()
         with_allocated_variables = allocated_variables.copy()
@@ -467,7 +470,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "set":
         sym = ir.args[0]
         arg_1 = _convert_ir_bb(ctx, ir.args[1], symbols, variables, allocated_variables)
-        symbols[sym.value] = arg_1
+        ctx.get_basic_block().append_instruction("store", arg_1, ret=allocated_variables[sym.value])
 
     elif ir.value == "calldatacopy":
         arg_0, arg_1, size = _convert_ir_bb_list(
@@ -480,12 +483,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             vars = _get_variables_from_address_and_size(
                 variables, int(arg_0.value), int(size.value)
             )
-            for var in vars:
-                if allocated_variables.get(var.name, None) is None:
-                    new_v = IRVariable(var.name)
-                    ctx.get_basic_block().append_instruction("alloca", var.size, var.pos, ret=new_v)
-                    allocated_variables[var.name] = new_v
-                    symbols[f"&{var.pos}"] = new_v
+            # for var in vars:
+            #     if allocated_variables.get(var.name, None) is None:
+            #         new_v = IRVariable(var.name)
+            #         ctx.get_basic_block().append_instruction("alloca", var.size, var.pos, ret=new_v)
+            #         allocated_variables[var.name] = new_v
+            #         symbols[f"&{var.pos}"] = new_v
 
         bb.append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
 
@@ -632,9 +635,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # return_buffer special case
         if allocated_variables.get("return_buffer") == arg_0.name:
             return arg_0
-        sym = symbols.get(f"&{arg_0.value}")
-        if sym is not None:
-            return sym
+        # sym = symbols.get(f"&{arg_0.value}")
+        # if sym is not None:
+        #     return sym
         if isinstance(arg_0, IRLiteral):
             var = _get_variable_from_address(variables, arg_0.value)
             if var is not None:
