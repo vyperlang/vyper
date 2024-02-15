@@ -358,7 +358,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 Bytes literals may be given as bytes strings.
 
-.. code-block:: python
+.. code-block:: vyper
 
     bytes_string: Bytes[100] = b"\x01"
 
@@ -372,7 +372,7 @@ Strings
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     example_str: String[100] = "Test String"
 
@@ -384,7 +384,7 @@ Flags
 Flags are custom defined types. A flag must have at least one member, and can hold up to a maximum of 256 members.
 The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a flag with two members
     flag Roles:
@@ -430,7 +430,7 @@ Flag members can be combined using the above bitwise operators. While flag membe
 
 The ``in`` and ``not in`` operators can be used in conjunction with flag member combinations to check for membership.
 
-.. code-block:: python
+.. code-block:: vyper
 
     flag Roles:
         MANAGER
@@ -491,7 +491,7 @@ Fixed-size lists hold a finite number of elements which belong to a specified ty
 
 Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and flags.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: int128[3]
@@ -507,7 +507,7 @@ Multidimensional lists are also possible. The notation for the declaration is re
 
 A two dimensional list can be declared with ``_name: _ValueType[inner_size][outer_size]``. Elements can be accessed with ``_name[outer_index][inner_index]``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list with 2 rows and 5 columns and set all values to 0
     exampleList2D: int128[5][2] = empty(int128[5][2])
@@ -531,7 +531,7 @@ Dynamic Arrays
 
 Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type or reference type (except mappings).
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: DynArray[int128, 3]
@@ -558,7 +558,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 .. note::
     To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         for item in self.my_array:
             self.my_array[0] = item
@@ -580,7 +580,7 @@ Struct types can be used inside mappings and arrays. Structs can contain arrays 
 
 Struct members can be accessed via ``struct.argname``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a struct
     struct MyStruct:
@@ -610,7 +610,7 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. note::
     Mappings are only allowed as state variables.
 
-.. code-block:: python
+.. code-block:: vyper
 
    # Defining a mapping
    exampleMapping: HashMap[int128, decimal]

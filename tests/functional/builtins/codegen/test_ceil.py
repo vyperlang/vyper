@@ -6,7 +6,7 @@ def test_ceil(get_contract_with_gas_estimation):
     code = """
 x: decimal
 
-@external
+@deploy
 def __init__():
     self.x = 504.0000000001
 
@@ -53,7 +53,7 @@ def test_ceil_negative(get_contract_with_gas_estimation):
     code = """
 x: decimal
 
-@external
+@deploy
 def __init__():
     self.x = -504.0000000001
 

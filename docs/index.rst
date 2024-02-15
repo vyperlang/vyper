@@ -1,4 +1,4 @@
-.. image:: vyper-logo-transparent.svg
+.. image:: logo.svg
     :width: 140px
     :alt: Vyper logo
     :align: center

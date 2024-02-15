@@ -44,39 +44,8 @@ def foo() -> int128:
     return x.codesize()
     """,
     """
-@external
-@nonreentrant("B")
-@nonreentrant("C")
-def double_nonreentrant():
-    pass
-    """,
-    """
 struct X:
     int128[5]: int128[7]
-    """,
-    """
-@external
-@nonreentrant(" ")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("123")
-def invalid_nonreentrant_key():
-    pass
-    """,
-    """
-@external
-@nonreentrant("!123abcd")
-def invalid_nonreentrant_key():
-    pass
     """,
     """
 @external
@@ -94,7 +63,7 @@ n: public(HashMap[uint256, uint256][a])
 a: immutable(uint256)
 n: public(HashMap[uint256, bool][a])
 
-@external
+@deploy
 def __init__():
     a = 3
     """,
@@ -105,14 +74,14 @@ n: HashMap[uint256, bool][3][3]
 m1: HashMap[uint8, uint8]
 m2: HashMap[uint8, uint8]
 
-@external
+@deploy
 def __init__():
     self.m1 = self.m2
     """,
     """
 m1: HashMap[uint8, uint8]
 
-@external
+@deploy
 def __init__():
     self.m1 = 234
     """,

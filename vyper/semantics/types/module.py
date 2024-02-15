@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
@@ -16,11 +16,15 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
+
+if TYPE_CHECKING:
+    from vyper.semantics.analysis.base import ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -234,7 +238,7 @@ class InterfaceT(_UserType):
 
         for node in module_t.function_defs:
             func_t = node._metadata["func_type"]
-            if not func_t.is_external:
+            if not (func_t.is_external or func_t.is_constructor):
                 continue
             funcs.append((node.name, func_t))
 
@@ -276,6 +280,12 @@ class InterfaceT(_UserType):
 # Datatype to store all module information.
 class ModuleT(VyperType):
     _attribute_in_annotation = True
+    _invalid_locations = (
+        DataLocation.CALLDATA,
+        DataLocation.CODE,
+        DataLocation.MEMORY,
+        DataLocation.TRANSIENT,
+    )
 
     def __init__(self, module: vy_ast.Module, name: Optional[str] = None):
         super().__init__()
@@ -307,7 +317,6 @@ class ModuleT(VyperType):
         for i in self.interface_defs:
             # add the type of the interface so it can be used in call position
             self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
-            self._helper.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])
@@ -315,6 +324,13 @@ class ModuleT(VyperType):
         for i in self.import_stmts:
             import_info = i._metadata["import_info"]
             self.add_member(import_info.alias, import_info.typ)
+
+            if hasattr(import_info.typ, "module_t"):
+                self._helper.add_member(import_info.alias, TYPE_T(import_info.typ))
+
+        for name, interface_t in self.interfaces.items():
+            # can access interfaces in type position
+            self._helper.add_member(name, TYPE_T(interface_t))
 
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
@@ -345,13 +361,71 @@ class ModuleT(VyperType):
     def interface_defs(self):
         return self._module.get_children(vy_ast.InterfaceDef)
 
+    @cached_property
+    def interfaces(self) -> dict[str, InterfaceT]:
+        ret = {}
+        for i in self.interface_defs:
+            assert i.name not in ret  # precondition
+            ret[i.name] = i._metadata["interface_type"]
+
+        for i in self.import_stmts:
+            import_info = i._metadata["import_info"]
+            if isinstance(import_info.typ, InterfaceT):
+                assert import_info.alias not in ret  # precondition
+                ret[import_info.alias] = import_info.typ
+
+        return ret
+
     @property
     def import_stmts(self):
         return self._module.get_children((vy_ast.Import, vy_ast.ImportFrom))
 
+    @cached_property
+    def imported_modules(self) -> dict[str, "ModuleInfo"]:
+        ret = {}
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+            module_info = info.typ
+            if isinstance(module_info, InterfaceT):
+                continue
+            ret[info.alias] = module_info
+        return ret
+
+    def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
+        for s in self.imported_modules.values():
+            if s.module_t == needle:
+                return s
+        return None
+
     @property
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
+
+    @property
+    def uses_decls(self):
+        return self._module.get_children(vy_ast.UsesDecl)
+
+    @property
+    def initializes_decls(self):
+        return self._module.get_children(vy_ast.InitializesDecl)
+
+    @cached_property
+    def used_modules(self):
+        # modules which are written to
+        ret = []
+        for node in self.uses_decls:
+            for used_module in node._metadata["uses_info"].used_modules:
+                ret.append(used_module)
+        return ret
+
+    @property
+    def initialized_modules(self):
+        # modules which are initialized to
+        ret = []
+        for node in self.initializes_decls:
+            info = node._metadata["initializes_info"]
+            ret.append(info)
+        return ret
 
     @cached_property
     def variables(self):
@@ -360,12 +434,24 @@ class ModuleT(VyperType):
         return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
 
     @cached_property
+    def functions(self):
+        return {f.name: f._metadata["func_type"] for f in self.function_defs}
+
+    @cached_property
     def immutables(self):
         return [t for t in self.variables.values() if t.is_immutable]
 
     @cached_property
     def immutable_section_bytes(self):
-        return sum([imm.typ.memory_bytes_required for imm in self.immutables])
+        ret = 0
+        for s in self.immutables:
+            ret += s.typ.memory_bytes_required
+
+        for initializes_info in self.initialized_modules:
+            module_t = initializes_info.module_info.module_t
+            ret += module_t.immutable_section_bytes
+
+        return ret
 
     @cached_property
     def interface(self):

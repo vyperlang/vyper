@@ -1,3 +1,5 @@
+import contextlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -257,3 +259,34 @@ def foo() -> uint256:
     contract_file = make_file("contract.vy", contract_source)
 
     assert compile_files([contract_file], ["combined_json"], paths=[tmp_path]) is not None
+
+
+@contextlib.contextmanager
+def mock_sys_path(path):
+    try:
+        sys.path.append(path)
+        yield
+    finally:
+        sys.path.pop()
+
+
+def test_import_sys_path(tmp_path_factory, make_file):
+    library_source = """
+@internal
+def foo() -> uint256:
+    return block.number + 1
+    """
+    contract_source = """
+import lib
+
+@external
+def foo() -> uint256:
+    return lib.foo()
+    """
+    tmpdir = tmp_path_factory.mktemp("test-sys-path")
+    with open(tmpdir / "lib.vy", "w") as f:
+        f.write(library_source)
+
+    contract_file = make_file("contract.vy", contract_source)
+    with mock_sys_path(tmpdir):
+        assert compile_files([contract_file], ["combined_json"]) is not None

@@ -80,7 +80,7 @@ def test_extended_bytes_key_from_storage(get_contract):
     code = """
 a: HashMap[Bytes[100000], int128]
 
-@external
+@deploy
 def __init__():
     self.a[b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = 1069
 
@@ -114,7 +114,7 @@ struct Foo:
 
 a: HashMap[Bytes[100000], int128]
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.a[b"potato"] = 31337
@@ -145,7 +145,7 @@ struct Foo:
 a: HashMap[Bytes[100000], int128]
 b: Foo
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.a[b"potato"] = 31337
@@ -172,7 +172,7 @@ def test_bytes_key_storage(get_contract):
 a: HashMap[Bytes[100000], int128]
 b: Bytes[5]
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
     self.b = b"hello"
@@ -193,7 +193,7 @@ def test_bytes_key_calldata(get_contract):
 a: HashMap[Bytes[100000], int128]
 
 
-@external
+@deploy
 def __init__():
     self.a[b"hello"] = 1069
 
@@ -215,7 +215,7 @@ struct Thing:
 bar: public(HashMap[uint256, Thing])
 foo: public(HashMap[Bytes[64], uint256])
 
-@external
+@deploy
 def __init__():
     self.foo[b"hello"] = 31337
     self.bar[12] = Thing({name: b"hello"})

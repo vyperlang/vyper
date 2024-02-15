@@ -6,6 +6,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
+    data_location_to_address_space,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,7 +24,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
@@ -185,26 +186,24 @@ class Expr:
             ret._referenced_variables = {var}
             return ret
 
-        # TODO: use self.expr._expr_info
-        elif self.expr.id in self.context.globals:
-            varinfo = self.context.globals[self.expr.id]
-
+        elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.is_immutable, "not an immutable!"
 
-            ofst = varinfo.position.offset
+            mutable = self.context.is_ctor_context
 
-            if self.context.is_ctor_context:
-                mutable = True
-                location = IMMUTABLES
-            else:
-                mutable = False
-                location = DATA
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
 
             ret = IRnode.from_list(
-                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation=self.expr.id,
+                mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
@@ -264,20 +263,6 @@ class Expr:
                 if addr.value == "address":  # for `self.code`
                     return IRnode.from_list(["~selfcode"], typ=BytesT(0))
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
-        # self.x: global attribute
-        elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            varinfo = self.context.globals[self.expr.attr]
-            location = TRANSIENT if varinfo.is_transient else STORAGE
-
-            ret = IRnode.from_list(
-                varinfo.position.position,
-                typ=varinfo.typ,
-                location=location,
-                annotation="self." + self.expr.attr,
-            )
-            ret._referenced_variables = {varinfo}
-
-            return ret
 
         # Reserved keywords
         elif (
@@ -341,17 +326,37 @@ class Expr:
                         "chain.id is unavailable prior to istanbul ruleset", self.expr
                     )
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
+
         # Other variables
-        else:
-            sub = Expr(self.expr.value, self.context).ir_node
-            # contract type
-            if isinstance(sub.typ, InterfaceT):
-                # MyInterface.address
-                assert self.expr.attr == "address"
-                sub.typ = typ
-                return sub
-            if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
-                return get_element_ptr(sub, self.expr.attr)
+
+        # self.x: global attribute
+        if (varinfo := self.expr._expr_info.var_info) is not None:
+            if varinfo.is_constant:
+                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
+
+            ret = IRnode.from_list(
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation="self." + self.expr.attr,
+            )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
+        sub = Expr(self.expr.value, self.context).ir_node
+        # contract type
+        if isinstance(sub.typ, InterfaceT):
+            # MyInterface.address
+            assert self.expr.attr == "address"
+            sub.typ = typ
+            return sub
+        if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
+            return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).ir_node
@@ -708,7 +713,7 @@ class Expr:
             return pop_dyn_array(darray, return_popped_item=True)
 
         if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal:
+            if func_type.is_internal or func_type.is_constructor:
                 return self_call.ir_for_self_call(self.expr, self.context)
             else:
                 return external_call.ir_for_external_call(self.expr, self.context)

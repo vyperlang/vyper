@@ -2,6 +2,7 @@ import ast as python_ast
 import contextlib
 import copy
 import decimal
+import functools
 import operator
 import sys
 import warnings
@@ -83,8 +84,20 @@ def get_node(
             if ast_struct["value"] is not None:
                 _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "ImplementsDecl"
+
+        # Replace "uses:" `AnnAssign` nodes with `UsesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "uses":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`uses` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "UsesDecl"
+
+        # Replace "initializes:" `AnnAssign` nodes with `InitializesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "initializes":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`initializes` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "InitializesDecl"
+
         # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-        # Parent node is required for context to determine whether replacement should happen.
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
@@ -329,6 +342,7 @@ class VyperNode:
         return cls(**ast_struct)
 
     @classmethod
+    @functools.lru_cache(maxsize=None)
     def get_fields(cls) -> set:
         """
         Return a set of field names for this node.
@@ -730,6 +744,20 @@ class Expr(Stmt):
         return self.value.is_terminus
 
 
+class NamedExpr(Stmt):
+    __slots__ = ("target", "value")
+
+    def validate(self):
+        # module[dep1 := dep2]
+
+        # XXX: better error messages
+        if not isinstance(self.target, Name):
+            raise StructureException("not a Name")
+
+        if not isinstance(self.value, Name):
+            raise StructureException("not a Name")
+
+
 class Log(Stmt):
     __slots__ = ("value",)
 
@@ -755,6 +783,11 @@ class StructDef(TopLevel):
 # the Expr type (which is a type of statement node, see python AST docs).
 class ExprNode(VyperNode):
     __slots__ = ("_expr_info",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._expr_info = None
 
 
 class Constant(ExprNode):
@@ -1383,23 +1416,85 @@ class ImplementsDecl(Stmt):
     """
     An `implements` declaration.
 
-    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
-
     Attributes
     ----------
-    target : Name
-        Name node for the `implements` keyword
     annotation : Name
         Name node for the interface to be implemented
     """
 
-    __slots__ = ("target", "annotation")
+    __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         if not isinstance(self.annotation, (Name, Attribute)):
             raise StructureException("invalid implements", self.annotation)
+
+
+def as_tuple(node: VyperNode):
+    """
+    Convenience function for some AST nodes which allow either a Tuple
+    or single elements. Returns a python tuple of AST nodes.
+    """
+    if isinstance(node, Tuple):
+        return node.elements
+    else:
+        return (node,)
+
+
+class UsesDecl(Stmt):
+    """
+    A `uses` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Tuple
+        The module(s) which this uses
+    """
+
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        items = as_tuple(self.annotation)
+        for item in items:
+            if not isinstance(item, (Name, Attribute)):
+                raise StructureException("invalid uses", item)
+
+
+class InitializesDecl(Stmt):
+    """
+    An `initializes` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Subscript
+        An imported module which this module initializes
+    """
+
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        module_ref = self.annotation
+        if isinstance(module_ref, Subscript):
+            dependencies = as_tuple(module_ref.slice)
+            module_ref = module_ref.value
+
+            for item in dependencies:
+                if not isinstance(item, NamedExpr):
+                    raise StructureException(
+                        "invalid dependency (hint: should be [dependency := dependency]", item
+                    )
+                if not isinstance(item.target, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+                if not isinstance(item.value, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+
+        if not isinstance(module_ref, (Name, Attribute)):
+            raise StructureException("invalid module", module_ref)
 
 
 class If(Stmt):

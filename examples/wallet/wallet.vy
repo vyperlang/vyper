@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 ###########################################################################
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
@@ -12,7 +14,7 @@ threshold: int128
 seq: public(int128)
 
 
-@external
+@deploy
 def __init__(_owners: address[5], _threshold: int128):
     for i: uint256 in range(5):
         if _owners[i] != empty(address):

@@ -1,8 +1,9 @@
+#pragma version >0.3.10
+
 ###########################################################################
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
 
-# @version >=0.3.4
 """
 @dev example implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
@@ -122,7 +123,7 @@ interface IERC1155MetadataURI:
 
 ############### functions ###############
 
-@external
+@deploy
 def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment

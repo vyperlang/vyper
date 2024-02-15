@@ -5,7 +5,7 @@ def test_basic_init_function(get_contract):
     code = """
 val: public(uint256)
 
-@external
+@deploy
 def __init__(a: uint256):
     self.val = a
     """
@@ -27,10 +27,12 @@ def __init__(a: uint256):
 def test_init_calls_internal(get_contract, assert_compile_failed, tx_failed):
     code = """
 foo: public(uint8)
+
 @internal
 def bar(x: uint256) -> uint8:
     return convert(x, uint8) * 7
-@external
+
+@deploy
 def __init__(a: uint256):
     self.foo = self.bar(a)
 
@@ -61,7 +63,7 @@ def test_nested_internal_call_from_ctor(get_contract):
     code = """
 x: uint256
 
-@external
+@deploy
 def __init__():
     self.a()
 

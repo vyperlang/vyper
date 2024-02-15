@@ -78,7 +78,7 @@ def foo():
         """
 f:int128
 
-@external
+@internal
 def a (x:int128):
     self.f = 100
 
@@ -86,6 +86,63 @@ def a (x:int128):
 @external
 def b():
     self.a(10)""",
+        """
+interface A:
+    def bar() -> uint16: view
+@external
+@pure
+def test(to:address):
+    a:A = A(to)
+    x:uint16 = a.bar()
+    """,
+        """
+interface A:
+    def bar() -> uint16: view
+@external
+@pure
+def test(to:address):
+    a:A = A(to)
+    a.bar()
+    """,
+        """
+interface A:
+    def bar() -> uint16: nonpayable
+@external
+@view
+def test(to:address):
+    a:A = A(to)
+    x:uint16 = a.bar()
+    """,
+        """
+interface A:
+    def bar() -> uint16: nonpayable
+@external
+@view
+def test(to:address):
+    a:A = A(to)
+    a.bar()
+    """,
+        """
+a:DynArray[uint16,3]
+@deploy
+def __init__():
+    self.a = [1,2,3]
+@view
+@external
+def bar()->DynArray[uint16,3]:
+    x:uint16 = self.a.pop()
+    return self.a # return [1,2]
+    """,
+        """
+from ethereum.ercs import ERC20
+
+token: ERC20
+
+@external
+@view
+def topup(amount: uint256):
+    assert self.token.transferFrom(msg.sender, self, amount)
+    """,
     ],
 )
 def test_statefulness_violations(bad_code):

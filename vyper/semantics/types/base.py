@@ -13,6 +13,7 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -25,7 +26,11 @@ class _GenericTypeAcceptor:
         self.type_ = type_
 
     def compare_type(self, other):
-        return isinstance(other, self.type_) or self == other
+        if isinstance(other, self.type_):
+            return True
+        # compare two GenericTypeAcceptors -- they are the same if the base
+        # type is the same
+        return isinstance(other, self.__class__) and other.type_ == self.type_
 
 
 class VyperType:
@@ -91,6 +96,8 @@ class VyperType:
         return hash(self._get_equality_attrs())
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return (
             type(self) is type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
@@ -117,6 +124,16 @@ class VyperType:
         The ABI type corresponding to this type
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
+
+    def get_size_in(self, location: DataLocation):
+        if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            return self.storage_size_in_words
+        if location == DataLocation.MEMORY:
+            return self.memory_bytes_required
+        if location == DataLocation.CODE:
+            return self.memory_bytes_required
+
+        raise CompilerPanic("unreachable: invalid location {location}")  # pragma: nocover
 
     @property
     def memory_bytes_required(self) -> int:
@@ -304,8 +321,8 @@ class VyperType:
         if not self.members:
             raise StructureException(f"{self} instance does not have members", node)
 
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
+        hint = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'.", node, hint=hint)
 
     def __repr__(self):
         return self._id
@@ -341,8 +358,10 @@ def map_void(typ: Optional[VyperType]) -> VyperType:
 # A type type. Used internally for types which can live in expression
 # position, ex. constructors (events, interfaces and structs), and also
 # certain builtins which take types as parameters
-class TYPE_T:
+class TYPE_T(VyperType):
     def __init__(self, typedef):
+        super().__init__()
+
         self.typedef = typedef
 
     def __repr__(self):
