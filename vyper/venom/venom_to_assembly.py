@@ -210,7 +210,7 @@ class VenomCompiler:
                 continue
 
             if isinstance(op, IRLiteral):
-                assembly.extend([*PUSH(op.value)])
+                assembly.extend(PUSH(op.value % 2**256))
                 stack.push(op)
                 continue
 
