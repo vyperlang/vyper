@@ -76,7 +76,6 @@ PASS_THROUGH_INSTRUCTIONS = [
     "extcodehash",
     "balance",
     "msize",
-    "extcodecopy",
 ]
 
 SymbolTable = dict[str, Optional[IROperand]]
@@ -230,8 +229,11 @@ def _convert_ir_simple_node(
     symbols: SymbolTable,
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
+    reverse: bool = False,
 ) -> Optional[IRVariable]:
     args = [_convert_ir_bb(ctx, arg, symbols, variables, allocated_variables) for arg in ir.args]
+    if reverse:
+        args = reversed(args)
     return ctx.get_basic_block().append_instruction(ir.value, *args)  # type: ignore
 
 
@@ -495,12 +497,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         bb.append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
 
         return None
-    elif ir.value == "codecopy":
-        arg_0, arg_1, size = _convert_ir_bb_list(
-            ctx, ir.args, symbols, variables, allocated_variables
+    elif ir.value in ["extcodecopy", "codecopy"]:
+        return _convert_ir_simple_node(
+            ctx, ir, symbols, variables, allocated_variables, reverse=True
         )
-
-        ctx.get_basic_block().append_instruction("codecopy", size, arg_1, arg_0)  # type: ignore
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":

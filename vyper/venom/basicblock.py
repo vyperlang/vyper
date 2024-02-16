@@ -40,6 +40,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "dloadbytes",
         "calldatacopy",
         "codecopy",
+        "extcodecopy",
         "return",
         "ret",
         "revert",

@@ -39,6 +39,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "number",
         "extcodesize",
         "extcodehash",
+        "extcodecopy",
         "returndatasize",
         "returndatacopy",
         "callvalue",
