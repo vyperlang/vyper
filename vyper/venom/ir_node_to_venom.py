@@ -439,10 +439,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             then_block_finish.append_instruction("store", then_ret_val, ret=if_ret)
             else_block_finish.append_instruction("store", else_ret_val, ret=if_ret)
 
-        if not else_block.is_terminated:
+        if not else_block_finish.is_terminated:
             else_block_finish.append_instruction("jmp", exit_bb.label)
 
-        if not then_block.is_terminated:
+        if not then_block_finish.is_terminated:
             then_block_finish.append_instruction("jmp", exit_bb.label)
 
         return if_ret
