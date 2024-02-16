@@ -74,6 +74,9 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "lt",
         "slt",
         "sgt",
+        "create",
+        "create2",
+        "msize",
     ]
 )
 

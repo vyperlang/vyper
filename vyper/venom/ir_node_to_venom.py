@@ -75,6 +75,8 @@ PASS_THROUGH_INSTRUCTIONS = [
     "extcodesize",
     "extcodehash",
     "balance",
+    "msize",
+    "extcodecopy",
 ]
 
 SymbolTable = dict[str, Optional[IROperand]]
@@ -768,6 +770,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         topic_count = int(ir.value[3:])
         assert topic_count >= 0 and topic_count <= 4, "invalid topic count"
         ctx.get_basic_block().append_instruction("log", topic_count, *args)
+    elif ir.value == "create" or ir.value == "create2":
+        args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables))
+        return ctx.get_basic_block().append_instruction(ir.value, *args)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols, variables, allocated_variables)
     elif isinstance(ir.value, str) and ir.value in symbols:
