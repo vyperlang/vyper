@@ -77,7 +77,7 @@ ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
     "*": operator.mul,
-    "/": evm_div,
+    "//": evm_div,
     "%": evm_mod,
 }
 
@@ -134,7 +134,7 @@ def foo() -> {typ}:
 
         in_bounds = lo <= expected <= hi
         # safediv and safemod disallow divisor == 0
-        div_by_zero = y == 0 and op in ("/", "%")
+        div_by_zero = y == 0 and op in ("//", "%")
 
         ok = in_bounds and not div_by_zero
 
