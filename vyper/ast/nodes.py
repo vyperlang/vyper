@@ -4,6 +4,7 @@ import copy
 import decimal
 import functools
 import operator
+import pickle
 import sys
 import warnings
 from typing import Any, Optional, Union
@@ -356,6 +357,9 @@ class VyperNode:
     def __hash__(self):
         values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
         return hash(tuple(values))
+
+    def __deepcopy__(self, memo):
+        return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -786,7 +790,6 @@ class ExprNode(VyperNode):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self._expr_info = None
 
 
