@@ -23,7 +23,7 @@ def test_decimal_override():
         )
 
 
-@pytest.mark.parametrize("op", ["**", "&", "|", "^"])
+@pytest.mark.parametrize("op", ["//", "**", "&", "|", "^"])
 def test_invalid_ops(get_contract, assert_compile_failed, op):
     code = f"""
 @external

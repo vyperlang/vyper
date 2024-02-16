@@ -392,6 +392,17 @@ def foo(a: {typ}) -> {typ}:
 
 
 @pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["/"])
+def test_invalid_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(x: {typ}, y: {typ}) -> {typ}:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+
+
+@pytest.mark.parametrize("typ", types)
 @pytest.mark.parametrize("op", ["not"])
 def test_invalid_unary_ops(get_contract, assert_compile_failed, typ, op):
     code = f"""
