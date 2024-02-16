@@ -5,22 +5,9 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.function import ContractFunctionT
 
 
-def expand_annotated_ast(vyper_module: vy_ast.Module) -> None:
-    """
-    Perform expansion / simplification operations on an annotated Vyper AST.
-
-    This pass uses annotated type information to modify the AST, simplifying
-    logic and expanding subtrees to reduce the compexity during codegen.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node that has been type-checked and annotated.
-    """
-    generate_public_variable_getters(vyper_module)
-    remove_unused_statements(vyper_module)
-
-
+# TODO: remove this function. it causes correctness/performance problems
+# because of copying and mutating the AST - getter generation should be handled
+# during code generation.
 def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
     Create getter functions for public variables.
@@ -32,7 +19,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
     """
 
     for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_public": True}):
-        func_type = node._metadata["func_type"]
+        func_type = node._metadata["getter_type"]
         input_types, return_type = node._metadata["type"].getter_signature
         input_nodes = []
 
@@ -56,10 +43,10 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
                 raise CompilerPanic("Mismatch between node and input type while building getter")
             if annotation.value.get("id") == "HashMap":  # type: ignore
                 # for a HashMap, split the key/value types and use the key type as the next arg
-                arg, annotation = annotation.slice.value.elements  # type: ignore
+                arg, annotation = annotation.slice.elements  # type: ignore
             elif annotation.value.get("id") == "DynArray":
                 arg = vy_ast.Name(id=type_._id)
-                annotation = annotation.slice.value.elements[0]  # type: ignore
+                annotation = annotation.slice.elements[0]  # type: ignore
             else:
                 # for other types, build an input arg node from the expected type
                 # and remove the outer `Subscript` from the annotation
@@ -68,9 +55,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             input_nodes.append(vy_ast.arg(arg=f"arg{i}", annotation=arg))
 
             # wrap the return statement in a `Subscript`
-            return_stmt = vy_ast.Subscript(
-                value=return_stmt, slice=vy_ast.Index(value=vy_ast.Name(id=f"arg{i}"))
-            )
+            return_stmt = vy_ast.Subscript(value=return_stmt, slice=vy_ast.Name(id=f"arg{i}"))
 
         # after iterating the input types, the remaining annotation node is our return type
         return_node = copy.copy(annotation)
@@ -86,31 +71,11 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
             returns=return_node,
         )
 
+        # update pointers
+        vyper_module.add_to_body(expanded)
+        return_node.set_parent(expanded)
+
         with vyper_module.namespace():
             func_type = ContractFunctionT.from_FunctionDef(expanded)
 
-        expanded._metadata["type"] = func_type
-        return_node.set_parent(expanded)
-        vyper_module.add_to_body(expanded)
-
-
-def remove_unused_statements(vyper_module: vy_ast.Module) -> None:
-    """
-    Remove statement nodes that are unused after type checking.
-
-    Once type checking is complete, we can remove now-meaningless statements to
-    simplify the AST prior to IR generation.
-
-    Arguments
-    ---------
-    vyper_module : Module
-        Top-level Vyper AST node.
-    """
-
-    # constant declarations - values were substituted within the AST during folding
-    for node in vyper_module.get_children(vy_ast.VariableDecl, {"is_constant": True}):
-        vyper_module.remove_from_body(node)
-
-    # `implements: interface` statements - validated during type checking
-    for node in vyper_module.get_children(vy_ast.ImplementsDecl):
-        vyper_module.remove_from_body(node)
+        expanded._metadata["func_type"] = func_type

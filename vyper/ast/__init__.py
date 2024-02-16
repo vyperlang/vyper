@@ -5,8 +5,9 @@ import sys
 
 from . import nodes, validation
 from .natspec import parse_natspec
-from .nodes import compare_nodes
-from .utils import ast_to_dict, parse_to_ast, parse_to_ast_with_settings
+from .nodes import compare_nodes, as_tuple
+from .utils import ast_to_dict
+from .parse import parse_to_ast, parse_to_ast_with_settings
 
 # adds vyper.ast.nodes classes into the local namespace
 for name, obj in (
@@ -14,6 +15,5 @@ for name, obj in (
 ):
     setattr(sys.modules[__name__], name, obj)
 
-
 # required to avoid circular dependency
-from . import expansion, folding  # noqa: E402
+from . import expansion  # noqa: E402

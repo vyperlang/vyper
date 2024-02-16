@@ -10,24 +10,28 @@ This section provides a quick overview of the types of data present within a con
 .. _structure-versions:
 
 Pragmas
-==============
+=======
 
 Vyper supports several source code directives to control compiler modes and help with build reproducibility.
 
 Version Pragma
 --------------
 
-The version pragma ensures that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax. Starting from v0.4.0 and up, version strings will use `PEP440 version specifiers <https://peps.python.org/pep-0440/#version-specifiers>_`.
+The version pragma ensures that a contract is only compiled by the intended compiler version, or range of versions. Version strings use `NPM <https://docs.npmjs.com/about-semantic-versioning>`_ style syntax. Starting from v0.4.0 and up, version strings will use `PEP440 version specifiers <https://peps.python.org/pep-0440/#version-specifiers>`_.
 
 As of 0.3.10, the recommended way to specify the version pragma is as follows:
 
-.. code-block:: python
+.. code-block:: vyper
 
     #pragma version ^0.3.0
 
+.. note::
+
+    Both pragma directive versions ``#pragma`` and ``# pragma`` are supported.
+
 The following declaration is equivalent, and, prior to 0.3.10, was the only supported method to specify the compiler version:
 
-.. code-block:: python
+.. code-block:: vyper
 
     # @version ^0.3.0
 
@@ -39,7 +43,7 @@ Optimization Mode
 
 The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a contract will cause it to try to optimize for codesize:
 
-.. code-block:: python
+.. code-block:: vyper
 
    #pragma optimize codesize
 
@@ -58,13 +62,13 @@ State Variables
 
 State variables are values which are permanently stored in contract storage. They are declared outside of the body of any functions, and initially contain the :ref:`default value<types-initial>` for their type.
 
-.. code-block:: python
+.. code-block:: vyper
 
     storedData: int128
 
 State variables are accessed via the :ref:`self<constants-self>` object.
 
-.. code-block:: python
+.. code-block:: vyper
 
     self.storedData = 123
 
@@ -77,7 +81,7 @@ Functions
 
 Functions are executable units of code within a contract.
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def bid():
@@ -92,7 +96,7 @@ Events
 
 Events provide an interface for the EVM's logging facilities. Events may be logged with specially indexed data structures that allow clients, including light clients, to efficiently search for them.
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Payment:
         amount: int128
@@ -115,19 +119,19 @@ An interface is a set of function definitions used to enable calls between smart
 
 Interfaces can be added to contracts either through inline definition, or by importing them from a separate file.
 
-.. code-block:: python
+.. code-block:: vyper
 
     interface FooBar:
         def calculate() -> uint256: view
         def test1(): nonpayable
 
-.. code-block:: python
+.. code-block:: vyper
 
     from foo import FooBar
 
 Once defined, an interface can then be used to make external calls to a given address:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @external
     def test(some_address: address):
@@ -140,7 +144,7 @@ Structs
 
 A struct is a custom defined type that allows you to group several variables together:
 
-.. code-block:: python
+.. code-block:: vyper
 
     struct MyStruct:
         value1: int128

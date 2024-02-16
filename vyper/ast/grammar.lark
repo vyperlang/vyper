@@ -10,7 +10,8 @@ module: ( DOCSTRING
         | interface_def
         | constant_def
         | variable_def
-        | enum_def
+        | enum_def // TODO deprecate at some point in favor of flag
+        | flag_def
         | event_def
         | function_def
         | immutable_def
@@ -76,11 +77,18 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 event_body: _NEWLINE _INDENT (((event_member | indexed_event_arg ) _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
+// TODO deprecate in favor of flag
 // Enums
 _ENUM_DECL: "enum"
 enum_member: NAME
 enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
+
+// Flags
+_FLAG_DECL: "flag"
+flag_member: NAME
+flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
+flag_def: _FLAG_DECL NAME ":" flag_body
 
 // Types
 array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"
@@ -89,7 +97,8 @@ tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | a
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
 map_def: _MAP "[" ( NAME | array_def ) "," type "]"
-type: ( NAME | array_def | tuple_def | map_def | dyn_array_def )
+imported_type: NAME "." NAME
+type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
 _STRUCT_DECL: "struct"
@@ -169,18 +178,13 @@ body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
 cond_exec: _expr ":" body
 default_exec: body
 if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
-// TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
-loop_variable: NAME [":" NAME]
+loop_variable: NAME ":" type
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
-
-// ternary operator
-ternary: _expr "if" _expr "else" _expr
 
 // Expressions
 _expr: operation
      | dict
-     | ternary
 
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -206,7 +210,15 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 // See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
-?operation: bool_or
+?operation: assignment_expr
+
+// "walrus" operator
+?assignment_expr: ternary
+                  | NAME ":=" assignment_expr
+
+// ternary operator
+?ternary: bool_or
+          | ternary "if" ternary "else" ternary
 
 _AND: "and"
 _OR: "or"
@@ -229,7 +241,7 @@ _BITAND: "&"
 _BITOR: "|"
 _BITXOR: "^"
 
-// Comparisions
+// Comparisons
 _EQ: "=="
 _NE: "!="
 _LE: "<="
@@ -291,7 +303,7 @@ special_builtins: empty | abi_decode
 // Adapted from: https://docs.python.org/3/reference/grammar.html
 // Adapted by: Erez Shinan
 NAME: /[a-zA-Z_]\w*/
-COMMENT: /#[^\n]*/
+COMMENT: /#[^\n\r]*/
 _NEWLINE: ( /\r?\n[\t ]*/ | COMMENT )+
 
 
@@ -312,8 +324,10 @@ _number: DEC_NUMBER
 
 BOOL.2: "True" | "False"
 
+ELLIPSIS: "..."
+
 // TODO: Remove Docstring from here, and add to first part of body
-?literal: ( _number | STRING | DOCSTRING | BOOL )
+?literal: ( _number | STRING | DOCSTRING | BOOL | ELLIPSIS)
 
 %ignore /[\t \f]+/  // WS
 %ignore /\\[\t \f]*\r?\n/   // LINE_CONT

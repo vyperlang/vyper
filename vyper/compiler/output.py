@@ -1,6 +1,6 @@
 import warnings
 from collections import OrderedDict, deque
-from pathlib import Path
+from pathlib import PurePath
 
 import asttokens
 
@@ -17,25 +17,33 @@ from vyper.warnings import ContractSizeLimitWarning
 
 def build_ast_dict(compiler_data: CompilerData) -> dict:
     ast_dict = {
-        "contract_name": compiler_data.contract_name,
+        "contract_name": str(compiler_data.contract_path),
         "ast": ast_to_dict(compiler_data.vyper_module),
     }
     return ast_dict
 
 
+def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    annotated_ast_dict = {
+        "contract_name": str(compiler_data.contract_path),
+        "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+    }
+    return annotated_ast_dict
+
+
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
-    stem = Path(compiler_data.contract_name).stem
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
+    stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
     name = "".join([x.capitalize() for x in stem.split("_")])
@@ -53,7 +61,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
     if interface.events:
@@ -71,9 +79,17 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out = f"{out}@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
-            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    pass\n\n"
+            out = f"{out}@external\ndef {func.name}({args}){return_value}:\n    ...\n\n"
 
     return out
+
+
+def build_bb_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[0]
+
+
+def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[1]
 
 
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
@@ -89,6 +105,9 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
 
 
 def _ir_to_dict(ir_node):
+    # Currently only supported with IRnode and not VenomIR
+    if not isinstance(ir_node, IRnode):
+        return
     args = ir_node.args
     if len(args) > 0 or ir_node.value == "seq":
         return {ir_node.value: [_ir_to_dict(x) for x in args]}
@@ -104,11 +123,10 @@ def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    warnings.warn("metadata output format is unstable!")
     sigs = compiler_data.function_signatures
 
     def _var_rec_dict(variable_record):
-        ret = vars(variable_record)
+        ret = vars(variable_record).copy()
         ret["typ"] = str(ret["typ"])
         if ret["data_offset"] is None:
             del ret["data_offset"]
@@ -118,7 +136,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         return ret
 
     def _to_dict(func_t):
-        ret = vars(func_t)
+        ret = vars(func_t).copy()
         ret["return_type"] = str(ret["return_type"])
         ret["_ir_identifier"] = func_t._ir_info.ir_identifier
 
@@ -134,7 +152,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info)
+        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
         del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         keep_keys = {
@@ -156,14 +174,19 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    interface = compiler_data.vyper_module_folded._metadata["type"]
-    functions = interface.functions.values()
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    functions = module_t.function_defs
 
-    return {k: hex(v) for func in functions for k, v in func.method_ids.items()}
+    return {
+        k: hex(v) for func in functions for k, v in func._metadata["func_type"].method_ids.items()
+    }
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    abi = compiler_data.vyper_module_folded._metadata["type"].to_toplevel_abi_dict()
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+
+    abi = module_t.interface.to_toplevel_abi_dict()
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
         gas_estimates = build_gas_estimates(compiler_data.function_signatures)
@@ -307,7 +330,7 @@ def _build_opcodes(bytecode: bytes) -> str:
             # (instead of code) at end of contract
             # CMC 2023-07-13 maybe just strip known data segments?
             push_len = min(push_len, len(bytecode_sequence))
-            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
-            opcode_output.append(f"0x{''.join(push_values).upper()}")
+            push_values = [f"{bytecode_sequence.popleft():0>2X}" for i in range(push_len)]
+            opcode_output.append(f"0x{''.join(push_values)}")
 
     return " ".join(opcode_output)

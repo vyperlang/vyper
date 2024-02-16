@@ -2,18 +2,14 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
 
-import vyper.ast as vy_ast
 from vyper.codegen.context import Constancy, Context
-from vyper.codegen.core import check_single_exit
-from vyper.codegen.function_definitions.external_function import generate_ir_for_external_function
-from vyper.codegen.function_definitions.internal_function import generate_ir_for_internal_function
-from vyper.codegen.global_context import GlobalContext
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.memory_allocator import MemoryAllocator
-from vyper.exceptions import CompilerPanic
+from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
-from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import MemoryPositions, calc_mem_gas, mkalphanum
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
+from vyper.semantics.types.module import ModuleT
+from vyper.utils import MemoryPositions
 
 
 @dataclass
@@ -44,12 +40,21 @@ class _FuncIRInfo:
     @cached_property
     def ir_identifier(self) -> str:
         argz = ",".join([str(argtyp) for argtyp in self.func_t.argument_types])
-        return mkalphanum(f"{self.visibility} {self.func_t.name} ({argz})")
+
+        name = self.func_t.name
+        function_id = self.func_t._function_id
+        assert function_id is not None
+
+        # include module id in the ir identifier to disambiguate functions
+        # with the same name but which come from different modules
+        return f"{self.visibility} {function_id} {name}({argz})"
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
+        # XXX: when can this happen?
         if self.frame_info is not None:
-            raise CompilerPanic(f"frame_info already set for {self.func_t}!")
-        self.frame_info = frame_info
+            assert frame_info == self.frame_info
+        else:
+            self.frame_info = frame_info
 
     @property
     # common entry point for external function with kwargs
@@ -58,13 +63,15 @@ class _FuncIRInfo:
         return self.ir_identifier + "_common"
 
     def internal_function_label(self, is_ctor_context: bool = False) -> str:
-        assert self.func_t.is_internal, "uh oh, should be internal"
+        f = self.func_t
+        assert f.is_internal or f.is_constructor, "uh oh, should be internal"
+
+        if f.is_constructor:
+            # sanity check - imported init functions only callable from main init
+            assert is_ctor_context
+
         suffix = "_deploy" if is_ctor_context else "_runtime"
         return self.ir_identifier + suffix
-
-
-class FuncIR:
-    pass
 
 
 @dataclass
@@ -73,40 +80,37 @@ class EntryPointInfo:
     min_calldatasize: int  # the min calldata required for this entry point
     ir_node: IRnode  # the ir for this entry point
 
+    def __post_init__(self):
+        # sanity check ABI v2 properties guaranteed by the spec.
+        # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:  # noqa: E501
+        # > Note that for any X, len(enc(X)) is a multiple of 32.
+        assert self.min_calldatasize >= 4
+        assert (self.min_calldatasize - 4) % 32 == 0
+
 
 @dataclass
-class ExternalFuncIR(FuncIR):
+class ExternalFuncIR:
     entry_points: dict[str, EntryPointInfo]  # map from abi sigs to entry points
     common_ir: IRnode  # the "common" code for the function
 
 
 @dataclass
-class InternalFuncIR(FuncIR):
+class InternalFuncIR:
     func_ir: IRnode  # the code for the function
 
 
-# TODO: should split this into external and internal ir generation?
-def generate_ir_for_function(
-    code: vy_ast.FunctionDef, global_ctx: GlobalContext, is_ctor_context: bool = False
-) -> FuncIR:
-    """
-    Parse a function and produce IR code for the function, includes:
-        - Signature method if statement
-        - Argument handling
-        - Clamping and copying of arguments
-        - Function body
-    """
-    func_t = code._metadata["type"]
-
-    # generate _FuncIRInfo
+def init_ir_info(func_t: ContractFunctionT):
+    # initialize IRInfo on the function
     func_t._ir_info = _FuncIRInfo(func_t)
 
-    # Validate return statements.
-    # XXX: This should really be in semantics pass.
-    check_single_exit(code)
 
+def initialize_context(
+    func_t: ContractFunctionT, module_ctx: ModuleT, is_ctor_context: bool = False
+):
+    init_ir_info(func_t)
+
+    # calculate starting frame
     callees = func_t.called_functions
-
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c_func_t in callees:
@@ -117,43 +121,50 @@ def generate_ir_for_function(
 
     memory_allocator = MemoryAllocator(allocate_start)
 
-    context = Context(
+    return Context(
         vars_=None,
-        global_ctx=global_ctx,
+        module_ctx=module_ctx,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,
         is_ctor_context=is_ctor_context,
     )
 
-    if func_t.is_internal:
-        ret: FuncIR = InternalFuncIR(generate_ir_for_internal_function(code, func_t, context))
-        func_t._ir_info.gas_estimate = ret.func_ir.gas  # type: ignore
-    else:
-        kwarg_handlers, common = generate_ir_for_external_function(code, func_t, context)
-        entry_points = {
-            k: EntryPointInfo(func_t, mincalldatasize, ir_node)
-            for k, (mincalldatasize, ir_node) in kwarg_handlers.items()
-        }
-        ret = ExternalFuncIR(entry_points, common)
-        # note: this ignores the cost of traversing selector table
-        func_t._ir_info.gas_estimate = ret.common_ir.gas
 
+def tag_frame_info(func_t, context):
     frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
+    frame_start = context.starting_memory
 
-    frame_info = FrameInfo(allocate_start, frame_size, context.vars)
+    frame_info = FrameInfo(frame_start, frame_size, context.vars)
+    func_t._ir_info.set_frame_info(frame_info)
 
-    # XXX: when can this happen?
-    if func_t._ir_info.frame_info is None:
-        func_t._ir_info.set_frame_info(frame_info)
+    return frame_info
+
+
+def get_nonreentrant_lock(func_t):
+    if not func_t.nonreentrant:
+        return ["pass"], ["pass"]
+
+    nkey = func_t.reentrancy_key_position.position
+
+    LOAD, STORE = "sload", "sstore"
+    if version_check(begin="cancun"):
+        LOAD, STORE = "tload", "tstore"
+
+    if version_check(begin="berlin"):
+        # any nonzero values would work here (see pricing as of net gas
+        # metering); these values are chosen so that downgrading to the
+        # 0,1 scheme (if it is somehow necessary) is safe.
+        final_value, temp_value = 3, 2
     else:
-        assert frame_info == func_t._ir_info.frame_info
+        final_value, temp_value = 0, 1
 
-    if not func_t.is_internal:
-        # adjust gas estimate to include cost of mem expansion
-        # frame_size of external function includes all private functions called
-        # (note: internal functions do not need to adjust gas estimate since
-        mem_expansion_cost = calc_mem_gas(func_t._ir_info.frame_info.mem_used)  # type: ignore
-        ret.common_ir.add_gas_estimate += mem_expansion_cost  # type: ignore
+    check_notset = ["assert", ["ne", temp_value, [LOAD, nkey]]]
 
-    return ret
+    if func_t.mutability == StateMutability.VIEW:
+        return [check_notset], [["seq"]]
+
+    else:
+        pre = ["seq", check_notset, [STORE, nkey, temp_value]]
+        post = [STORE, nkey, final_value]
+        return [pre], [post]

@@ -1,25 +1,21 @@
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
+from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
-from vyper.typing import (
-    ContractCodes,
-    ContractPath,
-    InterfaceDict,
-    InterfaceImports,
-    OutputDict,
-    OutputFormats,
-    StorageLayout,
-)
+from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    # requires annotated_vyper_module
+    "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,
@@ -27,6 +23,8 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
+    "bb": output.build_bb_output,
+    "bb_runtime": output.build_bb_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
@@ -47,119 +45,25 @@ OUTPUT_FORMATS = {
 }
 
 
-def compile_codes(
-    contract_sources: ContractCodes,
-    output_formats: Union[OutputDict, OutputFormats, None] = None,
-    exc_handler: Union[Callable, None] = None,
-    interface_codes: Union[InterfaceDict, InterfaceImports, None] = None,
-    initial_id: int = 0,
-    settings: Settings = None,
-    storage_layouts: Optional[dict[ContractPath, Optional[StorageLayout]]] = None,
-    show_gas_estimates: bool = False,
-    no_bytecode_metadata: bool = False,
-) -> OrderedDict:
-    """
-    Generate compiler output(s) from one or more contract source codes.
-
-    Arguments
-    ---------
-    contract_sources: Dict[str, str]
-        Vyper source codes to be compiled. Formatted as `{"contract name": "source code"}`
-    output_formats: List, optional
-        List of compiler outputs to generate. Possible options are all the keys
-        in `OUTPUT_FORMATS`. If not given, the deployment bytecode is generated.
-    exc_handler: Callable, optional
-        Callable used to handle exceptions if the compilation fails. Should accept
-        two arguments - the name of the contract, and the exception that was raised
-    initial_id: int, optional
-        The lowest source ID value to be used when generating the source map.
-    settings: Settings, optional
-        Compiler settings
-    show_gas_estimates: bool, optional
-        Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * May be a singular dictionary shared across all sources to be compiled,
-          i.e. `{'interface name': "definition"}`
-        * or may be organized according to contracts that are being compiled, i.e.
-          `{'contract name': {'interface name': "definition"}`
-
-        * Interface definitions are formatted as: `{'type': "json/vyper", 'code': "interface code"}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
-    no_bytecode_metadata: bool, optional
-        Do not add metadata to bytecode. Defaults to False
-
-    Returns
-    -------
-    Dict
-        Compiler output as `{'contract name': {'output key': "output data"}}`
-    """
-    settings = settings or Settings()
-
-    if output_formats is None:
-        output_formats = ("bytecode",)
-    if isinstance(output_formats, Sequence):
-        output_formats = dict((k, output_formats) for k in contract_sources.keys())
-
-    out: OrderedDict = OrderedDict()
-    for source_id, contract_name in enumerate(sorted(contract_sources), start=initial_id):
-        source_code = contract_sources[contract_name]
-        interfaces: Any = interface_codes
-        storage_layout_override = None
-        if storage_layouts and contract_name in storage_layouts:
-            storage_layout_override = storage_layouts[contract_name]
-
-        if (
-            isinstance(interfaces, dict)
-            and contract_name in interfaces
-            and isinstance(interfaces[contract_name], dict)
-        ):
-            interfaces = interfaces[contract_name]
-
-        # make IR output the same between runs
-        codegen.reset_names()
-
-        with anchor_evm_version(settings.evm_version):
-            compiler_data = CompilerData(
-                source_code,
-                contract_name,
-                interfaces,
-                source_id,
-                settings,
-                storage_layout_override,
-                show_gas_estimates,
-                no_bytecode_metadata,
-            )
-            for output_format in output_formats[contract_name]:
-                if output_format not in OUTPUT_FORMATS:
-                    raise ValueError(f"Unsupported format type {repr(output_format)}")
-                try:
-                    out.setdefault(contract_name, {})
-                    formatter = OUTPUT_FORMATS[output_format]
-                    out[contract_name][output_format] = formatter(compiler_data)
-                except Exception as exc:
-                    if exc_handler is not None:
-                        exc_handler(contract_name, exc)
-                    else:
-                        raise exc
-
-    return out
-
-
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
-def compile_code(
-    contract_source: str,
-    output_formats: Optional[OutputFormats] = None,
-    interface_codes: Optional[InterfaceImports] = None,
+def compile_from_file_input(
+    file_input: FileInput,
+    input_bundle: InputBundle = None,
     settings: Settings = None,
+    output_formats: Optional[OutputFormats] = None,
     storage_layout_override: Optional[StorageLayout] = None,
+    no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
+    exc_handler: Optional[Callable] = None,
 ) -> dict:
     """
-    Generate compiler output(s) from a single contract source code.
+    Main entry point into the compiler.
+
+    Generate consumable compiler output(s) from a single contract source code.
+    Basically, a wrapper around CompilerData which munges the output
+    data into the requested output formats.
 
     Arguments
     ---------
@@ -171,15 +75,19 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    source_id: int, optional
+        source_id to tag AST nodes with. -1 if not provided.
     settings: Settings, optional
         Compiler settings.
     show_gas_estimates: bool, optional
         Show gas estimates for abi and ir output modes
-    interface_codes: Dict, optional
-        Interfaces that may be imported by the contracts during compilation.
-
-        * Formatted as as `{'interface name': {'type': "json/vyper", 'code': "interface code"}}`
-        * JSON interfaces are given as lists, vyper interfaces as strings
+    exc_handler: Callable, optional
+        Callable used to handle exceptions if the compilation fails. Should accept
+        two arguments - the name of the contract, and the exception that was raised
+    no_bytecode_metadata: bool, optional
+        Do not add metadata to bytecode. Defaults to False
+    experimental_codegen: bool
+        Use experimental codegen. Defaults to False
 
     Returns
     -------
@@ -187,14 +95,62 @@ def compile_code(
         Compiler output as `{'output key': "output data"}`
     """
 
-    contract_sources = {UNKNOWN_CONTRACT_NAME: contract_source}
-    storage_layouts = {UNKNOWN_CONTRACT_NAME: storage_layout_override}
+    settings = settings or Settings()
 
-    return compile_codes(
-        contract_sources,
-        output_formats,
-        interface_codes=interface_codes,
-        settings=settings,
-        storage_layouts=storage_layouts,
-        show_gas_estimates=show_gas_estimates,
-    )[UNKNOWN_CONTRACT_NAME]
+    if output_formats is None:
+        output_formats = ("bytecode",)
+
+    # make IR output the same between runs
+    codegen.reset_names()
+
+    # TODO: maybe at this point we might as well just pass a `FileInput`
+    # directly to `CompilerData`.
+    compiler_data = CompilerData(
+        file_input,
+        input_bundle,
+        settings,
+        storage_layout_override,
+        show_gas_estimates,
+        no_bytecode_metadata,
+    )
+
+    ret = {}
+    with anchor_evm_version(compiler_data.settings.evm_version):
+        for output_format in output_formats:
+            if output_format not in OUTPUT_FORMATS:
+                raise ValueError(f"Unsupported format type {repr(output_format)}")
+            try:
+                formatter = OUTPUT_FORMATS[output_format]
+                ret[output_format] = formatter(compiler_data)
+            except Exception as exc:
+                if exc_handler is not None:
+                    exc_handler(str(file_input.path), exc)
+                else:
+                    raise exc
+
+    return ret
+
+
+def compile_code(
+    source_code: str,
+    contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
+    source_id: int = -1,
+    resolved_path: PathLike | None = None,
+    *args,
+    **kwargs,
+):
+    # this function could be renamed to compile_from_string
+    """
+    Do the same thing as compile_from_file_input but takes a string for source
+    code. This was previously the main entry point into the compiler
+    # (`compile_from_file_input()` is newer)
+    """
+    if isinstance(contract_path, str):
+        contract_path = Path(contract_path)
+    file_input = FileInput(
+        source_id=source_id,
+        source_code=source_code,
+        path=contract_path,
+        resolved_path=resolved_path or contract_path,  # type: ignore
+    )
+    return compile_from_file_input(file_input, *args, **kwargs)

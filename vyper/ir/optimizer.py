@@ -440,6 +440,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+    is_self_call = node.is_self_call
+    passthrough_metadata = node.passthrough_metadata
 
     changed = False
 
@@ -462,6 +464,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
+            is_self_call=is_self_call,
+            passthrough_metadata=passthrough_metadata,
         )
 
         if should_check_symbols:
@@ -662,10 +666,10 @@ def _rewrite_mstore_dload(argz):
 def _merge_mload(argz):
     if not version_check(begin="cancun"):
         return False
-    return _merge_load(argz, "mload", "mcopy")
+    return _merge_load(argz, "mload", "mcopy", allow_overlap=False)
 
 
-def _merge_load(argz, _LOAD, _COPY):
+def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
     # look for sequential operations copying from X to Y
     # and merge them into a single copy operation
     changed = False
@@ -689,9 +693,14 @@ def _merge_load(argz, _LOAD, _COPY):
                 initial_dst_offset = dst_offset
                 initial_src_offset = src_offset
                 idx = i
+
+            # dst and src overlap, discontinue the optimization
+            has_overlap = initial_src_offset < initial_dst_offset < src_offset + 32
+
             if (
                 initial_dst_offset + total_length == dst_offset
                 and initial_src_offset + total_length == src_offset
+                and (allow_overlap or not has_overlap)
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32

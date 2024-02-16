@@ -1,10 +1,16 @@
-# @version >=0.3.4
+#pragma version >0.3.10
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
 """
-@dev Implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
+@dev example implementation of ERC-1155 non-fungible token standard ownable, with approval, OPENSEA compatible (name, symbol)
 @author Dr. Pixel (github: @Doc-Pixel)
 """
+
 ############### imports ###############
-from vyper.interfaces import ERC165
+from ethereum.ercs import ERC165
 
 ############### variables ###############
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
@@ -117,7 +123,7 @@ interface IERC1155MetadataURI:
 
 ############### functions ###############
 
-@external
+@deploy
 def __init__(name: String[128], symbol: String[16], uri: String[MAX_URI_LENGTH], contractUri: String[MAX_URI_LENGTH]):
     """
     @dev contract initialization on deployment
@@ -200,7 +206,7 @@ def balanceOfBatch(accounts: DynArray[address, BATCH_SIZE], ids: DynArray[uint25
     assert len(accounts) == len(ids), "ERC1155: accounts and ids length mismatch"
     batchBalances: DynArray[uint256, BATCH_SIZE] = []
     j: uint256 = 0
-    for i in ids:
+    for i: uint256 in ids:
         batchBalances.append(self.balanceOf[accounts[j]][i])
         j += 1
     return batchBalances
@@ -214,7 +220,6 @@ def mint(receiver: address, id: uint256, amount:uint256):
     @param receiver the account that will receive the minted token
     @param id the ID of the token
     @param amount of tokens for this ID
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
@@ -232,7 +237,6 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     @param receiver the account that will receive the minted token
     @param ids array of ids for the tokens
     @param amounts amounts of tokens for each ID in the ids array
-    @param data the data associated with this mint. Usually stays empty
     """
     assert not self.paused, "The contract has been paused"
     assert self.owner == msg.sender, "Only the contract owner can mint"
@@ -240,7 +244,7 @@ def mintBatch(receiver: address, ids: DynArray[uint256, BATCH_SIZE], amounts: Dy
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[receiver][ids[i]] += amounts[i]
@@ -274,7 +278,7 @@ def burnBatch(ids: DynArray[uint256, BATCH_SIZE], amounts: DynArray[uint256, BAT
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender 
     
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         self.balanceOf[msg.sender][ids[i]] -= amounts[i]
@@ -330,7 +334,7 @@ def safeBatchTransferFrom(sender: address, receiver: address, ids: DynArray[uint
     assert sender == msg.sender or self.isApprovedForAll[sender][msg.sender], "Caller is neither owner nor approved operator for this ID"
     assert len(ids) == len(amounts), "ERC1155: ids and amounts length mismatch"
     operator: address = msg.sender
-    for i in range(BATCH_SIZE):
+    for i: uint256 in range(BATCH_SIZE):
         if i >= len(ids):
             break
         id: uint256 = ids[i]

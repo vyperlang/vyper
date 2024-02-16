@@ -14,14 +14,14 @@ Bitwise Operations
 
     Perform a "bitwise and" operation. Each bit of the output is 1 if the corresponding bit of ``x`` AND of ``y`` is 1, otherwise it is 0.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256, y: uint256) -> uint256:
             return bitwise_and(x, y)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(31337, 8008135)
         12353
@@ -34,14 +34,14 @@ Bitwise Operations
 
     Return the bitwise complement of ``x`` - the number you get by switching each 1 for a 0 and each 0 for a 1.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256) -> uint256:
             return bitwise_not(x)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(0)
         115792089237316195423570985008687907853269984665640564039457584007913129639935
@@ -54,14 +54,14 @@ Bitwise Operations
 
     Perform a "bitwise or" operation. Each bit of the output is 0 if the corresponding bit of ``x`` AND of ``y`` is 0, otherwise it is 1.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256, y: uint256) -> uint256:
             return bitwise_or(x, y)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(31337, 8008135)
         8027119
@@ -74,14 +74,14 @@ Bitwise Operations
 
     Perform a "bitwise exclusive or" operation. Each bit of the output is the same as the corresponding bit in ``x`` if that bit in ``y`` is 0, and it is the complement of the bit in ``x`` if that bit in ``y`` is 1.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256, y: uint256) -> uint256:
             return bitwise_xor(x, y)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(31337, 8008135)
         8014766
@@ -94,14 +94,14 @@ Bitwise Operations
 
     Return ``x`` with the bits shifted ``_shift`` places. A positive ``_shift`` value equals a left shift, a negative value is a right shift.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256, y: int128) -> uint256:
             return shift(x, y)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(2, 8)
         512
@@ -144,7 +144,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     Returns the address of the newly created proxy contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(target: address) -> address:
@@ -173,7 +173,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If there is no code at ``target``, execution will revert.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(target: address) -> address:
@@ -184,24 +184,25 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     The implementation of ``create_copy_of`` assumes that the code at ``target`` is smaller than 16MB. While this is much larger than the EIP-170 constraint of 24KB, it is a conservative size limit intended to future-proof deployer contracts in case the EIP-170 constraint is lifted. If the code at ``target`` is larger than 16MB, the behavior of ``create_copy_of`` is undefined.
 
 
-.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, code_offset=0, [, salt: bytes32]) -> address
+.. py:function:: create_from_blueprint(target: address, *args, value: uint256 = 0, raw_args: bool = False, code_offset: int = 0, [, salt: bytes32]) -> address
 
     Copy the code of ``target`` into memory and execute it as initcode. In other words, this operation interprets the code at ``target`` not as regular runtime code, but directly as initcode. The ``*args`` are interpreted as constructor arguments, and are ABI-encoded and included when executing the initcode.
 
     * ``target``: Address of the blueprint to invoke
     * ``*args``: Constructor arguments to forward to the initcode.
     * ``value``: The wei value to send to the new contract address (Optional, default 0)
+    * ``raw_args``: If ``True``, ``*args`` must be a single ``Bytes[...]`` argument, which will be interpreted as a raw bytes buffer to forward to the create operation (which is useful for instance, if pre- ABI-encoded data is passed in from elsewhere). (Optional, default ``False``)
     * ``code_offset``: The offset to start the ``EXTCODECOPY`` from (Optional, default 0)
     * ``salt``: A ``bytes32`` value utilized by the deterministic ``CREATE2`` opcode (Optional, if not supplied, ``CREATE`` is used)
 
     Returns the address of the created contract. If the create operation fails (for instance, in the case of a ``CREATE2`` collision), execution will revert. If ``code_offset >= target.codesize`` (ex. if there is no code at ``target``), execution will revert.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(blueprint: address) -> address:
             arg1: uint256 = 18
-            arg2: String = "some string"
+            arg2: String[32] = "some string"
             return create_from_blueprint(blueprint, arg1, arg2, code_offset=1)
 
 .. note::
@@ -212,7 +213,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     It is recommended to deploy blueprints with the ERC-5202 preamble ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided to enable this pattern:
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(blueprint: address) -> address:
@@ -226,7 +227,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
     * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
-    * ``gas``: The amount of gas to attach to the call. If not set, all remaining gas is forwarded.
+    * ``gas``: The amount of gas to attach to the call. (Optional, defaults to ``msg.gas``).
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
     * ``is_static_call``: If ``True``, the call will be sent as ``STATICCALL`` (Optional, default ``False``)
@@ -240,7 +241,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
         Returns ``success`` in a tuple with return value if ``revert_on_failure`` is set to ``False``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @payable
@@ -264,6 +265,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
             assert success
             return response
 
+    .. note::
+
+        Regarding "forwarding all gas", note that, while Vyper will provide ``msg.gas`` to the call, in practice, there are some subtleties around forwarding all remaining gas on the EVM which are out of scope of this documentation and could be subject to change. For instance, see the language in EIP-150 around "all but one 64th".
+
 .. py:function:: raw_log(topics: bytes32[4], data: Union[Bytes, bytes32]) -> None
 
     Provides low level access to the ``LOG`` opcodes, emitting a log without having to specify an ABI type.
@@ -271,7 +276,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
     * ``topics``: List of ``bytes32`` log topics. The length of this array determines which opcode is used.
     * ``data``: Unindexed event data to include in the log. May be given as ``Bytes`` or ``bytes32``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(_topic: bytes32, _data: Bytes[100]):
@@ -283,7 +288,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     * ``data``: Data representing the error message causing the revert.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(_data: Bytes[100]):
@@ -303,7 +308,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
         This function has been deprecated from version 0.3.8 onwards. The underlying opcode will eventually undergo breaking changes, and its use is not recommended.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def do_the_needful():
@@ -321,7 +326,7 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
         The amount to send is always specified in ``wei``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo(_receiver: address, _amount: uint256, gas: uint256):
@@ -334,14 +339,14 @@ Cryptography
 
     Take two points on the Alt-BN128 curve and add them together.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256[2], y: uint256[2]) -> uint256[2]:
             return ecadd(x, y)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo([1, 2], [1, 2])
         [
@@ -356,14 +361,14 @@ Cryptography
     * ``point``: Point to be multiplied
     * ``scalar``: Scalar value
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(point: uint256[2], scalar: uint256) -> uint256[2]:
             return ecmul(point, scalar)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo([1, 2], 3)
         [
@@ -385,7 +390,7 @@ Cryptography
 
          Prior to Vyper ``0.3.10``, the ``ecrecover`` function could return an undefined (possibly nonzero) value for invalid inputs to ``ecrecover``. For more information, please see `GHSA-f5x6-7qgp-jhf3 <https://github.com/vyperlang/vyper/security/advisories/GHSA-f5x6-7qgp-jhf3>`_.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -397,7 +402,7 @@ Cryptography
         @view
         def foo(hash: bytes32, v: uint256, r:uint256, s:uint256) -> address:
             return ecrecover(hash, v, r, s)
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo('0x6c9c5e133b8aafb2ea74f524a5263495e7ae5701c7248805f7b511d973dc7055',
              28,
@@ -412,14 +417,14 @@ Cryptography
 
     * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(_value: Bytes[100]) -> bytes32
             return keccak256(_value)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(b"potato")
         0x9e159dfcfe557cc1ca6c716e87af98fdcb94cd8c832386d0429b2b7bec02754f
@@ -430,14 +435,14 @@ Cryptography
 
     * ``_value``: Value to hash. Can be a ``String``, ``Bytes``, or ``bytes32``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(_value: Bytes[100]) -> bytes32
             return sha256(_value)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(b"potato")
         0xe91c254ad58860a02c788dfb5c1a65d6a8846ab1dc649631c7db16fef4af2dec
@@ -451,14 +456,14 @@ Data Manipulation
 
     If the input arguments are ``String`` the return type is ``String``.  Otherwise the return type is ``Bytes``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: String[5], b: String[5], c: String[5]) -> String[100]:
             return concat(a, " ", b, " ", c, "!")
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo("why","hello","there")
         "why hello there!"
@@ -482,14 +487,14 @@ Data Manipulation
 
     Returns the string representation of ``value``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(b: uint256) -> String[78]:
             return uint2str(b)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(420)
         "420"
@@ -500,18 +505,18 @@ Data Manipulation
 
     * ``b``: ``Bytes`` list to extract from
     * ``start``: Start point to extract from
-    * ``output_type``: Type of output (``bytes32``, ``integer``, or ``address``). Defaults to ``bytes32``.
+    * ``output_type``: Type of output (``bytesM``, ``integer``, or ``address``). Defaults to ``bytes32``.
 
     Returns a value of the type specified by ``output_type``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(b: Bytes[32]) -> address:
             return extract32(b, 0, output_type=address)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo("0x0000000000000000000000009f8F72aA9304c8B593d555F12eF6589cC3A579A2")
         "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2"
@@ -526,14 +531,14 @@ Data Manipulation
 
     If the value being sliced is a ``Bytes`` or ``bytes32``, the return type is ``Bytes``.  If it is a ``String``, the return type is ``String``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(s: String[32]) -> String[5]:
             return slice(s, 4, 5)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo("why hello! how are you?")
         "hello"
@@ -547,14 +552,14 @@ Math
 
     * ``value``: Integer to return the absolute value of
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(value: int256) -> int256:
             return abs(value)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(-31337)
         31337
@@ -565,14 +570,14 @@ Math
 
     * ``value``: Decimal value to round up
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: decimal) -> int256:
             return ceil(x)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(3.1337)
         4
@@ -583,14 +588,14 @@ Math
 
     * ``typename``: Name of the decimal type (currently only ``decimal``)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo() -> decimal:
             return epsilon(decimal)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo()
         Decimal('1E-10')
@@ -601,14 +606,14 @@ Math
 
     * ``value``: Decimal value to round down
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: decimal) -> int256:
             return floor(x)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(3.1337)
         3
@@ -617,14 +622,14 @@ Math
 
     Return the greater value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is of the same type as the input values.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: uint256, b: uint256) -> uint256:
             return max(a, b)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(23, 42)
         42
@@ -633,14 +638,14 @@ Math
 
     Returns the maximum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo() -> int256:
             return max_value(int256)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo()
         57896044618658097711785492504343953926634992332820282019728792003956564819967
@@ -649,14 +654,14 @@ Math
 
     Returns the lesser value of ``a`` and ``b``. The input values may be any numeric type as long as they are both of the same type.  The output value is of the same type as the input values.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: uint256, b: uint256) -> uint256:
             return min(a, b)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(23, 42)
         23
@@ -665,14 +670,14 @@ Math
 
     Returns the minimum value of the numeric type specified by ``type_`` (e.g., ``int128``, ``uint256``, ``decimal``).
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo() -> int256:
             return min_value(int256)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo()
         -57896044618658097711785492504343953926634992332820282019728792003956564819968
@@ -683,14 +688,14 @@ Math
 
     This method is used to perform exponentiation without overflow checks.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: uint256, b: uint256) -> uint256:
             return pow_mod256(a, b)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(2, 3)
         8
@@ -701,14 +706,14 @@ Math
 
     Return the square root of the provided decimal number, using the Babylonian square root algorithm.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(d: decimal) -> decimal:
             return sqrt(d)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(9.0)
         3.0
@@ -717,14 +722,14 @@ Math
 
     Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(x: uint256) -> uint256:
             return isqrt(x)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(101)
         10
@@ -733,14 +738,14 @@ Math
     
     Return the modulo of ``(a + b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``ADDMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: uint256, b: uint256, c: uint256) -> uint256:
             return uint256_addmod(a, b, c)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> (6 + 13) % 8
         3
@@ -751,14 +756,14 @@ Math
 
     Return the modulo from ``(a * b) % c``. Reverts if ``c == 0``. As this built-in function is intended to provides access to the underlying ``MULMOD`` opcode, all intermediate calculations of this operation are not subject to the ``2 ** 256`` modulo according to the EVM specifications.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(a: uint256, b: uint256, c: uint256) -> uint256:
             return uint256_mulmod(a, b, c)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> (11 * 2) % 5
         2
@@ -769,7 +774,7 @@ Math
 
     Add ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -782,7 +787,7 @@ Math
             return unsafe_add(x, y)
 
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(1, 1)
         2
@@ -800,7 +805,7 @@ Math
 
     Subtract ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result underflows the bounds of the input type, it will be wrapped.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -813,7 +818,7 @@ Math
             return unsafe_sub(x, y)
 
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(4, 3)
         1
@@ -832,7 +837,7 @@ Math
 
     Multiply ``x`` and ``y``, without checking for overflow. ``x`` and ``y`` must both be integers of the same type. If the result exceeds the bounds of the input type, it will be wrapped.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -845,7 +850,7 @@ Math
             return unsafe_mul(x, y)
 
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(1, 1)
         1
@@ -867,7 +872,7 @@ Math
 
     Divide ``x`` and ``y``, without checking for division-by-zero. ``x`` and ``y`` must both be integers of the same type. If the denominator is zero, the result will (following EVM semantics) be zero.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -880,7 +885,7 @@ Math
             return unsafe_div(x, y)
 
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(1, 1)
         1
@@ -905,14 +910,14 @@ Utilities
     * ``_value``: Value for the ether unit. Any numeric type may be used, however the value cannot be negative.
     * ``unit``: Ether unit name (e.g. ``"wei"``, ``"ether"``, ``"gwei"``, etc.) indicating the denomination of ``_value``. Must be given as a literal string.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(s: String[32]) -> uint256:
             return as_wei_value(1.337, "ether")
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo(1)
         1337000000000000000
@@ -925,14 +930,14 @@ Utilities
 
         The EVM only provides access to the most recent 256 blocks. This function reverts if the block number is greater than or equal to the current block number or more than 256 blocks behind the current block.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo() -> bytes32:
             return blockhash(block.number - 16)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo()
         0xf3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -943,7 +948,7 @@ Utilities
 
     * ``typename``: Name of the type, except ``HashMap[_KeyType, _ValueType]``
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -954,14 +959,14 @@ Utilities
 
     Return the length of a given ``Bytes``, ``String`` or ``DynArray[_Type, _Integer]``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo(s: String[32]) -> uint256:
             return len(s)
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo("hello")
         5
@@ -975,14 +980,14 @@ Utilities
 
     Returns a value of the type specified by ``output_type``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
         def foo() -> Bytes[4]:
             return method_id('transfer(address,uint256)', output_type=Bytes[4])
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo()
 	0xa9059cbb
@@ -998,7 +1003,7 @@ Utilities
 
     Returns a bytestring whose max length is determined by the arguments. For example, encoding a ``Bytes[32]`` results in a ``Bytes[64]`` (first word is the length of the bytestring variable).
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view
@@ -1007,7 +1012,7 @@ Utilities
             y: Bytes[32] = b"234"
             return _abi_encode(x, y, method_id=method_id("foo()"))
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         >>> ExampleContract.foo().hex()
         "c2985578"
@@ -1028,7 +1033,7 @@ Utilities
 
     Returns the decoded value(s), with type as specified by `output_type`.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         @view

@@ -1,12 +1,20 @@
 import contextlib
 from typing import Generator
 
-from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.evm.address_space import CALLDATA, DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import (
+    CALLDATA,
+    DATA,
+    IMMUTABLES,
+    MEMORY,
+    STORAGE,
+    TRANSIENT,
+    AddrSpace,
+)
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, StructureException, TypeCheckFailure, TypeMismatch
+from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -23,7 +31,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
-from vyper.semantics.types.user import EnumT
+from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
 
 DYNAMIC_ARRAY_OVERHEAD = 1
@@ -45,8 +53,8 @@ def is_decimal_type(typ):
     return isinstance(typ, DecimalT)
 
 
-def is_enum_type(typ):
-    return isinstance(typ, EnumT)
+def is_flag_type(typ):
+    return isinstance(typ, FlagT)
 
 
 def is_tuple_like(typ):
@@ -99,6 +107,36 @@ def _calldatacopy_gas_bound(num_bytes):
 
 def _codecopy_gas_bound(num_bytes):
     return GAS_COPY_WORD * ceil32(num_bytes) // 32
+
+
+def data_location_to_address_space(s: DataLocation, is_ctor_ctx: bool) -> AddrSpace:
+    if s == DataLocation.MEMORY:
+        return MEMORY
+    if s == DataLocation.STORAGE:
+        return STORAGE
+    if s == DataLocation.TRANSIENT:
+        return TRANSIENT
+    if s == DataLocation.CODE:
+        if is_ctor_ctx:
+            return IMMUTABLES
+        return DATA
+
+    raise CompilerPanic("unreachable!")  # pragma: nocover
+
+
+def address_space_to_data_location(s: AddrSpace) -> DataLocation:
+    if s == MEMORY:
+        return DataLocation.MEMORY
+    if s == STORAGE:
+        return DataLocation.STORAGE
+    if s == TRANSIENT:
+        return DataLocation.TRANSIENT
+    if s in (IMMUTABLES, DATA):
+        return DataLocation.CODE
+    if s == CALLDATA:
+        return DataLocation.CALLDATA
+
+    raise CompilerPanic("unreachable!")  # pragma: nocover
 
 
 # Copy byte array word-for-word (including layout)
@@ -483,14 +521,10 @@ def _get_element_ptr_tuplelike(parent, key):
 
         return _getelemptr_abi_helper(parent, member_t, ofst)
 
-    if parent.location.word_addressable:
-        for i in range(index):
-            ofst += typ.member_types[attrs[i]].storage_size_in_words
-    elif parent.location.byte_addressable:
-        for i in range(index):
-            ofst += typ.member_types[attrs[i]].memory_bytes_required
-    else:
-        raise CompilerPanic(f"bad location {parent.location}")  # pragma: notest
+    data_location = address_space_to_data_location(parent.location)
+    for i in range(index):
+        t = typ.member_types[attrs[i]]
+        ofst += t.get_size_in(data_location)
 
     return IRnode.from_list(
         add_ofst(parent, ofst),
@@ -551,12 +585,8 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
 
         return _getelemptr_abi_helper(parent, subtype, ofst)
 
-    if parent.location.word_addressable:
-        element_size = subtype.storage_size_in_words
-    elif parent.location.byte_addressable:
-        element_size = subtype.memory_bytes_required
-    else:
-        raise CompilerPanic("unreachable")  # pragma: notest
+    data_location = address_space_to_data_location(parent.location)
+    element_size = subtype.get_size_in(data_location)
 
     ofst = _mul(ix, element_size)
 
@@ -829,7 +859,7 @@ def needs_clamp(t, encoding):
         raise CompilerPanic("unreachable")  # pragma: notest
     if isinstance(t, (_BytestringT, DArrayT)):
         return True
-    if isinstance(t, EnumT):
+    if isinstance(t, FlagT):
         return len(t._enum_members) < 256
     if isinstance(t, SArrayT):
         return needs_clamp(t.value_type, encoding)
@@ -892,6 +922,8 @@ def make_setter(left, right):
 _opt_level = OptimizationLevel.GAS
 
 
+# FIXME: this is to get around the fact that we don't have a
+# proper context object in the IR generation phase.
 @contextlib.contextmanager
 def anchor_opt_level(new_level: OptimizationLevel) -> Generator:
     """
@@ -1033,43 +1065,6 @@ def eval_seq(ir_node):
     return None
 
 
-def is_return_from_function(node):
-    if isinstance(node, vy_ast.Expr) and node.get("value.func.id") in (
-        "raw_revert",
-        "selfdestruct",
-    ):
-        return True
-    if isinstance(node, (vy_ast.Return, vy_ast.Raise)):
-        return True
-    return False
-
-
-# TODO this is almost certainly duplicated with check_terminus_node
-# in vyper/semantics/analysis/local.py
-def check_single_exit(fn_node):
-    _check_return_body(fn_node, fn_node.body)
-    for node in fn_node.get_descendants(vy_ast.If):
-        _check_return_body(node, node.body)
-        if node.orelse:
-            _check_return_body(node, node.orelse)
-
-
-def _check_return_body(node, node_list):
-    return_count = len([n for n in node_list if is_return_from_function(n)])
-    if return_count > 1:
-        raise StructureException(
-            "Too too many exit statements (return, raise or selfdestruct).", node
-        )
-    # Check for invalid code after returns.
-    last_node_pos = len(node_list) - 1
-    for idx, n in enumerate(node_list):
-        if is_return_from_function(n) and idx < last_node_pos:
-            # is not last statement in body.
-            raise StructureException(
-                "Exit statement with succeeding code (that will not execute).", node_list[idx + 1]
-            )
-
-
 def mzero(dst, nbytes):
     # calldatacopy from past-the-end gives zero bytes.
     # cf. YP H.2 (ops section) with CALLDATACOPY spec.
@@ -1136,7 +1131,7 @@ def clamp_basetype(ir_node):
     # copy of the input
     ir_node = unwrap_location(ir_node)
 
-    if isinstance(t, EnumT):
+    if isinstance(t, FlagT):
         bits = len(t._enum_members)
         # assert x >> bits == 0
         ret = int_clamp(ir_node, bits, signed=False)
