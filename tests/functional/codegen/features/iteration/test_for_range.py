@@ -39,7 +39,7 @@ def reverse_digits(x: int128) -> int128:
     z: int128 = x
     for i in range(6):
         dig[i] = z % 10
-        z = z / 10
+        z = z // 10
     o: int128 = 0
     for i in range(6):
         o = o * 10 + dig[i]
