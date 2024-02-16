@@ -662,22 +662,13 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
         return _convert_ir_bb(ctx, expanded, symbols, variables, allocated_variables)
 
-    elif ir.value == "sload":
+    elif ir.value in ["iload", "sload"]:
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
         return ctx.get_basic_block().append_instruction(ir.value, arg_0)
-    elif ir.value == "sstore":
+    elif ir.value in ["istore", "sstore"]:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
-        bb.append_instruction(ir.value, arg_1, arg_0)
-    elif ir.value == "iload":
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
-        bb = ctx.get_basic_block()
-        offset = bb.append_instruction("offset", IRLabel("_mem_deploy_end"), arg_0)
-        return bb.append_instruction("mload", offset)
-    elif ir.value == "istore":
-        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
-        bb = ctx.get_basic_block()
-        offset = bb.append_instruction("offset", IRLabel("_mem_deploy_end"), arg_1)
-        bb.append_instruction("mstore", arg_1, offset)
+        ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
+
     elif ir.value == "unique_symbol":
         sym = ir.args[0]
         new_var = ctx.get_next_variable()

@@ -321,12 +321,18 @@ class VenomCompiler:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
-        elif opcode == "offset":
-            offset = inst.operands[1]
-            if isinstance(offset, IRLiteral):
+        elif opcode == "iload":
+            addr = inst.operands[0]
+            if isinstance(addr, IRLiteral):
                 operands = []
             else:
-                operands = inst.operands[1:2]
+                operands = inst.operands
+        elif opcode == "istore":
+            addr = inst.operands[1]
+            if isinstance(addr, IRLiteral):
+                operands = inst.operands[0:1]
+            else:
+                operands = inst.operands
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
@@ -457,13 +463,20 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
-        elif opcode == "offset":
-            sym = inst.operands[0].value
-            loc = inst.operands[1].value
-            if isinstance(loc, int):
-                assembly.extend(["_OFST", sym, loc])
+        elif opcode == "iload":
+            addr = inst.operands[0]
+            if isinstance(addr, IRLiteral):
+                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
             else:
-                assembly.extend([sym, "ADD"])
+                assembly.extend(["_mem_deploy_end", "ADD"])
+            assembly.append("MLOAD")
+        elif opcode == "istore":
+            addr = inst.operands[0]
+            if isinstance(addr, IRLiteral):
+                assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
+            else:
+                assembly.extend(["_mem_deploy_end", "ADD"])
+            assembly.append("MSTORE")
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         else:
