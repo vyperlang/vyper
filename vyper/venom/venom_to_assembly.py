@@ -472,7 +472,7 @@ class VenomCompiler:
                 assembly.extend(["_mem_deploy_end", "ADD"])
             assembly.append("MLOAD")
         elif opcode == "istore":
-            addr = inst.operands[0]
+            addr = inst.operands[1]
             if isinstance(addr, IRLiteral):
                 assembly.extend(["_OFST", "_mem_deploy_end", addr.value])
             else:
