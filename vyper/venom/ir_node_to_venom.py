@@ -574,26 +574,17 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         if offset > 0:
                             ptr_var = bb.append_instruction("add", var.pos, offset)
                         else:
-                            ptr_var = allocated_var
+                            ptr_var = var.pos
                         bb.append_instruction("return", last_ir, ptr_var)
                     else:
                         new_var = bb.append_instruction(var.location.load_op, ret_ir)
                         _append_return_for_stack_operand(ctx, symbols, new_var, last_ir)
                 else:
                     if isinstance(ret_ir, IRLiteral):
-                        sym = symbols.get(f"&{ret_ir.value}", None)
-                        if sym is None:
-                            bb.append_instruction("return", last_ir, ret_ir)
-                        else:
-                            if func_t.return_type.memory_bytes_required > 32:
-                                new_var = bb.append_instruction("alloca", 32, ret_ir)
-                                bb.append_instruction("mstore", sym, new_var)
-                                bb.append_instruction("return", last_ir, new_var)
-                            else:
-                                bb.append_instruction("return", last_ir, ret_ir)
+                        bb.append_instruction("return", last_ir, ret_ir)
                     else:
                         if last_ir and int(last_ir.value) > 32:
-                            bb.append_instruction("return", last_ir, ret_ir)
+                            bb.append_instruction("return", ret_ir, last_ir)
                         else:
                             ret_buf = 128  # TODO: need allocator
                             new_var = bb.append_instruction("alloca", 32, ret_buf)
