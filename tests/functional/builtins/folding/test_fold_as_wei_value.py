@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 from vyper.builtins import functions as vy_fn
 from vyper.utils import SizeLimits
 
@@ -30,9 +30,9 @@ def foo(a: decimal) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value:.10f}, '{denom}')")
+    vyper_ast = parse_and_fold(f"as_wei_value({value:.10f}, '{denom}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.AsWeiValue().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value
 
@@ -49,8 +49,8 @@ def foo(a: uint256) -> uint256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"as_wei_value({value}, '{denom}')")
+    vyper_ast = parse_and_fold(f"as_wei_value({value}, '{denom}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.AsWeiValue().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value

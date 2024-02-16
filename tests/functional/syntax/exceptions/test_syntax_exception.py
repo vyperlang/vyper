@@ -86,6 +86,18 @@ def f(a:uint256,/):  # test posonlyargs blocked
 def g():
     self.f()
     """,
+    """
+@external
+def foo():
+    for i in range(0, 10):
+        pass
+    """,
+    """
+@external
+def foo():
+    for i: $$$ in range(0, 10):
+        pass
+    """,
 ]
 
 

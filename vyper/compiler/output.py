@@ -23,18 +23,26 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     return ast_dict
 
 
+def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    annotated_ast_dict = {
+        "contract_name": str(compiler_data.contract_path),
+        "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+    }
+    return annotated_ast_dict
+
+
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
@@ -53,7 +61,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
     if interface.events:
@@ -76,6 +84,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
+def build_bb_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[0]
+
+
+def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[1]
+
+
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
@@ -89,6 +105,9 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
 
 
 def _ir_to_dict(ir_node):
+    # Currently only supported with IRnode and not VenomIR
+    if not isinstance(ir_node, IRnode):
+        return
     args = ir_node.args
     if len(args) > 0 or ir_node.value == "seq":
         return {ir_node.value: [_ir_to_dict(x) for x in args]}
@@ -155,7 +174,7 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
     functions = module_t.function_defs
 
     return {
@@ -164,7 +183,7 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
     _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
@@ -311,7 +330,7 @@ def _build_opcodes(bytecode: bytes) -> str:
             # (instead of code) at end of contract
             # CMC 2023-07-13 maybe just strip known data segments?
             push_len = min(push_len, len(bytecode_sequence))
-            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
-            opcode_output.append(f"0x{''.join(push_values).upper()}")
+            push_values = [f"{bytecode_sequence.popleft():0>2X}" for i in range(push_len)]
+            opcode_output.append(f"0x{''.join(push_values)}")
 
     return " ".join(opcode_output)

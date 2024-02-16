@@ -347,3 +347,13 @@ class AddressT(_PrimT):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
             )
+
+
+# type for "self"
+# refactoring note: it might be best for this to be a ModuleT actually
+class SelfT(AddressT):
+    _id = "self"
+
+    def compare_type(self, other):
+        # compares true to AddressT
+        return isinstance(other, type(self)) or isinstance(self, type(other))

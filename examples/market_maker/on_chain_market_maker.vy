@@ -1,4 +1,6 @@
-from vyper.interfaces import ERC20
+#pragma version >0.3.10
+
+from ethereum.ercs import ERC20
 
 
 totalEthQty: public(uint256)

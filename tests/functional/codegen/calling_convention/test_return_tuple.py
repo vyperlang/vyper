@@ -1,5 +1,6 @@
 import pytest
 
+from vyper import compile_code
 from vyper.exceptions import TypeMismatch
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
@@ -15,7 +16,7 @@ struct Chunk:
     c: int128
 chunk: Chunk
 
-@external
+@deploy
 def __init__():
     self.chunk.a = b"hello"
     self.chunk.b = b"world"
@@ -152,11 +153,11 @@ def test3() -> (address, int128):
     assert c.test3() == [c.out_literals()[2], 1]
 
 
-def test_tuple_return_typecheck(assert_tx_failed, get_contract_with_gas_estimation):
+def test_tuple_return_typecheck(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def getTimeAndBalance() -> (bool, address):
     return block.timestamp, self.balance
     """
-
-    assert_tx_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
+    with pytest.raises(TypeMismatch):
+        compile_code(code)

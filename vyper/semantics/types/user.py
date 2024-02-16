@@ -5,16 +5,18 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
-    EnumDeclarationException,
     EventDeclarationException,
+    FlagDeclarationException,
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
+    UnfoldableNode,
     UnknownAttribute,
     VariableDeclarationException,
 )
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import validate_expected_type
+from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -43,7 +45,7 @@ class _UserType(VyperType):
 
 
 # note: enum behaves a lot like uint256, or uints in general.
-class EnumT(_UserType):
+class FlagT(_UserType):
     # this is a carveout because currently we allow dynamic arrays of
     # enums, but not static arrays of enums
     _as_darray = True
@@ -52,7 +54,7 @@ class EnumT(_UserType):
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
-            raise EnumDeclarationException("Enums are limited to 256 members!")
+            raise FlagDeclarationException("Enums are limited to 256 members!")
 
         super().__init__(members=None)
 
@@ -103,7 +105,7 @@ class EnumT(_UserType):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumT":
+    def from_FlagDef(cls, base_node: vy_ast.FlagDef) -> "FlagT":
         """
         Generate an `Enum` object from a Vyper ast node.
 
@@ -118,15 +120,15 @@ class EnumT(_UserType):
         members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise EnumDeclarationException("Enum must have members", base_node)
+            raise FlagDeclarationException("Enum must have members", base_node)
 
         for i, node in enumerate(base_node.body):
             if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
-                raise EnumDeclarationException("Invalid syntax for enum member", node)
+                raise FlagDeclarationException("Invalid syntax for enum member", node)
 
             member_name = node.value.id
             if member_name in members:
-                raise EnumDeclarationException(
+                raise FlagDeclarationException(
                     f"Enum member '{member_name}' has already been declared", node.value
                 )
 
@@ -357,6 +359,16 @@ class StructT(_UserType):
     def __repr__(self):
         return f"{self._id} declaration object"
 
+    def _try_fold(self, node):
+        if len(node.args) != 1:
+            raise UnfoldableNode("wrong number of args", node.args)
+        args = [arg.get_folded_value() for arg in node.args]
+        if not isinstance(args[0], vy_ast.Dict):
+            raise UnfoldableNode("not a dict")
+
+        # it can't be reduced, but this lets upstream code know it's constant
+        return node
+
     @property
     def size_in_bytes(self):
         return sum(i.size_in_bytes for i in self.member_types.values())
@@ -387,9 +399,9 @@ class StructT(_UserType):
         keys = list(self.member_types.keys())
         for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
             if key is None or key.get("id") not in members:
-                suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
+                hint = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
                 raise UnknownAttribute(
-                    f"Unknown or duplicate struct member. {suggestions_str}", key or value
+                    "Unknown or duplicate struct member.", key or value, hint=hint
                 )
             expected_key = keys[i]
             if key.id != expected_key:
@@ -408,3 +420,6 @@ class StructT(_UserType):
             )
 
         return self
+
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+        return all(check_modifiability(v, modifiability) for v in node.args[0].values)

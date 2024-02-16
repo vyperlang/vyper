@@ -5,11 +5,11 @@ from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
-    InvalidType,
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
     SyntaxException,
+    TypeMismatch,
     VariableDeclarationException,
 )
 
@@ -33,16 +33,16 @@ VAL: constant(uint256, int128) = 12
         """
 VAL: constant(uint256) = "test"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     # invalid range
     (
         """
 VAL: constant(uint256) = -1
     """,
-        InvalidType,
+        TypeMismatch,
     ),
-    # reserverd keyword
+    # reserved keyword
     (
         """
 wei: constant(uint256) = 1
@@ -62,7 +62,7 @@ VAL: constant(uint256) = 11
         """
 VAL: constant(Bytes[4]) = b"testtest"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     # global with same name
     (
@@ -94,7 +94,7 @@ VAL: constant(uint256) = 1
 VAL: immutable(uint256)
 VAL: uint256
 
-@external
+@deploy
 def __init__():
     VAL = 1
     """,
@@ -106,7 +106,7 @@ def __init__():
 VAL: uint256
 VAL: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     VAL = 1
     """,
@@ -240,7 +240,7 @@ CONST: constant(uint256) = 8
 @external
 @view
 def test():
-    for i in range(CONST / 4):
+    for i: uint256 in range(CONST / 4):
         pass
     """,
     """
@@ -279,6 +279,13 @@ struct Foo:
 CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
     """,
     """
+CONST_EMPTY: constant(bytes32) = empty(bytes32)
+
+@internal
+def foo() -> bytes32:
+    return CONST_EMPTY
+    """,
+    """
 struct Foo:
     a: uint256
     b: uint256
@@ -303,6 +310,19 @@ C: constant(Foo) = Foo({a: A, b: B})
 D: constant(int128) = -1
 
 CONST_BAR: constant(Bar) = Bar({c: C, d: D})
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(BAR)
+BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
     """,
 ]
 

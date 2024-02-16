@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, TypeMismatch
 
 fail_list = [
     (
@@ -11,7 +11,7 @@ bar: int128[3][3]
 def foo():
     self.bar = [[1, 2], [3, 4, 5], [6, 7, 8]]
     """,
-        InvalidType,  # casting darray to sarray
+        TypeMismatch,  # casting darray to sarray
     ),
     (
         """
@@ -28,7 +28,7 @@ def foo():
 def foo() -> int128[2]:
     return [[1,2],[3,4]]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -36,7 +36,7 @@ def foo() -> int128[2]:
 def foo() -> int128[2][2]:
     return [1,2]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

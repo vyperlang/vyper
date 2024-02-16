@@ -2,7 +2,7 @@ import copy
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Optional, Tuple
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
@@ -21,6 +21,26 @@ from vyper.venom import generate_assembly_experimental, generate_ir
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
 
+def _merge_one(lhs, rhs, helpstr):
+    if lhs is not None and rhs is not None and lhs != rhs:
+        raise StructureException(
+            f"compiler settings indicate {helpstr} {lhs}, " f"but source pragma indicates {rhs}."
+        )
+    return lhs if rhs is None else rhs
+
+
+# TODO: does this belong as a method under Settings?
+def _merge_settings(cli: Settings, pragma: Settings):
+    ret = Settings()
+    ret.evm_version = _merge_one(cli.evm_version, pragma.evm_version, "evm version")
+    ret.optimize = _merge_one(cli.optimize, pragma.optimize, "optimize")
+    ret.experimental_codegen = _merge_one(
+        cli.experimental_codegen, pragma.experimental_codegen, "experimental codegen"
+    )
+
+    return ret
+
+
 class CompilerData:
     """
     Object for fetching and storing compiler data for a Vyper contract.
@@ -33,8 +53,8 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
-    vyper_module_folded : vy_ast.Module
-        Folded Vyper AST
+    annotated_vyper_module: vy_ast.Module
+        Annotated+analysed Vyper AST
     global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
@@ -59,7 +79,6 @@ class CompilerData:
         storage_layout: StorageLayout = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
-        experimental_codegen: bool = False,
     ) -> None:
         """
         Initialization method.
@@ -76,11 +95,9 @@ class CompilerData:
             Show gas estimates for abi and ir output modes
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
-        experimental_codegen: bool, optional
-            Use experimental codegen. Defaults to False
         """
         # to force experimental codegen, uncomment:
-        # experimental_codegen = True
+        # settings.experimental_codegen = True
 
         if isinstance(file_input, str):
             file_input = FileInput(
@@ -93,7 +110,6 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.experimental_codegen = experimental_codegen
         self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
@@ -120,31 +136,12 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        # validate the compiler settings
-        # XXX: this is a bit ugly, clean up later
-        if settings.evm_version is not None:
-            if (
-                self.settings.evm_version is not None
-                and self.settings.evm_version != settings.evm_version
-            ):
-                raise StructureException(
-                    f"compiler settings indicate evm version {self.settings.evm_version}, "
-                    f"but source pragma indicates {settings.evm_version}."
-                )
-
-            self.settings.evm_version = settings.evm_version
-
-        if settings.optimize is not None:
-            if self.settings.optimize is not None and self.settings.optimize != settings.optimize:
-                raise StructureException(
-                    f"compiler options indicate optimization mode {self.settings.optimize}, "
-                    f"but source pragma indicates {settings.optimize}."
-                )
-            self.settings.optimize = settings.optimize
-
-        # ensure defaults
+        self.settings = _merge_settings(self.settings, settings)
         if self.settings.optimize is None:
             self.settings.optimize = OptimizationLevel.default()
+
+        if self.settings.experimental_codegen is None:
+            self.settings.experimental_codegen = False
 
         # note self.settings.compiler_version is erased here as it is
         # not used after pre-parsing
@@ -155,40 +152,24 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
-    def vyper_module_unfolded(self) -> vy_ast.Module:
-        # This phase is intended to generate an AST for tooling use, and is not
-        # used in the compilation process.
-
-        return generate_unfolded_ast(self.vyper_module, self.input_bundle)
+    def annotated_vyper_module(self) -> vy_ast.Module:
+        return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
-    def _folded_module(self):
-        return generate_folded_ast(
-            self.vyper_module, self.input_bundle, self.storage_layout_override
-        )
-
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        module, storage_layout = self._folded_module
-        return module
-
-    @property
     def storage_layout(self) -> StorageLayout:
-        module, storage_layout = self._folded_module
-        return storage_layout
+        module_ast = self.annotated_vyper_module
+        return set_data_positions(module_ast, self.storage_layout_override)
 
     @property
     def global_ctx(self) -> ModuleT:
-        return self.vyper_module_folded._metadata["type"]
+        # ensure storage layout is computed
+        _ = self.storage_layout
+        return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        nodes = generate_ir_nodes(self.global_ctx, self.settings.optimize)
-        if self.experimental_codegen:
-            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
-        else:
-            return nodes
+        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -206,24 +187,33 @@ class CompilerData:
         # ensure codegen is run:
         _ = self._ir_output
 
-        fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
+        fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
+    def venom_functions(self):
+        deploy_ir, runtime_ir = self._ir_output
+        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
+        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        return deploy_venom, runtime_venom
+
+    @cached_property
     def assembly(self) -> list:
-        if self.experimental_codegen:
+        if self.settings.experimental_codegen:
+            deploy_code, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                self.ir_nodes, self.settings.optimize  # type: ignore
+                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
             )
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
     def assembly_runtime(self) -> list:
-        if self.experimental_codegen:
-            return generate_assembly_experimental(
-                self.ir_runtime, self.settings.optimize  # type: ignore
-            )
+        if self.settings.experimental_codegen:
+            _, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
@@ -248,25 +238,9 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-# destructive -- mutates module in place!
-def generate_unfolded_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
-
-    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # note: validate_semantics does type inference on the AST
-        validate_semantics(vyper_module, input_bundle)
-
-    return vyper_module
-
-
-def generate_folded_ast(
-    vyper_module: vy_ast.Module,
-    input_bundle: InputBundle,
-    storage_layout_overrides: StorageLayout = None,
-) -> Tuple[vy_ast.Module, StorageLayout]:
+def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     """
-    Perform constant folding operations on the Vyper AST.
+    Validates and annotates the Vyper AST.
 
     Arguments
     ---------
@@ -276,22 +250,16 @@ def generate_folded_ast(
     Returns
     -------
     vy_ast.Module
-        Folded Vyper AST
+        Annotated Vyper AST
     StorageLayout
         Layout of variables in storage
     """
-
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
-    vyper_module_folded = copy.deepcopy(vyper_module)
-    vy_ast.folding.fold(vyper_module_folded)
-
+    vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        validate_semantics(vyper_module_folded, input_bundle)
+        # note: validate_semantics does type inference on the AST
+        validate_semantics(vyper_module, input_bundle)
 
-    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
-
-    return vyper_module_folded, symbol_tables
+    return vyper_module
 
 
 def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
@@ -342,7 +310,8 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
     if _find_nested_opcode(assembly, "DEBUG"):
         warnings.warn(
             "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!"
+            "a supported EVM! It will FAIL on all other nodes!",
+            stacklevel=2,
         )
     return assembly
 

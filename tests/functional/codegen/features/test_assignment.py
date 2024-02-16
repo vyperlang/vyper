@@ -66,7 +66,7 @@ def bar(x: {typ}) -> {typ}:
 
 def test_internal_assign_struct(get_contract_with_gas_estimation):
     code = """
-enum Bar:
+flag Bar:
     BAD
     BAK
     BAZ
@@ -92,7 +92,7 @@ def bar(x: Foo) -> Foo:
 
 def test_internal_assign_struct_member(get_contract_with_gas_estimation):
     code = """
-enum Bar:
+flag Bar:
     BAD
     BAK
     BAZ
@@ -207,7 +207,7 @@ def foo2() -> uint256:
     x += 1
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
 def test_invalid_uint256_assignment_calculate_literals(get_contract_with_gas_estimation):

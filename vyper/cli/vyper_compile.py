@@ -31,9 +31,11 @@ source_map         - Vyper source map
 method_identifiers - Dictionary of method signature to method identifier
 userdoc            - Natspec user documentation
 devdoc             - Natspec developer documentation
+metadata           - Contract metadata (intended for use by tooling developers)
 combined_json      - All of the above format options combined as single JSON output
 layout             - Storage layout of a Vyper contract
-ast                - AST in JSON format
+ast                - AST (not yet annotated) in JSON format
+annotated_ast      - Annotated AST in JSON format
 interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
@@ -147,6 +149,7 @@ def _parse_args(argv):
         "--experimental-codegen",
         help="The compiler use the new IR codegen. This is an experimental feature.",
         action="store_true",
+        dest="experimental_codegen",
     )
 
     args = parser.parse_args(argv)
@@ -184,6 +187,9 @@ def _parse_args(argv):
     if args.evm_version:
         settings.evm_version = args.evm_version
 
+    if args.experimental_codegen:
+        settings.experimental_codegen = args.experimental_codegen
+
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
 
@@ -195,7 +201,6 @@ def _parse_args(argv):
         settings,
         args.storage_layout,
         args.no_bytecode_metadata,
-        args.experimental_codegen,
     )
 
     if args.output_path:
@@ -225,6 +230,27 @@ def exc_handler(contract_path: ContractPath, exception: Exception) -> None:
     raise exception
 
 
+def get_search_paths(paths: list[str] = None) -> list[Path]:
+    # given `paths` input, get the full search path, including
+    # the system search path.
+    paths = paths or []
+
+    # lowest precedence search path is always sys path
+    # note python sys path uses opposite resolution order from us
+    # (first in list is highest precedence; we give highest precedence
+    # to the last in the list)
+    search_paths = [Path(p) for p in reversed(sys.path)]
+
+    if Path(".") not in search_paths:
+        search_paths.append(Path("."))
+
+    for p in paths:
+        path = Path(p).resolve(strict=True)
+        search_paths.append(path)
+
+    return search_paths
+
+
 def compile_files(
     input_files: list[str],
     output_formats: OutputFormats,
@@ -233,17 +259,8 @@ def compile_files(
     settings: Optional[Settings] = None,
     storage_layout_paths: list[str] = None,
     no_bytecode_metadata: bool = False,
-    experimental_codegen: bool = False,
 ) -> dict:
-    paths = paths or []
-
-    # lowest precedence search path is always `.`
-    search_paths = [Path(".")]
-
-    for p in paths:
-        path = Path(p).resolve(strict=True)
-        search_paths.append(path)
-
+    search_paths = get_search_paths(paths)
     input_bundle = FilesystemInputBundle(search_paths)
 
     show_version = False
@@ -253,7 +270,13 @@ def compile_files(
         output_formats = combined_json_outputs
         show_version = True
 
-    translate_map = {"abi_python": "abi", "json": "abi", "ast": "ast_dict", "ir_json": "ir_dict"}
+    translate_map = {
+        "abi_python": "abi",
+        "json": "abi",
+        "ast": "ast_dict",
+        "annotated_ast": "annotated_ast_dict",
+        "ir_json": "ir_dict",
+    }
     final_formats = [translate_map.get(i, i) for i in output_formats]
 
     if storage_layout_paths:
@@ -287,7 +310,6 @@ def compile_files(
             storage_layout_override=storage_layout_override,
             show_gas_estimates=show_gas_estimates,
             no_bytecode_metadata=no_bytecode_metadata,
-            experimental_codegen=experimental_codegen,
         )
 
         ret[file_path] = output

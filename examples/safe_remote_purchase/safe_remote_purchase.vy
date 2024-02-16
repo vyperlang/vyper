@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Safe Remote Purchase
 # Originally from
 # https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst
@@ -19,7 +21,7 @@ buyer: public(address)
 unlocked: public(bool)
 ended: public(bool)
 
-@external
+@deploy
 @payable
 def __init__():
     assert (msg.value % 2) == 0

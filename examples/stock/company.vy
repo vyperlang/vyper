@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Financial events the contract logs
 
 event Transfer:
@@ -27,7 +29,7 @@ price: public(uint256)
 holdings: HashMap[address, uint256]
 
 # Set up the company.
-@external
+@deploy
 def __init__(_company: address, _total_shares: uint256, initial_price: uint256):
     assert _total_shares > 0
     assert initial_price > 0

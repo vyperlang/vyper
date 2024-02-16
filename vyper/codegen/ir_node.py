@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import re
 from enum import Enum, auto
 from functools import cached_property
@@ -392,6 +393,14 @@ class IRnode:
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
 
+    # deepcopy is a perf hotspot; it pays to optimize it a little
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.__dict__ = self.__dict__.copy()
+        ret.args = [copy.deepcopy(arg) for arg in ret.args]
+        return ret
+
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
     def gas(self):
@@ -444,11 +453,15 @@ class IRnode:
         return ret
 
     @property
-    def is_literal(self):
+    def is_literal(self) -> bool:
         return isinstance(self.value, int) or self.value == "multi"
 
+    def int_value(self) -> int:
+        assert isinstance(self.value, int)
+        return self.value
+
     @property
-    def is_pointer(self):
+    def is_pointer(self) -> bool:
         # not used yet but should help refactor/clarify downstream code
         # eventually
         return self.location is not None

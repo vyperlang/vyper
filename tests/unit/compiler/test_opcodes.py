@@ -1,6 +1,7 @@
 import pytest
 
 import vyper
+from vyper.compiler.output import _build_opcodes
 from vyper.evm import opcodes
 from vyper.exceptions import CompilerPanic
 
@@ -64,3 +65,17 @@ def test_get_opcodes(evm_version):
     else:
         for op in ("TLOAD", "TSTORE", "MCOPY"):
             assert op not in ops
+
+
+def test_build_opcodes():
+    assert _build_opcodes(bytes.fromhex("610250")) == "PUSH2 0x0250"
+    assert _build_opcodes(bytes.fromhex("612500")) == "PUSH2 0x2500"
+    assert _build_opcodes(bytes.fromhex("610100")) == "PUSH2 0x0100"
+    assert _build_opcodes(bytes.fromhex("611000")) == "PUSH2 0x1000"
+    assert _build_opcodes(bytes.fromhex("62010300")) == "PUSH3 0x010300"
+    assert (
+        _build_opcodes(
+            bytes.fromhex("7f6100000000000000000000000000000000000000000000000000000000000000")
+        )
+        == "PUSH32 0x6100000000000000000000000000000000000000000000000000000000000000"
+    )

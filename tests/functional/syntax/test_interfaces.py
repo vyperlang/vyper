@@ -15,7 +15,7 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 a: public(ERC20)
 @external
 def test():
@@ -25,7 +25,7 @@ def test():
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 aba: public(ERC20)
 @external
 def test():
@@ -35,7 +35,7 @@ def test():
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 a: address(ERC20) # invalid syntax now.
     """,
@@ -43,7 +43,7 @@ a: address(ERC20) # invalid syntax now.
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 @external
 def test():
@@ -63,7 +63,7 @@ def test():  # may not call normal address
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 @external
 def test(a: address):
     my_address: address = ERC20()
@@ -72,7 +72,7 @@ def test(a: address):
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 implements: ERC20 = 1
     """,
@@ -90,7 +90,7 @@ interface A:
         """
 implements: self.x
     """,
-        StructureException,
+        InvalidType,
     ),
     (
         """
@@ -109,7 +109,7 @@ implements: Foo
     ),
     (
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 interface A:
     def f(): view
@@ -137,7 +137,7 @@ def f(a: uint256): # visibility is nonpayable instead of view
     (
         # `receiver` of `Transfer` event should be indexed
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 implements: ERC20
 
@@ -175,7 +175,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     (
         # `value` of `Transfer` event should not be indexed
         """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 implements: ERC20
 
@@ -221,14 +221,14 @@ def test_interfaces_fail(bad_code):
 
 valid_list = [
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 b: ERC20
 @external
 def test(input: address):
     assert self.b.totalSupply() == ERC20(input).totalSupply()
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 interface Factory:
    def getExchange(token_addr: address) -> address: view
@@ -253,12 +253,12 @@ def test() -> (bool, Foo):
     return True, x
     """
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 a: public(ERC20)
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 a: public(ERC20)
 
@@ -267,7 +267,7 @@ def test() -> address:
     return self.a.address
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 a: public(ERC20)
 b: address
@@ -277,7 +277,7 @@ def test():
     self.b = self.a.address
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 
 struct aStruct:
    my_address: address
@@ -291,7 +291,7 @@ def test() -> address:
     return self.b.my_address
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 a: public(ERC20)
 @external
 def test():
@@ -304,7 +304,7 @@ interface MyInterface:
 my_interface: MyInterface[3]
 idx: uint256
 
-@external
+@deploy
 def __init__():
     self.my_interface[self.idx] = MyInterface(empty(address))
     """,
@@ -348,7 +348,7 @@ implements: ITestInterface
 
 foo: public(immutable(uint256))
 
-@external
+@deploy
 def __init__(x: uint256):
     foo = x
     """,

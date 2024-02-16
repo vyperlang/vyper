@@ -3,7 +3,13 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, InvalidOperation, TypeMismatch
+from vyper import compile_code
+from vyper.exceptions import (
+    DecimalOverrideException,
+    InvalidOperation,
+    OverflowException,
+    TypeMismatch,
+)
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
@@ -24,23 +30,25 @@ def test_decimal_override():
 
 
 @pytest.mark.parametrize("op", ["//", "**", "&", "|", "^"])
-def test_invalid_ops(get_contract, assert_compile_failed, op):
+def test_invalid_ops(op):
     code = f"""
 @external
 def foo(x: decimal, y: decimal) -> decimal:
     return x {op} y
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
 
 
 @pytest.mark.parametrize("op", ["not"])
-def test_invalid_unary_ops(get_contract, assert_compile_failed, op):
+def test_invalid_unary_ops(op):
     code = f"""
 @external
 def foo(x: decimal) -> decimal:
     return {op} x
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
 
 
 def quantize(x: Decimal) -> Decimal:
@@ -117,7 +125,7 @@ def test_harder_decimal_test(get_contract_with_gas_estimation):
 @external
 def phooey(inp: decimal) -> decimal:
     x: decimal = 10000.0
-    for i in range(4):
+    for i: uint256 in range(4):
         x = x * inp
     return x
 
@@ -156,7 +164,7 @@ def iarg() -> uint256:
     print("Passed fractional multiplication test")
 
 
-def test_mul_overflow(assert_tx_failed, get_contract_with_gas_estimation):
+def test_mul_overflow(tx_failed, get_contract_with_gas_estimation):
     mul_code = """
 
 @external
@@ -170,12 +178,14 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
     x = Decimal("85070591730234615865843651857942052864")
     y = Decimal("136112946768375385385349842973")
 
-    assert_tx_failed(lambda: c._num_mul(x, y))
+    with tx_failed():
+        c._num_mul(x, y)
 
     x = SizeLimits.MAX_AST_DECIMAL
     y = 1 + DECIMAL_EPSILON
 
-    assert_tx_failed(lambda: c._num_mul(x, y))
+    with tx_failed():
+        c._num_mul(x, y)
 
     assert c._num_mul(x, Decimal(1)) == x
 
@@ -186,7 +196,7 @@ def _num_mul(x: decimal, y: decimal) -> decimal:
 
 
 # division failure modes(!)
-def test_div_overflow(get_contract, assert_tx_failed):
+def test_div_overflow(get_contract, tx_failed):
     code = """
 @external
 def foo(x: decimal, y: decimal) -> decimal:
@@ -198,32 +208,39 @@ def foo(x: decimal, y: decimal) -> decimal:
     x = SizeLimits.MIN_AST_DECIMAL
     y = -DECIMAL_EPSILON
 
-    assert_tx_failed(lambda: c.foo(x, y))
-    assert_tx_failed(lambda: c.foo(x, Decimal(0)))
-    assert_tx_failed(lambda: c.foo(y, Decimal(0)))
+    with tx_failed():
+        c.foo(x, y)
+    with tx_failed():
+        c.foo(x, Decimal(0))
+    with tx_failed():
+        c.foo(y, Decimal(0))
 
     y = Decimal(1) - DECIMAL_EPSILON  # 0.999999999
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     y = Decimal(-1)
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     assert c.foo(x, Decimal(1)) == x
     assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
     x = SizeLimits.MAX_AST_DECIMAL
 
-    assert_tx_failed(lambda: c.foo(x, DECIMAL_EPSILON))
+    with tx_failed():
+        c.foo(x, DECIMAL_EPSILON)
 
     y = Decimal(1) - DECIMAL_EPSILON
-    assert_tx_failed(lambda: c.foo(x, y))
+    with tx_failed():
+        c.foo(x, y)
 
     assert c.foo(x, Decimal(1)) == x
 
     assert c.foo(x, 1 + DECIMAL_EPSILON) == quantize(x / (1 + DECIMAL_EPSILON))
 
 
-def test_decimal_min_max_literals(assert_tx_failed, get_contract_with_gas_estimation):
+def test_decimal_min_max_literals(tx_failed, get_contract_with_gas_estimation):
     code = """
 @external
 def maximum():
@@ -254,11 +271,32 @@ def bar(num: decimal) -> decimal:
     assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up
 
 
-def test_exponents(assert_compile_failed, get_contract):
+def test_exponents():
     code = """
 @external
 def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
+
+
+def test_decimal_nested_intermediate_overflow():
+    code = """
+@external
+def foo():
+    a: decimal = 18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+def test_replace_decimal_nested_intermediate_underflow(dummy_input_bundle):
+    code = """
+@external
+def foo():
+    a: decimal = -18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)

@@ -71,9 +71,8 @@ class HashMapT(_SubscriptableT):
     def from_annotation(cls, node: vy_ast.Subscript) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or len(node.slice.value.elements) != 2
+            or not isinstance(node.slice, vy_ast.Tuple)
+            or len(node.slice.elements) != 2
         ):
             raise StructureException(
                 (
@@ -83,7 +82,7 @@ class HashMapT(_SubscriptableT):
                 node,
             )
 
-        k_ast, v_ast = node.slice.value.elements
+        k_ast, v_ast = node.slice.elements
         key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
@@ -112,7 +111,7 @@ class _SequenceT(_SubscriptableT):
             raise InvalidType("Array length is invalid")
 
         if length >= 2**64:
-            warnings.warn("Use of large arrays can be unsafe!")
+            warnings.warn("Use of large arrays can be unsafe!", stacklevel=2)
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -198,7 +197,7 @@ class SArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
-        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
@@ -280,21 +279,19 @@ class DArrayT(_SequenceT):
         if not isinstance(node, vy_ast.Subscript):
             raise StructureException(err_msg, node)
 
-        if (
-            not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or len(node.slice.value.elements) != 2
-        ):
+        if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
             raise StructureException(err_msg, node.slice)
 
-        length_node = node.slice.value.elements[1]
+        length_node = node.slice.elements[1]
+        if length_node.has_folded_value:
+            length_node = length_node.get_folded_value()
 
         if not isinstance(length_node, vy_ast.Int):
             raise StructureException(err_msg, length_node)
 
         length = length_node.value
 
-        value_node = node.slice.value.elements[0]
+        value_node = node.slice.elements[0]
         value_type = type_from_annotation(value_node)
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)

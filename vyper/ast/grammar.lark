@@ -10,7 +10,8 @@ module: ( DOCSTRING
         | interface_def
         | constant_def
         | variable_def
-        | enum_def
+        | enum_def // TODO deprecate at some point in favor of flag
+        | flag_def
         | event_def
         | function_def
         | immutable_def
@@ -76,11 +77,18 @@ indexed_event_arg: NAME ":" "indexed" "(" type ")"
 event_body: _NEWLINE _INDENT (((event_member | indexed_event_arg ) _NEWLINE)+ | _PASS _NEWLINE) _DEDENT
 event_def: _EVENT_DECL NAME ":" ( event_body | _PASS )
 
+// TODO deprecate in favor of flag
 // Enums
 _ENUM_DECL: "enum"
 enum_member: NAME
 enum_body: _NEWLINE _INDENT (enum_member _NEWLINE)+ _DEDENT
 enum_def: _ENUM_DECL NAME ":" enum_body
+
+// Flags
+_FLAG_DECL: "flag"
+flag_member: NAME
+flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
+flag_def: _FLAG_DECL NAME ":" flag_body
 
 // Types
 array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"
@@ -171,18 +179,13 @@ body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
 cond_exec: _expr ":" body
 default_exec: body
 if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
-// TODO: make this into a variable definition e.g. `for i: uint256 in range(0, 5): ...`
-loop_variable: NAME [":" NAME]
+loop_variable: NAME ":" type
 loop_iterator: _expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
-
-// ternary operator
-ternary: _expr "if" _expr "else" _expr
 
 // Expressions
 _expr: operation
      | dict
-     | ternary
 
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -208,7 +211,15 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 // See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
-?operation: bool_or
+?operation: assignment_expr
+
+// "walrus" operator
+?assignment_expr: ternary
+                  | NAME ":=" assignment_expr
+
+// ternary operator
+?ternary: bool_or
+          | ternary "if" ternary "else" ternary
 
 _AND: "and"
 _OR: "or"
@@ -231,7 +242,7 @@ _BITAND: "&"
 _BITOR: "|"
 _BITXOR: "^"
 
-// Comparisions
+// Comparisons
 _EQ: "=="
 _NE: "!="
 _LE: "<="

@@ -10,7 +10,7 @@ x: public(int128)
 x: public(constant(int128)) = 0
 y: public(immutable(int128))
 
-@external
+@deploy
 def __init__():
     y = 0
     """,
@@ -30,9 +30,9 @@ struct Foo:
 
 x: public(HashMap[uint256, Foo])
     """,
-    # expansion of public user-defined enum
+    # expansion of public user-defined flag
     """
-enum Foo:
+flag Foo:
     BAR
 
 x: public(HashMap[uint256, Foo])

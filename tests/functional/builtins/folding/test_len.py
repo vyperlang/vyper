@@ -1,7 +1,6 @@
 import pytest
 
-from vyper import ast as vy_ast
-from vyper.builtins import functions as vy_fn
+from tests.utils import parse_and_fold
 
 
 @pytest.mark.parametrize("length", [0, 1, 32, 33, 64, 65, 1024])
@@ -15,9 +14,9 @@ def foo(a: String[1024]) -> uint256:
 
     value = "a" * length
 
-    vyper_ast = vy_ast.parse_to_ast(f"len('{value}')")
+    vyper_ast = parse_and_fold(f"len('{value}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value
 
@@ -33,9 +32,9 @@ def foo(a: Bytes[1024]) -> uint256:
 
     value = "a" * length
 
-    vyper_ast = vy_ast.parse_to_ast(f"len(b'{value}')")
+    vyper_ast = parse_and_fold(f"len(b'{value}')")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value.encode()) == new_node.value
 
@@ -51,8 +50,8 @@ def foo(a: Bytes[1024]) -> uint256:
 
     value = f"0x{'00' * length}"
 
-    vyper_ast = vy_ast.parse_to_ast(f"len({value})")
+    vyper_ast = parse_and_fold(f"len({value})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.Len().evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value
