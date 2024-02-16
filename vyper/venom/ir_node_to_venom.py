@@ -322,6 +322,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables)
 
+    elif ir.value in ["addmod", "mulmod"]:
+        return _convert_ir_simple_node(ctx, ir, symbols, variables, allocated_variables, True)
+
     elif ir.value in ["pass", "stop", "return"]:
         pass
     elif ir.value == "deploy":

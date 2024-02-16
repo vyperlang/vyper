@@ -68,6 +68,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sdiv",
         "mod",
         "exp",
+        "addmod",
+        "mulmod",
         "eq",
         "iszero",
         "not",
