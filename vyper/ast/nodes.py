@@ -357,6 +357,42 @@ class VyperNode:
         values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
         return hash(tuple(values))
 
+    def __deepcopy__(self, memo):
+        assert isinstance(self, Module), self
+        return self.deepcopy(memo)
+
+    def deepcopy(self, memo, parent=None):
+        ret = copy.copy(self)
+
+        # set parent/child relationship
+        ret._parent = None
+        ret._children = set()
+        ret._metadata = ret._metadata.copy()
+        if parent is not None:
+            ret.set_parent(parent)
+            parent._children.add(ret)
+
+        ret._original_node = copy.deepcopy(ret._original_node, memo)
+
+        fieldnames = self.get_fields()
+        SENTINEL = object()
+        for fieldname in fieldnames:
+            s = getattr(self, fieldname, SENTINEL)
+
+            if s is SENTINEL:
+                continue
+
+            if isinstance(s, list):
+                val = [t.deepcopy(memo, parent=ret) for t in s]
+            elif isinstance(s, VyperNode):
+                val = s.deepcopy(memo, parent=ret)
+            else:
+                val = copy.deepcopy(s, memo)
+
+            setattr(ret, fieldname, val)
+
+        return ret
+
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
@@ -786,7 +822,6 @@ class ExprNode(VyperNode):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self._expr_info = None
 
 
