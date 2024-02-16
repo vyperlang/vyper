@@ -51,7 +51,7 @@ def stockAvailable() -> uint256:
 def buyStock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares
-    buy_order: uint256 = msg.value / self.price # rounds down
+    buy_order: uint256 = msg.value // self.price # rounds down
 
     # Check that there are enough shares to buy.
     assert self._stockAvailable() >= buy_order

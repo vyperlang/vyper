@@ -112,7 +112,7 @@ def _convertToAssets(shareAmount: uint256) -> uint256:
 
     # NOTE: `shareAmount = 0` is extremely rare case, not optimizing for it
     # NOTE: `totalAssets = 0` is extremely rare case, not optimizing for it
-    return shareAmount * self.asset.balanceOf(self) / totalSupply
+    return shareAmount * self.asset.balanceOf(self) // totalSupply
 
 
 @view
@@ -130,7 +130,7 @@ def _convertToShares(assetAmount: uint256) -> uint256:
         return assetAmount  # 1:1 price
 
     # NOTE: `assetAmount = 0` is extremely rare case, not optimizing for it
-    return assetAmount * totalSupply / totalAssets
+    return assetAmount * totalSupply // totalAssets
 
 
 @view
