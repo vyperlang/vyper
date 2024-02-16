@@ -3,7 +3,6 @@ from typing import Callable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -25,7 +24,7 @@ from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import checksum_encode, int_to_fourbytes
+from vyper.utils import int_to_fourbytes
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -314,11 +313,9 @@ class _ExprAnalyser:
                 "Numeric literal is outside of allowable range for number types", node
             )
         if isinstance(node, vy_ast.Hex) and len(node.value) == 42:
-            raise BadChecksumAddress(
-                "If this is an address, the correct checksummed form is: "
-                f"{checksum_encode(node.value)}",
-                node,
-            )
+            # call `validate_literal` for its side effect of throwing an exception for
+            # address checksum mismatch
+            AddressT().validate_literal(node)
 
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
@@ -616,7 +613,9 @@ def validate_expected_type(node, expected_type):
 
         suggestion_str = ""
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
-            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+            # call `validate_literal` for its side effect of throwing an exception for
+            # address checksum mismatch
+            AddressT().validate_literal(node)
 
         raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
