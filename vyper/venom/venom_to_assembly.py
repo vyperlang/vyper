@@ -321,10 +321,12 @@ class VenomCompiler:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
-        elif opcode == "iload":
-            operands = []
-        elif opcode == "istore":
-            operands = inst.operands[0:1]
+        elif opcode == "offset":
+            offset = inst.operands[1]
+            if isinstance(offset, IRLiteral):
+                operands = []
+            else:
+                operands = inst.operands[1:2]
         elif opcode == "log":
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
@@ -455,12 +457,13 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
-        elif opcode == "iload":
-            loc = inst.operands[0].value
-            assembly.extend(["_OFST", "_mem_deploy_end", loc, "MLOAD"])
-        elif opcode == "istore":
+        elif opcode == "offset":
+            sym = inst.operands[0].value
             loc = inst.operands[1].value
-            assembly.extend(["_OFST", "_mem_deploy_end", loc, "MSTORE"])
+            if isinstance(loc, int):
+                assembly.extend(["_OFST", sym, loc])
+            else:
+                assembly.extend([sym, "ADD"])
         elif opcode == "log":
             assembly.extend([f"LOG{log_topic_count}"])
         else:
