@@ -52,8 +52,7 @@ class MakeSSA(IRPass):
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
-        liveness = basic_block.instructions[0].liveness
-        if var not in liveness:
+        if var not in basic_block.in_vars:
             return
 
         args: list[IROperand] = []

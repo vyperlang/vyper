@@ -296,8 +296,11 @@ class IRInstruction:
             s += f"{self.output} = "
         opcode = f"{self.opcode} " if self.opcode != "store" else ""
         s += opcode
+        operands = self.operands
+        if opcode not in ["jmp", "jnz", "invoke"]:
+            operands.reverse()
         operands = ", ".join(
-            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in self.operands]
+            [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
         )
         s += operands
 
@@ -475,6 +478,13 @@ class IRBasicBlock:
         Check if the basic block is terminal.
         """
         return len(self.cfg_out) == 0
+
+    @property
+    def in_vars(self) -> OrderedSet[IRVariable]:
+        for inst in self.instructions:
+            if inst.opcode != "phi":
+                return inst.liveness
+        return OrderedSet()
 
     def copy(self):
         bb = IRBasicBlock(self.label, self.parent)
