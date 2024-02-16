@@ -197,7 +197,7 @@ def foo3(y: uint256) -> uint256:
     assert c.foo3(11) == 12
 
 
-def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
@@ -210,14 +210,14 @@ def foo2() -> uint256:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
 
 
-def test_invalid_uin256_assignment_calculate_literals(get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment_calculate_literals(get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
 @external
 def foo2() -> uint256:
     x: uint256 = 0
-    x = 3 * 4 / 2 + 1 - 2
+    x = 3 * 4 // 2 + 1 - 2
     return x
 """
     c = get_contract_with_gas_estimation(code)

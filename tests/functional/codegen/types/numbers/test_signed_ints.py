@@ -211,7 +211,7 @@ ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
     "*": operator.mul,
-    "/": evm_div,
+    "//": evm_div,
     "%": evm_mod,
 }
 
@@ -246,7 +246,7 @@ def foo() -> {typ}:
     """
     lo, hi = typ.ast_bounds
 
-    fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": evm_div, "%": evm_mod}
+    fns = {"+": operator.add, "-": operator.sub, "*": operator.mul, "//": evm_div, "%": evm_mod}
     fn = fns[op]
 
     c = get_contract(code_1)
@@ -290,7 +290,7 @@ def foo() -> {typ}:
         in_bounds = lo <= expected <= hi
 
         # safediv and safemod disallow divisor == 0
-        div_by_zero = y == 0 and op in ("/", "%")
+        div_by_zero = y == 0 and op in ("//", "%")
 
         ok = in_bounds and not div_by_zero
 
@@ -389,6 +389,17 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(-2) == 2
 
     assert_tx_failed(lambda: c.foo(lo))
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["/"])
+def test_invalid_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(x: {typ}, y: {typ}) -> {typ}:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
 @pytest.mark.parametrize("typ", types)

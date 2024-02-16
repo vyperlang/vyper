@@ -77,7 +77,7 @@ ARITHMETIC_OPS = {
     "+": operator.add,
     "-": operator.sub,
     "*": operator.mul,
-    "/": evm_div,
+    "//": evm_div,
     "%": evm_mod,
 }
 
@@ -134,7 +134,7 @@ def foo() -> {typ}:
 
         in_bounds = lo <= expected <= hi
         # safediv and safemod disallow divisor == 0
-        div_by_zero = y == 0 and op in ("/", "%")
+        div_by_zero = y == 0 and op in ("//", "%")
 
         ok = in_bounds and not div_by_zero
 
@@ -214,6 +214,17 @@ def test() -> {typ}:
 
     for val in bad_cases:
         assert_compile_failed(lambda: get_contract(code_template.format(typ=typ, val=val)))
+
+
+@pytest.mark.parametrize("typ", types)
+@pytest.mark.parametrize("op", ["/"])
+def test_invalid_ops(get_contract, assert_compile_failed, typ, op):
+    code = f"""
+@external
+def foo(x: {typ}, y: {typ}) -> {typ}:
+    return x {op} y
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
 
 
 @pytest.mark.parametrize("typ", types)

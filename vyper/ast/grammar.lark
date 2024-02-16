@@ -264,6 +264,7 @@ _IN: "in"
 ?product: unary
         | product "*"  unary -> mul
         | product "/"  unary -> div
+        | product "//" unary -> floordiv
         | product "%"  unary -> mod
 ?unary: power
        | "+"  power -> uadd
