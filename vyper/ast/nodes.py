@@ -579,12 +579,7 @@ class VyperNode:
         list
             Descendant nodes matching the filter conditions.
         """
-        ret = self._get_descendants()
-
-        if not include_self:
-            # pop front
-            s = next(ret)
-            assert s == self
+        ret = self._get_descendants(include_self)
 
         if node_type:
             ret = (node for node in ret if isinstance(node, node_type))
@@ -599,16 +594,22 @@ class VyperNode:
 
         return ret
 
-    def _get_descendants(self):
+    def _get_descendants(self, include_self=True):
+        # get descendants in reverse topsort (i.e. breadth-first) order
         if self._cache_descendants is None:
             ret = [self]
             ret.extend(self._children)
             for node in self._children:
-                ret.extend(node._get_descendants())
+                ret.extend(node._get_descendants(include_self=False))
 
             self._cache_descendants = ret
 
-        return iter(self._cache_descendants)
+        ret = iter(self._cache_descendants)
+        if not include_self:
+            s = next(ret)  # pop
+            assert s is self
+
+        return ret
 
     def get(self, field_str: str) -> Any:
         """
