@@ -341,6 +341,25 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
+    def visit_Call(self, node):
+        """
+        Convert structs declared as `Dict` node for vyper < 0.4.0 to kwargs.
+        """
+        if len(node.args) == 1 and isinstance(node.args[0], python_ast.Dict):
+            dict_ = node.args[0]
+            kw_list = []
+
+            for key, value in zip(dict_.keys, dict_.values):
+                replacement_kw_node = python_ast.keyword(key.id, value)
+                kw_list.append(replacement_kw_node)
+
+            node.args = []
+            node.keywords = kw_list
+
+        self.generic_visit(node)
+
+        return node
+
     def visit_Constant(self, node):
         """
         Handle `Constant` when using Python >=3.8
