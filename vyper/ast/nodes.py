@@ -527,14 +527,17 @@ class VyperNode:
         list
             Child nodes matching the filter conditions.
         """
-        children = self._children.copy()
+        children = iter(self._children)
+
         if node_type is not None:
-            children = [i for i in children if isinstance(i, node_type)]
+            children = (i for i in children if isinstance(i, node_type))
+        if filters is not None:
+            children = (i for i in children if _node_filter(i, filters))
+
+        children = list(children)
         if reverse:
             children.reverse()
-        if filters is None:
-            return children
-        return [i for i in children if _node_filter(i, filters)]
+        return children
 
     def get_descendants(
         self,
