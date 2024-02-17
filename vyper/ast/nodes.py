@@ -225,7 +225,6 @@ def _apply_filters(node_iter, node_type, filters, reverse):
     return ret
 
 
-
 def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
     # helper function to raise a SyntaxException from a dict representing a node
     raise SyntaxException(
