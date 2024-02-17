@@ -155,23 +155,26 @@ def _handle_self_call(
 
     for arg in args_ir:
         if arg.is_literal:
-            var = _get_variable_from_address(variables, arg.value)
-            if var is None:
-                ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
-                if isinstance(ret, IRLiteral):
-                    bb = ctx.get_basic_block()
-                    ret = bb.append_instruction("mload", ret)
-                ret_args.append(ret)
-            else:
-                if allocated_variables.get(var.name) is not None:
-                    ret_args.append(allocated_variables.get(var.name))
-                else:
-                    ret = _convert_ir_bb(
-                        ctx, arg._optimized, symbols, variables, allocated_variables
-                    )
-                    bb = ctx.get_basic_block()
-                    ret = bb.append_instruction(arg.location.load_op, ret)
+            if arg.is_pointer:
+                var = _get_variable_from_address(variables, arg.value)
+                if var is None:
+                    ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
+                    if isinstance(ret, IRLiteral):
+                        bb = ctx.get_basic_block()
+                        ret = bb.append_instruction("mload", ret)
                     ret_args.append(ret)
+                else:
+                    if allocated_variables.get(var.name) is not None:
+                        ret_args.append(allocated_variables.get(var.name))
+                    else:
+                        ret = _convert_ir_bb(
+                            ctx, arg._optimized, symbols, variables, allocated_variables
+                        )
+                        bb = ctx.get_basic_block()
+                        ret = bb.append_instruction(arg.location.load_op, ret)
+                        ret_args.append(ret)
+            else:
+                ret_args.append(IRLiteral(arg.value))
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
             if arg.location and arg.location.load_op == "calldataload":
