@@ -253,7 +253,7 @@ class IntegerT(NumericT):
     def compare_type(self, other: VyperType) -> bool:
         # hotspot
         return (  # noqa: E721
-            type(self) == type(other)
+            self.__class__ == other.__class__
             and self.is_signed == other.is_signed  # type: ignore
             and self.bits == other.bits  # type: ignore
         )
