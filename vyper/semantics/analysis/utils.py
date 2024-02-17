@@ -480,6 +480,7 @@ def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
+    # this function is a performance hotspot
     """
     Return a list of common possible types between one or more nodes.
 

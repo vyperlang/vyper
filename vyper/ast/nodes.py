@@ -364,6 +364,7 @@ class VyperNode:
         return hash(tuple(values))
 
     def __deepcopy__(self, memo):
+        # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
