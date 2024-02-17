@@ -581,32 +581,34 @@ class VyperNode:
         """
         ret = self._get_descendants()
 
-        if include_self:
-            ret = ret.copy()
-        else:
-            ret = ret[1:]  # pop self
+        if not include_self:
+            # pop front
+            s = next(ret)
+            assert s == self
 
         if node_type:
-            ret = [node for node in ret if isinstance(node, node_type)]
+            ret = (node for node in ret if isinstance(node, node_type))
 
         if filters is not None:
-            ret = [node for node in ret if _node_filter(node, filters)]
+            ret = (node for node in ret if _node_filter(node, filters))
+
+        ret = list(ret)
 
         if reverse:
             ret.reverse()
+
         return ret
 
     def _get_descendants(self):
-        if self._cache_descendants is not None:
-            return self._cache_descendants
+        if self._cache_descendants is None:
+            ret = [self]
+            ret.extend(self._children)
+            for node in self._children:
+                ret.extend(node._get_descendants())
 
-        ret = [self]
-        ret.extend(self._children)
-        for node in self._children:
-            ret.extend(node._get_descendants())
+            self._cache_descendants = ret
 
-        self._cache_descendants = ret
-        return ret
+        return iter(self._cache_descendants)
 
     def get(self, field_str: str) -> Any:
         """
