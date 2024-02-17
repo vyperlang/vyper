@@ -779,6 +779,17 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif isinstance(ir.value, str) and ir.value in symbols:
         return symbols[ir.value]
     elif ir.is_literal:
+        if ir.is_pointer:
+            var = _get_variable_from_address(variables, ir.value)
+            if var and var.size > 32:
+                avar = allocated_variables.get(var.name)
+                if avar:
+                    offset = ir.value - var.pos
+                    if var.size > 32:
+                        if offset > 0:
+                            avar = ctx.get_basic_block().append_instruction("add", avar, offset)
+                    return avar
+
         return IRLiteral(ir.value)
     else:
         raise Exception(f"Unknown IR node: {ir}")
