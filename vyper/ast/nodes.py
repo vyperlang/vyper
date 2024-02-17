@@ -270,7 +270,7 @@ class VyperNode:
         self._children: list = []
         self._metadata: NodeMetadata = NodeMetadata()
         self._original_node = None
-        self._descendants = None
+        self._cache_descendants = None
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -597,15 +597,15 @@ class VyperNode:
         return ret
 
     def _get_descendants(self):
-        if self._descendants is not None:
-            return self._descendants
+        if self._cache_descendants is not None:
+            return self._cache_descendants
 
         ret = [self]
         ret.extend(self._children)
         for node in self._children:
             ret.extend(node._get_descendants())
 
-        self._descendants = ret
+        self._cache_descendants = ret
         return ret
 
     def get(self, field_str: str) -> Any:
