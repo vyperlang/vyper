@@ -184,6 +184,7 @@ for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
 // Expressions
 _expr: operation
+     | dict
 
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
@@ -201,6 +202,7 @@ arguments: argument ("," argument)* [","]
 
 tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
 list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
+dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 
 
 // Operators
