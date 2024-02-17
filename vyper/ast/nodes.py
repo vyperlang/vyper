@@ -274,15 +274,12 @@ class VyperNode:
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
-            value = kwargs.get(field_name)
-            if kwargs.get(field_name) is None:
+            value = kwargs.pop(field_name, None)
+            if value is None:
                 value = getattr(parent, field_name, None)
             setattr(self, field_name, value)
 
         for field_name, value in kwargs.items():
-            if field_name in NODE_SRC_ATTRIBUTES:
-                continue
-
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
 
