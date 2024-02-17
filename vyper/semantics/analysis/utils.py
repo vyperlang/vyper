@@ -500,12 +500,14 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     for item in nodes[1:]:
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
-        common = [i for i in common_types if _is_type_in_list(i, new_types)]
+        tmp = []
+        for c in common_types:
+            for t in new_types:
+                if t.compare_type(c) or c.compare_type(t):
+                    tmp.append(c)
+                    break
 
-        rejected = [i for i in common_types if i not in common]
-        common += [i for i in new_types if _is_type_in_list(i, rejected)]
-
-        common_types = common
+        common_types = tmp
 
     if filter_fn is not None:
         common_types = [i for i in common_types if filter_fn(i)]
