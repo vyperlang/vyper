@@ -67,6 +67,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "smul",
         "sdiv",
         "mod",
+        "smod",
         "exp",
         "addmod",
         "mulmod",
@@ -80,6 +81,10 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "create",
         "create2",
         "msize",
+        "balance",
+        "call",
+        "staticcall",
+        "delegatecall",
     ]
 )
 
@@ -438,10 +443,6 @@ class VenomCompiler:
                 ]
             )
             self.label_counter += 1
-        elif opcode == "call":
-            assembly.append("CALL")
-        elif opcode == "staticcall":
-            assembly.append("STATICCALL")
         elif opcode == "ret":
             assembly.append("JUMP")
         elif opcode == "return":

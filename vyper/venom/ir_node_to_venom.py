@@ -39,6 +39,7 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "smul",
         "sdiv",
         "mod",
+        "smod",
         "exp",
         "sha3",
         "sha3_64",
@@ -354,7 +355,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             ret = _convert_ir_bb(ctx, ir_node, symbols, variables, allocated_variables)
 
         return ret
-    elif ir.value in ["staticcall", "call"]:  # external call
+    elif ir.value in ["delegatecall", "staticcall", "call"]:
         idx = 0
         gas = _convert_ir_bb(ctx, ir.args[idx], symbols, variables, allocated_variables)
         address = _convert_ir_bb(ctx, ir.args[idx + 1], symbols, variables, allocated_variables)

@@ -12,6 +12,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "alloca",
         "call",
         "staticcall",
+        "delegatecall",
         "invoke",
         "sload",
         "sstore",
