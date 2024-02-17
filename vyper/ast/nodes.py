@@ -267,7 +267,7 @@ class VyperNode:
             Dictionary of fields to be included within the node.
         """
         self.set_parent(parent)
-        self._children: set = set()
+        self._children: list = []
         self._metadata: NodeMetadata = NodeMetadata()
         self._original_node = None
         self._descendants = None
@@ -299,7 +299,7 @@ class VyperNode:
 
         # add to children of parent last to ensure an accurate hash is generated
         if parent is not None:
-            parent._children.add(self)
+            parent._children.append(self)
 
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
@@ -672,7 +672,7 @@ class Module(TopLevel):
         self.body.append(node)
         node._depth = self._depth + 1
         node._parent = self
-        self._children.add(node)
+        self._children.append(node)
 
     def remove_from_body(self, node: VyperNode) -> None:
         """
