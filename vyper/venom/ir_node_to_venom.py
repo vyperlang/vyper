@@ -187,9 +187,8 @@ def _handle_self_call(
     if do_ret:
         ret_args.append(return_buf.value)  # type: ignore
         invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
-        if func_t.return_type.size_in_bytes > 32:
-            invoke_ret = bb.append_instruction("mload", invoke_ret)
-        allocated_variables["return_buffer"] = invoke_ret  # type: ignore
+        if func_t.return_type.size_in_bytes <= 32:
+            allocated_variables["return_buffer"] = invoke_ret  # type: ignore
         return invoke_ret
     else:
         bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
