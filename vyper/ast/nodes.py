@@ -28,13 +28,13 @@ from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
-    "_descendants",
     "_depth",
     "_parent",
     "ast_type",
     "node_id",
     "_metadata",
     "_original_node",
+    "_cache_descendants",
 )
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
