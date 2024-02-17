@@ -212,6 +212,20 @@ def _node_filter(node, filters):
     return True
 
 
+def _apply_filters(node_iter, node_type, filters, reverse):
+    ret = node_iter
+    if node_type is not None:
+        ret = (i for i in ret if isinstance(i, node_type))
+    if filters is not None:
+        ret = (i for i in ret if _node_filter(i, filters))
+
+    ret = list(ret)
+    if reverse:
+        ret.reverse()
+    return ret
+
+
+
 def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
     # helper function to raise a SyntaxException from a dict representing a node
     raise SyntaxException(
@@ -253,6 +267,7 @@ class VyperNode:
     _translated_fields: dict = {}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        # this function is performance-sensitive
         """
         AST node initializer method.
 
@@ -527,17 +542,7 @@ class VyperNode:
         list
             Child nodes matching the filter conditions.
         """
-        children = iter(self._children)
-
-        if node_type is not None:
-            children = (i for i in children if isinstance(i, node_type))
-        if filters is not None:
-            children = (i for i in children if _node_filter(i, filters))
-
-        children = list(children)
-        if reverse:
-            children.reverse()
-        return children
+        return _apply_filters(iter(self._children), node_type, filters, reverse)
 
     def get_descendants(
         self,
@@ -546,6 +551,7 @@ class VyperNode:
         include_self: bool = False,
         reverse: bool = False,
     ) -> list:
+        # this function is performance-sensitive
         """
         Return a list of descendant nodes of this node which match the given filter(s).
 
@@ -583,22 +589,10 @@ class VyperNode:
             Descendant nodes matching the filter conditions.
         """
         ret = self._get_descendants(include_self)
-
-        if node_type:
-            ret = (node for node in ret if isinstance(node, node_type))
-
-        if filters is not None:
-            ret = (node for node in ret if _node_filter(node, filters))
-
-        ret = list(ret)
-
-        if reverse:
-            ret.reverse()
-
-        return ret
+        return _apply_filters(ret, node_type, filters, reverse)
 
     def _get_descendants(self, include_self=True):
-        # get descendants in reverse topsort (i.e. breadth-first) order
+        # get descendants in breadth-first order
         if self._cache_descendants is None:
             ret = [self]
             ret.extend(self._children)
