@@ -593,16 +593,16 @@ class VyperNode:
         return _apply_filters(ret, node_type, filters, reverse)
 
     def _get_descendants(self, include_self=True):
-        # get descendants in breadth-first order
+        # get descendants in topsort order
         if self._cache_descendants is None:
             ret = [self]
-            ret.extend(self._children)
             for node in self._children:
-                ret.extend(node._get_descendants(include_self=False))
+                ret.extend(node._get_descendants())
 
             self._cache_descendants = ret
 
         ret = iter(self._cache_descendants)
+
         if not include_self:
             s = next(ret)  # pop
             assert s is self
