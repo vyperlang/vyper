@@ -422,15 +422,6 @@ struct Bar:
     """,
         InstantiationException,
     ),
-    # valid syntax in versions <0.4.0
-    """
-struct A:
-    x: int128
-a: A
-@external
-def foo():
-    self.a = A({x: 1, y: 2})
-    """,
 ]
 
 
@@ -565,6 +556,15 @@ struct C:
 @external
 def foo():
     bar: C = C(a=1, b=block.timestamp)
+    """,
+    # backwards compatibility for vyper <0.4.0
+    """
+struct A:
+    x: int128
+a: A
+@external
+def foo():
+    self.a = A({x: 1})
     """,
 ]
 
