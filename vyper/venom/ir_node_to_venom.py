@@ -175,7 +175,13 @@ def _handle_self_call(
                         ret = bb.append_instruction(arg.location.load_op, ret)
                         ret_args.append(ret)
             else:
-                ret_args.append(IRLiteral(arg.value))
+                if arg.value == "multi":
+                    seq = ir.args[1]
+                    _convert_ir_bb(ctx, seq, symbols, variables, allocated_variables)
+                    addr = seq.args[0].args[0].value
+                    ret_args.append(addr)
+                else:
+                    ret_args.append(IRLiteral(arg.value))
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
             if arg.location and arg.location.load_op == "calldataload":
@@ -589,7 +595,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         bb.append_instruction("return", last_ir, ret_ir)
                     else:
                         if last_ir and int(last_ir.value) > 32:
-                            bb.append_instruction("return", ret_ir, last_ir)
+                            bb.append_instruction("return", last_ir, ret_ir)
                         else:
                             ret_buf = 128  # TODO: need allocator
                             new_var = bb.append_instruction("alloca", 32, ret_buf)
@@ -639,13 +645,20 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # sym = symbols.get(f"&{arg_0.value}")
         # if sym is not None:
         #     return sym
+        bb = ctx.get_basic_block()
         if isinstance(arg_0, IRLiteral):
             var = _get_variable_from_address(variables, arg_0.value)
             if var is not None:
                 avar = allocated_variables.get(var.name)
                 if avar is not None:
-                    return avar
-        return ctx.get_basic_block().append_instruction("mload", arg_0)
+                    offset = arg_0.value - var.pos
+                    if var.size > 32:
+                        if offset > 0:
+                            avar = bb.append_instruction("add", avar, offset)
+                        return bb.append_instruction("mload", avar)
+                    else:
+                        return avar
+        return bb.append_instruction("mload", arg_0)
     elif ir.value == "mstore":
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
         if isinstance(arg_1, IRVariable):
