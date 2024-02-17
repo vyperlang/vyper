@@ -82,18 +82,6 @@ PASS_THROUGH_INSTRUCTIONS = [
 SymbolTable = dict[str, Optional[IROperand]]
 
 
-def _get_symbols_common(a: dict, b: dict) -> dict:
-    ret = {}
-    # preserves the ordering in `a`
-    for k in a.keys():
-        if k not in b:
-            continue
-        if a[k] == b[k]:
-            continue
-        ret[k] = a[k], b[k]
-    return ret
-
-
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRFunction:
     ctx = IRFunction()
