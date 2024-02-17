@@ -28,6 +28,7 @@ from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
+    "_descendants",
     "_depth",
     "_parent",
     "ast_type",
@@ -211,17 +212,6 @@ def _node_filter(node, filters):
     return True
 
 
-def _sort_nodes(node_iterable):
-    # sorting function for VyperNode.get_children
-
-    def sortkey(key):
-        return float("inf") if key is None else key
-
-    return sorted(
-        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id)
-    )
-
-
 def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
     # helper function to raise a SyntaxException from a dict representing a node
     raise SyntaxException(
@@ -257,6 +247,8 @@ class VyperNode:
     """
 
     __slots__ = NODE_BASE_ATTRIBUTES + NODE_SRC_ATTRIBUTES
+
+    _public_slots = [i for i in __slots__ if not i.startswith("_")]
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
 
@@ -278,6 +270,7 @@ class VyperNode:
         self._children: set = set()
         self._metadata: NodeMetadata = NodeMetadata()
         self._original_node = None
+        self._descendants = None
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
@@ -338,7 +331,7 @@ class VyperNode:
         -------
         Vyper node instance
         """
-        ast_struct = {i: getattr(node, i) for i in VyperNode.__slots__ if not i.startswith("_")}
+        ast_struct = {i: getattr(node, i) for i in VyperNode._public_slots}
         ast_struct.update(ast_type=cls.__name__, **kwargs)
         return cls(**ast_struct)
 
@@ -355,7 +348,7 @@ class VyperNode:
         return set(i for i in slot_fields if not i.startswith("_"))
 
     def __hash__(self):
-        values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
+        values = [getattr(self, i, None) for i in VyperNode._public_slots]
         return hash(tuple(values))
 
     def __deepcopy__(self, memo):
@@ -537,7 +530,7 @@ class VyperNode:
         list
             Child nodes matching the filter conditions.
         """
-        children = _sort_nodes(self._children)
+        children = self._children.copy()
         if node_type is not None:
             children = [i for i in children if isinstance(i, node_type)]
         if reverse:
@@ -589,19 +582,32 @@ class VyperNode:
         list
             Descendant nodes matching the filter conditions.
         """
-        children = self.get_children(node_type, filters)
-        for node in self.get_children():
-            children.extend(node.get_descendants(node_type, filters))
-        if (
-            include_self
-            and (not node_type or isinstance(self, node_type))
-            and _node_filter(self, filters)
-        ):
-            children.append(self)
-        result = _sort_nodes(children)
+        ret = self._get_descendants()
+
+        if not include_self:
+            ret.pop(0)  # pop self
+
+        if node_type:
+            ret = [node for node in ret if isinstance(node, node_type)]
+
+        if filters is not None:
+            ret = [node for node in ret if _node_filter(node, filters)]
+
         if reverse:
-            result.reverse()
-        return result
+            ret.reverse()
+        return ret
+
+    def _get_descendants(self):
+        if self._descendants is not None:
+            return self._descendants
+
+        ret = [self]
+        ret.extend(self._children)
+        for node in self._children:
+            ret.extend(node._get_descendants())
+
+        self._descendants = ret
+        return ret
 
     def get(self, field_str: str) -> Any:
         """
