@@ -581,8 +581,10 @@ class VyperNode:
         """
         ret = self._get_descendants()
 
-        if not include_self:
-            ret.pop(0)  # pop self
+        if include_self:
+            ret = ret.copy()
+        else:
+            ret = ret[1:]  # pop self
 
         if node_type:
             ret = [node for node in ret if isinstance(node, node_type)]
