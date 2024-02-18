@@ -85,6 +85,9 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "call",
         "staticcall",
         "delegatecall",
+        "codesize",
+        "basefee",
+        "prevrandao",
     ]
 )
 
