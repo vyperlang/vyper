@@ -1,7 +1,8 @@
 from typing import Optional
-
+from vyper.codegen.core import make_setter
+from vyper.evm.address_space import MEMORY
+from vyper.semantics.types.subscriptable import TupleT
 from vyper.codegen.context import VariableRecord
-from vyper.codegen.core import is_array_like
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
@@ -140,12 +141,18 @@ def _handle_self_call(
 ) -> Optional[IRVariable]:
     func_t = ir.passthrough_metadata.get("func_t", None)
     args_ir = ir.passthrough_metadata["args_ir"]
+    setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
     return_buf = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
 
-    for arg in args_ir:
+    if setup_ir != goto_ir:
+        _convert_ir_bb(ctx, setup_ir, symbols, variables, allocated_variables)
+
+    arg_buf_start = func_t._ir_info.frame_info.frame_start
+
+    for i, arg in enumerate(args_ir):
         if arg.is_literal:
             if arg.is_pointer:
                 var = _get_variable_from_address(variables, arg.value)
@@ -153,7 +160,8 @@ def _handle_self_call(
                     ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
                     if isinstance(ret, IRLiteral):
                         bb = ctx.get_basic_block()
-                        ret = bb.append_instruction("mload", ret)
+                        if arg.typ.size_in_bytes > 32:
+                            ret = arg_buf_start + i * 32
                     ret_args.append(ret)
                 else:
                     if allocated_variables.get(var.name) is not None:
@@ -163,7 +171,8 @@ def _handle_self_call(
                             ctx, arg._optimized, symbols, variables, allocated_variables
                         )
                         bb = ctx.get_basic_block()
-                        ret = bb.append_instruction(arg.location.load_op, ret)
+                        if arg.typ.size_in_bytes <= 32:
+                            ret = bb.append_instruction(arg.location.load_op, ret)
                         ret_args.append(ret)
             else:
                 if arg.value == "multi":
