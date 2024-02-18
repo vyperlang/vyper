@@ -1,8 +1,6 @@
 import ast as python_ast
-import io
 import tokenize
 from decimal import Decimal
-from functools import cached_property
 from typing import Any, Dict, List, Optional, Union, cast
 
 import asttokens
@@ -268,12 +266,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
         return node
 
-    @cached_property
-    def _dummy_tokens(self):
-        bytez = "dummy_target:\\\n foo".encode("utf-8")
-        token_list = list(tokenize.tokenize(io.BytesIO(bytez).readline))[:3]
-        return token_list
-
     def visit_For(self, node):
         """
         Visit a For node, splicing in the loop variable annotation provided by
@@ -308,19 +300,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # in a bit, but for now lets us keep the line/col offset, and
         # *also* gives us a valid AST. it doesn't matter what the dummy
         # target name is, since it gets removed in a few lines.
-
-        # tokenization is a perf hotspot, so we manually construct the token
-        # list to pass to ASTTokens.
-        annotation_tokens = self._dummy_tokens + annotation_tokens
-
-        # ensure tokens are properly terminated
-        endline = annotation_tokens[-1].start[0]
-        annotation_tokens.append(
-            tokenize.TokenInfo(
-                type=tokenize.ENDMARKER, string="", start=(endline, 0), end=(endline, 0), line=""
-            )
-        )
         annotation_str = tokenize.untokenize(annotation_tokens)
+        annotation_str = "dummy_target:" + annotation_str
 
         try:
             fake_node = python_ast.parse(annotation_str).body[0]
@@ -329,8 +310,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 "invalid type annotation", self._source_code, node.lineno, node.col_offset
             ) from e
 
-        # fill in with asttokens info.
-        asttokens.ASTTokens(annotation_str, tree=fake_node, tokens=annotation_tokens)
+        # fill in with asttokens info. note we can use `self._tokens` because
+        # it is indented to exactly the same position where it appeared
+        # in the original source!
+        self._tokens.mark_tokens(fake_node)
 
         # replace the dummy target name with the real target name.
         fake_node.target = node.target
