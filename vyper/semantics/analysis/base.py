@@ -10,6 +10,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
+    from vyper.semantics.types.function import ContractFunctionT
     from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
@@ -139,6 +140,11 @@ class InitializesInfo(AnalysisResult):
 class UsesInfo(AnalysisResult):
     used_modules: list[ModuleInfo]
     node: Optional[vy_ast.VyperNode] = None
+
+
+@dataclass
+class ExportsInfo(AnalysisResult):
+    functions: list["ContractFunctionT"]
 
 
 @dataclass

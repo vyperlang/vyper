@@ -409,6 +409,10 @@ class ModuleT(VyperType):
     def initializes_decls(self):
         return self._module.get_children(vy_ast.InitializesDecl)
 
+    @property
+    def exports_decls(self):
+        return self._module.get_children(vy_ast.ExportsDecl)
+
     @cached_property
     def used_modules(self):
         # modules which are written to
@@ -425,6 +429,18 @@ class ModuleT(VyperType):
         for node in self.initializes_decls:
             info = node._metadata["initializes_info"]
             ret.append(info)
+        return ret
+
+    @cached_property
+    def exposed_functions(self):
+        ret = []
+        for node in self.exports_decls:
+            ret.extend(node._metadata["exports_info"].functions)
+
+        # precondition: no duplicate exports
+        assert len(set(ret)) == len(ret)
+
+        ret.extend([f for f in self.functions.values() if not f.is_internal])
         return ret
 
     @cached_property

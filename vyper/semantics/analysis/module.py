@@ -25,6 +25,7 @@ from vyper.exceptions import (
     VyperException,
 )
 from vyper.semantics.analysis.base import (
+    ExportsInfo,
     ImportInfo,
     InitializesInfo,
     Modifiability,
@@ -130,6 +131,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # keep track of imported modules to prevent duplicate imports
         self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
+
+        # keep track of exported functions to prevent duplicate exports
+        self._exported_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         self.module_t: Optional[ModuleT] = None
 
@@ -442,6 +446,25 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # ModuleInfo after it's constructed
         module_info.set_ownership(ModuleOwnership.INITIALIZES, node)
         node._metadata["initializes_info"] = InitializesInfo(module_info, dependencies, node)
+
+    def visit_ExportsDecl(self, node):
+        items = vy_ast.as_tuple(node.annotation)
+        funcs = []
+        for item in items:
+            func_t = get_exact_type_from_node(item)
+            if not isinstance(func_t, ContractFunctionT):
+                raise StructureException("not a function!", item)
+            if not func_t.is_external:
+                raise StructureException("not an external function!", item)
+            if func_t in self._exported_functions:
+                prev_export = self._exported_functions[func_t]
+                raise StructureException("already exported!", item, prev_export)
+            # TODO: ban external functions from `self.` for now
+
+            self._exported_functions[func_t] = item
+            funcs.append(func_t)
+
+        node._metadata["exports_info"] = ExportsInfo(funcs)
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")

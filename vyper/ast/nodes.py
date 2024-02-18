@@ -82,21 +82,19 @@ def get_node(
     if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
         # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
         if getattr(ast_struct["target"], "id", None) == "implements":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "ImplementsDecl"
 
         # Replace "uses:" `AnnAssign` nodes with `UsesDecl`
         elif getattr(ast_struct["target"], "id", None) == "uses":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`uses` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "UsesDecl"
 
         # Replace "initializes:" `AnnAssign` nodes with `InitializesDecl`
         elif getattr(ast_struct["target"], "id", None) == "initializes":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`initializes` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "InitializesDecl"
+
+        # Replace "exports:" `AnnAssign` nodes with `ExportsDecl`
+        elif getattr(ast_struct["target"], "id", None) == "exports":
+            ast_struct["ast_type"] = "ExportsDecl"
 
         # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
         else:
@@ -1426,10 +1424,9 @@ class ImplementsDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         if not isinstance(self.annotation, (Name, Attribute)):
             raise StructureException("invalid implements", self.annotation)
 
@@ -1456,10 +1453,9 @@ class UsesDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         items = as_tuple(self.annotation)
         for item in items:
             if not isinstance(item, (Name, Attribute)):
@@ -1477,10 +1473,9 @@ class InitializesDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         module_ref = self.annotation
         if isinstance(module_ref, Subscript):
             dependencies = as_tuple(module_ref.slice)
@@ -1498,6 +1493,26 @@ class InitializesDecl(Stmt):
 
         if not isinstance(module_ref, (Name, Attribute)):
             raise StructureException("invalid module", module_ref)
+
+
+class ExportsDecl(Stmt):
+    """
+    An `exports` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Tuple
+        List of exports
+    """
+
+    __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
+
+    def validate(self):
+        items = as_tuple(self.annotation)
+        for item in items:
+            if not isinstance(item, (Name, Attribute)):
+                raise StructureException("invalid exports", item)
 
 
 class If(Stmt):
