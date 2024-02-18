@@ -79,6 +79,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "balance",
     "msize",
     "basefee",
+    "invalid",
 ]
 
 SymbolTable = dict[str, Optional[IROperand]]
@@ -521,8 +522,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 ctx.append_data("db", [data])  # type: ignore
     elif ir.value == "assert":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
-        current_bb = ctx.get_basic_block()
-        current_bb.append_instruction("assert", arg_0)
+        bb = ctx.get_basic_block()
+        bb.append_instruction("assert", arg_0)
+    elif ir.value == "assert_unreachable":
+        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
+        bb = ctx.get_basic_block()
+        bb.append_instruction("assert_unreachable", arg_0)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = ctx.get_basic_block()
@@ -546,6 +551,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 bb.append_instruction("stop")
                 return None
             else:
+                bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+                ctx.append_basic_block(bb)
                 return_buffer, return_size = _convert_ir_bb_list(
                     ctx, ir.args[1:], symbols, variables, allocated_variables
                 )

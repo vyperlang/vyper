@@ -1,7 +1,7 @@
 from typing import Any
 from vyper.exceptions import CompilerPanic
 
-from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
+from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, mksymbol, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import (
     calculate_cfg,
@@ -88,6 +88,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "codesize",
         "basefee",
         "prevrandao",
+        "invalid",
     ]
 )
 
@@ -470,6 +471,9 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
+        elif opcode == "assert_unreachable":
+            end_symbol = mksymbol("reachable")
+            assembly.extend([end_symbol, "JUMPI", "INVALID", end_symbol, "JUMPDEST"])
         elif opcode == "iload":
             addr = inst.operands[0]
             if isinstance(addr, IRLiteral):
