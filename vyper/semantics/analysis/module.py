@@ -133,7 +133,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
         # keep track of exported functions to prevent duplicate exports
-        self._exported_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+        self._exposed_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
         self.module_t: Optional[ModuleT] = None
 
@@ -160,6 +160,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         ownership_decls = self.ast.get_children((vy_ast.UsesDecl, vy_ast.InitializesDecl))
         for node in ownership_decls:
+            self.visit(node)
+            to_visit.remove(node)
+
+        for node in self.ast.get_children(vy_ast.ExportsDecl):
             self.visit(node)
             to_visit.remove(node)
 
@@ -456,12 +460,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StructureException("not a function!", item)
             if not func_t.is_external:
                 raise StructureException("not an external function!", item)
-            if func_t in self._exported_functions:
-                prev_export = self._exported_functions[func_t]
+            if func_t in self._exposed_functions:
+                prev_export = self._exposed_functions[func_t]
                 raise StructureException("already exported!", item, prev_export)
             # TODO: ban external functions from `self.` for now
 
-            self._exported_functions[func_t] = item
+            self._exposed_functions[func_t] = item
             funcs.append(func_t)
 
         node._metadata["exports_info"] = ExportsInfo(funcs)
@@ -597,6 +601,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self.namespace["self"].typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
+        self._exposed_functions[func_t] = node
 
     def visit_Import(self, node):
         # import x.y[name] as y[alias]
