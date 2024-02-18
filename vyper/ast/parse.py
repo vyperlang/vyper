@@ -1,5 +1,6 @@
 import ast as python_ast
 import tokenize
+import warnings
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -346,9 +347,16 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         Convert structs declared as `Dict` node for vyper < 0.4.0 to kwargs.
         """
         if len(node.args) == 1 and isinstance(node.args[0], python_ast.Dict):
+            warnings.warn(
+                "The current syntax of instantiating a struct using a dictionary will "
+                "be deprecated in a future release. Use kwargs instead e.g. Foo(a=1, b=2)",
+                stacklevel=2,
+            )
+
             dict_ = node.args[0]
             kw_list = []
 
+            assert len(dict_.keys) == len(dict_.values)
             for key, value in zip(dict_.keys, dict_.values):
                 replacement_kw_node = python_ast.keyword(key.id, value)
                 kw_list.append(replacement_kw_node)
