@@ -70,6 +70,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "returndatasize",
     "coinbase",
     "number",
+    "prevrandao",
     "iszero",
     "not",
     "calldataload",
@@ -77,6 +78,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "extcodehash",
     "balance",
     "msize",
+    "basefee",
 ]
 
 SymbolTable = dict[str, Optional[IROperand]]
@@ -544,51 +546,15 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 bb.append_instruction("stop")
                 return None
             else:
-                last_ir = None
-                ret_var = ir.args[1]
-                deleted = None
-                if ret_var.is_literal and symbols.get(f"&{ret_var.value}", None) is not None:
-                    deleted = symbols[f"&{ret_var.value}"]
-                    del symbols[f"&{ret_var.value}"]
-                for arg in ir.args[2:]:
-                    last_ir = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
-                if deleted is not None:
-                    symbols[f"&{ret_var.value}"] = deleted
-
-                ret_ir = _convert_ir_bb(ctx, ret_var, symbols, variables, allocated_variables)
-
-                bb = ctx.get_basic_block()
-
-                var = (
-                    _get_variable_from_address(variables, int(ret_ir.value))
-                    if isinstance(ret_ir, IRLiteral)
-                    else None
+                return_buffer, return_size = _convert_ir_bb_list(
+                    ctx, ir.args[1:], symbols, variables, allocated_variables
                 )
-                if var is not None:
-                    allocated_var = allocated_variables.get(var.name, None)
-                    new_var = symbols.get(f"&{ret_ir.value}", allocated_var)  # type: ignore
-
-                    if var.size and int(var.size) > 32:
-                        offset = int(ret_ir.value) - var.pos  # type: ignore
-                        if offset > 0:
-                            ptr_var = bb.append_instruction("add", var.pos, offset)
-                        else:
-                            ptr_var = var.pos
-                        bb.append_instruction("return", last_ir, ptr_var)
-                    else:
-                        new_var = bb.append_instruction(var.location.load_op, ret_ir)
-                        _append_return_for_stack_operand(ctx, symbols, new_var, last_ir)
-                else:
-                    if isinstance(ret_ir, IRLiteral):
-                        bb.append_instruction("return", last_ir, ret_ir)
-                    else:
-                        if last_ir and int(last_ir.value) > 32:
-                            bb.append_instruction("return", last_ir, ret_ir)
-                        else:
-                            ret_buf = 128  # TODO: need allocator
-                            new_var = bb.append_instruction("alloca", 32, ret_buf)
-                            bb.append_instruction("mstore", ret_ir, new_var)
-                            bb.append_instruction("return", last_ir, new_var)
+                bb = ctx.get_basic_block()
+                buffer = allocated_variables.get("return_buffer")
+                if return_buffer == buffer:
+                    bb.append_instruction("mstore", return_buffer, 0)
+                    return_buffer = 0
+                bb.append_instruction("return", return_size, return_buffer)
 
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
