@@ -232,18 +232,8 @@ class InterfaceT(_UserType):
         """
         funcs = []
 
-        for node in module_t.function_defs:
-            func_t = node._metadata["func_type"]
-            if not (func_t.is_external or func_t.is_constructor):
-                continue
-            funcs.append((node.name, func_t))
-
-        # add getters for public variables since they aren't yet in the AST
-        for node in module_t._module.get_children(vy_ast.VariableDecl):
-            if not node.is_public:
-                continue
-            getter = node._metadata["getter_type"]
-            funcs.append((node.target.id, getter))
+        for fn_t in module_t.exposed_functions:
+            funcs.append((fn_t.name, fn_t))
 
         events = [(node.name, node._metadata["event_type"]) for node in module_t.event_defs]
 
