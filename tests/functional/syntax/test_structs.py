@@ -163,6 +163,15 @@ nom: Nom
 def foo():
     self.nom = Nom(self.mom)
     """,
+    """
+struct Foo:
+    a: uint256
+    b: uint256
+
+@external
+def foo(i: uint256, j: uint256):
+    f: Foo = Foo(i, b=j)
+    """,
     (
         """
 struct Mom:
