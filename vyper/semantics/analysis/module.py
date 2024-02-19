@@ -135,6 +135,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # keep track of exported functions to prevent duplicate exports
         self._exposed_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
 
+        self._events: list[EventT] = []
+
         self.module_t: Optional[ModuleT] = None
 
         # ast cache, hitchhike onto the input_bundle object
@@ -149,20 +151,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self._to_visit = self.ast.body.copy()
 
-        # handle some node types linearly instead of the dependency resolution
-        # block because they mutate ModuleAnalyzer state which doesn't interact
-        # well with the exception swallowing in the dependency resolution
-        # block.
         # handle imports; mutates `self._imported_modules`
         self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
+
+        # we can resolve constants as soon as imports are handled.
+        constant_fold(self.ast)
 
         # handle ownership decls, mutate ModuleInfo.ownership
         self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
 
-        # we can resolve constants after imports are handled.
-        constant_fold(self.ast)
-
         type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef)
+        # handle some node types using a dependency resolution routine
+        # which loops, swallowing exceptions until all nodes are processed
         self._visit_nodes_looping(type_decls)
 
         # special type which can't be used by other types; process it last
@@ -237,6 +237,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # keep trying to process all the nodes until we finish or can
         # no longer progress. this makes it so we don't need to
         # calculate a dependency tree between top-level items.
+        # note that the nodes processed here should not mutate ModuleAnalyzer
+        # state, otherwise ModuleAnalyzer state can end up invalid!
         while len(nodes) > 0:
             count = len(nodes)
             err_list = ExceptionList()
@@ -245,6 +247,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     self.visit(node)
                     nodes.remove(node)
                     self._to_visit.remove(node)
+                # CMC 2024-02-19 i think we can remove
+                # VariableDeclarationException here.
                 except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
                     # these exceptions cannot be caused by another statement
                     # not yet being parsed, so we raise them immediately
@@ -381,7 +385,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 hint = f"try renaming `{path}` to `{path}i`"
             raise StructureException(msg, node.annotation, hint=hint)
 
-        type_.validate_implements(node)
+        type_.validate_implements(node, self._exposed_functions, self._events)
 
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
@@ -482,15 +486,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StructureException("not a function!", item)
             if not func_t.is_external:
                 raise StructureException("not an external function!", item)
-            if func_t in self._exposed_functions:
-                prev_export = self._exposed_functions[func_t]
-                raise StructureException("already exported!", item, prev_export)
-            # TODO: ban external functions from `self.` for now
-
-            self._exposed_functions[func_t] = item
+            self._add_exposed_function(func_t, item)
             funcs.append(func_t)
 
         node._metadata["exports_info"] = ExportsInfo(funcs)
+
+    def _add_exposed_function(self, func_t, node):
+        if func_t in self._exposed_functions:
+            prev_export = self._exposed_functions[func_t]
+            raise StructureException("already exported!", node, prev_export)
+        self._exposed_functions[func_t] = node
 
     def visit_VariableDecl(self, node):
         name = node.get("target.id")
@@ -500,7 +505,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["getter_type"] = ContractFunctionT.getter_from_VariableDecl(node)
+            func_t = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = func_t
+            self._add_exposed_function(func_t, node)
 
         # TODO: move this check to local analysis
         if node.is_immutable:
@@ -609,6 +616,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         obj = EventT.from_EventDef(node)
         node._metadata["event_type"] = obj
         self.namespace[node.name] = obj
+        self._events.append(obj)
 
     def visit_FunctionDef(self, node):
         if self.is_interface:
@@ -623,7 +631,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self.namespace["self"].typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
-        self._exposed_functions[func_t] = node
+        self._add_exposed_function(func_t, node)
 
     def visit_Import(self, node):
         # import x.y[name] as y[alias]

@@ -10,14 +10,13 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     validate_expected_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
@@ -92,23 +91,23 @@ class InterfaceT(_UserType):
     def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return check_modifiability(node.args[0], modifiability)
 
-    # TODO x.validate_implements(other)
-    def validate_implements(self, node: vy_ast.ImplementsDecl) -> None:
-        namespace = get_namespace()
+    def validate_implements(
+        self,
+        node: vy_ast.ImplementsDecl,
+        functions: dict[ContractFunctionT, vy_ast.VyperNode],
+        events: list[EventT],
+    ) -> None:
+        fns_by_name = {fn_t.name: fn_t for fn_t in functions.keys()}
+        events_by_name = {event_t.name: event_t for event_t in events}
+
         unimplemented = []
 
         def _is_function_implemented(fn_name, fn_type):
-            vyper_self = namespace["self"].typ
-            if fn_name not in vyper_self.members:
+            if fn_name not in fns_by_name:
                 return False
-            s = vyper_self.members[fn_name]
-            if isinstance(s, ContractFunctionT):
-                to_compare = vyper_self.members[fn_name]
-            # this is kludgy, rework order of passes in ModuleNodeVisitor
-            elif isinstance(s, VarInfo) and s.is_public:
-                to_compare = s.decl_node._metadata["getter_type"]
-            else:
-                return False
+
+            to_compare = fns_by_name[fn_name]
+            assert isinstance(to_compare, ContractFunctionT)
 
             return to_compare.implements(fn_type)
 
@@ -123,16 +122,13 @@ class InterfaceT(_UserType):
 
         # check for missing events
         for name, event in self.events.items():
-            if name not in namespace:
+            if name not in events_by_name:
                 unimplemented.append(name)
                 continue
 
-            if not isinstance(namespace[name], EventT):
-                unimplemented.append(f"{name} is not an event!")
-            if (
-                namespace[name].event_id != event.event_id
-                or namespace[name].indexed != event.indexed
-            ):
+            other = events_by_name[name]
+
+            if other.event_id != event.event_id or other.indexed != event.indexed:
                 unimplemented.append(f"{name} is not implemented! (should be {event})")
 
         if len(unimplemented) > 0:
