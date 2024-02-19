@@ -481,11 +481,23 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         items = vy_ast.as_tuple(node.annotation)
         funcs = []
         for item in items:
-            func_t = get_exact_type_from_node(item)
+
+            info = get_expr_info(item)
+            if info.var_info is not None:
+                decl_node = info.var_info.decl_node
+                if not info.var_info.is_public:
+                    raise StructureException("not a public variable!", decl_node, item)
+                func_t = info.var_info.decl_node._metadata["getter_type"]
+            else:
+                # regular function
+                func_t = info.typ
+                decl_node = func_t.ast_def
+
             if not isinstance(func_t, ContractFunctionT):
-                raise StructureException("not a function!", item)
+                raise StructureException("not a function!", decl_node, item)
             if not func_t.is_external:
-                raise StructureException("not an external function!", item)
+                raise StructureException("not an external function!", decl_node, item)
+
             self._add_exposed_function(func_t, item)
             funcs.append(func_t)
 
