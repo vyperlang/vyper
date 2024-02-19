@@ -396,20 +396,20 @@ class StructT(_UserType):
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
         for i, kwarg in enumerate(node.keywords):
-            if kwarg.arg not in members:
-                hint = get_levenshtein_error_suggestions(kwarg.arg, members, 1.0)
+            # x=5 => kwarg(arg="x", value=Int(5))
+            argname = kwarg.arg
+            if argname not in members:
+                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
                 raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
-            expected_key = keys[i]
-            if kwarg.arg != expected_key:
-                name = kwarg.arg
+            expected = keys[i]
+            if argname != expected:
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
-                    f"`{name}` instead of `{expected_key}`. (Reminder: the "
+                    f"`{argname}` instead of `{expected}`. (Reminder: the "
                     f"keys in this struct are {list(self.member_types.items())})",
                     kwarg,
                 )
-
-            expected_type = members.pop(kwarg.arg)
+            expected_type = members.pop(argname)
             validate_expected_type(kwarg.value, expected_type)
 
         if members:
