@@ -679,6 +679,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1:4], symbols, variables, allocated_variables
         )
 
+        assert ir.args[3].is_literal, "repeat bound expected to be literal"
+
+        bound = ir.args[3].value
+        if isinstance(end, IRLiteral) and end.value <= bound:
+            bound = None
+
         body = ir.args[4]
 
         entry_block = IRBasicBlock(ctx.get_next_label("repeat"), ctx)
@@ -701,6 +707,10 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.append_basic_block(cond_block)
 
         ctx.append_basic_block(body_block)
+        if bound:
+            xor_ret = body_block.append_instruction("xor", counter_var, bound)
+            body_block.append_instruction("assert", xor_ret)
+
         emit_body_blocks()
         body_end = ctx.get_basic_block()
 
