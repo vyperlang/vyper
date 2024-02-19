@@ -731,9 +731,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             # struct ctors
             # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
-            for key, arg_type in zip(node.keywords, expected_types):
-                value = key.value
-                self.visit(value, arg_type)
+            for arg, arg_type in zip(node.keywords, expected_types):
+                self.visit(arg.value, arg_type)
         elif isinstance(func_type, MemberFunctionT):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
