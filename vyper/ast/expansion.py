@@ -75,7 +75,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         vyper_module.add_to_body(expanded)
         return_node.set_parent(expanded)
 
-        with vyper_module.namespace():
-            func_type = ContractFunctionT.from_FunctionDef(expanded)
+        func_type = ContractFunctionT.from_FunctionDef(expanded)
 
+        node._metadata["getter_source"] = expanded
         expanded._metadata["func_type"] = func_type

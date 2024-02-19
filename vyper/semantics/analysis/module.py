@@ -481,7 +481,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         items = vy_ast.as_tuple(node.annotation)
         funcs = []
         for item in items:
-
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
             info = get_expr_info(item, is_callable=True)

@@ -21,6 +21,10 @@ def _globally_reachable_functions(module_t, id_generator):
     ret = OrderedSet()
 
     for fn_t in module_t.exposed_functions:
+        # resolve variabledecl getter source
+        if (s := fn_t.ast_def._metadata.get("getter_source")) is not None:
+            fn_t = s._metadata["func_type"]
+
         ret.update(fn_t.reachable_internal_functions)
         ret.add(fn_t)
 
