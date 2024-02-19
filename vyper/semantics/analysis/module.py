@@ -147,50 +147,37 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         assert "type" not in self.ast._metadata
 
-        to_visit = self.ast.body.copy()
+        self._to_visit = self.ast.body.copy()
 
-        # handle imports linearly
-        # (do this instead of handling in the next block so that
-        # `self._imported_modules` does not end up with garbage in it after
-        # exception swallowing).
-        import_stmts = self.ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
-        for node in import_stmts:
-            self.visit(node)
-            to_visit.remove(node)
+        # handle some node types linearly instead of the dependency resolution
+        # block because they mutate ModuleAnalyzer state which doesn't interact
+        # well with the exception swallowing in the dependency resolution
+        # block.
+        # handle imports; mutates `self._imported_modules`
+        self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
 
-        ownership_decls = self.ast.get_children((vy_ast.UsesDecl, vy_ast.InitializesDecl))
-        for node in ownership_decls:
-            self.visit(node)
-            to_visit.remove(node)
-
-        for node in self.ast.get_children(vy_ast.ExportsDecl):
-            self.visit(node)
-            to_visit.remove(node)
+        # handle ownership decls, mutate ModuleInfo.ownership
+        self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
 
         # we can resolve constants after imports are handled.
         constant_fold(self.ast)
 
-        # keep trying to process all the nodes until we finish or can
-        # no longer progress. this makes it so we don't need to
-        # calculate a dependency tree between top-level items.
-        while len(to_visit) > 0:
-            count = len(to_visit)
-            err_list = ExceptionList()
-            for node in to_visit.copy():
-                try:
-                    self.visit(node)
-                    to_visit.remove(node)
-                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
-                    # these exceptions cannot be caused by another statement not yet being
-                    # parsed, so we raise them immediately
-                    raise e from None
-                except VyperException as e:
-                    err_list.append(e)
+        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef)
+        self._visit_nodes_looping(type_decls)
 
-            # Only raise if no nodes were successfully processed. This allows module
-            # level logic to parse regardless of the ordering of code elements.
-            if count == len(to_visit):
-                err_list.raise_if_not_empty()
+        # special type which can't be used by other types; process it last
+        self._visit_nodes_linear(vy_ast.EventDef)
+
+        # handle functions
+        self._visit_nodes_linear(vy_ast.FunctionDef)
+        self._visit_nodes_linear(vy_ast.VariableDecl)
+        self._visit_nodes_linear(vy_ast.ExportsDecl)
+
+        # handle implements last, after all functions are handled
+        self._visit_nodes_linear(vy_ast.ImplementsDecl)
+
+        # we are done! make sure we visited everything
+        assert len(self._to_visit) == 0
 
         self.module_t = ModuleT(self.ast)
         self.ast._metadata["type"] = self.module_t
@@ -235,6 +222,41 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
+
+    def _visit_nodes_linear(self, node_type):
+        for node in self._to_visit.copy():
+            if not isinstance(node, node_type):
+                continue
+            self.visit(node)
+            self._to_visit.remove(node)
+
+    # visit nodes which may have dependencies on each other
+    def _visit_nodes_looping(self, node_type):
+        nodes = [n for n in self._to_visit if isinstance(n, node_type)]
+
+        # keep trying to process all the nodes until we finish or can
+        # no longer progress. this makes it so we don't need to
+        # calculate a dependency tree between top-level items.
+        while len(nodes) > 0:
+            count = len(nodes)
+            err_list = ExceptionList()
+            for node in nodes.copy():
+                try:
+                    self.visit(node)
+                    nodes.remove(node)
+                    self._to_visit.remove(node)
+                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
+                    # these exceptions cannot be caused by another statement
+                    # not yet being parsed, so we raise them immediately
+                    raise e from None
+                except VyperException as e:
+                    err_list.append(e)
+
+            # Only raise if no nodes were successfully processed. This allows
+            # module level logic to parse regardless of the ordering of code
+            # elements.
+            if count == len(nodes):
+                err_list.raise_if_not_empty()
 
     def validate_used_modules(self):
         # check all `uses:` modules are actually used
