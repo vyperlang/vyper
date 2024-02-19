@@ -185,6 +185,10 @@ class ContractFunctionT(VyperType):
         args_sig = ",".join([str(t) for t in self.argument_types])
         return f"def {self.name}({args_sig}){ret_sig}:"
 
+    def _pp_signature(self):
+        ret = ",".join(repr(arg.typ) for arg in self.arguments)
+        return f"{self.name}({ret})"
+
     # override parent implementation. function type equality does not
     # make too much sense.
     def __eq__(self, other):
@@ -569,7 +573,16 @@ class ContractFunctionT(VyperType):
         # for external calls, include gas and value as optional kwargs
         if not self.is_internal:
             kwarg_keys += list(self.call_site_kwargs.keys())
-        validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
+        try:
+            validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
+        except ArgumentException as e:
+            msg = f"Invalid number of arguments to {self.name}"
+            hint = None
+            if self.ast_def is None:
+                hint = self._pp_signature
+
+            annotations = (self.ast_def, node)
+            raise ArgumentException(msg, *annotations, hint=hint) from e
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
