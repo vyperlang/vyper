@@ -13,6 +13,7 @@ from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -158,7 +159,9 @@ class CompilerData:
     @cached_property
     def storage_layout(self) -> StorageLayout:
         module_ast = self.annotated_vyper_module
-        return set_data_positions(module_ast, self.storage_layout_override)
+        set_data_positions(module_ast, self.storage_layout_override)
+
+        return generate_layout_export(module_ast)
 
     @property
     def global_ctx(self) -> ModuleT:
