@@ -176,9 +176,9 @@ def _handle_self_call(
                         ret_args.append(ret)
             else:
                 if arg.value == "multi":
-                    seq = ir.args[1]
-                    _convert_ir_bb(ctx, seq, symbols, variables, allocated_variables)
-                    addr = seq.args[0].args[0].value
+                    # seq = ir.args[1]
+                    # _convert_ir_bb(ctx, seq, symbols, variables, allocated_variables)
+                    addr = arg_buf_start + i * 32
                     ret_args.append(addr)
                 else:
                     ret_args.append(IRLiteral(arg.value))
@@ -560,8 +560,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                 bb.append_instruction("stop")
                 return None
             else:
-                bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
-                ctx.append_basic_block(bb)
+                if bb.is_terminated:
+                    bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+                    ctx.append_basic_block(bb)
                 return_buffer, return_size = _convert_ir_bb_list(
                     ctx, ir.args[1:], symbols, variables, allocated_variables
                 )
