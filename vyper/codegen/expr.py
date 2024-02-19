@@ -753,14 +753,12 @@ class Expr:
     @staticmethod
     def struct_literals(expr, context, typ):
         member_subs = {}
-        member_typs = {}
         for key in expr:
             value = key.value
             assert key.arg not in member_subs
 
             sub = Expr(value, context).ir_node
             member_subs[key.arg] = sub
-            member_typs[key.arg] = sub.typ
 
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ
