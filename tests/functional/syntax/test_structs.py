@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from vyper import compiler
@@ -557,8 +559,9 @@ struct C:
 def foo():
     bar: C = C(a=1, b=block.timestamp)
     """,
-    # backwards compatibility for vyper <0.4.0
-    """
+    (
+        # backwards compatibility for vyper <0.4.0
+        """
 struct A:
     x: int128
 a: A
@@ -566,9 +569,18 @@ a: A
 def foo():
     self.a = A({x: 1})
     """,
+        "The current syntax of instantiating a struct using a dictionary will "
+        "be deprecated in a future release. Use kwargs instead e.g. Foo(a=1, b=2)",
+    ),
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_block_success(good_code):
-    assert compiler.compile_code(good_code) is not None
+    if isinstance(good_code, tuple):
+        with warnings.catch_warnings(record=True) as w:
+            assert compiler.compile_code(good_code[0]) is not None
+            assert len(w) == 1
+            assert str(w[-1].message) == good_code[1]
+    else:
+        assert compiler.compile_code(good_code) is not None
