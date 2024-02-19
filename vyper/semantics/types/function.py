@@ -185,6 +185,7 @@ class ContractFunctionT(VyperType):
         args_sig = ",".join([str(t) for t in self.argument_types])
         return f"def {self.name}({args_sig}){ret_sig}:"
 
+    @cached_property
     def _pp_signature(self):
         ret = ",".join(repr(arg.typ) for arg in self.arguments)
         return f"{self.name}({ret})"

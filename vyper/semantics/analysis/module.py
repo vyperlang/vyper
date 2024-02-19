@@ -482,7 +482,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         funcs = []
         for item in items:
 
-            info = get_expr_info(item)
+            # set is_callable=True to give better error messages for imported
+            # types, e.g. exports: some_module.MyEvent
+            info = get_expr_info(item, is_callable=True)
             if info.var_info is not None:
                 decl_node = info.var_info.decl_node
                 if not info.var_info.is_public:
