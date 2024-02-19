@@ -395,21 +395,22 @@ class StructT(_UserType):
         # relying on `validate_call_args`
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
-        for i, arg in enumerate(node.keywords):
-            if arg.arg not in members:
-                hint = get_levenshtein_error_suggestions(arg.arg, members, 1.0)
-                raise UnknownAttribute("Unknown or duplicate struct member.", arg, hint=hint)
+        for i, kwarg in enumerate(node.keywords):
+            if kwarg.arg not in members:
+                hint = get_levenshtein_error_suggestions(kwarg.arg, members, 1.0)
+                raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
             expected_key = keys[i]
-            if arg.arg != expected_key:
+            if kwarg.arg != expected_key:
+                name = kwarg.arg
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
-                    f"`{arg.arg}` instead of `{expected_key}`. (Reminder: the "
+                    f"`{name}` instead of `{expected_key}`. (Reminder: the "
                     f"keys in this struct are {list(self.member_types.items())})",
-                    arg,
+                    kwarg,
                 )
 
-            expected_type = members.pop(arg.arg)
-            validate_expected_type(arg.value, expected_type)
+            expected_type = members.pop(kwarg.arg)
+            validate_expected_type(kwarg.value, expected_type)
 
         if members:
             raise VariableDeclarationException(
