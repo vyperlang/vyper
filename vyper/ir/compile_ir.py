@@ -821,6 +821,10 @@ def _prune_unreachable_code(assembly):
                 next_is_list = isinstance(assembly[j], list)
                 if next_is_jumpdest or next_is_list:
                     break
+            else:
+                # fixup an off-by-one if we made it to the end of the assembly
+                # without finding an jumpdest or sublist
+                j = len(assembly)
             changed = j > i + 1
             del assembly[i + 1 : j]
 

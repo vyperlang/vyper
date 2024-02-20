@@ -24,4 +24,4 @@ def test_duplicate_operands():
 
     asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.CODESIZE)
 
-    assert asm == ["PUSH1", 10, "DUP1", "DUP1", "DUP1", "ADD", "MUL", "STOP", "REVERT"]
+    assert asm == ["PUSH1", 10, "DUP1", "DUP1", "DUP1", "ADD", "MUL", "STOP"]
