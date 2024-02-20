@@ -860,7 +860,7 @@ def needs_clamp(t, encoding):
     if isinstance(t, (_BytestringT, DArrayT)):
         return True
     if isinstance(t, FlagT):
-        return len(t._enum_members) < 256
+        return len(t._flag_members) < 256
     if isinstance(t, SArrayT):
         return needs_clamp(t.value_type, encoding)
     if is_tuple_like(t):
@@ -1132,7 +1132,7 @@ def clamp_basetype(ir_node):
     ir_node = unwrap_location(ir_node)
 
     if isinstance(t, FlagT):
-        bits = len(t._enum_members)
+        bits = len(t._flag_members)
         # assert x >> bits == 0
         ret = int_clamp(ir_node, bits, signed=False)
 

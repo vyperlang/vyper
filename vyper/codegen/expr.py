@@ -212,15 +212,15 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyEnum.foo
+        # MyFlag.foo
         if (
             isinstance(typ, FlagT)
             and isinstance(self.expr.value, vy_ast.Name)
             and typ.name == self.expr.value.id
         ):
             # 0, 1, 2, .. 255
-            enum_id = typ._enum_members[self.expr.attr]
-            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            flag_id = typ._flag_members[self.expr.attr]
+            value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
@@ -420,7 +420,7 @@ class Expr:
             op = shr if not left.typ.is_signed else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
-        # enums can only do bit ops, not arithmetic.
+        # flags can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
@@ -645,10 +645,10 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.Invert):
             if isinstance(operand.typ, FlagT):
-                n_members = len(operand.typ._enum_members)
+                n_members = len(operand.typ._flag_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
-                # hurt codesize, but most user enums will likely have few
+                # hurt codesize, but most user flags will likely have few
                 # enough members that the mask will not be large.
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)

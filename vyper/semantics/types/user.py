@@ -44,23 +44,23 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
-# note: enum behaves a lot like uint256, or uints in general.
+# note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
     # this is a carveout because currently we allow dynamic arrays of
-    # enums, but not static arrays of enums
+    # flags, but not static arrays of flags
     _as_darray = True
     _is_prim_word = True
     _as_hashmap_key = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
-            raise FlagDeclarationException("Enums are limited to 256 members!")
+            raise FlagDeclarationException("Flags are limited to 256 members!")
 
         super().__init__(members=None)
 
         self._id = name
 
-        self._enum_members = members
+        self._flag_members = members
 
         # use a VyperType for convenient access to the `get_member` function
         # also conveniently checks well-formedness of the members namespace
@@ -74,8 +74,8 @@ class FlagT(_UserType):
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self._enum_members)
-        return f"enum {self.name}({arg_types})"
+        arg_types = ",".join(repr(a) for a in self._flag_members)
+        return f"flag {self.name}({arg_types})"
 
     @property
     def abi_type(self):
@@ -107,29 +107,29 @@ class FlagT(_UserType):
     @classmethod
     def from_FlagDef(cls, base_node: vy_ast.FlagDef) -> "FlagT":
         """
-        Generate an `Enum` object from a Vyper ast node.
+        Generate an `Flag` object from a Vyper ast node.
 
         Arguments
         ---------
-        base_node : EnumDef
-            Vyper ast node defining the enum
+        base_node : FlagDef
+            Vyper ast node defining the flag
         Returns
         -------
-        Enum
+        Flag
         """
         members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise FlagDeclarationException("Enum must have members", base_node)
+            raise FlagDeclarationException("Flag must have members", base_node)
 
         for i, node in enumerate(base_node.body):
             if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
-                raise FlagDeclarationException("Invalid syntax for enum member", node)
+                raise FlagDeclarationException("Invalid syntax for flag member", node)
 
             member_name = node.value.id
             if member_name in members:
                 raise FlagDeclarationException(
-                    f"Enum member '{member_name}' has already been declared", node.value
+                    f"Flag member '{member_name}' has already been declared", node.value
                 )
 
             members[member_name] = i
