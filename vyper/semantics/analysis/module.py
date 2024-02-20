@@ -170,8 +170,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._visit_nodes_linear(vy_ast.EventDef)
 
         # handle functions
-        self._visit_nodes_linear(vy_ast.FunctionDef)
         self._visit_nodes_linear(vy_ast.VariableDecl)
+        self._visit_nodes_linear(vy_ast.FunctionDef)
         self._visit_nodes_linear(vy_ast.ExportsDecl)
 
         # handle implements last, after all functions are handled
