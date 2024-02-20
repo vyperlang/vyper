@@ -201,6 +201,24 @@ class NumericT(_PrimT):
         return
 
 
+def _add_div_hint(node, e):
+    if isinstance(node.op, vy_ast.Div):
+        suggested = vy_ast.FloorDiv._pretty
+    elif isinstance(node.op, vy_ast.FloorDiv):
+        suggested = vy_ast.Div._pretty
+    else:
+        return e
+
+    if isinstance(node, vy_ast.BinOp):
+        e._hint = f"did you mean `{node.left.node_source_code} "
+        e._hint += f"{suggested} {node.right.node_source_code}`?"
+    elif isinstance(node, vy_ast.AugAssign):
+        e._hint = f"did you mean `{node.target.node_source_code} "
+        e._hint += f"{suggested}= {node.value.node_source_code}`?"
+
+    return e
+
+
 class IntegerT(NumericT):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
@@ -243,9 +261,7 @@ class IntegerT(NumericT):
         try:
             super().validate_numeric_op(node)
         except VyperException as e:
-            if isinstance(node.op, vy_ast.Div):
-                e._hint = "did you mean `//`?"
-            raise e from None
+            raise _add_div_hint(node, e) from None
 
     @classmethod
     # TODO maybe cache these three classmethods
@@ -307,9 +323,7 @@ class DecimalT(NumericT):
         try:
             super().validate_numeric_op(node)
         except VyperException as e:
-            if isinstance(node.op, vy_ast.FloorDiv):
-                e._hint = "did you mean `/`?"
-            raise e from None
+            raise _add_div_hint(node, e) from None
 
     @cached_property
     def abi_type(self) -> ABIType:

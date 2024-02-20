@@ -459,4 +459,4 @@ def foo():
     with pytest.raises(InvalidOperation) as e:
         compile_code(code)
 
-    assert e.value._hint == "did you mean `//`?"
+    assert e.value._hint == "did you mean `-5 // 9`?"
