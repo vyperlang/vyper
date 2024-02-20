@@ -450,7 +450,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             # traverse one level down to the Call expr
             node = node.value
 
-        assert isinstance(node.value, vy_ast.Call), node
+            if not isinstance(node, vy_ast.Call):
+                raise StructureException("not an external function", node)
 
         fn_type = get_exact_type_from_node(node.value.func)
 
