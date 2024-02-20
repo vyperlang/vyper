@@ -35,15 +35,15 @@ def abi_encode(
     include_method_id: bool
 ) -> Bytes[548]:
     human: Human = Human(
-      name = name,
-      pet = Animal(
-        name = pet_name,
-        address_ = pet_address,
-        id_ = pet_id,
-        is_furry = pet_is_furry,
-        price = pet_price,
-        data = pet_data,
-        metadata = pet_metadata
+      name=name,
+      pet=Animal(
+        name=pet_name,
+        address_=pet_address,
+        id_=pet_id,
+        is_furry=pet_is_furry,
+        price=pet_price,
+        data=pet_data,
+        metadata=pet_metadata
       ),
     )
     if ensure_tuple:
