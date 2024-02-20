@@ -166,11 +166,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # handle some node types using a dependency resolution routine
         # which loops, swallowing exceptions until all nodes are processed
-        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef)
+        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef, vy_ast.EventDef)
         self._visit_nodes_looping(type_decls)
-
-        # special type which can't be used by other types; process it last
-        self._visit_nodes_linear(vy_ast.EventDef)
 
         # handle functions
         self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
