@@ -736,8 +736,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             # struct ctors
             # ctors have no kwargs
             expected_types = func_type.typedef.members.values()  # type: ignore
-            for value, arg_type in zip(node.args[0].values, expected_types):
-                self.visit(value, arg_type)
+            for kwarg, arg_type in zip(node.keywords, expected_types):
+                self.visit(kwarg.value, arg_type)
         elif isinstance(func_type, MemberFunctionT):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
@@ -769,7 +769,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
-                    # enum membership - `some_enum in other_enum`
+                    # flag membership - `some_flag in other_flag`
                     ltyp = rtyp
                 else:
                     # array membership - `x in my_list_variable`

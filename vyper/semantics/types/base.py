@@ -389,7 +389,7 @@ class TYPE_T(VyperType):
         raise StructureException("Value is not callable", node)
 
     # dispatch into get_type_member if it's dereferenced, ex.
-    # MyEnum.FOO
+    # MyFlag.FOO
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)

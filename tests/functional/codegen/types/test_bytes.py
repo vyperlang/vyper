@@ -132,7 +132,7 @@ g: G
 
 @external
 def foo(inp1: Bytes[40], inp2: Bytes[45]):
-    self.g = G({a: inp1, b: inp2})
+    self.g = G(a=inp1, b=inp2)
 
 @external
 def check1() -> Bytes[50]:
@@ -144,17 +144,17 @@ def check2() -> Bytes[50]:
 
 @external
 def bar(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
-    h: H = H({a: inp1, b: inp2})
+    h: H = H(a=inp1, b=inp2)
     return h.a
 
 @external
 def bat(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
-    h: H = H({a: inp1, b: inp2})
+    h: H = H(a=inp1, b=inp2)
     return h.b
 
 @external
 def quz(inp1: Bytes[40], inp2: Bytes[45]):
-    h:  H = H({a: inp1, b: inp2})
+    h:  H = H(a=inp1, b=inp2)
     self.g.a = h.a
     self.g.b = h.b
     """

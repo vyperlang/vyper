@@ -171,7 +171,7 @@ a: A
 def foo():
     self.a.iter = [1, 2, 3]
     for i: uint256 in self.a.iter:
-        self.a = A({iter: [1, 2, 3, 4]})
+        self.a = A(iter=[1, 2, 3, 4])
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
