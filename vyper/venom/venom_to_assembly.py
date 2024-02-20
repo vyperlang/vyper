@@ -58,12 +58,15 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "exp",
         "eq",
         "iszero",
+        "not",
         "lg",
         "lt",
         "slt",
         "sgt",
     ]
 )
+
+_REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -75,13 +78,13 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 # with the assembler. My suggestion is to let this be for now, and we can
 # refactor it later when we are finished phasing out the old IR.
 class VenomCompiler:
-    ctx: IRFunction
+    ctxs: list[IRFunction]
     label_counter = 0
     visited_instructions: OrderedSet  # {IRInstruction}
     visited_basicblocks: OrderedSet  # {IRBasicBlock}
 
-    def __init__(self, ctx: IRFunction):
-        self.ctx = ctx
+    def __init__(self, ctxs: list[IRFunction]):
+        self.ctxs = ctxs
         self.label_counter = 0
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
@@ -91,8 +94,8 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
 
-        stack = StackModel()
-        asm: list[str] = []
+        asm: list[Any] = []
+        top_asm = asm
 
         # Before emitting the assembly, we need to make sure that the
         # CFG is normalized. Calling calculate_cfg() will denormalize IR (reset)
@@ -101,41 +104,49 @@ class VenomCompiler:
         # assembly generation.
         # This is a side-effect of how dynamic jumps are temporarily being used
         # to support the O(1) dispatcher. -> look into calculate_cfg()
-        calculate_cfg(self.ctx)
-        NormalizationPass.run_pass(self.ctx)
-        calculate_liveness(self.ctx)
+        for ctx in self.ctxs:
+            calculate_cfg(ctx)
+            NormalizationPass.run_pass(ctx)
+            calculate_liveness(ctx)
 
-        assert self.ctx.normalized, "Non-normalized CFG!"
+            assert ctx.normalized, "Non-normalized CFG!"
 
-        self._generate_evm_for_basicblock_r(asm, self.ctx.basic_blocks[0], stack)
+            self._generate_evm_for_basicblock_r(asm, ctx.basic_blocks[0], StackModel())
 
-        # Append postambles
-        revert_postamble = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
-        runtime = None
-        if isinstance(asm[-1], list) and isinstance(asm[-1][0], RuntimeHeader):
-            runtime = asm.pop()
+            # TODO make this property on IRFunction
+            if ctx.immutables_len is not None and ctx.ctor_mem_size is not None:
+                while asm[-1] != "JUMPDEST":
+                    asm.pop()
+                asm.extend(
+                    ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
+                )
+                asm.extend(["_OFST", "_sym_subcode_size", ctx.immutables_len])  # stack: len
+                asm.extend(["_mem_deploy_start"])  # stack: len mem_ofst
+                asm.extend(["RETURN"])
+                asm.extend(_REVERT_POSTAMBLE)
+                runtime_asm = [
+                    RuntimeHeader("_sym_runtime_begin", ctx.ctor_mem_size, ctx.immutables_len)
+                ]
+                asm.append(runtime_asm)
+                asm = runtime_asm
+            else:
+                asm.extend(_REVERT_POSTAMBLE)
 
-        asm.extend(revert_postamble)
-        if runtime:
-            runtime.extend(revert_postamble)
-            asm.append(runtime)
+            # Append data segment
+            data_segments: dict = dict()
+            for inst in ctx.data_segment:
+                if inst.opcode == "dbname":
+                    label = inst.operands[0].value
+                    data_segments[label] = [DataHeader(f"_sym_{label}")]
+                elif inst.opcode == "db":
+                    data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
-        # Append data segment
-        data_segments: dict[Any, list[Any]] = dict()
-        for inst in self.ctx.data_segment:
-            if inst.opcode == "dbname":
-                label = inst.operands[0].value
-                data_segments[label] = [DataHeader(f"_sym_{label}")]
-            elif inst.opcode == "db":
-                data_segments[label].append(f"_sym_{inst.operands[0].value}")
-
-        extent_point = asm if not isinstance(asm[-1], list) else asm[-1]
-        extent_point.extend([data_segments[label] for label in data_segments])  # type: ignore
+            asm.extend(list(data_segments.values()))
 
         if no_optimize is False:
-            optimize_assembly(asm)
+            optimize_assembly(top_asm)
 
-        return asm
+        return top_asm
 
     def _stack_reorder(
         self, assembly: list, stack: StackModel, _stack_ops: OrderedSet[IRVariable]
@@ -261,7 +272,7 @@ class VenomCompiler:
 
         # Step 1: Apply instruction special stack manipulations
 
-        if opcode in ["jmp", "jnz", "invoke"]:
+        if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
@@ -296,7 +307,7 @@ class VenomCompiler:
         self._emit_input_operands(assembly, inst, operands, stack)
 
         # Step 3: Reorder stack
-        if opcode in ["jnz", "jmp"]:
+        if opcode in ["jnz", "djmp", "jmp"]:
             # prepare stack for jump into another basic block
             assert inst.parent and isinstance(inst.parent.cfg_out, OrderedSet)
             b = next(iter(inst.parent.cfg_out))
@@ -344,11 +355,12 @@ class VenomCompiler:
             assembly.append("JUMP")
 
         elif opcode == "jmp":
-            if isinstance(inst.operands[0], IRLabel):
-                assembly.append(f"_sym_{inst.operands[0].value}")
-                assembly.append("JUMP")
-            else:
-                assembly.append("JUMP")
+            assert isinstance(inst.operands[0], IRLabel)
+            assembly.append(f"_sym_{inst.operands[0].value}")
+            assembly.append("JUMP")
+        elif opcode == "djmp":
+            assert isinstance(inst.operands[0], IRVariable)
+            assembly.append("JUMP")
         elif opcode == "gt":
             assembly.append("GT")
         elif opcode == "lt":
@@ -396,20 +408,6 @@ class VenomCompiler:
             assembly.extend([*PUSH(31), "ADD", *PUSH(31), "NOT", "AND"])
         elif opcode == "assert":
             assembly.extend(["ISZERO", "_sym___revert", "JUMPI"])
-        elif opcode == "deploy":
-            memsize = inst.operands[0].value
-            padding = inst.operands[2].value
-            # TODO: fix this by removing deploy opcode altogether me move emition to ir translation
-            while assembly[-1] != "JUMPDEST":
-                assembly.pop()
-            assembly.extend(
-                ["_sym_subcode_size", "_sym_runtime_begin", "_mem_deploy_start", "CODECOPY"]
-            )
-            assembly.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
-            assembly.extend(["_mem_deploy_start"])  # stack: len mem_ofst
-            assembly.extend(["RETURN"])
-            assembly.append([RuntimeHeader("_sym_runtime_begin", memsize, padding)])  # type: ignore
-            assembly = assembly[-1]
         elif opcode == "iload":
             loc = inst.operands[0].value
             assembly.extend(["_OFST", "_mem_deploy_end", loc, "MLOAD"])

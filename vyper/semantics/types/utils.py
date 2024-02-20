@@ -3,6 +3,7 @@ from typing import Dict
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     InstantiationException,
     InvalidType,
     StructureException,
@@ -117,24 +118,26 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     if isinstance(node, vy_ast.Attribute):
         # ex. SomeModule.SomeStruct
 
-        # sanity check - we only allow modules/interfaces to be
-        # imported as `Name`s currently.
-        if not isinstance(node.value, vy_ast.Name):
+        if isinstance(node.value, vy_ast.Attribute):
+            module_or_interface = _type_from_annotation(node.value)
+        elif isinstance(node.value, vy_ast.Name):
+            try:
+                module_or_interface = namespace[node.value.id]  # type: ignore
+            except UndeclaredDefinition:
+                raise InvalidType(err_msg, node) from None
+        else:
             raise InvalidType(err_msg, node)
 
-        try:
-            module_or_interface = namespace[node.value.id]  # type: ignore
-        except UndeclaredDefinition:
-            raise InvalidType(err_msg, node) from None
-
-        interface = module_or_interface
         if hasattr(module_or_interface, "module_t"):  # i.e., it's a ModuleInfo
-            interface = module_or_interface.module_t.interface
+            module_or_interface = module_or_interface.module_t
 
-        if not interface._attribute_in_annotation:
+        if not isinstance(module_or_interface, VyperType):
             raise InvalidType(err_msg, node)
 
-        type_t = interface.get_type_member(node.attr, node)
+        if not module_or_interface._attribute_in_annotation:
+            raise InvalidType(err_msg, node)
+
+        type_t = module_or_interface.get_type_member(node.attr, node)  # type: ignore
         assert isinstance(type_t, TYPE_T)  # sanity check
         return type_t.typedef
 
@@ -143,10 +146,9 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         raise InvalidType(err_msg, node)
 
     if node.id not in namespace:  # type: ignore
-        suggestions_str = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
+        hint = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{node.node_source_code}'. {suggestions_str}",
-            node,
+            f"No builtin or user-defined type named '{node.node_source_code}'.", node, hint=hint
         ) from None
 
     typ_ = namespace[node.id]
@@ -156,18 +158,23 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
 
+    if hasattr(typ_, "module_t"):  # it's a ModuleInfo
+        typ_ = typ_.module_t
+
+    if not isinstance(typ_, VyperType):
+        raise CompilerPanic("Not a type: {typ_}", node)
+
     return typ_
 
 
-def get_index_value(node: vy_ast.Index) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> int:
     """
     Return the literal value for a `Subscript` index.
 
     Arguments
     ---------
-    node: vy_ast.Index
-        Vyper ast node from the `slice` member of a Subscript node. Must be an
-        `Index` object (Vyper does not support `Slice` or `ExtSlice`).
+    node: vy_ast.VyperNode
+        Vyper ast node from the `slice` member of a Subscript node.
 
     Returns
     -------
@@ -179,19 +186,20 @@ def get_index_value(node: vy_ast.Index) -> int:
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
-    if not isinstance(node.get("value"), vy_ast.Int):
-        if hasattr(node, "value"):
-            # even though the subscript is an invalid type, first check if it's a valid _something_
-            # this gives a more accurate error in case of e.g. a typo in a constant variable name
-            try:
-                get_possible_types_from_node(node.value)
-            except StructureException:
-                # StructureException is a very broad error, better to raise InvalidType in this case
-                pass
+    if node.has_folded_value:
+        node = node.get_folded_value()
 
+    if not isinstance(node, vy_ast.Int):
+        # even though the subscript is an invalid type, first check if it's a valid _something_
+        # this gives a more accurate error in case of e.g. a typo in a constant variable name
+        try:
+            get_possible_types_from_node(node)
+        except StructureException:
+            # StructureException is a very broad error, better to raise InvalidType in this case
+            pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value.value <= 0:
+    if node.value <= 0:
         raise ArrayIndexException("Subscript must be greater than 0", node)
 
-    return node.value.value
+    return node.value

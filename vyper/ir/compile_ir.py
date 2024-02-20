@@ -702,6 +702,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.extend(["_sym_" + code.args[0].value, "JUMP"])
         return o
+    elif code.value == "djump":
+        o = []
+        # "djump" compiles to a raw EVM jump instruction
+        jump_target = code.args[0]
+        o.extend(_compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height))
+        o.append("JUMP")
+        return o
     # push a literal symbol
     elif code.value == "symbol":
         return ["_sym_" + code.args[0].value]
@@ -802,18 +809,26 @@ def _prune_unreachable_code(assembly):
     # unreachable
     changed = False
     i = 0
-    while i < len(assembly) - 2:
-        instr = assembly[i]
-        if isinstance(instr, list):
-            instr = assembly[i][-1]
+    while i < len(assembly) - 1:
+        if assembly[i] in _TERMINAL_OPS:
+            # find the next jumpdest or sublist
+            for j in range(i + 1, len(assembly)):
+                next_is_jumpdest = (
+                    j < len(assembly) - 1
+                    and is_symbol(assembly[j])
+                    and assembly[j + 1] == "JUMPDEST"
+                )
+                next_is_list = isinstance(assembly[j], list)
+                if next_is_jumpdest or next_is_list:
+                    break
+            else:
+                # fixup an off-by-one if we made it to the end of the assembly
+                # without finding an jumpdest or sublist
+                j = len(assembly)
+            changed = j > i + 1
+            del assembly[i + 1 : j]
 
-        if assembly[i] in _TERMINAL_OPS and not (
-            is_symbol(assembly[i + 1]) or isinstance(assembly[i + 1], list)
-        ):
-            changed = True
-            del assembly[i + 1]
-        else:
-            i += 1
+        i += 1
 
     return changed
 
@@ -1223,7 +1238,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
             if is_symbol_map_indicator(assembly[i + 1]):
                 # Don't increment pc as the symbol itself doesn't go into code
                 if item in symbol_map:
-                    print(assembly)
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc

@@ -12,7 +12,7 @@ from vyper.cli.vyper_json import (
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
-from vyper.exceptions import InvalidType, JSONError, SyntaxException
+from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
 
 FOO_CODE = """
 import contracts.ibar as IBar
@@ -113,18 +113,23 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 def test_compile_json(input_json, input_bundle):
     foo_input = input_bundle.load_file("contracts/foo.vy")
+    # remove bb and bb_runtime from output formats
+    # because they require venom (experimental)
+    output_formats = OUTPUT_FORMATS.copy()
+    del output_formats["bb"]
+    del output_formats["bb_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        foo_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
     library = compile_from_file_input(
-        library_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        library_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        bar_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     compile_code_results = {
@@ -239,7 +244,7 @@ def test_exc_handler_to_dict_syntax(input_json):
 
 def test_exc_handler_raises_compiler(input_json):
     input_json["sources"]["badcode.vy"] = {"content": BAD_COMPILER_CODE}
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         compile_json(input_json)
 
 
@@ -251,7 +256,7 @@ def test_exc_handler_to_dict_compiler(input_json):
     assert len(result["errors"]) == 1
     error = result["errors"][0]
     assert error["component"] == "compiler"
-    assert error["type"] == "InvalidType"
+    assert error["type"] == "TypeMismatch"
 
 
 def test_source_ids_increment(input_json):

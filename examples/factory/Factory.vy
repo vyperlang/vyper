@@ -1,4 +1,6 @@
-from vyper.interfaces import ERC20
+#pragma version >0.3.10
+
+from ethereum.ercs import ERC20
 
 interface Exchange:
     def token() -> ERC20: view
@@ -11,7 +13,7 @@ exchange_codehash: public(bytes32)
 exchanges: public(HashMap[ERC20, Exchange])
 
 
-@external
+@deploy
 def __init__(_exchange_codehash: bytes32):
     # Register the exchange code hash during deployment of the factory
     self.exchange_codehash = _exchange_codehash
@@ -21,7 +23,7 @@ def __init__(_exchange_codehash: bytes32):
 #       For example, allowing the deployer of this contract to change this
 #       value allows them to use a new contract if the old one has an issue.
 #       This would trigger a cascade effect across all exchanges that would
-#       need to be handled appropiately.
+#       need to be handled appropriately.
 
 
 @external

@@ -44,7 +44,7 @@ class VariableRecord:
         return f"VariableRecord({ret})"
 
 
-# Contains arguments, variables, etc
+# compilation context for a function
 class Context:
     def __init__(
         self,
@@ -59,18 +59,11 @@ class Context:
         # In-memory variables, in the form (name, memory location, type)
         self.vars = vars_ or {}
 
-        # Global variables, in the form (name, storage location, type)
-        self.globals = module_ctx.variables
-
         # Variables defined in for loops, e.g. for i in range(6): ...
         self.forvars = forvars or {}
 
         # Is the function constant?
         self.constancy = constancy
-
-        # Whether body is currently in an assert statement
-        # XXX: dead, never set to True
-        self.in_assertion = False
 
         # Whether we are currently parsing a range expression
         self.in_range_expr = False
@@ -83,9 +76,13 @@ class Context:
         # Active scopes
         self._scopes = set()
 
-        # Memory alloctor, keeps track of currently allocated memory.
+        # Memory allocator, keeps track of currently allocated memory.
         # Not intended to be accessed directly
         self.memory_allocator = memory_allocator
+
+        # save the starting memory location so we can find out (later)
+        # how much memory this function uses.
+        self.starting_memory = memory_allocator.next_mem
 
         # Incremented values, used for internal IDs
         self._internal_var_iter = 0
@@ -95,13 +92,13 @@ class Context:
         self.is_ctor_context = is_ctor_context
 
     def is_constant(self):
-        return self.constancy is Constancy.Constant or self.in_assertion or self.in_range_expr
+        return self.constancy is Constancy.Constant or self.in_range_expr
 
     def check_is_not_constant(self, err, expr):
         if self.is_constant():
             raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
 
-    # convenience propreties
+    # convenience properties
     @property
     def is_payable(self):
         return self.func_t.is_payable
@@ -250,9 +247,7 @@ class Context:
 
     # Pretty print constancy for error messages
     def pp_constancy(self):
-        if self.in_assertion:
-            return "an assertion"
-        elif self.in_range_expr:
+        if self.in_range_expr:
             return "a range expression"
         elif self.constancy == Constancy.Constant:
             return "a constant function"

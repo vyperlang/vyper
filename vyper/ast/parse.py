@@ -1,5 +1,6 @@
 import ast as python_ast
 import tokenize
+import warnings
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -54,7 +55,7 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, reformatted_code = pre_parse(source_code)
+    settings, class_types, for_loop_annotations, reformatted_code = pre_parse(source_code)
     try:
         py_ast = python_ast.parse(reformatted_code)
     except SyntaxError as e:
@@ -73,14 +74,19 @@ def parse_to_ast_with_settings(
         py_ast,
         source_code,
         class_types,
+        for_loop_annotations,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
 
+    # postcondition: consumed all the for loop annotations
+    assert len(for_loop_annotations) == 0
+
     # Convert to Vyper AST.
     module = vy_ast.get_node(py_ast)
     assert isinstance(module, vy_ast.Module)  # mypy hint
+
     return settings, module
 
 
@@ -109,14 +115,60 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
     raise CompilerPanic(f'Unknown ast_struct provided: "{type(ast_struct)}".')
 
 
+def annotate_python_ast(
+    parsed_ast: python_ast.AST,
+    source_code: str,
+    modification_offsets: ModificationOffsets,
+    for_loop_annotations: dict,
+    source_id: int = 0,
+    module_path: Optional[str] = None,
+    resolved_path: Optional[str] = None,
+) -> python_ast.AST:
+    """
+    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
+
+    Parameters
+    ----------
+    parsed_ast : AST
+        The AST to be annotated and optimized.
+    source_code : str
+        The originating source code of the AST.
+    loop_var_annotations: dict
+        A mapping of line numbers of `For` nodes to the tokens of the type
+        annotation of the iterator extracted during pre-parsing.
+    modification_offsets : dict
+        A mapping of class names to their original class types.
+
+    Returns
+    -------
+        The annotated and optimized AST.
+    """
+
+    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    visitor = AnnotatingVisitor(
+        source_code,
+        modification_offsets,
+        for_loop_annotations,
+        tokens,
+        source_id,
+        module_path=module_path,
+        resolved_path=resolved_path,
+    )
+    visitor.visit(parsed_ast)
+
+    return parsed_ast
+
+
 class AnnotatingVisitor(python_ast.NodeTransformer):
     _source_code: str
     _modification_offsets: ModificationOffsets
+    _loop_var_annotations: dict[int, dict[str, Any]]
 
     def __init__(
         self,
         source_code: str,
-        modification_offsets: Optional[ModificationOffsets],
+        modification_offsets: ModificationOffsets,
+        for_loop_annotations: dict,
         tokens: asttokens.ASTTokens,
         source_id: int,
         module_path: Optional[str] = None,
@@ -126,11 +178,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self._source_id = source_id
         self._module_path = module_path
         self._resolved_path = resolved_path
-        self._source_code: str = source_code
+        self._source_code = source_code
+        self._modification_offsets = modification_offsets
+        self._for_loop_annotations = for_loop_annotations
+
         self.counter: int = 0
-        self._modification_offsets = {}
-        if modification_offsets is not None:
-            self._modification_offsets = modification_offsets
 
     def generic_visit(self, node):
         """
@@ -143,7 +195,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
 
         # Decorate every node with source end offsets
-        start = node.first_token.start if hasattr(node, "first_token") else (None, None)
+        start = (None, None)
+        if hasattr(node, "first_token"):
+            start = node.first_token.start
         end = (None, None)
         if hasattr(node, "last_token"):
             end = node.last_token.end
@@ -160,6 +214,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         if hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
+
             if node.last_token.type == 4:
                 # ignore trailing newline once more
                 end_pos -= 1
@@ -212,6 +267,62 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
         return node
 
+    def visit_For(self, node):
+        """
+        Visit a For node, splicing in the loop variable annotation provided by
+        the pre-parser
+        """
+        annotation_tokens = self._for_loop_annotations.pop((node.lineno, node.col_offset))
+
+        if not annotation_tokens:
+            # a common case for people migrating to 0.4.0, provide a more
+            # specific error message than "invalid type annotation"
+            raise SyntaxException(
+                "missing type annotation\n\n"
+                "  (hint: did you mean something like "
+                f"`for {node.target.id}: uint256 in ...`?)",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+            )
+
+        # some kind of black magic. untokenize preserves the line and column
+        # offsets, giving us something like `\
+        # \
+        # \
+        #   uint8`
+        # that's not a valid python Expr because it is indented.
+        # but it's good because the code is indented to exactly the same
+        # offset as it did in the original source!
+        # (to best understand this, print out annotation_str and
+        # self._source_code and compare them side-by-side).
+        #
+        # what we do here is add in a dummy target which we will remove
+        # in a bit, but for now lets us keep the line/col offset, and
+        # *also* gives us a valid AST. it doesn't matter what the dummy
+        # target name is, since it gets removed in a few lines.
+        annotation_str = tokenize.untokenize(annotation_tokens)
+        annotation_str = "dummy_target:" + annotation_str
+
+        try:
+            fake_node = python_ast.parse(annotation_str).body[0]
+        except SyntaxError as e:
+            raise SyntaxException(
+                "invalid type annotation", self._source_code, node.lineno, node.col_offset
+            ) from e
+
+        # fill in with asttokens info. note we can use `self._tokens` because
+        # it is indented to exactly the same position where it appeared
+        # in the original source!
+        self._tokens.mark_tokens(fake_node)
+
+        # replace the dummy target name with the real target name.
+        fake_node.target = node.target
+        # replace the For node target with the new ann_assign
+        node.target = fake_node
+
+        return self.generic_visit(node)
+
     def visit_Expr(self, node):
         """
         Convert the `Yield` node into a Vyper-specific node type.
@@ -231,21 +342,26 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
-    def visit_Subscript(self, node):
-        """
-        Maintain consistency of `Subscript.slice` across python versions.
+    def visit_Call(self, node):
+        # Convert structs declared as `Dict` node for vyper < 0.4.0 to kwargs
+        if len(node.args) == 1 and isinstance(node.args[0], python_ast.Dict):
+            msg = "Instantiating a struct using a dictionary is deprecated "
+            msg += "as of v0.4.0 and will be disallowed in a future release. "
+            msg += "Use kwargs instead e.g. Foo(a=1, b=2)"
+            warnings.warn(msg, stacklevel=2)
 
-        Starting from python 3.9, the `Index` node type has been deprecated,
-        and made impossible to instantiate via regular means. Here we do awful
-        hacky black magic to create an `Index` node. We need our own parser.
-        """
+            dict_ = node.args[0]
+            kw_list = []
+
+            assert len(dict_.keys) == len(dict_.values)
+            for key, value in zip(dict_.keys, dict_.values):
+                replacement_kw_node = python_ast.keyword(key.id, value)
+                kw_list.append(replacement_kw_node)
+
+            node.args = []
+            node.keywords = kw_list
+
         self.generic_visit(node)
-
-        if not isinstance(node.slice, python_ast.Index):
-            index = python_ast.Constant(value=node.slice, ast_type="Index")
-            index.__class__ = python_ast.Index
-            self.generic_visit(index)
-            node.slice = index
 
         return node
 
@@ -349,42 +465,3 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             return node.operand
         else:
             return node
-
-
-def annotate_python_ast(
-    parsed_ast: python_ast.AST,
-    source_code: str,
-    modification_offsets: Optional[ModificationOffsets] = None,
-    source_id: int = 0,
-    module_path: Optional[str] = None,
-    resolved_path: Optional[str] = None,
-) -> python_ast.AST:
-    """
-    Annotate and optimize a Python AST in preparation conversion to a Vyper AST.
-
-    Parameters
-    ----------
-    parsed_ast : AST
-        The AST to be annotated and optimized.
-    source_code : str
-        The originating source code of the AST.
-    modification_offsets : dict, optional
-        A mapping of class names to their original class types.
-
-    Returns
-    -------
-        The annotated and optimized AST.
-    """
-
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
-    visitor = AnnotatingVisitor(
-        source_code,
-        modification_offsets,
-        tokens,
-        source_id,
-        module_path=module_path,
-        resolved_path=resolved_path,
-    )
-    visitor.visit(parsed_ast)
-
-    return parsed_ast

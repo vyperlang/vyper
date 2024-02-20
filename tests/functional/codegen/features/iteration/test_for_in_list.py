@@ -1,7 +1,9 @@
+import re
 from decimal import Decimal
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
@@ -10,7 +12,9 @@ from vyper.exceptions import (
     NamespaceCollision,
     StateAccessViolation,
     StructureException,
+    SyntaxException,
     TypeMismatch,
+    UnknownType,
 )
 
 BASIC_FOR_LOOP_CODE = [
@@ -20,7 +24,7 @@ BASIC_FOR_LOOP_CODE = [
 @external
 def data() -> int128:
     s: int128[5] = [1, 2, 3, 4, 5]
-    for i in s:
+    for i: int128 in s:
         if i >= 3:
             return i
     return -1""",
@@ -32,7 +36,7 @@ def data() -> int128:
 @external
 def data() -> int128:
     s: DynArray[int128, 10] = [1, 2, 3, 4, 5]
-    for i in s:
+    for i: int128 in s:
         if i >= 3:
             return i
     return -1""",
@@ -48,12 +52,12 @@ struct S:
 @external
 def data() -> int128:
     sss: DynArray[DynArray[S, 10], 10] = [
-        [S({x:1, y:2})],
-        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        [S(x=1, y=2)],
+        [S(x=3, y=4), S(x=5, y=6), S(x=7, y=8), S(x=9, y=10)]
         ]
     ret: int128 = 0
-    for ss in sss:
-        for s in ss:
+    for ss: DynArray[S, 10] in sss:
+        for s: S in ss:
             ret += s.x + s.y
     return ret""",
         sum(range(1, 11)),
@@ -63,7 +67,7 @@ def data() -> int128:
         """
 @external
 def data() -> int128:
-    for i in [3, 5, 7, 9]:
+    for i: int128 in [3, 5, 7, 9]:
         if i > 5:
             return i
     return -1""",
@@ -75,7 +79,7 @@ def data() -> int128:
 @external
 def data() -> String[33]:
     xs: DynArray[String[33], 3] = ["hello", ",", "world"]
-    for x in xs:
+    for x: String[33] in xs:
         if x == ",":
             return x
     return ""
@@ -87,7 +91,7 @@ def data() -> String[33]:
         """
 @external
 def data() -> String[33]:
-    for x in ["hello", ",", "world"]:
+    for x: String[33] in ["hello", ",", "world"]:
         if x == ",":
             return x
     return ""
@@ -99,7 +103,7 @@ def data() -> String[33]:
         """
 @external
 def data() -> DynArray[String[33], 2]:
-    for x in [["hello", "world"], ["goodbye", "world!"]]:
+    for x: DynArray[String[33], 2] in [["hello", "world"], ["goodbye", "world!"]]:
         if x[1] == "world":
             return x
     return []
@@ -113,8 +117,8 @@ def data() -> DynArray[String[33], 2]:
 def data() -> int128:
     ret: int128 = 0
     xss: int128[3][3] = [[1,2,3],[4,5,6],[7,8,9]]
-    for xs in xss:
-        for x in xs:
+    for xs: int128[3] in xss:
+        for x: int128 in xs:
             ret += x
     return ret""",
         sum(range(1, 10)),
@@ -129,8 +133,8 @@ struct S:
 @external
 def data() -> int128:
     ret: int128 = 0
-    for ss in [[S({x:1, y:2})]]:
-        for s in ss:
+    for ss: S[1] in [[S(x=1, y=2)]]:
+        for s: S in ss:
             ret += s.x + s.y
     return ret""",
         1 + 2,
@@ -146,7 +150,7 @@ def data() -> address:
         0xDCEceAF3fc5C0a63d195d69b1A90011B7B19650D
     ]
     count: int128 = 0
-    for i in addresses:
+    for i: address in addresses:
         count += 1
         if count == 2:
             return i
@@ -173,7 +177,7 @@ def set():
 
 @external
 def data() -> int128:
-    for i in self.x:
+    for i: int128 in self.x:
         if i > 5:
             return i
     return -1
@@ -197,7 +201,7 @@ def set(xs: DynArray[int128, 4]):
 @external
 def data() -> int128:
     t: int128 = 0
-    for i in self.x:
+    for i: int128 in self.x:
         t += i
     return t
     """
@@ -226,7 +230,7 @@ def ret(i: int128) -> address:
 @external
 def iterate_return_second() -> address:
     count: int128 = 0
-    for i in self.addresses:
+    for i: address in self.addresses:
         count += 1
         if count == 2:
             return i
@@ -257,7 +261,7 @@ def ret(i: int128) -> decimal:
 @external
 def i_return(break_count: int128) -> decimal:
     count: int128 = 0
-    for i in self.readings:
+    for i: decimal in self.readings:
         if count == break_count:
             return i
         count += 1
@@ -283,7 +287,7 @@ def func(amounts: uint256[3]) -> uint256:
     total: uint256 = as_wei_value(0, "wei")
 
     # calculate total
-    for amount in amounts:
+    for amount: uint256 in amounts:
         total += amount
 
     return total
@@ -302,7 +306,7 @@ def func(amounts: DynArray[uint256, 3]) -> uint256:
     total: uint256 = 0
 
     # calculate total
-    for amount in amounts:
+    for amount: uint256 in amounts:
         total += amount
 
     return total
@@ -320,42 +324,42 @@ GOOD_CODE = [
 @external
 def foo(x: int128):
     p: int128 = 0
-    for i in range(3):
+    for i: int128 in range(3):
         p += i
-    for i in range(4):
-        p += i
-    """,
-    """
-@external
-def foo(x: int128):
-    p: int128 = 0
-    for i in range(3):
-        p += i
-    for i in [1, 2, 3, 4]:
+    for i: int128 in range(4):
         p += i
     """,
     """
 @external
 def foo(x: int128):
     p: int128 = 0
-    for i in [1, 2, 3, 4]:
+    for i: int128 in range(3):
         p += i
-    for i in [1, 2, 3, 4]:
+    for i: int128 in [1, 2, 3, 4]:
+        p += i
+    """,
+    """
+@external
+def foo(x: int128):
+    p: int128 = 0
+    for i: int128 in [1, 2, 3, 4]:
+        p += i
+    for i: int128 in [1, 2, 3, 4]:
         p += i
     """,
     """
 @external
 def foo():
-    for i in range(10):
+    for i: uint256 in range(10):
         pass
-    for i in range(20):
+    for i: uint256 in range(20):
         pass
     """,
     # using index variable after loop
     """
 @external
 def foo():
-    for i in range(10):
+    for i: uint256 in range(10):
         pass
     i: int128 = 100  # create new variable i
     i = 200  # look up the variable i and check whether it is in forvars
@@ -371,25 +375,25 @@ def test_good_code(code, get_contract):
 RANGE_CONSTANT_CODE = [
     (
         """
-TREE_FIDDY: constant(int128)  = 350
+TREE_FIDDY: constant(uint256)  = 350
 
 
 @external
 def a() -> uint256:
     x: uint256 = 0
-    for i in range(TREE_FIDDY):
+    for i: uint256 in range(TREE_FIDDY):
         x += 1
     return x""",
         350,
     ),
     (
         """
-ONE_HUNDRED: constant(int128)  = 100
+ONE_HUNDRED: constant(uint256)  = 100
 
 @external
 def a() -> uint256:
     x: uint256 = 0
-    for i in range(1, 1 + ONE_HUNDRED):
+    for i: uint256 in range(1, 1 + ONE_HUNDRED):
         x += 1
     return x""",
         100,
@@ -400,9 +404,9 @@ START: constant(int128)  = 100
 END: constant(int128)  = 199
 
 @external
-def a() -> uint256:
-    x: uint256 = 0
-    for i in range(START, END):
+def a() -> int128:
+    x: int128 = 0
+    for i: int128 in range(START, END):
         x += 1
     return x""",
         99,
@@ -412,10 +416,22 @@ def a() -> uint256:
 @external
 def a() -> int128:
     x: int128 = 0
-    for i in range(-5, -1):
+    for i: int128 in range(-5, -1):
         x += i
     return x""",
         -14,
+    ),
+    (
+        """
+@external
+def a() -> uint256:
+    a: DynArray[DynArray[uint256, 2], 3] = [[0, 1], [2, 3], [4, 5]]
+    x: uint256 = 0
+    for i: uint256 in a[2]:
+        x += i
+    return x
+    """,
+        9,
     ),
 ]
 
@@ -435,7 +451,7 @@ BAD_CODE = [
 def data() -> int128:
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
-    for i in s:
+    for i: int128 in s:
         s[count] = 1  # this should not be allowed.
         if i >= 3:
             return i
@@ -450,7 +466,7 @@ def data() -> int128:
 def foo():
     s: int128[6] = [1, 2, 3, 4, 5, 6]
     count: int128 = 0
-    for i in s:
+    for i: int128 in s:
         s[count] += 1
     """,
         ImmutableViolation,
@@ -467,7 +483,7 @@ def set():
 @external
 def data() -> int128:
     count: int128 = 0
-    for i in self.s:
+    for i: int128 in self.s:
         self.s[count] = 1  # this should not be allowed.
         if i >= 3:
             return i
@@ -492,7 +508,7 @@ def doStuff(i: uint256) -> uint256:
 @internal
 def _helper():
     i: uint256 = 0
-    for item in self.my_array2.foo:
+    for item: uint256 in self.my_array2.foo:
         self.doStuff(i)
         i += 1
     """,
@@ -518,7 +534,7 @@ def doStuff(i: uint256) -> uint256:
 @internal
 def _helper():
     i: uint256 = 0
-    for item in self.my_array2.bar.foo:
+    for item: uint256 in self.my_array2.bar.foo:
         self.doStuff(i)
         i += 1
     """,
@@ -544,7 +560,7 @@ def doStuff():
 @internal
 def _helper():
     i: uint256 = 0
-    for item in self.my_array2.foo:
+    for item: uint256 in self.my_array2.foo:
         self.doStuff()
         i += 1
     """,
@@ -555,8 +571,8 @@ def _helper():
         """
 @external
 def foo(x: int128):
-    for i in range(4):
-        for i in range(5):
+    for i: int128 in range(4):
+        for i: int128 in range(5):
             pass
     """,
         NamespaceCollision,
@@ -565,8 +581,8 @@ def foo(x: int128):
         """
 @external
 def foo(x: int128):
-    for i in [1,2]:
-        for i in [1,2]:
+    for i: int128 in [1,2]:
+        for i: int128 in [1,2]:
             pass
      """,
         NamespaceCollision,
@@ -576,7 +592,7 @@ def foo(x: int128):
         """
 @external
 def foo(x: int128):
-    for i in [1,2]:
+    for i: int128 in [1,2]:
         i = 2
     """,
         ImmutableViolation,
@@ -587,7 +603,7 @@ def foo(x: int128):
 @external
 def foo():
     xs: DynArray[uint256, 5] = [1,2,3]
-    for x in xs:
+    for x: uint256 in xs:
         xs.pop()
     """,
         ImmutableViolation,
@@ -598,7 +614,7 @@ def foo():
 @external
 def foo():
     xs: DynArray[uint256, 5] = [1,2,3]
-    for x in xs:
+    for x: uint256 in xs:
         xs.append(x)
     """,
         ImmutableViolation,
@@ -609,7 +625,7 @@ def foo():
 @external
 def foo():
     xs: DynArray[DynArray[uint256, 5], 5] = [[1,2,3]]
-    for x in xs:
+    for x: DynArray[uint256, 5] in xs:
         x.pop()
     """,
         ImmutableViolation,
@@ -628,7 +644,7 @@ def b():
 
 @external
 def foo():
-    for x in self.array:
+    for x: uint256 in self.array:
         self.a()
     """,
         ImmutableViolation,
@@ -637,7 +653,7 @@ def foo():
         """
 @external
 def foo(x: int128):
-    for i in [1,2]:
+    for i: int128 in [1,2]:
         i += 2
     """,
         ImmutableViolation,
@@ -647,7 +663,7 @@ def foo(x: int128):
         """
 @external
 def foo():
-    for i in range(-3):
+    for i: int128 in range(-3):
         pass
     """,
         StructureException,
@@ -655,13 +671,13 @@ def foo():
     """
 @external
 def foo():
-    for i in range(0):
+    for i: uint256 in range(0):
         pass
     """,
     """
 @external
 def foo():
-    for i in []:
+    for i: uint256 in []:
         pass
     """,
     """
@@ -669,14 +685,14 @@ FOO: constant(DynArray[uint256, 3]) = []
 
 @external
 def foo():
-    for i in FOO:
+    for i: uint256 in FOO:
         pass
     """,
     (
         """
 @external
 def foo():
-    for i in range(5,3):
+    for i: uint256 in range(5,3):
         pass
     """,
         StructureException,
@@ -685,7 +701,7 @@ def foo():
         """
 @external
 def foo():
-    for i in range(5,3,-1):
+    for i: int128 in range(5,3,-1):
         pass
     """,
         ArgumentException,
@@ -695,24 +711,27 @@ def foo():
 @external
 def foo():
     a: uint256 = 2
-    for i in range(a):
+    for i: uint256 in range(a):
         pass
     """,
         StateAccessViolation,
     ),
-    """
+    (
+        """
 @external
 def foo():
     a: int128 = 6
-    for i in range(a,a-3):
+    for i: int128 in range(a,a-3):
         pass
     """,
+        StateAccessViolation,
+    ),
     # invalid argument length
     (
         """
 @external
 def foo():
-    for i in range():
+    for i: uint256 in range():
         pass
     """,
         ArgumentException,
@@ -721,7 +740,7 @@ def foo():
         """
 @external
 def foo():
-    for i in range(0,1,2):
+    for i: uint256 in range(0,1,2):
         pass
     """,
         ArgumentException,
@@ -731,7 +750,7 @@ def foo():
         """
 @external
 def foo():
-    for i in b"asdf":
+    for i: Bytes[1] in b"asdf":
         pass
     """,
         InvalidType,
@@ -740,7 +759,7 @@ def foo():
         """
 @external
 def foo():
-    for i in 31337:
+    for i: uint256 in 31337:
         pass
     """,
         InvalidType,
@@ -749,7 +768,7 @@ def foo():
         """
 @external
 def foo():
-    for i in bar():
+    for i: uint256 in bar():
         pass
     """,
         IteratorException,
@@ -758,7 +777,7 @@ def foo():
         """
 @external
 def foo():
-    for i in self.bar():
+    for i: uint256 in self.bar():
         pass
     """,
         IteratorException,
@@ -768,7 +787,7 @@ def foo():
 @external
 def test_for() -> int128:
     a: int128 = 0
-    for i in range(max_value(int128), max_value(int128)+2):
+    for i: int128 in range(max_value(int128), max_value(int128)+2):
         a = i
     return a
     """,
@@ -780,19 +799,102 @@ def test_for() -> int128:
 def test_for() -> int128:
     a: int128 = 0
     b: uint256 = 0
-    for i in range(5):
+    for i: int128 in range(5):
         a = i
         b = i
     return a
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo():
+    for i in [1, 2, 3]:
+        pass
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def foo():
+    for i: $$$ in [1, 2, 3]:
+        pass
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def foo():
+    for i: uint9 in [1, 2, 3]:
+        pass
+    """,
+        UnknownType,
+    ),
+]
+
+BAD_CODE = [code if isinstance(code, tuple) else (code, StructureException) for code in BAD_CODE]
+for_code_regex = re.compile(r"for .+ in (.*):")
+bad_code_names = [
+    f"{i} {for_code_regex.search(code).group(1)}" for i, (code, _) in enumerate(BAD_CODE)
 ]
 
 
-@pytest.mark.parametrize("code", BAD_CODE)
-def test_bad_code(assert_compile_failed, get_contract, code):
-    err = StructureException
-    if not isinstance(code, str):
-        code, err = code
-    assert_compile_failed(lambda: get_contract(code), err)
+# TODO: move these to tests/functional/syntax
+@pytest.mark.parametrize("code,err", BAD_CODE, ids=bad_code_names)
+def test_bad_code(assert_compile_failed, get_contract, code, err):
+    with pytest.raises(err):
+        compile_code(code)
+
+
+def test_iterator_modification_module_attribute(make_input_bundle):
+    # test modifying iterator via attribute
+    lib1 = """
+queue: DynArray[uint256, 5]
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.queue.pop()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"
+
+
+def test_iterator_modification_module_function_call(make_input_bundle):
+    lib1 = """
+queue: DynArray[uint256, 5]
+
+@internal
+def popqueue():
+    self.queue.pop()
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.popqueue()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"

@@ -72,7 +72,9 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
+        assert_compile_failed(
+            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
+        )
 
 
 def test_no_is_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -116,7 +118,9 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), SyntaxException)
+        assert_compile_failed(
+            lambda c=contract: get_contract_with_gas_estimation(c), SyntaxException
+        )
 
 
 def test_no_eq_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -160,7 +164,9 @@ def foo():
     ]
 
     for contract in contracts:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
+        assert_compile_failed(
+            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
+        )
 
 
 def test_struct_none(assert_compile_failed, get_contract_with_gas_estimation):
@@ -172,7 +178,7 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: None, b: 0})
+    mom: Mom = Mom(a=None, b=0)
     """,
         """
 struct Mom:
@@ -181,7 +187,7 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: 0, b: None})
+    mom: Mom = Mom(a=0, b=None)
     """,
         """
 struct Mom:
@@ -190,9 +196,11 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: None, b: None})
+    mom: Mom = Mom(a=None, b=None)
     """,
     ]
 
     for contract in contracts:
-        assert_compile_failed(lambda: get_contract_with_gas_estimation(contract), InvalidLiteral)
+        assert_compile_failed(
+            lambda c=contract: get_contract_with_gas_estimation(c), InvalidLiteral
+        )

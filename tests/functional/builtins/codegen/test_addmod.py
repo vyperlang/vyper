@@ -1,4 +1,4 @@
-def test_uint256_addmod(assert_tx_failed, get_contract_with_gas_estimation):
+def test_uint256_addmod(tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @external
 def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
@@ -11,7 +11,8 @@ def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
     assert c._uint256_addmod(32, 2, 32) == 2
     assert c._uint256_addmod((2**256) - 1, 0, 2) == 1
     assert c._uint256_addmod(2**255, 2**255, 6) == 4
-    assert_tx_failed(lambda: c._uint256_addmod(1, 2, 0))
+    with tx_failed():
+        c._uint256_addmod(1, 2, 0)
 
 
 def test_uint256_addmod_ext_call(

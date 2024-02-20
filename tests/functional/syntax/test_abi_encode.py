@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -36,7 +36,7 @@ def foo(x: uint256) -> Bytes[36]:
 def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=b"abcde")
     """,
-        InvalidType,  # len(method_id) must be less than 4
+        TypeMismatch,  # len(method_id) must be less than 4
     ),
     (
         """
@@ -44,7 +44,7 @@ def foo(x: uint256) -> Bytes[36]:
 def foo(x: uint256) -> Bytes[36]:
     return _abi_encode(x, method_id=0x1234567890)
     """,
-        InvalidType,  # len(method_id) must be less than 4
+        TypeMismatch,  # len(method_id) must be less than 4
     ),
 ]
 

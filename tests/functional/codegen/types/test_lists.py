@@ -2,7 +2,7 @@ import itertools
 
 import pytest
 
-from vyper.exceptions import ArrayIndexException, InvalidType, OverflowException, TypeMismatch
+from vyper.exceptions import ArrayIndexException, OverflowException, TypeMismatch
 
 
 def test_list_tester_code(get_contract_with_gas_estimation):
@@ -353,7 +353,7 @@ def test_multi4() -> uint256[2][2][2][2]:
 
 
 @pytest.mark.parametrize("type_", ["uint8", "uint256"])
-def test_unsigned_accessors(get_contract_with_gas_estimation, assert_tx_failed, type_):
+def test_unsigned_accessors(get_contract_with_gas_estimation, tx_failed, type_):
     code = f"""
 @external
 def bounds_check(ix: {type_}) -> uint256:
@@ -363,11 +363,12 @@ def bounds_check(ix: {type_}) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
-    assert_tx_failed(lambda: c.bounds_check(3))
+    with tx_failed():
+        c.bounds_check(3)
 
 
 @pytest.mark.parametrize("type_", ["int128", "int256"])
-def test_signed_accessors(get_contract_with_gas_estimation, assert_tx_failed, type_):
+def test_signed_accessors(get_contract_with_gas_estimation, tx_failed, type_):
     code = f"""
 @external
 def bounds_check(ix: {type_}) -> uint256:
@@ -377,8 +378,10 @@ def bounds_check(ix: {type_}) -> uint256:
     c = get_contract_with_gas_estimation(code)
     assert c.bounds_check(0) == 1
     assert c.bounds_check(2) == 3
-    assert_tx_failed(lambda: c.bounds_check(3))
-    assert_tx_failed(lambda: c.bounds_check(-1))
+    with tx_failed():
+        c.bounds_check(3)
+    with tx_failed():
+        c.bounds_check(-1)
 
 
 def test_list_check_heterogeneous_types(get_contract_with_gas_estimation, assert_compile_failed):
@@ -563,7 +566,7 @@ struct Foo:
 @external
 def bar(_baz: Foo[3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _baz[i].x * _baz[i].y
     return sum
     """
@@ -605,7 +608,7 @@ struct Bar:
 @external
 def bar(_bar: Bar[3]) -> uint256:
     sum: uint256 = 0
-    for i in range(3):
+    for i: uint256 in range(3):
         sum += _bar[i].f[0].e.a[0] * _bar[i].f[1].e.a[1]
     return sum
     """
@@ -662,7 +665,7 @@ def foo(x: Bar[2][2][2]) -> uint256:
         ("bool", [True, False, True, False, True, False]),
     ],
 )
-def test_constant_list(get_contract, assert_tx_failed, type, value):
+def test_constant_list(get_contract, tx_failed, type, value):
     code = f"""
 MY_LIST: constant({type}[{len(value)}]) = {value}
 @external
@@ -673,7 +676,8 @@ def ix(i: uint256) -> {type}:
     for i, p in enumerate(value):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(value) + 1))
+    with tx_failed():
+        c.ix(len(value) + 1)
 
 
 def test_nested_constant_list_accessor(get_contract):
@@ -701,7 +705,7 @@ MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 def foo() -> {return_type}[3]:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -713,7 +717,7 @@ MY_CONSTANT: constant({storage_type}[3]) = [1, 2, 3]
 def foo() -> {return_type}:
     return MY_CONSTANT[0]
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -728,7 +732,7 @@ def foo(i: uint256) -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-def test_constant_list_address(get_contract, assert_tx_failed):
+def test_constant_list_address(get_contract, tx_failed):
     some_good_address = [
         "0x0000000000000000000000000000000000012345",
         "0x0000000000000000000000000000000000023456",
@@ -754,10 +758,11 @@ def ix(i: uint256) -> address:
     for i, p in enumerate(some_good_address):
         assert c.ix(i) == p
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(some_good_address) + 1))
+    with tx_failed():
+        c.ix(len(some_good_address) + 1)
 
 
-def test_list_index_complex_expr(get_contract, assert_tx_failed):
+def test_list_index_complex_expr(get_contract, tx_failed):
     # test subscripts where the index is not a literal
     code = """
 @external
@@ -771,7 +776,8 @@ def foo(xs: uint256[257], i: uint8) -> uint256:
         assert c.foo(xs, ix) == xs[ix + 1]
 
     # safemath should fail for uint8: 255 + 1.
-    assert_tx_failed(lambda: c.foo(xs, 255))
+    with tx_failed():
+        c.foo(xs, 255)
 
 
 @pytest.mark.parametrize(
@@ -793,7 +799,7 @@ def foo(xs: uint256[257], i: uint8) -> uint256:
         ("bool", [[True, False], [True, False], [True, False]]),
     ],
 )
-def test_constant_nested_list(get_contract, assert_tx_failed, type, value):
+def test_constant_nested_list(get_contract, tx_failed, type, value):
     code = f"""
 MY_LIST: constant({type}[{len(value[0])}][{len(value)}]) = {value}
 @external
@@ -805,7 +811,8 @@ def ix(i: uint256, j: uint256) -> {type}:
         for j, q in enumerate(p):
             assert c.ix(i, j) == q
     # assert oob
-    assert_tx_failed(lambda: c.ix(len(value) + 1, len(value[0]) + 1))
+    with tx_failed():
+        c.ix(len(value) + 1, len(value[0]) + 1)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -817,7 +824,7 @@ MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
 def foo() -> {return_type}[2][3]:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 @pytest.mark.parametrize("storage_type,return_type", itertools.permutations(integer_types, 2))
@@ -831,4 +838,4 @@ MY_CONSTANT: constant({storage_type}[2][3]) = [[1, 2], [3, 4], [5, 6]]
 def foo() -> {return_type}:
     return MY_CONSTANT[0][0]
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)

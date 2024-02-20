@@ -262,7 +262,8 @@ def compile_from_input_dict(
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
+            stacklevel=2,
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):

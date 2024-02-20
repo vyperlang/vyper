@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 
 
 @pytest.mark.fuzzing
@@ -19,8 +19,8 @@ def foo(array: int128[10], idx: uint256) -> int128:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"{array}[{idx}]")
+    vyper_ast = parse_and_fold(f"{array}[{idx}]")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(array, idx) == new_node.value

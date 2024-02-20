@@ -1,6 +1,6 @@
 import pytest
 
-from vyper import ast as vy_ast
+from tests.utils import parse_and_fold
 
 
 @pytest.mark.parametrize("bool_cond", [True, False])
@@ -12,9 +12,9 @@ def foo(a: bool) -> bool:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"not {bool_cond}")
+    vyper_ast = parse_and_fold(f"not {bool_cond}")
     old_node = vyper_ast.body[0].value
-    new_node = old_node.evaluate()
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(bool_cond) == new_node.value
 
@@ -30,8 +30,8 @@ def foo(a: bool) -> bool:
     contract = get_contract(source)
 
     literal_op = f"{'not ' * count}{bool_cond}"
-    vyper_ast = vy_ast.parse_to_ast(literal_op)
-    vy_ast.folding.replace_literal_ops(vyper_ast)
-    expected = vyper_ast.body[0].value.value
+    vyper_ast = parse_and_fold(literal_op)
+    new_node = vyper_ast.body[0].value.get_folded_value()
+    expected = new_node.value
 
     assert contract.foo(bool_cond) == expected

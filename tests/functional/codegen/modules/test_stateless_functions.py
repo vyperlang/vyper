@@ -159,7 +159,7 @@ struct SomeStruct:
 
 @internal
 def foo() -> SomeStruct:
-    return SomeStruct({x: 1})
+    return SomeStruct(x=1)
     """
     contract_source = """
 import library
@@ -170,7 +170,7 @@ def bar(s: library.SomeStruct):
 
 @external
 def baz() -> library.SomeStruct:
-    return library.SomeStruct({x: 2})
+    return library.SomeStruct(x=2)
 
 @external
 def qux() -> library.SomeStruct:
@@ -186,9 +186,9 @@ def qux() -> library.SomeStruct:
 
 
 # test calls to library functions in statement position
-def test_library_statement_calls(get_contract, make_input_bundle, assert_tx_failed):
+def test_library_statement_calls(get_contract, make_input_bundle, tx_failed):
     library_source = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import ERC20
 @internal
 def check_adds_to_ten(x: uint256, y: uint256):
     assert x + y == 10
@@ -211,7 +211,8 @@ def foo(x: uint256):
 
     assert c.counter() == 7
 
-    assert_tx_failed(lambda: c.foo(8))
+    with tx_failed():
+        c.foo(8)
 
 
 def test_library_is_typechecked(make_input_bundle):

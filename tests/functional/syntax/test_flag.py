@@ -2,7 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.exceptions import (
-    EnumDeclarationException,
+    FlagDeclarationException,
     InvalidOperation,
     NamespaceCollision,
     StructureException,
@@ -16,7 +16,7 @@ fail_list = [
 event Action:
     pass
 
-enum Action:
+flag Action:
     BUY
     SELL
     """,
@@ -24,23 +24,23 @@ enum Action:
     ),
     (
         """
-enum Action:
+flag Action:
     pass
     """,
-        EnumDeclarationException,
+        FlagDeclarationException,
     ),
     (
         """
-enum Action:
+flag Action:
     BUY
     BUY
     """,
-        EnumDeclarationException,
+        FlagDeclarationException,
     ),
-    ("enum Foo:\n" + "\n".join([f"    member{i}" for i in range(257)]), EnumDeclarationException),
+    ("flag Foo:\n" + "\n".join([f"    member{i}" for i in range(257)]), FlagDeclarationException),
     (
         """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -53,20 +53,20 @@ def foo(x: Roles) -> bool:
     ),
     (
         """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
 
 @external
 def foo(x: Roles) -> Roles:
-    return x.USER  # can't dereference on enum instance
+    return x.USER  # can't dereference on flag instance
     """,
         StructureException,
     ),
     (
         """
-enum Roles:
+flag Roles:
     USER
     STAFF
     ADMIN
@@ -79,28 +79,28 @@ def foo(x: Roles) -> bool:
     ),
     (
         """
-enum Functions:
+flag Functions:
     def foo():nonpayable
     """,
-        EnumDeclarationException,
+        FlagDeclarationException,
     ),
     (
         """
-enum Numbers:
+flag Numbers:
     a:constant(uint256) = a
     """,
-        EnumDeclarationException,
+        FlagDeclarationException,
     ),
     (
         """
-enum Numbers:
+flag Numbers:
     12
     """,
-        EnumDeclarationException,
+        FlagDeclarationException,
     ),
     (
         """
-enum Roles:
+flag Roles:
     ADMIN
     USER
 
@@ -112,9 +112,9 @@ def foo() -> Roles:
     ),
     (
         """
-enum A:
+flag A:
     a
-enum B:
+flag B:
     a
     b
 
@@ -135,12 +135,12 @@ def test_fail_cases(bad_code):
 
 valid_list = [
     """
-enum Action:
+flag Action:
     BUY
     SELL
     """,
     """
-enum Action:
+flag Action:
     BUY
     SELL
 @external
@@ -148,7 +148,7 @@ def run() -> Action:
     return Action.BUY
     """,
     """
-enum Action:
+flag Action:
     BUY
     SELL
 
@@ -158,21 +158,21 @@ struct Order:
 
 @external
 def run() -> Order:
-    return Order({
-        action: Action.BUY,
-        amount: 10**18
-        })
+    return Order(
+        action=Action.BUY,
+        amount=10**18
+        )
     """,
-    "enum Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
+    "flag Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
     """
 a: constant(uint256) = 1
 
-enum A:
+flag A:
     a
     """,
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_enum_success(good_code):
+def test_flag_success(good_code):
     assert compiler.compile_code(good_code) is not None

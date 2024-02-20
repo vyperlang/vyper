@@ -61,7 +61,7 @@ def get(k: String[34]) -> int128:
     assert c.get("a" * 34) == 6789
 
 
-def test_string_slice(get_contract_with_gas_estimation, assert_tx_failed):
+def test_string_slice(get_contract_with_gas_estimation, tx_failed):
     test_slice4 = """
 @external
 def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
@@ -76,17 +76,21 @@ def foo(inp: String[10], start: uint256, _len: uint256) -> String[10]:
     assert c.foo("badminton", 1, 0) == ""
     assert c.foo("badminton", 9, 0) == ""
 
-    assert_tx_failed(lambda: c.foo("badminton", 0, 10))
-    assert_tx_failed(lambda: c.foo("badminton", 1, 9))
-    assert_tx_failed(lambda: c.foo("badminton", 9, 1))
-    assert_tx_failed(lambda: c.foo("badminton", 10, 0))
+    with tx_failed():
+        c.foo("badminton", 0, 10)
+    with tx_failed():
+        c.foo("badminton", 1, 9)
+    with tx_failed():
+        c.foo("badminton", 9, 1)
+    with tx_failed():
+        c.foo("badminton", 10, 0)
 
 
 def test_private_string(get_contract_with_gas_estimation):
     private_test_code = """
 greeting: public(String[100])
 
-@external
+@deploy
 def __init__():
     self.greeting = "Hello "
 

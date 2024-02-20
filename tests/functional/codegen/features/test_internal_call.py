@@ -152,7 +152,7 @@ def _increment():
 
 @external
 def returnten() -> int128:
-    for i in range(10):
+    for i: uint256 in range(10):
         self._increment()
     return self.counter
     """
@@ -550,7 +550,7 @@ struct X:
 
 @internal
 def get_struct_x() -> X:
-    return X({{x: {i}, y: "{s}", z: b"{s}"}})
+    return X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def test() -> (int128, String[{ln}], Bytes[{ln}]):
@@ -575,7 +575,7 @@ def _foo(x: X) -> Bytes[6]:
 
 @external
 def bar() -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return self._foo(_X)
     """
 
@@ -596,7 +596,7 @@ def _foo(x: X) -> String[6]:
 
 @external
 def bar() -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return self._foo(_X)
     """
 
@@ -617,7 +617,7 @@ def _foo(s: Bytes[6]) -> Bytes[6]:
 
 @external
 def bar() -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return self._foo(_X.y)
     """
 
@@ -638,7 +638,7 @@ def _foo(s: String[6]) -> String[6]:
 
 @external
 def bar() -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return self._foo(_X.y)
     """
 

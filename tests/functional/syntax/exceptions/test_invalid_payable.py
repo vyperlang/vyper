@@ -14,7 +14,7 @@ def foo():
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
-def test_variable_decleration_exception(bad_code):
+def test_variable_declaration_exception(bad_code):
     with raises(NonPayableViolation):
         compiler.compile_code(bad_code)
 

@@ -15,7 +15,7 @@ def foo():
     assert tx_receipt["gasUsed"] == gas_sent  # Drains all gains sent
 
 
-def test_basic_unreachable(w3, get_contract, assert_tx_failed):
+def test_basic_unreachable(w3, get_contract, tx_failed):
     code = """
 @external
 def foo(val: int128) -> bool:
@@ -28,12 +28,15 @@ def foo(val: int128) -> bool:
 
     assert c.foo(2) is True
 
-    assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
-    assert_tx_failed(lambda: c.foo(-1), exc_text="Invalid opcode 0xfe")
-    assert_tx_failed(lambda: c.foo(-2), exc_text="Invalid opcode 0xfe")
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo(1)
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo(-1)
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo(-2)
 
 
-def test_basic_call_unreachable(w3, get_contract, assert_tx_failed):
+def test_basic_call_unreachable(w3, get_contract, tx_failed):
     code = """
 
 @view
@@ -51,11 +54,13 @@ def foo(val: int128) -> int128:
 
     assert c.foo(33) == -123
 
-    assert_tx_failed(lambda: c.foo(1), exc_text="Invalid opcode 0xfe")
-    assert_tx_failed(lambda: c.foo(-1), exc_text="Invalid opcode 0xfe")
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo(1)
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo(-1)
 
 
-def test_raise_unreachable(w3, get_contract, assert_tx_failed):
+def test_raise_unreachable(w3, get_contract, tx_failed):
     code = """
 @external
 def foo():
@@ -64,4 +69,5 @@ def foo():
 
     c = get_contract(code)
 
-    assert_tx_failed(lambda: c.foo(), exc_text="Invalid opcode 0xfe")
+    with tx_failed(exc_text="Invalid opcode 0xfe"):
+        c.foo()

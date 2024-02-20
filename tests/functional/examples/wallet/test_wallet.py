@@ -29,7 +29,7 @@ def sign(keccak):
     return _sign
 
 
-def test_approve(w3, c, tester, assert_tx_failed, sign):
+def test_approve(w3, c, tester, tx_failed, sign):
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
     k0, k1, k2, k3, k4, k5, k6, k7 = tester.backend.account_keys[:8]
 
@@ -45,24 +45,20 @@ def test_approve(w3, c, tester, assert_tx_failed, sign):
     c.approve(0, "0x" + to.hex(), value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if only 2 signatures are given
     sigs = pack_and_sign(1, k1, 0, k3, 0, 0)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if an invalid signature is given
     sigs = pack_and_sign(1, k1, 0, k7, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if transaction number is incorrect (the first argument should be 1)
     sigs = pack_and_sign(0, k1, 0, k3, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
-    )  # noqa: E501
+    with tx_failed():
+        c.approve(0, to_address, value, data, sigs, transact={"value": value, "from": a1})
     # Approve fails if not enough value is sent
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
-    assert_tx_failed(
-        lambda: c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
-    )  # noqa: E501
+    with tx_failed():
+        c.approve(1, to_address, value, data, sigs, transact={"value": 0, "from": a1})
     sigs = pack_and_sign(1, k1, 0, k3, 0, k5)
 
     # this call should succeed

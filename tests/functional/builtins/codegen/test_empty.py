@@ -351,22 +351,22 @@ foobar: FOOBAR
 
 @external
 def foo():
-    self.foobar = FOOBAR({
-        a: 1,
-        b: 2,
-        c: True,
-        d: 3.0,
-        e: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        f: msg.sender
-    })
-    bar: FOOBAR = FOOBAR({
-        a: 1,
-        b: 2,
-        c: True,
-        d: 3.0,
-        e: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        f: msg.sender
-    })
+    self.foobar = FOOBAR(
+        a=1,
+        b=2,
+        c=True,
+        d=3.0,
+        e=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+        f=msg.sender
+    )
+    bar: FOOBAR = FOOBAR(
+        a=1,
+        b=2,
+        c=True,
+        d=3.0,
+        e=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+        f=msg.sender
+    )
 
     self.foobar = empty(FOOBAR)
     bar = empty(FOOBAR)
@@ -423,7 +423,7 @@ interface Mirror:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i in range(1024):
+    for i: uint256 in range(1024):
         xs[i] = -(i + 1)
 @internal
 def priv(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
@@ -469,7 +469,7 @@ struct X:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i in range(1024):
+    for i: uint256 in range(1024):
         xs[i] = -(i + 1)
 
 @external
@@ -575,10 +575,7 @@ structmap: HashMap[int128, X]
 
 @external
 def set():
-    self.structmap[123] = X({
-        a: 333,
-        b: 444
-    })
+    self.structmap[123] = X(a=333, b=444)
 
 @external
 def get() -> (int128, int128):

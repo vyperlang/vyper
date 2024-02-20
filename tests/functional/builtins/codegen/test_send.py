@@ -1,4 +1,4 @@
-def test_send(assert_tx_failed, get_contract):
+def test_send(tx_failed, get_contract):
     send_test = """
 @external
 def foo():
@@ -9,9 +9,11 @@ def fop():
     send(msg.sender, 10)
     """
     c = get_contract(send_test, value=10)
-    assert_tx_failed(lambda: c.foo(transact={}))
+    with tx_failed():
+        c.foo(transact={})
     c.fop(transact={})
-    assert_tx_failed(lambda: c.fop(transact={}))
+    with tx_failed():
+        c.fop(transact={})
 
 
 def test_default_gas(get_contract, w3):
@@ -45,14 +47,14 @@ def __default__():
 
     sender.test_send(receiver.address, transact={"gas": 100000})
 
-    # no value transfer hapenned, variable was not changed
+    # no value transfer happened, variable was not changed
     assert receiver.last_sender() is None
     assert w3.eth.get_balance(sender.address) == 1
     assert w3.eth.get_balance(receiver.address) == 0
 
     sender.test_call(receiver.address, transact={"gas": 100000})
 
-    # value transfer hapenned, variable was changed
+    # value transfer happened, variable was changed
     assert receiver.last_sender() == sender.address
     assert w3.eth.get_balance(sender.address) == 0
     assert w3.eth.get_balance(receiver.address) == 1
@@ -86,7 +88,7 @@ def __default__():
 
     sender.test_send_stipend(receiver.address, transact={"gas": 100000})
 
-    # value transfer hapenned, variable was changed
+    # value transfer happened, variable was changed
     assert receiver.last_sender() == sender.address
     assert w3.eth.get_balance(sender.address) == 0
     assert w3.eth.get_balance(receiver.address) == 1

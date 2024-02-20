@@ -251,11 +251,17 @@ class IntegerT(NumericT):
         return ABI_GIntM(self.bits, self.is_signed)
 
     def compare_type(self, other: VyperType) -> bool:
-        if not super().compare_type(other):
-            return False
-        assert isinstance(other, IntegerT)  # mypy
+        # this function is performance sensitive
+        # originally:
+        # if not super().compare_type(other):
+        #    return False
+        # return self.is_signed == other.is_signed and self.bits == other.bits
 
-        return self.is_signed == other.is_signed and self.bits == other.bits
+        return (  # noqa: E721
+            self.__class__ == other.__class__
+            and self.is_signed == other.is_signed  # type: ignore
+            and self.bits == other.bits  # type: ignore
+        )
 
 
 # helper function for readability.
@@ -340,3 +346,13 @@ class AddressT(_PrimT):
                 f"address, the correct checksummed form is: {checksum_encode(addr)}",
                 node,
             )
+
+
+# type for "self"
+# refactoring note: it might be best for this to be a ModuleT actually
+class SelfT(AddressT):
+    _id = "self"
+
+    def compare_type(self, other):
+        # compares true to AddressT
+        return isinstance(other, type(self)) or isinstance(self, type(other))
