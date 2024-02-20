@@ -175,8 +175,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # handle implements last, after all functions are handled
         self._visit_nodes_linear(vy_ast.ImplementsDecl)
 
-        # we are done! make sure we visited everything
-        assert len(self._to_visit) == 0
+        # we are done! any remaining nodes should raise errors.
+        for n in self._to_visit:
+            self.visit(n)
 
         self.module_t = ModuleT(self.ast)
         self.ast._metadata["type"] = self.module_t
