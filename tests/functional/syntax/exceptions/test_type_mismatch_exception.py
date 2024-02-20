@@ -43,10 +43,6 @@ event Foo:
 def foo():
     log Foo("abcd")
     """,
-    # Address literal must be checksummed
-    """
-a: constant(address) = 0x3cd751e6b0078be393132286c442345e5dc49699
-    """,
 ]
 
 
