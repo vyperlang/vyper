@@ -1048,7 +1048,7 @@ class Mult(Operator):
 
 class Div(Operator):
     __slots__ = ()
-    _description = "division"
+    _description = "decimal division"
     _pretty = "/"
 
     def _op(self, left, right):
