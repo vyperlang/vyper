@@ -683,9 +683,7 @@ class Expr:
 
         # Struct constructor
         if is_type_t(func_type, StructT):
-            args = self.expr.args
-            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
+            return self.handle_struct_literal()
 
         # Interface constructor. Bar(<address>).
         if is_type_t(func_type, InterfaceT):
@@ -750,17 +748,15 @@ class Expr:
         location = body.location
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
-    @staticmethod
-    def struct_literals(expr, context, typ):
+    def handle_struct_literal(self):
+        expr = self.expr
+        typ = expr._metadata["type"]
         member_subs = {}
-        member_typs = {}
-        for key, value in zip(expr.keys, expr.values):
-            assert isinstance(key, vy_ast.Name)
-            assert key.id not in member_subs
+        for kwarg in expr.keywords:
+            assert kwarg.arg not in member_subs
 
-            sub = Expr(value, context).ir_node
-            member_subs[key.id] = sub
-            member_typs[key.id] = sub.typ
+            sub = Expr(kwarg.value, self.context).ir_node
+            member_subs[kwarg.arg] = sub
 
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ

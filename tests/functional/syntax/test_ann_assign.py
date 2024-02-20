@@ -59,7 +59,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1.2, b: 1})
+    s: S = S(a=1.2, b=1)
     return s.a
     """,
         TypeMismatch,
@@ -71,7 +71,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1})
+    s: S = S(a=1)
     """,
         VariableDeclarationException,
     ),
@@ -82,7 +82,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({b: 1.2, a: 1})
+    s: S = S(b=1.2, a=1)
     """,
         InvalidAttribute,
     ),
@@ -93,7 +93,7 @@ struct S:
     b: decimal
 @external
 def foo() -> int128:
-    s: S = S({a: 1, b: 1.2, c: 1, d: 33, e: 55})
+    s: S = S(a=1, b=1.2, c=1, d=33, e=55)
     return s.a
     """,
         UnknownAttribute,

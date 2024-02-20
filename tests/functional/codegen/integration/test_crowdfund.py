@@ -121,7 +121,7 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 def participate():
     assert block.timestamp < self.deadline
     nfi: int128 = self.nextFunderIndex
-    self.funders[nfi] = Funder({sender: msg.sender, value: msg.value})
+    self.funders[nfi] = Funder(sender=msg.sender, value=msg.value)
     self.nextFunderIndex = nfi + 1
 
 @external

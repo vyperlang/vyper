@@ -63,8 +63,8 @@ struct Y:
     y: int128
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
-    b: Y = Y({y: 5})
+    a: X = X(x=block.timestamp)
+    b: Y = Y(y=5)
     a.x = b.y
     """,
     """
@@ -123,7 +123,7 @@ struct X:
     x: uint256
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
+    a: X = X(x=block.timestamp)
     a.x = block.gaslimit
     a.x = block.basefee
     a.x = 5

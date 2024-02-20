@@ -381,38 +381,36 @@ class StructT(_UserType):
         components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
-    # TODO breaking change: use kwargs instead of dict
-    # when using the type itself (not an instance) in the call position
-    # maybe rename to _ctor_call_return
     def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
-        validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Dict):
+        if len(node.args) > 0:
             raise VariableDeclarationException(
-                "Struct values must be declared via dictionary", node.args[0]
+                "Struct values must be declared as kwargs e.g. Foo(a=1, b=2)", node.args[0]
             )
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
+        # manually validate kwargs for better error messages instead of
+        # relying on `validate_call_args`
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
-        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
-            if key is None or key.get("id") not in members:
-                hint = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
-                raise UnknownAttribute(
-                    "Unknown or duplicate struct member.", key or value, hint=hint
-                )
-            expected_key = keys[i]
-            if key.id != expected_key:
+        for i, kwarg in enumerate(node.keywords):
+            # x=5 => kwarg(arg="x", value=Int(5))
+            argname = kwarg.arg
+            if argname not in members:
+                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+                raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
+            expected = keys[i]
+            if argname != expected:
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
-                    f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
+                    f"`{argname}` instead of `{expected}`. (Reminder: the "
                     f"keys in this struct are {list(self.member_types.items())})",
-                    key,
+                    kwarg,
                 )
-
-            validate_expected_type(value, members.pop(key.id))
+            expected_type = members.pop(argname)
+            validate_expected_type(kwarg.value, expected_type)
 
         if members:
             raise VariableDeclarationException(
@@ -422,4 +420,4 @@ class StructT(_UserType):
         return self
 
     def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return all(check_modifiability(v, modifiability) for v in node.args[0].values)
+        return all(check_modifiability(k.value, modifiability) for k in node.keywords)
