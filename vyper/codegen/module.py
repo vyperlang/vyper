@@ -517,6 +517,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
         if fn_t.is_internal and fn_t._ir_info is None:
+            id_generator.ensure_id(fn_t)
             _ = _ir_for_internal_function(func_ast, module_t, False)
 
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)
