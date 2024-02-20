@@ -2,6 +2,7 @@
 
 from typing import Any, List
 
+import vyper.ast as vy_ast
 from vyper.codegen import core, jumptable_utils
 from vyper.codegen.core import shr
 from vyper.codegen.function_definitions import (
@@ -22,8 +23,8 @@ def _runtime_reachable_functions(module_t, id_generator):
 
     for fn_t in module_t.exposed_functions:
         # resolve variabledecl getter source
-        if (s := fn_t.ast_def._metadata.get("getter_source")) is not None:
-            fn_t = s._metadata["func_type"]
+        if isinstance(fn_t.ast_def, vy_ast.VariableDecl):
+            fn_t = fn_t.ast_def._expanded_getter._metadata["func_type"]
 
         ret.update(fn_t.reachable_internal_functions)
         ret.add(fn_t)
@@ -515,10 +516,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     # not it makes it into the final IR artifact)
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
-        if not fn_t.is_internal:
-            continue
-        if fn_t._ir_info is not None:
-            continue
-        _ = _ir_for_internal_function(func_ast, module_t, False)
+        if fn_t.is_internal and fn_t._ir_info is None:
+            _ = _ir_for_internal_function(func_ast, module_t, False)
 
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)

@@ -36,6 +36,7 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
+from vyper.semantics.analysis.getters import generate_public_variable_getters
 from vyper.semantics.analysis.import_graph import ImportGraph
 from vyper.semantics.analysis.local import ExprVisitor, validate_functions
 from vyper.semantics.analysis.utils import (
@@ -76,7 +77,7 @@ def validate_module_semantics_r(
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
         ret = analyzer.analyze()
 
-        vy_ast.expansion.generate_public_variable_getters(module_ast)
+        generate_public_variable_getters(module_ast)
 
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`

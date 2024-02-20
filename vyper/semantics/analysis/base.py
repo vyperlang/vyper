@@ -163,7 +163,7 @@ class VarInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    decl_node: Optional[vy_ast.VyperNode] = None
+    decl_node: Optional[vy_ast.VariableDecl] = None
 
     def __hash__(self):
         return hash(id(self))
@@ -171,6 +171,13 @@ class VarInfo:
     def __post_init__(self):
         self.position = None
         self._modification_count = 0
+
+    @property
+    def getter_type(self) -> Optional["ContractFunctionT"]:
+        assert self.decl_node is not None  # help mypy
+        ret = self.decl_node._metadata.get("getter_type", None)
+        assert (ret is not None) == self.is_public, self
+        return ret
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:

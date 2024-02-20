@@ -428,6 +428,7 @@ class ModuleT(VyperType):
             ret.extend(node._metadata["exports_info"].functions)
 
         ret.extend([f for f in self.functions.values() if f.is_external])
+        ret.extend([v.getter_type for v in self.public_variables.values()])
 
         # precondition: no duplicate exports
         assert len(set(ret)) == len(ret)
@@ -443,6 +444,10 @@ class ModuleT(VyperType):
         # variables that this module defines, ex.
         # `x: uint256` is a private storage variable named x
         return {s.target.id: s.target._metadata["varinfo"] for s in self.variable_decls}
+
+    @cached_property
+    def public_variables(self):
+        return {k: v for (k, v) in self.variables.items() if v.is_public}
 
     @cached_property
     def functions(self):

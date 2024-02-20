@@ -69,6 +69,11 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     for node in vy_module.get_children(vy_ast.FunctionDef):
         _validate_function_r(vy_module, node, err_list)
 
+    for node in vy_module.get_children(vy_ast.VariableDecl):
+        if not node.is_public:
+            continue
+        _validate_function_r(vy_module, node._expanded_getter, err_list)
+
     err_list.raise_if_not_empty()
 
 
