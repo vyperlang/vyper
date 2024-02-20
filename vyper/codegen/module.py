@@ -17,7 +17,7 @@ from vyper.utils import OrderedSet, method_id_int
 
 # calculate globally reachable functions to see which
 # ones should make it into the final bytecode.
-def _globally_reachable_functions(module_t, id_generator):
+def _runtime_reachable_functions(module_t, id_generator):
     ret = OrderedSet()
 
     for fn_t in module_t.exposed_functions:
@@ -419,10 +419,9 @@ def _selector_section_linear(external_functions, module_t):
 def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     id_generator = IDGenerator()
-    reachable = _globally_reachable_functions(module_t, id_generator)
-    function_defs = [fn_t.ast_def for fn_t in reachable]
+    runtime_reachable = _runtime_reachable_functions(module_t, id_generator)
 
-    init_function = next((f for f in module_t.function_defs if _is_constructor(f)), None)
+    function_defs = [fn_t.ast_def for fn_t in runtime_reachable]
 
     runtime_functions = [f for f in function_defs if not _is_constructor(f)]
     internal_functions = [f for f in runtime_functions if _is_internal(f)]
@@ -437,14 +436,6 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     for func_ast in internal_functions:
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
-
-    # compile all internal functions so that _ir_info is populated (whether or
-    # not it makes it into the final IR artifact)
-    for func_ast in module_t.function_defs:
-        fn_t = func_ast._metadata["func_type"]
-        if not fn_t.is_internal or fn_t in reachable:
-            continue
-        _ = _ir_for_internal_function(func_ast, module_t, False)
 
     if core._opt_none():
         selector_section = _selector_section_linear(external_functions, module_t)
@@ -470,13 +461,15 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     deploy_code: List[Any] = ["seq"]
     immutables_len = module_t.immutable_section_bytes
-    if init_function is not None:
+
+    if (init_func_t := module_t.init_function) is not None:
         # cleanly rerun codegen for internal functions with `is_ctor_ctx=True`
-        init_func_t = init_function._metadata["func_type"]
+        id_generator.ensure_id(init_func_t)
         ctor_internal_func_irs = []
 
         reachable_from_ctor = init_func_t.reachable_internal_functions
         for func_t in reachable_from_ctor:
+            id_generator.ensure_id(func_t)
             fn_ast = func_t.ast_def
             func_ir = _ir_for_internal_function(fn_ast, module_t, is_ctor_context=True)
             ctor_internal_func_irs.append(func_ir)
@@ -484,12 +477,12 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         # generate init_func_ir after callees to ensure they have analyzed
         # memory usage.
         # TODO might be cleaner to separate this into an _init_ir helper func
-        init_func_ir = _ir_for_fallback_or_ctor(init_function, module_t)
+        init_func_ir = _ir_for_fallback_or_ctor(init_func_t.ast_def, module_t)
 
         # pass the amount of memory allocated for the init function
         # so that deployment does not clobber while preparing immutables
         # note: (deploy mem_ofst, code, extra_padding)
-        init_mem_used = init_function._metadata["func_type"]._ir_info.frame_info.mem_used
+        init_mem_used = init_func_t._ir_info.frame_info.mem_used
 
         # force msize to be initialized past the end of immutables section
         # so that builtins which use `msize` for "dynamic" memory
@@ -517,5 +510,15 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         if immutables_len != 0:
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
+
+    # compile all internal functions so that _ir_info is populated (whether or
+    # not it makes it into the final IR artifact)
+    for func_ast in module_t.function_defs:
+        fn_t = func_ast._metadata["func_type"]
+        if not fn_t.is_internal:
+            continue
+        if fn_t._ir_info is not None:
+            continue
+        _ = _ir_for_internal_function(func_ast, module_t, False)
 
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)

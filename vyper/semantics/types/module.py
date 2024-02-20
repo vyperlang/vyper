@@ -235,6 +235,9 @@ class InterfaceT(_UserType):
         for fn_t in module_t.exposed_functions:
             funcs.append((fn_t.name, fn_t))
 
+        if (fn_t := module_t.init_function) is not None:
+            funcs.append((fn_t.name, fn_t))
+
         events = [(node.name, node._metadata["event_type"]) for node in module_t.event_defs]
 
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
@@ -419,15 +422,21 @@ class ModuleT(VyperType):
 
     @cached_property
     def exposed_functions(self):
+        # return external functions that are exposed in the runtime
         ret = []
         for node in self.exports_decls:
             ret.extend(node._metadata["exports_info"].functions)
 
+        ret.extend([f for f in self.functions.values() if f.is_external])
+
         # precondition: no duplicate exports
         assert len(set(ret)) == len(ret)
 
-        ret.extend([f for f in self.functions.values() if not f.is_internal])
         return ret
+
+    @cached_property
+    def init_function(self) -> Optional[ContractFunctionT]:
+        return next((f for f in self.functions.values() if f.is_constructor), None)
 
     @cached_property
     def variables(self):
