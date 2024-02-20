@@ -263,7 +263,7 @@ def test_binop_nested_intermediate_overflow():
     code = """
 @external
 def foo():
-    a: uint256 = 2**255 * 2 / 10
+    a: uint256 = 2**255 * 2 // 10
     """
     with pytest.raises(OverflowException):
         compile_code(code)

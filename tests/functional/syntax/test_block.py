@@ -26,7 +26,7 @@ def foo() -> int128[2]:
 def foo() -> decimal:
     x: int128 = as_wei_value(5, "finney")
     y: int128 = block.timestamp + 50
-    return x / y
+    return x // y
     """,
     (
         """
@@ -106,7 +106,7 @@ def add_record():
 def foo() -> uint256:
     x: uint256 = as_wei_value(5, "finney")
     y: uint256 = block.timestamp + 50 - block.timestamp
-    return x / y
+    return x // y
     """,
     """
 @external
