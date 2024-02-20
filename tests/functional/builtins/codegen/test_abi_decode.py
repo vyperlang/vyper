@@ -36,15 +36,15 @@ def abi_decode(x: Bytes[160]) -> (address, int128, bool, decimal, bytes32):
 @external
 def abi_decode_struct(x: Bytes[544]) -> Human:
     human: Human = Human(
-        name = "",
-        pet = Animal(
-            name = "",
-            address_ = empty(address),
-            id_ = 0,
-            is_furry = False,
-            price = 0.0,
-            data = [0, 0, 0],
-            metadata = 0x0000000000000000000000000000000000000000000000000000000000000000
+        name="",
+        pet=Animal(
+            name="",
+            address_=empty(address),
+            id_=0,
+            is_furry=False,
+            price=0.0,
+            data=[0, 0, 0],
+            metadata=0x0000000000000000000000000000000000000000000000000000000000000000
         )
     )
     human = _abi_decode(x, Human)
