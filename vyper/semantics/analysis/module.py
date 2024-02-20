@@ -161,18 +161,19 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # handle ownership decls, mutate ModuleInfo.ownership
         self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
 
-        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef)
+        # mutate _exposed_functions
+        self._visit_nodes_linear(vy_ast.ExportsDecl)
+
         # handle some node types using a dependency resolution routine
         # which loops, swallowing exceptions until all nodes are processed
+        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef)
         self._visit_nodes_looping(type_decls)
 
         # special type which can't be used by other types; process it last
         self._visit_nodes_linear(vy_ast.EventDef)
 
         # handle functions
-        self._visit_nodes_linear(vy_ast.VariableDecl)
-        self._visit_nodes_linear(vy_ast.FunctionDef)
-        self._visit_nodes_linear(vy_ast.ExportsDecl)
+        self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
 
         # handle implements last, after all functions are handled
         self._visit_nodes_linear(vy_ast.ImplementsDecl)
@@ -500,13 +501,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not func_t.is_external:
                 raise StructureException("not an external function!", decl_node, item)
 
-            self._add_exposed_function(func_t, item)
+            self._add_exposed_function(func_t, item, relax=False)
             funcs.append(func_t)
 
         node._metadata["exports_info"] = ExportsInfo(funcs)
 
-    def _add_exposed_function(self, func_t, node):
-        if func_t in self._exposed_functions:
+    def _add_exposed_function(self, func_t, node, relax=True):
+        if not relax and func_t in self._exposed_functions:
             prev_export = self._exposed_functions[func_t]
             raise StructureException("already exported!", node, prev_export)
         self._exposed_functions[func_t] = node
