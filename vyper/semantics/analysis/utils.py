@@ -376,7 +376,7 @@ class _ExprAnalyser:
             # when this is a type, we want to lower it
             if isinstance(t, VyperType):
                 # TYPE_T is used to handle cases where a type can occur in call or
-                # attribute conditions, like Enum.foo or MyStruct({...})
+                # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
             return [t.typ]

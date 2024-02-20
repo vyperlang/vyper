@@ -764,7 +764,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
-                    # enum membership - `some_enum in other_enum`
+                    # flag membership - `some_flag in other_flag`
                     ltyp = rtyp
                 else:
                     # array membership - `x in my_list_variable`
