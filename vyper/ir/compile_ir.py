@@ -810,21 +810,21 @@ def _prune_unreachable_code(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 1:
-        instr = assembly[i]
-        if isinstance(instr, list):
-            instr = assembly[i][-1]
+        if assembly[i] in _TERMINAL_OPS:
+            # find the next jumpdest or sublist
+            for j in range(i + 1, len(assembly)):
+                next_is_jumpdest = (
+                    j < len(assembly) - 1
+                    and is_symbol(assembly[j])
+                    and assembly[j + 1] == "JUMPDEST"
+                )
+                next_is_list = isinstance(assembly[j], list)
+                if next_is_jumpdest or next_is_list:
+                    break
+            changed = j > i + 1
+            del assembly[i + 1 : j]
 
-        is_terminal = assembly[i] in _TERMINAL_OPS
-        next_is_jumpdest = (
-            i + 2 < len(assembly) and is_symbol(assembly[i + 1]) and assembly[i + 2] == "JUMPDEST"
-        )
-        next_is_list = isinstance(assembly[i + 1], list)
-
-        if is_terminal and not (next_is_jumpdest or next_is_list):
-            changed = True
-            del assembly[i + 1]
-        else:
-            i += 1
+        i += 1
 
     return changed
 
