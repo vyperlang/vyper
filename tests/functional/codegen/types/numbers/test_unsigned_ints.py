@@ -267,3 +267,15 @@ def foo():
     """
     with pytest.raises(OverflowException):
         compile_code(code)
+
+
+def test_invalid_div():
+    code = """
+@external
+def foo():
+    a: uint256 = 5 / 9
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `//`?"

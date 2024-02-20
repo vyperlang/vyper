@@ -6,7 +6,13 @@ from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
-from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
+from vyper.exceptions import (
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidOperation,
+    OverflowException,
+    VyperException,
+)
 from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
@@ -233,6 +239,14 @@ class IntegerT(NumericT):
             return invalid_ops + (vy_ast.USub,)
         return invalid_ops
 
+    def validate_numeric_op(self, node) -> None:
+        try:
+            super().validate_numeric_op(node)
+        except VyperException as e:
+            if isinstance(node.op, vy_ast.Div):
+                e._hint = "did you mean `//`?"
+            raise e from None
+
     @classmethod
     # TODO maybe cache these three classmethods
     def signeds(cls) -> Tuple["IntegerT", ...]:
@@ -288,6 +302,14 @@ class DecimalT(NumericT):
     _equality_attrs = ("_bits", "_decimal_places")
 
     ast_type = Decimal
+
+    def validate_numeric_op(self, node) -> None:
+        try:
+            super().validate_numeric_op(node)
+        except VyperException as e:
+            if isinstance(node.op, vy_ast.FloorDiv):
+                e._hint = "did you mean `/`?"
+            raise e from None
 
     @cached_property
     def abi_type(self) -> ABIType:
