@@ -512,12 +512,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         iter_var = None
+        is_range = False
         if isinstance(node.iter, vy_ast.Call):
-            if not isinstance(target_type, IntegerT):
-                raise TypeCheckFailure(
-                    "Range can only be defined over an integer type", node.target.annotation
-                )
             self._analyse_range_iter(node.iter, target_type)
+            is_range = True
         else:
             iter_var = self._analyse_list_iter(node.iter, target_type)
 
@@ -527,6 +525,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.namespace[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
+            # ideally should be performed before calling _analyse_range_iter 
+            # but there is a dependence on the namespace update
+            if is_range:
+                validate_expected_type(node.target.target, IntegerT.any())
+
             self.expr_visitor.visit(node.target.target, target_type)
 
             for stmt in node.body:
@@ -876,7 +879,7 @@ def _validate_range_call(node: vy_ast.Call):
         if bound.has_folded_value:
             bound = bound.get_folded_value()
         if not isinstance(bound, vy_ast.Int):
-            raise StateAccessViolation("Bound must be a literal integer", bound)
+            raise TypeMismatch("Bound must be a literal integer", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
         if isinstance(start, vy_ast.Int) and isinstance(end, vy_ast.Int):
@@ -886,6 +889,6 @@ def _validate_range_call(node: vy_ast.Call):
         for arg in (start, end):
             if not isinstance(arg, vy_ast.Int):
                 error = "Value must be a literal integer, unless a bound is specified"
-                raise StateAccessViolation(error, arg)
+                raise TypeMismatch(error, arg)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)

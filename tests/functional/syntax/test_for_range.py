@@ -3,14 +3,7 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    ArgumentException,
-    StateAccessViolation,
-    StructureException,
-    TypeCheckFailure,
-    TypeMismatch,
-    UnknownType,
-)
+from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
 
 fail_list = [
     (
@@ -45,7 +38,7 @@ def foo():
     for _: uint256 in range(10, bound=x):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Bound must be a literal integer",
         None,
         "x",
@@ -107,7 +100,7 @@ def bar():
     for i: uint256 in range(x):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -120,7 +113,7 @@ def bar():
     for i: uint256 in range(0, x):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -133,7 +126,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return n
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n * 10",
@@ -146,7 +139,7 @@ def bar():
     for i: uint256 in range(0, x + 1):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x + 1",
@@ -171,7 +164,7 @@ def bar():
     for i: uint256 in range(x, x):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -184,7 +177,7 @@ def foo():
     for i: int128 in range(x, x + 10):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -197,7 +190,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return x
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n",
@@ -210,7 +203,7 @@ def foo(x: int128):
     for i: int128 in range(x, x + y):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -222,7 +215,7 @@ def bar(x: uint256):
     for i: uint256 in range(3, x):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -311,10 +304,10 @@ def foo():
     for i:decimal in range(1.1, 2.2):
         pass
     """,
-        TypeCheckFailure,
-        "Range can only be defined over an integer type",
+        TypeMismatch,
+        "Value must be a literal integer, unless a bound is specified",
         None,
-        "decimal",
+        "1.1",
     ),
     (
         """
@@ -324,10 +317,10 @@ def foo():
     for i:decimal in range(x, x + 2.0, bound=10.1):
         pass
     """,
-        TypeCheckFailure,
-        "Range can only be defined over an integer type",
+        TypeMismatch,
+        "Bound must be a literal integer",
         None,
-        "decimal",
+        "10.1",
     ),
 ]
 
