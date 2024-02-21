@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.namespace import get_namespace, reset_namespace
 
 
 @pytest.fixture(scope="session")
@@ -26,7 +26,5 @@ def namespace():
     """
     Yields a clean `Namespace` object.
     """
-    obj = get_namespace()
-    obj.clear()
-    yield obj
-    obj.clear()
+    yield get_namespace()
+    reset_namespace()
