@@ -1,3 +1,4 @@
+import copy
 import os
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -188,10 +189,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.ast._metadata["type"] = self.module_t
 
         # attach namespace to the module for downstream use.
-        _ns = Namespace()
-        # note that we don't just copy the namespace because
-        # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
+        _ns = copy.copy(self.namespace)
         self.ast._metadata["namespace"] = _ns
 
         self.analyze_call_graph()

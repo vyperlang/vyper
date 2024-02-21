@@ -1,4 +1,5 @@
 import contextlib
+import copy
 
 from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
@@ -11,7 +12,7 @@ class Namespace(dict):
 
     Attributes
     ----------
-    _scopes : List[Set]
+    _scopes : list[set]
         List of sets containing the key names for each scope
     """
 
@@ -32,6 +33,13 @@ class Namespace(dict):
         self.update(PRIMITIVE_TYPES)
         self.update(environment.get_constant_vars())
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
+
+    def __copy__(self):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.update(self)
+        ret._scopes = copy.deepcopy(self._scopes)
+        return ret
 
     def __eq__(self, other):
         return self is other
