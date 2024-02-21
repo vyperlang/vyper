@@ -1,4 +1,6 @@
-from vyper.interfaces import ERC20
+#pragma version >0.3.10
+
+from ethereum.ercs import ERC20
 
 
 totalEthQty: public(uint256)
@@ -9,7 +11,7 @@ invariant: public(uint256)
 token_address: ERC20
 owner: public(address)
 
-# Sets the on chain market maker with its owner, intial token quantity,
+# Sets the on chain market maker with its owner, initial token quantity,
 # and initial ether quantity
 @external
 @payable
@@ -27,10 +29,10 @@ def initiate(token_addr: address, token_quantity: uint256):
 @external
 @payable
 def ethToTokens():
-    fee: uint256 = msg.value / 500
+    fee: uint256 = msg.value // 500
     eth_in_purchase: uint256 = msg.value - fee
     new_total_eth: uint256 = self.totalEthQty + eth_in_purchase
-    new_total_tokens: uint256 = self.invariant / new_total_eth
+    new_total_tokens: uint256 = self.invariant // new_total_eth
     self.token_address.transfer(msg.sender, self.totalTokenQty - new_total_tokens)
     self.totalEthQty = new_total_eth
     self.totalTokenQty = new_total_tokens
@@ -40,7 +42,7 @@ def ethToTokens():
 def tokensToEth(sell_quantity: uint256):
     self.token_address.transferFrom(msg.sender, self, sell_quantity)
     new_total_tokens: uint256 = self.totalTokenQty + sell_quantity
-    new_total_eth: uint256 = self.invariant / new_total_tokens
+    new_total_eth: uint256 = self.invariant // new_total_tokens
     eth_to_send: uint256 = self.totalEthQty - new_total_eth
     send(msg.sender, eth_to_send)
     self.totalEthQty = new_total_eth

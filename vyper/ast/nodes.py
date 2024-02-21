@@ -2,15 +2,17 @@ import ast as python_ast
 import contextlib
 import copy
 import decimal
+import functools
 import operator
+import pickle
 import sys
+import warnings
 from typing import Any, Optional, Union
 
 from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
-    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -18,11 +20,22 @@ from vyper.exceptions import (
     SyntaxException,
     TypeMismatch,
     UnfoldableNode,
+    VariableDeclarationException,
+    VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div
 
-NODE_BASE_ATTRIBUTES = ("_children", "_depth", "_parent", "ast_type", "node_id", "_metadata")
+NODE_BASE_ATTRIBUTES = (
+    "_children",
+    "_depth",
+    "_parent",
+    "ast_type",
+    "node_id",
+    "_metadata",
+    "_original_node",
+    "_cache_descendants",
+)
 NODE_SRC_ATTRIBUTES = (
     "col_offset",
     "end_col_offset",
@@ -73,10 +86,27 @@ def get_node(
             if ast_struct["value"] is not None:
                 _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "ImplementsDecl"
+
+        # Replace "uses:" `AnnAssign` nodes with `UsesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "uses":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`uses` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "UsesDecl"
+
+        # Replace "initializes:" `AnnAssign` nodes with `InitializesDecl`
+        elif getattr(ast_struct["target"], "id", None) == "initializes":
+            if ast_struct["value"] is not None:
+                _raise_syntax_exc("`initializes` cannot have a value assigned", ast_struct)
+            ast_struct["ast_type"] = "InitializesDecl"
+
         # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
-        # Parent node is required for context to determine whether replacement should happen.
         else:
             ast_struct["ast_type"] = "VariableDecl"
+
+    enum_warn = False
+    if ast_struct["ast_type"] == "EnumDef":
+        enum_warn = True
+        ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
     if not vy_class:
@@ -92,7 +122,17 @@ def get_node(
                 ast_struct,
             )
 
-    return vy_class(parent=parent, **ast_struct)
+    node = vy_class(parent=parent, **ast_struct)
+
+    # TODO: Putting this after node creation to pretty print, remove after enum deprecation
+    if enum_warn:
+        # TODO: hack to pretty print, logic should be factored out of exception
+        pretty_printed_node = str(VyperException("", node))
+        warnings.warn(
+            f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
+            stacklevel=2,
+        )
+    return node
 
 
 def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
@@ -172,15 +212,17 @@ def _node_filter(node, filters):
     return True
 
 
-def _sort_nodes(node_iterable):
-    # sorting function for VyperNode.get_children
+def _apply_filters(node_iter, node_type, filters, reverse):
+    ret = node_iter
+    if node_type is not None:
+        ret = (i for i in ret if isinstance(i, node_type))
+    if filters is not None:
+        ret = (i for i in ret if _node_filter(i, filters))
 
-    def sortkey(key):
-        return float("inf") if key is None else key
-
-    return sorted(
-        node_iterable, key=lambda k: (sortkey(k.lineno), sortkey(k.col_offset), k.node_id)
-    )
+    ret = list(ret)
+    if reverse:
+        ret.reverse()
+    return ret
 
 
 def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
@@ -191,23 +233,6 @@ def _raise_syntax_exc(error_msg: str, ast_struct: dict) -> None:
         ast_struct.get("lineno"),
         ast_struct.get("col_offset"),
     )
-
-
-def _validate_numeric_bounds(
-    node: Union["BinOp", "UnaryOp"], value: Union[decimal.Decimal, int]
-) -> None:
-    if isinstance(value, decimal.Decimal):
-        # this will change if/when we add more decimal types
-        lower, upper = SizeLimits.MIN_AST_DECIMAL, SizeLimits.MAX_AST_DECIMAL
-    elif isinstance(value, int):
-        lower, upper = SizeLimits.MIN_INT256, SizeLimits.MAX_UINT256
-    else:
-        raise CompilerPanic(f"Unexpected return type from {node._op}: {type(value)}")
-    if not lower <= value <= upper:
-        raise OverflowException(
-            f"Result of {node.op.description} ({value}) is outside bounds of all numeric types",
-            node,
-        )
 
 
 class VyperNode:
@@ -229,18 +254,19 @@ class VyperNode:
         Field names that, if present, must be set to None or a `SyntaxException`
         is raised. This attribute is used to exclude syntax that is valid in Python
         but not in Vyper.
-    _terminus : bool, optional
-        If `True`, indicates that execution halts upon reaching this node.
     _translated_fields : Dict, optional
         Field names that are reassigned if encountered. Used to normalize fields
         across different Python versions.
     """
 
     __slots__ = NODE_BASE_ATTRIBUTES + NODE_SRC_ATTRIBUTES
+
+    _public_slots = [i for i in __slots__ if not i.startswith("_")]
     _only_empty_fields: tuple = ()
     _translated_fields: dict = {}
 
     def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        # this function is performance-sensitive
         """
         AST node initializer method.
 
@@ -255,20 +281,19 @@ class VyperNode:
             Dictionary of fields to be included within the node.
         """
         self.set_parent(parent)
-        self._children: set = set()
+        self._children: list = []
         self._metadata: NodeMetadata = NodeMetadata()
+        self._original_node = None
+        self._cache_descendants = None
 
         for field_name in NODE_SRC_ATTRIBUTES:
             # when a source offset is not available, use the parent's source offset
-            value = kwargs.get(field_name)
-            if kwargs.get(field_name) is None:
+            value = kwargs.pop(field_name, None)
+            if value is None:
                 value = getattr(parent, field_name, None)
             setattr(self, field_name, value)
 
         for field_name, value in kwargs.items():
-            if field_name in NODE_SRC_ATTRIBUTES:
-                continue
-
             if field_name in self._translated_fields:
                 field_name = self._translated_fields[field_name]
 
@@ -288,7 +313,7 @@ class VyperNode:
 
         # add to children of parent last to ensure an accurate hash is generated
         if parent is not None:
-            parent._children.add(self)
+            parent._children.append(self)
 
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
@@ -317,11 +342,12 @@ class VyperNode:
         -------
         Vyper node instance
         """
-        ast_struct = {i: getattr(node, i) for i in VyperNode.__slots__ if not i.startswith("_")}
+        ast_struct = {i: getattr(node, i) for i in VyperNode._public_slots}
         ast_struct.update(ast_type=cls.__name__, **kwargs)
         return cls(**ast_struct)
 
     @classmethod
+    @functools.lru_cache(maxsize=None)
     def get_fields(cls) -> set:
         """
         Return a set of field names for this node.
@@ -333,13 +359,17 @@ class VyperNode:
         return set(i for i in slot_fields if not i.startswith("_"))
 
     def __hash__(self):
-        values = [getattr(self, i, None) for i in VyperNode.__slots__ if not i.startswith("_")]
+        values = [getattr(self, i, None) for i in VyperNode._public_slots]
         return hash(tuple(values))
+
+    def __deepcopy__(self, memo):
+        # default implementation of deepcopy is a hotspot
+        return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        if other.node_id != self.node_id:
+        if getattr(other, "node_id", None) != getattr(self, "node_id", None):
             return False
         for field_name in (i for i in self.get_fields() if i not in VyperNode.__slots__):
             if getattr(self, field_name, None) != getattr(other, field_name, None):
@@ -373,22 +403,59 @@ class VyperNode:
         """
         return getattr(self, "_description", type(self).__name__)
 
-    def evaluate(self) -> "VyperNode":
+    @property
+    def is_literal_value(self):
         """
-        Attempt to evaluate the content of a node and generate a new node from it.
+        Check if the node is a literal value.
+        """
+        return False
 
-        If a node cannot be evaluated it should raise `UnfoldableNode`. This base
-        method acts as a catch-all to raise on any inherited classes that do not
-        implement the method.
+    @property
+    def is_terminus(self):
         """
-        raise UnfoldableNode(f"{type(self)} cannot be evaluated")
+        Check if execution halts upon reaching this node.
+        """
+        return False
+
+    @property
+    def has_folded_value(self):
+        """
+        Property method to check if the node has a folded value.
+        """
+        return "folded_value" in self._metadata
+
+    def get_folded_value(self) -> "ExprNode":
+        """
+        Attempt to get the folded value, bubbling up UnfoldableNode if the node
+        is not foldable.
+        """
+        try:
+            return self._metadata["folded_value"]
+        except KeyError:
+            raise UnfoldableNode("not foldable", self)
+
+    def _set_folded_value(self, node: "VyperNode") -> None:
+        # sanity check this is only called once
+        assert "folded_value" not in self._metadata
+
+        # set the "original node" so that exceptions can point to the original
+        # node and not the folded node
+        cls = node.__class__
+        # make a fresh copy so that the node metadata is fresh.
+        node = cls(**{i: getattr(node, i) for i in node.get_fields() if hasattr(node, i)})
+        node._original_node = self
+
+        self._metadata["folded_value"] = node
+
+    def get_original_node(self) -> "VyperNode":
+        return self._original_node or self
 
     def validate(self) -> None:
         """
         Validate the content of a node.
 
-        Called by `ast.validation.validate_literal_nodes` to verify values within
-        literal nodes.
+        Called by `ast.validation.validate_literal_nodes` to verify values
+        within literal nodes.
 
         Returns `None` if the node is valid, raises `InvalidLiteral` or another
         more expressive exception if the value cannot be valid within a Vyper
@@ -475,14 +542,7 @@ class VyperNode:
         list
             Child nodes matching the filter conditions.
         """
-        children = _sort_nodes(self._children)
-        if node_type is not None:
-            children = [i for i in children if isinstance(i, node_type)]
-        if reverse:
-            children.reverse()
-        if filters is None:
-            return children
-        return [i for i in children if _node_filter(i, filters)]
+        return _apply_filters(iter(self._children), node_type, filters, reverse)
 
     def get_descendants(
         self,
@@ -491,6 +551,7 @@ class VyperNode:
         include_self: bool = False,
         reverse: bool = False,
     ) -> list:
+        # this function is performance-sensitive
         """
         Return a list of descendant nodes of this node which match the given filter(s).
 
@@ -527,19 +588,25 @@ class VyperNode:
         list
             Descendant nodes matching the filter conditions.
         """
-        children = self.get_children(node_type, filters)
-        for node in self.get_children():
-            children.extend(node.get_descendants(node_type, filters))
-        if (
-            include_self
-            and (not node_type or isinstance(self, node_type))
-            and _node_filter(self, filters)
-        ):
-            children.append(self)
-        result = _sort_nodes(children)
-        if reverse:
-            result.reverse()
-        return result
+        ret = self._get_descendants(include_self)
+        return _apply_filters(ret, node_type, filters, reverse)
+
+    def _get_descendants(self, include_self=True):
+        # get descendants in topsort order
+        if self._cache_descendants is None:
+            ret = [self]
+            for node in self._children:
+                ret.extend(node._get_descendants())
+
+            self._cache_descendants = ret
+
+        ret = iter(self._cache_descendants)
+
+        if not include_self:
+            s = next(ret)  # pop
+            assert s is self
+
+        return ret
 
     def get(self, field_str: str) -> Any:
         """
@@ -589,49 +656,8 @@ class TopLevel(VyperNode):
 
 
 class Module(TopLevel):
-    __slots__ = ()
-
-    def replace_in_tree(self, old_node: VyperNode, new_node: VyperNode) -> None:
-        """
-        Perform an in-place substitution of a node within the tree.
-
-        Parameters
-        ----------
-        old_node : VyperNode
-            Node object to be replaced.
-        new_node : VyperNode
-            Node object to replace new_node.
-
-        Returns
-        -------
-        None
-        """
-        parent = old_node._parent
-
-        if old_node not in parent._children:
-            raise CompilerPanic("Node to be replaced does not exist within parent children")
-
-        is_replaced = False
-        for key in parent.get_fields():
-            obj = getattr(parent, key, None)
-            if obj == old_node:
-                if is_replaced:
-                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
-                setattr(parent, key, new_node)
-                is_replaced = True
-            elif isinstance(obj, list) and obj.count(old_node):
-                if is_replaced or obj.count(old_node) > 1:
-                    raise CompilerPanic("Node to be replaced exists as multiple members in parent")
-                obj[obj.index(old_node)] = new_node
-                is_replaced = True
-        if not is_replaced:
-            raise CompilerPanic("Node to be replaced does not exist within parent members")
-
-        parent._children.remove(old_node)
-
-        new_node._parent = parent
-        new_node._depth = old_node._depth
-        parent._children.add(new_node)
+    # metadata
+    __slots__ = ("path", "resolved_path", "source_id")
 
     def add_to_body(self, node: VyperNode) -> None:
         """
@@ -648,7 +674,7 @@ class Module(TopLevel):
         self.body.append(node)
         node._depth = self._depth + 1
         node._parent = self
-        self._children.add(node)
+        self._children.append(node)
 
     def remove_from_body(self, node: VyperNode) -> None:
         """
@@ -713,18 +739,39 @@ class Stmt(VyperNode):
 
 class Return(Stmt):
     __slots__ = ("value",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Expr(Stmt):
     __slots__ = ("value",)
+
+    @property
+    def is_terminus(self):
+        return self.value.is_terminus
+
+
+class NamedExpr(Stmt):
+    __slots__ = ("target", "value")
+
+    def validate(self):
+        # module[dep1 := dep2]
+
+        # XXX: better error messages
+        if not isinstance(self.target, Name):
+            raise StructureException("not a Name")
+
+        if not isinstance(self.value, Name):
+            raise StructureException("not a Name")
 
 
 class Log(Stmt):
     __slots__ = ("value",)
 
 
-class EnumDef(TopLevel):
+class FlagDef(TopLevel):
     __slots__ = ("name", "body")
 
 
@@ -746,10 +793,18 @@ class StructDef(TopLevel):
 class ExprNode(VyperNode):
     __slots__ = ("_expr_info",)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._expr_info = None
+
 
 class Constant(ExprNode):
     # inherited class for all simple constant node types
     __slots__ = ("value",)
+
+    @property
+    def is_literal_value(self):
+        return True
 
 
 class Num(Constant):
@@ -844,7 +899,14 @@ class Hex(Constant):
         """
         The number of bytes this hex value represents
         """
-        return self.n_nibbles // 2
+        return len(self.bytes_value)
+
+    @property
+    def bytes_value(self):
+        """
+        This value as bytes
+        """
+        return bytes.fromhex(self.value.removeprefix("0x"))
 
 
 class Str(Constant):
@@ -887,22 +949,42 @@ class List(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
 
+    @property
+    def is_literal_value(self):
+        return all(e.is_literal_value for e in self.elements)
+
 
 class Tuple(ExprNode):
     __slots__ = ("elements",)
     _translated_fields = {"elts": "elements"}
+
+    @property
+    def is_literal_value(self):
+        return all(e.is_literal_value for e in self.elements)
 
     def validate(self):
         if not self.elements:
             raise InvalidLiteral("Cannot have an empty tuple", self)
 
 
+class NameConstant(Constant):
+    __slots__ = ()
+
+    def validate(self):
+        if self.value is None:
+            raise InvalidLiteral("`None` is not a valid vyper value!", self)
+
+
+class Ellipsis(Constant):
+    __slots__ = ()
+
+
 class Dict(ExprNode):
     __slots__ = ("keys", "values")
 
-
-class NameConstant(Constant):
-    __slots__ = ("value",)
+    @property
+    def is_literal_value(self):
+        return all(v.is_literal_value for v in self.values)
 
 
 class Name(ExprNode):
@@ -911,26 +993,6 @@ class Name(ExprNode):
 
 class UnaryOp(ExprNode):
     __slots__ = ("op", "operand")
-
-    def evaluate(self) -> ExprNode:
-        """
-        Attempt to evaluate the unary operation.
-
-        Returns
-        -------
-        Int | Decimal
-            Node representing the result of the evaluation.
-        """
-        if isinstance(self.op, Not) and not isinstance(self.operand, NameConstant):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, USub) and not isinstance(self.operand, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if isinstance(self.op, Invert) and not isinstance(self.operand, Int):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        value = self.op._op(self.operand.value)
-        _validate_numeric_bounds(self, value)
-        return type(self.operand).from_node(self, value=value)
 
 
 class Operator(VyperNode):
@@ -959,31 +1021,6 @@ class Invert(Operator):
 
 class BinOp(ExprNode):
     __slots__ = ("left", "op", "right")
-
-    def evaluate(self) -> ExprNode:
-        """
-        Attempt to evaluate the arithmetic operation.
-
-        Returns
-        -------
-        Int | Decimal
-            Node representing the result of the evaluation.
-        """
-        left, right = self.left, self.right
-        if type(left) is not type(right):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-        if not isinstance(left, (Int, Decimal)):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        # this validation is performed to prevent the compiler from hanging
-        # on very large shifts and improve the error message for negative
-        # values.
-        if isinstance(self.op, (LShift, RShift)) and not (0 <= right.value <= 256):
-            raise InvalidLiteral("Shift bits must be between 0 and 256", right)
-
-        value = self.op._op(left.value, right.value)
-        _validate_numeric_bounds(self, value)
-        return type(left).from_node(self, value=value)
 
 
 class Add(Operator):
@@ -1019,7 +1056,7 @@ class Mult(Operator):
 
 class Div(Operator):
     __slots__ = ()
-    _description = "division"
+    _description = "decimal division"
     _pretty = "/"
 
     def _op(self, left, right):
@@ -1028,20 +1065,32 @@ class Div(Operator):
         if not right:
             raise ZeroDivisionException("Division by zero")
 
-        if isinstance(left, decimal.Decimal):
-            value = left / right
-            if value < 0:
-                # the EVM always truncates toward zero
-                value = -(-left / right)
-            # ensure that the result is truncated to MAX_DECIMAL_PLACES
-            return value.quantize(
-                decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN
-            )
-        else:
-            value = left // right
-            if value < 0:
-                return -(-left // right)
-            return value
+        if not isinstance(left, decimal.Decimal):
+            raise UnfoldableNode("Cannot use `/` on non-decimals (did you mean `//`?)")
+
+        value = left / right
+        if value < 0:
+            # the EVM always truncates toward zero
+            value = -(-left / right)
+        # ensure that the result is truncated to MAX_DECIMAL_PLACES
+        return value.quantize(decimal.Decimal(f"{1:0.{MAX_DECIMAL_PLACES}f}"), decimal.ROUND_DOWN)
+
+
+class FloorDiv(VyperNode):
+    __slots__ = ()
+    _description = "integer division"
+    _pretty = "//"
+
+    def _op(self, left, right):
+        # evaluate the operation using true division or floor division
+        assert type(left) is type(right)
+        if not right:
+            raise ZeroDivisionException("Division by zero")
+
+        if not isinstance(left, int):
+            raise UnfoldableNode("Cannot use `//` on non-integers (did you mean `/`?)")
+
+        return evm_div(left, right)
 
 
 class Mod(Operator):
@@ -1110,25 +1159,6 @@ class RShift(Operator):
 class BoolOp(ExprNode):
     __slots__ = ("op", "values")
 
-    def evaluate(self) -> ExprNode:
-        """
-        Attempt to evaluate the boolean operation.
-
-        Returns
-        -------
-        NameConstant
-            Node representing the result of the evaluation.
-        """
-        if next((i for i in self.values if not isinstance(i, NameConstant)), None):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        values = [i.value for i in self.values]
-        if None in values:
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        value = self.op._op(values)
-        return NameConstant.from_node(self, value=value)
-
 
 class And(Operator):
     __slots__ = ()
@@ -1165,40 +1195,6 @@ class Compare(ExprNode):
         kwargs["op"] = kwargs.pop("ops")[0]
         kwargs["right"] = kwargs.pop("comparators")[0]
         super().__init__(*args, **kwargs)
-
-    def evaluate(self) -> ExprNode:
-        """
-        Attempt to evaluate the comparison.
-
-        Returns
-        -------
-        NameConstant
-            Node representing the result of the evaluation.
-        """
-        left, right = self.left, self.right
-        if not isinstance(left, Constant):
-            raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-
-        # CMC 2022-08-04 we could probably remove these evaluation rules as they
-        # are taken care of in the IR optimizer now.
-        if isinstance(self.op, (In, NotIn)):
-            if not isinstance(right, List):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if next((i for i in right.elements if not isinstance(i, Constant)), None):
-                raise UnfoldableNode("Node contains invalid field(s) for evaluation")
-            if len(set([type(i) for i in right.elements])) > 1:
-                raise UnfoldableNode("List contains multiple literal types")
-            value = self.op._op(left.value, [i.value for i in right.elements])
-            return NameConstant.from_node(self, value=value)
-
-        if not isinstance(left, type(right)):
-            raise UnfoldableNode("Cannot compare different literal types")
-
-        if not isinstance(self.op, (Eq, NotEq)) and not isinstance(left, (Int, Decimal)):
-            raise TypeMismatch(f"Invalid literal types for {self.op.description} comparison", self)
-
-        value = self.op._op(left.value, right.value)
-        return NameConstant.from_node(self, value=value)
 
 
 class Eq(Operator):
@@ -1254,7 +1250,22 @@ class NotIn(Operator):
 
 
 class Call(ExprNode):
-    __slots__ = ("func", "args", "keywords", "keyword")
+    __slots__ = ("func", "args", "keywords")
+
+    @property
+    def is_terminus(self):
+        # cursed import cycle!
+        from vyper.builtins.functions import get_builtin_functions
+
+        if not isinstance(self.func, Name):
+            return False
+
+        funcname = self.func.id
+        builtin_t = get_builtin_functions().get(funcname)
+        if builtin_t is None:
+            return False
+
+        return builtin_t._is_terminus
 
 
 class keyword(VyperNode):
@@ -1267,33 +1278,6 @@ class Attribute(ExprNode):
 
 class Subscript(ExprNode):
     __slots__ = ("slice", "value")
-
-    def evaluate(self) -> ExprNode:
-        """
-        Attempt to evaluate the subscript.
-
-        This method reduces an indexed reference to a literal array into the value
-        within the array, e.g. `["foo", "bar"][1]` becomes `"bar"`
-
-        Returns
-        -------
-        ExprNode
-            Node representing the result of the evaluation.
-        """
-        if not isinstance(self.value, List):
-            raise UnfoldableNode("Subscript object is not a literal list")
-        elements = self.value.elements
-        if len(set([type(i) for i in elements])) > 1:
-            raise UnfoldableNode("List contains multiple node types")
-        idx = self.slice.get("value.value")
-        if not isinstance(idx, int) or idx < 0 or idx >= len(elements):
-            raise UnfoldableNode("Invalid index value")
-
-        return elements[idx]
-
-
-class Index(VyperNode):
-    __slots__ = ("value",)
 
 
 class Assign(Stmt):
@@ -1344,7 +1328,15 @@ class VariableDecl(VyperNode):
         If true, indicates that the variable is an immutable variable.
     """
 
-    __slots__ = ("target", "annotation", "value", "is_constant", "is_public", "is_immutable")
+    __slots__ = (
+        "target",
+        "annotation",
+        "value",
+        "is_constant",
+        "is_public",
+        "is_immutable",
+        "is_transient",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1352,6 +1344,7 @@ class VariableDecl(VyperNode):
         self.is_constant = False
         self.is_public = False
         self.is_immutable = False
+        self.is_transient = False
 
         def _check_args(annotation, call_name):
             # do the same thing as `validate_call_args`
@@ -1369,14 +1362,33 @@ class VariableDecl(VyperNode):
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
-        if self.annotation.get("func.id") in ("immutable", "constant"):
-            _check_args(self.annotation, self.annotation.func.id)
-            setattr(self, f"is_{self.annotation.func.id}", True)
+        func_id = self.annotation.get("func.id")
+        if func_id in ("immutable", "constant", "transient"):
+            _check_args(self.annotation, func_id)
+            setattr(self, f"is_{func_id}", True)
             # unwrap one layer
             self.annotation = self.annotation.args[0]
 
         if isinstance(self.annotation, Call):
             _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
+
+    def _pretty_location(self) -> str:
+        if self.is_constant:
+            return "Constant"
+        if self.is_transient:
+            return "Transient"
+        if self.is_immutable:
+            return "Immutable"
+        return "Storage"
+
+    def validate(self):
+        if self.is_constant and self.value is None:
+            raise VariableDeclarationException("Constant must be declared with a value", self)
+
+        if not self.is_constant and self.value is not None:
+            raise VariableDeclarationException(
+                f"{self._pretty_location} variables cannot have an initial value", self.value
+            )
 
 
 class AugAssign(Stmt):
@@ -1386,7 +1398,10 @@ class AugAssign(Stmt):
 class Raise(Stmt):
     __slots__ = ("exc",)
     _only_empty_fields = ("cause",)
-    _is_terminus = True
+
+    @property
+    def is_terminus(self):
+        return True
 
 
 class Assert(Stmt):
@@ -1397,7 +1412,7 @@ class Pass(Stmt):
     __slots__ = ()
 
 
-class _Import(Stmt):
+class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
 
     def __init__(self, *args, **kwargs):
@@ -1409,11 +1424,11 @@ class _Import(Stmt):
         super().__init__(*args, **kwargs)
 
 
-class Import(_Import):
+class Import(_ImportStmt):
     __slots__ = ()
 
 
-class ImportFrom(_Import):
+class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
 
 
@@ -1421,23 +1436,85 @@ class ImplementsDecl(Stmt):
     """
     An `implements` declaration.
 
-    Excludes `simple` and `value` attributes from Python `AnnAssign` node.
-
     Attributes
     ----------
-    target : Name
-        Name node for the `implements` keyword
     annotation : Name
         Name node for the interface to be implemented
     """
 
-    __slots__ = ("target", "annotation")
+    __slots__ = ("annotation",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if not isinstance(self.annotation, Name):
-            raise StructureException("not an identifier", self.annotation)
+        if not isinstance(self.annotation, (Name, Attribute)):
+            raise StructureException("invalid implements", self.annotation)
+
+
+def as_tuple(node: VyperNode):
+    """
+    Convenience function for some AST nodes which allow either a Tuple
+    or single elements. Returns a python tuple of AST nodes.
+    """
+    if isinstance(node, Tuple):
+        return node.elements
+    else:
+        return (node,)
+
+
+class UsesDecl(Stmt):
+    """
+    A `uses` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Tuple
+        The module(s) which this uses
+    """
+
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        items = as_tuple(self.annotation)
+        for item in items:
+            if not isinstance(item, (Name, Attribute)):
+                raise StructureException("invalid uses", item)
+
+
+class InitializesDecl(Stmt):
+    """
+    An `initializes` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Subscript
+        An imported module which this module initializes
+    """
+
+    __slots__ = ("annotation",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        module_ref = self.annotation
+        if isinstance(module_ref, Subscript):
+            dependencies = as_tuple(module_ref.slice)
+            module_ref = module_ref.value
+
+            for item in dependencies:
+                if not isinstance(item, NamedExpr):
+                    raise StructureException(
+                        "invalid dependency (hint: should be [dependency := dependency]", item
+                    )
+                if not isinstance(item.target, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+                if not isinstance(item.value, (Name, Attribute)):
+                    raise StructureException("invalid module", item.target)
+
+        if not isinstance(module_ref, (Name, Attribute)):
+            raise StructureException("invalid module", module_ref)
 
 
 class If(Stmt):
@@ -1449,7 +1526,7 @@ class IfExp(ExprNode):
 
 
 class For(Stmt):
-    __slots__ = ("iter", "target", "body")
+    __slots__ = ("target", "iter", "body")
     _only_empty_fields = ("orelse",)
 
 

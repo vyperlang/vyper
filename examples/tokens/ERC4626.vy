@@ -1,6 +1,15 @@
+#pragma version >0.3.10
+
 # NOTE: Copied from https://github.com/fubuloubu/ERC4626/blob/1a10b051928b11eeaad15d80397ed36603c2a49b/contracts/VyperVault.vy
-from vyper.interfaces import ERC20
-from vyper.interfaces import ERC4626
+
+# example implementation of an ERC4626 vault
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+from ethereum.ercs import ERC20
+from ethereum.ercs import ERC4626
 
 implements: ERC20
 implements: ERC4626
@@ -43,7 +52,7 @@ event Withdraw:
     shares: uint256
 
 
-@external
+@deploy
 def __init__(asset: ERC20):
     self.asset = asset
 
@@ -105,7 +114,7 @@ def _convertToAssets(shareAmount: uint256) -> uint256:
 
     # NOTE: `shareAmount = 0` is extremely rare case, not optimizing for it
     # NOTE: `totalAssets = 0` is extremely rare case, not optimizing for it
-    return shareAmount * self.asset.balanceOf(self) / totalSupply
+    return shareAmount * self.asset.balanceOf(self) // totalSupply
 
 
 @view
@@ -123,7 +132,7 @@ def _convertToShares(assetAmount: uint256) -> uint256:
         return assetAmount  # 1:1 price
 
     # NOTE: `assetAmount = 0` is extremely rare case, not optimizing for it
-    return assetAmount * totalSupply / totalAssets
+    return assetAmount * totalSupply // totalAssets
 
 
 @view

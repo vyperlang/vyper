@@ -20,20 +20,23 @@ vyper
 
 To compile a contract:
 
-::
+.. code:: shell
 
     $ vyper yourFileName.vy
 
 
 Include the ``-f`` flag to specify which output formats to return. Use ``vyper --help`` for a full list of output options.
 
-::
+.. code:: shell
 
-    $ vyper -f abi,bytecode,bytecode_runtime,ir,asm,source_map,method_identifiers yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+
+.. note::
+    The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
 
 The ``-p`` flag allows you to set a root path that is used when searching for interface files to import.  If none is given, it will default to the current working directory. See :ref:`searching_for_imports` for more information.
 
-::
+.. code:: shell
 
     $ vyper -p yourProject yourProject/yourFileName.vy
 
@@ -45,7 +48,7 @@ Storage Layout
 
 To display the default storage layout for a contract:
 
-::
+.. code:: shell
 
     $ vyper -f layout yourFileName.vy
 
@@ -53,7 +56,7 @@ This outputs a JSON object detailing the locations for all state variables as de
 
 To override the default storage layout for a contract:
 
-::
+.. code:: shell
 
     $ vyper --storage-layout-file storageLayout.json yourFileName.vy
 
@@ -69,19 +72,19 @@ vyper-json
 
 To compile from JSON supplied via ``stdin``:
 
-::
+.. code:: shell
 
     $ vyper-json
 
 To compile from a JSON file:
 
-::
+.. code:: shell
 
     $ vyper-json yourProject.json
 
 By default, the output is sent to ``stdout``. To redirect to a file, use the ``-o`` flag:
 
-::
+.. code:: shell
 
     $ vyper-json -o compiled.json
 
@@ -99,6 +102,11 @@ See :ref:`searching_for_imports` for more information on Vyper's import system.
 Online Compilers
 ================
 
+Try VyperLang!
+-----------------
+
+`Try VyperLang! <https://try.vyperlang.org>`_ is a JupterHub instance hosted by the Vyper team as a sandbox for developing and testing contracts in Vyper. It requires github for login, and supports deployment via the browser.
+
 Remix IDE
 ---------
 
@@ -108,25 +116,53 @@ Remix IDE
 
    While the Vyper version of the Remix IDE compiler is updated on a regular basis, it might be a bit behind the latest version found in the master branch of the repository. Make sure the byte code matches the output from your local compiler.
 
+.. _optimization-mode:
+
+Compiler Optimization Modes
+===========================
+
+The vyper CLI tool accepts an optimization mode ``"none"``, ``"codesize"``, or ``"gas"`` (default). It can be set using the ``--optimize`` flag. For example, invoking ``vyper --optimize codesize MyContract.vy`` will compile the contract, optimizing for code size. As a rough summary of the differences between gas and codesize mode, in gas optimized mode, the compiler will try to generate bytecode which minimizes gas (up to a point), including:
+
+* using a sparse selector table which optimizes for gas over codesize
+* inlining some constants, and
+* trying to unroll some loops, especially for data copies.
+
+In codesize optimized mode, the compiler will try hard to minimize codesize by
+
+* using a dense selector table
+* out-lining code, and
+* using more loops for data copies.
+
+
+.. _evm-version:
 
 Setting the Target EVM Version
 ==============================
 
-When you compile your contract code, you can specify the Ethereum Virtual Machine version to compile for, to avoid particular features or behaviours.
+When you compile your contract code, you can specify the target Ethereum Virtual Machine version to compile for, to access or avoid particular features. You can specify the version either with a source code pragma or as a compiler option. It is recommended to use the compiler option when you want flexibility (for instance, ease of deploying across different chains), and the source code pragma when you want bytecode reproducibility (for instance, when verifying code on a block explorer).
+
+.. note::
+   If the evm version specified by the compiler options conflicts with the source code pragma, an exception will be raised and compilation will not continue.
+
+For instance, the adding the following pragma to a contract indicates that it should be compiled for the "shanghai" fork of the EVM.
+
+.. code-block:: vyper
+
+   #pragma evm-version shanghai
 
 .. warning::
 
-    Compiling for the wrong EVM version can result in wrong, strange and failing behaviour. Please ensure, especially if running a private chain, that you use matching EVM versions.
+    Compiling for the wrong EVM version can result in wrong, strange, or failing behavior. Please ensure, especially if running a private chain, that you use matching EVM versions.
 
-When compiling via ``vyper``, include the ``--evm-version`` flag:
+When compiling via the ``vyper`` CLI, you can specify the EVM version option using the ``--evm-version`` flag:
 
-::
+.. code:: shell
 
     $ vyper --evm-version [VERSION]
 
-When using the JSON interface, include the ``"evmVersion"`` key within the ``"settings"`` field:
+When using the JSON interface, you can include the ``"evmVersion"`` key within the ``"settings"`` field:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         "settings": {
@@ -140,24 +176,31 @@ Target Options
 The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
 
 
-.. py:attribute:: byzantium
-
-   - The oldest EVM version supported by Vyper.
-
-.. py:attribute:: constantinople
-
-   - The ``EXTCODEHASH`` opcode is accessible via ``address.codehash``
-   - ``shift`` makes use of ``SHL``/``SHR`` opcodes.
-
-.. py:attribute:: petersburg
-
-   - The compiler behaves the same way as with constantinople.
-
-.. py:attribute:: istanbul (default)
+.. py:attribute:: istanbul
 
    - The ``CHAINID`` opcode is accessible via ``chain.id``
    - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
    - Gas estimates changed for ``SLOAD`` and ``BALANCE``
+
+.. py:attribute:: berlin
+
+   - Gas estimates changed for ``EXTCODESIZE``, ``EXTCODECOPY``, ``EXTCODEHASH``, ``SLOAD``, ``SSTORE``, ``CALL``, ``CALLCODE``, ``DELEGATECALL`` and ``STATICCALL``
+   - Functions marked with ``@nonreentrant`` are protected with different values (3 and 2) than contracts targeting pre-berlin.
+   - ``BASEFEE`` is accessible via ``block.basefee``
+
+.. py:attribute:: paris
+
+   - ``block.difficulty`` is deprecated in favor of its new alias, ``block.prevrandao``.
+
+.. py:attribute:: shanghai (default)
+
+   - The ``PUSH0`` opcode is automatically generated by the compiler instead of ``PUSH1 0``
+
+.. py:attribute:: cancun (experimental)
+
+   - The ``transient`` keyword allows declaration of variables which live in transient storage
+   - Functions marked with ``@nonreentrant`` are protected with TLOAD/TSTORE instead of SLOAD/SSTORE
+   - The ``MCOPY`` opcode will be generated automatically by the compiler for most memory operations.
 
 
 Compiler Input and Output JSON Description
@@ -174,7 +217,7 @@ Input JSON Description
 
 The following example describes the expected input format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         // Required: Source code language. Must be set to "Vyper".
@@ -204,10 +247,11 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "istanbul",  // EVM version to compile for. Can be byzantium, constantinople, petersburg or istanbul.
-            // optional, whether or not optimizations are turned on
-            // defaults to true
-            "optimize": true,
+            "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
+            // optional, optimization mode
+            // defaults to "gas". can be one of "gas", "codesize", "none",
+            // false  and true (the last two are for backwards compatibility).
+            "optimize": "gas",
             // optional, whether or not the bytecode should include Vyper's signature
             // defaults to true
             "bytecodeMetadata": true,
@@ -251,7 +295,7 @@ Output JSON Description
 
 The following example describes the output format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         // The compiler version used to generate the JSON

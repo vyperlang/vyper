@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import (
     CompilerPanic,
     InvalidLiteral,
@@ -12,20 +13,24 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.namespace import validate_identifier
+from vyper.semantics.data_locations import DataLocation
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
 # type of type `type_`
 class _GenericTypeAcceptor:
     def __repr__(self):
-        return repr(self.type_)
+        return f"GenericTypeAcceptor({self.type_})"
 
     def __init__(self, type_):
         self.type_ = type_
 
     def compare_type(self, other):
-        return isinstance(other, self.type_)
+        if isinstance(other, self.type_):
+            return True
+        # compare two GenericTypeAcceptors -- they are the same if the base
+        # type is the same
+        return isinstance(other, self.__class__) and other.type_ == self.type_
 
 
 class VyperType:
@@ -44,6 +49,13 @@ class VyperType:
         A tuple of invalid `DataLocation`s for this type
     _is_prim_word: bool, optional
         This is a word type like uint256, int8, bytesM or address
+    _supports_external_calls: bool, optional
+        Whether or not this type supports external calls. Currently
+        limited to `InterfaceT`s
+    _attribute_in_annotation: bool, optional
+        Whether or not this type can be attributed in a type
+        annotation, like IFoo.SomeType. Currently limited to
+        `InterfaceT`s.
     """
 
     _id: str
@@ -57,6 +69,9 @@ class VyperType:
 
     _as_array: bool = False  # rename to something like can_be_array_member
     _as_hashmap_key: bool = False
+
+    _supports_external_calls: bool = False
+    _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
 
@@ -81,8 +96,10 @@ class VyperType:
         return hash(self._get_equality_attrs())
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return (
-            type(self) == type(other) and self._get_equality_attrs() == other._get_equality_attrs()
+            type(self) is type(other) and self._get_equality_attrs() == other._get_equality_attrs()
         )
 
     def __lt__(self, other):
@@ -107,6 +124,16 @@ class VyperType:
         The ABI type corresponding to this type
         """
         raise CompilerPanic("Method must be implemented by the inherited class")
+
+    def get_size_in(self, location: DataLocation):
+        if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            return self.storage_size_in_words
+        if location == DataLocation.MEMORY:
+            return self.memory_bytes_required
+        if location == DataLocation.CODE:
+            return self.memory_bytes_required
+
+        raise CompilerPanic("unreachable: invalid location {location}")  # pragma: nocover
 
     @property
     def memory_bytes_required(self) -> int:
@@ -156,7 +183,7 @@ class VyperType:
         # TODO maybe make these AST classes inherit from "HasOperator"
         node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign, vy_ast.Compare, vy_ast.BoolOp],
     ) -> None:
-        raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
+        raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node.op)
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
         """
@@ -261,10 +288,10 @@ class VyperType:
         VyperType, optional
             Type generated as a result of the call.
         """
-        raise StructureException("Value is not callable", node)
+        raise StructureException(f"{self} is not callable", node)
 
     @classmethod
-    def get_subscripted_type(self, node: vy_ast.Index) -> None:
+    def get_subscripted_type(self, node: vy_ast.VyperNode) -> None:
         """
         Return the type of a subscript expression, e.g. x[1]
 
@@ -294,8 +321,8 @@ class VyperType:
         if not self.members:
             raise StructureException(f"{self} instance does not have members", node)
 
-        suggestions_str = get_levenshtein_error_suggestions(key, self.members, 0.3)
-        raise UnknownAttribute(f"{self} has no member '{key}'. {suggestions_str}", node)
+        hint = get_levenshtein_error_suggestions(key, self.members, 0.3)
+        raise UnknownAttribute(f"{self} has no member '{key}'.", node, hint=hint)
 
     def __repr__(self):
         return self._id
@@ -314,13 +341,36 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
-# A type type. Only used internally for builtins
-class TYPE_T:
+class _VoidType(VyperType):
+    _id = "(void)"
+
+
+# sentinel for function calls which return nothing
+VOID_TYPE = _VoidType()
+
+
+def map_void(typ: Optional[VyperType]) -> VyperType:
+    if typ is None:
+        return VOID_TYPE
+    return typ
+
+
+# A type type. Used internally for types which can live in expression
+# position, ex. constructors (events, interfaces and structs), and also
+# certain builtins which take types as parameters
+class TYPE_T(VyperType):
     def __init__(self, typedef):
+        super().__init__()
+
         self.typedef = typedef
 
     def __repr__(self):
         return f"type({self.typedef})"
+
+    def check_modifiability_for_call(self, node, modifiability):
+        if hasattr(self.typedef, "_ctor_modifiability_for_call"):
+            return self.typedef._ctor_modifiability_for_call(node, modifiability)
+        raise StructureException("Value is not callable", node)
 
     # dispatch into ctor if it's called
     def fetch_call_return(self, node):
@@ -328,7 +378,7 @@ class TYPE_T:
             return self.typedef._ctor_call_return(node)
         raise StructureException("Value is not callable", node)
 
-    def infer_arg_types(self, node):
+    def infer_arg_types(self, node, expected_return_typ=None):
         if hasattr(self.typedef, "_ctor_arg_types"):
             return self.typedef._ctor_arg_types(node)
         raise StructureException("Value is not callable", node)
@@ -339,7 +389,7 @@ class TYPE_T:
         raise StructureException("Value is not callable", node)
 
     # dispatch into get_type_member if it's dereferenced, ex.
-    # MyEnum.FOO
+    # MyFlag.FOO
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)

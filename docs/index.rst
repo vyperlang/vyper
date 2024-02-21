@@ -1,4 +1,4 @@
-.. image:: vyper-logo-transparent.svg
+.. image:: logo.svg
     :width: 140px
     :alt: Vyper logo
     :align: center
@@ -29,7 +29,7 @@ Following the principles and goals, Vyper **does not** provide the following fea
 * **Modifiers**: For example in Solidity you can define a ``function foo() mod1 { ... }``, where ``mod1`` can be defined elsewhere in the code to include a check that is done before execution, a check that is done after execution, some state changes, or possibly other things. Vyper does not have this, because it makes it too easy to write misleading code. ``mod1`` just looks too innocuous for something that could add arbitrary pre-conditions, post-conditions or state changes. Also, it encourages people to write code where the execution jumps around the file, harming auditability. The usual use case for a modifier is something that performs a single check before execution of a program; our recommendation is to simply inline these checks as asserts.
 * **Class inheritance**: Class inheritance requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts ("Which class's function ``X`` is the one that's actually used?"). Hence, it makes code too complicated to understand which negatively impacts auditability.
 * **Inline assembly**: Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
-* **Function overloading**: This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals your funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
+* **Function overloading**: This can cause lots of confusion on which function is called at any given time. Thus it's easier to write misleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals your funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
 * **Operator overloading**: Operator overloading makes writing misleading code possible. For example ``+`` could be overloaded so that it executes commands that are not visible at a first glance, such as sending funds the user did not want to send.
 * **Recursive calling**: Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
 * **Infinite-length loops**: Similar to recursive calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.

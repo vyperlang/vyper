@@ -340,19 +340,17 @@ def _optimize_binop(binop, args, ann, parent_op):
         if binop == "mod":
             return finalize("and", [args[0], _int(args[1]) - 1])
 
-        if binop == "div" and version_check(begin="constantinople"):
+        if binop == "div":
             # x / 2**n == x >> n
             # recall shr/shl have unintuitive arg order
             return finalize("shr", [int_log2(_int(args[1])), args[0]])
 
         # note: no rule for sdiv since it rounds differently from sar
-        if binop == "mul" and version_check(begin="constantinople"):
+        if binop == "mul":
             # x * 2**n == x << n
             return finalize("shl", [int_log2(_int(args[1])), args[0]])
 
-        # reachable but only before constantinople
-        if version_check(begin="constantinople"):  # pragma: no cover
-            raise CompilerPanic("unreachable")
+        raise CompilerPanic("unreachable")  # pragma: no cover
 
     ##
     # COMPARISONS
@@ -442,6 +440,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+    is_self_call = node.is_self_call
+    passthrough_metadata = node.passthrough_metadata
 
     changed = False
 
@@ -464,6 +464,8 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
+            is_self_call=is_self_call,
+            passthrough_metadata=passthrough_metadata,
         )
 
         if should_check_symbols:
@@ -475,6 +477,9 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     if value == "seq":
         changed |= _merge_memzero(argz)
         changed |= _merge_calldataload(argz)
+        changed |= _merge_dload(argz)
+        changed |= _rewrite_mstore_dload(argz)
+        changed |= _merge_mload(argz)
         changed |= _remove_empty_seqs(argz)
 
         # (seq x) => (x) for cleanliness and
@@ -639,12 +644,38 @@ def _remove_empty_seqs(argz):
 
 
 def _merge_calldataload(argz):
-    # look for sequential operations copying from calldata to memory
-    # and merge them into a single calldatacopy operation
+    return _merge_load(argz, "calldataload", "calldatacopy")
+
+
+def _merge_dload(argz):
+    return _merge_load(argz, "dload", "dloadbytes")
+
+
+def _rewrite_mstore_dload(argz):
+    changed = False
+    for i, arg in enumerate(argz):
+        if arg.value == "mstore" and arg.args[1].value == "dload":
+            dst = arg.args[0]
+            src = arg.args[1].args[0]
+            len_ = 32
+            argz[i] = IRnode.from_list(["dloadbytes", dst, src, len_], source_pos=arg.source_pos)
+            changed = True
+    return changed
+
+
+def _merge_mload(argz):
+    if not version_check(begin="cancun"):
+        return False
+    return _merge_load(argz, "mload", "mcopy", allow_overlap=False)
+
+
+def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
+    # look for sequential operations copying from X to Y
+    # and merge them into a single copy operation
     changed = False
     mstore_nodes: List = []
-    initial_mem_offset = 0
-    initial_calldata_offset = 0
+    initial_dst_offset = 0
+    initial_src_offset = 0
     total_length = 0
     idx = None
     for i, ir_node in enumerate(argz):
@@ -652,19 +683,24 @@ def _merge_calldataload(argz):
         if (
             ir_node.value == "mstore"
             and isinstance(ir_node.args[0].value, int)
-            and ir_node.args[1].value == "calldataload"
+            and ir_node.args[1].value == _LOAD
             and isinstance(ir_node.args[1].args[0].value, int)
         ):
             # mstore of a zero value
-            mem_offset = ir_node.args[0].value
-            calldata_offset = ir_node.args[1].args[0].value
+            dst_offset = ir_node.args[0].value
+            src_offset = ir_node.args[1].args[0].value
             if not mstore_nodes:
-                initial_mem_offset = mem_offset
-                initial_calldata_offset = calldata_offset
+                initial_dst_offset = dst_offset
+                initial_src_offset = src_offset
                 idx = i
+
+            # dst and src overlap, discontinue the optimization
+            has_overlap = initial_src_offset < initial_dst_offset < src_offset + 32
+
             if (
-                initial_mem_offset + total_length == mem_offset
-                and initial_calldata_offset + total_length == calldata_offset
+                initial_dst_offset + total_length == dst_offset
+                and initial_src_offset + total_length == src_offset
+                and (allow_overlap or not has_overlap)
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
@@ -679,7 +715,7 @@ def _merge_calldataload(argz):
         if len(mstore_nodes) > 1:
             changed = True
             new_ir = IRnode.from_list(
-                ["calldatacopy", initial_mem_offset, initial_calldata_offset, total_length],
+                [_COPY, initial_dst_offset, initial_src_offset, total_length],
                 source_pos=mstore_nodes[0].source_pos,
             )
             # replace first copy operation with optimized node and remove the rest
@@ -687,8 +723,8 @@ def _merge_calldataload(argz):
             # note: del xs[k:l] deletes l - k items
             del argz[idx + 1 : idx + len(mstore_nodes)]
 
-        initial_mem_offset = 0
-        initial_calldata_offset = 0
+        initial_dst_offset = 0
+        initial_src_offset = 0
         total_length = 0
         mstore_nodes.clear()
 

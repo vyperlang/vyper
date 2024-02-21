@@ -28,14 +28,6 @@ class AddrSpace:
     # TODO maybe make positional instead of defaulting to None
     store_op: Optional[str] = None
 
-    @property
-    def word_addressable(self) -> bool:
-        return self.word_scale == 1
-
-    @property
-    def byte_addressable(self) -> bool:
-        return self.word_scale == 32
-
 
 # alternative:
 # class Memory(AddrSpace):
@@ -48,6 +40,7 @@ class AddrSpace:
 
 MEMORY = AddrSpace("memory", 32, "mload", "mstore")
 STORAGE = AddrSpace("storage", 1, "sload", "sstore")
+TRANSIENT = AddrSpace("transient", 1, "tload", "tstore")
 CALLDATA = AddrSpace("calldata", 32, "calldataload")
 # immutables address space: "immutables" section of memory
 # which is read-write in deploy code but then gets turned into

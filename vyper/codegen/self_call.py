@@ -1,17 +1,8 @@
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
-from vyper.codegen.ir_node import IRnode, push_label_to_stack
+from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
-
-_label_counter = 0
-
-
-# TODO a more general way of doing this
-def _generate_label(name: str) -> str:
-    global _label_counter
-    _label_counter += 1
-    return f"label{_label_counter}"
 
 
 def _align_kwargs(func_t, args_ir):
@@ -63,7 +54,7 @@ def ir_for_self_call(stmt_expr, context):
 
     # note: internal_function_label asserts `func_t.is_internal`.
     _label = func_t._ir_info.internal_function_label(context.is_ctor_context)
-    return_label = _generate_label(f"{_label}_call")
+    return_label = _freshname(f"{_label}_call")
 
     # allocate space for the return buffer
     # TODO allocate in stmt and/or expr.py
@@ -104,7 +95,7 @@ def ir_for_self_call(stmt_expr, context):
     if return_buffer is not None:
         goto_op += [return_buffer]
     # pass return label to subroutine
-    goto_op += [push_label_to_stack(return_label)]
+    goto_op.append(["symbol", return_label])
 
     call_sequence = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
@@ -121,4 +112,6 @@ def ir_for_self_call(stmt_expr, context):
         add_gas_estimate=func_t._ir_info.gas_estimate,
     )
     o.is_self_call = True
+    o.passthrough_metadata["func_t"] = func_t
+    o.passthrough_metadata["args_ir"] = args_ir
     return o
