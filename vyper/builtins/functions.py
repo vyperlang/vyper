@@ -49,7 +49,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     ZeroDivisionException,
 )
-from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.analysis.base import Modifiability, StateMutability, VarInfo
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -1247,7 +1247,7 @@ class BlockHash(BuiltinFunctionT):
     _id = "blockhash"
     _inputs = [("block_num", UINT256_T)]
     _return_type = BYTES32_T
-    _modifiability = Modifiability.RUNTIME_CONSTANT
+    mutability = StateMutability.VIEW
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, contact):
