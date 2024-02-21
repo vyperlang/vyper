@@ -525,7 +525,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.namespace[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
-            # ideally should be performed before calling _analyse_range_iter 
+            # ideally should be performed before calling _analyse_range_iter
             # but there is a dependence on the namespace update
             if is_range:
                 validate_expected_type(node.target.target, IntegerT.any())
