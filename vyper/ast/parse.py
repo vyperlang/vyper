@@ -1,6 +1,5 @@
 import ast as python_ast
 import tokenize
-import warnings
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -11,6 +10,7 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
+from vyper.utils import vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -348,7 +348,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             msg = "Instantiating a struct using a dictionary is deprecated "
             msg += "as of v0.4.0 and will be disallowed in a future release. "
             msg += "Use kwargs instead e.g. Foo(a=1, b=2)"
-            warnings.warn(msg, stacklevel=2)
+
+            # add full_source_code so that str(VyperException(msg, node)) works
+            node.full_source_code = self._source_code
+            vyper_warn(msg, node)
 
             dict_ = node.args[0]
             kw_list = []

@@ -594,4 +594,4 @@ def foo():
         expected += "Use kwargs instead e.g. Foo(a=1, b=2)"
 
         assert len(w) == 1
-        assert str(w[0].message) == expected
+        assert str(w[0].message).startswith(expected)
