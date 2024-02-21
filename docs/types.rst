@@ -132,7 +132,7 @@ Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int2
    While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
 
 .. note::
-   Integer division is implemented using the EVM opcode ``SDIV``. This has different rounding semantics than python for negative numbers: ``SDIV`` rounds towards zero, while python rounds towards negative infinity. For example, ``-1 // 2` will return ``-1`` in python, but ``0`` in vyper.
+   Integer division has different rounding semantics than Python for negative numbers: Vyper rounds towards zero, while Python rounds towards negative infinity. For example, ``-1 // 2` will return ``-1`` in Python, but ``0`` in Vyper.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
