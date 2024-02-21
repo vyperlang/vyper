@@ -44,7 +44,6 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.environment import get_mutable_vars
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
