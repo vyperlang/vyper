@@ -95,7 +95,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x // y``     Floor division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 =============  ======================
@@ -181,7 +181,7 @@ Operator                     Description
 ``x + y``                    Addition
 ``x - y``                    Subtraction
 ``x * y``                    Multiplication
-``x / y``                    Division
+``x // y``                   Floor division
 ``x**y``                     Exponentiation
 ``x % y``                    Modulo
 ===========================  ======================
@@ -270,7 +270,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x / y``      Decimal division
 ``x % y``      Modulo
 =============  ==========================================
 
