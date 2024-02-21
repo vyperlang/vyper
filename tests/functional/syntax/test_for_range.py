@@ -45,7 +45,7 @@ def foo():
         pass
     """,
         StateAccessViolation,
-        "Bound must be a literal",
+        "Bound must be a literal integer",
         None,
         "x",
     ),
@@ -302,6 +302,31 @@ def foo():
         "No builtin or user-defined type named 'uint9'.",
         "Did you mean 'uint96', or maybe 'uint8'?",
         "uint9",
+    ),
+    (
+        """
+@external
+def foo():
+    for i:decimal in range(1.1, 2.2):
+        pass
+    """,
+        StateAccessViolation,
+        "Value must be a literal integer, unless a bound is specified",
+        None,
+        "1.1",
+    ),
+    (
+        """
+@external
+def foo():
+    x:decimal = 1.1
+    for i:decimal in range(x, x + 2.0, bound=10.1):
+        pass
+    """,
+        StateAccessViolation,
+        "Bound must be a literal integer",
+        None,
+        "10.1",
     ),
 ]
 

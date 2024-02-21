@@ -870,16 +870,16 @@ def _validate_range_call(node: vy_ast.Call):
         bound = kwargs["bound"]
         if bound.has_folded_value:
             bound = bound.get_folded_value()
-        if not isinstance(bound, vy_ast.Num):
-            raise StateAccessViolation("Bound must be a literal", bound)
+        if not isinstance(bound, vy_ast.Int):
+            raise StateAccessViolation("Bound must be a literal integer", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
-        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
+        if isinstance(start, vy_ast.Int) and isinstance(end, vy_ast.Int):
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
         for arg in (start, end):
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 error = "Value must be a literal integer, unless a bound is specified"
                 raise StateAccessViolation(error, arg)
         if end.value <= start.value:
