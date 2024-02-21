@@ -89,7 +89,7 @@ class Namespace(dict):
             self.__setitem__(key, value)
 
     def clear(self):
-        raise ValueError("should not use clear() on Namespace")
+        raise RuntimeError("should not use clear() on Namespace")
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
