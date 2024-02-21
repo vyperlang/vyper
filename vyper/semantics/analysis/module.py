@@ -44,6 +44,7 @@ from vyper.semantics.analysis.utils import (
     get_expr_info,
 )
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.environment import get_mutable_vars
 from vyper.semantics.namespace import Namespace, get_namespace, override_global_namespace
 from vyper.semantics.types import EventT, FlagT, InterfaceT, StructT
 from vyper.semantics.types.function import ContractFunctionT
@@ -73,6 +74,8 @@ def validate_module_semantics_r(
     namespace = get_namespace()
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
+        namespace.update(get_mutable_vars())  # add `self` to namespace
+
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
         ret = analyzer.analyze()
 
@@ -189,8 +192,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self.ast._metadata["type"] = self.module_t
 
         # attach namespace to the module for downstream use.
-        _ns = copy.copy(self.namespace)
-        self.ast._metadata["namespace"] = _ns
+        self.ast._metadata["namespace"] = copy.copy(self.namespace)
 
         self.analyze_call_graph()
 
@@ -656,7 +658,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             module_ast = self._ast_from_file(file)
 
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(Namespace.vyper_namespace()):
                 module_t = validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
@@ -676,7 +678,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
 
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(Namespace.vyper_namespace()):
                 validate_module_semantics_r(
                     module_ast,
                     self.input_bundle,
@@ -774,7 +776,7 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)
 
-    with override_global_namespace(Namespace()):
+    with override_global_namespace(Namespace.vyper_namespace()):
         module_t = validate_module_semantics_r(
             interface_ast, input_bundle, ImportGraph(), is_interface=True
         )
