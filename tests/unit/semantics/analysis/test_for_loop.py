@@ -1,12 +1,7 @@
 import pytest
 
 from vyper.ast import parse_to_ast
-from vyper.exceptions import (
-    ArgumentException,
-    ImmutableViolation,
-    StateAccessViolation,
-    TypeMismatch,
-)
+from vyper.exceptions import ArgumentException, ImmutableViolation, TypeMismatch
 from vyper.semantics.analysis import validate_semantics
 
 
@@ -88,7 +83,7 @@ def bar(n: uint256):
         x += i
     """
     vyper_module = parse_to_ast(code)
-    with pytest.raises(StateAccessViolation):
+    with pytest.raises(TypeMismatch):
         validate_semantics(vyper_module, dummy_input_bundle)
 
 
