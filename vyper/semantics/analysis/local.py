@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     EventT,
     FlagT,
     HashMapT,
+    IntegerT,
     SArrayT,
     StringT,
     StructT,
@@ -59,7 +60,6 @@ from vyper.semantics.types import (
     map_void,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.utils import type_from_annotation
 
 
