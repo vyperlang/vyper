@@ -6,7 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -87,6 +87,7 @@ class BuiltinFunctionT(VyperType):
     _return_type: Optional[VyperType] = None
     _equality_attrs = ("_id",)
     _is_terminus = False
+    mutability: StateMutability = StateMutability.PURE
 
     @property
     def modifiability(self):
