@@ -34,6 +34,7 @@ class Namespace(dict):
 
         self.update(PRIMITIVE_TYPES)
         self.update(environment.get_constant_vars())
+        self.update(environment.get_mutable_vars())  # global `self` variable
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
         return self
 
@@ -74,10 +75,14 @@ class Namespace(dict):
         try:
             yield
         finally:
-            if not self._scopes or scope is not self._scopes.pop():
-                raise CompilerPanic("Bad use of namespace as a context manager")
-            for key in scope:
-                del self[key]
+            self.popscope()
+
+    def popscope(self):
+        if not self._scopes:
+            raise CompilerPanic("Bad use of namespace as a context manager")
+        to_delete = self._scopes.pop()
+        for key in to_delete:
+            del self[key]
 
     def update(self, other):
         for key, value in other.items():

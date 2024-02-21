@@ -74,8 +74,6 @@ def validate_module_semantics_r(
     namespace = get_namespace()
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
-        namespace.update(get_mutable_vars())  # add `self` to namespace
-
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
         ret = analyzer.analyze()
 
