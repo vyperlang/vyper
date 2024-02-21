@@ -298,8 +298,6 @@ def test(code_ofst: uint256) -> address:
     tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
     tx_hash = deploy_transaction.transact(tx_info)
     blueprint_address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    # blueprint_code = w3.eth.get_code(blueprint_address)
-    # print("BLUEPRINT CODE:", blueprint_code)
 
     d = get_contract(deployer_code, blueprint_address)
 
