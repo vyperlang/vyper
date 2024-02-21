@@ -430,7 +430,7 @@ class Expr:
                 ret = arithmetic.safe_sub(x, y)
             elif isinstance(self.expr.op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, vy_ast.Div):
+            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.FloorDiv)):
                 ret = arithmetic.safe_div(x, y)
             elif isinstance(self.expr.op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)

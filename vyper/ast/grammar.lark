@@ -140,6 +140,7 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "-"  -> sub
              | "*"  -> mul
              | "/"  -> div
+             | "//" -> floordiv
              | "%"  -> mod
              | "**" -> pow
              | "<<" -> shl
@@ -274,6 +275,7 @@ _IN: "in"
 ?product: unary
         | product "*"  unary -> mul
         | product "/"  unary -> div
+        | product "//" unary -> floordiv
         | product "%"  unary -> mod
 ?unary: power
        | "+"  power -> uadd
