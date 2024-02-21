@@ -209,6 +209,10 @@ Vyper has three built-ins for contract creation; all three contract creation bui
 
     To properly deploy a blueprint contract, special deploy bytecode must be used. The output of ``vyper -f blueprint_bytecode`` will produce bytecode which deploys an ERC-5202 compatible blueprint.
 
+.. note::
+
+  Prior to Vyper version ``0.4.0``, the ``code_offset`` parameter defaulted to ``0``.
+
 .. warning::
 
     It is recommended to deploy blueprints with an `ERC-5202 <https://eips.ethereum.org/EIPS/eip-5202>`_ preamble like ``0xFE7100`` to guard them from being called as regular contracts. This is particularly important for factories where the constructor has side effects (including ``SELFDESTRUCT``!), as those could get executed by *anybody* calling the blueprint contract directly. The ``code_offset=`` kwarg is provided (and defaults to the ERC-5202 default of 3) to enable this pattern:
