@@ -7,6 +7,7 @@ from vyper.exceptions import (
     ArgumentException,
     StateAccessViolation,
     StructureException,
+    TypeCheckFailure,
     TypeMismatch,
     UnknownType,
 )
@@ -310,10 +311,10 @@ def foo():
     for i:decimal in range(1.1, 2.2):
         pass
     """,
-        StateAccessViolation,
-        "Value must be a literal integer, unless a bound is specified",
+        TypeCheckFailure,
+        "Range can only be defined over an integer type",
         None,
-        "1.1",
+        "decimal",
     ),
     (
         """
@@ -323,10 +324,10 @@ def foo():
     for i:decimal in range(x, x + 2.0, bound=10.1):
         pass
     """,
-        StateAccessViolation,
-        "Bound must be a literal integer",
+        TypeCheckFailure,
+        "Range can only be defined over an integer type",
         None,
-        "10.1",
+        "decimal",
     ),
 ]
 

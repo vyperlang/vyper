@@ -59,6 +59,7 @@ from vyper.semantics.types import (
     map_void,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -512,6 +513,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         iter_var = None
         if isinstance(node.iter, vy_ast.Call):
+            if not isinstance(target_type, IntegerT):
+                raise TypeCheckFailure(
+                    "Range can only be defined over an integer type", node.target.annotation
+                )
             self._analyse_range_iter(node.iter, target_type)
         else:
             iter_var = self._analyse_list_iter(node.iter, target_type)
