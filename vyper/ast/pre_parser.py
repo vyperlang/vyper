@@ -104,10 +104,18 @@ class ForParser:
 
 # compound statements that are replaced with `class`
 # TODO remove enum in favor of flag
-VYPER_CLASS_TYPES = {"flag", "enum", "event", "interface", "struct"}
+VYPER_CLASS_TYPES = {
+    "flag": "FlagDef",
+    "enum": "EnumDef",
+    "event": "EventDef",
+    "interface": "InterfaceDef",
+    "struct": "StructDef",
+}
 
-# simple statements or expressions that are replaced with `yield`
-VYPER_EXPRESSION_TYPES = {"log"}
+# simple statements that are replaced with `yield`
+CUSTOM_STATEMENT_TYPES = {"log": "Log"}
+# expression types that are replaced with `await`
+CUSTOM_EXPRESSION_TYPES = {"extcall": "ExtCall"}
 
 
 def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
@@ -204,10 +212,13 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
             if typ == NAME:
                 if string in VYPER_CLASS_TYPES and start[1] == 0:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
-                    modification_offsets[start] = f"{string.capitalize()}Def"
-                elif string in VYPER_EXPRESSION_TYPES:
+                    modification_offsets[start] = VYPER_CLASS_TYPES[string]
+                elif string in CUSTOM_STATEMENT_TYPES:
                     toks = [TokenInfo(NAME, "yield", start, end, line)]
-                    modification_offsets[start] = string.capitalize()
+                    modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
+                elif string in CUSTOM_EXPRESSION_TYPES:
+                    toks = [TokenInfo(NAME, "await", start, end, line)]
+                    modification_offsets[start] = CUSTOM_EXPRESSION_TYPES[string]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])

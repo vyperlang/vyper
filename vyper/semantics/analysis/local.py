@@ -442,43 +442,18 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, (vy_ast.Call, vy_ast.Await)):
+        if not isinstance(node.value, vy_ast.Call):
             raise StructureException("Expressions without assignment are disallowed", node)
 
-        is_await = isinstance(node.value, vy_ast.Await)
-        if is_await:
-            # traverse one level down to the Call expr
-            node = node.value
+        func = node.value.func
 
-            if not isinstance(node, vy_ast.Call):
-                raise StructureException("not an external function", node)
-
-        fn_type = get_exact_type_from_node(node.value.func)
+        fn_type = get_exact_type_from_node(func)
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
-
-        if isinstance(fn_type, ContractFunctionT):
-            if fn_type.is_external and not is_await:
-                raise CallViolation(
-                    "Calls to external contracts must use the `await` keyword. ",
-                    node,
-                    hint=f"try `await {node.node_source_code}`"
-                )
-            if not fn_type.is_external and is_await:
-                raise CallViolation(
-                    "Calls to internal functions cannot use the `await` keyword.",
-                    node,
-                    hint=f"remove the `await` keyword",
-                )
-
-        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            # it's a dotted function call like dynarray.pop()
-            expr_info = get_expr_info(node.value.func.value)
-            expr_info.validate_modification(node, self.func.mutability)
 
         # NOTE: fetch_call_return validates call args.
         return_value = map_void(fn_type.fetch_call_return(node.value))
@@ -720,6 +695,14 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if isinstance(func_type, ContractFunctionT):
             # function calls
+            if func_type.is_external != node.is_extcall:
+                if node.is_extcall:
+                    msg = "Calls to internal functions cannot use the `extcall` keyword."
+                    hint = "remove the `extcall` keyword"
+                else:
+                    msg = "Calls to external contracts must use the `extcall` keyword. "
+                    hint = f"try `extcall {node.node_source_code}`"
+                raise CallViolation(msg, node, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():

@@ -211,6 +211,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.end_lineno = end[0]
         node.end_col_offset = end[1]
 
+        # TODO: adjust end_lineno and end_col_offset when this node is in
+        # modification_offsets
+
         if hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
@@ -337,9 +340,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.value, python_ast.Yield):
+            # TODO: unremove from the enclosing Expr
             node = node.value
             node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
 
+        return node
+
+    def visit_Await(self, node):
+        self.generic_visit(node)
+        node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
         return node
 
     def visit_Call(self, node):

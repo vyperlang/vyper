@@ -103,13 +103,21 @@ def get_node(
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
+    if ast_struct["ast_type"] == "ExtCall":
+        call_node = ast_struct.pop("value")
+        if not isinstance(call_node, dict):
+            call_node = call_node.__dict__
+        dont_copy = NODE_SRC_ATTRIBUTES + ("ast_type",)
+        ast_struct.update({k: v for (k, v) in call_node.items() if k not in dont_copy})
+
     enum_warn = False
     if ast_struct["ast_type"] == "EnumDef":
         enum_warn = True
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
-    if not vy_class:
+
+    if vy_class is None:
         if ast_struct["ast_type"] == "Delete":
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
@@ -745,10 +753,6 @@ class Return(Stmt):
         return True
 
 
-class Await(Stmt):
-    __slots__ = ("value",)
-
-
 class Expr(Stmt):
     __slots__ = ("value",)
 
@@ -1244,6 +1248,8 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
+    is_extcall = False
+
     @property
     def is_terminus(self):
         # cursed import cycle!
@@ -1258,6 +1264,11 @@ class Call(ExprNode):
             return False
 
         return builtin_t._is_terminus
+
+
+# inherit from Call so it gets traversed in the same places as Call
+class ExtCall(Call):
+    is_extcall = True
 
 
 class keyword(VyperNode):
