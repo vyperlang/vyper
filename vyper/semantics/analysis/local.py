@@ -427,7 +427,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _handle_module_uses(self, target: vy_ast.ExprNode):
+    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
+        if not var_access.variable.is_module_variable():
+            return
+
         root_module_info = check_module_uses(target)
 
         if root_module_info is not None:
@@ -650,8 +653,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._handle_module_uses(node)
+                    self.function_analyzer._handle_module_access(s, node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -723,8 +725,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self._check_call_mutability(func_type.mutability)
 
                 for s in func_type.get_variable_accesses():
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._handle_module_uses(node.func)
+                    self.function_analyzer._handle_module_access(s, node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
