@@ -131,7 +131,7 @@ def __init__():
 
 # test that exporting can satisfy an implements constraint
 # use a mix of local and imported functions
-def test_exports_implements(make_input_bundle):
+def test_exports_implements2(make_input_bundle):
     ifoobar = """
 @external
 def foo():
