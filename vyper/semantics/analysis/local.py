@@ -512,10 +512,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
 
         iter_var = None
-        is_range = False
         if isinstance(node.iter, vy_ast.Call):
             self._analyse_range_iter(node.iter, target_type)
-            is_range = True
+
+            # sanity check the postcondition of analyse_range_iter
+            assert isinstance(target_type, IntegerT)
         else:
             iter_var = self._analyse_list_iter(node.iter, target_type)
 
@@ -525,10 +526,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.namespace[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
-            # ideally should be performed before calling _analyse_range_iter
-            # but there is a dependence on the namespace update
-            if is_range:
-                validate_expected_type(node.target.target, IntegerT.any())
 
             self.expr_visitor.visit(node.target.target, target_type)
 
