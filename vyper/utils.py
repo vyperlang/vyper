@@ -9,7 +9,7 @@ import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
 
 _T = TypeVar("_T")
 
@@ -208,8 +208,11 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
