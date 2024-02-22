@@ -29,7 +29,7 @@ def test_decimal_override():
         )
 
 
-@pytest.mark.parametrize("op", ["**", "&", "|", "^"])
+@pytest.mark.parametrize("op", ["//", "**", "&", "|", "^"])
 def test_invalid_ops(op):
     code = f"""
 @external
@@ -300,3 +300,15 @@ def foo():
     """
     with pytest.raises(OverflowException):
         compile_code(code)
+
+
+def test_invalid_floordiv():
+    code = """
+@external
+def foo():
+    a: decimal = 5.0 // 9.0
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `5.0 / 9.0`?"
