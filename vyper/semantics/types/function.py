@@ -42,17 +42,17 @@ from vyper.utils import OrderedSet, keccak256
 class _FunctionArg:
     name: str
     typ: VyperType
+    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
 class PositionalArg(_FunctionArg):
-    ast_source: Optional[vy_ast.VyperNode] = None
+    pass
 
 
-@dataclass
+@dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
     default_value: vy_ast.VyperNode
-    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -786,7 +786,7 @@ def _parse_args(
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             validate_expected_type(value, type_)
-            keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))
+            keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
 
         argnames.add(argname)
 
