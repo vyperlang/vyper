@@ -10,7 +10,7 @@ struct MyStruct:
 @internal
 @view
 def get_my_struct(_e1: decimal, _e2: uint256) -> MyStruct:
-    return MyStruct({e1: _e1, e2: _e2})
+    return MyStruct(e1=_e1, e2=_e2)
 
 @external
 @view
@@ -42,7 +42,7 @@ struct MyStruct:
 @internal
 @view
 def get_my_struct(_e1: decimal) -> MyStruct:
-    return MyStruct({e1: _e1})
+    return MyStruct(e1=_e1)
 
 @external
 @view

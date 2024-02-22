@@ -6,6 +6,7 @@ from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
     clamp,
+    data_location_to_address_space,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -23,7 +24,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import DATA, IMMUTABLES, MEMORY, STORAGE, TRANSIENT
+from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
@@ -33,7 +34,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
-    VyperException,
     tag_exceptions,
 )
 from vyper.semantics.types import (
@@ -185,26 +185,24 @@ class Expr:
             ret._referenced_variables = {var}
             return ret
 
-        # TODO: use self.expr._expr_info
-        elif self.expr.id in self.context.globals:
-            varinfo = self.context.globals[self.expr.id]
-
+        elif (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
                 return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
 
             assert varinfo.is_immutable, "not an immutable!"
 
-            ofst = varinfo.position.offset
+            mutable = self.context.is_ctor_context
 
-            if self.context.is_ctor_context:
-                mutable = True
-                location = IMMUTABLES
-            else:
-                mutable = False
-                location = DATA
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
 
             ret = IRnode.from_list(
-                ofst, typ=varinfo.typ, location=location, annotation=self.expr.id, mutable=mutable
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation=self.expr.id,
+                mutable=mutable,
             )
             ret._referenced_variables = {varinfo}
             return ret
@@ -213,15 +211,15 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyEnum.foo
+        # MyFlag.foo
         if (
             isinstance(typ, FlagT)
             and isinstance(self.expr.value, vy_ast.Name)
             and typ.name == self.expr.value.id
         ):
             # 0, 1, 2, .. 255
-            enum_id = typ._enum_members[self.expr.attr]
-            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            flag_id = typ._flag_members[self.expr.attr]
+            value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
@@ -264,20 +262,6 @@ class Expr:
                 if addr.value == "address":  # for `self.code`
                     return IRnode.from_list(["~selfcode"], typ=BytesT(0))
                 return IRnode.from_list(["~extcode", addr], typ=BytesT(0))
-        # self.x: global attribute
-        elif isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
-            varinfo = self.context.globals[self.expr.attr]
-            location = TRANSIENT if varinfo.is_transient else STORAGE
-
-            ret = IRnode.from_list(
-                varinfo.position.position,
-                typ=varinfo.typ,
-                location=location,
-                annotation="self." + self.expr.attr,
-            )
-            ret._referenced_variables = {varinfo}
-
-            return ret
 
         # Reserved keywords
         elif (
@@ -295,21 +279,15 @@ class Expr:
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.prevrandao in pre-Paris "
-                        "environment! Suggest using block.difficulty instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.prevrandao in pre-Paris "
+                    warning += "environment! Suggest using block.difficulty instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["prevrandao"], typ=UINT256_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.difficulty in post-Paris "
-                        "environment! Suggest using block.prevrandao instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.difficulty in post-Paris "
+                    warning += "environment! Suggest using block.prevrandao instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
@@ -333,17 +311,37 @@ class Expr:
                         "chain.id is unavailable prior to istanbul ruleset", self.expr
                     )
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
+
         # Other variables
-        else:
-            sub = Expr(self.expr.value, self.context).ir_node
-            # contract type
-            if isinstance(sub.typ, InterfaceT):
-                # MyInterface.address
-                assert self.expr.attr == "address"
-                sub.typ = typ
-                return sub
-            if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
-                return get_element_ptr(sub, self.expr.attr)
+
+        # self.x: global attribute
+        if (varinfo := self.expr._expr_info.var_info) is not None:
+            if varinfo.is_constant:
+                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+
+            location = data_location_to_address_space(
+                varinfo.location, self.context.is_ctor_context
+            )
+
+            ret = IRnode.from_list(
+                varinfo.position.position,
+                typ=varinfo.typ,
+                location=location,
+                annotation="self." + self.expr.attr,
+            )
+            ret._referenced_variables = {varinfo}
+
+            return ret
+
+        sub = Expr(self.expr.value, self.context).ir_node
+        # contract type
+        if isinstance(sub.typ, InterfaceT):
+            # MyInterface.address
+            assert self.expr.attr == "address"
+            sub.typ = typ
+            return sub
+        if isinstance(sub.typ, StructT) and self.expr.attr in sub.typ.member_types:
+            return get_element_ptr(sub, self.expr.attr)
 
     def parse_Subscript(self):
         sub = Expr(self.expr.value, self.context).ir_node
@@ -415,7 +413,7 @@ class Expr:
             op = shr if not left.typ.is_signed else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
-        # enums can only do bit ops, not arithmetic.
+        # flags can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
@@ -425,7 +423,7 @@ class Expr:
                 ret = arithmetic.safe_sub(x, y)
             elif isinstance(self.expr.op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, vy_ast.Div):
+            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.FloorDiv)):
                 ret = arithmetic.safe_div(x, y)
             elif isinstance(self.expr.op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)
@@ -640,10 +638,10 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.Invert):
             if isinstance(operand.typ, FlagT):
-                n_members = len(operand.typ._enum_members)
+                n_members = len(operand.typ._flag_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
-                # hurt codesize, but most user enums will likely have few
+                # hurt codesize, but most user flags will likely have few
                 # enough members that the mask will not be large.
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
@@ -678,9 +676,7 @@ class Expr:
 
         # Struct constructor
         if is_type_t(func_type, StructT):
-            args = self.expr.args
-            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
+            return self.handle_struct_literal()
 
         # Interface constructor. Bar(<address>).
         if is_type_t(func_type, InterfaceT):
@@ -700,7 +696,7 @@ class Expr:
             return pop_dyn_array(darray, return_popped_item=True)
 
         if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal:
+            if func_type.is_internal or func_type.is_constructor:
                 return self_call.ir_for_self_call(self.expr, self.context)
             else:
                 return external_call.ir_for_external_call(self.expr, self.context)
@@ -745,17 +741,15 @@ class Expr:
         location = body.location
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
-    @staticmethod
-    def struct_literals(expr, context, typ):
+    def handle_struct_literal(self):
+        expr = self.expr
+        typ = expr._metadata["type"]
         member_subs = {}
-        member_typs = {}
-        for key, value in zip(expr.keys, expr.values):
-            assert isinstance(key, vy_ast.Name)
-            assert key.id not in member_subs
+        for kwarg in expr.keywords:
+            assert kwarg.arg not in member_subs
 
-            sub = Expr(value, context).ir_node
-            member_subs[key.id] = sub
-            member_typs[key.id] = sub.typ
+            sub = Expr(kwarg.value, self.context).ir_node
+            member_subs[kwarg.arg] = sub
 
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ

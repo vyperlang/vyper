@@ -3,13 +3,13 @@ from decimal import Decimal
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
     ImmutableViolation,
     InvalidType,
     IteratorException,
     NamespaceCollision,
-    StateAccessViolation,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -51,8 +51,8 @@ struct S:
 @external
 def data() -> int128:
     sss: DynArray[DynArray[S, 10], 10] = [
-        [S({x:1, y:2})],
-        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        [S(x=1, y=2)],
+        [S(x=3, y=4), S(x=5, y=6), S(x=7, y=8), S(x=9, y=10)]
         ]
     ret: int128 = 0
     for ss: DynArray[S, 10] in sss:
@@ -132,7 +132,7 @@ struct S:
 @external
 def data() -> int128:
     ret: int128 = 0
-    for ss: S[1] in [[S({x:1, y:2})]]:
+    for ss: S[1] in [[S(x=1, y=2)]]:
         for s: S in ss:
             ret += s.x + s.y
     return ret""",
@@ -713,7 +713,7 @@ def foo():
     for i: uint256 in range(a):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
     ),
     (
         """
@@ -723,7 +723,7 @@ def foo():
     for i: int128 in range(a,a-3):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
     ),
     # invalid argument length
     (
@@ -790,7 +790,7 @@ def test_for() -> int128:
         a = i
     return a
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -841,6 +841,59 @@ bad_code_names = [
 ]
 
 
+# TODO: move these to tests/functional/syntax
 @pytest.mark.parametrize("code,err", BAD_CODE, ids=bad_code_names)
 def test_bad_code(assert_compile_failed, get_contract, code, err):
-    assert_compile_failed(lambda: get_contract(code), err)
+    with pytest.raises(err):
+        compile_code(code)
+
+
+def test_iterator_modification_module_attribute(make_input_bundle):
+    # test modifying iterator via attribute
+    lib1 = """
+queue: DynArray[uint256, 5]
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.queue.pop()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"
+
+
+def test_iterator_modification_module_function_call(make_input_bundle):
+    lib1 = """
+queue: DynArray[uint256, 5]
+
+@internal
+def popqueue():
+    self.queue.pop()
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@external
+def foo():
+    for i: uint256 in lib1.queue:
+        lib1.popqueue()
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `queue`"

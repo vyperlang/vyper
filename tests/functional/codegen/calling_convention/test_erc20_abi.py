@@ -33,7 +33,7 @@ interface ERC20Contract:
 
 token_address: ERC20Contract
 
-@external
+@deploy
 def __init__(token_addr: address):
     self.token_address = ERC20Contract(token_addr)
 

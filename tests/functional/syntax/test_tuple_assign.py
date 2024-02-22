@@ -92,7 +92,7 @@ def test(a: bytes32) -> (bytes32, uint256, int128):
         """
 B: immutable(uint256)
 
-@external
+@deploy
 def __init__(b: uint256):
     B = b
 

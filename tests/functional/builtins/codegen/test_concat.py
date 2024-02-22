@@ -79,7 +79,7 @@ def test_concat_buffer2(get_contract):
     code = """
 i: immutable(int256)
 
-@external
+@deploy
 def __init__():
     i = -1
     s: String[2] = concat("a", "b")
@@ -99,7 +99,7 @@ s: String[1]
 s2: String[33]
 s3: String[34]
 
-@external
+@deploy
 def __init__():
     self.s = "a"
     self.s2 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # 33*'a'

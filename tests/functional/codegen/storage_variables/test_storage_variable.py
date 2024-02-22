@@ -10,7 +10,7 @@ struct Var:
     b: int128
 var: Var
 
-@external
+@deploy
 def __init__(a: int128, b: int128):
     self.var.a = a
     self.var.b = b

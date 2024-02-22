@@ -3,7 +3,7 @@ from .base import TYPE_T, VOID_TYPE, KwargSettings, VyperType, is_type_t, map_vo
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import MemberFunctionT
 from .module import InterfaceT
-from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from .user import EventT, FlagT, StructT
 

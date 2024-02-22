@@ -308,7 +308,7 @@ def _to_int(expr, arg, out_typ):
     elif is_flag_type(arg.typ):
         if out_typ != UINT256_T:
             _FAIL(arg.typ, out_typ, expr)
-        # pretend enum is uint256
+        # pretend flag is uint256
         arg = IRnode.from_list(arg, typ=UINT256_T)
         # use int_to_int rules
         arg = _int_to_int(arg, out_typ)
@@ -442,12 +442,12 @@ def to_bytes(expr, arg, out_typ):
 
 
 @_input_types(IntegerT)
-def to_enum(expr, arg, out_typ):
+def to_flag(expr, arg, out_typ):
     if arg.typ != UINT256_T:
         _FAIL(arg.typ, out_typ, expr)
 
-    if len(out_typ._enum_members) < 256:
-        arg = int_clamp(arg, bits=len(out_typ._enum_members), signed=False)
+    if len(out_typ._flag_members) < 256:
+        arg = int_clamp(arg, bits=len(out_typ._flag_members), signed=False)
 
     return IRnode.from_list(arg, typ=out_typ)
 
@@ -469,7 +469,7 @@ def convert(expr, context):
         elif out_typ == AddressT():
             ret = to_address(arg_ast, arg, out_typ)
         elif is_flag_type(out_typ):
-            ret = to_enum(arg_ast, arg, out_typ)
+            ret = to_flag(arg_ast, arg, out_typ)
         elif is_integer_type(out_typ):
             ret = to_int(arg_ast, arg, out_typ)
         elif is_bytes_m_type(out_typ):

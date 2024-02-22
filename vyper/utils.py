@@ -1,6 +1,7 @@
 import binascii
 import contextlib
 import decimal
+import enum
 import functools
 import sys
 import time
@@ -9,7 +10,7 @@ import warnings
 from collections.abc import Iterator
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
 
 _T = TypeVar("_T")
 
@@ -76,6 +77,60 @@ class OrderedSet(Generic[_T], dict[_T, None]):
             if all(e in s for s in sets[1:]):
                 res.add(e)
         return res
+
+
+class StringEnum(enum.Enum):
+    # Must be first, or else won't work, specifies what .value is
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    # Override ValueError with our own internal exception
+    @classmethod
+    def _missing_(cls, value):
+        raise CompilerPanic(f"{value} is not a valid {cls.__name__}")
+
+    @classmethod
+    def is_valid_value(cls, value: str) -> bool:
+        return value in set(o.value for o in cls)
+
+    @classmethod
+    def options(cls) -> List["StringEnum"]:
+        return list(cls)
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [v.value for v in cls.options()]
+
+    # Comparison operations
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        return self is other
+
+    # Python normally does __ne__(other) ==> not self.__eq__(other)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
+        options = self.__class__.options()
+        return options.index(self) < options.index(other)  # type: ignore
+
+    def __le__(self, other: object) -> bool:
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other: object) -> bool:
+        return not self.__le__(other)
+
+    def __ge__(self, other: object) -> bool:
+        return not self.__lt__(other)
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __hash__(self) -> int:
+        # let `dataclass` know that this class is not mutable
+        return super().__hash__()
 
 
 class DecimalContextOverride(decimal.Context):
@@ -169,8 +224,11 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -359,6 +417,7 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6

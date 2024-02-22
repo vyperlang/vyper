@@ -78,7 +78,7 @@ struct Foo:
 
 @internal
 def foo(x: Foo) -> Foo:
-    x = Foo({a: 789, b: [Bar.BAZ, Bar.BAK, Bar.BAD], c: \"conda\"})
+    x = Foo(a=789, b=[Bar.BAZ, Bar.BAK, Bar.BAD], c=\"conda\")
     return x
 
 @external
@@ -197,7 +197,7 @@ def foo3(y: uint256) -> uint256:
     assert c.foo3(11) == 12
 
 
-def test_invalid_uin256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment(assert_compile_failed, get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
@@ -207,17 +207,17 @@ def foo2() -> uint256:
     x += 1
     return x
 """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
-def test_invalid_uin256_assignment_calculate_literals(get_contract_with_gas_estimation):
+def test_invalid_uint256_assignment_calculate_literals(get_contract_with_gas_estimation):
     code = """
 storx: uint256
 
 @external
 def foo2() -> uint256:
     x: uint256 = 0
-    x = 3 * 4 / 2 + 1 - 2
+    x = 3 * 4 // 2 + 1 - 2
     return x
 """
     c = get_contract_with_gas_estimation(code)
@@ -437,7 +437,7 @@ struct Point:
 @external
 def bug(p: Point) -> Point:
     t: Point = p
-    t = Point({x: t.y, y: t.x})
+    t = Point(x=t.y, y=t.x)
     return t
     """
     c = get_contract(code)

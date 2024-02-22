@@ -10,7 +10,7 @@ Example of Logging
 
 This example is taken from the `sample ERC20 contract <https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_ and shows the basic flow of event logging:
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Events of the token.
     event Transfer:
@@ -59,7 +59,7 @@ Declaring Events
 
 Let's look at an event declaration in more detail.
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Transfer:
         sender: indexed(address)
@@ -81,7 +81,7 @@ Event declarations look similar to struct declarations, containing one or more a
 Note that the first topic of a log record consists of the signature of the name of the event that occurred, including the types of its parameters.
 It is also possible to create an event with no arguments. In this case, use the ``pass`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Foo: pass
 
@@ -92,7 +92,7 @@ Once an event is declared, you can log (send) events. You can send events as man
 
 Logging events is done using the ``log`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
    log Transfer(msg.sender, _to, _amount)
 

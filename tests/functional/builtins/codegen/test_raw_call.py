@@ -3,7 +3,7 @@ from hexbytes import HexBytes
 
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
-from vyper.exceptions import ArgumentException, InvalidType, StateAccessViolation
+from vyper.exceptions import ArgumentException, StateAccessViolation, TypeMismatch
 
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
@@ -137,7 +137,7 @@ owner_setter_contract: public(address)
 owners: public(address[5])
 
 
-@external
+@deploy
 def __init__(_owner_setter: address):
     self.owner_setter_contract = _owner_setter
 
@@ -628,7 +628,7 @@ def foo(_addr: address):
 def foo(_addr: address):
     raw_call(_addr, 256)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

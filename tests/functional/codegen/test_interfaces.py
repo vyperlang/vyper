@@ -305,7 +305,7 @@ interface EPI:
 token_address: IToken
 
 
-@external
+@deploy
 def __init__(_token_address: address):
     self.token_address = IToken(_token_address)
 
@@ -388,7 +388,7 @@ from ethereum.ercs import ERC20
 token_address: ERC20
 
 
-@external
+@deploy
 def __init__(_token_address: address):
     self.token_address = ERC20(_token_address)
 
@@ -445,7 +445,7 @@ interface BadContract:
 
 foo: BadContract
 
-@external
+@deploy
 def __init__(addr: BadContract):
     self.foo = addr
 
@@ -501,7 +501,7 @@ interface BadContract:
 
 foo: BadContract
 
-@external
+@deploy
 def __init__(addr: BadContract):
     self.foo = addr
 
@@ -551,7 +551,7 @@ import BadJSONInterface
 
 foo: BadJSONInterface
 
-@external
+@deploy
 def __init__(addr: BadJSONInterface):
     self.foo = addr
 
@@ -667,7 +667,7 @@ interface Bar:
 
 bar_contract: Bar
 
-@external
+@deploy
 def __init__():
     self.bar_contract = Bar(self)
 

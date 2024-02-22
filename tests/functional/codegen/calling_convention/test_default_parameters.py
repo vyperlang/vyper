@@ -3,9 +3,9 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     InvalidLiteral,
-    InvalidType,
     NonPayableViolation,
     StateAccessViolation,
+    TypeMismatch,
     UndeclaredDefinition,
 )
 
@@ -309,7 +309,7 @@ struct Bar:
     b: uint256
 
 @external
-def foo(bar: Bar = Bar({a: msg.sender, b: 1})): pass
+def foo(bar: Bar = Bar(a=msg.sender, b=1)): pass
     """,
     """
 struct Baz:
@@ -321,7 +321,7 @@ struct Bar:
     b: Baz
 
 @external
-def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
+def foo(bar: Bar = Bar(a=msg.sender, b=Baz(c=block.coinbase, d=-10))): pass
     """,
     """
 A: public(address)
@@ -341,7 +341,7 @@ def foo(a: int112 = min_value(int112)):
 struct X:
     x: int128
     y: address
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
 @external
 def out_literals(a: int128 = BAR.x + 1) -> X:
     return BAR
@@ -353,8 +353,8 @@ struct X:
 struct Y:
     x: X
     y: uint256
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
-FOO: constant(Y) = Y({x: BAR, y: 256})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
+FOO: constant(Y) = Y(x=BAR, y=256)
 @external
 def out_literals(a: int128 = FOO.x.x + 1) -> Y:
     return FOO
@@ -363,7 +363,7 @@ def out_literals(a: int128 = FOO.x.x + 1) -> Y:
 struct Bar:
     a: bool
 
-BAR: constant(Bar) = Bar({a: True})
+BAR: constant(Bar) = Bar(a=True)
 
 @external
 def foo(x: bool = True and not BAR.a):
@@ -373,7 +373,7 @@ def foo(x: bool = True and not BAR.a):
 struct Bar:
     a: uint256
 
-BAR: constant(Bar) = Bar({ a: 123 })
+BAR: constant(Bar) = Bar(a=123)
 
 @external
 def foo(x: bool = BAR.a + 1 > 456):
@@ -404,7 +404,7 @@ def foo(xx: int128, y: int128 = xx): pass
 @external
 def foo(a: uint256 = -1): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -412,7 +412,7 @@ def foo(a: uint256 = -1): pass
 @external
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -420,7 +420,7 @@ def foo(a: int128 = 170141183460469231731687303715884105728): pass
 @external
 def foo(a: uint256[2] = [13, -42]): pass
      """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -428,7 +428,7 @@ def foo(a: uint256[2] = [13, -42]): pass
 @external
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -444,7 +444,7 @@ def foo(a: uint256[2] = [12, True]): pass
 @external
 def foo(a: uint256[2] = [1, 2, 3]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

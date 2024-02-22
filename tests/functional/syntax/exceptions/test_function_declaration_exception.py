@@ -34,17 +34,17 @@ def test_func() -> int128:
     return (1, 2)
     """,
     """
-@external
+@deploy
 def __init__(a: int128 = 12):
     pass
     """,
     """
-@external
+@deploy
 def __init__() -> uint256:
     return 1
     """,
     """
-@external
+@deploy
 def __init__() -> bool:
     pass
     """,
@@ -58,7 +58,7 @@ def __init__():
     """
 a: immutable(uint256)
 
-@external
+@deploy
 @pure
 def __init__():
     a = 1
@@ -66,7 +66,7 @@ def __init__():
     """
 a: immutable(uint256)
 
-@external
+@deploy
 @view
 def __init__():
     a = 1

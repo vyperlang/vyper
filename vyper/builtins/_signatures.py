@@ -85,13 +85,16 @@ class BuiltinFunctionT(VyperType):
     _kwargs: dict[str, KwargSettings] = {}
     _modifiability: Modifiability = Modifiability.MODIFIABLE
     _return_type: Optional[VyperType] = None
+    _equality_attrs = ("_id",)
     _is_terminus = False
 
-    # helper function to deal with TYPE_DEFINITIONs
+    @property
+    def modifiability(self):
+        return self._modifiability
+
+    # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
-        # TODO using "TYPE_DEFINITION" is a kludge in derived classes,
-        # refactor me.
-        if expected_type == "TYPE_DEFINITION":
+        if TYPE_T.any().compare_type(expected_type):
             # try to parse the type - call type_from_annotation
             # for its side effects (will throw if is not a type)
             type_from_annotation(arg)
@@ -130,7 +133,7 @@ class BuiltinFunctionT(VyperType):
             get_exact_type_from_node(arg)
 
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return self._modifiability >= modifiability
+        return self._modifiability <= modifiability
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)

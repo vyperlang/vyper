@@ -2,7 +2,7 @@ def test_throw_on_sending(w3, tx_failed, get_contract_with_gas_estimation):
     code = """
 x: public(int128)
 
-@external
+@deploy
 def __init__():
     self.x = 123
     """

@@ -195,7 +195,7 @@ def test_ternary_tuple(get_contract, code, test):
 def test_ternary_immutable(get_contract, test):
     code = """
 IMM: public(immutable(uint256))
-@external
+@deploy
 def __init__(test: bool):
     IMM = 1 if test else 2
     """

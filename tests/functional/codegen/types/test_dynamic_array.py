@@ -7,7 +7,6 @@ from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
     ImmutableViolation,
-    InvalidType,
     OverflowException,
     StateAccessViolation,
     TypeMismatch,
@@ -1124,7 +1123,7 @@ def foo() -> DynArray[{subtyp}, 3]:
     x.append({lit})
     return x
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 invalid_appends_pops = [
@@ -1363,12 +1362,12 @@ struct Bar:
 def foo(x: uint8) -> uint8:
     b: DynArray[Bar[2], 2] = [
         [
-            Bar({a: [[x, x + 1], [x + 2, x + 3]]}),
-            Bar({a: [[x + 4, x +5], [x + 6, x + 7]]})
+            Bar(a=[[x, x + 1], [x + 2, x + 3]]),
+            Bar(a=[[x + 4, x +5], [x + 6, x + 7]])
         ],
         [
-            Bar({a: [[x + 8, x + 9], [x + 10, x + 11]]}),
-            Bar({a: [[x + 12, x + 13], [x + 14, x + 15]]})
+            Bar(a=[[x + 8, x + 9], [x + 10, x + 11]]),
+            Bar(a=[[x + 12, x + 13], [x + 14, x + 15]])
         ],
     ]
     return b[0][0].a[0][0] + b[0][1].a[1][1] + b[1][0].a[0][1] + b[1][1].a[1][0]
@@ -1504,11 +1503,11 @@ def _foo3() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
 
 @external
 def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 2]:
-    foo: Foo = Foo({
-        a1: self._foo(),
-        a2: self._foo2(),
-        a3: self._foo3(),
-    })
+    foo: Foo = Foo(
+        a1=self._foo(),
+        a2=self._foo2(),
+        a3=self._foo3(),
+    )
     return foo.a3
     """
     c = get_contract(code)
@@ -1525,12 +1524,12 @@ struct Foo:
 
 @internal
 def _foo(x: int128) -> Foo:
-    f: Foo = Foo({
-        b: b"hello",
-        da: [x, x * 2],
-        sa: [x + 1, x + 2, x + 3, x + 4, x + 5],
-        some_int: x - 1
-    })
+    f: Foo = Foo(
+        b=b"hello",
+        da=[x, x * 2],
+        sa=[x + 1, x + 2, x + 3, x + 4, x + 5],
+        some_int=x - 1
+    )
     return f
 
 @external
@@ -1551,12 +1550,11 @@ struct Foo:
 
 @internal
 def _foo(x: int128) -> Foo:
-    f: Foo = Foo({
-        a: [x, x * 2],
-        b: [0x0000000000000000000000000000000000000012],
-        c: [False, True, False]
-
-    })
+    f: Foo = Foo(
+        a=[x, x * 2],
+        b=[0x0000000000000000000000000000000000000012],
+        c=[False, True, False]
+    )
     return f
 
 @external
@@ -1578,15 +1576,15 @@ struct Foo:
 
 @internal
 def _foo() -> nestedFoo:
-    return nestedFoo({a1: [
+    return nestedFoo(a1=[
         [[3, 7], [7, 3]],
         [[7, 3], [3, 7]],
-    ]})
+    ])
 
 @internal
 def _foo2() -> Foo:
     _nF1: nestedFoo = self._foo()
-    return Foo({b1: [[[_nF1, _nF1], [_nF1, _nF1]], [[_nF1, _nF1], [_nF1, _nF1]]]})
+    return Foo(b1=[[[_nF1, _nF1], [_nF1, _nF1]], [[_nF1, _nF1], [_nF1, _nF1]]])
 
 @internal
 def _foo3(f: Foo) -> Foo:
@@ -1666,7 +1664,7 @@ def ix(i: uint256) -> decimal:
 def test_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[uint256, 5])
-@external
+@deploy
 def __init__():
     self.my_list = [1,2,3]
     """
@@ -1679,7 +1677,7 @@ def __init__():
 def test_nested_public_dynarray(get_contract):
     code = """
 my_list: public(DynArray[DynArray[uint256, 5], 5])
-@external
+@deploy
 def __init__():
     self.my_list = [[1,2,3]]
     """

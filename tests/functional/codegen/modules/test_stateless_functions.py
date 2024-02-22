@@ -159,7 +159,7 @@ struct SomeStruct:
 
 @internal
 def foo() -> SomeStruct:
-    return SomeStruct({x: 1})
+    return SomeStruct(x=1)
     """
     contract_source = """
 import library
@@ -170,7 +170,7 @@ def bar(s: library.SomeStruct):
 
 @external
 def baz() -> library.SomeStruct:
-    return library.SomeStruct({x: 2})
+    return library.SomeStruct(x=2)
 
 @external
 def qux() -> library.SomeStruct:

@@ -113,10 +113,7 @@ class TypenameFoldedFunctionT(FoldedFunctionT):
     # Base class for builtin functions that:
     # (1) take a typename as the only argument; and
     # (2) should always be folded.
-
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TypeTypeDefinition` object in `infer_arg_types`.
-    _inputs = [("typename", "TYPE_DEFINITION")]
+    _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
         type_ = self.infer_arg_types(node)[0].typedef
@@ -711,7 +708,7 @@ class Sha256(BuiltinFunctionT):
 class MethodID(FoldedFunctionT):
     _id = "method_id"
     _inputs = [("value", StringT.any())]
-    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BytesT(4))}
+    _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BytesT(4))}
 
     def _try_fold(self, node):
         validate_call_args(node, 1, ["output_type"])
@@ -848,10 +845,7 @@ def _storage_element_getter(index):
 class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
-    # "TYPE_DEFINITION" is a placeholder value for a type definition string, and
-    # will be replaced by a `TYPE_T` object in `infer_kwarg_types`
-    # (note that it is ignored in _validate_arg_types)
-    _kwargs = {"output_type": KwargSettings("TYPE_DEFINITION", BYTES32_T)}
+    _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BYTES32_T)}
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
@@ -1240,7 +1234,9 @@ class SelfDestruct(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         if not self._warned:
-            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            vyper_warn(
+                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+            )
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
@@ -1343,7 +1339,7 @@ class BitwiseAnd(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
+            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1368,7 +1364,7 @@ class BitwiseOr(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1393,7 +1389,7 @@ class BitwiseXor(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1418,7 +1414,7 @@ class BitwiseNot(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 1)
@@ -1444,7 +1440,7 @@ class Shift(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1770,7 +1766,9 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 
     def build_IR(self, expr, context):
         if not self._warned:
-            vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
+            vyper_warn(
+                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+            )
             self._warned = True
 
         return super().build_IR(expr, context)
@@ -1834,7 +1832,7 @@ class CreateFromBlueprint(_CreateBase):
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
-        "code_offset": KwargSettings(UINT256_T, zero_value),
+        "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
     }
     _has_varargs = True
 
@@ -1976,18 +1974,22 @@ class _UnsafeMath(BuiltinFunctionT):
 
 
 class UnsafeAdd(_UnsafeMath):
+    _id = "unsafe_add"
     op = "add"
 
 
 class UnsafeSub(_UnsafeMath):
+    _id = "unsafe_sub"
     op = "sub"
 
 
 class UnsafeMul(_UnsafeMath):
+    _id = "unsafe_mul"
     op = "mul"
 
 
 class UnsafeDiv(_UnsafeMath):
+    _id = "unsafe_div"
     op = "div"
 
 
@@ -2267,7 +2269,7 @@ class Breakpoint(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`breakpoint` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`breakpoint` should only be used for debugging!", node)
             self._warned = True
 
         return None
@@ -2287,7 +2289,7 @@ class Print(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
         return None
@@ -2474,7 +2476,7 @@ class ABIEncode(BuiltinFunctionT):
 
 class ABIDecode(BuiltinFunctionT):
     _id = "_abi_decode"
-    _inputs = [("data", BytesT.any()), ("output_type", "TYPE_DEFINITION")]
+    _inputs = [("data", BytesT.any()), ("output_type", TYPE_T.any())]
     _kwargs = {"unwrap_tuple": KwargSettings(BoolT(), True, require_literal=True)}
 
     def fetch_call_return(self, node):
