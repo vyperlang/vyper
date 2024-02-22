@@ -10,6 +10,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
+    TypeMismatch,
     FunctionDeclarationException,
     InvalidType,
     StateAccessViolation,
@@ -562,6 +563,15 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+    # add more information to type exceptions generated inside calls
+    def _enhance_call_exception(self, e, ast_node=None):
+        if ast_node is not None:
+            e.append_annotation(ast_node)
+        elif e.hint is None:
+            # try really hard to give the user a signature
+            e.hint = self._pp_signature
+        return e
+
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # mypy hint - right now, the only way a ContractFunctionT can be
         # called is via `Attribute`, e.x. self.foo() or library.bar()
@@ -577,21 +587,18 @@ class ContractFunctionT(VyperType):
         try:
             validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
         except ArgumentException as e:
-            msg = f"Invalid number of arguments to {self.name}"
-            hint = None
-            if self.ast_def is None:
-                hint = self._pp_signature
-
-            annotations = (self.ast_def, node)
-            raise ArgumentException(msg, *annotations, hint=hint) from e
+            raise self._enhance_call_exception(e, self.ast_def)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.argument_types):
-            validate_expected_type(arg, expected)
+        for arg, expected in zip(node.args, self.arguments):
+            try:
+                validate_expected_type(arg, expected.typ)
+            except TypeMismatch as e:
+                raise self._enhance_call_exception(e, expected.ast_source or self.ast_def)
 
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:

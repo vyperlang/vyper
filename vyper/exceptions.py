@@ -79,6 +79,12 @@ class _BaseVyperException(Exception):
         exc.annotations = annotations
         return exc
 
+    def append_annotation(self, exc):
+        if self.annotations is None:
+            self.annotations = []
+
+        self.annotations = [exc] + self.annotations
+
     @property
     def hint(self):
         # some hints are expensive to compute, so we wait until the last
