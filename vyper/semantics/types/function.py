@@ -10,11 +10,11 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     CompilerPanic,
-    TypeMismatch,
     FunctionDeclarationException,
     InvalidType,
     StateAccessViolation,
     StructureException,
+    TypeMismatch,
 )
 from vyper.semantics.analysis.base import (
     FunctionVisibility,

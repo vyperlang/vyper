@@ -181,3 +181,112 @@ def bar(x: {type}):
             "type": "function",
         }
     ]
+
+
+def test_exports_abi(make_input_bundle):
+    lib1 = """
+@external
+def foo():
+    pass
+
+@external
+def bar():
+    pass
+    """
+
+    main = """
+import lib1
+
+exports: lib1.foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+
+    # just for clarity -- check bar() is not in the output
+    for fn in out["abi"]:
+        assert fn["name"] != "bar"
+
+    expected = [
+        {
+            "inputs": [],
+            "name": "foo",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        }
+    ]
+
+    assert out["abi"] == expected
+
+
+def test_exports_variable(make_input_bundle):
+    lib1 = """
+@external
+def foo():
+    pass
+
+private_storage_variable: uint256
+private_immutable_variable: immutable(uint256)
+private_constant_variable: constant(uint256) = 3
+
+public_storage_variable: public(uint256)
+public_immutable_variable: public(immutable(uint256))
+public_constant_variable: public(constant(uint256)) = 10
+
+@deploy
+def __init__(a: uint256, b: uint256):
+    public_immutable_variable = a
+    private_immutable_variable = b
+    """
+
+    main = """
+import lib1
+
+initializes: lib1
+
+exports: (
+    lib1.foo,
+    lib1.public_storage_variable,
+    lib1.public_immutable_variable,
+    lib1.public_constant_variable,
+)
+
+@deploy
+def __init__():
+    lib1.__init__(5, 6)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = [
+        {
+            "inputs": [],
+            "name": "foo",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        },
+        {
+            "inputs": [],
+            "name": "public_storage_variable",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function",
+        },
+        {
+            "inputs": [],
+            "name": "public_immutable_variable",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function",
+        },
+        {
+            "inputs": [],
+            "name": "public_constant_variable",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function",
+        },
+        {"inputs": [], "outputs": [], "stateMutability": "nonpayable", "type": "constructor"},
+    ]
+
+    assert out["abi"] == expected
