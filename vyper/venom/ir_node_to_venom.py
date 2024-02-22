@@ -278,25 +278,6 @@ def _get_variables_from_address_and_size(
     return ret
 
 
-def _append_return_for_stack_operand(
-    ctx: IRFunction, symbols: SymbolTable, ret_ir: IRVariable, last_ir: IRVariable
-) -> None:
-    bb = ctx.get_basic_block()
-    if isinstance(ret_ir, IRLiteral):
-        sym = symbols.get(f"&{ret_ir.value}", None)
-        new_var = bb.append_instruction("alloca", 32, ret_ir)
-        bb.append_instruction("mstore", sym, new_var)  # type: ignore
-    else:
-        sym = symbols.get(ret_ir.value, None)
-        if sym is None:
-            # FIXME: needs real allocations
-            new_var = bb.append_instruction("alloca", 32, 0)
-            bb.append_instruction("mstore", ret_ir, new_var)  # type: ignore
-        else:
-            new_var = ret_ir
-    bb.append_instruction("return", last_ir, new_var)  # type: ignore
-
-
 def _convert_ir_bb_list(ctx, ir, symbols, variables, allocated_variables):
     ret = []
     for ir_node in ir:
