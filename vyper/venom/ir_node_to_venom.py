@@ -463,8 +463,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args[1], symbols, variables, allocated_variables
         )  # initialization
 
-        if isinstance(ret, IRLiteral):
-            ret = ctx.get_basic_block().append_instruction("store", ret.value)
+        ret = ctx.get_basic_block().append_instruction("store", ret)
 
         # Handle with nesting with same symbol
         with_symbols = symbols.copy()
