@@ -876,7 +876,7 @@ def _validate_range_call(node: vy_ast.Call):
         if bound.has_folded_value:
             bound = bound.get_folded_value()
         if not isinstance(bound, vy_ast.Int):
-            raise TypeMismatch("Bound must be a literal integer", bound)
+            raise StructureException("Bound must be a literal integer", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
         if isinstance(start, vy_ast.Int) and isinstance(end, vy_ast.Int):
@@ -886,6 +886,6 @@ def _validate_range_call(node: vy_ast.Call):
         for arg in (start, end):
             if not isinstance(arg, vy_ast.Int):
                 error = "Value must be a literal integer, unless a bound is specified"
-                raise TypeMismatch(error, arg)
+                raise StructureException(error, arg)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)
