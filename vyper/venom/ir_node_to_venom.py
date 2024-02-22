@@ -474,22 +474,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         arg_0, arg_1, size = _convert_ir_bb_list(
             ctx, ir.args, symbols, variables, allocated_variables
         )
-
-        new_v = arg_0
-        bb = ctx.get_basic_block()
-        if isinstance(arg_0, IRLiteral) and isinstance(size, IRLiteral):
-            vars = _get_variables_from_address_and_size(
-                variables, int(arg_0.value), int(size.value)
-            )
-            # for var in vars:
-            #     if allocated_variables.get(var.name, None) is None:
-            #         new_v = IRVariable(var.name)
-            #         ctx.get_basic_block().append_instruction("alloca", var.size, var.pos, ret=new_v)
-            #         allocated_variables[var.name] = new_v
-            #         symbols[f"&{var.pos}"] = new_v
-
         bb.append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
-
         return None
     elif ir.value in ["extcodecopy", "codecopy"]:
         return _convert_ir_simple_node(
