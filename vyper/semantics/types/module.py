@@ -166,7 +166,7 @@ class InterfaceT(_UserType):
 
         for name, function in function_list:
             if name in seen_items:
-                raise NamespaceCollision(f"multiple functions named '{name}'!", function.ast_def)
+                raise NamespaceCollision(f"multiple functions named '{name}'!", function.decl_node)
             functions[name] = function
             seen_items[name] = function
 

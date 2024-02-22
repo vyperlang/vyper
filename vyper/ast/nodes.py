@@ -628,7 +628,7 @@ class VyperNode:
         return obj
 
 
-class TopLevel(VyperNode):
+class HasDocstring(VyperNode):
     """
     Inherited class for Module and FunctionDef nodes.
 
@@ -640,8 +640,10 @@ class TopLevel(VyperNode):
 
     __slots__ = ("body", "name", "doc_string")
 
+class TopLevel(VyperNode):
+    pass
 
-class Module(TopLevel):
+class Module(HasDocstring):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
 
@@ -659,8 +661,11 @@ class Module(TopLevel):
             yield
 
 
-class FunctionDef(TopLevel):
-    __slots__ = ("args", "returns", "decorator_list", "pos")
+class FunctionDef(HasDocstring, TopLevel):
+    __slots__ = ("name", "args", "returns", "decorator_list", "pos")
+
+    def get_names(self):
+        return [self.name]
 
 
 class DocStr(VyperNode):
@@ -725,20 +730,27 @@ class Log(Stmt):
     __slots__ = ("value",)
 
 
-class FlagDef(TopLevel):
+class _TypeDef(TopLevel):
     __slots__ = ("name", "body")
 
-
-class EventDef(TopLevel):
-    __slots__ = ("name", "body")
-
-
-class InterfaceDef(TopLevel):
-    __slots__ = ("name", "body")
+    def get_names(self):
+        return [self.name]
 
 
-class StructDef(TopLevel):
-    __slots__ = ("name", "body")
+class FlagDef(_TypeDef):
+    pass
+
+
+class EventDef(_TypeDef):
+    pass
+
+
+class InterfaceDef(_TypeDef):
+    pass
+
+
+class StructDef(_TypeDef):
+    pass
 
 
 # base class for expression nodes
@@ -1260,7 +1272,7 @@ class AnnAssign(VyperNode):
     __slots__ = ("target", "annotation", "value", "simple")
 
 
-class VariableDecl(VyperNode):
+class VariableDecl(TopLevel):
     """
     A contract variable declaration.
 
@@ -1292,6 +1304,9 @@ class VariableDecl(VyperNode):
         "is_transient",
         "_expanded_getter",
     )
+
+    def get_names(self):
+        return [self.target.id]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1381,6 +1396,9 @@ class _ImportStmt(Stmt):
         kwargs["alias"] = names.asname
         super().__init__(*args, **kwargs)
 
+    def get_names(self):
+        return [self.alias]
+
 
 class Import(_ImportStmt):
     __slots__ = ()
@@ -1390,7 +1408,7 @@ class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
 
 
-class ImplementsDecl(Stmt):
+class ImplementsDecl(TopLevel):
     """
     An `implements` declaration.
 
@@ -1402,6 +1420,9 @@ class ImplementsDecl(Stmt):
 
     __slots__ = ("annotation",)
     _only_empty_fields = ("value",)
+
+    def get_names(self):
+        return []
 
     def validate(self):
         if not isinstance(self.annotation, (Name, Attribute)):
@@ -1419,7 +1440,7 @@ def as_tuple(node: VyperNode):
         return (node,)
 
 
-class UsesDecl(Stmt):
+class UsesDecl(TopLevel):
     """
     A `uses` declaration.
 
@@ -1432,6 +1453,9 @@ class UsesDecl(Stmt):
     __slots__ = ("annotation",)
     _only_empty_fields = ("value",)
 
+    def get_names(self):
+        return []
+
     def validate(self):
         items = as_tuple(self.annotation)
         for item in items:
@@ -1439,7 +1463,7 @@ class UsesDecl(Stmt):
                 raise StructureException("invalid uses", item)
 
 
-class InitializesDecl(Stmt):
+class InitializesDecl(TopLevel):
     """
     An `initializes` declaration.
 
@@ -1451,6 +1475,9 @@ class InitializesDecl(Stmt):
 
     __slots__ = ("annotation",)
     _only_empty_fields = ("value",)
+
+    def get_names(self):
+        return []
 
     def validate(self):
         module_ref = self.annotation
@@ -1472,7 +1499,7 @@ class InitializesDecl(Stmt):
             raise StructureException("invalid module", module_ref)
 
 
-class ExportsDecl(Stmt):
+class ExportsDecl(TopLevel):
     """
     An `exports` declaration.
 
@@ -1484,6 +1511,9 @@ class ExportsDecl(Stmt):
 
     __slots__ = ("annotation",)
     _only_empty_fields = ("value",)
+
+    def get_names(self):
+        return []
 
     def validate(self):
         items = as_tuple(self.annotation)

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path, PurePath
 from typing import Any, Optional
+from collections import defaultdict
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -14,8 +15,6 @@ from vyper.exceptions import (
     ExceptionList,
     ImmutableViolation,
     InitializerException,
-    InvalidLiteral,
-    InvalidType,
     ModuleNotFound,
     NamespaceCollision,
     StateAccessViolation,
@@ -113,6 +112,47 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
     path.pop()
 
 
+def topsort_semdep(nodes: list[vy_ast.TopLevel], namespace: Namespace):
+    """
+    Get the top-level declarations in this module, but topsorted
+    in named dependency order. A "depends" on B if A contains
+    a Name node which references B.
+    """
+    names = defaultdict(list)
+    for item in nodes:
+        for name in item.get_names():
+            names[name].append(item)
+
+    ret = []
+    seen = {}
+
+    def _recurse(node):
+        if id(node) in seen:
+            return
+
+        references = node.get_descendants(vy_ast.Name)
+        for t in references:
+            name = t.id
+            if name in namespace:
+                continue
+            if name in node.get_names():
+                # itself
+                continue
+            # recurse into dependencies
+            for item in names[name]:
+                _recurse(item)
+
+        # use dictionary of object id -> object instead of set
+        # for performance (avoid node.__hash__)
+        seen[id(node)] = node
+        ret.append(node)
+
+    for item in nodes:
+        _recurse(item)
+
+    return ret
+
+
 class ModuleAnalyzer(VyperNodeVisitorBase):
     scope_name = "module"
 
@@ -152,28 +192,28 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self._to_visit = self.ast.body.copy()
 
-        # handle imports; mutates `self._imported_modules`
-        self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
+        # handle imports and ownership decls; mutates `self._imported_modules`
+        import_types = (vy_ast.Import, vy_ast.ImportFrom, vy_ast.UsesDecl, vy_ast.InitializesDecl)
+        self._visit_nodes(import_types)
 
         # we can resolve constants as soon as imports are handled.
         constant_fold(self.ast)
 
-        # handle ownership decls, mutate ModuleInfo.ownership
-        self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
-
-        # mutate _exposed_functions
-        self._visit_nodes_linear(vy_ast.ExportsDecl)
-
         # handle some node types using a dependency resolution routine
         # which loops, swallowing exceptions until all nodes are processed
-        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef, vy_ast.EventDef)
-        self._visit_nodes_looping(type_decls)
-
-        # handle functions
-        self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
+        other_types = (
+            vy_ast.FlagDef,
+            vy_ast.StructDef,
+            vy_ast.InterfaceDef,
+            vy_ast.EventDef,
+            vy_ast.VariableDecl,
+            vy_ast.FunctionDef,
+            vy_ast.ExportsDecl,
+        )
+        self._visit_nodes(other_types)
 
         # handle implements last, after all functions are handled
-        self._visit_nodes_linear(vy_ast.ImplementsDecl)
+        self._visit_nodes(vy_ast.ImplementsDecl)
 
         # we are done! any remaining nodes should raise errors; visit
         # them to trip the exception.
@@ -224,44 +264,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # compute reachable set and validate the call graph
             _compute_reachable_set(fn_t)
 
-    def _visit_nodes_linear(self, node_type):
-        for node in self._to_visit.copy():
-            if not isinstance(node, node_type):
-                continue
-            self.visit(node)
-            self._to_visit.remove(node)
-
-    # visit nodes which may have dependencies on each other
-    def _visit_nodes_looping(self, node_type):
+    def _visit_nodes(self, node_type):
         nodes = [n for n in self._to_visit if isinstance(n, node_type)]
+        nodes = topsort_semdep(nodes, self.namespace)
+        err_list = ExceptionList()
+        for node in nodes:
+            try:
+                self.visit(node)
+                self._to_visit.remove(node)
+            except VyperException as e:
+                err_list.append(e)
 
-        # keep trying to process all the nodes until we finish or can
-        # no longer progress. this makes it so we don't need to
-        # calculate a dependency tree between top-level items.
-        # note that the nodes processed here should not mutate ModuleAnalyzer
-        # state, otherwise ModuleAnalyzer state can end up invalid!
-        while len(nodes) > 0:
-            count = len(nodes)
-            err_list = ExceptionList()
-            for node in nodes.copy():
-                try:
-                    self.visit(node)
-                    nodes.remove(node)
-                    self._to_visit.remove(node)
-                # CMC 2024-02-19 i think we can remove
-                # VariableDeclarationException here.
-                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
-                    # these exceptions cannot be caused by another statement
-                    # not yet being parsed, so we raise them immediately
-                    raise e from None
-                except VyperException as e:
-                    err_list.append(e)
-
-            # Only raise if no nodes were successfully processed. This allows
-            # module level logic to parse regardless of the ordering of code
-            # elements.
-            if count == len(nodes):
-                err_list.raise_if_not_empty()
+        err_list.raise_if_not_empty()
 
     def validate_used_modules(self):
         # check all `uses:` modules are actually used
@@ -499,14 +513,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             else:
                 # regular function
                 func_t = info.typ
-                decl_node = func_t.ast_def
+                decl_node = func_t.decl_node
 
             if not isinstance(func_t, ContractFunctionT):
                 raise StructureException("not a function!", decl_node, item)
             if not func_t.is_external:
                 raise StructureException("not an external function!", decl_node, item)
 
-            self._add_exposed_function(func_t, item, relax=False)
+            self._add_exposed_function(func_t, item)
 
             funcs.append(func_t)
 
@@ -519,8 +533,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
 
-    def _add_exposed_function(self, func_t, node, relax=True):
-        if not relax and func_t in self._exposed_functions:
+    def _add_exposed_function(self, func_t, node):
+        if func_t in self._exposed_functions:
             prev_export = self._exposed_functions[func_t]
             raise StructureException("already exported!", node, prev_export)
         self._exposed_functions[func_t] = node
