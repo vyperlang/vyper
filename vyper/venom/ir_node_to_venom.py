@@ -578,9 +578,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # return_buffer special case
         if allocated_variables.get("return_buffer") == arg_0.name:
             return arg_0
-        # sym = symbols.get(f"&{arg_0.value}")
-        # if sym is not None:
-        #     return sym
         bb = ctx.get_basic_block()
         if isinstance(arg_0, IRLiteral):
             var = _get_variable_from_address(variables, arg_0.value)
@@ -609,14 +606,12 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         cond, a, b = ir.args
         expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
         return _convert_ir_bb(ctx, expanded, symbols, variables, allocated_variables)
-
     elif ir.value in ["iload", "sload"]:
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
         return ctx.get_basic_block().append_instruction(ir.value, arg_0)
     elif ir.value in ["istore", "sstore"]:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
         ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
-
     elif ir.value == "unique_symbol":
         sym = ir.args[0]
         new_var = ctx.get_next_variable()
@@ -761,15 +756,3 @@ def _convert_ir_opcode(
         if isinstance(arg, IRnode):
             inst_args.append(_convert_ir_bb(ctx, arg, symbols, variables, allocated_variables))
     ctx.get_basic_block().append_instruction(opcode, *inst_args)
-
-
-def _data_ofst_of(sym, ofst, height_):
-    # e.g. _OFST _sym_foo 32
-    assert is_symbol(sym) or is_mem_sym(sym)
-    if isinstance(ofst.value, int):
-        # resolve at compile time using magic _OFST op
-        return ["_OFST", sym, ofst.value]
-    else:
-        # if we can't resolve at compile time, resolve at runtime
-        # ofst = _compile_to_assembly(ofst, withargs, existing_labels, break_dest, height_)
-        return ofst + [sym, "ADD"]
