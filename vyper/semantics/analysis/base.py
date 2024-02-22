@@ -142,9 +142,11 @@ class UsesInfo(AnalysisResult):
     node: Optional[vy_ast.VyperNode] = None
 
 
+# analysis result of ExportsDecl
 @dataclass
 class ExportsInfo(AnalysisResult):
     functions: list["ContractFunctionT"]
+    used_modules: OrderedSet[ModuleInfo]
 
 
 @dataclass

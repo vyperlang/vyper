@@ -236,6 +236,32 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
     return ret
 
 
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """
+    validate module usage, and that if we use lib1.lib2.<state>, that
+    lib1 at least `uses` lib2.
+
+    Returns the left-most module referenced in the expr,
+        e.g. `lib1.lib2.foo` should return module info for `lib1`.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!"
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
+
+    # the leftmost- referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
+
+
 class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
@@ -401,25 +427,12 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _check_module_use(self, target: vy_ast.ExprNode):
-        module_infos = _get_module_chain(target)
+    def _handle_module_uses(self, target: vy_ast.ExprNode):
+        root_module_info = check_module_uses(target)
 
-        if len(module_infos) == 0:
-            return
-
-        for module_info in module_infos:
-            if module_info.ownership < ModuleOwnership.USES:
-                msg = f"Cannot access `{module_info.alias}` state!"
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-                raise ImmutableViolation(msg, hint=hint)
-
-        # the leftmost- referenced module
-        root_module_info = module_infos[0]
-
-        # log the access
-        self.func.mark_used_module(root_module_info)
+        if root_module_info is not None:
+            # log the access
+            self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -638,7 +651,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
                     if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node)
+                        self.function_analyzer._handle_module_uses(node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -711,7 +724,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 for s in func_type.get_variable_accesses():
                     if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node.func)
+                        self.function_analyzer._handle_module_uses(node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(

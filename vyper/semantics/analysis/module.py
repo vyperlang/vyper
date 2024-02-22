@@ -38,7 +38,7 @@ from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
 from vyper.semantics.analysis.getters import generate_public_variable_getters
 from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.local import ExprVisitor, validate_functions
+from vyper.semantics.analysis.local import ExprVisitor, check_module_uses, validate_functions
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -282,6 +282,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             for u in f.get_used_modules():
                 all_used_modules.add(u.module_t)
 
+        for decl in module_t.exports_decls:
+            info = decl._metadata["exports_info"]
+            all_used_modules.update([u.module_t for u in info.used_modules])
+
         for used_module in all_used_modules:
             if used_module in initialized_modules:
                 continue
@@ -481,6 +485,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def visit_ExportsDecl(self, node):
         items = vy_ast.as_tuple(node.annotation)
         funcs = []
+        used_modules = OrderedSet()
+
         for item in items:
             # set is_callable=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
@@ -500,10 +506,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not func_t.is_external:
                 raise StructureException("not an external function!", decl_node, item)
 
+            module_info = check_module_uses(item)
+            assert module_info is not None  # guaranteed by above checks
+
             self._add_exposed_function(func_t, item, relax=False)
             funcs.append(func_t)
+            used_modules.add(module_info)
 
-        node._metadata["exports_info"] = ExportsInfo(funcs)
+        node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
 
     def _add_exposed_function(self, func_t, node, relax=True):
         if not relax and func_t in self._exposed_functions:
