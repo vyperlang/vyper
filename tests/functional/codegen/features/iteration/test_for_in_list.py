@@ -10,7 +10,6 @@ from vyper.exceptions import (
     InvalidType,
     IteratorException,
     NamespaceCollision,
-    StateAccessViolation,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -714,7 +713,7 @@ def foo():
     for i: uint256 in range(a):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
     ),
     (
         """
@@ -724,7 +723,7 @@ def foo():
     for i: int128 in range(a,a-3):
         pass
     """,
-        StateAccessViolation,
+        TypeMismatch,
     ),
     # invalid argument length
     (
