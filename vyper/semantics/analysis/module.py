@@ -506,16 +506,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not func_t.is_external:
                 raise StructureException("not an external function!", decl_node, item)
 
-            module_info = None
-            for s in func_t.get_variable_accesses():
-                if s.variable.is_module_variable():
-                    module_info = check_module_uses(item)
-                    assert module_info is not None  # guaranteed by above checks
-                    break
-
             self._add_exposed_function(func_t, item, relax=False)
+
             funcs.append(func_t)
-            if module_info is not None:
+
+            # check module uses
+            var_accesses = func_t.get_variable_accesses()
+            if any(s.variable.is_module_variable() for s in var_accesses):
+                module_info = check_module_uses(item)
+                assert module_info is not None  # guaranteed by above checks
                 used_modules.add(module_info)
 
         node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
