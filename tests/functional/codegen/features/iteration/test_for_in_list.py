@@ -713,7 +713,7 @@ def foo():
     for i: uint256 in range(a):
         pass
     """,
-        TypeMismatch,
+        StructureException,
     ),
     (
         """
@@ -723,7 +723,7 @@ def foo():
     for i: int128 in range(a,a-3):
         pass
     """,
-        TypeMismatch,
+        StructureException,
     ),
     # invalid argument length
     (

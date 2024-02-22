@@ -38,7 +38,7 @@ def foo():
     for _: uint256 in range(10, bound=x):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Bound must be a literal integer",
         None,
         "x",
@@ -100,7 +100,7 @@ def bar():
     for i: uint256 in range(x):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -113,7 +113,7 @@ def bar():
     for i: uint256 in range(0, x):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -126,7 +126,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return n
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n * 10",
@@ -139,7 +139,7 @@ def bar():
     for i: uint256 in range(0, x + 1):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x + 1",
@@ -164,7 +164,7 @@ def bar():
     for i: uint256 in range(x, x):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -177,7 +177,7 @@ def foo():
     for i: int128 in range(x, x + 10):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -190,7 +190,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return x
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n",
@@ -203,7 +203,7 @@ def foo(x: int128):
     for i: int128 in range(x, x + y):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -215,7 +215,7 @@ def bar(x: uint256):
     for i: uint256 in range(3, x):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -304,7 +304,7 @@ def foo():
     for i:decimal in range(1.1, 2.2):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "1.1",
@@ -317,7 +317,7 @@ def foo():
     for i:decimal in range(x, x + 2.0, bound=10.1):
         pass
     """,
-        TypeMismatch,
+        StructureException,
         "Bound must be a literal integer",
         None,
         "10.1",
