@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_simple_export(make_input_bundle, get_contract):
     lib1 = """
 @external
@@ -106,3 +109,46 @@ def call_bar(foo: Foo) -> uint256:
     caller = get_contract(caller_code)
 
     assert caller.call_bar(c.address) == 127  # default return value
+
+
+def test_nested_export(make_input_bundle, get_contract):
+    lib1 = """
+@external
+def foo() -> uint256:
+    return 5
+    """
+    lib2 = """
+import lib1
+    """
+    main = """
+import lib2
+
+exports: lib2.lib1.foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.foo() == 5
+
+
+# not sure if this one should work
+@pytest.mark.xfail(reason="ambiguous spec")
+def test_recursive_export(make_input_bundle, get_contract):
+    lib1 = """
+@external
+def foo() -> uint256:
+    return 5
+    """
+    lib2 = """
+import lib1
+exports: lib1.foo
+    """
+    main = """
+import lib2
+
+exports: lib2.foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    c = get_contract(main, input_bundle=input_bundle)
+
+    assert c.foo() == 5
