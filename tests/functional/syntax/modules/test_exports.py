@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ImmutableViolation
+from vyper.exceptions import ImmutableViolation, NamespaceCollision
 
 
 def test_exports_no_uses(make_input_bundle):
@@ -128,6 +128,7 @@ def __init__():
     input_bundle = make_input_bundle({"tokenlib.vy": lib1, "itoken.vyi": token_interface})
     assert compile_code(main, input_bundle=input_bundle) is not None
 
+
 # test that exporting can satisfy an implements constraint
 # use a mix of local and imported functions
 def test_exports_implements(make_input_bundle):
@@ -171,3 +172,24 @@ def bar():
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoobar.vyi": ifoobar})
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_function_name_collisions(make_input_bundle):
+    lib1 = """
+@external
+def foo():
+    pass
+    """
+    main = """
+import lib1
+
+exports: lib1.foo
+
+@external
+def foo():
+    pass
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(NamespaceCollision):
+        # TODO: make the error message reference the export
+        compile_code(main, input_bundle=input_bundle)
