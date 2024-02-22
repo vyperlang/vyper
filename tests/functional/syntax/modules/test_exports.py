@@ -78,6 +78,8 @@ initializes: lib1
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+# test that exporting can satisfy an implements constraint
+# use a mix of public variables and functions
 def test_exports_implements(make_input_bundle):
     token_interface = """
 @external
@@ -100,6 +102,7 @@ implements: itoken
 @deploy
 def __init__(initial_supply: uint256):
     self.totalSupply = initial_supply
+    self.balanceOf[msg.sender] = initial_supply
 
 totalSupply: public(uint256)
 balanceOf: public(HashMap[address, uint256])
@@ -123,4 +126,48 @@ def __init__():
     tokenlib.__init__(100_000_000)
     """
     input_bundle = make_input_bundle({"tokenlib.vy": lib1, "itoken.vyi": token_interface})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+# test that exporting can satisfy an implements constraint
+# use a mix of local and imported functions
+def test_exports_implements(make_input_bundle):
+    ifoobar = """
+@external
+def foo():
+    ...
+
+@external
+def bar():
+    ...
+    """
+    lib1 = """
+import ifoobar
+
+implements: ifoobar
+
+counter: uint256
+
+@external
+def foo():
+    pass
+
+@external
+def bar():
+    self.counter += 1
+    """
+    main = """
+import lib1
+import ifoobar
+
+implements: ifoobar
+exports: lib1.foo
+
+initializes: lib1
+
+# for fun, export a different function with the same name
+@external
+def bar():
+    lib1.counter += 2
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "ifoobar.vyi": ifoobar})
     assert compile_code(main, input_bundle=input_bundle) is not None
