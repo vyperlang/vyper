@@ -2,7 +2,6 @@ import binascii
 import contextlib
 import decimal
 import enum
-import functools
 import sys
 import time
 import traceback
@@ -451,17 +450,13 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
     return "".join(indented_lines)
 
 
-def timeit(func):
-    @functools.wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
-        return result
-
-    return timeit_wrapper
+@contextlib.contextmanager
+def timeit(msg):
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"{msg}: Took {total_time:.4f} seconds")
 
 
 @contextlib.contextmanager
