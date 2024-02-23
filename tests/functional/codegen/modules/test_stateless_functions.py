@@ -188,7 +188,7 @@ def qux() -> library.SomeStruct:
 # test calls to library functions in statement position
 def test_library_statement_calls(get_contract, make_input_bundle, tx_failed):
     library_source = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @internal
 def check_adds_to_ten(x: uint256, y: uint256):
     assert x + y == 10
