@@ -13,6 +13,7 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
+        "pytest_profiling>=1.7.0,<2.0",
         "eth_abi>=5.0.0,<6.0.0",
         "py-evm>=0.10.1b1,<0.11",
         "lark==1.1.9",
