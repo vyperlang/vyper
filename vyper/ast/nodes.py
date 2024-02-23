@@ -402,6 +402,10 @@ class VyperNode:
         return getattr(self, "_description", type(self).__name__)
 
     @property
+    def module_node(self):
+        return self.get_ancestor(Module)
+
+    @property
     def is_literal_value(self):
         """
         Check if the node is a literal value.
@@ -640,8 +644,10 @@ class HasDocstring(VyperNode):
 
     __slots__ = ("body", "name", "doc_string")
 
+
 class TopLevel(VyperNode):
     pass
+
 
 class Module(HasDocstring):
     # metadata

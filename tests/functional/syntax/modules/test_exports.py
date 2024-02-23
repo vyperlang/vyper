@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ImmutableViolation, NamespaceCollision
+from vyper.exceptions import ImmutableViolation, StructureException
 
 
 def test_exports_no_uses(make_input_bundle):
@@ -20,11 +20,12 @@ exports: lib1.get_counter
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
-        assert e.value._message == "Cannot access `lib1` state!"
 
-        expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
-        expected_hint += "top-level statement to your contract"
-        assert e.value.hint == expected_hint
+    assert e.value._message == "Cannot access `lib1` state!"
+
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value.hint == expected_hint
 
 
 def test_exports_no_uses_variable(make_input_bundle):
@@ -38,11 +39,12 @@ exports: lib1.counter
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     with pytest.raises(ImmutableViolation) as e:
         compile_code(main, input_bundle=input_bundle)
-        assert e.value._message == "Cannot access `lib1` state!"
 
-        expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
-        expected_hint += "top-level statement to your contract"
-        assert e.value.hint == expected_hint
+    assert e.value._message == "Cannot access `lib1` state!"
+
+    expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
+    expected_hint += "top-level statement to your contract"
+    assert e.value.hint == expected_hint
 
 
 def test_exports_uses_variable(make_input_bundle):
@@ -187,9 +189,22 @@ exports: lib1.foo
 
 @external
 def foo():
-    pass
+    x: uint256 = 12345
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
-    with pytest.raises(NamespaceCollision):
+    with pytest.raises(StructureException) as e:
         # TODO: make the error message reference the export
-        compile_code(main, input_bundle=input_bundle)
+        compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
+
+    assert e.value._message == "already exported!"
+
+    assert e.value.annotations[0].lineno == 4
+    assert e.value.annotations[0].node_source_code == "lib1.foo"
+    assert e.value.annotations[0].module_node.path == "main.vy"
+
+    assert e.value.annotations[1].lineno == 7
+    assert e.value.annotations[1].node_source_code.startswith("def foo():")
+    assert e.value.annotations[1].module_node.path == "main.vy"
+
+
+# TODO: test method identifier collisions

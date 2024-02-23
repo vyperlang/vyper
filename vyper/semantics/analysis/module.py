@@ -1,7 +1,7 @@
 import os
+from collections import defaultdict
 from pathlib import Path, PurePath
 from typing import Any, Optional
-from collections import defaultdict
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
@@ -20,7 +20,6 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
-    VariableDeclarationException,
     VyperException,
 )
 from vyper.semantics.analysis.base import (
@@ -521,6 +520,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StructureException("not an external function!", decl_node, item)
 
             self._add_exposed_function(func_t, item)
+            self._self_t.typ.add_member(func_t.name, func_t)
 
             funcs.append(func_t)
 
@@ -533,10 +533,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
 
+    @property
+    def _self_t(self):
+        return self.namespace["self"]
+
     def _add_exposed_function(self, func_t, node):
-        if func_t in self._exposed_functions:
-            prev_export = self._exposed_functions[func_t]
-            raise StructureException("already exported!", node, prev_export)
+        # call this before self._self_t.typ.add_member() for exception raising
+        # priority
+        if (prev := self._self_t.typ.members.get(func_t.name)) is not None:
+            if prev in self._exposed_functions:
+                prev_export = self._exposed_functions[prev]
+                raise StructureException("already exported!", prev_export, node)
+
         self._exposed_functions[func_t] = node
 
     def visit_VariableDecl(self, node):
@@ -548,8 +556,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # generate function type and add to metadata
             # we need this when building the public getter
             func_t = ContractFunctionT.getter_from_VariableDecl(node)
-            node._metadata["getter_type"] = func_t
             self._add_exposed_function(func_t, node)
+            node._metadata["getter_type"] = func_t
 
         # TODO: move this check to local analysis
         if node.is_immutable:
@@ -611,18 +619,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if (node.is_constant or node.is_immutable) and not node.is_public:
                 return
 
-            try:
-                self.namespace["self"].typ.add_member(name, var_info)
-                node.target._metadata["type"] = type_
-            except NamespaceCollision:
-                # rewrite the error message to be slightly more helpful
-                raise NamespaceCollision(
-                    f"Value '{name}' has already been declared", node
-                ) from None
+            self._self_t.typ.add_member(name, var_info)
+            node.target._metadata["type"] = type_
 
         def _validate_self_namespace():
             # block globals if storage variable already exists
-            if name in self.namespace["self"].typ.members:
+            if name in self._self_t.typ.members:
                 raise NamespaceCollision(
                     f"Value '{name}' has already been declared", node
                 ) from None
@@ -671,9 +673,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
 
-        self.namespace["self"].typ.add_member(func_t.name, func_t)
-        node._metadata["func_type"] = func_t
         self._add_exposed_function(func_t, node)
+        self._self_t.typ.add_member(func_t.name, func_t)
+        node._metadata["func_type"] = func_t
 
     def visit_Import(self, node):
         # import x.y[name] as y[alias]

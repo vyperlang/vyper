@@ -309,8 +309,9 @@ class VyperType:
 
     def add_member(self, name: str, type_: "VyperType") -> None:
         validate_identifier(name)
-        if name in self.members:
-            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
+        # TODO: tag with prev_type's decl_node
+        if (prev_type := self.members.get(name)) is not None:
+            raise NamespaceCollision(f"Member '{name}' already exists in {self} as a {prev_type}")
         self.members[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
