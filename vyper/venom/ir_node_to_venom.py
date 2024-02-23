@@ -162,7 +162,7 @@ def _handle_self_call(
                         bb = ctx.get_basic_block()
                         if arg.typ.size_in_bytes > 32:
                             ret = arg_buf_pos
-                            arg_buf_pos += arg.typ.size_in_bytes
+                        arg_buf_pos += arg.typ.size_in_bytes
                     ret_args.append(ret)
                 else:
                     if allocated_variables.get(var.name) is not None:
@@ -177,11 +177,10 @@ def _handle_self_call(
                         ret_args.append(ret)
             else:
                 if arg.value == "multi":
-                    addr = arg_buf_pos
-                    arg_buf_pos += arg.typ.size_in_bytes
-                    ret_args.append(addr)
+                    ret_args.append(arg_buf_pos)
                 else:
                     ret_args.append(IRLiteral(arg.value))
+                arg_buf_pos += arg.typ.size_in_bytes
         else:
             ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
             if arg.location and arg.location.load_op == "calldataload":
