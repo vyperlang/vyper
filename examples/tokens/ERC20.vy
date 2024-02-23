@@ -8,11 +8,11 @@
 # @author Takayuki Jimba (@yudetamago)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 
-from ethereum.ercs import ERC20
-from ethereum.ercs import ERC20Detailed
+from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
 
-implements: ERC20
-implements: ERC20Detailed
+implements: IERC20
+implements: IERC20Detailed
 
 event Transfer:
     sender: indexed(address)
