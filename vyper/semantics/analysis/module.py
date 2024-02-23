@@ -8,7 +8,6 @@ from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
-    tag_exceptions,
     BorrowException,
     CallViolation,
     DuplicateImport,
@@ -23,6 +22,7 @@ from vyper.exceptions import (
     UndeclaredDefinition,
     VariableDeclarationException,
     VyperException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import (
     ExportsInfo,
