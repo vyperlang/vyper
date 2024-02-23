@@ -1332,6 +1332,7 @@ class VariableDecl(VyperNode):
         if isinstance(self.annotation, Call):
             _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
+    @property
     def _pretty_location(self) -> str:
         if self.is_constant:
             return "Constant"

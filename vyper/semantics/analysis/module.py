@@ -619,7 +619,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
-
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
             if not check_modifiability(node.value, Modifiability.CONSTANT):
@@ -630,7 +629,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return _finalize()
 
         assert node.value is None  # checked in VariableDecl.validate()
-
         if node.is_immutable:
             _validate_self_namespace()
             return _finalize()
