@@ -153,7 +153,7 @@ class InterfaceT(_UserType):
     @classmethod
     def _from_lists(
         cls,
-        name: str,
+        interface_name: str,
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: list[tuple[str, EventT]],
         struct_list: list[tuple[str, StructT]],
@@ -183,7 +183,7 @@ class InterfaceT(_UserType):
             _mark_seen(name, struct)
             structs[name] = struct
 
-        return cls(name, functions, events, structs)
+        return cls(interface_name, functions, events, structs)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
