@@ -531,7 +531,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if (prev := self._self_t.typ.members.get(func_t.name)) is not None:
             if prev in self._exposed_functions:
                 prev_export = self._exposed_functions[prev]
-                raise StructureException("already exported!", prev_export, node)
+                raise StructureException("already exported!", node, prev_decl=prev_export)
 
         self._exposed_functions[func_t] = node
 
