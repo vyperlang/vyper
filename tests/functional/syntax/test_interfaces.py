@@ -210,6 +210,20 @@ def approve(_spender : address, _value : uint256) -> bool:
     """,
         InterfaceViolation,
     ),
+    (
+        # `payable` decorator not implemented
+        """
+interface testI:
+    def foo() -> uint256: payable
+
+implements: testI
+
+@external
+def foo() -> uint256:
+    return 0
+    """,
+        InterfaceViolation,
+    )
 ]
 
 
