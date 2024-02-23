@@ -17,7 +17,6 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
@@ -612,10 +611,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         def _validate_self_namespace():
             # block globals if storage variable already exists
-            if name in self._self_t.typ.members:
-                raise NamespaceCollision(
-                    f"Value '{name}' has already been declared", node
-                ) from None
+            self._self_t.typ._check_add_member(name)
             self.namespace[name] = var_info
 
         if node.is_constant:

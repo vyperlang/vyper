@@ -202,9 +202,9 @@ def foo():
     assert e.value.annotations[0].node_source_code == "lib1.foo"
     assert e.value.annotations[0].module_node.path == "main.vy"
 
-    assert e.value.annotations[1].lineno == 7
-    assert e.value.annotations[1].node_source_code.startswith("def foo():")
-    assert e.value.annotations[1].module_node.path == "main.vy"
+    assert e.value.prev_decl.lineno == 7
+    assert e.value.prev_decl.node_source_code.startswith("def foo():")
+    assert e.value.prev_decl.module_node.path == "main.vy"
 
 
 # TODO: test method identifier collisions

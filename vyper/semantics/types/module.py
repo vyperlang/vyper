@@ -164,27 +164,24 @@ class InterfaceT(_UserType):
 
         seen_items: dict = {}
 
-        for name, function in function_list:
+        def _mark_seen(name, item):
             if name in seen_items:
-                raise NamespaceCollision(f"multiple functions named '{name}'!", function.ast_def)
+                msg = f"multiple functions or events named '{name}'!"
+                prev_decl = seen_items[name].decl_node
+                raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
+            seen_items[name] = item
+
+        for name, function in function_list:
+            _mark_seen(name, function)
             functions[name] = function
-            seen_items[name] = function
 
         for name, event in event_list:
-            if name in seen_items:
-                raise NamespaceCollision(
-                    f"multiple functions or events named '{name}'!", event.decl_node
-                )
+            _mark_seen(name, event)
             events[name] = event
-            seen_items[name] = event
 
         for name, struct in struct_list:
-            if name in seen_items:
-                raise NamespaceCollision(
-                    f"multiple functions or events named '{name}'!", event.decl_node
-                )
+            _mark_seen(name, struct)
             structs[name] = struct
-            seen_items[name] = struct
 
         return cls(name, functions, events, structs)
 
