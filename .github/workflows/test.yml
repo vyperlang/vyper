@@ -112,6 +112,11 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
 
+    - name: Upload profiling data
+      uses: actions/upload-artifact@v2
+      with:
+        name: profiling
+        path: prof/combined.svg
 
   core-tests-success:
     if: always()
@@ -160,6 +165,12 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
+
+    - name: Upload profiling data
+      uses: actions/upload-artifact@v2
+      with:
+        name: profiling
+        path: prof/combined.svg
 
   slow-tests-success:
     if: always()
