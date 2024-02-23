@@ -8,6 +8,7 @@ from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
+    tag_exceptions,
     BorrowException,
     CallViolation,
     DuplicateImport,
@@ -166,10 +167,15 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._visit_nodes_looping(type_decls)
 
         # handle functions
+        # run before exports for exception handling priority
         self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
 
         # mutate _exposed_functions
         self._visit_nodes_linear(vy_ast.ExportsDecl)
+
+        # we can get a ModuleT once all functions and types are handled
+        self.module_t = ModuleT(self.ast)
+        self.ast._metadata["type"] = self.module_t
 
         # handle implements last, after all functions are handled
         self._visit_nodes_linear(vy_ast.ImplementsDecl)
@@ -178,9 +184,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # them to trip the exception.
         for n in self._to_visit:
             self.visit(n)
-
-        self.module_t = ModuleT(self.ast)
-        self.ast._metadata["type"] = self.module_t
 
         # attach namespace to the module for downstream use.
         _ns = Namespace()
@@ -389,7 +392,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 hint = f"try renaming `{path}` to `{path}i`"
             raise StructureException(msg, node.annotation, hint=hint)
 
-        type_.validate_implements(node, self._exposed_functions, self._events)
+        funcs = {fn_t: fn_t.decl_node for fn_t in self.module_t.exposed_functions}
+        events = [n._metadata["event_type"] for n in self.module_t.event_defs]
+        type_.validate_implements(node, funcs, events)
 
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
@@ -507,7 +512,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 raise StructureException("not an external function!", decl_node, item)
 
             self._add_exposed_function(func_t, item)
-            self._self_t.typ.add_member(func_t.name, func_t)
+            with tag_exceptions(item):
+                self._self_t.typ.add_member(func_t.name, func_t)
 
             funcs.append(func_t)
 
@@ -527,10 +533,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_exposed_function(self, func_t, node):
         # call this before self._self_t.typ.add_member() for exception raising
         # priority
-        if (prev := self._self_t.typ.members.get(func_t.name)) is not None:
-            if prev in self._exposed_functions:
-                prev_export = self._exposed_functions[prev]
-                raise StructureException("already exported!", node, prev_decl=prev_export)
+        if (prev_decl := self._exposed_functions.get(func_t)) is not None:
+            raise StructureException("already exported!", node, prev_decl=prev_decl)
 
         self._exposed_functions[func_t] = node
 
@@ -543,7 +547,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # generate function type and add to metadata
             # we need this when building the public getter
             func_t = ContractFunctionT.getter_from_VariableDecl(node)
-            self._add_exposed_function(func_t, node)
             node._metadata["getter_type"] = func_t
 
         # TODO: move this check to local analysis
@@ -657,7 +660,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
 
-        self._add_exposed_function(func_t, node)
         self._self_t.typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
 

@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ImmutableViolation, StructureException
+from vyper.exceptions import ImmutableViolation, StructureException, NamespaceCollision
 
 
 def test_exports_no_uses(make_input_bundle):
@@ -192,11 +192,11 @@ def foo():
     x: uint256 = 12345
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(NamespaceCollision) as e:
         # TODO: make the error message reference the export
         compile_code(main, contract_path="main.vy", input_bundle=input_bundle)
 
-    assert e.value._message == "already exported!"
+    assert e.value._message == "Member 'foo' already exists in self"
 
     assert e.value.annotations[0].lineno == 4
     assert e.value.annotations[0].node_source_code == "lib1.foo"
