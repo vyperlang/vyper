@@ -150,7 +150,7 @@ def _handle_self_call(
     if setup_ir != goto_ir:
         _convert_ir_bb(ctx, setup_ir, symbols, variables, allocated_variables)
 
-    arg_buf_start = func_t._ir_info.frame_info.frame_start
+    arg_buf_pos = func_t._ir_info.frame_info.frame_start
 
     for i, arg in enumerate(args_ir):
         if arg.is_literal:
@@ -161,7 +161,8 @@ def _handle_self_call(
                     if isinstance(ret, IRLiteral):
                         bb = ctx.get_basic_block()
                         if arg.typ.size_in_bytes > 32:
-                            ret = arg_buf_start + i * 32
+                            ret = arg_buf_pos
+                            arg_buf_pos += arg.typ.size_in_bytes
                     ret_args.append(ret)
                 else:
                     if allocated_variables.get(var.name) is not None:
@@ -176,9 +177,8 @@ def _handle_self_call(
                         ret_args.append(ret)
             else:
                 if arg.value == "multi":
-                    # seq = ir.args[1]
-                    # _convert_ir_bb(ctx, seq, symbols, variables, allocated_variables)
-                    addr = arg_buf_start + i * 32
+                    addr = arg_buf_pos
+                    arg_buf_pos += arg.typ.size_in_bytes
                     ret_args.append(addr)
                 else:
                     ret_args.append(IRLiteral(arg.value))
@@ -474,7 +474,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         arg_0, arg_1, size = _convert_ir_bb_list(
             ctx, ir.args, symbols, variables, allocated_variables
         )
-        bb.append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
+        ctx.get_basic_block().append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
         return None
     elif ir.value in ["extcodecopy", "codecopy"]:
         return _convert_ir_simple_node(
