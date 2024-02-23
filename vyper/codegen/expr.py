@@ -72,7 +72,7 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
-    def __init__(self, node, context, is_stmt=True):
+    def __init__(self, node, context, is_stmt=False):
         if isinstance(node, IRnode):
             # this is a kludge for parse_AugAssign to pass in IRnodes
             # directly.
@@ -702,16 +702,16 @@ class Expr:
             return arg_ir
 
         if isinstance(func_t, MemberFunctionT):
-            darray = Expr(self.stmt.func.value, self.context).ir_node
+            darray = Expr(self.expr.func.value, self.context).ir_node
             assert isinstance(darray.typ, DArrayT)
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
+            args = [Expr(x, self.context).ir_node for x in self.expr.args]
             if self.expr.func.attr == "pop":
                 # TODO consider moving this to builtins
                 darray = Expr(self.expr.func.value, self.context).ir_node
                 assert len(self.expr.args) == 0
                 return_item = not self.is_stmt
                 return pop_dyn_array(darray, return_popped_item=return_item)
-            elif self.stmt.func.attr == "append":
+            elif self.expr.func.attr == "append":
                 (arg,) = args
                 check_assign(
                     dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
