@@ -526,9 +526,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._exposed_functions[func_t] = node
 
     def visit_VariableDecl(self, node):
-        name = node.get("target.id")
-        if name is None:
-            raise VariableDeclarationException("Invalid module-level assignment", node)
+        # postcondition of VariableDecl.validate
+        assert isinstance(node.target, vy_ast.Name)
+        name = node.target.id
 
         if node.is_public:
             # generate function type and add to metadata

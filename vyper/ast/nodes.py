@@ -1345,6 +1345,8 @@ class VariableDecl(VyperNode):
             raise VariableDeclarationException(
                 f"{self._pretty_location} variables cannot have an initial value", self.value
             )
+        if not isinstance(self.target, Name):
+            raise VariableDeclarationException("Invalid variable declaration", self.target)
 
 
 class AugAssign(Stmt):
