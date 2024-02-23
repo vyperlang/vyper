@@ -155,13 +155,14 @@ class _BaseVyperException(Exception):
                 return self.message
 
         annotation_list = []
-        for value in self.annotations:
-            annotation_list.append(self.format_annotation(value))
 
         if self.prev_decl is not None:
             formatted_decl = self.format_annotation(self.prev_decl)
             formatted_decl = f" (previously declared at):\n{formatted_decl}"
             annotation_list.append(formatted_decl)
+
+        for value in self.annotations:
+            annotation_list.append(self.format_annotation(value))
 
         annotation_list = [s for s in annotation_list if s is not None]
         annotation_msg = "\n".join(annotation_list)
