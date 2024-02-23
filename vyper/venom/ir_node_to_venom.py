@@ -577,10 +577,16 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         # return_buffer special case
         if allocated_variables.get("return_buffer") == arg_0.name:
             return arg_0
+
         bb = ctx.get_basic_block()
+        if isinstance(arg_0, IRVariable):
+            return bb.append_instruction("mload", arg_0)
+
         if isinstance(arg_0, IRLiteral):
             var = _get_variable_from_address(variables, arg_0.value)
-            if var is not None:
+            if var is not None and var.mutable is True:
+                # trying to differenciate parameters from
+                # allocated variables. need to change this.
                 avar = allocated_variables.get(var.name)
                 if avar is not None:
                     offset = arg_0.value - var.pos
@@ -724,17 +730,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif isinstance(ir.value, str) and ir.value in symbols:
         return symbols[ir.value]
     elif ir.is_literal:
-        if ir.is_pointer:
-            var = _get_variable_from_address(variables, ir.value)
-            if var and var.size > 32:
-                avar = allocated_variables.get(var.name)
-                if avar:
-                    offset = ir.value - var.pos
-                    if var.size > 32:
-                        if offset > 0:
-                            avar = ctx.get_basic_block().append_instruction("add", avar, offset)
-                    return avar
-
         return IRLiteral(ir.value)
     else:
         raise Exception(f"Unknown IR node: {ir}")
