@@ -483,6 +483,9 @@ class ContractFunctionT(VyperType):
         if self.mutability > other.mutability:
             return False
 
+        if other.is_payable and not self.is_payable:
+            return False
+
         return True
 
     @cached_property
