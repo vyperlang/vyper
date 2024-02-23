@@ -17,7 +17,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 
 from tests.utils import working_directory
 from vyper import compiler
-from vyper.ast.grammar import parse_vyper_source
+from vyper.ast.grammar import parse_vyper_source, vyper_grammar
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
@@ -301,6 +301,7 @@ def _get_contract(
     source_code,
     optimize,
     output_formats,
+    grammar,
     *args,
     override_opt_level=None,
     input_bundle=None,
@@ -317,7 +318,7 @@ def _get_contract(
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
-    parse_vyper_source(source_code)  # Test grammar.
+    grammar.parse(source_code + "\n")  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
     abi = out["abi"]
     bytecode = out["bytecode"]
@@ -331,18 +332,25 @@ def _get_contract(
     return w3.eth.contract(address, abi=abi, bytecode=bytecode, ContractFactoryClass=VyperContract)
 
 
+@pytest.fixture(scope="session")
+def grammar():
+    return vyper_grammar()
+
+
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize, output_formats):
+def get_contract(w3, optimize, output_formats, grammar):
     def fn(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, grammar, *args, **kwargs)
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
+def get_contract_with_gas_estimation(tester, w3, optimize, output_formats, grammar):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        contract = _get_contract(
+            w3, source_code, optimize, output_formats, grammar, *args, **kwargs
+        )
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -352,9 +360,9 @@ def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats):
+def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats, grammar):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, grammar, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 
