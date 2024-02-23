@@ -223,7 +223,7 @@ def foo() -> uint256:
     return 0
     """,
         InterfaceViolation,
-    )
+    ),
 ]
 
 
