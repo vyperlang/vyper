@@ -134,11 +134,6 @@ class ContractFunctionT(VyperType):
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
 
-    @property
-    # API compatibility
-    def decl_node(self):
-        return self.ast_def
-
     def mark_analysed(self):
         assert not self._analysed
         self._analysed = True
