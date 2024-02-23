@@ -496,10 +496,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 if not info.var_info.is_public:
                     raise StructureException("not a public variable!", decl_node, item)
                 func_t = decl_node._expanded_getter._metadata["func_type"]
+
             else:
                 # regular function
                 func_t = info.typ
-                decl_node = func_t.ast_def
+                decl_node = func_t.decl_node
 
             if not isinstance(func_t, ContractFunctionT):
                 raise StructureException("not a function!", decl_node, item)

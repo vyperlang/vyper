@@ -74,6 +74,7 @@ class VyperType:
     _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
+    decl_node: Optional[vy_ast.VyperNode] = None
 
     def __init__(self, members: Optional[Dict] = None) -> None:
         self.members: Dict = {}
