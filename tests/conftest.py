@@ -368,7 +368,7 @@ def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats,
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize, output_formats):
+def get_contract_module(optimize, output_formats, grammar):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -381,7 +381,7 @@ def get_contract_module(optimize, output_formats):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, grammar, *args, **kwargs)
 
     return get_contract_module
 
