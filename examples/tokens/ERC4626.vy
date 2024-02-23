@@ -53,7 +53,7 @@ event Withdraw:
 
 
 @deploy
-def __init__(asset: ERC20):
+def __init__(asset: IERC20):
     self.asset = asset
 
 
