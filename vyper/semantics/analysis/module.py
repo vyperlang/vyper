@@ -161,9 +161,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # handle ownership decls, mutate ModuleInfo.ownership
         self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
 
-        # mutate _exposed_functions
-        self._visit_nodes_linear(vy_ast.ExportsDecl)
-
         # handle some node types using a dependency resolution routine
         # which loops, swallowing exceptions until all nodes are processed
         type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef, vy_ast.EventDef)
@@ -171,6 +168,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         # handle functions
         self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
+
+        # mutate _exposed_functions
+        self._visit_nodes_linear(vy_ast.ExportsDecl)
 
         # handle implements last, after all functions are handled
         self._visit_nodes_linear(vy_ast.ImplementsDecl)
