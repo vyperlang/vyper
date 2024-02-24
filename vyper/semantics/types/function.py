@@ -30,7 +30,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.base import KwargSettings, VyperType, is_type_t
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -461,6 +461,9 @@ class ContractFunctionT(VyperType):
             state_mutability=StateMutability.VIEW,
             ast_def=node,
         )
+
+    def get_used_events(self):  # -> OrderedSet[EventT]:
+        pass
 
     @property
     # convenience property for compare_signature, as it would

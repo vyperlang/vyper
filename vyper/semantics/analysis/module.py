@@ -75,14 +75,12 @@ def validate_module_semantics_r(
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
-        analyzer.analyze_module_body()
+        analyzer.analyze()
 
         _analyze_call_graph(module_ast)
         generate_public_variable_getters(module_ast)
 
-        # ModuleT generates the interface; for this we should have
-        # public variable getters already generated.
-        ret = ModuleT(module_ast)  # note: validates unique method ids
+        ret = ModuleT(module_ast)
         module_ast._metadata["type"] = ret
 
         # if this is an interface, the function is already validated
@@ -147,7 +145,7 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
         _compute_reachable_set(g, path=path)
 
         g_reachable = g.reachable_internal_functions
-        assert fn_t not in g_reachable  # sanity check
+        assert fn_t not in g_reachable # sanity check
         fn_t.reachable_internal_functions.update(g_reachable)
 
         fn_t.reachable_internal_functions.add(g)
@@ -186,7 +184,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         if not hasattr(self.input_bundle._cache, "_ast_of"):
             self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
 
-    def analyze_module_body(self):
+    def analyze(self) -> ModuleT:
+        # generate a `ModuleT` from the top-level node
+        # note: also validates unique method ids
+
         assert "type" not in self.ast._metadata
 
         self._to_visit = self.ast.body.copy()

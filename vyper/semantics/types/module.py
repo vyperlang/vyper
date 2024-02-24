@@ -9,22 +9,24 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
+    VyperException,
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
+    get_exact_type_from_node,
     validate_expected_type,
     validate_unique_method_ids,
 )
+from vyper.utils import OrderedSet
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
-from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
-    from vyper.semantics.analysis.base import InitializesInfo, ModuleInfo
+    from vyper.semantics.analysis.base import ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -220,7 +222,7 @@ class InterfaceT(_UserType):
         if (fn_t := module_t.init_function) is not None:
             funcs.append((fn_t.name, fn_t))
 
-        events = [(event_t.name, event_t) for event_t in module_t.exported_events]
+        events = [(event_t.name, event_t) for event_t in module_t.used_events]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
@@ -280,16 +282,16 @@ class ModuleT(VyperType):
 
         for e in self.event_defs:
             # add the type of the event so it can be used in call position
-            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))
+            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
-            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
-            self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
+            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+            self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
 
         for i in self.interface_defs:
             # add the type of the interface so it can be used in call position
-            self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))
+            self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])
@@ -390,7 +392,7 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.ExportsDecl)
 
     @cached_property
-    def used_modules(self) -> list["ModuleInfo"]:
+    def used_modules(self):
         # modules which are written to
         ret = []
         for node in self.uses_decls:
@@ -399,7 +401,7 @@ class ModuleT(VyperType):
         return ret
 
     @property
-    def initialized_modules(self) -> list["InitializesInfo"]:
+    def initialized_modules(self):
         # modules which are initialized to
         ret = []
         for node in self.initializes_decls:
@@ -441,20 +443,31 @@ class ModuleT(VyperType):
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
-    def exported_events(self) -> OrderedSet[EventT]:
+    # it would be nice to rely on the function analyzer to do this analysis,
+    # but we don't have the result of function analysis at the time we need to
+    # construct `self.interface`.
+    def used_events(self) -> OrderedSet[EventT]:
         ret: OrderedSet[EventT] = OrderedSet()
 
-        for module_info in self.used_modules:
-            ret.update(module_info.module_t.exported_events)
+        reachable = OrderedSet()
+        if self.init_function is not None:
+            reachable.add(self.init_function)
+            reachable.update(self.init_function.reachable_internal_functions)
+        for fn_t in self.exposed_functions:
+            reachable.add(fn_t)
+            reachable.update(fn_t.reachable_internal_functions)
 
-        for info in self.initialized_modules:
-            ret.update(info.module_info.module_t.exported_events)
+        for fn_t in reachable:
+            fn_ast = fn_t.decl_node
+            assert isinstance(fn_ast, vy_ast.FunctionDef)
 
-        for implements_decl in self.implements_decls:
-            interface_t = implements_decl._metadata["interface_type"]
-            ret.update(interface_t.events.values())
+            for node in fn_ast.get_descendants(vy_ast.Log):
+                call_t = get_exact_type_from_node(node.value.func)
+                if not is_type_t(call_t, EventT):
+                    # this is an error, but it will be handled later
+                    continue
 
-        ret.update([n._metadata["event_type"] for n in self.event_defs])
+                ret.add(call_t.typedef)
 
         return ret
 
