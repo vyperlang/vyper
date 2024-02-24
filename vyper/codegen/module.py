@@ -510,9 +510,9 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 
-    # compile all internal functions so that _ir_info is populated (whether or
-    # not it makes it into the final IR artifact)
-    to_visit = OrderedSet()
+    # compile all remaining internal functions so that _ir_info is populated
+    # (whether or not it makes it into the final IR artifact)
+    to_visit: OrderedSet = OrderedSet()
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
         if fn_t.is_internal:

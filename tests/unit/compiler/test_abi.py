@@ -325,8 +325,8 @@ def __init__():
     assert out == expected
 
 
-def test_event_export_and_function_export(make_input_bundle):
-    # test event and function exports
+def test_event_export_from_function_export(make_input_bundle):
+    # test events used in exported functions are exported
     lib1 = """
 event MyEvent:
     pass
@@ -360,8 +360,8 @@ exports: lib1.foo
     assert out == expected
 
 
-def test_event_export_uses(make_input_bundle):
-    # test exporting an event from a module which is marked `initialized`
+def test_event_export_unused_function(make_input_bundle):
+    # test events in unused functions are not exported
     lib1 = """
 event MyEvent:
     pass
@@ -373,16 +373,22 @@ def foo():
     main = """
 import lib1
 initializes: lib1
+
+# not exported/reachable from selector table
+@internal
+def do_foo():
+    lib1.foo()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": [{"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"}]}
+    expected = {"abi": []}
 
     assert out == expected
 
 
-def test_event_export_no_uses(make_input_bundle):
-    # test events are not exported from modules which are not used
+def test_event_export_unused_module(make_input_bundle):
+    # test events are exported from functions which are used, even
+    # if the module is not marked `uses:`.
     lib1 = """
 event MyEvent:
     pass
@@ -402,21 +408,22 @@ def bar():
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
     expected = {
         "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
             {
                 "inputs": [],
                 "name": "bar",
                 "outputs": [],
                 "stateMutability": "nonpayable",
                 "type": "function",
-            }
+            },
         ]
     }
 
     assert out == expected
 
 
-def test_event_export_implements(make_input_bundle):
-    # test exporting an event from an implemented interface
+def test_event_no_export_implements(make_input_bundle):
+    # test events are not exported even if they are in implemented interface
     ifoo = """
 event MyEvent:
     pass
@@ -428,13 +435,47 @@ implements: ifoo
     """
     input_bundle = make_input_bundle({"ifoo.vyi": ifoo})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": [{"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"}]}
+    expected = {"abi": []}
 
     assert out == expected
 
 
-def test_event_export_no_implements(make_input_bundle):
-    # test events from interfaces which are not implemented do not get exported
+def test_event_export_interface(make_input_bundle):
+    # test events from interfaces get exported
+    ifoo = """
+event MyEvent:
+    pass
+
+@external
+def foo():
+    ...
+    """
+    main = """
+import ifoo
+
+@external
+def bar():
+    log ifoo.MyEvent()
+    """
+    input_bundle = make_input_bundle({"ifoo.vyi": ifoo})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = {
+        "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
+            {
+                "inputs": [],
+                "name": "bar",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+    }
+    assert out == expected
+
+
+def test_event_export_interface_no_use(make_input_bundle):
+    # test events from interfaces don't get exported unless used
     ifoo = """
 event MyEvent:
     pass
@@ -467,46 +508,38 @@ def bar():
     assert out == expected
 
 
-def test_event_export_nested_implements(make_input_bundle):
-    # test exporting an event from a nested implemented interface
-    ifoo = """
-event MyEvent:
-    pass
-    """
-    lib1 = """
-import ifoo
-implements: ifoo
-    """
-    main = """
-import lib1
-
-initializes: lib1
-    """
-    input_bundle = make_input_bundle({"ifoo.vyi": ifoo, "lib1.vy": lib1})
-    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": [{"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"}]}
-
-    assert out == expected
-
-
-def test_event_export_nested_uses(make_input_bundle):
-    # test exporting an event from a nested implemented interface
+def test_event_export_nested_export_chain(make_input_bundle):
+    # test exporting an event from a nested used module
     lib1 = """
 event MyEvent:
     pass
+
+@external
+def foo():
+    log MyEvent()
     """
     lib2 = """
 import lib1
-initializes: lib1
+exports: lib1.foo
     """
     main = """
 import lib2
-
-initializes: lib2
+exports: lib2.lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": [{"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"}]}
+    expected = {
+        "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
+            {
+                "name": "foo",
+                "inputs": [],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+    }
 
     assert out == expected
 

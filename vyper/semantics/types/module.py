@@ -9,7 +9,6 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
-    VyperException,
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
@@ -18,12 +17,12 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
     validate_unique_method_ids,
 )
-from vyper.utils import OrderedSet
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
+from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
     from vyper.semantics.analysis.base import ModuleInfo
@@ -222,7 +221,10 @@ class InterfaceT(_UserType):
         if (fn_t := module_t.init_function) is not None:
             funcs.append((fn_t.name, fn_t))
 
-        events = [(event_t.name, event_t) for event_t in module_t.used_events]
+        event_set: OrderedSet[EventT] = OrderedSet()
+        event_set.update([node._metadata["event_type"] for node in module_t.event_defs])
+        event_set.update(module_t.used_events)
+        events = [(event_t.name, event_t) for event_t in event_set]
 
         # these are accessible via import, but they do not show up
         # in the ABI json
@@ -449,7 +451,7 @@ class ModuleT(VyperType):
     def used_events(self) -> OrderedSet[EventT]:
         ret: OrderedSet[EventT] = OrderedSet()
 
-        reachable = OrderedSet()
+        reachable: OrderedSet[ContractFunctionT] = OrderedSet()
         if self.init_function is not None:
             reachable.add(self.init_function)
             reachable.update(self.init_function.reachable_internal_functions)
