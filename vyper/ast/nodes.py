@@ -1267,11 +1267,6 @@ class AnnAssign(VyperNode):
         if not isinstance(self.target, Name):
             raise VariableDeclarationException("Invalid variable declaration", self.target)
 
-        if self.value is None:
-            raise VariableDeclarationException(
-                "Local variables must be declared with an initial value", self
-            )
-
 
 class VariableDecl(VyperNode):
     """
