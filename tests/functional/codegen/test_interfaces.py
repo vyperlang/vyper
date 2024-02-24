@@ -69,9 +69,9 @@ interface One:
 
 def test_basic_interface_implements(assert_compile_failed):
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20
+implements: IERC20
 
 @external
 def test() -> bool:
@@ -382,15 +382,15 @@ def transfer(to: address, amount: uint256) -> bool:
     """
 
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 
-token_address: ERC20
+token_address: IERC20
 
 
 @deploy
 def __init__(_token_address: address):
-    self.token_address = ERC20(_token_address)
+    self.token_address = IERC20(_token_address)
 
 
 @external

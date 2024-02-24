@@ -72,8 +72,8 @@ The ``default_return_value`` parameter can be used to handle ERC20 tokens affect
 
 .. code-block:: vyper
 
-    ERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
-    ERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
+    IERC20(USDT).transfer(msg.sender, 1, default_return_value=True) # returns True
+    IERC20(USDT).transfer(msg.sender, 1) # reverts because nothing returned
 
 .. warning::
 
@@ -164,9 +164,9 @@ Vyper includes common built-in interfaces such as `ERC20 <https://eips.ethereum.
 
 .. code-block:: vyper
 
-    from ethereum.ercs import ERC20
+    from ethereum.ercs import IERC20
 
-    implements: ERC20
+    implements: IERC20
 
 You can see all the available built-in interfaces in the `Vyper GitHub <https://github.com/vyperlang/vyper/tree/master/vyper/builtins/interfaces>`_ repo.
 

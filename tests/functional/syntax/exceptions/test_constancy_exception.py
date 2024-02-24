@@ -128,9 +128,9 @@ def bar()->DynArray[uint16,3]:
     return self.a # return [1,2]
     """,
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-token: ERC20
+token: IERC20
 
 @external
 @view

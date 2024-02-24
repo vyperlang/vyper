@@ -8,11 +8,11 @@
 ## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
 ###########################################################################
 
-from ethereum.ercs import ERC20
-from ethereum.ercs import ERC4626
+from ethereum.ercs import IERC20
+from ethereum.ercs import IERC4626
 
-implements: ERC20
-implements: ERC4626
+implements: IERC20
+implements: IERC4626
 
 ##### ERC20 #####
 
@@ -36,7 +36,7 @@ event Approval:
 
 ##### ERC4626 #####
 
-asset: public(ERC20)
+asset: public(IERC20)
 
 event Deposit:
     depositor: indexed(address)
@@ -53,7 +53,7 @@ event Withdraw:
 
 
 @deploy
-def __init__(asset: ERC20):
+def __init__(asset: IERC20):
     self.asset = asset
 
 
