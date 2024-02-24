@@ -175,9 +175,9 @@ class VarInfo:
         self._modification_count = 0
 
     @property
-    def getter_type(self) -> Optional["ContractFunctionT"]:
+    def getter_ast(self) -> Optional[vy_ast.VyperNode]:
         assert self.decl_node is not None  # help mypy
-        ret = self.decl_node._metadata.get("getter_type", None)
+        ret = self.decl_node._expanded_getter
         assert (ret is not None) == self.is_public, self
         return ret
 

@@ -22,9 +22,7 @@ def _runtime_reachable_functions(module_t, id_generator):
     ret = OrderedSet()
 
     for fn_t in module_t.exposed_functions:
-        # resolve variabledecl getter source
-        if isinstance(fn_t.ast_def, vy_ast.VariableDecl):
-            fn_t = fn_t.ast_def._expanded_getter._metadata["func_type"]
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
 
         ret.update(fn_t.reachable_internal_functions)
         ret.add(fn_t)

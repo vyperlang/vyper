@@ -30,7 +30,7 @@ from vyper.semantics.analysis.utils import (
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import KwargSettings, VyperType
+from vyper.semantics.types.base import KwargSettings, VyperType, is_type_t
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -115,10 +115,11 @@ class ContractFunctionT(VyperType):
         self._analysed = False
 
         # a list of internal functions this function calls.
-        # to be populated during analysis
+        # to be populated during module analysis.
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
+        # to be populated during module analysis.
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
@@ -461,6 +462,9 @@ class ContractFunctionT(VyperType):
             ast_def=node,
         )
 
+    def get_used_events(self):  # -> OrderedSet[EventT]:
+        pass
+
     @property
     # convenience property for compare_signature, as it would
     # appear in a public interface
@@ -475,9 +479,8 @@ class ContractFunctionT(VyperType):
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
         """
-
-        if not self.is_external:
-            return False
+        if not self.is_external:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
 
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
