@@ -20,7 +20,6 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
-    VariableDeclarationException,
     VyperException,
     tag_exceptions,
 )

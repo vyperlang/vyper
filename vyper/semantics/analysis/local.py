@@ -17,7 +17,6 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
-    VariableDeclarationException,
     VyperException,
 )
 from vyper.semantics.analysis.base import (
@@ -326,14 +325,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         super().visit(node)
 
     def visit_AnnAssign(self, node):
-        name = node.get("target.id")
-        if name is None:
-            raise VariableDeclarationException("Invalid assignment", node)
+        name = node.target.id
 
-        if not node.value:
-            raise VariableDeclarationException(
-                "Memory variables must be declared with an initial value", node
-            )
+        # sanity check postconditions of AnnAssign.validate()
+        assert isinstance(node.target, vy_ast.Name)
+        assert node.value is not None
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
 
