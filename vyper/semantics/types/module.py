@@ -317,12 +317,11 @@ class ModuleT(VyperType):
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
 
-    # this is a property, because the function set changes after AST expansion
-    @property
+    @cached_property
     def function_defs(self):
         return self._module.get_children(vy_ast.FunctionDef)
 
-    @property
+    @cached_property
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
 
@@ -333,6 +332,10 @@ class ModuleT(VyperType):
     @property
     def interface_defs(self):
         return self._module.get_children(vy_ast.InterfaceDef)
+
+    @cached_property
+    def implements_decls(self):
+        return self._module.get_children(vy_ast.ImplementsDecl)
 
     @cached_property
     def interfaces(self) -> dict[str, InterfaceT]:
@@ -446,6 +449,10 @@ class ModuleT(VyperType):
 
         for info in self.initialized_modules:
             ret.update(info.module_info.module_t.exported_events)
+
+        for implements_decl in self.implements_decls:
+            interface_t = implements_decl._metadata["interface_type"]
+            ret.update(interface_t.events.values())
 
         ret.update([n._metadata["event_type"] for n in self.event_defs])
 

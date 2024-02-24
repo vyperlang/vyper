@@ -395,6 +395,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         funcs = self._exposed_functions
         type_.validate_implements(node, funcs)
 
+        node._metadata["interface_type"] = type_
+
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
         # uses: x
