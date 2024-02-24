@@ -95,8 +95,14 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
     # a jump. terminate final basic block with STOP.
     for i, bb in enumerate(ctx.basic_blocks):
         if not bb.is_terminated:
-            if i < len(ctx.basic_blocks) - 1:
-                bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
+            if len(ctx.basic_blocks) - 1 > i:
+                # TODO: revisit this. When contructor calls internal functions they
+                # are linked to the last ctor block. Should separate them before this
+                # so we don't have to handle this here
+                if ctx.basic_blocks[i + 1].label.value.startswith("internal"):
+                    bb.append_instruction("stop")
+                else:
+                    bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
             else:
                 bb.append_instruction("stop")
 
