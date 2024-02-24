@@ -512,10 +512,16 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     # compile all internal functions so that _ir_info is populated (whether or
     # not it makes it into the final IR artifact)
+    to_visit = OrderedSet()
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
-        if fn_t.is_internal and fn_t._ir_info is None:
+        if fn_t.is_internal:
+            to_visit.update(fn_t.reachable_internal_functions)
+            to_visit.add(fn_t)
+
+    for fn_t in to_visit:
+        if fn_t._ir_info is None:
             id_generator.ensure_id(fn_t)
-            _ = _ir_for_internal_function(func_ast, module_t, False)
+            _ = _ir_for_internal_function(fn_t.ast_def, module_t, False)
 
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)
