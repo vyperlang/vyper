@@ -544,32 +544,59 @@ exports: lib2.lib1.foo
     assert out == expected
 
 
-def test_event_export_nested_no_uses(make_input_bundle):
+def test_event_export_nested_internal(make_input_bundle):
+    # test events are exported from nested internal calls across modules
     lib1 = """
 event MyEvent:
     pass
 
+@internal
+def foo():
+    log MyEvent()
     """
     lib2 = """
 import lib1
-initializes: lib1
+
+@internal
+def bar():
+    lib1.foo()
     """
     main = """
 import lib2  # no uses
+
+@external
+def baz():
+    lib2.bar()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": []}
+    expected = {
+        "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
+            {
+                "name": "baz",
+                "inputs": [],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+    }
 
     assert out == expected
 
 
-def test_event_export_nested_no_uses2(make_input_bundle):
+def test_event_export_nested_no_uses(make_input_bundle):
+    # event is not exported when it's not used
     lib1 = """
 event MyEvent:
     pass
 
 counter: uint256
+
+@internal
+def foo():
+    log MyEvent()
 
 @internal
 def update_counter():
@@ -584,10 +611,28 @@ def use_lib1():
     lib1.update_counter()
     """
     main = """
-import lib2  # no uses
+import lib1
+import lib2
+
+initializes: lib1
+initializes: lib2[lib1 := lib1]
+
+@external
+def foo():
+    lib2.use_lib1()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
-    expected = {"abi": []}
+    expected = {
+        "abi": [
+            {
+                "name": "foo",
+                "inputs": [],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            }
+        ]
+    }
 
     assert out == expected
