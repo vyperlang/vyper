@@ -1,4 +1,3 @@
-
 def test_module_event(get_contract, make_input_bundle, get_logs):
     lib1 = """
 event MyEvent:
@@ -19,6 +18,7 @@ def bar():
     c = get_contract(main, input_bundle=input_bundle)
     logs = get_logs(c.bar(transact={}), c, "MyEvent")
     assert len(logs) == 1
+
 
 def test_module_event2(get_contract, make_input_bundle, get_logs):
     lib1 = """
