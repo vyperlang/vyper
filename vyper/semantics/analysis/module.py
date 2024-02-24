@@ -250,9 +250,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     self.visit(node)
                     nodes.remove(node)
                     self._to_visit.remove(node)
-                # CMC 2024-02-19 i think we can remove
-                # VariableDeclarationException here.
-                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
+                except (InvalidLiteral, InvalidType) as e:
                     # these exceptions cannot be caused by another statement
                     # not yet being parsed, so we raise them immediately
                     raise e from None
