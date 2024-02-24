@@ -728,6 +728,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
             raise ModuleNotFound(module_str, hint=hint)
         if _is_builtin(module_str):
+            components = module_str.split(".")
+            # hint: rename ERC20 to IERC20
+            if components[-1].startswith("ERC"):
+                module_prefix = components[-1]
+                hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
+                raise ModuleNotFound(module_str, hint=hint)
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
