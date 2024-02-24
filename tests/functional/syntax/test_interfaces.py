@@ -136,7 +136,7 @@ def f(a: uint256): # visibility is nonpayable instead of view
         InterfaceViolation,
     ),
     (
-        # reimplements Transfer event
+        # exports two Transfer events
         """
 from ethereum.ercs import IERC20
 
@@ -156,10 +156,12 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
+    log Transfer(msg.sender, _to, _value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    log IERC20.Transfer(_from, _to, _value)
     return True
 
 @external
