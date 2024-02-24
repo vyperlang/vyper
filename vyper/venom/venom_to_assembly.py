@@ -264,13 +264,14 @@ class VenomCompiler:
 
         self._clean_unused_params(asm, basicblock, stack)
 
-        for inst in main_insts:
+        for i, inst in enumerate(main_insts):
             if is_constructor_cleanup and inst.opcode == "stop":
                 asm.append("_sym__ctor_exit")
                 asm.append("JUMP")
                 continue
 
-            asm = self._generate_evm_for_instruction(asm, inst, stack)
+            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else []
+            asm = self._generate_evm_for_instruction(asm, inst, stack, next_liveness)
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
@@ -319,7 +320,7 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self, assembly: list, inst: IRInstruction, stack: StackModel
+        self, assembly: list, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = []
     ) -> list[str]:
         opcode = inst.opcode
 
@@ -498,6 +499,10 @@ class VenomCompiler:
             assert isinstance(inst.output, IRVariable), "Return value must be a variable"
             if inst.output.mem_type == MemType.MEMORY:
                 assembly.extend([*PUSH(inst.output.mem_addr)])
+
+            # TODO: revisit this
+            if "call" in inst.opcode and inst.output not in next_liveness:
+                self.pop(assembly, stack)
 
         return assembly
 
