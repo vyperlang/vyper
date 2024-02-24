@@ -292,3 +292,108 @@ def __init__():
     ]
 
     assert out["abi"] == expected
+
+
+def test_event_export_from_init(make_input_bundle):
+    lib1 = """
+event MyEvent:
+    pass
+
+@deploy
+def __init__():
+    log MyEvent()
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = {
+        "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
+            {"inputs": [], "outputs": [], "stateMutability": "nonpayable", "type": "constructor"},
+        ]
+    }
+
+    assert out == expected
+
+
+def test_event_export_from_initialized(make_input_bundle):
+    lib1 = """
+event MyEvent:
+    pass
+
+@external
+def foo():
+    log MyEvent()
+    """
+    main = """
+import lib1
+
+initializes: lib1
+
+exports: lib1.foo
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = {
+        "abi": [
+            {"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"},
+            {
+                "name": "foo",
+                "inputs": [],
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+    }
+
+    assert out == expected
+
+
+def test_event_export_uses(make_input_bundle):
+    # test exporting an event from a module which is marked `initialized`
+    lib1 = """
+event MyEvent:
+    pass
+
+@internal
+def foo():
+    log MyEvent()
+    """
+    main = """
+import lib1
+initializes: lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = {"abi": [{"anonymous": False, "inputs": [], "name": "MyEvent", "type": "event"}]}
+
+    assert out == expected
+
+
+def test_event_export_no_uses(make_input_bundle):
+    # test exporting an event from a module which is not used
+    lib1 = """
+event MyEvent:
+    pass
+
+@internal
+def foo():
+    log MyEvent()
+    """
+    main = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])
+    expected = {"abi": []}
+
+    assert out == expected
