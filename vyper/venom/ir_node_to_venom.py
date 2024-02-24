@@ -604,7 +604,9 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                         return avar
         return bb.append_instruction("mload", arg_0)
     elif ir.value == "mstore":
-        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)
+        arg_1, arg_0 = _convert_ir_bb_list(
+            ctx, reversed(ir.args), symbols, variables, allocated_variables
+        )
         if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
         ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
