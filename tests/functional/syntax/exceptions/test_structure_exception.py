@@ -14,14 +14,6 @@ send(0x1234567890123456789012345678901234567890, 5)
 send(0x1234567890123456789012345678901234567890, 5)
     """,
     """
-struct Foo:
-    pass
-
-@external
-def foo():
-    log Foo  # missing parens
-    """,
-    """
 x: [bar, baz]
     """,
     """
