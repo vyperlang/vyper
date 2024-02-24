@@ -326,12 +326,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         super().visit(node)
 
     def visit_AnnAssign(self, node):
-        if node.value is None:
+        name = node.get("target.id")
+        if name is None:
+            raise VariableDeclarationException("Invalid assignment", node)
+
+        if not node.value:
             raise VariableDeclarationException(
-                "Local variables must be declared with an initial value"
+                "Memory variables must be declared with an initial value", node
             )
 
-        name = node.target.id
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
 
         # validate the value before adding it to the namespace

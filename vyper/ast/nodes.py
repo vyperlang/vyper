@@ -1261,11 +1261,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value")
-
-    def validate(self):
-        if not isinstance(self.target, Name):
-            raise VariableDeclarationException("Invalid variable declaration", self.target)
+    __slots__ = ("target", "annotation", "value", "simple")
 
 
 class VariableDecl(VyperNode):
