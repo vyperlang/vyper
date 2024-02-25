@@ -349,6 +349,7 @@ class Stmt:
                     left=IRnode.from_list(LOAD(target), typ=target.typ),
                     right=sub,
                     op=self.stmt.op,
+                    node_id=self.stmt.node_id,
                     lineno=self.stmt.lineno,
                     col_offset=self.stmt.col_offset,
                     end_lineno=self.stmt.end_lineno,
