@@ -408,14 +408,26 @@ def qux2():
                         ],
                     },
                     "variable_reads": [
-                        {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"}
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        }
                     ],
                 },
                 "variable_reads": [
-                    {"access_path": ["$subscript_access", "items"], "module": "lib1.vy", "variable": "bars"}
+                    {
+                        "access_path": ["$subscript_access", "items"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
                 ],
                 "variable_writes": [
-                    {"access_path": ["$subscript_access", "items"], "module": "lib1.vy", "variable": "bars"}
+                    {
+                        "access_path": ["$subscript_access", "items"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
                 ],
             },
             "value": {
@@ -465,7 +477,11 @@ def qux2():
                                 ],
                             },
                             "variable_reads": [
-                                {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"}
+                                {
+                                    "access_path": ["$subscript_access"],
+                                    "module": "lib1.vy",
+                                    "variable": "bars",
+                                }
                             ],
                         },
                         "variable_reads": [
@@ -529,7 +545,11 @@ def qux2():
                                 ],
                             },
                             "variable_reads": [
-                                {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"}
+                                {
+                                    "access_path": ["$subscript_access"],
+                                    "module": "lib1.vy",
+                                    "variable": "bars",
+                                }
                             ],
                         },
                         "variable_reads": [
@@ -581,8 +601,16 @@ def qux2():
                     "value": {"ast_type": "Name", "id": "self", "type": "self"},
                     "variable_reads": [
                         {"access_path": [], "module": "lib1.vy", "variable": "bars"},
-                        {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"},
-                        {"access_path": ["$subscript_access", "items"], "module": "lib1.vy", "variable": "bars"},
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
                         {
                             "access_path": ["$subscript_access", "items", "$subscript_access"],
                             "module": "lib1.vy",
@@ -601,8 +629,16 @@ def qux2():
                     ],
                     "variable_writes": [
                         {"access_path": [], "module": "lib1.vy", "variable": "bars"},
-                        {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"},
-                        {"access_path": ["$subscript_access", "items"], "module": "lib1.vy", "variable": "bars"},
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
                         {
                             "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
                             "module": "lib1.vy",
