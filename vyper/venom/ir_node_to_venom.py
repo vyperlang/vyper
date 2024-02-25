@@ -364,16 +364,18 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         if isinstance(argsOffset, IRLiteral):
             offset = int(argsOffset.value)
-            addr = offset - 32 + 4 if offset > 0 else 0
-            argsOffsetVar = symbols.get(f"&{addr}", None)
-            if argsOffsetVar is None:
-                argsOffsetVar = argsOffset
-            elif isinstance(argsOffsetVar, IRVariable):
-                argsOffsetVar.mem_type = MemType.MEMORY
-                argsOffsetVar.mem_addr = addr
-                argsOffsetVar.offset = 32 - 4 if offset > 0 else 0
-            else:  # pragma: nocover
-                raise CompilerPanic("unreachable")
+            var = _get_variable_from_address(variables, offset)
+            if var:
+                if var.size > 32:
+                    argsOffsetVar = argsOffset
+                else:
+                    argsOffsetVar = argsOffset
+            else:
+                argsOffsetVar = symbols.get(f"&{offset}", None)
+                if argsOffsetVar is None:  # or offset > 0:
+                    argsOffsetVar = argsOffset
+                else:  # pragma: nocover
+                    argsOffsetVar = argsOffset
         else:
             argsOffsetVar = argsOffset
 
