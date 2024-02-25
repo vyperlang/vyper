@@ -53,7 +53,8 @@ def get_node(
     ast_struct: Union[dict, python_ast.AST], parent: Optional["VyperNode"] = None
 ) -> "VyperNode":
     """
-    Convert an AST structure to a vyper AST node.
+    Convert an AST structure to a vyper AST node. Entry point to constructing
+    vyper AST nodes.
 
     This is a recursive call, all child nodes of the input value are also
     converted to Vyper nodes.
@@ -132,6 +133,9 @@ def get_node(
             f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
             stacklevel=2,
         )
+
+    node.validate()
+
     return node
 
 

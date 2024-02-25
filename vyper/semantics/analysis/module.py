@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -65,8 +64,6 @@ def validate_module_semantics_r(
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
-
-    validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
