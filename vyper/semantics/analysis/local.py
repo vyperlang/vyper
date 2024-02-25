@@ -70,6 +70,11 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
     for node in vy_module.get_children(vy_ast.FunctionDef):
         _validate_function_r(vy_module, node, err_list)
 
+    for node in vy_module.get_children(vy_ast.VariableDecl):
+        if not node.is_public:
+            continue
+        _validate_function_r(vy_module, node._expanded_getter, err_list)
+
     err_list.raise_if_not_empty()
 
 
@@ -230,6 +235,32 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
 
     ret.reverse()
     return ret
+
+
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """
+    validate module usage, and that if we use lib1.lib2.<state>, that
+    lib1 at least `uses` lib2.
+
+    Returns the left-most module referenced in the expr,
+        e.g. `lib1.lib2.foo` should return module info for `lib1`.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!"
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
+
+    # the leftmost- referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
@@ -397,25 +428,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _check_module_use(self, target: vy_ast.ExprNode):
-        module_infos = _get_module_chain(target)
-
-        if len(module_infos) == 0:
+    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
+        if not var_access.variable.is_module_variable():
             return
 
-        for module_info in module_infos:
-            if module_info.ownership < ModuleOwnership.USES:
-                msg = f"Cannot access `{module_info.alias}` state!"
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-                raise ImmutableViolation(msg, hint=hint)
+        root_module_info = check_module_uses(target)
 
-        # the leftmost- referenced module
-        root_module_info = module_infos[0]
-
-        # log the access
-        self.func.mark_used_module(root_module_info)
+        if root_module_info is not None:
+            # log the access
+            self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -637,8 +658,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node)
+                    self.function_analyzer._handle_module_access(s, node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -710,8 +730,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self._check_call_mutability(func_type.mutability)
 
                 for s in func_type.get_variable_accesses():
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node.func)
+                    self.function_analyzer._handle_module_access(s, node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
