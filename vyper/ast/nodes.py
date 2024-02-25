@@ -1303,7 +1303,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+    __slots__ = ("target", "annotation", "value")
 
 
 class VariableDecl(VyperNode):
