@@ -771,16 +771,16 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
 
 def getpos(node):
-    if node is None:
-        return None
-
     return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
 
 def note_line_num(line_number_map, item, pos):
     # Record line number attached to pos.
     if isinstance(item, Instruction):
-        line_number_map["pc_ast_map"][pos] = item.ast_source
+        if (ast_node := item.ast_source) is not None:
+            ast_node = ast_node.get_original_node()
+            if hasattr(ast_node, "node_id"):
+                line_number_map["pc_raw_ast_map"][pos] = ast_node
 
         if item.error_msg is not None:
             line_number_map["error_map"][pos] = item.error_msg
@@ -1063,7 +1063,7 @@ def adjust_pc_maps(pc_maps, ofst):
     ret["breakpoints"] = pc_maps["breakpoints"].copy()
     ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
     ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
-    ret["pc_ast_map"] = {k + ofst: v for (k, v) in pc_maps["pc_ast_map"].items()}
+    ret["pc_raw_ast_map"] = {k + ofst: v for (k, v) in pc_maps["pc_raw_ast_map"].items()}
     ret["error_map"] = {k + ofst: v for (k, v) in pc_maps["error_map"].items()}
 
     return ret
@@ -1170,7 +1170,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
         "breakpoints": set(),
         "pc_breakpoints": set(),
         "pc_jump_map": {0: "-"},
-        "pc_ast_map": {},
+        "pc_raw_ast_map": {},
         "error_map": {},
     }
 

@@ -3,12 +3,14 @@ from vyper.compiler.output import _compress_source_map
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
+x: public(uint256)
+
 @internal
 def _baz(a: int128) -> int128:
     b: int128 = a
     for i: int128 in range(2, 5):
         b *=  i
-        if b > 31337:
+        if b > 31336 + 1:
             break
     return b
 
