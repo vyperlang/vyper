@@ -590,18 +590,16 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         if isinstance(arg_0, IRLiteral):
             var = _get_variable_from_address(variables, arg_0.value)
-            if var is not None and var.mutable is True:
-                # trying to differenciate parameters from
-                # allocated variables. need to change this.
-                avar = allocated_variables.get(var.name)
-                if avar is not None:
-                    offset = arg_0.value - var.pos
-                    if var.size > 32:
-                        if offset > 0:
-                            avar = bb.append_instruction("add", avar, offset)
-                        return bb.append_instruction("mload", avar)
-                    else:
-                        return avar
+            if var is not None:
+                return bb.append_instruction("mload", arg_0)
+            avar = symbols.get(f"%{arg_0.value}")
+            if avar is not None:
+                offset = arg_0.value - var.pos
+                if var.size > 32:
+                    if offset > 0:
+                        avar = bb.append_instruction("add", avar, offset)
+                    return bb.append_instruction("mload", avar)
+
         return bb.append_instruction("mload", arg_0)
     elif ir.value == "mstore":
         arg_1, arg_0 = _convert_ir_bb_list(
