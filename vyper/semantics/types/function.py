@@ -462,9 +462,6 @@ class ContractFunctionT(VyperType):
             ast_def=node,
         )
 
-    def get_used_events(self):  # -> OrderedSet[EventT]:
-        pass
-
     @property
     # convenience property for compare_signature, as it would
     # appear in a public interface
