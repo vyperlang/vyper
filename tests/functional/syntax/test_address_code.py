@@ -116,7 +116,7 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
 code: public(Bytes[4])
 """,
             NamespaceCollision,
-            "Value 'code' has already been declared",
+            "Member 'code' already exists in self",
         ),
     ],
 )
