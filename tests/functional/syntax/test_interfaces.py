@@ -224,6 +224,36 @@ def foo() -> uint256:
     """,
         InterfaceViolation,
     ),
+    (
+        # decorators must be strictly identical
+        """
+interface Self:
+    def protected_view_fn() -> String[100]: nonpayable
+
+implements: Self
+
+@external
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # decorators must be strictly identical
+        """
+interface Self:
+    def protected_view_fn() -> String[100]: view
+
+implements: Self
+
+@external
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
+    """,
+        InterfaceViolation,
+    ),
 ]
 
 
