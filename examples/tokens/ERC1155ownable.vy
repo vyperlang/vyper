@@ -393,7 +393,7 @@ def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     self.contractURI = contractUri
     log URI(contractUri, 0)
 
-@pure
+@view
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
     """

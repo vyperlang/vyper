@@ -93,7 +93,7 @@ def __init__():
     self.baseURL = "https://api.babby.xyz/metadata/"
 
 
-@pure
+@view
 @external
 def supportsInterface(interface_id: bytes4) -> bool:
     """
