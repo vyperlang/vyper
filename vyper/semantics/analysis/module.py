@@ -54,8 +54,8 @@ from vyper.utils import OrderedSet
 def validate_module_semantics_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
-    import_graph: ImportGraph,
-    is_interface: bool,
+    import_graph: ImportGraph = None,
+    is_interface: bool = False,
 ) -> ModuleT:
     """
     Analyze a Vyper module AST node, add all module-level objects to the
@@ -65,6 +65,9 @@ def validate_module_semantics_r(
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
+
+    if import_graph is None:
+        import_graph = ImportGraph()
 
     validate_literal_nodes(module_ast)
 

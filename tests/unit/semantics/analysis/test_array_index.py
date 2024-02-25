@@ -7,7 +7,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.analysis import validate_semantics
+from vyper.semantics.analysis import validate_module_semantics_r
 
 
 @pytest.mark.parametrize("value", ["address", "Bytes[10]", "decimal", "bool"])
@@ -22,7 +22,7 @@ def foo(b: {value}):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        validate_module_semantics_r(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["1.0", "0.0", "'foo'", "0x00", "b'\x01'", "False"])
@@ -37,7 +37,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        validate_module_semantics_r(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", [-1, 3, -(2**127), 2**127 - 1, 2**256 - 1])
@@ -52,7 +52,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArrayIndexException):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        validate_module_semantics_r(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["b", "self.b"])
@@ -67,7 +67,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(UndeclaredDefinition):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        validate_module_semantics_r(vyper_module, dummy_input_bundle)
 
 
 @pytest.mark.parametrize("value", ["a", "foo", "int128"])
@@ -82,4 +82,4 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(InvalidReference):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        validate_module_semantics_r(vyper_module, dummy_input_bundle)
