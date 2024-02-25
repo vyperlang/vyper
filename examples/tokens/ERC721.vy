@@ -8,11 +8,11 @@
 # @author Ryuya Nakamura (@nrryuya)
 # Modified from: https://github.com/vyperlang/vyper/blob/de74722bf2d8718cca46902be165f9fe0e3641dd/examples/tokens/ERC721.vy
 
-from ethereum.ercs import ERC165
-from ethereum.ercs import ERC721
+from ethereum.ercs import IERC165
+from ethereum.ercs import IERC721
 
-implements: ERC721
-implements: ERC165
+implements: IERC721
+implements: IERC165
 
 # Interface for the contract called by safeTransferFrom()
 interface ERC721Receiver:
@@ -93,7 +93,7 @@ def __init__():
     self.baseURL = "https://api.babby.xyz/metadata/"
 
 
-@pure
+@view
 @external
 def supportsInterface(interface_id: bytes4) -> bool:
     """
