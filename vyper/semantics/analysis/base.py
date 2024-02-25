@@ -223,7 +223,7 @@ class VarAccess:
             return None
 
         # map SUBSCRIPT_ACCESS to None
-        path = [None if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
+        path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
         varname = var.decl_node.target.id
 
         module_node = var.decl_node.get_ancestor(vy_ast.Module)
