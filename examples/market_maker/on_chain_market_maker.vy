@@ -1,6 +1,6 @@
 #pragma version >0.3.10
 
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 
 totalEthQty: public(uint256)
@@ -8,7 +8,7 @@ totalTokenQty: public(uint256)
 # Constant set in `initiate` that's used to calculate
 # the amount of ether/tokens that are exchanged
 invariant: public(uint256)
-token_address: ERC20
+token_address: IERC20
 owner: public(address)
 
 # Sets the on chain market maker with its owner, initial token quantity,
@@ -17,7 +17,7 @@ owner: public(address)
 @payable
 def initiate(token_addr: address, token_quantity: uint256):
     assert self.invariant == 0
-    self.token_address = ERC20(token_addr)
+    self.token_address = IERC20(token_addr)
     self.token_address.transferFrom(msg.sender, self, token_quantity)
     self.owner = msg.sender
     self.totalEthQty = msg.value

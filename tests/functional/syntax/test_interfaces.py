@@ -15,8 +15,8 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-from ethereum.ercs import ERC20
-a: public(ERC20)
+from ethereum.ercs import IERC20
+a: public(IERC20)
 @external
 def test():
     b: uint256 = self.a
@@ -25,29 +25,29 @@ def test():
     ),
     (
         """
-from ethereum.ercs import ERC20
-aba: public(ERC20)
+from ethereum.ercs import IERC20
+aba: public(IERC20)
 @external
 def test():
-    self.aba = ERC20
+    self.aba = IERC20
     """,
         InvalidReference,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: address(ERC20) # invalid syntax now.
+a: address(IERC20) # invalid syntax now.
     """,
         SyntaxException,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 @external
 def test():
-    a: address(ERC20) = empty(address)
+    a: address(IERC20) = empty(address)
     """,
         InvalidType,
     ),
@@ -63,18 +63,18 @@ def test():  # may not call normal address
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @external
 def test(a: address):
-    my_address: address = ERC20()
+    my_address: address = IERC20()
     """,
         ArgumentException,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20 = 1
+implements: IERC20 = 1
     """,
         SyntaxException,
     ),
@@ -109,14 +109,14 @@ implements: Foo
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 interface A:
     def f(): view
 
 @internal
 def foo():
-    a: ERC20 = A(empty(address))
+    a: IERC20 = A(empty(address))
     """,
         TypeMismatch,
     ),
@@ -137,9 +137,9 @@ def f(a: uint256): # visibility is nonpayable instead of view
     (
         # `receiver` of `Transfer` event should be indexed
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20
+implements: IERC20
 
 event Transfer:
     sender: indexed(address)
@@ -175,9 +175,9 @@ def approve(_spender : address, _value : uint256) -> bool:
     (
         # `value` of `Transfer` event should not be indexed
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20
+implements: IERC20
 
 event Transfer:
     sender: indexed(address)
@@ -265,20 +265,20 @@ def test_interfaces_fail(bad_code):
 
 valid_list = [
     """
-from ethereum.ercs import ERC20
-b: ERC20
+from ethereum.ercs import IERC20
+b: IERC20
 @external
 def test(input: address):
-    assert self.b.totalSupply() == ERC20(input).totalSupply()
+    assert self.b.totalSupply() == IERC20(input).totalSupply()
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 interface Factory:
    def getExchange(token_addr: address) -> address: view
 
 factory: Factory
-token: ERC20
+token: IERC20
 
 @external
 def test():
@@ -297,23 +297,23 @@ def test() -> (bool, Foo):
     return True, x
     """
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
 
 @external
 def test() -> address:
     return self.a.address
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
 b: address
 
 @external
@@ -321,12 +321,12 @@ def test():
     self.b = self.a.address
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 struct aStruct:
    my_address: address
 
-a: public(ERC20)
+a: public(IERC20)
 b: aStruct
 
 @external
@@ -335,8 +335,8 @@ def test() -> address:
     return self.b.my_address
     """,
     """
-from ethereum.ercs import ERC20
-a: public(ERC20)
+from ethereum.ercs import IERC20
+a: public(IERC20)
 @external
 def test():
     b: address = self.a.address
