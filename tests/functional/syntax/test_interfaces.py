@@ -210,6 +210,50 @@ def approve(_spender : address, _value : uint256) -> bool:
     """,
         InterfaceViolation,
     ),
+    (
+        # `payable` decorator not implemented
+        """
+interface testI:
+    def foo() -> uint256: payable
+
+implements: testI
+
+@external
+def foo() -> uint256:
+    return 0
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # decorators must be strictly identical
+        """
+interface Self:
+    def protected_view_fn() -> String[100]: nonpayable
+
+implements: Self
+
+@external
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # decorators must be strictly identical
+        """
+interface Self:
+    def protected_view_fn() -> String[100]: view
+
+implements: Self
+
+@external
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
+    """,
+        InterfaceViolation,
+    ),
 ]
 
 

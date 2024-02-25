@@ -491,10 +491,7 @@ class ContractFunctionT(VyperType):
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
 
-        if self.mutability > other.mutability:
-            return False
-
-        return True
+        return self.mutability == other.mutability
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:
