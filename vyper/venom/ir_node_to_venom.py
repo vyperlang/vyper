@@ -607,6 +607,14 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         arg_1, arg_0 = _convert_ir_bb_list(
             ctx, reversed(ir.args), symbols, variables, allocated_variables
         )
+
+        if isinstance(arg_0, IRLiteral):
+            var = _get_variable_from_address(variables, arg_0.value)
+            if var:
+                avar = allocated_variables.get(var.name)
+                if avar:
+                    allocated_variables[var.name] = arg_1
+
         if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
         ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
