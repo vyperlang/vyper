@@ -10,7 +10,6 @@ from vyper.codegen.core import (
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
-    getpos,
     is_array_like,
     is_bytes_m_type,
     is_flag_type,
@@ -90,7 +89,7 @@ class Expr:
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.expr.get("node_source_code")
-        self.ir_node.source_pos = getpos(self.expr)
+        self.ir_node.ast_source = self.expr
 
     def parse_Int(self):
         typ = self.expr._metadata["type"]

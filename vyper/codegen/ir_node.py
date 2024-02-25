@@ -3,8 +3,9 @@ import copy
 import re
 from enum import Enum, auto
 from functools import cached_property
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
+import vyper.ast as vy_ast
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
@@ -183,7 +184,7 @@ class IRnode:
         args: List["IRnode"] = None,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
@@ -201,7 +202,7 @@ class IRnode:
         assert isinstance(typ, VyperType) or typ is None, repr(typ)
         self.typ = typ
         self.location = location
-        self.source_pos = source_pos
+        self.ast_source = ast_source
         self.error_msg = error_msg
         self.annotation = annotation
         self.mutable = mutable
@@ -528,11 +529,8 @@ class IRnode:
             and self.args == other.args
             and self.typ == other.typ
             and self.location == other.location
-            and self.source_pos == other.source_pos
-            and self.annotation == other.annotation
             and self.mutable == other.mutable
             and self.add_gas_estimate == other.add_gas_estimate
-            and self.valency == other.valency
         )
 
     @property
@@ -566,13 +564,13 @@ class IRnode:
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
-        prev_lineno = self.source_pos[0] if self.source_pos else None
+        prev_lineno = self.ast_source.lineno if self.ast_source else None
         arg_lineno = None
         annotated = False
         has_inner_newlines = False
         for arg in self.args:
             o += ",\n  "
-            arg_lineno = arg.source_pos[0] if arg.source_pos else None
+            arg_lineno = arg.ast_source.lineno if arg.ast_source else None
             if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ("seq", "if"):
                 o += f"# Line {(arg_lineno)}\n  "
                 prev_lineno = arg_lineno
@@ -603,7 +601,7 @@ class IRnode:
         obj: Any,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
@@ -620,8 +618,8 @@ class IRnode:
             # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
-            if obj.source_pos is None:
-                obj.source_pos = source_pos
+            if obj.ast_source is None:
+                obj.ast_source = ast_source
             if obj.location is None:
                 obj.location = location
             if obj.encoding is None:
@@ -639,7 +637,7 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 encoding=encoding,
                 error_msg=error_msg,
                 is_self_call=is_self_call,
@@ -648,12 +646,12 @@ class IRnode:
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
+                [cls.from_list(o, ast_source=ast_source) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
                 mutable=mutable,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
                 error_msg=error_msg,

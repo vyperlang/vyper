@@ -14,7 +14,6 @@ from vyper.codegen.core import (
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
-    getpos,
     make_byte_array_copier,
     make_setter,
     pop_dyn_array,
@@ -49,7 +48,7 @@ class Stmt:
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
-        self.ir_node.source_pos = getpos(self.stmt)
+        self.ir_node.ast_source = self.stmt
 
     def parse_Expr(self):
         # TODO: follow analysis modules and dispatch down to expr.py

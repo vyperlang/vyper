@@ -248,10 +248,15 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     for k in sorted(line_number_map.keys()):
         out[k] = line_number_map[k]
 
+    ast_map = out.pop("pc_ast_map")
+    pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
+    node_id_map = {k: v.node_id for (k, v) in ast_map.items() if v is not None}
+
     out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
+        compiler_data.source_code, pc_pos_map, out["pc_jump_map"], compiler_data.source_id
     )
-    out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
+    out["pc_pos_map"] = {k: v for (k, v) in pc_pos_map.items() if v is not None}
+    out["pc_ast_map"] = node_id_map
     return out
 
 

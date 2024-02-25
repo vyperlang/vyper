@@ -432,15 +432,6 @@ def pop_dyn_array(darray_node, return_popped_item):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
-def getpos(node):
-    return (
-        node.lineno,
-        node.col_offset,
-        getattr(node, "end_lineno", None),
-        getattr(node, "end_col_offset", None),
-    )
-
-
 # add an offset to a pointer, keeping location and encoding info
 def add_ofst(ptr, ofst):
     ret = ["add", ptr, ofst]
