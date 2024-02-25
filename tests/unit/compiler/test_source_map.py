@@ -105,3 +105,35 @@ def test_expand_source_map():
         [1, 21, 1, None],
     ]
     assert expand_source_map(compressed) == expanded
+
+
+def _construct_node_id_map(ast_struct):
+    if isinstance(ast_struct, dict):
+        ret = {}
+        if "node_id" in ast_struct:
+            ret[ast_struct["node_id"]] = ast_struct
+        for item in ast_struct.values():
+            ret.update(_construct_node_id_map(item))
+        return ret
+
+    elif isinstance(ast_struct, list):
+        ret = {}
+        for item in ast_struct:
+            ret.update(_construct_node_id_map(item))
+        return ret
+
+    else:
+        return {}
+
+
+def test_node_id_map():
+    code = TEST_CODE
+    out = compile_code(code, output_formats=["annotated_ast_dict", "source_map", "ir"])
+    pc_ast_map = out["source_map"]["pc_ast_map"]
+
+    ast_node_map = _construct_node_id_map(out["annotated_ast_dict"])
+
+    for pc, node_id in pc_ast_map.items():
+        assert isinstance(pc, int), pc
+        assert isinstance(node_id, int), node_id
+        assert node_id in ast_node_map
