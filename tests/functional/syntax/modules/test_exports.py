@@ -85,10 +85,12 @@ initializes: lib1
 def test_exports_implements(make_input_bundle):
     token_interface = """
 @external
+@view
 def totalSupply() -> uint256:
     ...
 
 @external
+@view
 def balanceOf(addr: address) -> uint256:
     ...
 
