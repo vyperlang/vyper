@@ -568,9 +568,15 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         is_darray = isinstance(parent.typ, DArrayT)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
         # NOTE: there are optimization rules for the bounds check when
-        # ix or bound is literal. there is also an optimization rule to
-        # optimize out ix>=0 when ix is unsigned.
-        ix = clamp2(0, ix, bound, ix.typ.is_signed)
+        # ix or bound is literal
+        with ix.cache_when_complex("ix") as (b1, ix):
+            LT = "slt" if ix.typ.is_signed else "lt"
+            # note: this is optimized out for unsigned integers
+            is_negative = [LT, ix, 0]
+            # always use unsigned gt, since bound is always an unsigned quantity
+            is_oob = ["gt", ix, bound]
+            checked_ix = ["seq", ["assert", ["iszero", ["or", is_negative, is_oob]]], ix]
+            ix = b1.resolve(IRnode.from_list(checked_ix))
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
