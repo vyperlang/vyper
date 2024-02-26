@@ -774,27 +774,27 @@ def getpos(node):
     return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
 
-def note_line_num(line_number_map, item, pos):
-    # Record line number attached to pos.
+def note_line_num(line_number_map, pc, item):
+    # Record AST attached to pc
     if isinstance(item, Instruction):
         if (ast_node := item.ast_source) is not None:
             ast_node = ast_node.get_original_node()
             if hasattr(ast_node, "node_id"):
-                line_number_map["pc_raw_ast_map"][pos] = ast_node
+                line_number_map["pc_raw_ast_map"][pc] = ast_node
 
         if item.error_msg is not None:
-            line_number_map["error_map"][pos] = item.error_msg
+            line_number_map["error_map"][pc] = item.error_msg
 
-    added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
+    added_line_breakpoint = note_breakpoint(line_number_map, pc, item)
     return added_line_breakpoint
 
 
-def note_breakpoint(line_number_map, item, pos):
-    # Record line number attached to pos.
+def note_breakpoint(line_number_map, pc, item):
+    # Record line number attached to pc
     if item == "DEBUG":
         # Is PC debugger, create PC breakpoint.
         if item.pc_debugger:
-            line_number_map["pc_breakpoints"].add(pos)
+            line_number_map["pc_breakpoints"].add(pc)
         # Create line number breakpoint.
         else:
             line_number_map["breakpoints"].add(item.lineno + 1)
@@ -1212,7 +1212,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, item, pc)
+        note_line_num(line_number_map, pc, item)
         if item == "DEBUG":
             continue  # skip debug
 
