@@ -344,16 +344,15 @@ class Stmt:
             raise TypeCheckFailure("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
-            rhs = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    parent=self.stmt._parent,
+            # TODO: refactor and make a `Expr.parse_binop` helper
+            fake_node = vy_ast.BinOp(
                     left=IRnode.from_list(LOAD(target), typ=target.typ),
                     right=sub,
                     op=self.stmt.op,
                     node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
+                )
+            fake_node._original_node = self.stmt._parent
+            rhs = Expr.parse_value_expr(fake_node, self.context)
             return b.resolve(STORE(target, rhs))
 
     def parse_Continue(self):
