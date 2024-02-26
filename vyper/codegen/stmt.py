@@ -346,14 +346,10 @@ class Stmt:
         with target.cache_when_complex("_loc") as (b, target):
             rhs = Expr.parse_value_expr(
                 vy_ast.BinOp(
+                    parent=self.stmt._parent,
                     left=IRnode.from_list(LOAD(target), typ=target.typ),
                     right=sub,
                     op=self.stmt.op,
-                    node_id=self.stmt.node_id,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
                     node_source_code=self.stmt.get("node_source_code"),
                 ),
                 self.context,
