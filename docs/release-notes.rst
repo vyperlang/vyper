@@ -17,8 +17,8 @@ Release Notes
 v0.4.0b1 ("Nagini")
 *******************
 
-Date released: 2024-03-01(?)
-============================
+Date released: TBD
+==================
 
 v0.4.0 represents a major overhaul to the Vyper language. Notably, it overhauls the import system and adds support for code reuse. It also adds a new, experimental backend to Vyper which lays the foundation for improved analysis, optimization and integration with third party tools.
 
