@@ -573,8 +573,8 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
             LT = "slt" if ix.typ.is_signed else "lt"
             # note: this is optimized out for unsigned integers
             is_negative = [LT, ix, 0]
-            # always use unsigned gt, since bound is always an unsigned quantity
-            is_oob = ["gt", ix, bound]
+            # always use unsigned ge, since bound is always an unsigned quantity
+            is_oob = ["ge", ix, bound]
             checked_ix = ["seq", ["assert", ["iszero", ["or", is_negative, is_oob]]], ix]
             ix = b1.resolve(IRnode.from_list(checked_ix))
         ix.set_error_msg(f"{parent.typ} bounds check")
