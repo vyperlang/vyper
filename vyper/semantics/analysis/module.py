@@ -724,16 +724,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> Any:
-        if module_str.startswith("vyper.interfaces"):
-            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
-            raise ModuleNotFound(module_str, hint=hint)
         if _is_builtin(module_str):
-            components = module_str.split(".")
-            # hint: rename ERC20 to IERC20
-            if components[-1].startswith("ERC"):
-                module_prefix = components[-1]
-                hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
-                raise ModuleNotFound(module_str, hint=hint)
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
@@ -795,9 +786,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             pass
 
+        hint = None
+        if module_str.startswith("vyper.interfaces"):
+            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, node) from err
+        raise ModuleNotFound(module_str, hint=hint) from err
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
@@ -842,7 +837,7 @@ def _is_builtin(module_str):
 
 def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+        raise ModuleNotFound(module_str)
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
@@ -866,8 +861,15 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     try:
         file = input_bundle.load_file(path)
         assert isinstance(file, FileInput)  # mypy hint
-    except FileNotFoundError:
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
+    except FileNotFoundError as e:
+        hint = None
+        components = module_str.split(".")
+        # common issue for upgrading codebases from v0.3.x to v0.4.x -
+        # hint: rename ERC20 to IERC20
+        if components[-1].startswith("ERC"):
+            module_prefix = components[-1]
+            hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
+        raise ModuleNotFound(module_str, hint=hint) from e
 
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)

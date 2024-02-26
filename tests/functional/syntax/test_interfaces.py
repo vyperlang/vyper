@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidReference,
     InvalidType,
+    ModuleNotFound,
     NamespaceCollision,
     StructureException,
     SyntaxException,
@@ -398,3 +399,25 @@ def foobar():
 """
 
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_builtins_not_found():
+    code = """
+from vyper.interfaces import foobar
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+
+    assert e.value._message == "vyper.interfaces.foobar"
+    assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
+
+@pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
+def test_builtins_not_found2(erc):
+    code = f"""
+from ethereum.ercs import {erc}
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+    assert e.value._message == f"ethereum.ercs.{erc}"
+    assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
