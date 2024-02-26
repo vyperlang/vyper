@@ -567,12 +567,10 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     if array_bounds_check:
         is_darray = isinstance(parent.typ, DArrayT)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
-        # uclamplt works, even for signed ints. since two's-complement
-        # is used, if the index is negative, (unsigned) LT will interpret
-        # it as a very large number, larger than any practical value for
-        # an array index, and the clamp will throw an error.
-        # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = clamp("lt", ix, bound)
+        # NOTE: there are optimization rules for the bounds check when
+        # ix or bound is literal. there is also an optimization rule to
+        # optimize out ix>=0 when ix is unsigned.
+        ix = clamp2(ix, 0, bound)
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
