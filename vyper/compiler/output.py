@@ -237,6 +237,11 @@ def _build_asm(asm_list):
     return output_string
 
 
+def _build_node_identifier(ast_node):
+    assert ast_node.module_node is not None, type(ast_node)
+    return {"source_id": ast_node.module_node.source_id, "node_id": ast_node.node_id}
+
+
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     _, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_compiler_metadata=False
@@ -249,7 +254,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     ast_map = out.pop("pc_raw_ast_map")
 
     pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
-    node_id_map = {k: v.node_id for (k, v) in ast_map.items()}
+    node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
     compressed_map = _compress_source_map(
         compiler_data.source_code, pc_pos_map, out["pc_jump_map"], compiler_data.source_id
     )
