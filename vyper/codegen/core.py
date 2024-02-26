@@ -570,7 +570,7 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
         # NOTE: there are optimization rules for the bounds check when
         # ix or bound is literal. there is also an optimization rule to
         # optimize out ix>=0 when ix is unsigned.
-        ix = clamp2(ix, 0, bound, ix.typ.is_signed)
+        ix = clamp2(0, ix, bound, ix.typ.is_signed)
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
