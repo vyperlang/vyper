@@ -83,8 +83,8 @@ def test_valid_literals(build_node, type_):
 @pytest.mark.parametrize("source", INVALID_LITERALS)
 def test_invalid_literals(build_node, type_, source):
     with pytest.raises((InvalidLiteral, OverflowException, UnexpectedNodeType)):
-        node = build_node(source)
-        do_validate_node(type_, node)
+        # build_node throws; no need to run do_validate_node
+        build_node(source)
 
 
 @pytest.mark.parametrize("type_,type_str", TYPES.items())
