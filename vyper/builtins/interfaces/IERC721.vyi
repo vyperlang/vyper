@@ -2,7 +2,7 @@
 
 event Transfer:
     sender: indexed(address)
-    recipient: indexed(address)
+    receiver: indexed(address)
     token_id: indexed(uint256)
 
 event Approval:

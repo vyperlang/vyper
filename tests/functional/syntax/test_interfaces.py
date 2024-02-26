@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidReference,
     InvalidType,
+    NamespaceCollision,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -135,7 +136,7 @@ def f(a: uint256): # visibility is nonpayable instead of view
         InterfaceViolation,
     ),
     (
-        # `receiver` of `Transfer` event should be indexed
+        # exports two Transfer events
         """
 from ethereum.ercs import IERC20
 
@@ -146,11 +147,6 @@ event Transfer:
     receiver: address
     value: uint256
 
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
-
 name: public(String[32])
 symbol: public(String[32])
 decimals: public(uint8)
@@ -160,55 +156,19 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
+    log Transfer(msg.sender, _to, _value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    log IERC20.Transfer(_from, _to, _value)
     return True
 
 @external
 def approve(_spender : address, _value : uint256) -> bool:
     return True
     """,
-        InterfaceViolation,
-    ),
-    (
-        # `value` of `Transfer` event should not be indexed
-        """
-from ethereum.ercs import IERC20
-
-implements: IERC20
-
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    value: indexed(uint256)
-
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
-
-name: public(String[32])
-symbol: public(String[32])
-decimals: public(uint8)
-balanceOf: public(HashMap[address, uint256])
-allowance: public(HashMap[address, HashMap[address, uint256]])
-totalSupply: public(uint256)
-
-@external
-def transfer(_to : address, _value : uint256) -> bool:
-    return True
-
-@external
-def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
-    return True
-
-@external
-def approve(_spender : address, _value : uint256) -> bool:
-    return True
-    """,
-        InterfaceViolation,
+        NamespaceCollision,
     ),
     (
         # `payable` decorator not implemented

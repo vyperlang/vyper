@@ -167,7 +167,7 @@ pass_stmt: _PASS
 break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
-log_stmt: _LOG NAME "(" [arguments] ")"
+log_stmt: _LOG (NAME | variable_access) "(" [arguments] ")"
 return_stmt: _RETURN [_expr ("," _expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise

@@ -728,6 +728,10 @@ class NamedExpr(Stmt):
 class Log(Stmt):
     __slots__ = ("value",)
 
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException("Log must call an event", self.value)
+
 
 class FlagDef(TopLevel):
     __slots__ = ("name", "body")

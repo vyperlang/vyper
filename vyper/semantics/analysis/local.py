@@ -563,8 +563,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_Log(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Log must call an event", node)
+        # postcondition of Log.validate()
+        assert isinstance(node.value, vy_ast.Call)
+
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
