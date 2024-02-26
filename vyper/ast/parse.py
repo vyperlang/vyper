@@ -72,6 +72,7 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
+        reformatted_code,
         source_code,
         class_types,
         for_loop_annotations,
@@ -117,7 +118,8 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
-    source_code: str,
+    python_source: str,  # vyper code after pre-parsing
+    original_source: str,  # original vyper code
     modification_offsets: ModificationOffsets,
     for_loop_annotations: dict,
     source_id: int = 0,
@@ -144,9 +146,9 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    tokens = asttokens.ASTTokens(original_source, tree=cast(Optional[python_ast.Module], parsed_ast))
     visitor = AnnotatingVisitor(
-        source_code,
+        python_source,
         modification_offsets,
         for_loop_annotations,
         tokens,
