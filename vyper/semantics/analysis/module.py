@@ -838,14 +838,6 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
         raise ModuleNotFound(module_str)
 
-    components = module_str.split(".")
-    # common issue for upgrading codebases from v0.3.x to v0.4.x -
-    # hint: rename ERC20 to IERC20
-    if components[-1].startswith("ERC"):
-        module_prefix = components[-1]
-        hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
-        raise ModuleNotFound(module_str, hint=hint)
-
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
     # (note Path.relative_to cannot handle absolute to relative path
@@ -869,7 +861,14 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
         file = input_bundle.load_file(path)
         assert isinstance(file, FileInput)  # mypy hint
     except FileNotFoundError as e:
-        raise ModuleNotFound(module_str) from e
+        hint = None
+        components = module_str.split(".")
+        # common issue for upgrading codebases from v0.3.x to v0.4.x -
+        # hint: rename ERC20 to IERC20
+        if components[-1].startswith("ERC"):
+            module_prefix = components[-1]
+            hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
+        raise ModuleNotFound(module_str, hint=hint) from e
 
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)
