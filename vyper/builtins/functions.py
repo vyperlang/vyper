@@ -439,10 +439,19 @@ class Slice(BuiltinFunctionT):
 
             do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
 
+            # make sure we don't overrun the source buffer, checking for
+            # overflow:
+            # `assert start+length <= src_len && start+length <= length`
+            bounds_check = [
+                "with",
+                "end",
+                ["add", start, length],
+                ["assert", ["iszero", ["or", ["gt", "end", src_len], ["gt", "end", length]]]],
+            ]
+
             ret = [
                 "seq",
-                # make sure we don't overrun the source buffer
-                ["assert", ["le", ["add", start, length], src_len]],  # bounds check
+                bounds_check,
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
