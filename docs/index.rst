@@ -21,7 +21,7 @@ Because of this Vyper provides the following features:
 * **Support for signed integers and decimal fixed point numbers**
 * **Decidability**: It is possible to compute a precise upper bound for the gas consumption of any Vyper function call.
 * **Strong typing**
-* **Understandable compiler code**
+* **Clean and understandable compiler code**
 * **Support for pure functions**: Anything marked ``pure`` is not allowed to change the state.
 * **Code reuse through composition**: Vyper supports code reuse through composition, and to help auditors, requires syntactic marking of dependencies which potentially modify state.
 
