@@ -146,7 +146,9 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    tokens = asttokens.ASTTokens(original_source, tree=cast(Optional[python_ast.Module], parsed_ast))
+    tokens = asttokens.ASTTokens(
+        original_source, tree=cast(Optional[python_ast.Module], parsed_ast)
+    )
     visitor = AnnotatingVisitor(
         python_source,
         modification_offsets,
