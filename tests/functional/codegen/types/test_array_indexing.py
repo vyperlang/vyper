@@ -1,5 +1,4 @@
 import pytest
-
 from eth_tester.exceptions import TransactionFailed
 
 # TODO: rewrite the tests in type-centric way, parametrize array and indices types
