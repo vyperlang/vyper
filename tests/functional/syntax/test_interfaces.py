@@ -6,6 +6,8 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidReference,
     InvalidType,
+    ModuleNotFound,
+    NamespaceCollision,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -15,8 +17,8 @@ from vyper.exceptions import (
 fail_list = [
     (
         """
-from ethereum.ercs import ERC20
-a: public(ERC20)
+from ethereum.ercs import IERC20
+a: public(IERC20)
 @external
 def test():
     b: uint256 = self.a
@@ -25,29 +27,29 @@ def test():
     ),
     (
         """
-from ethereum.ercs import ERC20
-aba: public(ERC20)
+from ethereum.ercs import IERC20
+aba: public(IERC20)
 @external
 def test():
-    self.aba = ERC20
+    self.aba = IERC20
     """,
         InvalidReference,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: address(ERC20) # invalid syntax now.
+a: address(IERC20) # invalid syntax now.
     """,
         SyntaxException,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 @external
 def test():
-    a: address(ERC20) = empty(address)
+    a: address(IERC20) = empty(address)
     """,
         InvalidType,
     ),
@@ -63,18 +65,18 @@ def test():  # may not call normal address
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @external
 def test(a: address):
-    my_address: address = ERC20()
+    my_address: address = IERC20()
     """,
         ArgumentException,
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20 = 1
+implements: IERC20 = 1
     """,
         SyntaxException,
     ),
@@ -109,14 +111,14 @@ implements: Foo
     ),
     (
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 interface A:
     def f(): view
 
 @internal
 def foo():
-    a: ERC20 = A(empty(address))
+    a: IERC20 = A(empty(address))
     """,
         TypeMismatch,
     ),
@@ -135,22 +137,17 @@ def f(a: uint256): # visibility is nonpayable instead of view
         InterfaceViolation,
     ),
     (
-        # `receiver` of `Transfer` event should be indexed
+        # exports two Transfer events
         """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20
+implements: IERC20
 
 event Transfer:
     sender: indexed(address)
     receiver: address
     value: uint256
 
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
-
 name: public(String[32])
 symbol: public(String[32])
 decimals: public(uint8)
@@ -160,53 +157,61 @@ totalSupply: public(uint256)
 
 @external
 def transfer(_to : address, _value : uint256) -> bool:
+    log Transfer(msg.sender, _to, _value)
     return True
 
 @external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
+    log IERC20.Transfer(_from, _to, _value)
     return True
 
 @external
 def approve(_spender : address, _value : uint256) -> bool:
     return True
     """,
+        NamespaceCollision,
+    ),
+    (
+        # `payable` decorator not implemented
+        """
+interface testI:
+    def foo() -> uint256: payable
+
+implements: testI
+
+@external
+def foo() -> uint256:
+    return 0
+    """,
         InterfaceViolation,
     ),
     (
-        # `value` of `Transfer` event should not be indexed
+        # decorators must be strictly identical
         """
-from ethereum.ercs import ERC20
+interface Self:
+    def protected_view_fn() -> String[100]: nonpayable
 
-implements: ERC20
-
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    value: indexed(uint256)
-
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
-
-name: public(String[32])
-symbol: public(String[32])
-decimals: public(uint8)
-balanceOf: public(HashMap[address, uint256])
-allowance: public(HashMap[address, HashMap[address, uint256]])
-totalSupply: public(uint256)
+implements: Self
 
 @external
-def transfer(_to : address, _value : uint256) -> bool:
-    return True
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
+    """,
+        InterfaceViolation,
+    ),
+    (
+        # decorators must be strictly identical
+        """
+interface Self:
+    def protected_view_fn() -> String[100]: view
+
+implements: Self
 
 @external
-def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
-    return True
-
-@external
-def approve(_spender : address, _value : uint256) -> bool:
-    return True
+@pure
+def protected_view_fn() -> String[100]:
+    return empty(String[100])
     """,
         InterfaceViolation,
     ),
@@ -221,20 +226,20 @@ def test_interfaces_fail(bad_code):
 
 valid_list = [
     """
-from ethereum.ercs import ERC20
-b: ERC20
+from ethereum.ercs import IERC20
+b: IERC20
 @external
 def test(input: address):
-    assert self.b.totalSupply() == ERC20(input).totalSupply()
+    assert self.b.totalSupply() == IERC20(input).totalSupply()
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 interface Factory:
    def getExchange(token_addr: address) -> address: view
 
 factory: Factory
-token: ERC20
+token: IERC20
 
 @external
 def test():
@@ -253,23 +258,23 @@ def test() -> (bool, Foo):
     return True, x
     """
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
 
 @external
 def test() -> address:
     return self.a.address
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-a: public(ERC20)
+a: public(IERC20)
 b: address
 
 @external
@@ -277,12 +282,12 @@ def test():
     self.b = self.a.address
     """,
     """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 struct aStruct:
    my_address: address
 
-a: public(ERC20)
+a: public(IERC20)
 b: aStruct
 
 @external
@@ -291,8 +296,8 @@ def test() -> address:
     return self.b.my_address
     """,
     """
-from ethereum.ercs import ERC20
-a: public(ERC20)
+from ethereum.ercs import IERC20
+a: public(IERC20)
 @external
 def test():
     b: address = self.a.address
@@ -394,3 +399,25 @@ def foobar():
 """
 
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_builtins_not_found():
+    code = """
+from vyper.interfaces import foobar
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+
+    assert e.value._message == "vyper.interfaces.foobar"
+    assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
+
+@pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
+def test_builtins_not_found2(erc):
+    code = f"""
+from ethereum.ercs import {erc}
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+    assert e.value._message == f"ethereum.ercs.{erc}"
+    assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"

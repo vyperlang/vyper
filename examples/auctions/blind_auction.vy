@@ -69,10 +69,10 @@ def bid(_blindedBid: bytes32):
     assert numBids < MAX_BIDS
 
     # Add bid to mapping of all bids
-    self.bids[msg.sender][numBids] = Bid({
-        blindedBid: _blindedBid,
-        deposit: msg.value
-        })
+    self.bids[msg.sender][numBids] = Bid(
+        blindedBid=_blindedBid,
+        deposit=msg.value
+        )
     self.bidCounts[msg.sender] += 1
 
 

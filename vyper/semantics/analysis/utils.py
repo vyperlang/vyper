@@ -84,28 +84,24 @@ class _ExprAnalyser:
             # propagate the parent exprinfo members down into the new expr
             # note: Attribute(expr value, identifier attr)
 
-            name = node.attr
             info = self.get_expr_info(node.value, is_callable=is_callable)
+            attr = node.attr
 
-            attribute_chain = info.attribute_chain + [info]
-
-            t = info.typ.get_member(name, node)
+            t = info.typ.get_member(attr, node)
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t, attribute_chain=attribute_chain)
+                return ExprInfo.from_varinfo(t, attr=attr)
 
             if isinstance(t, ModuleInfo):
-                return ExprInfo.from_moduleinfo(t, attribute_chain=attribute_chain)
+                return ExprInfo.from_moduleinfo(t, attr=attr)
 
-            # it's something else, like my_struct.foo
-            return info.copy_with_type(t, attribute_chain=attribute_chain)
+            return info.copy_with_type(t, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
             info = self.get_expr_info(node.value)
-            attribute_chain = info.attribute_chain + [info]
-            return info.copy_with_type(t, attribute_chain=attribute_chain)
+            return info.copy_with_type(t)
 
         return ExprInfo(t)
 
@@ -212,9 +208,9 @@ class _ExprAnalyser:
             if name in self.namespace:
                 _raise_invalid_reference(name, node)
 
-            suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
+            hint = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+                f"Storage variable '{name}' has not been declared.", node, hint=hint
             ) from None
 
     def types_from_BinOp(self, node):
@@ -229,7 +225,7 @@ class _ExprAnalyser:
             types_list = get_common_types(node.left, node.right)
 
         if (
-            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            isinstance(node.op, (vy_ast.Div, vy_ast.FloorDiv, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
@@ -380,7 +376,7 @@ class _ExprAnalyser:
             # when this is a type, we want to lower it
             if isinstance(t, VyperType):
                 # TYPE_T is used to handle cases where a type can occur in call or
-                # attribute conditions, like Enum.foo or MyStruct({...})
+                # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
             return [t.typ]
@@ -484,6 +480,7 @@ def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
+    # this function is a performance hotspot
     """
     Return a list of common possible types between one or more nodes.
 
@@ -504,12 +501,14 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     for item in nodes[1:]:
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
-        common = [i for i in common_types if _is_type_in_list(i, new_types)]
+        tmp = []
+        for c in common_types:
+            for t in new_types:
+                if t.compare_type(c) or c.compare_type(t):
+                    tmp.append(c)
+                    break
 
-        rejected = [i for i in common_types if i not in common]
-        common += [i for i in new_types if _is_type_in_list(i, rejected)]
-
-        common_types = common
+        common_types = tmp
 
     if filter_fn is not None:
         common_types = [i for i in common_types if filter_fn(i)]

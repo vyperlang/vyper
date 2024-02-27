@@ -34,18 +34,18 @@ def abi_encode(
     ensure_tuple: bool,
     include_method_id: bool
 ) -> Bytes[548]:
-    human: Human = Human({
-      name: name,
-      pet: Animal({
-        name: pet_name,
-        address_: pet_address,
-        id_: pet_id,
-        is_furry: pet_is_furry,
-        price: pet_price,
-        data: pet_data,
-        metadata: pet_metadata
-      }),
-    })
+    human: Human = Human(
+      name=name,
+      pet=Animal(
+        name=pet_name,
+        address_=pet_address,
+        id_=pet_id,
+        is_furry=pet_is_furry,
+        price=pet_price,
+        data=pet_data,
+        metadata=pet_metadata
+      ),
+    )
     if ensure_tuple:
         if not include_method_id:
             return _abi_encode(human) # default ensure_tuple=True
@@ -128,7 +128,7 @@ struct WrappedBytes:
 
 @internal
 def foo():
-    x: WrappedBytes = WrappedBytes({{bs: {value}}})
+    x: WrappedBytes = WrappedBytes(bs={value})
     y: {type}[96] = _abi_encode(x, ensure_tuple=True) # should be Bytes[128]
     """
 

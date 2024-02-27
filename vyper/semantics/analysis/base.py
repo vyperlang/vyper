@@ -1,5 +1,5 @@
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from vyper import ast as vy_ast
@@ -10,6 +10,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
+    from vyper.semantics.types.function import ContractFunctionT
     from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
@@ -141,6 +142,13 @@ class UsesInfo(AnalysisResult):
     node: Optional[vy_ast.VyperNode] = None
 
 
+# analysis result of ExportsDecl
+@dataclass
+class ExportsInfo(AnalysisResult):
+    functions: list["ContractFunctionT"]
+    used_modules: OrderedSet[ModuleInfo]
+
+
 @dataclass
 class VarInfo:
     """
@@ -157,7 +165,7 @@ class VarInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    decl_node: Optional[vy_ast.VyperNode] = None
+    decl_node: Optional[vy_ast.VariableDecl] = None
 
     def __hash__(self):
         return hash(id(self))
@@ -165,6 +173,13 @@ class VarInfo:
     def __post_init__(self):
         self.position = None
         self._modification_count = 0
+
+    @property
+    def getter_ast(self) -> Optional[vy_ast.VyperNode]:
+        assert self.decl_node is not None  # help mypy
+        ret = self.decl_node._expanded_getter
+        assert (ret is not None) == self.is_public, self
+        return ret
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
@@ -193,6 +208,17 @@ class VarInfo:
         return res
 
 
+@dataclass(frozen=True)
+class VarAccess:
+    variable: VarInfo
+    attrs: tuple[str, ...]
+
+    def contains(self, other):
+        # VarAccess("v", ("a")) `contains` VarAccess("v", ("a", "b", "c"))
+        sub_attrs = other.attrs[: len(self.attrs)]
+        return self.variable == other.variable and sub_attrs == self.attrs
+
+
 @dataclass
 class ExprInfo:
     """
@@ -204,9 +230,7 @@ class ExprInfo:
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
-
-    # the chain of attribute parents for this expr
-    attribute_chain: list["ExprInfo"] = field(default_factory=list)
+    attr: Optional[str] = None
 
     def __post_init__(self):
         should_match = ("typ", "location", "modifiability")
@@ -215,48 +239,35 @@ class ExprInfo:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic("Bad analysis: non-matching {attr}: {self}")
 
-        self._writes: OrderedSet[VarInfo] = OrderedSet()
-        self._reads: OrderedSet[VarInfo] = OrderedSet()
-
-    # find exprinfo in the attribute chain which has a varinfo
-    # e.x. `x` will return varinfo for `x`
-    # `module.foo` will return varinfo for `module.foo`
-    # `self.my_struct.x.y` will return varinfo for `self.my_struct`
-    def get_root_varinfo(self) -> Optional[VarInfo]:
-        for expr_info in self.attribute_chain + [self]:
-            if expr_info.var_info is not None:
-                return expr_info.var_info
-        return None
+        self._writes: OrderedSet[VarAccess] = OrderedSet()
+        self._reads: OrderedSet[VarAccess] = OrderedSet()
 
     @classmethod
-    def from_varinfo(cls, var_info: VarInfo, attribute_chain=None) -> "ExprInfo":
+    def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":
         return cls(
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
             modifiability=var_info.modifiability,
-            attribute_chain=attribute_chain or [],
+            **kwargs,
         )
 
     @classmethod
-    def from_moduleinfo(cls, module_info: ModuleInfo, attribute_chain=None) -> "ExprInfo":
+    def from_moduleinfo(cls, module_info: ModuleInfo, **kwargs) -> "ExprInfo":
         modifiability = Modifiability.RUNTIME_CONSTANT
         if module_info.ownership >= ModuleOwnership.USES:
             modifiability = Modifiability.MODIFIABLE
 
         return cls(
-            module_info.module_t,
-            module_info=module_info,
-            modifiability=modifiability,
-            attribute_chain=attribute_chain or [],
+            module_info.module_t, module_info=module_info, modifiability=modifiability, **kwargs
         )
 
-    def copy_with_type(self, typ: VyperType, attribute_chain=None) -> "ExprInfo":
+    def copy_with_type(self, typ: VyperType, **kwargs) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
         to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
-        if attribute_chain is not None:
-            fields["attribute_chain"] = attribute_chain
-        return self.__class__(typ=typ, **fields)
+        for t in to_copy:
+            assert t not in kwargs
+        return self.__class__(typ=typ, **fields, **kwargs)

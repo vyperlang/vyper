@@ -3,6 +3,7 @@ from typing import Dict
 from vyper import ast as vy_ast
 from vyper.exceptions import (
     ArrayIndexException,
+    CompilerPanic,
     InstantiationException,
     InvalidType,
     StructureException,
@@ -145,10 +146,9 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         raise InvalidType(err_msg, node)
 
     if node.id not in namespace:  # type: ignore
-        suggestions_str = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
+        hint = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
-            f"No builtin or user-defined type named '{node.node_source_code}'. {suggestions_str}",
-            node,
+            f"No builtin or user-defined type named '{node.node_source_code}'.", node, hint=hint
         ) from None
 
     typ_ = namespace[node.id]
@@ -157,6 +157,12 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # type object, ex. Bytestring or DynArray (with no length provided).
         # call from_annotation to produce a better error message.
         typ_.from_annotation(node)
+
+    if hasattr(typ_, "module_t"):  # it's a ModuleInfo
+        typ_ = typ_.module_t
+
+    if not isinstance(typ_, VyperType):
+        raise CompilerPanic("Not a type: {typ_}", node)
 
     return typ_
 
