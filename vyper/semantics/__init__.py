@@ -1,2 +1,2 @@
-from .analysis import validate_compilation_target, validate_module_semantics_r
+from .analysis import analyze_module, validate_compilation_target
 from .analysis.data_positions import set_data_positions

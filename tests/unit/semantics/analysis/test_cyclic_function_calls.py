@@ -2,7 +2,7 @@ import pytest
 
 from vyper.ast import parse_to_ast
 from vyper.exceptions import CallViolation, StructureException
-from vyper.semantics.analysis import validate_module_semantics_r
+from vyper.semantics.analysis import analyze_module
 
 
 def test_self_function_call(dummy_input_bundle):
@@ -13,7 +13,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation):
-        validate_module_semantics_r(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_cyclic_function_call(dummy_input_bundle):
@@ -28,7 +28,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation):
-        validate_module_semantics_r(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_multi_cyclic_function_call(dummy_input_bundle):
@@ -51,7 +51,7 @@ def potato():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(CallViolation):
-        validate_module_semantics_r(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_global_ann_assign_callable_no_crash(dummy_input_bundle):
@@ -64,5 +64,5 @@ def foo(to : address):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException) as excinfo:
-        validate_module_semantics_r(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
     assert excinfo.value.message == "HashMap[address, uint256] is not callable"

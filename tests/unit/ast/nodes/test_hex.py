@@ -42,4 +42,4 @@ def test_invalid_checksum(code, dummy_input_bundle):
 
     with pytest.raises(InvalidLiteral):
         vy_ast.validation.validate_literal_nodes(vyper_module)
-        semantics.validate_module_semantics_r(vyper_module, dummy_input_bundle)
+        semantics.analyze_module(vyper_module, dummy_input_bundle)

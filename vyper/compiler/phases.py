@@ -12,11 +12,7 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import (
-    set_data_positions,
-    validate_compilation_target,
-    validate_module_semantics_r,
-)
+from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -268,8 +264,8 @@ def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundl
     """
     vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # note: validate_semantics does type inference on the AST
-        validate_module_semantics_r(vyper_module, input_bundle)
+        # note: analyze_module does type inference on the AST
+        analyze_module(vyper_module, input_bundle)
 
     return vyper_module
 
