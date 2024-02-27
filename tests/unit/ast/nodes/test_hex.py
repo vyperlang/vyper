@@ -40,4 +40,4 @@ foo: constant(bytes4) = 0x12_34_56
 def test_invalid_checksum(code, dummy_input_bundle):
     with pytest.raises(InvalidLiteral):
         vyper_module = vy_ast.parse_to_ast(code)
-        semantics.validate_semantics(vyper_module, dummy_input_bundle)
+        semantics.analyze_module(vyper_module, dummy_input_bundle)
