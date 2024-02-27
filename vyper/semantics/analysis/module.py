@@ -16,14 +16,14 @@ from vyper.exceptions import (
     InvalidLiteral,
     InvalidType,
     ModuleNotFound,
-    NamespaceCollision,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
-    VariableDeclarationException,
     VyperException,
+    tag_exceptions,
 )
 from vyper.semantics.analysis.base import (
+    ExportsInfo,
     ImportInfo,
     InitializesInfo,
     Modifiability,
@@ -34,8 +34,9 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.constant_folding import constant_fold
+from vyper.semantics.analysis.getters import generate_public_variable_getters
 from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.local import ExprVisitor, validate_functions
+from vyper.semantics.analysis.local import ExprVisitor, check_module_uses, validate_functions
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -70,9 +71,13 @@ def validate_module_semantics_r(
 
     with namespace.enter_scope(), import_graph.enter_path(module_ast):
         analyzer = ModuleAnalyzer(module_ast, input_bundle, namespace, import_graph, is_interface)
-        ret = analyzer.analyze()
+        analyzer.analyze_module_body()
 
-        vy_ast.expansion.generate_public_variable_getters(module_ast)
+        _analyze_call_graph(module_ast)
+        generate_public_variable_getters(module_ast)
+
+        ret = ModuleT(module_ast)
+        module_ast._metadata["type"] = ret
 
         # if this is an interface, the function is already validated
         # in `ContractFunction.from_vyi()`
@@ -84,6 +89,39 @@ def validate_module_semantics_r(
     return ret
 
 
+def _analyze_call_graph(module_ast: vy_ast.Module):
+    # get list of internal function calls made by each function
+    # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
+    function_defs = module_ast.get_children(vy_ast.FunctionDef)
+
+    for func in function_defs:
+        fn_t = func._metadata["func_type"]
+        assert len(fn_t.called_functions) == 0
+        fn_t.called_functions = OrderedSet()
+
+        function_calls = func.get_descendants(vy_ast.Call)
+
+        for call in function_calls:
+            try:
+                call_t = get_exact_type_from_node(call.func)
+            except VyperException:
+                # there is a problem getting the call type. this might be
+                # an issue, but it will be handled properly later. right now
+                # we just want to be able to construct the call graph.
+                continue
+
+            if isinstance(call_t, ContractFunctionT) and (
+                call_t.is_internal or call_t.is_constructor
+            ):
+                fn_t.called_functions.add(call_t)
+
+    for func in function_defs:
+        fn_t = func._metadata["func_type"]
+
+        # compute reachable set and validate the call graph
+        _compute_reachable_set(fn_t)
+
+
 # compute reachable set and validate the call graph (detect cycles)
 def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT] = None) -> None:
     path = path or []
@@ -92,16 +130,19 @@ def _compute_reachable_set(fn_t: ContractFunctionT, path: list[ContractFunctionT
     root = path[0]
 
     for g in fn_t.called_functions:
+        if g in fn_t.reachable_internal_functions:
+            # already seen
+            continue
+
         if g == root:
             message = " -> ".join([f.name for f in path])
             raise CallViolation(f"Contract contains cyclic function call: {message}")
 
         _compute_reachable_set(g, path=path)
 
-        for h in g.reachable_internal_functions:
-            assert h != fn_t  # sanity check
-
-            fn_t.reachable_internal_functions.add(h)
+        g_reachable = g.reachable_internal_functions
+        assert fn_t not in g_reachable  # sanity check
+        fn_t.reachable_internal_functions.update(g_reachable)
 
         fn_t.reachable_internal_functions.add(g)
 
@@ -128,61 +169,53 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # keep track of imported modules to prevent duplicate imports
         self._imported_modules: dict[PurePath, vy_ast.VyperNode] = {}
 
+        # keep track of exported functions to prevent duplicate exports
+        self._exposed_functions: dict[ContractFunctionT, vy_ast.VyperNode] = {}
+
+        self._events: list[EventT] = []
+
         self.module_t: Optional[ModuleT] = None
 
         # ast cache, hitchhike onto the input_bundle object
         if not hasattr(self.input_bundle._cache, "_ast_of"):
             self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
 
-    def analyze(self) -> ModuleT:
+    def analyze_module_body(self):
         # generate a `ModuleT` from the top-level node
         # note: also validates unique method ids
 
         assert "type" not in self.ast._metadata
 
-        to_visit = self.ast.body.copy()
+        self._to_visit = self.ast.body.copy()
 
-        # handle imports linearly
-        # (do this instead of handling in the next block so that
-        # `self._imported_modules` does not end up with garbage in it after
-        # exception swallowing).
-        import_stmts = self.ast.get_children((vy_ast.Import, vy_ast.ImportFrom))
-        for node in import_stmts:
-            self.visit(node)
-            to_visit.remove(node)
+        # handle imports; mutates `self._imported_modules`
+        self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
 
-        ownership_decls = self.ast.get_children((vy_ast.UsesDecl, vy_ast.InitializesDecl))
-        for node in ownership_decls:
-            self.visit(node)
-            to_visit.remove(node)
-
-        # we can resolve constants after imports are handled.
+        # we can resolve constants as soon as imports are handled.
         constant_fold(self.ast)
 
-        # keep trying to process all the nodes until we finish or can
-        # no longer progress. this makes it so we don't need to
-        # calculate a dependency tree between top-level items.
-        while len(to_visit) > 0:
-            count = len(to_visit)
-            err_list = ExceptionList()
-            for node in to_visit.copy():
-                try:
-                    self.visit(node)
-                    to_visit.remove(node)
-                except (InvalidLiteral, InvalidType, VariableDeclarationException) as e:
-                    # these exceptions cannot be caused by another statement not yet being
-                    # parsed, so we raise them immediately
-                    raise e from None
-                except VyperException as e:
-                    err_list.append(e)
+        # handle ownership decls, mutate ModuleInfo.ownership
+        self._visit_nodes_linear((vy_ast.UsesDecl, vy_ast.InitializesDecl))
 
-            # Only raise if no nodes were successfully processed. This allows module
-            # level logic to parse regardless of the ordering of code elements.
-            if count == len(to_visit):
-                err_list.raise_if_not_empty()
+        # handle some node types using a dependency resolution routine
+        # which loops, swallowing exceptions until all nodes are processed
+        type_decls = (vy_ast.FlagDef, vy_ast.StructDef, vy_ast.InterfaceDef, vy_ast.EventDef)
+        self._visit_nodes_looping(type_decls)
 
-        self.module_t = ModuleT(self.ast)
-        self.ast._metadata["type"] = self.module_t
+        # handle functions
+        # run before exports for exception handling priority
+        self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
+
+        # mutates _exposed_functions
+        self._visit_nodes_linear(vy_ast.ExportsDecl)
+
+        # handle implements last, after all functions are handled
+        self._visit_nodes_linear(vy_ast.ImplementsDecl)
+
+        # we are done! any remaining nodes should raise errors; visit
+        # them to trip the exception.
+        for n in self._to_visit:
+            self.visit(n)
 
         # attach namespace to the module for downstream use.
         _ns = Namespace()
@@ -191,39 +224,42 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
         self.ast._metadata["namespace"] = _ns
 
-        self.analyze_call_graph()
+    def _visit_nodes_linear(self, node_type):
+        for node in self._to_visit.copy():
+            if not isinstance(node, node_type):
+                continue
+            self.visit(node)
+            self._to_visit.remove(node)
 
-        return self.module_t
+    # visit nodes which may have dependencies on each other
+    def _visit_nodes_looping(self, node_type):
+        nodes = [n for n in self._to_visit if isinstance(n, node_type)]
 
-    def analyze_call_graph(self):
-        # get list of internal function calls made by each function
-        # CMC 2024-02-03 note: this could be cleaner in analysis/local.py
-        function_defs = self.module_t.function_defs
-
-        for func in function_defs:
-            fn_t = func._metadata["func_type"]
-
-            function_calls = func.get_descendants(vy_ast.Call)
-
-            for call in function_calls:
+        # keep trying to process all the nodes until we finish or can
+        # no longer progress. this makes it so we don't need to
+        # calculate a dependency tree between top-level items.
+        # note that the nodes processed here should not mutate ModuleAnalyzer
+        # state, otherwise ModuleAnalyzer state can end up invalid!
+        while len(nodes) > 0:
+            count = len(nodes)
+            err_list = ExceptionList()
+            for node in nodes.copy():
                 try:
-                    call_t = get_exact_type_from_node(call.func)
-                except VyperException:
-                    # either there is a problem getting the call type. this is
-                    # an issue, but it will be handled properly later. right now
-                    # we just want to be able to construct the call graph.
-                    continue
+                    self.visit(node)
+                    nodes.remove(node)
+                    self._to_visit.remove(node)
+                except (InvalidLiteral, InvalidType) as e:
+                    # these exceptions cannot be caused by another statement
+                    # not yet being parsed, so we raise them immediately
+                    raise e from None
+                except VyperException as e:
+                    err_list.append(e)
 
-                if isinstance(call_t, ContractFunctionT) and (
-                    call_t.is_internal or call_t.is_constructor
-                ):
-                    fn_t.called_functions.add(call_t)
-
-        for func in function_defs:
-            fn_t = func._metadata["func_type"]
-
-            # compute reachable set and validate the call graph
-            _compute_reachable_set(fn_t)
+            # Only raise if no nodes were successfully processed. This allows
+            # module level logic to parse regardless of the ordering of code
+            # elements.
+            if count == len(nodes):
+                err_list.raise_if_not_empty()
 
     def validate_used_modules(self):
         # check all `uses:` modules are actually used
@@ -243,6 +279,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         for f in module_t.functions.values():
             for u in f.get_used_modules():
                 all_used_modules.add(u.module_t)
+
+        for decl in module_t.exports_decls:
+            info = decl._metadata["exports_info"]
+            all_used_modules.update([u.module_t for u in info.used_modules])
 
         for used_module in all_used_modules:
             if used_module in initialized_modules:
@@ -348,7 +388,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 hint = f"try renaming `{path}` to `{path}i`"
             raise StructureException(msg, node.annotation, hint=hint)
 
-        type_.validate_implements(node)
+        # grab exposed functions
+        funcs = self._exposed_functions
+        type_.validate_implements(node, funcs)
+
+        node._metadata["interface_type"] = type_
 
     def visit_UsesDecl(self, node):
         # TODO: check duplicate uses declarations, e.g.
@@ -440,15 +484,69 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_info.set_ownership(ModuleOwnership.INITIALIZES, node)
         node._metadata["initializes_info"] = InitializesInfo(module_info, dependencies, node)
 
+    def visit_ExportsDecl(self, node):
+        items = vy_ast.as_tuple(node.annotation)
+        funcs = []
+        used_modules = OrderedSet()
+
+        for item in items:
+            # set is_callable=True to give better error messages for imported
+            # types, e.g. exports: some_module.MyEvent
+            info = get_expr_info(item, is_callable=True)
+            if info.var_info is not None:
+                decl_node = info.var_info.decl_node
+                if not info.var_info.is_public:
+                    raise StructureException("not a public variable!", decl_node, item)
+                func_t = decl_node._expanded_getter._metadata["func_type"]
+
+            else:
+                # regular function
+                func_t = info.typ
+                decl_node = func_t.decl_node
+
+            if not isinstance(func_t, ContractFunctionT):
+                raise StructureException("not a function!", decl_node, item)
+            if not func_t.is_external:
+                raise StructureException("not an external function!", decl_node, item)
+
+            self._add_exposed_function(func_t, item, relax=False)
+            with tag_exceptions(item):  # tag with specific item
+                self._self_t.typ.add_member(func_t.name, func_t)
+
+            funcs.append(func_t)
+
+            # check module uses
+            var_accesses = func_t.get_variable_accesses()
+            if any(s.variable.is_module_variable() for s in var_accesses):
+                module_info = check_module_uses(item)
+                assert module_info is not None  # guaranteed by above checks
+                used_modules.add(module_info)
+
+        node._metadata["exports_info"] = ExportsInfo(funcs, used_modules)
+
+    @property
+    def _self_t(self):
+        return self.namespace["self"]
+
+    def _add_exposed_function(self, func_t, node, relax=True):
+        # call this before self._self_t.typ.add_member() for exception raising
+        # priority
+        if (prev_decl := self._exposed_functions.get(func_t)) is not None:
+            raise StructureException("already exported!", node, prev_decl=prev_decl)
+
+        self._exposed_functions[func_t] = node
+
     def visit_VariableDecl(self, node):
-        name = node.get("target.id")
-        if name is None:
-            raise VariableDeclarationException("Invalid module-level assignment", node)
+        # postcondition of VariableDecl.validate
+        assert isinstance(node.target, vy_ast.Name)
+        name = node.target.id
 
         if node.is_public:
             # generate function type and add to metadata
             # we need this when building the public getter
-            node._metadata["getter_type"] = ContractFunctionT.getter_from_VariableDecl(node)
+            func_t = ContractFunctionT.getter_from_VariableDecl(node)
+            node._metadata["getter_type"] = func_t
+            self._add_exposed_function(func_t, node)
 
         # TODO: move this check to local analysis
         if node.is_immutable:
@@ -510,26 +608,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if (node.is_constant or node.is_immutable) and not node.is_public:
                 return
 
-            try:
-                self.namespace["self"].typ.add_member(name, var_info)
-                node.target._metadata["type"] = type_
-            except NamespaceCollision:
-                # rewrite the error message to be slightly more helpful
-                raise NamespaceCollision(
-                    f"Value '{name}' has already been declared", node
-                ) from None
+            self._self_t.typ.add_member(name, var_info)
+            node.target._metadata["type"] = type_
 
         def _validate_self_namespace():
             # block globals if storage variable already exists
-            if name in self.namespace["self"].typ.members:
-                raise NamespaceCollision(
-                    f"Value '{name}' has already been declared", node
-                ) from None
+            self._self_t.typ._check_add_member(name)
             self.namespace[name] = var_info
 
         if node.is_constant:
             assert node.value is not None  # checked in VariableDecl.validate()
-
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
             if not check_modifiability(node.value, Modifiability.CONSTANT):
@@ -540,7 +628,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return _finalize()
 
         assert node.value is None  # checked in VariableDecl.validate()
-
         if node.is_immutable:
             _validate_self_namespace()
             return _finalize()
@@ -557,6 +644,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         obj = EventT.from_EventDef(node)
         node._metadata["event_type"] = obj
         self.namespace[node.name] = obj
+        self._events.append(obj)
 
     def visit_FunctionDef(self, node):
         if self.is_interface:
@@ -569,8 +657,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         else:
             func_t = ContractFunctionT.from_FunctionDef(node)
 
-        self.namespace["self"].typ.add_member(func_t.name, func_t)
+        self._self_t.typ.add_member(func_t.name, func_t)
         node._metadata["func_type"] = func_t
+        self._add_exposed_function(func_t, node)
 
     def visit_Import(self, node):
         # import x.y[name] as y[alias]
@@ -631,9 +720,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
     ) -> Any:
-        if module_str.startswith("vyper.interfaces"):
-            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
-            raise ModuleNotFound(module_str, hint=hint)
         if _is_builtin(module_str):
             return _load_builtin_import(level, module_str)
 
@@ -696,9 +782,13 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         except FileNotFoundError:
             pass
 
+        hint = None
+        if module_str.startswith("vyper.interfaces"):
+            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, node) from err
+        raise ModuleNotFound(module_str, hint=hint) from err
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
@@ -743,7 +833,7 @@ def _is_builtin(module_str):
 
 def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+        raise ModuleNotFound(module_str)
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
@@ -767,8 +857,15 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     try:
         file = input_bundle.load_file(path)
         assert isinstance(file, FileInput)  # mypy hint
-    except FileNotFoundError:
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
+    except FileNotFoundError as e:
+        hint = None
+        components = module_str.split(".")
+        # common issue for upgrading codebases from v0.3.x to v0.4.x -
+        # hint: rename ERC20 to IERC20
+        if components[-1].startswith("ERC"):
+            module_prefix = components[-1]
+            hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
+        raise ModuleNotFound(module_str, hint=hint) from e
 
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)
