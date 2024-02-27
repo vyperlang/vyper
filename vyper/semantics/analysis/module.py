@@ -80,9 +80,6 @@ def _analyze_module_r(
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
 
-    if import_graph is None:
-        import_graph = ImportGraph()
-
     validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
