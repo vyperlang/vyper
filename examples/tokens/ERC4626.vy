@@ -24,32 +24,9 @@ NAME: constant(String[10]) = "Test Vault"
 SYMBOL: constant(String[5]) = "vTEST"
 DECIMALS: constant(uint8) = 18
 
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    amount: uint256
-
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    allowance: uint256
-
 ##### ERC4626 #####
 
 asset: public(IERC20)
-
-event Deposit:
-    depositor: indexed(address)
-    receiver: indexed(address)
-    assets: uint256
-    shares: uint256
-
-event Withdraw:
-    withdrawer: indexed(address)
-    receiver: indexed(address)
-    owner: indexed(address)
-    assets: uint256
-    shares: uint256
 
 
 @deploy
@@ -79,14 +56,14 @@ def decimals() -> uint8:
 def transfer(receiver: address, amount: uint256) -> bool:
     self.balanceOf[msg.sender] -= amount
     self.balanceOf[receiver] += amount
-    log Transfer(msg.sender, receiver, amount)
+    log IERC20.Transfer(msg.sender, receiver, amount)
     return True
 
 
 @external
 def approve(spender: address, amount: uint256) -> bool:
     self.allowance[msg.sender][spender] = amount
-    log Approval(msg.sender, spender, amount)
+    log IERC20.Approval(msg.sender, spender, amount)
     return True
 
 
@@ -95,7 +72,7 @@ def transferFrom(sender: address, receiver: address, amount: uint256) -> bool:
     self.allowance[sender][msg.sender] -= amount
     self.balanceOf[sender] -= amount
     self.balanceOf[receiver] += amount
-    log Transfer(sender, receiver, amount)
+    log IERC20.Transfer(sender, receiver, amount)
     return True
 
 
@@ -160,7 +137,7 @@ def deposit(assets: uint256, receiver: address=msg.sender) -> uint256:
 
     self.totalSupply += shares
     self.balanceOf[receiver] += shares
-    log Deposit(msg.sender, receiver, assets, shares)
+    log IERC4626.Deposit(msg.sender, receiver, assets, shares)
     return shares
 
 
@@ -193,7 +170,7 @@ def mint(shares: uint256, receiver: address=msg.sender) -> uint256:
 
     self.totalSupply += shares
     self.balanceOf[receiver] += shares
-    log Deposit(msg.sender, receiver, assets, shares)
+    log IERC4626.Deposit(msg.sender, receiver, assets, shares)
     return assets
 
 
@@ -230,7 +207,7 @@ def withdraw(assets: uint256, receiver: address=msg.sender, owner: address=msg.s
     self.balanceOf[owner] -= shares
 
     self.asset.transfer(receiver, assets)
-    log Withdraw(msg.sender, receiver, owner, assets, shares)
+    log IERC4626.Withdraw(msg.sender, receiver, owner, assets, shares)
     return shares
 
 
@@ -256,7 +233,7 @@ def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sen
     self.balanceOf[owner] -= shares
 
     self.asset.transfer(receiver, assets)
-    log Withdraw(msg.sender, receiver, owner, assets, shares)
+    log IERC4626.Withdraw(msg.sender, receiver, owner, assets, shares)
     return assets
 
 

@@ -22,9 +22,7 @@ def _runtime_reachable_functions(module_t, id_generator):
     ret = OrderedSet()
 
     for fn_t in module_t.exposed_functions:
-        # resolve variabledecl getter source
-        if isinstance(fn_t.ast_def, vy_ast.VariableDecl):
-            fn_t = fn_t.ast_def._expanded_getter._metadata["func_type"]
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
 
         ret.update(fn_t.reachable_internal_functions)
         ret.add(fn_t)
@@ -512,12 +510,18 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
             raise CompilerPanic("unreachable")
         deploy_code.append(["deploy", 0, runtime, 0])
 
-    # compile all internal functions so that _ir_info is populated (whether or
-    # not it makes it into the final IR artifact)
+    # compile all remaining internal functions so that _ir_info is populated
+    # (whether or not it makes it into the final IR artifact)
+    to_visit: OrderedSet = OrderedSet()
     for func_ast in module_t.function_defs:
         fn_t = func_ast._metadata["func_type"]
-        if fn_t.is_internal and fn_t._ir_info is None:
+        if fn_t.is_internal:
+            to_visit.update(fn_t.reachable_internal_functions)
+            to_visit.add(fn_t)
+
+    for fn_t in to_visit:
+        if fn_t._ir_info is None:
             id_generator.ensure_id(fn_t)
-            _ = _ir_for_internal_function(func_ast, module_t, False)
+            _ = _ir_for_internal_function(fn_t.ast_def, module_t, False)
 
     return IRnode.from_list(deploy_code), IRnode.from_list(runtime)
