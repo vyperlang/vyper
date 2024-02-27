@@ -64,7 +64,8 @@ jobs:
         sed -i 's/ssh:\/\/git@/https:\/\//g' .gitmodules
         git submodule init
         git submodule update
-        sudo apt install cmake ninja-build clang-13 lld-13 parallel pkg-config lld
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build clang-13 lld-13 parallel pkg-config lld
         cargo install compiler-llvm-builder
         zkevm-llvm clone && zkevm-llvm build
         cargo build --release
