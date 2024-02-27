@@ -24,41 +24,6 @@ interface ERC721Receiver:
         ) -> bytes4: nonpayable
 
 
-# @dev Emits when ownership of any NFT changes by any mechanism. This event emits when NFTs are
-#      created (`from` == 0) and destroyed (`to` == 0). Exception: during contract creation, any
-#      number of NFTs may be created and assigned without emitting Transfer. At the time of any
-#      transfer, the approved address for that NFT (if any) is reset to none.
-# @param _from Sender of NFT (if address is zero address it indicates token creation).
-# @param _to Receiver of NFT (if address is zero address it indicates token destruction).
-# @param _tokenId The NFT that got transferred.
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    tokenId: indexed(uint256)
-
-# @dev This emits when the approved address for an NFT is changed or reaffirmed. The zero
-#      address indicates there is no approved address. When a Transfer event emits, this also
-#      indicates that the approved address for that NFT (if any) is reset to none.
-# @param _owner Owner of NFT.
-# @param _approved Address that we are approving.
-# @param _tokenId NFT which we are approving.
-event Approval:
-    owner: indexed(address)
-    approved: indexed(address)
-    tokenId: indexed(uint256)
-
-# @dev This emits when an operator is enabled or disabled for an owner. The operator can manage
-#      all NFTs of the owner.
-# @param _owner Owner of NFT.
-# @param _operator Address to which we are setting operator rights.
-# @param _approved Status of operator rights(true if operator rights are given and false if
-# revoked).
-event ApprovalForAll:
-    owner: indexed(address)
-    operator: indexed(address)
-    approved: bool
-
-
 # @dev Mapping from NFT ID to the address that owns it.
 idToOwner: HashMap[uint256, address]
 
@@ -236,7 +201,7 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
     # Add NFT
     self._addTokenTo(_to, _tokenId)
     # Log the transfer
-    log Transfer(_from, _to, _tokenId)
+    log IERC721.Transfer(_from, _to, _tokenId)
 
 
 ### TRANSFER FUNCTIONS ###
@@ -310,7 +275,7 @@ def approve(_approved: address, _tokenId: uint256):
     assert (senderIsOwner or senderIsApprovedForAll)
     # Set the approval
     self.idToApprovals[_tokenId] = _approved
-    log Approval(owner, _approved, _tokenId)
+    log IERC721.Approval(owner, _approved, _tokenId)
 
 
 @external
@@ -326,7 +291,7 @@ def setApprovalForAll(_operator: address, _approved: bool):
     # Throws if `_operator` is the `msg.sender`
     assert _operator != msg.sender
     self.ownerToOperators[msg.sender][_operator] = _approved
-    log ApprovalForAll(msg.sender, _operator, _approved)
+    log IERC721.ApprovalForAll(msg.sender, _operator, _approved)
 
 
 ### MINT & BURN FUNCTIONS ###
@@ -348,7 +313,7 @@ def mint(_to: address, _tokenId: uint256) -> bool:
     assert _to != empty(address)
     # Add NFT. Throws if `_tokenId` is owned by someone
     self._addTokenTo(_to, _tokenId)
-    log Transfer(empty(address), _to, _tokenId)
+    log IERC721.Transfer(empty(address), _to, _tokenId)
     return True
 
 
@@ -368,7 +333,7 @@ def burn(_tokenId: uint256):
     assert owner != empty(address)
     self._clearApproval(owner, _tokenId)
     self._removeTokenFrom(owner, _tokenId)
-    log Transfer(owner, empty(address), _tokenId)
+    log IERC721.Transfer(owner, empty(address), _tokenId)
 
 
 @view

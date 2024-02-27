@@ -10,6 +10,7 @@ from vyper.semantics.types.base import VyperType
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
+    from vyper.semantics.types.function import ContractFunctionT
     from vyper.semantics.types.module import InterfaceT, ModuleT
 
 
@@ -141,6 +142,13 @@ class UsesInfo(AnalysisResult):
     node: Optional[vy_ast.VyperNode] = None
 
 
+# analysis result of ExportsDecl
+@dataclass
+class ExportsInfo(AnalysisResult):
+    functions: list["ContractFunctionT"]
+    used_modules: OrderedSet[ModuleInfo]
+
+
 @dataclass
 class VarInfo:
     """
@@ -157,7 +165,7 @@ class VarInfo:
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False
-    decl_node: Optional[vy_ast.VyperNode] = None
+    decl_node: Optional[vy_ast.VariableDecl] = None
 
     def __hash__(self):
         return hash(id(self))
@@ -165,6 +173,13 @@ class VarInfo:
     def __post_init__(self):
         self.position = None
         self._modification_count = 0
+
+    @property
+    def getter_ast(self) -> Optional[vy_ast.VyperNode]:
+        assert self.decl_node is not None  # help mypy
+        ret = self.decl_node._expanded_getter
+        assert (ret is not None) == self.is_public, self
+        return ret
 
     def set_position(self, position: VarOffset) -> None:
         if self.position is not None:
