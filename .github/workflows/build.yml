@@ -48,6 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: dist/vyper.*
+          name: vyper-${{ matrix.os }}
 
   windows-build:
     runs-on: windows-latest
@@ -76,6 +77,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: dist/vyper.*
+          name: vyper-windows
 
   publish-release-assets:
     needs: [windows-build, unix-build]
