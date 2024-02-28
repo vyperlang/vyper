@@ -64,7 +64,7 @@ class InputBundle:
     # a list of search paths
     search_paths: list[PathLike]
 
-    _cache: _Cache
+    _cache: Any
 
     def __init__(self, search_paths):
         self.search_paths = search_paths

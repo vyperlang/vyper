@@ -396,6 +396,7 @@ class IRnode:
     # deepcopy is a perf hotspot; it pays to optimize it a little
     def __deepcopy__(self, memo):
         import pickle
+
         return pickle.loads(pickle.dumps(self))
         cls = self.__class__
         ret = cls.__new__(cls)

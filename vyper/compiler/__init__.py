@@ -9,6 +9,7 @@ from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
+from vyper.semantics import reset_namespace
 from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
@@ -127,6 +128,8 @@ def compile_from_file_input(
                     exc_handler(str(file_input.path), exc)
                 else:
                     raise exc
+            finally:
+                reset_namespace()
 
     return ret
 

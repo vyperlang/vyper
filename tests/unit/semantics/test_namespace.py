@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
+from vyper.exceptions import NamespaceCollision, UndeclaredDefinition
 from vyper.semantics import environment
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import PRIMITIVE_TYPES
