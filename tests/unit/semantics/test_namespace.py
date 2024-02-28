@@ -6,10 +6,10 @@ from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import PRIMITIVE_TYPES
 
 
-def test_get_namespace():
+def test_get_namespace(namespace):
     ns = get_namespace()
     ns2 = get_namespace()
-    assert ns == ns2
+    assert ns is ns2
 
 
 def test_builtin_context_manager(namespace):

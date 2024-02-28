@@ -9,7 +9,6 @@ from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
-from vyper.semantics import reset_namespace
 from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
@@ -116,20 +115,17 @@ def compile_from_file_input(
     )
 
     ret = {}
-    with anchor_evm_version(compiler_data.settings.evm_version):
-        for output_format in output_formats:
-            if output_format not in OUTPUT_FORMATS:
-                raise ValueError(f"Unsupported format type {repr(output_format)}")
-            try:
-                formatter = OUTPUT_FORMATS[output_format]
-                ret[output_format] = formatter(compiler_data)
-            except Exception as exc:
-                if exc_handler is not None:
-                    exc_handler(str(file_input.path), exc)
-                else:
-                    raise exc
-            finally:
-                reset_namespace()
+    for output_format in output_formats:
+        if output_format not in OUTPUT_FORMATS:
+            raise ValueError(f"Unsupported format type {repr(output_format)}")
+        try:
+            formatter = OUTPUT_FORMATS[output_format]
+            ret[output_format] = formatter(compiler_data)
+        except Exception as exc:
+            if exc_handler is not None:
+                exc_handler(str(file_input.path), exc)
+            else:
+                raise exc
 
     return ret
 

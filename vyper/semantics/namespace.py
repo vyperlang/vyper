@@ -120,14 +120,6 @@ def get_namespace():
     return _namespace
 
 
-def reset_namespace():
-    """
-    Delete the global namespace object
-    """
-    global _namespace
-    _namespace = None
-
-
 @contextlib.contextmanager
 def override_global_namespace(ns):
     global _namespace

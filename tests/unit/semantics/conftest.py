@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import ast as vy_ast
-from vyper.semantics.namespace import get_namespace, reset_namespace
+from vyper.semantics.namespace import Namespace, override_global_namespace
 
 
 @pytest.fixture(scope="session")
@@ -26,5 +26,6 @@ def namespace():
     """
     Yields a clean `Namespace` object.
     """
-    yield get_namespace()
-    reset_namespace()
+    ns = Namespace.vyper_namespace()
+    with override_global_namespace(ns):
+        yield ns

@@ -56,6 +56,7 @@ def analyze_module(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph = None,
+    namespace: Namespace = None,
     is_interface: bool = False,
 ) -> ModuleT:
     """
@@ -66,7 +67,11 @@ def analyze_module(
     if import_graph is None:
         import_graph = ImportGraph()
 
-    return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
+    if namespace is None:
+        namespace = Namespace.vyper_namespace()
+
+    with override_global_namespace(namespace):
+        return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
 
 
 def _analyze_module_r(
