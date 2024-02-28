@@ -150,61 +150,21 @@ def _handle_self_call(
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
-    return_buf = goto_ir.args[1]  # return buffer
+    return_buf_ir = goto_ir.args[1]  # return buffer
     ret_args: list[IROperand] = [IRLabel(target_label)]  # type: ignore
 
     if setup_ir != goto_ir:
         _convert_ir_bb(ctx, setup_ir, symbols, variables, allocated_variables)
 
-    arg_buf_pos = func_t._ir_info.frame_info.frame_start
-
-    for i, arg in enumerate(args_ir):
-        if arg.is_literal:
-            if arg.is_pointer:
-                var = _get_variable_from_address(variables, arg.value)
-                if var is None:
-                    ret = _convert_ir_bb(ctx, arg, symbols, variables, allocated_variables)
-                    if isinstance(ret, IRLiteral):
-                        bb = ctx.get_basic_block()
-                        if arg.typ.size_in_bytes > 32:
-                            ret = arg_buf_pos
-                        arg_buf_pos += arg.typ.size_in_bytes
-                    ret_args.append(ret)
-                else:
-                    if allocated_variables.get(var.name) is not None:
-                        ret_args.append(allocated_variables.get(var.name))
-                    else:
-                        ret = _convert_ir_bb(
-                            ctx, arg._optimized, symbols, variables, allocated_variables
-                        )
-                        bb = ctx.get_basic_block()
-                        if arg.typ.size_in_bytes <= 32:
-                            ret = bb.append_instruction(arg.location.load_op, ret)
-                        ret_args.append(ret)
-            else:
-                if arg.value == "multi":
-                    ret_args.append(arg_buf_pos)
-                else:
-                    ret_args.append(IRLiteral(arg.value))
-                arg_buf_pos += arg.typ.size_in_bytes
-        else:
-            ret = _convert_ir_bb(ctx, arg._optimized, symbols, variables, allocated_variables)
-            if arg.location and arg.location.load_op == "calldataload":
-                bb = ctx.get_basic_block()
-                ret = bb.append_instruction(arg.location.load_op, ret)
-            ret_args.append(ret)
+    return_buf = _convert_ir_bb(ctx, return_buf_ir, symbols, variables, allocated_variables)
 
     bb = ctx.get_basic_block()
-    do_ret = func_t.return_type is not None
-    if do_ret:
+    if func_t.return_type is not None:
         ret_args.append(return_buf.value)  # type: ignore
-        invoke_ret = bb.append_invoke_instruction(ret_args, returns=True)  # type: ignore
-        if func_t.return_type.size_in_bytes <= 32:
-            allocated_variables["return_buffer"] = invoke_ret  # type: ignore
-        return invoke_ret
-    else:
-        bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
-        return None
+
+    bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
+
+    return return_buf
 
 
 def _handle_internal_func(
@@ -216,16 +176,6 @@ def _handle_internal_func(
 ) -> IRnode:
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
-
-    old_ir_mempos = 0
-    old_ir_mempos += 64
-
-    for arg in func_t.arguments:
-        new_var = bb.append_instruction("param")
-        symbols[f"&{old_ir_mempos}"] = new_var
-        allocated_variables[arg.name] = new_var
-        bb.instructions[-1].annotation = arg.name
-        old_ir_mempos += 32  # arg.typ.memory_bytes_required
 
     # return buffer
     if func_t.return_type is not None:
@@ -269,25 +219,10 @@ def _get_variable_from_address(
     return None
 
 
-def _get_variables_from_address_and_size(
-    variables: OrderedSet[VariableRecord], addr: int, size: int
-) -> list[VariableRecord]:
-    assert isinstance(addr, int), "non-int address"
-    addr_end = addr + size
-    ret = []
-    for var in variables.keys():
-        if var.location.name != "memory":
-            continue
-        if var.pos >= addr and var.pos + var.size <= addr_end:  # type: ignore
-            ret.append(var)
-    return ret
-
-
 def _convert_ir_bb_list(ctx, ir, symbols, variables, allocated_variables):
     ret = []
     for ir_node in ir:
         venom = _convert_ir_bb(ctx, ir_node, symbols, variables, allocated_variables)
-        assert venom is not None, ir_node
         ret.append(venom)
     return ret
 
@@ -539,10 +474,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
                     ctx, ir.args[1:], symbols, variables, allocated_variables
                 )
                 bb = ctx.get_basic_block()
-                buffer = allocated_variables.get("return_buffer")
-                if return_buffer == buffer:
-                    bb.append_instruction("mstore", return_buffer, 0)
-                    return_buffer = 0
+                assert return_buffer is not None
                 bb.append_instruction("return", return_size, return_buffer)
 
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
