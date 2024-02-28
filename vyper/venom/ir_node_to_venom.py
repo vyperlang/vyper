@@ -481,14 +481,8 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         elif func_t.is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
-            if func_t.return_type is None:
-                bb.append_instruction("ret", symbols["return_pc"])
-            else:
-                if func_t.return_type.memory_bytes_required > 32:
-                    bb.append_instruction("ret", symbols["return_buffer"], symbols["return_pc"])
-                else:
-                    ret_by_value = bb.append_instruction("mload", symbols["return_buffer"])
-                    bb.append_instruction("ret", ret_by_value, symbols["return_pc"])
+            # TODO: never passing return values with the new convention
+            bb.append_instruction("ret", symbols["return_pc"])
 
     elif ir.value == "revert":
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols, variables, allocated_variables)

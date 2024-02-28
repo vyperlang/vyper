@@ -423,6 +423,8 @@ class IRBasicBlock:
         # Wrap raw integers in IRLiterals
         inst_args = [_ir_operand_from_value(arg) for arg in args]
 
+        assert isinstance(inst_args[0], IRLabel), "Invoked non label"
+
         inst = IRInstruction("invoke", inst_args, ret)
         inst.parent = self
         self.instructions.append(inst)

@@ -437,7 +437,9 @@ class VenomCompiler:
             assembly.append("LT")
         elif opcode == "invoke":
             target = inst.operands[0]
-            assert isinstance(target, IRLabel), "invoke target must be a label"
+            assert isinstance(
+                target, IRLabel
+            ), f"invoke target must be a label (is ${type(target)} ${target})"
             assembly.extend(
                 [
                     f"_sym_label_ret_{self.label_counter}",
@@ -496,11 +498,6 @@ class VenomCompiler:
 
         # Step 6: Emit instructions output operands (if any)
         if inst.output is not None:
-            assert isinstance(inst.output, IRVariable), "Return value must be a variable"
-            if inst.output.mem_type == MemType.MEMORY:
-                assembly.extend([*PUSH(inst.output.mem_addr)])
-
-            # TODO: revisit this
             if "call" in inst.opcode and inst.output not in next_liveness:
                 self.pop(assembly, stack)
 
