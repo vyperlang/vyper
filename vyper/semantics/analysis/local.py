@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     EventT,
     FlagT,
     HashMapT,
+    IntegerT,
     SArrayT,
     StringT,
     StructT,
@@ -68,6 +69,11 @@ def validate_functions(vy_module: vy_ast.Module) -> None:
 
     for node in vy_module.get_children(vy_ast.FunctionDef):
         _validate_function_r(vy_module, node, err_list)
+
+    for node in vy_module.get_children(vy_ast.VariableDecl):
+        if not node.is_public:
+            continue
+        _validate_function_r(vy_module, node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
@@ -229,6 +235,32 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
 
     ret.reverse()
     return ret
+
+
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """
+    validate module usage, and that if we use lib1.lib2.<state>, that
+    lib1 at least `uses` lib2.
+
+    Returns the left-most module referenced in the expr,
+        e.g. `lib1.lib2.foo` should return module info for `lib1`.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!"
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
+
+    # the leftmost- referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
 
 
 class FunctionAnalyzer(VyperNodeVisitorBase):
@@ -396,25 +428,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         info._writes.add(var_access)
 
-    def _check_module_use(self, target: vy_ast.ExprNode):
-        module_infos = _get_module_chain(target)
-
-        if len(module_infos) == 0:
+    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
+        if not var_access.variable.is_module_variable():
             return
 
-        for module_info in module_infos:
-            if module_info.ownership < ModuleOwnership.USES:
-                msg = f"Cannot access `{module_info.alias}` state!"
-                hint = f"add `uses: {module_info.alias}` or "
-                hint += f"`initializes: {module_info.alias}` as "
-                hint += "a top-level statement to your contract"
-                raise ImmutableViolation(msg, hint=hint)
+        root_module_info = check_module_uses(target)
 
-        # the leftmost- referenced module
-        root_module_info = module_infos[0]
-
-        # log the access
-        self.func.mark_used_module(root_module_info)
+        if root_module_info is not None:
+            # log the access
+            self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
@@ -513,6 +535,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         iter_var = None
         if isinstance(node.iter, vy_ast.Call):
             self._analyse_range_iter(node.iter, target_type)
+
+            # sanity check the postcondition of analyse_range_iter
+            assert isinstance(target_type, IntegerT)
         else:
             iter_var = self._analyse_list_iter(node.iter, target_type)
 
@@ -522,6 +547,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             self.namespace[target_name] = VarInfo(
                 target_type, modifiability=Modifiability.RUNTIME_CONSTANT
             )
+
             self.expr_visitor.visit(node.target.target, target_type)
 
             for stmt in node.body:
@@ -537,8 +563,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_Log(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Log must call an event", node)
+        # postcondition of Log.validate()
+        assert isinstance(node.value, vy_ast.Call)
+
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
@@ -632,8 +659,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 variable_accesses = info._writes | info._reads
                 for s in variable_accesses:
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node)
+                    self.function_analyzer._handle_module_access(s, node)
 
                 self.func.mark_variable_writes(info._writes)
                 self.func.mark_variable_reads(info._reads)
@@ -705,8 +731,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self._check_call_mutability(func_type.mutability)
 
                 for s in func_type.get_variable_accesses():
-                    if s.variable.is_module_variable():
-                        self.function_analyzer._check_module_use(node.func)
+                    self.function_analyzer._handle_module_access(s, node.func)
 
                 if func_type.is_deploy and not self.func.is_deploy:
                     raise CallViolation(
@@ -870,17 +895,17 @@ def _validate_range_call(node: vy_ast.Call):
         bound = kwargs["bound"]
         if bound.has_folded_value:
             bound = bound.get_folded_value()
-        if not isinstance(bound, vy_ast.Num):
-            raise StateAccessViolation("Bound must be a literal", bound)
+        if not isinstance(bound, vy_ast.Int):
+            raise StructureException("Bound must be a literal integer", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
-        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
+        if isinstance(start, vy_ast.Int) and isinstance(end, vy_ast.Int):
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
         for arg in (start, end):
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 error = "Value must be a literal integer, unless a bound is specified"
-                raise StateAccessViolation(error, arg)
+                raise StructureException(error, arg)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)

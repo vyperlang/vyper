@@ -225,7 +225,7 @@ class _ExprAnalyser:
             types_list = get_common_types(node.left, node.right)
 
         if (
-            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            isinstance(node.op, (vy_ast.Div, vy_ast.FloorDiv, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):

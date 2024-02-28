@@ -95,8 +95,12 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            obj = super().__getitem__(attr)
-            raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
+            prev = super().__getitem__(attr)
+            prev_decl = getattr(prev, "decl_node", None)
+            msg = f"'{attr}' has already been declared"
+            if prev_decl is None:
+                msg += " as a {prev}"
+            raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
 def get_namespace():
