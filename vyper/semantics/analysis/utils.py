@@ -272,10 +272,6 @@ class _ExprAnalyser:
             _validate_op(node, types_list, "validate_comparator")
         return [BoolT()]
 
-    def types_from_Await(self, node):
-        fn = self._find_fn(node.value)
-        return fn(node.value)
-
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
