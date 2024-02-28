@@ -103,16 +103,25 @@ class Namespace(dict):
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
+_namespace = None
+
+
 def get_namespace():
     """
     Get the global namespace object.
     """
     global _namespace
-    try:
-        return _namespace
-    except NameError:
+    if _namespace is None:
         _namespace = Namespace.vyper_namespace()
-        return _namespace
+    return _namespace
+
+
+def reset_namespace():
+    """
+    Delete the global namespace object
+    """
+    global _namespace
+    _namespace = None
 
 
 @contextlib.contextmanager

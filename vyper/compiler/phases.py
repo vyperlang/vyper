@@ -12,7 +12,12 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics import (
+    analyze_module,
+    reset_namespace,
+    set_data_positions,
+    validate_compilation_target,
+)
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -175,6 +180,9 @@ class CompilerData:
     def global_ctx(self) -> ModuleT:
         # ensure storage layout is computed
         _ = self.storage_layout
+
+        reset_namespace()
+
         return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
