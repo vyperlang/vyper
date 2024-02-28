@@ -24,6 +24,14 @@ def foo():
     log Bar(x)
     """,
     """
+struct Foo:
+    pass
+
+@external
+def foo():
+    log Foo  # missing parens
+    """,
+    """
 event Test:
     n: uint256
 
@@ -36,7 +44,7 @@ def test():
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_logging_fail(bad_code):
-    with pytest.raises(TypeMismatch):
+    with pytest.raises((TypeMismatch, StructureException)):
         compiler.compile_code(bad_code)
 
 

@@ -239,14 +239,19 @@ class EventT(_UserType):
             return cls(base_node.name, members, indexed, base_node)
 
         for node in base_node.body:
+            # TODO: these syntax checks should be in EventDef.validate()
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException("Events can only contain variable definitions", node)
             if node.value is not None:
-                raise StructureException("Cannot assign a value during event declaration", node)
+                raise StructureException(
+                    "Cannot assign a value during event declaration", node.value
+                )
             if not isinstance(node.target, vy_ast.Name):
                 raise StructureException("Invalid syntax for event member name", node.target)
+
             member_name = node.target.id
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"Event member '{member_name}' has already been declared", node.target
                 )
@@ -348,6 +353,7 @@ class StructT(_UserType):
             member_name = node.target.id
 
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"struct member '{member_name}' has already been declared", node.value
                 )
