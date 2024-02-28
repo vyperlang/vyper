@@ -93,6 +93,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+          # need to fetch unshallow so that setuptools_scm can infer the version
+          fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version[0] }}
       uses: actions/setup-python@v5
@@ -178,6 +181,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+          # need to fetch unshallow so that setuptools_scm can infer the version
+          fetch-depth: 0
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
