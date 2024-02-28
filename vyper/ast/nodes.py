@@ -103,13 +103,6 @@ def get_node(
         else:
             ast_struct["ast_type"] = "VariableDecl"
 
-    if ast_struct["ast_type"] == "ExtCall":
-        call_node = ast_struct.pop("value")
-        if not isinstance(call_node, dict):
-            call_node = call_node.__dict__
-        dont_copy = NODE_SRC_ATTRIBUTES + ("ast_type",)
-        ast_struct.update({k: v for (k, v) in call_node.items() if k not in dont_copy})
-
     enum_warn = False
     if ast_struct["ast_type"] == "EnumDef":
         enum_warn = True
@@ -1248,7 +1241,13 @@ class NotIn(Operator):
 class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
-    is_extcall = False
+    @property
+    def is_extcall(self):
+        return isinstance(self._parent, ExtCall)
+
+    @property
+    def is_staticcall(self):
+        return isinstance(self._parent, StaticCall)
 
     @property
     def is_terminus(self):
@@ -1266,9 +1265,29 @@ class Call(ExprNode):
         return builtin_t._is_terminus
 
 
-# inherit from Call so it gets traversed in the same places as Call
-class ExtCall(Call):
-    is_extcall = True
+class ExtCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            # TODO: investigate wrong col_offset for `self.value`
+            raise StructureException(
+                "`extcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
+
+
+class StaticCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException(
+                "`staticcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
 
 
 class keyword(VyperNode):

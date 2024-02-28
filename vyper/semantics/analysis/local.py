@@ -442,10 +442,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, vy_ast.Call):
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
             raise StructureException("Expressions without assignment are disallowed", node)
 
-        func = node.value.func
+        if isinstance(node.value, (vy_ast.ExtCall, vy_ast.StaticCall)):
+            call_node = node.value.value
+        else:
+            call_node = node.value
+
+        func = call_node.func
 
         fn_type = get_exact_type_from_node(func)
 
@@ -456,7 +461,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = map_void(fn_type.fetch_call_return(node.value))
+        return_value = map_void(fn_type.fetch_call_return(call_node))
         if (
             return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
@@ -689,20 +694,33 @@ class ExprVisitor(VyperNodeVisitorBase):
             msg = f"Cannot call a {call_mutability} function from a {self.func.mutability} function"
             raise StateAccessViolation(msg)
 
+    def visit_ExtCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_StaticCall(self, node, typ):
+        return self.visit(node.value, typ)
+
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         func_info = get_expr_info(node.func, is_callable=True)
         func_type = func_info.typ
 
         if isinstance(func_type, ContractFunctionT):
             # function calls
-            if func_type.is_external != node.is_extcall:
-                if node.is_extcall:
-                    msg = "Calls to internal functions cannot use the `extcall` keyword."
-                    hint = "remove the `extcall` keyword"
-                else:
-                    msg = "Calls to external contracts must use the `extcall` keyword. "
-                    hint = f"try `extcall {node.node_source_code}`"
-                raise CallViolation(msg, node, hint=hint)
+            if not func_type.is_external and (node.is_extcall or node.is_staticcall):
+                kind_str = "extcall" if node.is_extcall else "staticcall"
+                msg = f"Calls to internal functions cannot use the `{kind_str}` keyword."
+                hint = f"remove the `{kind_str}` keyword"
+                raise CallViolation(msg, hint=hint)
+            elif func_type.is_external:
+                assert node.is_staticcall == (not node.is_extcall)
+                is_static = func_type.mutability < StateMutability.NONPAYABLE
+
+                if is_static != node.is_staticcall:
+                    should = "staticcall" if is_static else "extcall"
+                    msg = f"Calls to external {func_type.mutability} functions "
+                    msg += f"must use the `{should}` keyword. "
+                    hint = f"try `{should} {node.node_source_code}`"
+                    raise CallViolation(msg, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():
