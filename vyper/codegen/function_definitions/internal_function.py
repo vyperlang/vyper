@@ -10,7 +10,7 @@ from vyper.codegen.stmt import parse_body
 
 
 def generate_ir_for_internal_function(
-    code: vy_ast.FunctionDef, module_ctx, is_ctor_context: bool
+    code: vy_ast.FunctionDef, compilation_target, is_ctor_context: bool
 ) -> InternalFuncIR:
     """
     Parse a internal function (FuncDef), and produce full function body.
@@ -44,7 +44,7 @@ def generate_ir_for_internal_function(
     # sanity check
     assert func_t.is_internal or func_t.is_constructor
 
-    context = initialize_context(func_t, module_ctx, is_ctor_context)
+    context = initialize_context(func_t, compilation_target, is_ctor_context)
 
     for arg in func_t.arguments:
         # allocate a variable for every arg, setting mutability

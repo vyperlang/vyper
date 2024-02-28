@@ -1302,6 +1302,7 @@ class VariableDecl(VyperNode):
         "is_public",
         "is_immutable",
         "is_transient",
+        "is_memory",
         "_expanded_getter",
     )
 
@@ -1312,6 +1313,7 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
         self.is_transient = False
+        self.is_memory = False
         self._expanded_getter = None
 
         def _check_args(annotation, call_name):
@@ -1331,7 +1333,7 @@ class VariableDecl(VyperNode):
             self.annotation = self.annotation.args[0]
 
         func_id = self.annotation.get("func.id")
-        if func_id in ("immutable", "constant", "transient"):
+        if func_id in ("immutable", "constant", "transient", "memory"):
             _check_args(self.annotation, func_id)
             setattr(self, f"is_{func_id}", True)
             # unwrap one layer

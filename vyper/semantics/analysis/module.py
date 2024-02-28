@@ -588,6 +588,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if node.is_constant
             else DataLocation.TRANSIENT
             if node.is_transient
+            else DataLocation.MEMORY
+            if node.is_memory
             else DataLocation.STORAGE
         )
 

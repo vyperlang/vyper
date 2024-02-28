@@ -490,5 +490,18 @@ class ModuleT(VyperType):
         return ret
 
     @cached_property
+    def memory_section_bytes(self):
+        ret = 0
+        memory_variables = [t for t in self.variables.values() if t.is_memory]
+        for s in memory_variables:
+            ret += s.typ.memory_bytes_required
+
+        for initializes_info in self.initialized_modules:
+            module_t = initializes_info.module_info.module_t
+            ret += module_t.memory_section_bytes
+
+        return ret
+
+    @cached_property
     def interface(self):
         return InterfaceT.from_ModuleT(self)

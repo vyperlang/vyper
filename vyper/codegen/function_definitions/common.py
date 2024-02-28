@@ -20,7 +20,7 @@ class FrameInfo:
 
     @property
     def mem_used(self):
-        return self.frame_size + MemoryPositions.RESERVED_MEMORY
+        return self.frame_size + MemoryPositions.USER_MEMORY_START
 
 
 @dataclass
@@ -105,7 +105,7 @@ def init_ir_info(func_t: ContractFunctionT):
 
 
 def initialize_context(
-    func_t: ContractFunctionT, module_ctx: ModuleT, is_ctor_context: bool = False
+    func_t: ContractFunctionT, compilation_target: ModuleT, is_ctor_context: bool = False
 ):
     init_ir_info(func_t)
 
@@ -117,13 +117,14 @@ def initialize_context(
         frame_info = c_func_t._ir_info.frame_info
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
-    allocate_start = max_callee_frame_size + MemoryPositions.RESERVED_MEMORY
+    allocate_start = max_callee_frame_size + MemoryPositions.USER_MEMORY_START
+    allocate_start += compilation_target.memory_section_bytes
 
     memory_allocator = MemoryAllocator(allocate_start)
 
     return Context(
         vars_=None,
-        module_ctx=module_ctx,
+        module_ctx=compilation_target,
         memory_allocator=memory_allocator,
         constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
         func_t=func_t,
@@ -132,7 +133,7 @@ def initialize_context(
 
 
 def tag_frame_info(func_t, context):
-    frame_size = context.memory_allocator.size_of_mem - MemoryPositions.RESERVED_MEMORY
+    frame_size = context.memory_allocator.size_of_mem - MemoryPositions.USER_MEMORY_START
     frame_start = context.starting_memory
 
     frame_info = FrameInfo(frame_start, frame_size, context.vars)

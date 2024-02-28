@@ -7,6 +7,7 @@ from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.analysis.base import VarOffset
 from vyper.semantics.data_locations import DataLocation
 from vyper.typing import StorageLayout
+from vyper.utils import MemoryPositions
 
 
 def set_data_positions(
@@ -76,6 +77,7 @@ class Allocators:
     storage_allocator: SimpleAllocator
     transient_storage_allocator: SimpleAllocator
     immutables_allocator: SimpleAllocator
+    memory_allocator: SimpleAllocator
 
     _global_nonreentrancy_key_slot: int
 
@@ -83,6 +85,9 @@ class Allocators:
         self.storage_allocator = SimpleAllocator(max_slot=2**256)
         self.transient_storage_allocator = SimpleAllocator(max_slot=2**256)
         self.immutables_allocator = SimpleAllocator(max_slot=0x6000)
+        self.memory_allocator = SimpleAllocator(
+            max_slot=2**32, starting_slot=MemoryPositions.USER_MEMORY_START
+        )
 
     def get_allocator(self, location: DataLocation):
         if location == DataLocation.STORAGE:
@@ -91,6 +96,8 @@ class Allocators:
             return self.transient_storage_allocator
         if location == DataLocation.CODE:
             return self.immutables_allocator
+        if location == DataLocation.MEMORY:
+            return self.memory_allocator
 
         raise CompilerPanic("unreachable")  # pragma: nocover
 
@@ -226,6 +233,7 @@ _LAYOUT_KEYS = {
     DataLocation.CODE: "code_layout",
     DataLocation.TRANSIENT: "transient_storage_layout",
     DataLocation.STORAGE: "storage_layout",
+    DataLocation.MEMORY: "memory_layout",
 }
 
 
@@ -284,8 +292,9 @@ def _allocate_layout_r(
         assert isinstance(node, vy_ast.VariableDecl)
         # skip non-storage variables
         varinfo = node.target._metadata["varinfo"]
-        if not varinfo.is_module_variable():
+        if varinfo.is_constant:
             continue
+
         location = varinfo.location
 
         if immutables_only and location != DataLocation.CODE:
@@ -305,7 +314,7 @@ def _allocate_layout_r(
         type_ = varinfo.typ
         # this could have better typing but leave it untyped until
         # we understand the use case better
-        if location == DataLocation.CODE:
+        if location in (DataLocation.CODE, DataLocation.MEMORY):
             item = {"type": str(type_), "length": size, "offset": offset}
         elif location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             item = {"type": str(type_), "slot": offset}

@@ -198,6 +198,10 @@ class VarInfo:
         return self.location == DataLocation.TRANSIENT
 
     @property
+    def is_memory(self):
+        return self.location == DataLocation.MEMORY
+
+    @property
     def is_immutable(self):
         return self.location == DataLocation.CODE
 

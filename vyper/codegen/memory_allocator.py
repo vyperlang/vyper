@@ -48,7 +48,7 @@ class MemoryAllocator:
 
     _ALLOCATION_LIMIT: int = 2**64
 
-    def __init__(self, start_position: int = MemoryPositions.RESERVED_MEMORY):
+    def __init__(self, start_position: int = MemoryPositions.USER_MEMORY_START):
         """
         Initializer.
 

@@ -342,7 +342,7 @@ def evm_pow(x, y):
 class MemoryPositions:
     FREE_VAR_SPACE = 0
     FREE_VAR_SPACE2 = 32
-    RESERVED_MEMORY = 64
+    USER_MEMORY_START = 64
 
 
 # Sizes of different data types. Used to clamp types.
