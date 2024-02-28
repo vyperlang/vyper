@@ -106,6 +106,10 @@ class Namespace(dict):
 _namespace = None
 
 
+# CMC 2024-02-28 refactor this away! the global variable causes many
+# problems. what we may be able to do is have a global compilation context
+# object which contains the current compilation target as well as the current
+# namespace.
 def get_namespace():
     """
     Get the global namespace object.
