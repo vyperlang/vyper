@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_literal_nodes
 from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -52,23 +51,33 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def validate_module_semantics_r(
+def analyze_module(
+    module_ast: vy_ast.Module,
+    input_bundle: InputBundle,
+    import_graph: ImportGraph = None,
+    is_interface: bool = False,
+) -> ModuleT:
+    """
+    Analyze a Vyper module AST node, recursively analyze all its imports,
+    add all module-level objects to the namespace, type-check/validate
+    semantics and annotate with type and analysis info
+    """
+    if import_graph is None:
+        import_graph = ImportGraph()
+
+    return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
+
+
+def _analyze_module_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph,
-    is_interface: bool,
-) -> ModuleT:
-    """
-    Analyze a Vyper module AST node, add all module-level objects to the
-    namespace, type-check/validate semantics and annotate with type and analysis info
-    """
+    is_interface: bool = False,
+):
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
-
-    # TODO: move this to parser or VyperNode construction
-    validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -511,7 +520,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not isinstance(func_t, ContractFunctionT):
                 raise StructureException("not a function!", decl_node, item)
             if not func_t.is_external:
-                raise StructureException("not an external function!", decl_node, item)
+                raise StructureException("can't export non-external functions!", decl_node, item)
 
             self._add_exposed_function(func_t, item, relax=False)
             with tag_exceptions(item):  # tag with specific item
@@ -746,7 +755,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                module_t = validate_module_semantics_r(
+                module_t = _analyze_module_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -766,7 +775,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_module_semantics_r(
+                _analyze_module_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -875,7 +884,5 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
-        module_t = validate_module_semantics_r(
-            interface_ast, input_bundle, ImportGraph(), is_interface=True
-        )
+        module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
     return module_t.interface

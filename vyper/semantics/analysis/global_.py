@@ -2,17 +2,11 @@ from collections import defaultdict
 
 from vyper.exceptions import ExceptionList, InitializerException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
-from vyper.semantics.analysis.import_graph import ImportGraph
-from vyper.semantics.analysis.module import validate_module_semantics_r
 from vyper.semantics.types.module import ModuleT
 
 
-def validate_semantics(module_ast, input_bundle, is_interface=False) -> ModuleT:
-    ret = validate_module_semantics_r(module_ast, input_bundle, ImportGraph(), is_interface)
-
-    _validate_global_initializes_constraint(ret)
-
-    return ret
+def validate_compilation_target(module_t: ModuleT):
+    _validate_global_initializes_constraint(module_t)
 
 
 def _collect_used_modules_r(module_t):
