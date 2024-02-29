@@ -143,14 +143,14 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-    marker = asttokens.ASTTokens(vyper_source)
+    tokens = asttokens.ASTTokens(vyper_source)
     assert isinstance(parsed_ast, python_ast.Module)  # help mypy
-    marker.mark_tokens(parsed_ast)
+    tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
         vyper_source,
         modification_offsets,
         for_loop_annotations,
-        marker,
+        tokens,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
