@@ -160,7 +160,8 @@ _PASS: "pass"
 _BREAK: "break"
 _CONTINUE: "continue"
 _LOG: "log"
-_AWAIT: "await"
+_EXTCALL: "extcall"
+_STATICCALL: "staticcall"
 _RETURN: "return"
 _RAISE: "raise"
 _ASSERT: "assert"
@@ -169,7 +170,6 @@ pass_stmt: _PASS
 break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
-await_stmt: _AWAIT call
 log_stmt: _LOG (NAME | variable_access) "(" [arguments] ")"
 
 return_stmt: _RETURN [_expr ("," _expr)*]
@@ -196,10 +196,14 @@ _expr: operation
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
+static_call: "staticcall" call
+ext_call: "extcall" call
 ?variable_access: NAME -> get_var
                 | get_item
                 | get_attr
                 | call
+                | static_call
+                | ext_call
                 | "(" variable_access ")"
 
 arg: _expr
