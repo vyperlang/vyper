@@ -1,6 +1,7 @@
 import enum
 import io
 import re
+from collections import defaultdict
 from tokenize import COMMENT, NAME, OP, TokenError, TokenInfo, tokenize, untokenize
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -154,6 +155,8 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
     settings = Settings()
     for_parser = ForParser(code)
 
+    _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
+
     try:
         code_bytes = code.encode("utf-8")
         token_list = list(tokenize(io.BytesIO(code_bytes).readline))
@@ -214,11 +217,27 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                     toks = [TokenInfo(NAME, "class", start, end, line)]
                     modification_offsets[start] = VYPER_CLASS_TYPES[string]
                 elif string in CUSTOM_STATEMENT_TYPES:
-                    toks = [TokenInfo(NAME, "yield", start, end, line)]
+                    new_keyword = "yield"
+                    adjustment = len(new_keyword) - len(string)
+                    _col_adjustments[start[0]] += adjustment
+                    toks = [TokenInfo(NAME, new_keyword, start, end, line)]
                     modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
                 elif string in CUSTOM_EXPRESSION_TYPES:
-                    toks = [TokenInfo(NAME, "await", start, end, line)]
-                    modification_offsets[start] = CUSTOM_EXPRESSION_TYPES[string]
+                    new_keyword = "await"
+                    vyper_type = CUSTOM_EXPRESSION_TYPES[string]
+
+                    lineno, col_offset = start
+
+                    # fixup for when `extcall/staticcall` follows `log`
+                    adjustment = _col_adjustments[lineno]
+                    new_start = (lineno, col_offset + adjustment)
+                    modification_offsets[new_start] = vyper_type
+
+                    # tells untokenize to add whitespace, preserving locations
+                    diff = len(new_keyword) - len(string)
+                    new_end = end[0], end[1] + diff
+
+                    toks = [TokenInfo(NAME, new_keyword, start, new_end, line)]
 
             if (typ, string) == (OP, ";"):
                 raise SyntaxException("Semi-colon statements not allowed", code, start[0], start[1])

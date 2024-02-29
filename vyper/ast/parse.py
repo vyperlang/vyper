@@ -1,7 +1,7 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 import asttokens
 
@@ -19,7 +19,7 @@ def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
 
 
 def parse_to_ast_with_settings(
-    source_code: str,
+    vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -30,7 +30,7 @@ def parse_to_ast_with_settings(
 
     Parameters
     ----------
-    source_code : str
+    vyper_source: str
         The Vyper source code to parse.
     source_id : int, optional
         Source id to use in the `src` member of each node.
@@ -53,14 +53,14 @@ def parse_to_ast_with_settings(
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    if "\x00" in source_code:
+    if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, for_loop_annotations, reformatted_code = pre_parse(source_code)
+    settings, class_types, for_loop_annotations, python_source = pre_parse(vyper_source)
     try:
-        py_ast = python_ast.parse(reformatted_code)
+        py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
+        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from e
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
@@ -72,10 +72,10 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
-        source_code,
+        vyper_source,
         class_types,
         for_loop_annotations,
-        source_id,
+        source_id=source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
@@ -117,7 +117,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
-    source_code: str,
+    vyper_source: str,
     modification_offsets: ModificationOffsets,
     for_loop_annotations: dict,
     source_id: int = 0,
@@ -131,8 +131,8 @@ def annotate_python_ast(
     ----------
     parsed_ast : AST
         The AST to be annotated and optimized.
-    source_code : str
-        The originating source code of the AST.
+    vyper_source: str
+        The original vyper source code
     loop_var_annotations: dict
         A mapping of line numbers of `For` nodes to the tokens of the type
         annotation of the iterator extracted during pre-parsing.
@@ -143,13 +143,14 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    marker = asttokens.ASTTokens(vyper_source)
+    assert isinstance(parsed_ast, python_ast.Module)  # help mypy
+    marker.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
-        source_code,
+        vyper_source,
         modification_offsets,
         for_loop_annotations,
-        tokens,
+        marker,
         source_id,
         module_path=module_path,
         resolved_path=resolved_path,
@@ -347,8 +348,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Await(self, node):
+        start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
         self.generic_visit(node)
-        node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+        node.ast_type = self._modification_offsets[start_pos]
         return node
 
     def visit_Call(self, node):
