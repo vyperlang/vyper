@@ -567,12 +567,16 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     if array_bounds_check:
         is_darray = isinstance(parent.typ, DArrayT)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
-        # uclamplt works, even for signed ints. since two's-complement
-        # is used, if the index is negative, (unsigned) LT will interpret
-        # it as a very large number, larger than any practical value for
-        # an array index, and the clamp will throw an error.
-        # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = clamp("lt", ix, bound)
+        # NOTE: there are optimization rules for the bounds check when
+        # ix or bound is literal
+        with ix.cache_when_complex("ix") as (b1, ix):
+            LT = "slt" if ix.typ.is_signed else "lt"
+            # note: this is optimized out for unsigned integers
+            is_negative = [LT, ix, 0]
+            # always use unsigned ge, since bound is always an unsigned quantity
+            is_oob = ["ge", ix, bound]
+            checked_ix = ["seq", ["assert", ["iszero", ["or", is_negative, is_oob]]], ix]
+            ix = b1.resolve(IRnode.from_list(checked_ix))
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
@@ -1220,6 +1224,11 @@ def clamp_nonzero(arg):
         check = IRnode.from_list(["assert", arg], error_msg="check nonzero")
         ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp_le(arg, hi, signed):
+    LE = "sle" if signed else "le"
+    return clamp(LE, arg, hi)
 
 
 def clamp2(lo, arg, hi, signed):

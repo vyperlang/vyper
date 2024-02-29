@@ -95,19 +95,3 @@ def validate_call_args(
         if key.arg in kwargs_seen:
             raise ArgumentException(f"Duplicate keyword argument '{key.arg}'", key)
         kwargs_seen.add(key.arg)
-
-
-def validate_literal_nodes(vyper_module: vy_ast.Module) -> None:
-    """
-    Individually validate Vyper AST nodes.
-
-    Recursively calls the `validate` method of each node to verify that
-    literal nodes do not contain invalid values.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top level Vyper AST node.
-    """
-    for node in vyper_module.get_descendants(include_self=True):
-        node.validate()

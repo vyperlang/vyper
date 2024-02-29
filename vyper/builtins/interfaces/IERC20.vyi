@@ -1,7 +1,7 @@
 # Events
 event Transfer:
     sender: indexed(address)
-    recipient: indexed(address)
+    receiver: indexed(address)
     value: uint256
 
 event Approval:

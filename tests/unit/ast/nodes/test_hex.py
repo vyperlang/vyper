@@ -38,8 +38,6 @@ foo: constant(bytes4) = 0x12_34_56
 
 @pytest.mark.parametrize("code", code_invalid_checksum)
 def test_invalid_checksum(code, dummy_input_bundle):
-    vyper_module = vy_ast.parse_to_ast(code)
-
     with pytest.raises(InvalidLiteral):
-        vy_ast.validation.validate_literal_nodes(vyper_module)
-        semantics.validate_semantics(vyper_module, dummy_input_bundle)
+        vyper_module = vy_ast.parse_to_ast(code)
+        semantics.analyze_module(vyper_module, dummy_input_bundle)
