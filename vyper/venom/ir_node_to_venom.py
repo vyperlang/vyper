@@ -230,11 +230,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     assert isinstance(variables, OrderedSet)
     global _break_target, _continue_target
 
-    frame_info = ir.passthrough_metadata.get("frame_info", None)
-    if frame_info is not None:
-        local_vars = OrderedSet[VariableRecord](frame_info.frame_vars.values())
-        variables |= local_vars
-
     assert isinstance(variables, OrderedSet)
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
@@ -272,9 +267,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
             symbols = {}
             allocated_variables = {}
-            variables = OrderedSet(
-                {v: True for v in ir.passthrough_metadata["frame_info"].frame_vars.values()}
-            )
+            variables = OrderedSet()
             ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
             # fallthrough
 
@@ -454,26 +447,15 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.append_basic_block(bb)
         _convert_ir_bb(ctx, ir.args[2], symbols, variables, allocated_variables)
     elif ir.value == "exit_to":
-        func_t = ir.passthrough_metadata.get("func_t", None)
-        assert func_t is not None, "exit_to without func_t"
-
         label = ir.args[0]
 
         is_constructor = "__init__(" in label.value
         is_external = label.value.startswith("external") and not is_constructor
         is_internal = label.value.startswith("internal")
 
-        # assert label.value.startswith("external") == func_t.is_external, label
-        # assert label.value.startswith("internal") == func_t.is_internal, label
-
         bb = ctx.get_basic_block()
         if is_external:
-            # Hardcoded contructor special case
-            # if func_t.is_constructor:
-            #     label = IRLabel(ir.args[0].value, True)
-            #     bb.append_instruction("jmp", label)
-            #     return None
-            if func_t.return_type is None:
+            if len(ir.args) == 1:  # no return value
                 bb.append_instruction("stop")
                 return None
             else:

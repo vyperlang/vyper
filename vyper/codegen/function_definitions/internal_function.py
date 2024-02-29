@@ -82,8 +82,4 @@ def generate_ir_for_internal_function(
     func_t._ir_info.gas_estimate = ir_node.gas
     frame_info = tag_frame_info(func_t, context)
 
-    # pass metadata through for venom pipeline:
-    ir_node.passthrough_metadata["frame_info"] = frame_info
-    ir_node.passthrough_metadata["func_t"] = func_t
-
     return InternalFuncIR(ir_node)
