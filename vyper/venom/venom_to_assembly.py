@@ -223,18 +223,11 @@ class VenomCompiler:
                 stack.push(op)
                 continue
 
-            if op in inst.dup_requirements:
+            if op in inst.dup_requirements and op not in emitted_ops:
                 self.dup_op(assembly, stack, op)
 
             if op in emitted_ops:
                 self.dup_op(assembly, stack, op)
-
-            # REVIEW: this seems like it can be reordered across volatile
-            # boundaries (which includes memory fences). maybe just
-            # remove it entirely at this point
-            if isinstance(op, IRVariable) and op.mem_type == MemType.MEMORY:
-                assembly.extend([*PUSH(op.mem_addr)])
-                assembly.append("MLOAD")
 
             emitted_ops.add(op)
 

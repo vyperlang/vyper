@@ -650,10 +650,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             ctx, ir.args, symbols, variables, allocated_variables
         )
 
-        new_var = ctx.get_basic_block().append_instruction("returndatacopy", arg_1, size)
-
-        symbols[f"&{arg_0.value}"] = new_var
-        return new_var
+        ctx.get_basic_block().append_instruction("returndatacopy", size, arg_1, arg_0)
     elif ir.value == "selfdestruct":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols, variables, allocated_variables)
         ctx.get_basic_block().append_instruction("selfdestruct", arg_0)
