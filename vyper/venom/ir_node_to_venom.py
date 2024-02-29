@@ -264,22 +264,18 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
     elif ir.value == "seq":
         if len(ir.args) == 0:
             return None
-        func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols, variables, allocated_variables)
-        # elif func_t is not None:
         elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("internal"):
             # Internal definition
             var_list = ir.args[0].args[1]
             does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-            assert does_return_data == (func_t.return_type != None)
             symbols = {}
             allocated_variables = {}
             variables = OrderedSet(
                 {v: True for v in ir.passthrough_metadata["frame_info"].frame_vars.values()}
             )
-            if func_t.is_internal:
-                ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
+            ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
             # fallthrough
 
         ret = None
@@ -461,13 +457,22 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         func_t = ir.passthrough_metadata.get("func_t", None)
         assert func_t is not None, "exit_to without func_t"
 
+        label = ir.args[0]
+
+        is_constructor = "__init__(" in label.value
+        is_external = label.value.startswith("external") and not is_constructor
+        is_internal = label.value.startswith("internal")
+
+        # assert label.value.startswith("external") == func_t.is_external, label
+        # assert label.value.startswith("internal") == func_t.is_internal, label
+
         bb = ctx.get_basic_block()
-        if func_t.is_external:
+        if is_external:
             # Hardcoded contructor special case
-            if func_t.is_constructor:
-                label = IRLabel(ir.args[0].value, True)
-                bb.append_instruction("jmp", label)
-                return None
+            # if func_t.is_constructor:
+            #     label = IRLabel(ir.args[0].value, True)
+            #     bb.append_instruction("jmp", label)
+            #     return None
             if func_t.return_type is None:
                 bb.append_instruction("stop")
                 return None
@@ -484,7 +489,7 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
                 ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
-        elif func_t.is_internal:
+        elif is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
             # TODO: never passing return values with the new convention
             bb.append_instruction("ret", symbols["return_pc"])
