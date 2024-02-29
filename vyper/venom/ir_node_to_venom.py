@@ -471,10 +471,10 @@ def _convert_ir_bb(ctx, ir, symbols):
         cond, a, b = ir.args
         expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
         return _convert_ir_bb(ctx, expanded, symbols)
-    elif ir.value in ["iload", "sload"]:
+    elif ir.value in ["iload", "sload", "tload"]:
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
         return ctx.get_basic_block().append_instruction(ir.value, arg_0)
-    elif ir.value in ["istore", "sstore"]:
+    elif ir.value in ["istore", "sstore", "tstore"]:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
         ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
     elif ir.value == "unique_symbol":

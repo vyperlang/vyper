@@ -48,6 +48,8 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "sstore",
         "mload",
         "mstore",
+        "tload",
+        "tstore",
         "timestamp",
         "caller",
         "blockhash",

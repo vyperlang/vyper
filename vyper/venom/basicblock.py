@@ -18,6 +18,8 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "sstore",
         "iload",
         "istore",
+        "tload",
+        "tstore",
         "assert",
         "assert_unreachable",
         "mstore",
