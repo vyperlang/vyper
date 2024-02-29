@@ -88,6 +88,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "codesize",
         "basefee",
         "prevrandao",
+        "difficulty",
         "invalid",
     ]
 )

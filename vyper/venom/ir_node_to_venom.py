@@ -72,6 +72,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "coinbase",
     "number",
     "prevrandao",
+    "difficulty",
     "iszero",
     "not",
     "calldataload",
