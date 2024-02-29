@@ -205,18 +205,6 @@ _break_target: Optional[IRBasicBlock] = None
 _continue_target: Optional[IRBasicBlock] = None
 
 
-def _get_variable_from_address(
-    variables: OrderedSet[VariableRecord], addr: int
-) -> Optional[VariableRecord]:
-    assert isinstance(addr, int), "non-int address"
-    for var in variables.keys():
-        if var.location.name != "memory":
-            continue
-        if addr >= var.pos and addr < var.pos + var.size:  # type: ignore
-            return var
-    return None
-
-
 def _convert_ir_bb_list(ctx, ir, symbols, variables, allocated_variables):
     ret = []
     for ir_node in ir:
@@ -293,18 +281,11 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
 
         if isinstance(argsOffset, IRLiteral):
             offset = int(argsOffset.value)
-            var = _get_variable_from_address(variables, offset)
-            if var:
-                if var.size > 32:
-                    argsOffsetVar = argsOffset
-                else:
-                    argsOffsetVar = argsOffset
-            else:
-                argsOffsetVar = symbols.get(f"&{offset}", None)
-                if argsOffsetVar is None:  # or offset > 0:
-                    argsOffsetVar = argsOffset
-                else:  # pragma: nocover
-                    argsOffsetVar = argsOffset
+            argsOffsetVar = symbols.get(f"&{offset}", None)
+            if argsOffsetVar is None:  # or offset > 0:
+                argsOffsetVar = argsOffset
+            else:  # pragma: nocover
+                argsOffsetVar = argsOffset
         else:
             argsOffsetVar = argsOffset
 
@@ -509,9 +490,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
             return bb.append_instruction("mload", arg_0)
 
         if isinstance(arg_0, IRLiteral):
-            var = _get_variable_from_address(variables, arg_0.value)
-            if var is not None:
-                return bb.append_instruction("mload", arg_0)
             avar = symbols.get(f"%{arg_0.value}")
             if avar is not None:
                 offset = arg_0.value - var.pos
@@ -525,13 +503,6 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         arg_1, arg_0 = _convert_ir_bb_list(
             ctx, reversed(ir.args), symbols, variables, allocated_variables
         )
-
-        if isinstance(arg_0, IRLiteral):
-            var = _get_variable_from_address(variables, arg_0.value)
-            if var:
-                avar = allocated_variables.get(var.name)
-                if avar:
-                    allocated_variables[var.name] = arg_1
 
         if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
