@@ -712,10 +712,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                 hint = f"remove the `{kind_str}` keyword"
                 raise CallViolation(msg, hint=hint)
             elif func_type.is_external:
-                assert node.is_staticcall == (not node.is_extcall)
+                missing_keyword = not (node.is_extcall or node.is_staticcall)
                 is_static = func_type.mutability < StateMutability.NONPAYABLE
 
-                if is_static != node.is_staticcall:
+                if is_static != node.is_staticcall or missing_keyword:
                     should = "staticcall" if is_static else "extcall"
                     msg = f"Calls to external {func_type.mutability} functions "
                     msg += f"must use the `{should}` keyword. "
