@@ -29,6 +29,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "coinbase",
         "calldatasize",
         "calldatacopy",
+        "mcopy",
         "calldataload",
         "gas",
         "gasprice",

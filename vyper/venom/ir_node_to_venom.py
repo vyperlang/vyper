@@ -359,10 +359,9 @@ def _convert_ir_bb(ctx, ir, symbols):
         sym = ir.args[0]
         arg_1 = _convert_ir_bb(ctx, ir.args[1], symbols)
         ctx.get_basic_block().append_instruction("store", arg_1, ret=symbols[sym.value])
-
-    elif ir.value == "calldatacopy":
+    elif ir.value in ["calldatacopy", "mcopy"]:
         arg_0, arg_1, size = _convert_ir_bb_list(ctx, ir.args, symbols)
-        ctx.get_basic_block().append_instruction("calldatacopy", size, arg_1, arg_0)  # type: ignore
+        ctx.get_basic_block().append_instruction(ir.value, size, arg_1, arg_0)  # type: ignore
         return None
     elif ir.value in ["extcodecopy", "codecopy"]:
         return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
