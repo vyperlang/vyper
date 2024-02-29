@@ -146,8 +146,6 @@ def _handle_self_call(
     variables: OrderedSet,
     allocated_variables: dict[str, IRVariable],
 ) -> Optional[IRVariable]:
-    func_t = ir.passthrough_metadata.get("func_t", None)
-    args_ir = ir.passthrough_metadata["args_ir"]
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -160,7 +158,7 @@ def _handle_self_call(
     return_buf = _convert_ir_bb(ctx, return_buf_ir, symbols, variables, allocated_variables)
 
     bb = ctx.get_basic_block()
-    if func_t.return_type is not None:
+    if len(goto_ir.args) > 2:
         ret_args.append(return_buf.value)  # type: ignore
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
@@ -171,15 +169,14 @@ def _handle_self_call(
 def _handle_internal_func(
     ctx: IRFunction,
     ir: IRnode,
-    func_t: ContractFunctionT,
+    does_return_data: bool,
     symbols: SymbolTable,
-    allocated_variables: dict[str, IRVariable],
 ) -> IRnode:
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
 
     # return buffer
-    if func_t.return_type is not None:
+    if does_return_data:
         symbols["return_buffer"] = bb.append_instruction("param")
         bb.instructions[-1].annotation = "return_buffer"
 
@@ -265,17 +262,24 @@ def _convert_ir_bb(ctx, ir, symbols, variables, allocated_variables):
         ctx.immutables_len = ir.args[2].value
         return None
     elif ir.value == "seq":
+        if len(ir.args) == 0:
+            return None
         func_t = ir.passthrough_metadata.get("func_t", None)
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols, variables, allocated_variables)
-        elif func_t is not None:
+        # elif func_t is not None:
+        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("internal"):
+            # Internal definition
+            var_list = ir.args[0].args[1]
+            does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+            assert does_return_data == (func_t.return_type != None)
             symbols = {}
             allocated_variables = {}
             variables = OrderedSet(
                 {v: True for v in ir.passthrough_metadata["frame_info"].frame_vars.values()}
             )
             if func_t.is_internal:
-                ir = _handle_internal_func(ctx, ir, func_t, symbols, allocated_variables)
+                ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
             # fallthrough
 
         ret = None
