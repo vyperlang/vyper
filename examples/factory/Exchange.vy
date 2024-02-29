@@ -1,18 +1,18 @@
 #pragma version >0.3.10
 
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 
 interface Factory:
     def register(): nonpayable
 
 
-token: public(ERC20)
+token: public(IERC20)
 factory: Factory
 
 
 @deploy
-def __init__(_token: ERC20, _factory: Factory):
+def __init__(_token: IERC20, _factory: Factory):
     self.token = _token
     self.factory = _factory
 

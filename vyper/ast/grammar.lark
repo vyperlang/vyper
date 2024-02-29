@@ -15,6 +15,7 @@ module: ( DOCSTRING
         | event_def
         | function_def
         | immutable_def
+        | exports_decl
         | _NEWLINE )*
 
 
@@ -113,6 +114,7 @@ interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _N
 _IMPLEMENTS_DECL: "implements"
 implements_def: _IMPLEMENTS_DECL ":" NAME
 
+exports_decl: "exports" ":" (variable_access | tuple)
 
 // Statements
 // If and For blocks create a new block, and thus are complete when de-indented
@@ -141,6 +143,7 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | "-"  -> sub
              | "*"  -> mul
              | "/"  -> div
+             | "//" -> floordiv
              | "%"  -> mod
              | "**" -> pow
              | "<<" -> shl
@@ -166,8 +169,9 @@ pass_stmt: _PASS
 break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
-log_stmt: _LOG NAME "(" [arguments] ")"
 await_stmt: _AWAIT call
+log_stmt: _LOG (NAME | variable_access) "(" [arguments] ")"
+
 return_stmt: _RETURN [_expr ("," _expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise
@@ -277,6 +281,7 @@ _IN: "in"
 ?product: unary
         | product "*"  unary -> mul
         | product "/"  unary -> div
+        | product "//" unary -> floordiv
         | product "%"  unary -> mod
 ?unary: power
        | "+"  power -> uadd

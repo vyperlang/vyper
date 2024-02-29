@@ -37,7 +37,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
-    VyperException,
     tag_exceptions,
 )
 from vyper.semantics.types import (
@@ -284,21 +283,15 @@ class Expr:
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.prevrandao in pre-Paris "
-                        "environment! Suggest using block.difficulty instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.prevrandao in pre-Paris "
+                    warning += "environment! Suggest using block.difficulty instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["prevrandao"], typ=UINT256_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.difficulty in post-Paris "
-                        "environment! Suggest using block.prevrandao instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.difficulty in post-Paris "
+                    warning += "environment! Suggest using block.prevrandao instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
@@ -434,7 +427,7 @@ class Expr:
                 ret = arithmetic.safe_sub(x, y)
             elif isinstance(self.expr.op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, vy_ast.Div):
+            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.FloorDiv)):
                 ret = arithmetic.safe_div(x, y)
             elif isinstance(self.expr.op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)

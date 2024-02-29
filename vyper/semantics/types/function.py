@@ -14,6 +14,7 @@ from vyper.exceptions import (
     InvalidType,
     StateAccessViolation,
     StructureException,
+    TypeMismatch,
 )
 from vyper.semantics.analysis.base import (
     FunctionVisibility,
@@ -41,17 +42,17 @@ from vyper.utils import OrderedSet, keccak256
 class _FunctionArg:
     name: str
     typ: VyperType
+    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 @dataclass
 class PositionalArg(_FunctionArg):
-    ast_source: Optional[vy_ast.VyperNode] = None
+    pass
 
 
-@dataclass
+@dataclass(kw_only=True)
 class KeywordArg(_FunctionArg):
     default_value: vy_ast.VyperNode
-    ast_source: Optional[vy_ast.VyperNode] = None
 
 
 # TODO: refactor this into FunctionT (from an ast) and ABIFunctionT (from json)
@@ -114,10 +115,11 @@ class ContractFunctionT(VyperType):
         self._analysed = False
 
         # a list of internal functions this function calls.
-        # to be populated during analysis
+        # to be populated during module analysis.
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
+        # to be populated during module analysis.
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
@@ -132,6 +134,11 @@ class ContractFunctionT(VyperType):
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
+
+    @property
+    # API compatibility
+    def decl_node(self):
+        return self.ast_def
 
     def mark_analysed(self):
         assert not self._analysed
@@ -184,6 +191,11 @@ class ContractFunctionT(VyperType):
         ret_sig = "" if not self.return_type else f" -> {self.return_type}"
         args_sig = ",".join([str(t) for t in self.argument_types])
         return f"def {self.name}({args_sig}){ret_sig}:"
+
+    @cached_property
+    def _pp_signature(self):
+        ret = ",".join(repr(arg.typ) for arg in self.arguments)
+        return f"{self.name}({ret})"
 
     # override parent implementation. function type equality does not
     # make too much sense.
@@ -464,9 +476,8 @@ class ContractFunctionT(VyperType):
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
         """
-
-        if not self.is_external:
-            return False
+        if not self.is_external:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
 
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
@@ -480,10 +491,7 @@ class ContractFunctionT(VyperType):
         if return_type and not return_type.compare_type(other_return_type):  # type: ignore
             return False
 
-        if self.mutability > other.mutability:
-            return False
-
-        return True
+        return self.mutability == other.mutability
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:
@@ -557,6 +565,15 @@ class ContractFunctionT(VyperType):
             method_ids.update(_generate_method_id(self.name, arg_types[:i]))
         return method_ids
 
+    # add more information to type exceptions generated inside calls
+    def _enhance_call_exception(self, e, ast_node=None):
+        if ast_node is not None:
+            e.append_annotation(ast_node)
+        elif e.hint is None:
+            # try really hard to give the user a signature
+            e.hint = self._pp_signature
+        return e
+
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # mypy hint - right now, the only way a ContractFunctionT can be
         # called is via `Attribute`, e.x. self.foo() or library.bar()
@@ -569,15 +586,21 @@ class ContractFunctionT(VyperType):
         # for external calls, include gas and value as optional kwargs
         if not self.is_internal:
             kwarg_keys += list(self.call_site_kwargs.keys())
-        validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
+        try:
+            validate_call_args(node, (self.n_positional_args, self.n_total_args), kwarg_keys)
+        except ArgumentException as e:
+            raise self._enhance_call_exception(e, self.ast_def)
 
         if self.mutability < StateMutability.PAYABLE:
             kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
             if kwarg_node is not None:
                 raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
 
-        for arg, expected in zip(node.args, self.argument_types):
-            validate_expected_type(arg, expected)
+        for arg, expected in zip(node.args, self.arguments):
+            try:
+                validate_expected_type(arg, expected.typ)
+            except TypeMismatch as e:
+                raise self._enhance_call_exception(e, expected.ast_source or self.ast_def)
 
         # TODO this should be moved to validate_call_args
         for kwarg in node.keywords:
@@ -765,7 +788,7 @@ def _parse_args(
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             validate_expected_type(value, type_)
-            keyword_args.append(KeywordArg(argname, type_, value, ast_source=arg))
+            keyword_args.append(KeywordArg(argname, type_, ast_source=arg, default_value=value))
 
         argnames.add(argname)
 

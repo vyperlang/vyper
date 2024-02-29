@@ -14,6 +14,3 @@ for name, obj in (
     (k, v) for k, v in nodes.__dict__.items() if type(v) is type and nodes.VyperNode in v.__mro__
 ):
     setattr(sys.modules[__name__], name, obj)
-
-# required to avoid circular dependency
-from . import expansion  # noqa: E402

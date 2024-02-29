@@ -240,7 +240,7 @@ CONST: constant(uint256) = 8
 @external
 @view
 def test():
-    for i: uint256 in range(CONST / 4):
+    for i: uint256 in range(CONST // 4):
         pass
     """,
     """

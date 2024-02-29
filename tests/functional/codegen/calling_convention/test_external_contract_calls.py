@@ -2375,14 +2375,14 @@ def transfer(receiver: address, amount: uint256):
     """
 
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @external
-def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
+def safeTransfer(erc20: IERC20, receiver: address, amount: uint256) -> uint256:
     assert erc20.transfer(receiver, amount, default_return_value=True)
     return 7
 
 @external
-def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
+def transferBorked(erc20: IERC20, receiver: address, amount: uint256):
     assert erc20.transfer(receiver, amount)
     """
     bad_erc20 = get_contract(bad_erc20_code)

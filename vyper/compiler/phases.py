@@ -12,10 +12,11 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
+from vyper.utils import ERC5202_PREFIX
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -156,8 +157,18 @@ class CompilerData:
         return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
+    def compilation_target(self):
+        """
+        Get the annotated AST, and additionally run the global checks
+        required for a compilation target.
+        """
+        module_t = self.annotated_vyper_module._metadata["type"]
+        validate_compilation_target(module_t)
+        return self.annotated_vyper_module
+
+    @cached_property
     def storage_layout(self) -> StorageLayout:
-        module_ast = self.annotated_vyper_module
+        module_ast = self.compilation_target
         return set_data_positions(module_ast, self.storage_layout_override)
 
     @property
@@ -228,8 +239,7 @@ class CompilerData:
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
-        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
-        blueprint_bytecode = blueprint_preamble + self.bytecode
+        blueprint_bytecode = ERC5202_PREFIX + self.bytecode
 
         # the length of the deployed code in bytes
         len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
@@ -251,13 +261,11 @@ def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundl
     -------
     vy_ast.Module
         Annotated Vyper AST
-    StorageLayout
-        Layout of variables in storage
     """
     vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # note: validate_semantics does type inference on the AST
-        validate_semantics(vyper_module, input_bundle)
+        # note: analyze_module does type inference on the AST
+        analyze_module(vyper_module, input_bundle)
 
     return vyper_module
 

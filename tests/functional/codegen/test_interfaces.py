@@ -69,9 +69,9 @@ interface One:
 
 def test_basic_interface_implements(assert_compile_failed):
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
-implements: ERC20
+implements: IERC20
 
 @external
 def test() -> bool:
@@ -125,7 +125,7 @@ def foo() -> uint256:
         compile_code(not_implemented_code, input_bundle=input_bundle)
 
 
-def test_missing_event(make_input_bundle, assert_compile_failed):
+def test_log_interface_event(make_input_bundle, assert_compile_failed):
     interface_code = """
 event Foo:
     a: uint256
@@ -133,102 +133,18 @@ event Foo:
 
     input_bundle = make_input_bundle({"a.vyi": interface_code})
 
-    not_implemented_code = """
+    main = """
 import a as FooBarInterface
 
 implements: FooBarInterface
 
 @external
 def bar() -> uint256:
+    log FooBarInterface.Foo(1)
     return 1
     """
 
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
-
-
-# check that event types match
-def test_malformed_event(make_input_bundle, assert_compile_failed):
-    interface_code = """
-event Foo:
-    a: uint256
-    """
-
-    input_bundle = make_input_bundle({"a.vyi": interface_code})
-
-    not_implemented_code = """
-import a as FooBarInterface
-
-implements: FooBarInterface
-
-event Foo:
-    a: int128
-
-@external
-def bar() -> uint256:
-    return 1
-    """
-
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
-
-
-# check that event non-indexed arg needs to match interface
-def test_malformed_events_indexed(make_input_bundle, assert_compile_failed):
-    interface_code = """
-event Foo:
-    a: uint256
-    """
-
-    input_bundle = make_input_bundle({"a.vyi": interface_code})
-
-    not_implemented_code = """
-import a as FooBarInterface
-
-implements: FooBarInterface
-
-# a should not be indexed
-event Foo:
-    a: indexed(uint256)
-
-@external
-def bar() -> uint256:
-    return 1
-    """
-
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
-
-
-# check that event indexed arg needs to match interface
-def test_malformed_events_indexed2(make_input_bundle, assert_compile_failed):
-    interface_code = """
-event Foo:
-    a: indexed(uint256)
-    """
-
-    input_bundle = make_input_bundle({"a.vyi": interface_code})
-
-    not_implemented_code = """
-import a as FooBarInterface
-
-implements: FooBarInterface
-
-# a should be indexed
-event Foo:
-    a: uint256
-
-@external
-def bar() -> uint256:
-    return 1
-    """
-
-    assert_compile_failed(
-        lambda: compile_code(not_implemented_code, input_bundle=input_bundle), InterfaceViolation
-    )
+    assert compile_code(main, input_bundle=input_bundle) is not None
 
 
 VALID_IMPORT_CODE = [
@@ -382,15 +298,15 @@ def transfer(to: address, amount: uint256) -> bool:
     """
 
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 
-token_address: ERC20
+token_address: IERC20
 
 
 @deploy
 def __init__(_token_address: address):
-    self.token_address = ERC20(_token_address)
+    self.token_address = IERC20(_token_address)
 
 
 @external
