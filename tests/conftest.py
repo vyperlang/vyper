@@ -103,6 +103,16 @@ def check_venom_xfail(request, venom_pipeline):
 
 
 @pytest.fixture
+def venom_xfail(request, venom_pipeline):
+    def _xfail(*args, **kwargs):
+        if not venom_pipeline:
+            return
+        request.node.add_marker(pytest.mark.xfail(*args, **kwargs))
+
+    return _xfail
+
+
+@pytest.fixture
 def chdir_tmp_path(tmp_path):
     with working_directory(tmp_path):
         yield
