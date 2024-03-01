@@ -51,7 +51,7 @@ class _FuncIRInfo:
 
     def set_frame_info(self, frame_info: FrameInfo) -> None:
         # XXX: when can this happen?
-        if self.frame_info is not None:
+        if self.frame_info is not None:  # pragma: nocover
             assert frame_info == self.frame_info
         else:
             self.frame_info = frame_info

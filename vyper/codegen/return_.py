@@ -2,6 +2,7 @@ from typing import Any, Optional
 
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
+from vyper.exceptions import TypeCheckFailure
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
@@ -24,8 +25,8 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     jump_to_exit = ["exit_to", func_t._ir_info.exit_sequence_label]
 
     if context.return_type is None:
-        if stmt.value is not None:
-            return None  # triggers an exception
+        if stmt.value is not None:  # pragma: nocover
+            raise TypeCheckFailure("bad return")
 
     else:
         # sanity typecheck
