@@ -4,15 +4,15 @@ import pytest
 @pytest.fixture
 def market_maker(get_contract):
     contract_code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 unused: public(uint256)
-token_address: ERC20
+token_address: IERC20
 
 @external
 @payable
 def foo(token_addr: address, token_quantity: uint256):
-    self.token_address = ERC20(token_addr)
+    self.token_address = IERC20(token_addr)
     self.token_address.transferFrom(msg.sender, self, token_quantity)
 """
     return get_contract(contract_code)
