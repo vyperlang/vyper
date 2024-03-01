@@ -2,7 +2,6 @@ from typing import Any, Optional
 
 from vyper.codegen.abi_encoder import abi_encode, abi_encoding_matches_vyper
 from vyper.codegen.context import Context
-from vyper.exceptions import TypeCheckFailure
 from vyper.codegen.core import (
     calculate_type_for_external_return,
     check_assign,
@@ -14,6 +13,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
+from vyper.exceptions import TypeCheckFailure
 
 Stmt = Any  # mypy kludge
 
