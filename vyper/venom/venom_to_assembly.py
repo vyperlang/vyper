@@ -270,7 +270,8 @@ class VenomCompiler:
                 asm.append("JUMP")
                 continue
 
-            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else []
+            next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
+
             asm = self._generate_evm_for_instruction(asm, inst, stack, next_liveness)
 
         for bb in basicblock.reachable:
@@ -327,7 +328,7 @@ class VenomCompiler:
         next_liveness: OrderedSet = None,
     ) -> list[str]:
         if next_liveness is None:
-            next_liveness = []
+            next_liveness = OrderedSet()
         opcode = inst.opcode
 
         #

@@ -308,10 +308,9 @@ class IRInstruction:
         operands = self.operands
         if opcode not in ["jmp", "jnz", "invoke"]:
             operands.reverse()
-        operands = ", ".join(
+        s += ", ".join(
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
         )
-        s += operands
 
         if self.annotation:
             s += f" <{self.annotation}>"

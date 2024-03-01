@@ -111,11 +111,11 @@ class DominatorTree:
         #     for df in self.df[bb]:
         #         print("    ", df.label)
 
-    def dominance_frontier(self, basic_blocks: list[IRBasicBlock]):
+    def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> OrderedSet[IRBasicBlock]:
         """
         Compute dominance frontier of a set of basic blocks.
         """
-        df = OrderedSet()
+        df = OrderedSet[IRBasicBlock]()
         for bb in basic_blocks:
             df.update(self.df[bb])
         return df

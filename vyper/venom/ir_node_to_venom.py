@@ -208,7 +208,7 @@ def _convert_ir_simple_node(
 ) -> Optional[IRVariable]:
     args = [_convert_ir_bb(ctx, arg, symbols) for arg in ir.args]
     if reverse:
-        args = reversed(args)
+        args = reversed(args)  # type: ignore
     return ctx.get_basic_block().append_instruction(ir.value, *args)  # type: ignore
 
 
