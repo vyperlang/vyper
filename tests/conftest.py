@@ -422,6 +422,7 @@ def _deploy_blueprint_for(
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize
+    settings.experimental_codegen = venom_pipeline
     out = compiler.compile_code(
         source_code,
         output_formats=output_formats,
