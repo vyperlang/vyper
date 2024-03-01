@@ -1,7 +1,7 @@
 from collections import Counter
 from typing import Any
 
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StackTooDeep
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, mksymbol, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import (
@@ -535,7 +535,8 @@ class VenomCompiler:
 
 def _evm_swap_for(depth: int) -> str:
     swap_idx = -depth
-    assert 1 <= swap_idx <= 16, f"Unsupported swap depth {swap_idx}"
+    if not (1 <= swap_idx <= 16):
+        raise StackTooDeep(f"Unsupported swap depth {swap_idx}")
     return f"SWAP{swap_idx}"
 
 

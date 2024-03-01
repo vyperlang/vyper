@@ -385,6 +385,10 @@ class CodegenPanic(VyperInternalException):
     """Invalid code generated during codegen phase"""
 
 
+class StackTooDeep(CodegenPanic):
+    """Stack too deep"""  # (should not happen)
+
+
 class UnexpectedNodeType(VyperInternalException):
     """Unexpected AST node type."""
 
