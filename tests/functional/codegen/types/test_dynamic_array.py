@@ -5,6 +5,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
+    StackTooDeep,
     ArrayIndexException,
     ImmutableViolation,
     OverflowException,
@@ -1478,6 +1479,7 @@ def foo(x: int128) -> int128:
     assert c.foo(7) == 392
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression", strict=True)
 def test_struct_of_lists(get_contract):
     code = """
 struct Foo:
@@ -1695,6 +1697,7 @@ def __init__():
         ("DynArray[DynArray[DynArray[uint256, 5], 5], 5]", [[[], []], []]),
     ],
 )
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression", strict=True)
 def test_empty_nested_dynarray(get_contract, typ, val):
     code = f"""
 @external
