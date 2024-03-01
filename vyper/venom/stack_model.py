@@ -46,21 +46,20 @@ class StackModel:
 
         return StackModel.NOT_IN_STACK  # type: ignore
 
-    def get_phi_depth(self, phi1: IRVariable, phi2: IRVariable) -> int:
+    def get_phi_depth(self, phis: list[IRVariable]) -> int:
         """
         Returns the depth of the first matching phi variable in the stack map.
         If the none of the phi operands are in the stack, returns NOT_IN_STACK.
-        Asserts that exactly one of phi1 and phi2 is found.
+        Asserts that exactly one of phis is found.
         """
-        assert isinstance(phi1, IRVariable)
-        assert isinstance(phi2, IRVariable)
+        assert isinstance(phis, list)
 
         ret = StackModel.NOT_IN_STACK
         for i, stack_item in enumerate(reversed(self._stack)):
-            if stack_item in (phi1, phi2):
+            if stack_item in phis:
                 assert (
                     ret is StackModel.NOT_IN_STACK
-                ), f"phi argument is not unique! {phi1}, {phi2}, {self._stack}"
+                ), f"phi argument is not unique! {phis}, {self._stack}"
                 ret = -i
 
         return ret  # type: ignore

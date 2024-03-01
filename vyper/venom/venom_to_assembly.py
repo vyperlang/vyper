@@ -356,8 +356,8 @@ class VenomCompiler:
 
         if opcode == "phi":
             ret = inst.get_outputs()[0]
-            phi1, phi2 = inst.get_inputs()
-            depth = stack.get_phi_depth(phi1, phi2)
+            phis = inst.get_inputs()
+            depth = stack.get_phi_depth(phis)
             # collapse the arguments to the phi node in the stack.
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
