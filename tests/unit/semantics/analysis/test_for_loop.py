@@ -2,7 +2,7 @@ import pytest
 
 from vyper.ast import parse_to_ast
 from vyper.exceptions import ArgumentException, ImmutableViolation, StructureException, TypeMismatch
-from vyper.semantics.analysis import validate_semantics
+from vyper.semantics.analysis import analyze_module
 
 
 def test_modify_iterator_function_outside_loop(dummy_input_bundle):
@@ -21,7 +21,7 @@ def bar():
         pass
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_pass_memory_var_to_other_function(dummy_input_bundle):
@@ -41,7 +41,7 @@ def bar():
         self.foo(a)
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_iterator(dummy_input_bundle):
@@ -56,7 +56,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_bad_keywords(dummy_input_bundle):
@@ -70,7 +70,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ArgumentException):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_bad_bound(dummy_input_bundle):
@@ -84,7 +84,7 @@ def bar(n: uint256):
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(StructureException):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_iterator_function_call(dummy_input_bundle):
@@ -103,7 +103,7 @@ def bar():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_iterator_recursive_function_call(dummy_input_bundle):
@@ -126,7 +126,7 @@ def baz():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_iterator_recursive_function_call_topsort(dummy_input_bundle):
@@ -149,7 +149,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -170,7 +170,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
     assert e.value._message == "Cannot modify loop variable `a`"
 
@@ -189,7 +189,7 @@ def foo():
         self.b[self.a[1]] = i
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_iterator_siblings(dummy_input_bundle):
@@ -207,7 +207,7 @@ def foo():
         self.f.b += i
     """
     vyper_module = parse_to_ast(code)
-    validate_semantics(vyper_module, dummy_input_bundle)
+    analyze_module(vyper_module, dummy_input_bundle)
 
 
 def test_modify_subscript_barrier(dummy_input_bundle):
@@ -229,7 +229,7 @@ def foo():
     """
     vyper_module = parse_to_ast(code)
     with pytest.raises(ImmutableViolation) as e:
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
 
     assert e.value._message == "Cannot modify loop variable `b`"
 
@@ -272,4 +272,4 @@ def foo():
 def test_iterator_type_inference_checker(code, dummy_input_bundle):
     vyper_module = parse_to_ast(code)
     with pytest.raises(TypeMismatch):
-        validate_semantics(vyper_module, dummy_input_bundle)
+        analyze_module(vyper_module, dummy_input_bundle)
