@@ -138,6 +138,17 @@ def _new_block(ctx: IRFunction) -> IRBasicBlock:
     return bb
 
 
+def _append_return_args(ctx: IRFunction, ofst: int = 0, size: int = 0):
+    bb = ctx.get_basic_block()
+    if bb.is_terminated:
+        bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+        ctx.append_basic_block(bb)
+    ret_ofst = IRVariable("ret_ofst")
+    ret_size = IRVariable("ret_size")
+    bb.append_instruction("store", ofst, ret=ret_ofst)
+    bb.append_instruction("store", size, ret=ret_size)
+
+
 def _handle_self_call(
     ctx: IRFunction,
     ir: IRnode,
@@ -231,9 +242,9 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in ["pass"]:
         pass
     elif ir.value == "return":
-        ret_ofst = IRVariable("ret_ofst")
-        ret_size = IRVariable("ret_size")
-        ctx.get_basic_block().append_instruction("return", ret_size, ret_ofst)
+        ctx.get_basic_block().append_instruction(
+            "return", IRVariable("ret_size"), IRVariable("ret_ofst")
+        )
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
@@ -255,14 +266,7 @@ def _convert_ir_bb(ctx, ir, symbols):
             return ret
         elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("external"):
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
-            bb = ctx.get_basic_block()
-            if bb.is_terminated:
-                bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
-                ctx.append_basic_block(bb)
-            ret_ofst = IRVariable("ret_ofst")
-            ret_size = IRVariable("ret_size")
-            bb.append_instruction("store", 0, ret=ret_ofst)
-            bb.append_instruction("store", 0, ret=ret_size)
+            _append_return_args(ctx)
         else:
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
@@ -427,18 +431,12 @@ def _convert_ir_bb(ctx, ir, symbols):
                 if bb.is_terminated:
                     bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
                     ctx.append_basic_block(bb)
-                return_buffer, return_size = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
+                ret_ofst, ret_size = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
 
-                if bb.is_terminated:
-                    bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
-                    ctx.append_basic_block(bb)
-                ret_ofst = IRVariable("ret_ofst")
-                ret_size = IRVariable("ret_size")
-                bb.append_instruction("store", return_buffer, ret=ret_ofst)
-                bb.append_instruction("store", return_size, ret=ret_size)
+                _append_return_args(ctx, ret_ofst, ret_size)
 
                 bb = ctx.get_basic_block()
-                assert return_buffer is not None
+                assert ret_ofst is not None
 
             bb.append_instruction("jmp", label)
 
