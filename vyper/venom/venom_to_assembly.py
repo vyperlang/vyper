@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Any
 from vyper.exceptions import CompilerPanic
 
@@ -183,10 +184,13 @@ class VenomCompiler:
     ) -> None:
         stack_ops_count = len(stack_ops)
 
+        counts = Counter(stack_ops)
+
         for i in range(stack_ops_count):
             op = stack_ops[i]
             final_stack_depth = -(stack_ops_count - i - 1)
-            depth = stack.get_depth(op)  # type: ignore
+            depth = stack.get_depth(op, counts[op])  # type: ignore
+            counts[op] -= 1
 
             if depth == StackModel.NOT_IN_STACK:
                 raise CompilerPanic(f"Variable {op} not in stack")
