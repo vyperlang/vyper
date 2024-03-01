@@ -53,37 +53,63 @@ INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "l
 
 # Instructions that have a direct EVM opcode equivalent and can
 # be passed through to the EVM assembly without special handling
-PASS_THROUGH_INSTRUCTIONS = [
-    "chainid",
-    "basefee",
-    "timestamp",
-    "blockhash",
-    "caller",
-    "selfbalance",
-    "calldatasize",
-    "callvalue",
-    "address",
-    "origin",
-    "codesize",
-    "gas",
-    "gasprice",
-    "gaslimit",
-    "returndatasize",
-    "coinbase",
-    "number",
-    "prevrandao",
-    "difficulty",
-    "iszero",
-    "not",
-    "calldataload",
-    "extcodesize",
-    "extcodehash",
-    "balance",
-    "msize",
-    "basefee",
-    "invalid",
-    "stop",
-]
+PASS_THROUGH_INSTRUCTIONS = frozenset(
+    [
+        "chainid",
+        "basefee",
+        "timestamp",
+        "blockhash",
+        "caller",
+        "selfbalance",
+        "calldatasize",
+        "callvalue",
+        "address",
+        "origin",
+        "codesize",
+        "gas",
+        "gasprice",
+        "gaslimit",
+        "returndatasize",
+        "returndatacopy",
+        "iload",
+        "sload",
+        "tload",
+        "coinbase",
+        "number",
+        "prevrandao",
+        "difficulty",
+        "iszero",
+        "not",
+        "calldataload",
+        "extcodesize",
+        "extcodehash",
+        "balance",
+        "msize",
+        "basefee",
+        "invalid",
+        "stop",
+        "selfdestruct",
+        "assert",
+        "assert_unreachable",
+    ]
+)
+
+PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
+    [
+        "calldatacopy",
+        "mcopy",
+        "extcodecopy",
+        "codecopy",
+        "revert",
+        "istore",
+        "sstore",
+        "tstore",
+        "create",
+        "create2",
+        "addmod",
+        "mulmod",
+    ]
+)
 
 SymbolTable = dict[str, Optional[IROperand]]
 
@@ -225,22 +251,16 @@ def _convert_ir_bb(ctx, ir, symbols):
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])
-
     elif ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
         org_value = ir.value
         ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
         new_var = _convert_binary_op(ctx, ir, symbols)
         ir.value = org_value
         return ctx.get_basic_block().append_instruction("iszero", new_var)
-
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols)
-
-    elif ir.value in ["addmod", "mulmod"]:
-        return _convert_ir_simple_node(ctx, ir, symbols, True)
-
-    elif ir.value in ["pass"]:
-        pass
+    elif ir.value in PASS_THROUGH_REVERSED_INSTRUCTIONS:
+        return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
     elif ir.value == "return":
         ctx.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
@@ -382,12 +402,6 @@ def _convert_ir_bb(ctx, ir, symbols):
         sym = ir.args[0]
         arg_1 = _convert_ir_bb(ctx, ir.args[1], symbols)
         ctx.get_basic_block().append_instruction("store", arg_1, ret=symbols[sym.value])
-    elif ir.value in ["calldatacopy", "mcopy"]:
-        arg_0, arg_1, size = _convert_ir_bb_list(ctx, ir.args, symbols)
-        ctx.get_basic_block().append_instruction(ir.value, size, arg_1, arg_0)  # type: ignore
-        return None
-    elif ir.value in ["extcodecopy", "codecopy"]:
-        return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
     elif ir.value == "symbol":
         return IRLabel(ir.args[0].value, True)
     elif ir.value == "data":
@@ -402,14 +416,6 @@ def _convert_ir_bb(ctx, ir, symbols):
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(ctx, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
-    elif ir.value == "assert":
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
-        bb = ctx.get_basic_block()
-        bb.append_instruction("assert", arg_0)
-    elif ir.value == "assert_unreachable":
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
-        bb = ctx.get_basic_block()
-        bb.append_instruction("assert_unreachable", arg_0)
     elif ir.value == "label":
         label = IRLabel(ir.args[0].value, True)
         bb = ctx.get_basic_block()
@@ -444,11 +450,6 @@ def _convert_ir_bb(ctx, ir, symbols):
             assert ir.args[1].value == "return_pc", "return_pc not found"
             # TODO: never passing return values with the new convention
             bb.append_instruction("ret", symbols["return_pc"])
-
-    elif ir.value == "revert":
-        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
-        ctx.get_basic_block().append_instruction("revert", arg_1, arg_0)
-
     elif ir.value == "dload":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
         bb = ctx.get_basic_block()
@@ -492,10 +493,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         cond, a, b = ir.args
         expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
         return _convert_ir_bb(ctx, expanded, symbols)
-    elif ir.value in ["iload", "sload", "tload"]:
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
-        return ctx.get_basic_block().append_instruction(ir.value, arg_0)
-    elif ir.value in ["istore", "sstore", "tstore"]:
+    elif ir.value in []:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
         ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
     elif ir.value == "unique_symbol":
@@ -567,7 +565,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(exit_block)
 
         cond_block.append_instruction("jnz", cont_ret, exit_block.label, body_block.label)
-    elif ir.value == "cleanup_repeat":
+    elif ir.value in ["cleanup_repeat", "pass"]:
         pass
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
@@ -577,26 +575,11 @@ def _convert_ir_bb(ctx, ir, symbols):
         assert _continue_target is not None, "Continue with no contrinue target"
         ctx.get_basic_block().append_instruction("jmp", _continue_target.label)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
-    elif ir.value == "gas":
-        return ctx.get_basic_block().append_instruction("gas")
-    elif ir.value == "returndatasize":
-        return ctx.get_basic_block().append_instruction("returndatasize")
-    elif ir.value == "returndatacopy":
-        assert len(ir.args) == 3, "returndatacopy with wrong number of arguments"
-        arg_0, arg_1, size = _convert_ir_bb_list(ctx, ir.args, symbols)
-
-        ctx.get_basic_block().append_instruction("returndatacopy", size, arg_1, arg_0)
-    elif ir.value == "selfdestruct":
-        arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
-        ctx.get_basic_block().append_instruction("selfdestruct", arg_0)
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         args = reversed([_convert_ir_bb(ctx, arg, symbols) for arg in ir.args])
         topic_count = int(ir.value[3:])
         assert topic_count >= 0 and topic_count <= 4, "invalid topic count"
         ctx.get_basic_block().append_instruction("log", topic_count, *args)
-    elif ir.value == "create" or ir.value == "create2":
-        args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols))
-        return ctx.get_basic_block().append_instruction(ir.value, *args)
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols)
     elif isinstance(ir.value, str) and ir.value in symbols:
