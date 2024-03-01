@@ -17,7 +17,6 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
-    MemType,
 )
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.normalization import NormalizationPass
@@ -321,8 +320,14 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self, assembly: list, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = []
+        self,
+        assembly: list,
+        inst: IRInstruction,
+        stack: StackModel,
+        next_liveness: OrderedSet = None,
     ) -> list[str]:
+        if next_liveness is None:
+            next_liveness = []
         opcode = inst.opcode
 
         #

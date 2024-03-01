@@ -1,14 +1,7 @@
 from typing import Optional
-from vyper.codegen.core import make_setter
-from vyper.evm.address_space import MEMORY
-from vyper.semantics.types.subscriptable import TupleT
-from vyper.codegen.context import VariableRecord
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import is_mem_sym, is_symbol
-from vyper.semantics.types.function import ContractFunctionT
-from vyper.utils import MemoryPositions, OrderedSet
+from vyper.utils import MemoryPositions
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -16,7 +9,6 @@ from vyper.venom.basicblock import (
     IRLiteral,
     IROperand,
     IRVariable,
-    MemType,
 )
 from vyper.venom.function import IRFunction
 
@@ -138,10 +130,7 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
 
 
 def _convert_binary_op(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
-    swap: bool = False,
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, swap: bool = False
 ) -> Optional[IRVariable]:
     ir_args = ir.args[::-1] if swap else ir.args
     arg_0, arg_1 = _convert_ir_bb_list(ctx, ir_args, symbols)
@@ -175,11 +164,7 @@ def _append_return_args(ctx: IRFunction, ofst: int = 0, size: int = 0):
     bb.append_instruction("store", size, ret=ret_size)
 
 
-def _handle_self_call(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
-) -> Optional[IRVariable]:
+def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IRVariable]:
     setup_ir = ir.args[1]
     goto_ir = [ir for ir in ir.args if ir.value == "goto"][0]
     target_label = goto_ir.args[0].value  # goto
@@ -201,10 +186,7 @@ def _handle_self_call(
 
 
 def _handle_internal_func(
-    ctx: IRFunction,
-    ir: IRnode,
-    does_return_data: bool,
-    symbols: SymbolTable,
+    ctx: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
 ) -> IRnode:
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
@@ -222,10 +204,7 @@ def _handle_internal_func(
 
 
 def _convert_ir_simple_node(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
-    reverse: bool = False,
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, reverse: bool = False
 ) -> Optional[IRVariable]:
     args = [_convert_ir_bb(ctx, arg, symbols) for arg in ir.args]
     if reverse:
@@ -592,11 +571,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     return None
 
 
-def _convert_ir_opcode(
-    ctx: IRFunction,
-    ir: IRnode,
-    symbols: SymbolTable,
-) -> None:
+def _convert_ir_opcode(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> None:
     opcode = ir.value.upper()  # type: ignore
     inst_args = []
     for arg in ir.args:

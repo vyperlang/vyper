@@ -1,7 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
-from vyper.venom.bb_optimizer import _optimize_unused_variables, ir_pass_optimize_unused_variables
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass

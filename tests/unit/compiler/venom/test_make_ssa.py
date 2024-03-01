@@ -1,6 +1,5 @@
 from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
-from vyper.venom.bb_optimizer import _optimize_unused_variables
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.make_ssa import MakeSSA
 
