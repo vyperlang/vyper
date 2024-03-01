@@ -82,14 +82,18 @@ jobs:
         # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
+        use-venom: [true, false]
+
         # run across other python versions.# we don't really need to run all
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
+            use-venom: false
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
+
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.use-venom && '-venom' || '' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -107,7 +111,7 @@ jobs:
       run: pip install tox
 
     - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
+      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} ${{ matrix.use-venom && '--use-venom' || '' }} -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v4
