@@ -249,10 +249,24 @@ def _convert_ir_bb(ctx, ir, symbols):
             does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
             symbols = {}
             ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
-            # fallthrough
+            for ir_node in ir.args:
+                ret = _convert_ir_bb(ctx, ir_node, symbols)
 
-        ret = None
-        for ir_node in ir.args:  # NOTE: skip the last one
+            return ret
+        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("external"):
+            ret = _convert_ir_bb(ctx, ir.args[0], symbols)
+            bb = ctx.get_basic_block()
+            if bb.is_terminated:
+                bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+                ctx.append_basic_block(bb)
+            ret_ofst = IRVariable("ret_ofst")
+            ret_size = IRVariable("ret_size")
+            bb.append_instruction("store", 0, ret=ret_ofst)
+            bb.append_instruction("store", 0, ret=ret_size)
+        else:
+            ret = _convert_ir_bb(ctx, ir.args[0], symbols)
+
+        for ir_node in ir.args[1:]:
             ret = _convert_ir_bb(ctx, ir_node, symbols)
 
         return ret
