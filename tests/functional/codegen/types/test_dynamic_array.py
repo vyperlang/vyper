@@ -5,10 +5,10 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     ArgumentException,
-    StackTooDeep,
     ArrayIndexException,
     ImmutableViolation,
     OverflowException,
+    StackTooDeep,
     StateAccessViolation,
     TypeMismatch,
 )
