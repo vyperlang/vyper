@@ -227,8 +227,12 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in ["addmod", "mulmod"]:
         return _convert_ir_simple_node(ctx, ir, symbols, True)
 
-    elif ir.value in ["pass", "stop", "return"]:
+    elif ir.value in ["pass", "stop"]:
         pass
+    elif ir.value == "return":
+        ret_ofst = IRVariable("ret_ofst")
+        ret_size = IRVariable("ret_size")
+        ctx.get_basic_block().append_instruction("return", ret_size, ret_ofst)
     elif ir.value == "deploy":
         ctx.ctor_mem_size = ir.args[0].value
         ctx.immutables_len = ir.args[2].value
@@ -396,11 +400,11 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(bb)
         _convert_ir_bb(ctx, ir.args[2], symbols)
     elif ir.value == "exit_to":
-        label = ir.args[0]
+        label = IRLabel(ir.args[0].value)
 
-        is_constructor = "__init__(" in label.value
-        is_external = label.value.startswith("external") and not is_constructor
-        is_internal = label.value.startswith("internal")
+        is_constructor = "__init__(" in label.name
+        is_external = label.name.startswith("external") and not is_constructor
+        is_internal = label.name.startswith("internal")
 
         bb = ctx.get_basic_block()
         if is_external:
@@ -412,11 +416,21 @@ def _convert_ir_bb(ctx, ir, symbols):
                     bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
                     ctx.append_basic_block(bb)
                 return_buffer, return_size = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
+
+                if bb.is_terminated:
+                    bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+                    ctx.append_basic_block(bb)
+                ret_ofst = IRVariable("ret_ofst")
+                ret_size = IRVariable("ret_size")
+                bb.append_instruction("store", return_buffer, ret=ret_ofst)
+                bb.append_instruction("store", return_size, ret=ret_size)
+
                 bb = ctx.get_basic_block()
                 assert return_buffer is not None
-                bb.append_instruction("return", return_size, return_buffer)
 
-                ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+                bb.append_instruction("jmp", label)
+                # bb.append_instruction("return", return_size, return_buffer)
+                # ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
 
         elif is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"

@@ -430,7 +430,9 @@ class VenomCompiler:
             assembly.append(f"_sym_{inst.operands[0].value}")
             assembly.append("JUMP")
         elif opcode == "djmp":
-            assert isinstance(inst.operands[0], IRVariable)
+            assert isinstance(
+                inst.operands[0], IRVariable
+            ), f"Expected IRVariable, got {inst.operands[0]}"
             assembly.append("JUMP")
         elif opcode == "gt":
             assembly.append("GT")
