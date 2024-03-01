@@ -10,7 +10,7 @@
 """
 
 ############### imports ###############
-from ethereum.ercs import ERC165
+from ethereum.ercs import IERC165
 
 ############### variables ###############
 # maximum items in a batch call. Set to 128, to be determined what the practical limits are.
@@ -100,7 +100,7 @@ event URI:
     id: indexed(uint256)
 
 ############### interfaces ###############
-implements: ERC165
+implements: IERC165
 
 interface IERC1155Receiver:
     def onERC1155Received(
@@ -393,7 +393,7 @@ def setContractURI(contractUri: String[MAX_URI_LENGTH]):
     self.contractURI = contractUri
     log URI(contractUri, 0)
 
-@pure
+@view
 @external
 def supportsInterface(interfaceId: bytes4) -> bool:
     """

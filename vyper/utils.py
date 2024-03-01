@@ -2,14 +2,13 @@ import binascii
 import contextlib
 import decimal
 import enum
-import functools
 import sys
 import time
 import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
 
 _T = TypeVar("_T")
 
@@ -208,8 +207,11 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -398,6 +400,7 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -431,17 +434,13 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
     return "".join(indented_lines)
 
 
-def timeit(func):
-    @functools.wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
-        return result
-
-    return timeit_wrapper
+@contextlib.contextmanager
+def timeit(msg):
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"{msg}: Took {total_time:.4f} seconds")
 
 
 @contextlib.contextmanager

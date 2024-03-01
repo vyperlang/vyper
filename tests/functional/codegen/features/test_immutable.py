@@ -91,12 +91,12 @@ my_struct: immutable(MyStruct)
 
 @deploy
 def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
-    my_struct = MyStruct({
-        a: _a,
-        b: _b,
-        c: _c,
-        d: _d
-    })
+    my_struct = MyStruct(
+        a=_a,
+        b=_b,
+        c=_c,
+        d=_d
+    )
 
 @view
 @external
@@ -117,7 +117,7 @@ my_struct: immutable(MyStruct)
 
 @deploy
 def __init__(a: uint256):
-    my_struct = MyStruct({a: a})
+    my_struct = MyStruct(a=a)
 
     # struct members are modifiable after initialization
     my_struct.a += 1

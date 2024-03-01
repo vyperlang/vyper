@@ -21,7 +21,7 @@ z: public(int128)
 
 @external
 def foo() -> int128:
-    return self.x / self.y / self.z
+    return self.x // self.y // self.z
     """,
     # expansion of public user-defined struct
     """

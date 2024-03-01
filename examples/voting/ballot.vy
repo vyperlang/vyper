@@ -57,10 +57,10 @@ def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voterCount = 0
     for i: int128 in range(2):
-        self.proposals[i] = Proposal({
-            name: _proposalNames[i],
-            voteCount: 0
-        })
+        self.proposals[i] = Proposal(
+            name=_proposalNames[i],
+            voteCount=0
+        )
         self.int128Proposals += 1
 
 # Give a `voter` the right to vote on this ballot.

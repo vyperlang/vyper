@@ -10,7 +10,7 @@ from vyper.codegen.core import (
     IRnode,
     append_dyn_array,
     check_assign,
-    clamp,
+    clamp_le,
     dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
@@ -255,7 +255,7 @@ class Stmt:
             with end.cache_when_complex("end") as (b1, end):
                 # note: the check for rounds<=rounds_bound happens in asm
                 # generation for `repeat`.
-                clamped_start = clamp("le", start, end)
+                clamped_start = clamp_le(start, end, target_type.is_signed)
                 rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
             rounds_bound = kwargs.pop("bound").int_value()
         else:

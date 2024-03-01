@@ -1,16 +1,16 @@
 #pragma version >0.3.10
 
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 
 interface Exchange:
-    def token() -> ERC20: view
+    def token() -> IERC20: view
     def receive(_from: address, _amt: uint256): nonpayable
     def transfer(_to: address, _amt: uint256): nonpayable
 
 
 exchange_codehash: public(bytes32)
 # Maps token addresses to exchange addresses
-exchanges: public(HashMap[ERC20, Exchange])
+exchanges: public(HashMap[IERC20, Exchange])
 
 
 @deploy
@@ -39,7 +39,7 @@ def register():
 
 
 @external
-def trade(_token1: ERC20, _token2: ERC20, _amt: uint256):
+def trade(_token1: IERC20, _token2: IERC20, _amt: uint256):
     # Perform a straight exchange of token1 to token 2 (1:1 price)
     # NOTE: Any practical implementation would need to solve the price oracle problem
     self.exchanges[_token1].receive(msg.sender, _amt)
