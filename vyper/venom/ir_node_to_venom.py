@@ -1,4 +1,5 @@
 from typing import Optional
+
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.utils import MemoryPositions

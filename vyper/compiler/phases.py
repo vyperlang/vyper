@@ -97,9 +97,6 @@ class CompilerData:
         no_bytecode_metadata: bool, optional
             Do not add metadata to bytecode. Defaults to False
         """
-        # to force experimental codegen, uncomment:
-        if settings:
-            settings.experimental_codegen = True
 
         if isinstance(file_input, str):
             file_input = FileInput(
@@ -116,6 +113,9 @@ class CompilerData:
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
         _ = self._generate_ast  # force settings to be calculated
+
+        # to force experimental codegen, uncomment:
+        # self.settings.experimental_codegen = True
 
     @cached_property
     def source_code(self):

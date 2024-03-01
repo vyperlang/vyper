@@ -1,7 +1,7 @@
 from collections import Counter
 from typing import Any
-from vyper.exceptions import CompilerPanic
 
+from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, mksymbol, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import (
