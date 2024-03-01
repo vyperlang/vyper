@@ -82,6 +82,7 @@ PASS_THROUGH_INSTRUCTIONS = [
     "msize",
     "basefee",
     "invalid",
+    "stop",
 ]
 
 SymbolTable = dict[str, Optional[IROperand]]
@@ -227,7 +228,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in ["addmod", "mulmod"]:
         return _convert_ir_simple_node(ctx, ir, symbols, True)
 
-    elif ir.value in ["pass", "stop"]:
+    elif ir.value in ["pass"]:
         pass
     elif ir.value == "return":
         ret_ofst = IRVariable("ret_ofst")
@@ -408,10 +409,7 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         bb = ctx.get_basic_block()
         if is_external:
-            if len(ir.args) == 1:  # no return value
-                bb.append_instruction("stop")
-                return None
-            else:
+            if len(ir.args) > 1:  # no return value
                 if bb.is_terminated:
                     bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
                     ctx.append_basic_block(bb)
@@ -428,9 +426,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 bb = ctx.get_basic_block()
                 assert return_buffer is not None
 
-                bb.append_instruction("jmp", label)
-                # bb.append_instruction("return", return_size, return_buffer)
-                # ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+            bb.append_instruction("jmp", label)
 
         elif is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
