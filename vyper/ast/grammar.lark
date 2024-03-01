@@ -159,8 +159,6 @@ _PASS: "pass"
 _BREAK: "break"
 _CONTINUE: "continue"
 _LOG: "log"
-_EXTCALL: "extcall"
-_STATICCALL: "staticcall"
 _RETURN: "return"
 _RAISE: "raise"
 _ASSERT: "assert"
@@ -195,7 +193,6 @@ _expr: operation
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
-external_call: "staticcall" call | "extcall" call
 ?variable_access: NAME -> get_var
                 | get_item
                 | get_attr
@@ -287,8 +284,12 @@ _IN: "in"
        | "+"  power -> uadd
        | "-"  power -> usub
        | "~"  power -> invert
-?power: atom
+?power: external_call
       | power _POW  atom -> pow
+
+?external_call: atom
+      | "extcall" call -> extcall
+      | "staticcall" call -> staticcall
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
