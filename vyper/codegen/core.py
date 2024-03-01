@@ -13,7 +13,7 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -735,11 +735,12 @@ def dummy_node_for_type(typ):
 
 def _check_assign_bytes(left, right):
     if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
-        raise TypeCheckFailure(f"Cannot cast from {right.typ} to {left.typ}")
+        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
 
     # stricter check for zeroing a byte array.
+    # TODO: these should be TypeCheckFailure instead of TypeMismatch
     if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:  # pragma: nocover
-        raise TypeCheckFailure(f"Cannot cast from empty({right.typ}) to {left.typ}")
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")
 
 
 def _check_assign_list(left, right):
