@@ -1,5 +1,4 @@
-from collections.abc import Generator
-from typing import Optional
+from typing import Iterator, Optional
 
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
@@ -90,7 +89,7 @@ class IRFunction:
                 return self.basic_blocks[i + 1]
         raise AssertionError(f"Basic block after '{label}' not found")
 
-    def get_terminal_basicblocks(self) -> Generator[IRBasicBlock]:
+    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
         """
         Get basic blocks that are terminal.
         """
