@@ -129,7 +129,6 @@ _stmt: ( if_stmt | for_stmt ) [COMMENT]
        | break_stmt
        | continue_stmt
        | log_stmt
-       | await_stmt
        | raise_stmt
        | assert_stmt
        | _expr ) [COMMENT] _NEWLINE
@@ -196,14 +195,11 @@ _expr: operation
 get_item: (variable_access | list) "[" _expr "]"
 get_attr: variable_access "." NAME
 call: variable_access "(" [arguments] ")"
-static_call: "staticcall" call
-ext_call: "extcall" call
+external_call: "staticcall" call | "extcall" call
 ?variable_access: NAME -> get_var
                 | get_item
                 | get_attr
                 | call
-                | static_call
-                | ext_call
                 | "(" variable_access ")"
 
 arg: _expr
