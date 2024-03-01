@@ -82,15 +82,21 @@ jobs:
         # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
-        use-venom: [true, false]
 
-        # run across other python versions.# we don't really need to run all
-        # modes across all python versions - one is enough
+        # run across other python versions.
+        # (we don't really need to run all
+        # modes across all python versions - one is enough)
         include:
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
             use-venom: false
+
+          - python-version: ["3.11", "311"]
+            opt-mode: gas
+            debug: false
+            use-venom: true
+
 
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.use-venom && '-venom' || '' }}
