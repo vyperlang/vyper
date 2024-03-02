@@ -65,6 +65,9 @@ jobs:
         python-version: "3.11"
         cache: "pip"
 
+    - name: Install Dependencies
+      run: pip install .[lint]
+
     - name: Run mypy
       run: make mypy
 
