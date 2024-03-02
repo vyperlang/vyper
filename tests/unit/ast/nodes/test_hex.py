@@ -53,4 +53,5 @@ def test_invalid_literal(code, dummy_input_bundle):
     vyper_module = vy_ast.parse_to_ast(code)
 
     with pytest.raises(InvalidLiteral):
+        vyper_module = vy_ast.parse_to_ast(code)
         semantics.validate_semantics(vyper_module, dummy_input_bundle)

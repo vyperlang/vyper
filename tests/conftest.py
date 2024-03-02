@@ -22,6 +22,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
+from vyper.utils import ERC5202_PREFIX
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -377,7 +378,9 @@ def get_contract_module(optimize, output_formats):
     return get_contract_module
 
 
-def _deploy_blueprint_for(w3, source_code, optimize, output_formats, initcode_prefix=b"", **kwargs):
+def _deploy_blueprint_for(
+    w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
+):
     settings = Settings()
     settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize

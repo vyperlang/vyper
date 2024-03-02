@@ -1586,7 +1586,7 @@ struct X:
     y: address
 @external
 def out_literals() -> X:
-    return X({x: 1, y: 0x0000000000000000000000000000000000012345})
+    return X(x=1, y=0x0000000000000000000000000000000000012345)
     """
 
     contract_2 = """
@@ -1618,7 +1618,7 @@ struct X:
     z: Bytes[{ln}]
 @external
 def get_struct_x() -> X:
-    return X({{x: {i}, y: "{s}", z: b"{s}"}})
+    return X(x={i}, y="{s}", z=b"{s}")
     """
 
     contract_2 = f"""
@@ -1648,7 +1648,7 @@ struct X:
     x: int128
 @external
 def out_literals() -> X:
-    return X({x: 1})
+    return X(x=1)
     """
 
     contract_2 = """
@@ -1676,7 +1676,7 @@ struct X:
     x: int128
     y: address
 
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
 
 @external
 def out_literals() -> X:
@@ -1713,7 +1713,7 @@ struct X:
     y: String[{ln}]
     z: Bytes[{ln}]
 
-BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+BAR: constant(X) = X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def get_struct_x() -> X:
@@ -1746,7 +1746,7 @@ def test_constant_struct_return_external_contract_call_3(get_contract_with_gas_e
 struct X:
     x: int128
 
-BAR: constant(X) = X({x: 1})
+BAR: constant(X) = X(x=1)
 
 @external
 def out_literals() -> X:
@@ -1778,7 +1778,7 @@ struct X:
     x: int128
     y: address
 
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
 
 @external
 def get_y() -> address:
@@ -1811,7 +1811,7 @@ struct X:
     y: String[{ln}]
     z: Bytes[{ln}]
 
-BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+BAR: constant(X) = X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def get_y() -> String[{ln}]:
@@ -1840,7 +1840,7 @@ def test_constant_struct_member_return_external_contract_call_3(get_contract_wit
 struct X:
     x: int128
 
-BAR: constant(X) = X({x: 1})
+BAR: constant(X) = X(x=1)
 
 @external
 def get_x() -> int128:
@@ -1874,7 +1874,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+BAR: constant(A) = A(a=X(x=1, y=0x0000000000000000000000000000000000012345), b=777)
 
 @external
 def out_literals() -> A:
@@ -1919,7 +1919,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777}})
+BAR: constant(A) = A(a=X(x={i}, y="{s}", z=b"{s}"), b=777)
 
 @external
 def get_struct_a() -> A:
@@ -1966,7 +1966,7 @@ struct C:
     c: A
     d: bool
 
-BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+BAR: constant(C) = C(c=A(a=X(x=1, y=-1), b=777), d=True)
 
 @external
 def out_literals() -> C:
@@ -2013,7 +2013,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+BAR: constant(A) = A(a=X(x=1, y=0x0000000000000000000000000000000000012345), b=777)
 
 @external
 def get_y() -> address:
@@ -2051,7 +2051,7 @@ struct A:
     b: uint256
     c: bool
 
-BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777, c: True}})
+BAR: constant(A) = A(a=X(x={i}, y="{s}", z=b"{s}"), b=777, c=True)
 
 @external
 def get_y() -> String[{ln}]:
@@ -2091,7 +2091,7 @@ struct C:
     c: A
     d: bool
 
-BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+BAR: constant(C) = C(c=A(a=X(x=1, y=-1), b=777), d=True)
 
 @external
 def get_y() -> int128:
@@ -2148,7 +2148,7 @@ interface Foo:
 
 @external
 def bar(addr: address) -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return Foo(addr).foo(_X)
     """
 
@@ -2180,7 +2180,7 @@ interface Foo:
 
 @external
 def bar(addr: address) -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return Foo(addr).foo(_X)
     """
 
@@ -2208,7 +2208,7 @@ interface Foo:
 
 @external
 def bar(addr: address) -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return Foo(addr).foo(_X.y)
     """
 
@@ -2236,7 +2236,7 @@ interface Foo:
 
 @external
 def bar(addr: address) -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return Foo(addr).foo(_X.y)
     """
 
@@ -2375,14 +2375,14 @@ def transfer(receiver: address, amount: uint256):
     """
 
     code = """
-from ethereum.ercs import ERC20
+from ethereum.ercs import IERC20
 @external
-def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
+def safeTransfer(erc20: IERC20, receiver: address, amount: uint256) -> uint256:
     assert erc20.transfer(receiver, amount, default_return_value=True)
     return 7
 
 @external
-def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
+def transferBorked(erc20: IERC20, receiver: address, amount: uint256):
     assert erc20.transfer(receiver, amount)
     """
     bad_erc20 = get_contract(bad_erc20_code)
@@ -2433,7 +2433,7 @@ interface Foo:
     def return_64_bytes() -> BoolPair: nonpayable
 @external
 def bar(foo: Foo):
-    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair(x=True, y=True))
     assert t.x and t.y
     """
     bad_1 = get_contract(bad_code_1)

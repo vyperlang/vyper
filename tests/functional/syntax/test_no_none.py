@@ -178,7 +178,7 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: None, b: 0})
+    mom: Mom = Mom(a=None, b=0)
     """,
         """
 struct Mom:
@@ -187,7 +187,7 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: 0, b: None})
+    mom: Mom = Mom(a=0, b=None)
     """,
         """
 struct Mom:
@@ -196,7 +196,7 @@ struct Mom:
 
 @external
 def foo():
-    mom: Mom = Mom({a: None, b: None})
+    mom: Mom = Mom(a=None, b=None)
     """,
     ]
 

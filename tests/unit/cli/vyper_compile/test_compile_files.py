@@ -38,7 +38,7 @@ CONTRACT_CODE = """
 
 @external
 def foo() -> {alias}.FooStruct:
-    return {alias}.FooStruct({{foo_: 13}})
+    return {alias}.FooStruct(foo_=13)
 
 @external
 def bar(a: address) -> {alias}.FooStruct:
@@ -176,7 +176,7 @@ def know_thyself(a: address) -> ISelf.FooStruct:
 
 @external
 def be_known() -> ISelf.FooStruct:
-    return ISelf.FooStruct({{foo_: 42}})
+    return ISelf.FooStruct(foo_=42)
     """
     make_file("contracts/ISelf.vyi", interface_code)
     meta = make_file("contracts/Self.vy", code)

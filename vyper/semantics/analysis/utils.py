@@ -225,7 +225,7 @@ class _ExprAnalyser:
             types_list = get_common_types(node.left, node.right)
 
         if (
-            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            isinstance(node.op, (vy_ast.Div, vy_ast.FloorDiv, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
@@ -381,7 +381,7 @@ class _ExprAnalyser:
             # when this is a type, we want to lower it
             if isinstance(t, VyperType):
                 # TYPE_T is used to handle cases where a type can occur in call or
-                # attribute conditions, like Enum.foo or MyStruct({...})
+                # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
             return [t.typ]
@@ -485,6 +485,7 @@ def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
+    # this function is a performance hotspot
     """
     Return a list of common possible types between one or more nodes.
 

@@ -34,7 +34,6 @@ from vyper.exceptions import (
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
-    VyperException,
     tag_exceptions,
 )
 from vyper.semantics.types import (
@@ -212,15 +211,15 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyEnum.foo
+        # MyFlag.foo
         if (
             isinstance(typ, FlagT)
             and isinstance(self.expr.value, vy_ast.Name)
             and typ.name == self.expr.value.id
         ):
             # 0, 1, 2, .. 255
-            enum_id = typ._enum_members[self.expr.attr]
-            value = 2**enum_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
+            flag_id = typ._flag_members[self.expr.attr]
+            value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
             return IRnode.from_list(value, typ=typ)
 
         # x.balance: balance of address x
@@ -280,21 +279,15 @@ class Expr:
                 return IRnode.from_list(["gas"], typ=UINT256_T)
             elif key == "block.prevrandao":
                 if not version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.prevrandao in pre-Paris "
-                        "environment! Suggest using block.difficulty instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.prevrandao in pre-Paris "
+                    warning += "environment! Suggest using block.difficulty instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["prevrandao"], typ=UINT256_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
-                    warning = VyperException(
-                        "tried to use block.difficulty in post-Paris "
-                        "environment! Suggest using block.prevrandao instead.",
-                        self.expr,
-                    )
-                    vyper_warn(str(warning))
+                    warning = "tried to use block.difficulty in post-Paris "
+                    warning += "environment! Suggest using block.prevrandao instead."
+                    vyper_warn(warning, self.expr)
                 return IRnode.from_list(["difficulty"], typ=UINT256_T)
             elif key == "block.timestamp":
                 return IRnode.from_list(["timestamp"], typ=UINT256_T)
@@ -420,7 +413,7 @@ class Expr:
             op = shr if not left.typ.is_signed else sar
             return IRnode.from_list(op(right, left), typ=new_typ)
 
-        # enums can only do bit ops, not arithmetic.
+        # flags can only do bit ops, not arithmetic.
         assert is_numeric_type(left.typ)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
@@ -430,7 +423,7 @@ class Expr:
                 ret = arithmetic.safe_sub(x, y)
             elif isinstance(self.expr.op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, vy_ast.Div):
+            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.FloorDiv)):
                 ret = arithmetic.safe_div(x, y)
             elif isinstance(self.expr.op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)
@@ -645,10 +638,10 @@ class Expr:
 
         if isinstance(self.expr.op, vy_ast.Invert):
             if isinstance(operand.typ, FlagT):
-                n_members = len(operand.typ._enum_members)
+                n_members = len(operand.typ._flag_members)
                 # use (xor 0b11..1 operand) to flip all the bits in
                 # `operand`. `mask` could be a very large constant and
-                # hurt codesize, but most user enums will likely have few
+                # hurt codesize, but most user flags will likely have few
                 # enough members that the mask will not be large.
                 mask = (2**n_members) - 1
                 return IRnode.from_list(["xor", mask, operand], typ=operand.typ)
@@ -683,9 +676,7 @@ class Expr:
 
         # Struct constructor
         if is_type_t(func_type, StructT):
-            args = self.expr.args
-            if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-                return Expr.struct_literals(args[0], self.context, self.expr._metadata["type"])
+            return self.handle_struct_literal()
 
         # Interface constructor. Bar(<address>).
         if is_type_t(func_type, InterfaceT):
@@ -750,17 +741,15 @@ class Expr:
         location = body.location
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
-    @staticmethod
-    def struct_literals(expr, context, typ):
+    def handle_struct_literal(self):
+        expr = self.expr
+        typ = expr._metadata["type"]
         member_subs = {}
-        member_typs = {}
-        for key, value in zip(expr.keys, expr.values):
-            assert isinstance(key, vy_ast.Name)
-            assert key.id not in member_subs
+        for kwarg in expr.keywords:
+            assert kwarg.arg not in member_subs
 
-            sub = Expr(value, context).ir_node
-            member_subs[key.id] = sub
-            member_typs[key.id] = sub.typ
+            sub = Expr(kwarg.value, self.context).ir_node
+            member_subs[kwarg.arg] = sub
 
         return IRnode.from_list(
             ["multi"] + [member_subs[key] for key in member_subs.keys()], typ=typ

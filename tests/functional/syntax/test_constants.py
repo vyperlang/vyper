@@ -136,7 +136,7 @@ struct Foo:
     a: uint256
     b: uint256
 
-CONST_BAR: constant(Foo) = Foo({a: 1, b: block.number})
+CONST_BAR: constant(Foo) = Foo(a=1, b=block.number)
     """,
         StateAccessViolation,
     ),
@@ -164,7 +164,7 @@ S: constant(public(uint256)) = 3
 struct Foo:
     a : uint256
 
-x: constant(Foo) = Foo({a: 1})
+x: constant(Foo) = Foo(a=1)
 
 @external
 def hello() :
@@ -248,7 +248,7 @@ CONST: constant(uint256) = 8
 @external
 @view
 def test():
-    for i: uint256 in range(CONST / 4):
+    for i: uint256 in range(CONST // 4):
         pass
     """,
     """
@@ -284,7 +284,7 @@ struct Foo:
     a: uint256
     b: uint256
 
-CONST_BAR: constant(Foo) = Foo({a: 1, b: 2})
+CONST_BAR: constant(Foo) = Foo(a=1, b=2)
     """,
     """
 CONST_EMPTY: constant(bytes32) = empty(bytes32)
@@ -301,7 +301,7 @@ struct Foo:
 A: constant(uint256) = 1
 B: constant(uint256) = 2
 
-CONST_BAR: constant(Foo) = Foo({a: A, b: B})
+CONST_BAR: constant(Foo) = Foo(a=A, b=B)
     """,
     """
 struct Foo:
@@ -314,10 +314,10 @@ struct Bar:
 
 A: constant(uint256) = 1
 B: constant(uint256) = 2
-C: constant(Foo) = Foo({a: A, b: B})
+C: constant(Foo) = Foo(a=A, b=B)
 D: constant(int128) = -1
 
-CONST_BAR: constant(Bar) = Bar({c: C, d: D})
+CONST_BAR: constant(Bar) = Bar(c=C, d=D)
     """,
     """
 interface Foo:

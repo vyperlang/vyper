@@ -845,7 +845,7 @@ initializes: lib2
 
 @external
 def foo(new_value: uint256):
-    # can access lib1 state through lib2?
+    # cannot access lib1 state through lib2, lib2 does not `use` lib1.
     lib2.lib1.counter = new_value
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
@@ -858,6 +858,35 @@ def foo(new_value: uint256):
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a "
     expected_hint += "top-level statement to your contract"
     assert e.value._hint == expected_hint
+
+
+def test_uses_skip_import2(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+import lib1
+
+initializes: lib1
+
+@internal
+def foo():
+    pass
+    """
+    main = """
+import lib1
+import lib2
+
+initializes: lib2
+
+@external
+def foo(new_value: uint256):
+    # *can* access lib1 state through lib2, because lib2 initializes lib1
+    lib2.lib1.counter = new_value
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
 
 
 def test_invalid_uses(make_input_bundle, chdir_tmp_path):
@@ -1179,3 +1208,23 @@ uses: (lib1, lib2)  # should get UndeclaredDefinition
     with pytest.raises(UndeclaredDefinition) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "'lib2' has not been declared."
+
+
+def test_partial_compilation(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    main = """
+import lib1
+
+uses: lib1
+
+@internal
+def use_lib1():
+    lib1.counter += 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    assert (
+        compile_code(main, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
+        is not None
+    )
