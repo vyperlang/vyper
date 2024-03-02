@@ -44,30 +44,23 @@ def test() -> address:
 
 def test_create_minimal_proxy_to_call(get_contract, w3):
     code = """
-
 interface SubContract:
-
     def hello() -> Bytes[100]: view
 
-
 other: public(address)
-
 
 @external
 def test() -> address:
     self.other = create_minimal_proxy_to(self)
     return self.other
 
-
 @external
 def hello() -> Bytes[100]:
     return b"hello world!"
 
-
 @external
 def test2() -> Bytes[100]:
-    return SubContract(self.other).hello()
-
+    return staticcall SubContract(self.other).hello()
     """
 
     c = get_contract(code)
@@ -79,30 +72,24 @@ def test2() -> Bytes[100]:
 
 def test_minimal_proxy_exception(w3, get_contract, tx_failed):
     code = """
-
 interface SubContract:
-
     def hello(a: uint256) -> Bytes[100]: view
 
-
 other: public(address)
-
 
 @external
 def test() -> address:
     self.other = create_minimal_proxy_to(self)
     return self.other
 
-
 @external
 def hello(a: uint256) -> Bytes[100]:
     assert a > 0, "invaliddddd"
     return b"hello world!"
 
-
 @external
 def test2(a: uint256) -> Bytes[100]:
-    return SubContract(self.other).hello(a)
+    return staticcall SubContract(self.other).hello(a)
     """
 
     c = get_contract(code)
