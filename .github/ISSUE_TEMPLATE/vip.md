@@ -1,7 +1,12 @@
 ---
 name: Vyper Improvement Proposal (VIP)
 about: This is the suggested template for new VIPs.
+title: ''
+labels: ''
+assignees: ''
+
 ---
+
 ## Simple Summary
 "If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the VIP.
 

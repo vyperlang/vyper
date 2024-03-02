@@ -1,6 +1,11 @@
 ---
 name: Bug Report
-about: Any general feedback or bug reports about the Vyper Compiler. No new features proposals.
+about: Any general feedback or bug reports about the Vyper Compiler. No new features
+  proposals.
+title: ''
+labels: ''
+assignees: ''
+
 ---
 
 ### Version Information
