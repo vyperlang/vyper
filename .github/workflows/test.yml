@@ -65,11 +65,8 @@ jobs:
         python-version: "3.11"
         cache: "pip"
 
-    - name: Install Tox
-      run: pip install tox
-
-    - name: Run Tox
-      run: TOXENV=mypy tox -r
+    - name: Run mypy
+      run: make mypy
 
   # "Regular"/core tests.
   tests:
