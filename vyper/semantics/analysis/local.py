@@ -464,10 +464,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
-            raise StructureException("Expressions without assignment are disallowed", node)
+        # NOTE: standalone staticcalls are banned!
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall)):
+            raise StructureException(
+                "Expressions without assignment are disallowed",
+                node,
+                hint="did you mean to assign the result to a variable?",
+            )
 
-        if isinstance(node.value, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        if isinstance(node.value, vy_ast.ExtCall):
             call_node = node.value.value
         else:
             call_node = node.value
