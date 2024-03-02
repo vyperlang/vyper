@@ -17,8 +17,19 @@ dev-init:
 test:
 	pytest
 
-lint:
-	tox -e lint,mypy
+lint: mypy black flake8 isort
+
+mypy:
+	mypy --install-types --non-interactive --follow-imports=silent --ignore-missing-imports --implicit-optional -p vyper
+
+black:
+	black -C -t py311 vyper/ tests/ setup.py --force-exclude=vyper/version.py
+
+flake8: black
+	flake8 vyper/ tests/
+
+isort: black
+	isort vyper/ tests/ setup.py
 
 docs:
 	rm -f docs/vyper.rst

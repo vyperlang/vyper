@@ -31,11 +31,9 @@ jobs:
 
     - name: Run flake8
       run: flake8 ./vyper ./tests ./setup.py
-      if: always()
 
     - name: Run isort
       run: isort --check-only --diff ./vyper ./tests ./setup.py
-      if: always()
 
   docs:
     runs-on: ubuntu-latest
