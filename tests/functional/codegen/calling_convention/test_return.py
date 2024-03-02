@@ -203,7 +203,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> (String[6], uint256):
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
@@ -225,7 +225,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> (Bytes[6], uint256):
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
@@ -645,9 +645,7 @@ interface IBar:
 
 @external
 def foo(addr: address) -> Foo:
-    return Foo(
-        a=IBar(addr).bar().a
-    )
+    return Foo(a=(staticcall IBar(addr).bar()).a)
     """
 
     c = get_contract(code)
@@ -693,7 +691,7 @@ def foo(addr: address) -> Foo:
     return Foo(
         a=1,
         b=2,
-        c=IBar(addr).bar().a,
+        c=(staticcall IBar(addr).bar()).a,
         d=4,
         e=IBar(addr).baz(IBar(addr).bar().b)
     )
@@ -734,7 +732,7 @@ interface IBar:
 @external
 def foo(addr: address) -> Foo:
     return Foo(
-        a=IBar(addr).baz(IBar(addr).bar().a)
+        a=staticcall IBar(addr).baz(IBar(addr).bar()).a
     )
     """
 
@@ -767,7 +765,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> Person:
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)
@@ -795,7 +793,7 @@ interface jsonabi:
 
 @external
 def test_values(a: address) -> Person:
-    return jsonabi(a).test_return()
+    return staticcall jsonabi(a).test_return()
     """
 
     c2 = get_contract(code)

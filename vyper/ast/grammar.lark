@@ -285,11 +285,11 @@ _IN: "in"
        | "-"  power -> usub
        | "~"  power -> invert
 ?power: external_call
-      | power _POW  atom -> pow
+      | power _POW  external_call -> pow
 
 ?external_call: atom
-      | "extcall" call -> extcall
-      | "staticcall" call -> staticcall
+      | "extcall" atom -> extcall
+      | "staticcall" atom -> staticcall
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
