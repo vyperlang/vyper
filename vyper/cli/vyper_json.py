@@ -279,7 +279,10 @@ def compile_from_input_dict(
     output_formats = get_output_formats(input_dict)
     compilation_targets = list(output_formats.keys())
 
-    input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
+    search_paths = [Path(root_folder)]
+    if root_folder != ".":
+        search_paths.insert(0, Path("."))
+    input_bundle = JSONInputBundle(sources, search_paths=search_paths)
 
     res, warnings_dict = {}, {}
     warnings.simplefilter("always")
