@@ -40,7 +40,7 @@ import: _IMPORT DOT* _import_path [import_alias]
 constant: "constant" "(" type ")"
 constant_private: NAME ":" constant
 constant_with_getter: NAME ":" "public" "(" constant ")"
-constant_def: (constant_private | constant_with_getter) "=" _expr
+constant_def: (constant_private | constant_with_getter) "=" expr
 
 // immutable definitions
 // NOTE: Temporary until decorators used
@@ -61,7 +61,7 @@ decorators: decorator+
 // and can return up to one parameter.
 // NOTE: Parameters can have a default value,
 //       which must be a constant or environment variable.
-parameter: NAME ":" type ["=" _expr]
+parameter: NAME ":" type ["=" expr]
 parameters: parameter ("," parameter?)*
 
 _FUNC_DECL: "def"
@@ -92,8 +92,8 @@ flag_body: _NEWLINE _INDENT (flag_member _NEWLINE)+ _DEDENT
 flag_def: _FLAG_DECL NAME ":" flag_body
 
 // Types
-array_def: (NAME | array_def | dyn_array_def) "[" _expr "]"
-dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," _expr "]"
+array_def: (NAME | array_def | dyn_array_def) "[" expr "]"
+dyn_array_def: "DynArray" "[" (NAME | array_def | dyn_array_def) "," expr "]"
 tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | array_def | dyn_array_def | tuple_def ) )* [","] ")"
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
@@ -114,7 +114,7 @@ interface_def: _INTERFACE_DECL NAME ":" _NEWLINE _INDENT ( interface_function _N
 _IMPLEMENTS_DECL: "implements"
 implements_def: _IMPLEMENTS_DECL ":" NAME
 
-exports_decl: "exports" ":" (variable_access | tuple)
+exports_decl: "exports" ":" (attribute | tuple)
 
 // Statements
 // If and For blocks create a new block, and thus are complete when de-indented
@@ -131,12 +131,12 @@ _stmt: ( if_stmt | for_stmt ) [COMMENT]
        | log_stmt
        | raise_stmt
        | assert_stmt
-       | _expr ) [COMMENT] _NEWLINE
+       | expr ) [COMMENT] _NEWLINE
 
-declaration: variable ["=" _expr]
+declaration: variable ["=" expr]
 skip_assign: "_"
-multiple_assign: (variable_access | skip_assign) ("," (variable_access | skip_assign))+
-assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
+multiple_assign: (atom_expr | skip_assign) ("," (atom_expr | skip_assign))+
+assign: (atom_expr | multiple_assign | "(" multiple_assign ")" ) "=" expr
 // NOTE: Keep these in sync with bin_op below
 ?aug_operator: "+"  -> add
              | "-"  -> sub
@@ -153,7 +153,7 @@ assign: (variable_access | multiple_assign | "(" multiple_assign ")" ) "=" _expr
              | _AND -> and
              | _OR  -> or
 // NOTE: Post-process into a normal assign
-aug_assign: variable_access aug_operator "=" _expr
+aug_assign: atom_expr aug_operator "=" expr
 
 _PASS: "pass"
 _BREAK: "break"
@@ -167,46 +167,33 @@ pass_stmt: _PASS
 break_stmt: _BREAK
 continue_stmt: _CONTINUE
 
-log_stmt: _LOG (NAME | variable_access) "(" [arguments] ")"
+log_stmt: _LOG (NAME | atom_expr) "(" [arguments] ")"
 
-return_stmt: _RETURN [_expr ("," _expr)*]
+return_stmt: _RETURN [expr ("," expr)*]
 _UNREACHABLE: "UNREACHABLE"
 raise_stmt: _RAISE -> raise
-          | _RAISE _expr -> raise_with_reason
+          | _RAISE expr -> raise_with_reason
           | _RAISE _UNREACHABLE -> raise_unreachable
-assert_stmt: _ASSERT _expr -> assert
-           | _ASSERT _expr "," _expr -> assert_with_reason
-           | _ASSERT _expr "," _UNREACHABLE -> assert_unreachable
+assert_stmt: _ASSERT expr -> assert
+           | _ASSERT expr "," expr -> assert_with_reason
+           | _ASSERT expr "," _UNREACHABLE -> assert_unreachable
 
 body: _NEWLINE _INDENT ([COMMENT] _NEWLINE | _stmt)+ _DEDENT
-cond_exec: _expr ":" body
+cond_exec: expr ":" body
 default_exec: body
 if_stmt: "if" cond_exec ("elif" cond_exec)* ["else" ":" default_exec]
 loop_variable: NAME ":" type
-loop_iterator: _expr
+loop_iterator: expr
 for_stmt: "for" loop_variable "in" loop_iterator ":" body
 
-// Expressions
-_expr: operation
-     | dict
-
-get_item: (variable_access | list) "[" _expr "]"
-get_attr: variable_access "." NAME
-call: variable_access "(" [arguments] ")"
-?variable_access: NAME -> get_var
-                | get_item
-                | get_attr
-                | call
-                | "(" variable_access ")"
-
-arg: _expr
-kwarg: NAME "=" _expr
+arg: expr
+kwarg: NAME "=" expr
 ?argument: (arg | kwarg)
 arguments: argument ("," argument)* [","]
 
-tuple: "(" "," ")" | "(" _expr ( ("," _expr)+ [","] | "," ) ")"
-list: "[" "]" | "[" _expr ("," _expr)* [","] "]"
-dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
+tuple: "(" "," ")" | "(" expr ( ("," expr)+ [","] | "," ) ")"
+list: "[" "]" | "[" expr ("," expr)* [","] "]"
+dict: "{" "}" | "{" (NAME ":" expr) ("," (NAME ":" expr))* [","] "}"
 
 
 // Operators
@@ -214,7 +201,7 @@ dict: "{" "}" | "{" (NAME ":" _expr) ("," (NAME ":" _expr))* [","] "}"
 // See https://docs.python.org/3/reference/expressions.html#operator-precedence
 // NOTE: The recursive cycle here helps enforce operator precedence
 //       Precedence goes up the lower down you go
-?operation: assignment_expr
+?expr: assignment_expr
 
 // "walrus" operator
 ?assignment_expr: ternary
@@ -289,7 +276,17 @@ _IN: "in"
 ?power: external_call
       | external_call _POW  power -> pow
 
-?external_call: ("extcall" | "staticcall")? atom
+?external_call: ("extcall" | "staticcall")? atom_expr
+
+subscript: (atom_expr | list) "[" expr "]"
+attribute: atom_expr "." NAME
+call: atom_expr "(" [arguments] ")"
+?atom_expr: NAME -> get_var
+                | subscript
+                | attribute
+                | call
+                | atom
+
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
@@ -299,13 +296,13 @@ abi_decode: "_abi_decode" "(" arg "," type ( "," kwarg )* ")"
 
 special_builtins: empty | abi_decode
 
-// NOTE: Must end recursive cycle like this (with `atom` calling `operation`)
-?atom: variable_access
-     | literal
+// NOTE: Must end recursive cycle like this (with `atom` calling `expr`)
+?atom: literal
      | special_builtins
      | tuple
      | list
-     | "(" operation ")"
+     | dict
+     | "(" expr ")"
 
 // Tokens
 // Adapted from Lark repo. https://github.com/lark-parser/lark/blob/master/examples/python3.lark
