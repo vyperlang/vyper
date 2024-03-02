@@ -284,12 +284,12 @@ _IN: "in"
        | "+"  power -> uadd
        | "-"  power -> usub
        | "~"  power -> invert
-?power: external_call
-      | power _POW  external_call -> pow
 
-?external_call: atom
-      | "extcall" atom -> extcall
-      | "staticcall" atom -> staticcall
+// TODO: add factor rule
+?power: external_call
+      | external_call _POW  power -> pow
+
+?external_call: ("extcall" | "staticcall")? atom
 
 // special rule to handle types as "arguments" (for `empty` builtin)
 empty: "empty" "(" type ")"
