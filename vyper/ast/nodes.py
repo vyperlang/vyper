@@ -1386,6 +1386,13 @@ class Pass(Stmt):
 class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
 
+    def to_dict(self):
+        ret = super().to_dict()
+        if (import_info := self._metadata.get("import_info")) is not None:
+            ret["import_info"] = import_info.to_dict()
+
+        return ret
+
     def __init__(self, *args, **kwargs):
         if len(kwargs["names"]) > 1:
             _raise_syntax_exc("Assignment statement must have one target", kwargs)

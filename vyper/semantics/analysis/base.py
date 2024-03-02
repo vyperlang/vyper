@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import InputBundle
+from vyper.compiler.input_bundle import CompilerInput, FileInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
@@ -122,9 +122,20 @@ class ImportInfo(AnalysisResult):
     typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
     qualified_module_name: str  # for error messages
-    # source_id: int
-    input_bundle: InputBundle
+    compiler_input: CompilerInput  # to recover file info for ast export
     node: vy_ast.VyperNode
+
+    def to_dict(self):
+        ret = {"alias": self.alias, "qualified_module_name": self.qualified_module_name}
+
+        ret["source_id"] = self.compiler_input.source_id
+        ret["path"] = str(self.compiler_input.path)
+        ret["resolved_path"] = str(self.compiler_input.resolved_path)
+
+        if isinstance(self.compiler_input, FileInput):
+            ret["source_sha256sum"] = self.compiler_input.sha256sum
+
+        return ret
 
 
 # analysis result of InitializesDecl
