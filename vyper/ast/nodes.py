@@ -651,7 +651,7 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_id")
+    __slots__ = ("path", "resolved_path", "source_sha256sum", "source_id")
 
     @contextlib.contextmanager
     def namespace(self):

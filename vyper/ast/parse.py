@@ -10,7 +10,7 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
-from vyper.utils import vyper_warn
+from vyper.utils import sha256sum, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -242,6 +242,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_Module(self, node):
         node.path = self._module_path
         node.resolved_path = self._resolved_path
+        # TODO: is this the best place for this? maybe it can be on
+        # CompilerData instead.
+        node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
         return self._visit_docstring(node)
 
