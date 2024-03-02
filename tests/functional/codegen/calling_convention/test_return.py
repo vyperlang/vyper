@@ -693,7 +693,7 @@ def foo(addr: address) -> Foo:
         b=2,
         c=(staticcall IBar(addr).bar()).a,
         d=4,
-        e=IBar(addr).baz(IBar(addr).bar().b)
+        e=(staticcall IBar(addr).baz(IBar(addr).bar()).b)
     )
     """
 
