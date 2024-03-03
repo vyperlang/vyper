@@ -133,7 +133,7 @@ class ImportInfo(AnalysisResult):
         ret["resolved_path"] = str(self.compiler_input.resolved_path)
 
         if isinstance(self.compiler_input, FileInput):
-            ret["source_sha256sum"] = self.compiler_input.sha256sum
+            ret["file_sha256sum"] = self.compiler_input.sha256sum
 
         return ret
 
