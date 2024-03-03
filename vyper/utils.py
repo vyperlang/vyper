@@ -1,8 +1,8 @@
 import binascii
-import functools
 import contextlib
 import decimal
 import enum
+import functools
 import hashlib
 import sys
 import time

@@ -2,7 +2,6 @@ import ast as python_ast
 import contextlib
 import copy
 import decimal
-from vyper.utils import sha256sum
 import functools
 import operator
 import pickle
@@ -25,7 +24,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div, sha256sum
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
