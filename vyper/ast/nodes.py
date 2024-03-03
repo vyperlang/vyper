@@ -409,6 +409,12 @@ class VyperNode:
     def module_node(self):
         return self.get_ancestor(Module)
 
+    def get_id_dict(self):
+        source_id = None
+        if self.module_node is not None:
+            source_id = self.module_node.source_id
+        return {"node_id": self.node_id, "source_id": source_id}
+
     @property
     def is_literal_value(self):
         """
@@ -482,7 +488,10 @@ class VyperNode:
                 ast_dict[key] = _to_dict(value)
 
         if "type" in self._metadata:
-            ast_dict["type"] = str(self._metadata["type"])
+            typ = self._metadata["type"]
+            ast_dict["type"] = str(typ)
+            if (decl_node := getattr(typ, "decl_node", None)) is not None:
+                ast_dict["type_decl_node"] = decl_node.get_id_dict()
 
         return ast_dict
 
