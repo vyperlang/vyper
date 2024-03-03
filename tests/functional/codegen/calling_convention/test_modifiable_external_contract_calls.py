@@ -1,7 +1,7 @@
 import pytest
-from vyper.exceptions import StructureException, SyntaxException, UnknownType
 
 from vyper.compiler import compile_code
+from vyper.exceptions import StructureException, SyntaxException, UnknownType
 
 
 def test_external_contract_call_declaration_expr(get_contract, tx_failed):

@@ -132,7 +132,13 @@ interface Foo:
 
 @external
 def foo(a: address) -> (uint256, uint256, uint256, uint256, uint256):
-    return 1, 2, (staticcall Foo(a).foo())[0], 4, staticcall Foo(a).bar((staticcall Foo(a).foo())[1])
+    return (
+        1,
+        2,
+        (staticcall Foo(a).foo())[0],
+        4,
+        staticcall Foo(a).bar((staticcall Foo(a).foo())[1])
+    )
     """
 
     c = get_contract(code)
