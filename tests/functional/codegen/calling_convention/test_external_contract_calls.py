@@ -1450,7 +1450,7 @@ def bar():
     contract_1 = """
 interface Bar:
     def bar() -> uint256: view
-    def baz(): view
+    def baz(): nonpayable
 
 @external
 def call_bar(addr: address):
@@ -1461,7 +1461,7 @@ def call_baz():
     # some address with no code
     addr: address = 0x1234567890AbcdEF1234567890aBcdef12345678
     # would fail if extcodesize check were on
-    staticcall Bar(addr).baz(skip_contract_check=True)
+    extcall Bar(addr).baz(skip_contract_check=True)
     """
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
@@ -1504,7 +1504,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    staticcall Bar(a).bar(1, 2)
+    s: bool = staticcall Bar(a).bar(1, 2)
     """,
     """
 # expected args, none given
@@ -1513,7 +1513,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    staticcall Bar(a).bar()
+    s: bool = staticcall Bar(a).bar()
     """,
     """
 # expected no args, args given
@@ -1530,7 +1530,7 @@ interface Bar:
 
 @external
 def foo(a: address, x: uint256, y: uint256):
-    staticcall Bar(a).bar(x, y=y)
+    s: uint256 = staticcall Bar(a).bar(x, y=y)
     """,
 ]
 
