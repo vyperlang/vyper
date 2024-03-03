@@ -316,6 +316,7 @@ class TupleT(VyperType):
     typeclass = "tuple"
 
     _equality_attrs = ("members",)
+    _id = "_tuple"
 
     # note: docs say that tuples are not instantiable but they
     # are in fact instantiable and the codegen works. if we
