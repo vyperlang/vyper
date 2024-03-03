@@ -34,7 +34,7 @@ def modifiable_set_lucky(_lucky: int128):
 
 @external
 def static_set_lucky(_lucky: int128):
-    staticcall self.static_bar_contract.set_lucky(_lucky)
+    extcall self.static_bar_contract.set_lucky(_lucky)
     """
 
     c1 = get_contract(contract_1)

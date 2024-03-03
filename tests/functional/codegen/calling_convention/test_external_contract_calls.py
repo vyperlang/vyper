@@ -129,11 +129,11 @@ def run():
     """
     caller = """
 interface Raises:
-    def run(): pure
+    def run(): nonpayable
 
 @external
 def run(raiser: address):
-    staticcall Raises(raiser).run()
+    extcall Raises(raiser).run()
     """
     c1 = get_contract(raiser)
     c2 = get_contract(caller)
