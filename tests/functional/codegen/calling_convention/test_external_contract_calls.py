@@ -1522,7 +1522,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    staticcall Bar(a).bar(1)
+    a: bool = staticcall Bar(a).bar(1)
     """,
     """
 interface Bar:
