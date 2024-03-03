@@ -157,6 +157,8 @@ def _strip_source_annotations(dict_node):
 
 def test_output_variable_read_write_analysis(make_input_bundle, chdir_tmp_path):
     # test we output the result of variable read/write correctly
+    # note: also tests serialization of structs, strings, static arrays,
+    # and type_decl_nodes across modules.
     lib1 = """
 struct Foo:
     a: uint256
