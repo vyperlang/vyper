@@ -253,9 +253,8 @@ class VarAccess:
         path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
         varname = var.decl_node.target.id
 
-        module_node = var.decl_node.get_ancestor(vy_ast.Module)
-        module_path = module_node.path
-        ret = {"variable": varname, "module": module_path, "access_path": path}
+        decl_node = var.decl_node.get_id_dict()
+        ret = {"name": varname, "decl_node": decl_node, "access_path": path}
         return ret
 
 
