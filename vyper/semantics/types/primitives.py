@@ -232,6 +232,7 @@ class IntegerT(NumericT):
     is_signed : bool
         Is the value signed?
     """
+
     typeclass = "integer"
 
     _valid_literal = (vy_ast.Int,)

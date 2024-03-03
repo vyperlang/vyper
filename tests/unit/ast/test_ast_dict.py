@@ -58,6 +58,10 @@ a: int128
         "col_offset": 0,
         "end_col_offset": 9,
         "end_lineno": 2,
+        "is_constant": False,
+        "is_immutable": False,
+        "is_public": False,
+        "is_transient": False,
         "lineno": 2,
         "node_id": 1,
         "src": "1:9:0",
@@ -70,14 +74,10 @@ a: int128
             "lineno": 2,
             "node_id": 2,
             "src": "1:1:0",
-            "type": "int128",
+            "type": {"bits": 128, "is_signed": True, "name": "int128", "typeclass": "integer"},
         },
+        "type": {"bits": 128, "is_signed": True, "name": "int128", "typeclass": "integer"},
         "value": None,
-        "is_constant": False,
-        "is_immutable": False,
-        "is_public": False,
-        "is_transient": False,
-        "type": "int128",
     }
 
 
@@ -223,16 +223,33 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "x", "type": "uint256"},
+            "target": {
+                "ast_type": "Name",
+                "id": "x",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
                 "value": {
                     "ast_type": "Name",
                     "id": "lib1",
-                    "type": "lib1.vy",
-                    "type_decl_node": {"source_id": 0},
+                    "type": {
+                        "name": "lib1.vy",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "module",
+                    },
                 },
                 "variable_reads": [{"access_path": [], "module": "lib1.vy", "variable": "counter"}],
             },
@@ -243,19 +260,36 @@ def qux2():
             "target": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
                 "value": {
                     "ast_type": "Name",
                     "id": "lib1",
-                    "type": "lib1.vy",
-                    "type_decl_node": {"source_id": 0},
+                    "type": {
+                        "name": "lib1.vy",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "module",
+                    },
                 },
                 "variable_reads": [{"access_path": [], "module": "lib1.vy", "variable": "counter"}],
                 "variable_writes": [
                     {"access_path": [], "module": "lib1.vy", "variable": "counter"}
                 ],
             },
-            "value": {"ast_type": "Int", "type": "uint256", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": 1,
+            },
         },
     ]
 
@@ -264,16 +298,33 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "x", "type": "uint256"},
+            "target": {
+                "ast_type": "Name",
+                "id": "x",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
                 "value": {
                     "ast_type": "Name",
                     "id": "lib1",
-                    "type": "lib1.vy",
-                    "type_decl_node": {"source_id": 0},
+                    "type": {
+                        "name": "lib1.vy",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "module",
+                    },
                 },
                 "variable_reads": [{"access_path": [], "module": "lib1.vy", "variable": "counter"}],
             },
@@ -281,12 +332,26 @@ def qux2():
         {
             "annotation": {"ast_type": "Name", "id": "uint256"},
             "ast_type": "AnnAssign",
-            "target": {"ast_type": "Name", "id": "y", "type": "uint256"},
+            "target": {
+                "ast_type": "Name",
+                "id": "y",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+            },
             "value": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
-                "value": {"ast_type": "Name", "id": "self", "type": "self"},
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": {"ast_type": "Name", "id": "self", "type": {"name": "self"}},
                 "variable_reads": [{"access_path": [], "module": "main.vy", "variable": "counter"}],
             },
         },
@@ -296,19 +361,36 @@ def qux2():
             "target": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
                 "value": {
                     "ast_type": "Name",
                     "id": "lib1",
-                    "type": "lib1.vy",
-                    "type_decl_node": {"source_id": 0},
+                    "type": {
+                        "name": "lib1.vy",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "module",
+                    },
                 },
                 "variable_reads": [{"access_path": [], "module": "lib1.vy", "variable": "counter"}],
                 "variable_writes": [
                     {"access_path": [], "module": "lib1.vy", "variable": "counter"}
                 ],
             },
-            "value": {"ast_type": "Int", "type": "uint256", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": 1,
+            },
         },
     ]
 
@@ -322,9 +404,12 @@ def qux2():
                 "func": {
                     "ast_type": "Attribute",
                     "attr": "bar",
-                    "type": "def bar():",
-                    "type_decl_node": {"source_id": 0},
-                    "value": {"ast_type": "Name", "id": "self", "type": "self"},
+                    "type": {
+                        "name": "bar",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "contract_function",
+                    },
+                    "value": {"ast_type": "Name", "id": "self", "type": {"name": "self"}},
                     "variable_reads": [
                         {"access_path": [], "module": "lib1.vy", "variable": "counter"},
                         {"access_path": [], "module": "main.vy", "variable": "counter"},
@@ -334,7 +419,7 @@ def qux2():
                     ],
                 },
                 "keywords": [],
-                "type": "(void)",
+                "type": {"name": "(void)"},
             },
         },
         {
@@ -343,19 +428,535 @@ def qux2():
             "target": {
                 "ast_type": "Attribute",
                 "attr": "counter",
-                "type": "uint256",
-                "value": {"ast_type": "Name", "id": "self", "type": "self"},
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": {"ast_type": "Name", "id": "self", "type": {"name": "self"}},
                 "variable_reads": [{"access_path": [], "module": "main.vy", "variable": "counter"}],
                 "variable_writes": [
                     {"access_path": [], "module": "main.vy", "variable": "counter"}
                 ],
             },
-            "value": {"ast_type": "Int", "type": "uint256", "value": 1},
+            "value": {
+                "ast_type": "Int",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": 1,
+            },
         },
     ]
 
     assert qux["name"] == "qux"
-    assert qux["body"] == []
+    assert qux["body"] == [
+        {
+            "ast_type": "Assign",
+            "target": {
+                "ast_type": "Attribute",
+                "attr": "bars",
+                "type": {
+                    "length": 10,
+                    "name": "DynArray",
+                    "typeclass": "dynamic_array",
+                    "value_type": {"name": "Bar", "typeclass": "struct"},
+                },
+                "value": {
+                    "ast_type": "Name",
+                    "id": "lib1",
+                    "type": {
+                        "name": "lib1.vy",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "module",
+                    },
+                },
+                "variable_reads": [{"access_path": [], "module": "lib1.vy", "variable": "bars"}],
+                "variable_writes": [{"access_path": [], "module": "lib1.vy", "variable": "bars"}],
+            },
+            "value": {
+                "ast_type": "List",
+                "elements": [],
+                "type": {
+                    "length": 10,
+                    "name": "DynArray",
+                    "typeclass": "dynamic_array",
+                    "value_type": {"name": "Bar", "typeclass": "struct"},
+                },
+            },
+        },
+        {
+            "ast_type": "Assign",
+            "target": {
+                "ast_type": "Subscript",
+                "slice": {
+                    "ast_type": "Int",
+                    "type": {"bits": 8, "is_signed": True, "name": "int8", "typeclass": "integer"},
+                    "value": 0,
+                },
+                "type": {"name": "Bar", "typeclass": "struct"},
+                "value": {
+                    "ast_type": "Attribute",
+                    "attr": "bars",
+                    "type": {
+                        "length": 10,
+                        "name": "DynArray",
+                        "typeclass": "dynamic_array",
+                        "value_type": {"name": "Bar", "typeclass": "struct"},
+                    },
+                    "value": {
+                        "ast_type": "Name",
+                        "id": "lib1",
+                        "type": {
+                            "name": "lib1.vy",
+                            "type_decl_node": {"source_id": 0},
+                            "typeclass": "module",
+                        },
+                    },
+                    "variable_reads": [
+                        {"access_path": [], "module": "lib1.vy", "variable": "bars"}
+                    ],
+                },
+                "variable_reads": [
+                    {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"}
+                ],
+                "variable_writes": [
+                    {"access_path": ["$subscript_access"], "module": "lib1.vy", "variable": "bars"}
+                ],
+            },
+            "value": {
+                "args": [
+                    {
+                        "ast_type": "Attribute",
+                        "attr": "Bar",
+                        "type": {"type_t": {"name": "Bar", "typeclass": "struct"}},
+                        "value": {
+                            "ast_type": "Name",
+                            "id": "lib1",
+                            "type": {
+                                "name": "lib1.vy",
+                                "type_decl_node": {"source_id": 0},
+                                "typeclass": "module",
+                            },
+                        },
+                    }
+                ],
+                "ast_type": "Call",
+                "func": {
+                    "ast_type": "Name",
+                    "id": "empty",
+                    "type": {"name": "empty", "typeclass": "builtin_function"},
+                },
+                "keywords": [],
+                "type": {"name": "Bar", "typeclass": "struct"},
+            },
+        },
+        {
+            "ast_type": "Assign",
+            "target": {
+                "ast_type": "Attribute",
+                "attr": "items",
+                "type": {
+                    "length": 2,
+                    "name": "SArray",
+                    "typeclass": "static_array",
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                },
+                "value": {
+                    "ast_type": "Subscript",
+                    "slice": {
+                        "ast_type": "Int",
+                        "type": {
+                            "bits": 8,
+                            "is_signed": True,
+                            "name": "int8",
+                            "typeclass": "integer",
+                        },
+                        "value": 1,
+                    },
+                    "type": {"name": "Bar", "typeclass": "struct"},
+                    "value": {
+                        "ast_type": "Attribute",
+                        "attr": "bars",
+                        "type": {
+                            "length": 10,
+                            "name": "DynArray",
+                            "typeclass": "dynamic_array",
+                            "value_type": {"name": "Bar", "typeclass": "struct"},
+                        },
+                        "value": {
+                            "ast_type": "Name",
+                            "id": "lib1",
+                            "type": {
+                                "name": "lib1.vy",
+                                "type_decl_node": {"source_id": 0},
+                                "typeclass": "module",
+                            },
+                        },
+                        "variable_reads": [
+                            {"access_path": [], "module": "lib1.vy", "variable": "bars"}
+                        ],
+                    },
+                    "variable_reads": [
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        }
+                    ],
+                },
+                "variable_reads": [
+                    {
+                        "access_path": ["$subscript_access", "items"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+                "variable_writes": [
+                    {
+                        "access_path": ["$subscript_access", "items"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+            },
+            "value": {
+                "args": [
+                    {
+                        "ast_type": "Subscript",
+                        "slice": {"ast_type": "Int", "value": 2},
+                        "type": {
+                            "type_t": {
+                                "length": 2,
+                                "name": "SArray",
+                                "typeclass": "static_array",
+                                "value_type": {"name": "Foo", "typeclass": "struct"},
+                            }
+                        },
+                        "value": {
+                            "ast_type": "Attribute",
+                            "attr": "Foo",
+                            "value": {"ast_type": "Name", "id": "lib1"},
+                        },
+                    }
+                ],
+                "ast_type": "Call",
+                "func": {
+                    "ast_type": "Name",
+                    "id": "empty",
+                    "type": {"name": "empty", "typeclass": "builtin_function"},
+                },
+                "keywords": [],
+                "type": {
+                    "length": 2,
+                    "name": "SArray",
+                    "typeclass": "static_array",
+                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                },
+            },
+        },
+        {
+            "ast_type": "Assign",
+            "target": {
+                "ast_type": "Attribute",
+                "attr": "a",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": {
+                    "ast_type": "Subscript",
+                    "slice": {
+                        "ast_type": "Int",
+                        "type": {
+                            "bits": 8,
+                            "is_signed": True,
+                            "name": "int8",
+                            "typeclass": "integer",
+                        },
+                        "value": 0,
+                    },
+                    "type": {"name": "Foo", "typeclass": "struct"},
+                    "value": {
+                        "ast_type": "Attribute",
+                        "attr": "items",
+                        "type": {
+                            "length": 2,
+                            "name": "SArray",
+                            "typeclass": "static_array",
+                            "value_type": {"name": "Foo", "typeclass": "struct"},
+                        },
+                        "value": {
+                            "ast_type": "Subscript",
+                            "slice": {
+                                "ast_type": "Int",
+                                "type": {
+                                    "bits": 8,
+                                    "is_signed": True,
+                                    "name": "int8",
+                                    "typeclass": "integer",
+                                },
+                                "value": 1,
+                            },
+                            "type": {"name": "Bar", "typeclass": "struct"},
+                            "value": {
+                                "ast_type": "Attribute",
+                                "attr": "bars",
+                                "type": {
+                                    "length": 10,
+                                    "name": "DynArray",
+                                    "typeclass": "dynamic_array",
+                                    "value_type": {"name": "Bar", "typeclass": "struct"},
+                                },
+                                "value": {
+                                    "ast_type": "Name",
+                                    "id": "lib1",
+                                    "type": {
+                                        "name": "lib1.vy",
+                                        "type_decl_node": {"source_id": 0},
+                                        "typeclass": "module",
+                                    },
+                                },
+                                "variable_reads": [
+                                    {"access_path": [], "module": "lib1.vy", "variable": "bars"}
+                                ],
+                            },
+                            "variable_reads": [
+                                {
+                                    "access_path": ["$subscript_access"],
+                                    "module": "lib1.vy",
+                                    "variable": "bars",
+                                }
+                            ],
+                        },
+                        "variable_reads": [
+                            {
+                                "access_path": ["$subscript_access", "items"],
+                                "module": "lib1.vy",
+                                "variable": "bars",
+                            }
+                        ],
+                    },
+                    "variable_reads": [
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        }
+                    ],
+                },
+                "variable_reads": [
+                    {
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+                "variable_writes": [
+                    {
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+            },
+            "value": {
+                "ast_type": "Int",
+                "type": {
+                    "bits": 256,
+                    "is_signed": False,
+                    "name": "uint256",
+                    "typeclass": "integer",
+                },
+                "value": 1,
+            },
+        },
+        {
+            "ast_type": "Assign",
+            "target": {
+                "ast_type": "Attribute",
+                "attr": "c",
+                "type": {"name": "decimal", "typeclass": "decimal"},
+                "value": {
+                    "ast_type": "Subscript",
+                    "slice": {
+                        "ast_type": "Int",
+                        "type": {
+                            "bits": 8,
+                            "is_signed": True,
+                            "name": "int8",
+                            "typeclass": "integer",
+                        },
+                        "value": 1,
+                    },
+                    "type": {"name": "Foo", "typeclass": "struct"},
+                    "value": {
+                        "ast_type": "Attribute",
+                        "attr": "items",
+                        "type": {
+                            "length": 2,
+                            "name": "SArray",
+                            "typeclass": "static_array",
+                            "value_type": {"name": "Foo", "typeclass": "struct"},
+                        },
+                        "value": {
+                            "ast_type": "Subscript",
+                            "slice": {
+                                "ast_type": "Int",
+                                "type": {
+                                    "bits": 8,
+                                    "is_signed": True,
+                                    "name": "int8",
+                                    "typeclass": "integer",
+                                },
+                                "value": 0,
+                            },
+                            "type": {"name": "Bar", "typeclass": "struct"},
+                            "value": {
+                                "ast_type": "Attribute",
+                                "attr": "bars",
+                                "type": {
+                                    "length": 10,
+                                    "name": "DynArray",
+                                    "typeclass": "dynamic_array",
+                                    "value_type": {"name": "Bar", "typeclass": "struct"},
+                                },
+                                "value": {
+                                    "ast_type": "Name",
+                                    "id": "lib1",
+                                    "type": {
+                                        "name": "lib1.vy",
+                                        "type_decl_node": {"source_id": 0},
+                                        "typeclass": "module",
+                                    },
+                                },
+                                "variable_reads": [
+                                    {"access_path": [], "module": "lib1.vy", "variable": "bars"}
+                                ],
+                            },
+                            "variable_reads": [
+                                {
+                                    "access_path": ["$subscript_access"],
+                                    "module": "lib1.vy",
+                                    "variable": "bars",
+                                }
+                            ],
+                        },
+                        "variable_reads": [
+                            {
+                                "access_path": ["$subscript_access", "items"],
+                                "module": "lib1.vy",
+                                "variable": "bars",
+                            }
+                        ],
+                    },
+                    "variable_reads": [
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        }
+                    ],
+                },
+                "variable_reads": [
+                    {
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+                "variable_writes": [
+                    {
+                        "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                        "module": "lib1.vy",
+                        "variable": "bars",
+                    }
+                ],
+            },
+            "value": {
+                "ast_type": "Decimal",
+                "type": {"name": "decimal", "typeclass": "decimal"},
+                "value": "10.0",
+            },
+        },
+    ]
 
     assert qux2["name"] == "qux2"
-    assert qux2["body"] == []
+    assert qux2["body"] == [
+        {
+            "ast_type": "Expr",
+            "value": {
+                "args": [],
+                "ast_type": "Call",
+                "func": {
+                    "ast_type": "Attribute",
+                    "attr": "qux",
+                    "type": {
+                        "name": "qux",
+                        "type_decl_node": {"source_id": 0},
+                        "typeclass": "contract_function",
+                    },
+                    "value": {"ast_type": "Name", "id": "self", "type": {"name": "self"}},
+                    "variable_reads": [
+                        {"access_path": [], "module": "lib1.vy", "variable": "bars"},
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                    ],
+                    "variable_writes": [
+                        {"access_path": [], "module": "lib1.vy", "variable": "bars"},
+                        {
+                            "access_path": ["$subscript_access"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access", "a"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                        {
+                            "access_path": ["$subscript_access", "items", "$subscript_access", "c"],
+                            "module": "lib1.vy",
+                            "variable": "bars",
+                        },
+                    ],
+                },
+                "keywords": [],
+                "type": {"name": "(void)"},
+            },
+        }
+    ]

@@ -58,7 +58,7 @@ class VyperType:
         `InterfaceT`s.
     """
 
-    typeclass: str
+    typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
     _type_members: Optional[Dict] = None
