@@ -220,7 +220,8 @@ def foo():
         lib1_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
     lib1_ast = out["annotated_ast_dict"]["ast"]
-    assert lib1_ast.pop("source_sha256sum") == lib1_file.sha256sum
+    lib1_sha256sum = lib1_ast.pop("source_sha256sum")
+    assert lib1_sha256sum == lib1_file.sha256sum
     to_strip = NODE_SRC_ATTRIBUTES + ("resolved_path", "variable_reads", "variable_writes")
     _strip_source_annotations(lib1_ast, to_strip=to_strip)
 
@@ -229,7 +230,8 @@ def foo():
         main_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
     )
     main_ast = out["annotated_ast_dict"]["ast"]
-    assert main_ast.pop("source_sha256sum") == main_file.sha256sum
+    main_sha256sum = main_ast.pop("source_sha256sum")
+    assert main_sha256sum == main_file.sha256sum
     _strip_source_annotations(main_ast, to_strip=to_strip)
 
     assert main_ast == {
