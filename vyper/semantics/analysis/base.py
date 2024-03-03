@@ -222,7 +222,8 @@ class VarAccess:
             # happens for builtins or `self` accesses
             return None
 
-        # map SUBSCRIPT_ACCESS to None
+        # map SUBSCRIPT_ACCESS to `"$subscript_access"` (which is an identifier
+        # which can't be constructed by the user)
         path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
         varname = var.decl_node.target.id
 
