@@ -764,6 +764,23 @@ class ExprNode(VyperNode):
         super().__init__(*args, **kwargs)
         self._expr_info = None
 
+    def to_dict(self):
+        ret = super().to_dict()
+        if self._expr_info is None:
+            return ret
+
+        reads = [s.to_dict() for s in self._expr_info._reads]
+        reads = [s for s in reads if s]
+        if reads:
+            ret["variable_reads"] = reads
+
+        writes = [s.to_dict() for s in self._expr_info._writes]
+        writes = [s for s in writes if s]
+        if writes:
+            ret["variable_writes"] = writes
+
+        return ret
+
 
 class Constant(ExprNode):
     # inherited class for all simple constant node types
@@ -1303,7 +1320,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+    __slots__ = ("target", "annotation", "value")
 
 
 class VariableDecl(VyperNode):
