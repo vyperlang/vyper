@@ -9,16 +9,17 @@ def test_external_contract_call_declaration_expr(get_contract, tx_failed):
 lucky: public(int128)
 
 @external
-def set_lucky(_lucky: int128):
+def set_lucky(_lucky: int128) -> int128:
     self.lucky = _lucky
+    return self.lucky
 """
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128): nonpayable
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 
 interface ConstBar:
-    def set_lucky(_lucky: int128): view
+    def set_lucky(_lucky: int128) -> int128: view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -34,7 +35,7 @@ def modifiable_set_lucky(_lucky: int128):
 
 @external
 def static_set_lucky(_lucky: int128):
-    extcall self.static_bar_contract.set_lucky(_lucky)
+    s: int128 = staticcall self.static_bar_contract.set_lucky(_lucky)
     """
 
     c1 = get_contract(contract_1)
