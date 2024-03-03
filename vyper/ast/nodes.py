@@ -369,6 +369,8 @@ class VyperNode:
         return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
+        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
+        # nodes, especially if they come from other modules
         if not isinstance(other, type(self)):
             return False
         if getattr(other, "node_id", None) != getattr(self, "node_id", None):
@@ -407,6 +409,8 @@ class VyperNode:
 
     @property
     def module_node(self):
+        if isinstance(self, Module):
+            return self
         return self.get_ancestor(Module)
 
     def get_id_dict(self):

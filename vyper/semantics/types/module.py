@@ -36,7 +36,14 @@ class InterfaceT(_UserType):
     _supports_external_calls = True
     _attribute_in_annotation = True
 
-    def __init__(self, _id: str, functions: dict, events: dict, structs: dict) -> None:
+    def __init__(
+        self,
+        _id: str,
+        decl_node: Optional[vy_ast.VyperNode],
+        functions: dict,
+        events: dict,
+        structs: dict,
+    ) -> None:
         validate_unique_method_ids(list(functions.values()))
 
         members = functions | events | structs
@@ -52,6 +59,8 @@ class InterfaceT(_UserType):
         self.functions = functions
         self.events = events
         self.structs = structs
+
+        self.decl_node = decl_node
 
     def get_type_member(self, attr, node):
         # get an event or struct from this interface
@@ -140,6 +149,7 @@ class InterfaceT(_UserType):
     def _from_lists(
         cls,
         interface_name: str,
+        decl_node: Optional[vy_ast.VyperNode],
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: list[tuple[str, EventT]],
         struct_list: list[tuple[str, StructT]],
@@ -169,7 +179,7 @@ class InterfaceT(_UserType):
             _mark_seen(name, struct)
             structs[name] = struct
 
-        return cls(interface_name, functions, events, structs)
+        return cls(interface_name, decl_node, functions, events, structs)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -197,7 +207,7 @@ class InterfaceT(_UserType):
             events.append((item["name"], EventT.from_abi(item)))
 
         structs: list = []  # no structs in json ABI (as of yet)
-        return cls._from_lists(name, functions, events, structs)
+        return cls._from_lists(name, None, functions, events, structs)
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -230,7 +240,7 @@ class InterfaceT(_UserType):
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
 
-        return cls._from_lists(module_t._id, funcs, events, structs)
+        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs)
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
@@ -251,7 +261,7 @@ class InterfaceT(_UserType):
         events: list = []
         structs: list = []
 
-        return cls._from_lists(node.name, functions, events, structs)
+        return cls._from_lists(node.name, node, functions, events, structs)
 
 
 # Datatype to store all module information.
@@ -320,6 +330,10 @@ class ModuleT(VyperType):
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         return self._helper.get_member(key, node)
+
+    @property
+    def decl_node(self) -> Optional[vy_ast.VyperNode]:  # type: ignore[override]
+        return self._module
 
     @cached_property
     def function_defs(self):

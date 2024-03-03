@@ -240,10 +240,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        # TODO: is this the best place for these? maybe they can be on
+        # CompilerData instead.
         node.path = self._module_path
         node.resolved_path = self._resolved_path
-        # TODO: is this the best place for this? maybe it can be on
-        # CompilerData instead.
         node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
         return self._visit_docstring(node)
