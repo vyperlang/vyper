@@ -1,4 +1,5 @@
 import binascii
+import functools
 import contextlib
 import decimal
 import enum
@@ -146,6 +147,7 @@ except ImportError:
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
 
+@functools.lru_cache(maxsize=512)
 def sha256sum(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).digest().hex()
 
