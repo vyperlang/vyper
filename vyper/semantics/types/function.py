@@ -816,6 +816,7 @@ class MemberFunctionT(VyperType):
         return_type: the return type of this method. ex. None
     """
 
+    typeclass = "member_function"
     _is_callable = True
 
     # keep LGTM linter happy
@@ -841,6 +842,10 @@ class MemberFunctionT(VyperType):
     @property
     def modifiability(self):
         return Modifiability.MODIFIABLE if self.is_modifying else Modifiability.RUNTIME_CONSTANT
+
+    @property
+    def _id(self):
+        return self.name
 
     def __repr__(self):
         return f"{self.underlying_type._id} member function '{self.name}'"
