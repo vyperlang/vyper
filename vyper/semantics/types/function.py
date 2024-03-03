@@ -82,6 +82,8 @@ class ContractFunctionT(VyperType):
         Whether this function is marked `@nonreentrant` or not
     """
 
+    typeclass = "contract_function"
+
     _is_callable = True
 
     def __init__(
@@ -139,6 +141,10 @@ class ContractFunctionT(VyperType):
     # API compatibility
     def decl_node(self):
         return self.ast_def
+
+    @property
+    def _id(self):
+        return self.name
 
     def mark_analysed(self):
         assert not self._analysed

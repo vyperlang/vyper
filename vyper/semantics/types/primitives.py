@@ -55,6 +55,8 @@ RANGE_1_32 = list(range(1, 33))
 
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(_PrimT):
+    typeclass = "bytes_m"
+
     _valid_literal = (vy_ast.Hex,)
 
     _equality_attrs = ("m",)
@@ -230,6 +232,7 @@ class IntegerT(NumericT):
     is_signed : bool
         Is the value signed?
     """
+    typeclass = "integer"
 
     _valid_literal = (vy_ast.Int,)
     _equality_attrs = ("is_signed", "bits")
@@ -307,6 +310,8 @@ def SINT(bits):
 
 
 class DecimalT(NumericT):
+    typeclass = "decimal"
+
     _bits = 168  # TODO generalize
     _decimal_places = 10  # TODO generalize
     _id = "decimal"

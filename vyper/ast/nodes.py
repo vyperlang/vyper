@@ -491,11 +491,9 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
 
+        # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
-            typ = self._metadata["type"]
-            ast_dict["type"] = str(typ)
-            if (decl_node := getattr(typ, "decl_node", None)) is not None:
-                ast_dict["type_decl_node"] = decl_node.get_id_dict()
+            ast_dict["type"] = self._metadata["type"].to_dict()
 
         return ast_dict
 
@@ -667,9 +665,7 @@ class Module(TopLevel):
     __slots__ = ("path", "resolved_path", "source_id")
 
     def to_dict(self):
-        ret = super().to_dict()
-        ret["source_sha256sum"] = self.source_sha256sum
-        return ret
+        return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
 
     @property
     def source_sha256sum(self):

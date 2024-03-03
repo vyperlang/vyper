@@ -41,7 +41,7 @@ class _SubscriptableT(VyperType):
 
 
 class HashMapT(_SubscriptableT):
-    _id = "HashMap"
+    _id = "HashMap"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     _equality_attrs = ("key_type", "value_type")
 
@@ -152,6 +152,10 @@ class SArrayT(_SequenceT):
     Static array type
     """
 
+    typeclass = "static_array"
+
+    _id = "SArray"
+
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
 
@@ -217,9 +221,12 @@ class DArrayT(_SequenceT):
     Dynamic array type
     """
 
+    typeclass = "dynamic_array"
+
     _valid_literal = (vy_ast.List,)
     _as_array = True
-    _id = "DynArray"
+
+    _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -305,6 +312,8 @@ class TupleT(VyperType):
 
     This class is used to represent multiple return values from functions.
     """
+
+    typeclass = "tuple"
 
     _equality_attrs = ("members",)
 

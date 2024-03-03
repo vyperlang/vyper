@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 
 
 class InterfaceT(_UserType):
+    typeclass = "interface"
+
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     _as_array = True
@@ -266,6 +268,8 @@ class InterfaceT(_UserType):
 
 # Datatype to store all module information.
 class ModuleT(VyperType):
+    typeclass = "module"
+
     _attribute_in_annotation = True
     _invalid_locations = (
         DataLocation.CALLDATA,
@@ -328,12 +332,12 @@ class ModuleT(VyperType):
     def __hash__(self):
         return hash(id(self))
 
-    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
-        return self._helper.get_member(key, node)
-
     @property
     def decl_node(self) -> Optional[vy_ast.VyperNode]:  # type: ignore[override]
         return self._module
+
+    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+        return self._helper.get_member(key, node)
 
     @cached_property
     def function_defs(self):
