@@ -2,6 +2,7 @@ import ast as python_ast
 import contextlib
 import copy
 import decimal
+from vyper.utils import sha256sum
 import functools
 import operator
 import pickle
@@ -664,7 +665,16 @@ class TopLevel(VyperNode):
 
 class Module(TopLevel):
     # metadata
-    __slots__ = ("path", "resolved_path", "source_sha256sum", "source_id")
+    __slots__ = ("path", "resolved_path", "source_id")
+
+    def to_dict(self):
+        ret = super().to_dict()
+        ret["source_sha256sum"] = self.source_sha256sum
+        return ret
+
+    @property
+    def source_sha256sum(self):
+        return sha256sum(self.full_source_code)
 
     @contextlib.contextmanager
     def namespace(self):
