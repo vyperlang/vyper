@@ -32,6 +32,13 @@ class _GenericTypeAcceptor:
         # type is the same
         return isinstance(other, self.__class__) and other.type_ == self.type_
 
+    def to_dict(self):
+        # this shouldn't really appear in the AST type annotations, but it's
+        # there for certain string literals which don't have a known type. this
+        # should be fixed soon by improving type inference. for now just put
+        # *something* in the AST.
+        return {"generic": self.type_.typeclass}
+
 
 class VyperType:
     """
