@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -26,7 +28,7 @@ class FlowWorkItem:
 type WorkListItem = FlowWorkItem | SSAWorkListItem
 
 type LatticeItem = LatticeEnum | IRLiteral
-type Lattice = map[IRVariable, LatticeItem]
+type Lattice = dict[IRVariable, LatticeItem]
 
 
 def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
@@ -38,20 +40,24 @@ def _meet(x: LatticeItem, y: LatticeItem) -> LatticeItem:
 
 
 class SCCP(IRPass):
-    uses: map[IRVariable, IRBasicBlock]
-    defs: map[IRVariable, IRInstruction]
+    dom: DominatorTree
+    uses: dict[IRVariable, IRBasicBlock]
+    defs: dict[IRVariable, IRInstruction]
     lattice: Lattice
     work_list: list[WorkListItem]
 
-    def __init__(self, uses: map[IRVariable, IRBasicBlock]):
-        self.uses = uses
+    def __init__(self, dom: DominatorTree):
+        self.dom = dom
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
+        self._compute_uses(self.dom)
         self._calculate_sccp(ctx, entry)
 
-    def _calculate_sccp(self, ctx: IRFunction, entry: IRBasicBlock) -> map[IRVariable, LatticeItem]:
+    def _calculate_sccp(
+        self, ctx: IRFunction, entry: IRBasicBlock
+    ) -> dict[IRVariable, LatticeItem]:
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), ctx)
         self.work_list.append(SSAWorkListItem(dummy, ctx.basic_blocks[0]))
@@ -87,3 +93,11 @@ class SCCP(IRPass):
             self.lattice[inst.output] = value
             for use in self.uses[inst.output]:
                 self.worklist.add(use)
+
+    def _compute_uses(self, dom: DominatorTree):
+        self.uses = {}
+        for bb in dom.dfs:
+            for var, insts in bb.get_uses().items():
+                if var not in self.uses:
+                    self.uses[var] = OrderedSet()
+                self.uses[var].update(insts)
