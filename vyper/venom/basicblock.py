@@ -357,6 +357,8 @@ class IRBasicBlock:
     instructions: list[IRInstruction]
     # basic blocks which can jump to this basic block
     cfg_in: OrderedSet["IRBasicBlock"]
+    # basic blocks that point to us and are executable
+    cfg_in_exec: OrderedSet["IRBasicBlock"]
     # basic blocks which this basic block can jump to
     cfg_out: OrderedSet["IRBasicBlock"]
     # stack items which this basic block produces
