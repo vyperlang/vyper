@@ -36,6 +36,9 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def get(self, *args, **kwargs):
         raise RuntimeError("can't call get() on OrderedSet!")
 
+    def first(self):
+        return next(iter(self.keys()))
+
     def add(self, item: _T) -> None:
         self[item] = None
 
