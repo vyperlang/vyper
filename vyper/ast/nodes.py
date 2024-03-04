@@ -319,6 +319,10 @@ class VyperNode:
         if parent is not None:
             parent._children.append(self)
 
+    @property
+    def parent(self):
+        return self._parent
+
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
         self._parent = parent
