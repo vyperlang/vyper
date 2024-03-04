@@ -60,6 +60,8 @@ interface Foo:
 def foo(f: Foo):
     s: uint256 = staticcall f.foo()
     """,
+    # TODO: tokenizer currently has issue with log+staticcall/extcall, e.g.
+    # `log Bar(staticcall f.foo() + extcall f.bar())`
 ]
 
 
@@ -147,7 +149,7 @@ def bar(f: Foo):
         "Calls to external view functions must use the `staticcall` keyword.",
         "try `staticcall f.foo()`",
     ),
-    ( # staticcall without assigning result disallowed
+    (  # staticcall without assigning result disallowed
         """
 interface Foo:
     def foo() -> uint256: view
@@ -172,6 +174,139 @@ def bar(f: Foo):
         StructureException,
         "Expressions without assignment are disallowed",
         "did you mean to assign the result to a variable?",
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    return 1
+
+@internal
+def bar():
+    s: uint256 = staticcall self.foo()
+    """,
+        CallViolation,
+        "Calls to internal functions cannot use the `staticcall` keyword.",
+        "remove the `staticcall` keyword",
+    ),
+    (
+        """
+@internal
+def foo() -> uint256:
+    return 1
+
+@internal
+def bar():
+    s: uint256 = extcall self.foo()
+    """,
+        CallViolation,
+        "Calls to internal functions cannot use the `extcall` keyword.",
+        "remove the `extcall` keyword",
+    ),
+    (
+        """
+@internal
+def foo():
+    pass
+
+@internal
+def bar():
+    extcall self.foo()
+    """,
+        CallViolation,
+        "Calls to internal functions cannot use the `extcall` keyword.",
+        "remove the `extcall` keyword",
+    ),
+    (
+        """
+@internal
+def bar():
+    extcall x
+    """,
+        StructureException,
+        "`extcall` must be followed by a function call",
+        "did you forget parentheses?",
+    ),
+    (
+        """
+@internal
+def bar():
+    staticcall x
+    """,
+        StructureException,
+        "`staticcall` must be followed by a function call",
+        "did you forget parentheses?",
+    ),
+    (  # test cannot call builtin
+        """
+@internal
+def bar():
+    extcall raw_call(msg.sender, b"")
+    """,
+        CallViolation,
+        "cannot use `extcall` here!",
+        "remove the `extcall` keyword",
+    ),
+    (  # test cannot call MemberFunctionT
+        """
+@internal
+def bar():
+    s: DynArray[uint256, 6] = []
+    extcall s.pop()
+    """,
+        CallViolation,
+        "cannot use `extcall` here!",
+        "remove the `extcall` keyword",
+    ),
+    (  # test cannot extcall struct ctor
+        """
+struct Foo:
+    x: uint256
+@internal
+def bar():
+    s: Foo = extcall Foo(x=1)
+    """,
+        CallViolation,
+        "cannot use `extcall` here!",
+        "remove the `extcall` keyword",
+    ),
+    # maybe this test belongs in the logging tests
+    (  # test cannot extcall log ctor
+        """
+event Foo:
+    x: uint256
+@internal
+def bar():
+    log extcall Foo(1)
+    """,
+        StructureException,
+        "Log must call an event",
+        None,
+    ),
+    (  # test cannot extcall event ctor
+        """
+event Foo:
+    x: uint256
+@internal
+def bar():
+    extcall Foo(1)
+    """,
+        StructureException,
+        "To call an event you must use the `log` statement",
+        None,
+    ),
+    (  # test cannot extcall interface ctor
+        """
+interface Foo:
+    def foo(): nonpayable
+
+@internal
+def bar():
+    extcall Foo(msg.sender)
+    """,
+        StructureException,
+        "Function `type(interface Foo)` cannot be called without assigning the result",
+        None,
     ),
 ]
 

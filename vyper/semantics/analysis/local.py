@@ -495,7 +495,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
-                f"Function '{fn_type._id}' cannot be called without assigning the result", node
+                f"Function `{fn_type}` cannot be called without assigning the result"
             )
         self.expr_visitor.visit(node.value, return_value)
 
@@ -742,7 +742,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             kind = node.kind_str
             msg = f"cannot use `{kind}` here!"
             hint = f"remove the `{kind}` keyword"
-            raise CallViolation(msg, node._parent, hint=hint)
+            raise CallViolation(msg, node.parent, hint=hint)
 
         if isinstance(func_type, ContractFunctionT):
             # function calls
@@ -761,7 +761,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     kind = node.kind_str
                     msg = f"Calls to internal functions cannot use the `{kind}` keyword."
                     hint = f"remove the `{kind}` keyword"
-                    raise CallViolation(msg, node._parent, hint=hint)
+                    raise CallViolation(msg, node.parent, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():

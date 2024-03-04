@@ -341,7 +341,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.value, python_ast.Yield):
-            # TODO: unremove from the enclosing Expr
+            # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
             node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
 
