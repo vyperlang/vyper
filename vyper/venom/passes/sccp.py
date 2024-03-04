@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
@@ -106,15 +107,15 @@ class SCCP(IRPass):
         if value != self.lattice(inst.output):
             self.lattice[inst.output] = value
             for use in self.uses[inst.output]:
-                self.worklist.add(use)
+                self.work_list.append(use)
 
     def _visitExpr(self, inst: IRInstruction):
         opcode = inst.opcode
-        self._eval(inst)
-        if opcode == "add":
-            pass
-        elif opcode == "sub":
-            pass
+        if opcode in ["add", "sub"]:
+            self._eval(inst)
+        elif opcode == "push":
+            self.lattice[inst.output] = inst.operands[0]
+            self._add_ssa_work_items(inst)
 
     def _eval(self, inst) -> LatticeItem:
         opcode = inst.opcode
@@ -128,13 +129,21 @@ class SCCP(IRPass):
 
         ret = None
         if LatticeEnum.BOTTOM in ops:
-            return LatticeEnum.BOTTOM
+            ret = LatticeEnum.BOTTOM
         if opcode == "add":
-            ret = ops[0].value + ops[1].value
+            ret = IRLiteral(ops[0].value + ops[1].value)
+        elif len(ops) > 0:
+            ret = ops[0]
         else:
-            return ops[0]
+            raise CompilerPanic("Bad constant evaluation")
 
-        return IRLiteral(ret)
+        self.lattice[inst.output] = ret
+        self._add_ssa_work_items(inst)
+        return ret
+
+    def _add_ssa_work_items(self, inst: IRInstruction):
+        for use in self.uses[inst.output]:
+            self.work_list.append(use)
 
     def _compute_uses(self, dom: DominatorTree):
         self.uses = {}
