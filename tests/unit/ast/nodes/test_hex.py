@@ -10,23 +10,9 @@ code_invalid_checksum = [
 foo: constant(address) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
     """
-foo: constant(address[1]) = [0x6b175474e89094c44da98b954eedeac495271d0F]
-    """,
-    """
 @external
 def foo():
     bar: address = 0x6b175474e89094c44da98b954eedeac495271d0F
-    """,
-    """
-@external
-def foo():
-    bar: address[1] = [0x6b175474e89094c44da98b954eedeac495271d0F]
-    """,
-    """
-@external
-def foo():
-    for i: address in [0x6b175474e89094c44da98b954eedeac495271d0F]:
-        pass
     """,
 ]
 
@@ -39,6 +25,20 @@ def test_bad_checksum_address(code):
 
 
 code_invalid_literal = [
+    """
+foo: constant(address[1]) = [0x6b175474e89094c44da98b954eedeac495271d0F]
+    """,
+    """
+@external
+def foo():
+    for i: address in [0x6b175474e89094c44da98b954eedeac495271d0F]:
+        pass
+    """,
+    """
+@external
+def foo():
+    bar: address[1] = [0x6b175474e89094c44da98b954eedeac495271d0F]
+    """,
     """
 foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
