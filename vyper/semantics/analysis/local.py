@@ -735,22 +735,32 @@ class ExprVisitor(VyperNodeVisitorBase):
         func_info = get_expr_info(node.func, is_callable=True)
         func_type = func_info.typ
 
+        # TODO: unify the APIs for different callable types so that
+        # we don't need so much branching here.
+
+        if not node.is_plain_call and not isinstance(func_type, ContractFunctionT):
+            kind = node.kind_str
+            msg = f"cannot use `{kind}` here!"
+            hint = f"remove the `{kind}` keyword"
+            raise CallViolation(msg, hint=hint)
+
         if isinstance(func_type, ContractFunctionT):
             # function calls
-            if not func_type.is_external and (node.is_extcall or node.is_staticcall):
-                kind_str = "extcall" if node.is_extcall else "staticcall"
-                msg = f"Calls to internal functions cannot use the `{kind_str}` keyword."
-                hint = f"remove the `{kind_str}` keyword"
-                raise CallViolation(msg, hint=hint)
-            elif func_type.is_external:
-                missing_keyword = not (node.is_extcall or node.is_staticcall)
+            if func_type.is_external:
+                missing_keyword = node.is_plain_call
                 is_static = func_type.mutability < StateMutability.NONPAYABLE
 
                 if is_static != node.is_staticcall or missing_keyword:
                     should = "staticcall" if is_static else "extcall"
                     msg = f"Calls to external {func_type.mutability} functions "
-                    msg += f"must use the `{should}` keyword. "
+                    msg += f"must use the `{should}` keyword."
                     hint = f"try `{should} {node.node_source_code}`"
+                    raise CallViolation(msg, hint=hint)
+            else:
+                if not node.is_plain_call:
+                    kind = node.kind_str
+                    msg = f"Calls to internal functions cannot use the `{kind}` keyword."
+                    hint = f"remove the `{kind}` keyword"
                     raise CallViolation(msg, hint=hint)
 
             if not func_type.from_interface:

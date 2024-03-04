@@ -13,6 +13,7 @@ from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -1243,6 +1244,18 @@ class Call(ExprNode):
     @property
     def is_staticcall(self):
         return isinstance(self._parent, StaticCall)
+
+    @property
+    def is_plain_call(self):
+        return not (self.is_extcall or self.is_staticcall)
+
+    @property
+    def kind_str(self):
+        if self.is_extcall:
+            return "extcall"
+        if self.is_staticcall:
+            return "staticcall"
+        raise CompilerPanic("unreachable!")  # pragma: nocover
 
     @property
     def is_terminus(self):

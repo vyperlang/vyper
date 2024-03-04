@@ -219,10 +219,16 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                 elif string in CUSTOM_STATEMENT_TYPES:
                     new_keyword = "yield"
                     adjustment = len(new_keyword) - len(string)
+                    # adjustments for following staticcall/extcall modification_offsets
                     _col_adjustments[start[0]] += adjustment
                     toks = [TokenInfo(NAME, new_keyword, start, end, line)]
                     modification_offsets[start] = CUSTOM_STATEMENT_TYPES[string]
                 elif string in CUSTOM_EXPRESSION_TYPES:
+                    # a bit cursed technique to get untokenize to put
+                    # the new tokens in the right place so that modification_offsets
+                    # will work correctly.
+                    # (recommend comparing the result of pre_parse with the
+                    # source code side by side to visualize the whitespace)
                     new_keyword = "await"
                     vyper_type = CUSTOM_EXPRESSION_TYPES[string]
 
