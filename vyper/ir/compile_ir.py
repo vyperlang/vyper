@@ -785,8 +785,7 @@ def note_line_num(line_number_map, pc, item):
         if item.error_msg is not None:
             line_number_map["error_map"][pc] = item.error_msg
 
-    added_line_breakpoint = note_breakpoint(line_number_map, pc, item)
-    return added_line_breakpoint
+    note_breakpoint(line_number_map, pc, item)
 
 
 def note_breakpoint(line_number_map, pc, item):
