@@ -60,7 +60,7 @@ class SCCP(IRPass):
     ) -> dict[IRVariable, LatticeItem]:
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), ctx)
-        self.work_list.append(SSAWorkListItem(dummy, ctx.basic_blocks[0]))
+        self.work_list.append(FlowWorkItem(dummy, ctx.basic_blocks[0]))
 
         for v in self.uses.keys():
             self.lattice[v] = LatticeEnum.TOP
@@ -68,19 +68,33 @@ class SCCP(IRPass):
         while len(self.work_list) > 0:
             workItem = self.work_list.pop()
             if isinstance(workItem, FlowWorkItem):
-                if workItem.start in workItem.end.cfg_in_exec:
+                start = workItem.start
+                end = workItem.end
+                if start in end.cfg_in_exec:
                     continue
-                workItem.end.cfg_in_exec.add(workItem.start)
+                end.cfg_in_exec.add(start)
 
-                for inst in workItem.end.instructions:
+                for inst in end.instructions:
                     if inst.opcode == "phi":
                         self._visitPhi(inst)
-            else:
+
+                if len(end.cfg_in_exec) == 1:
+                    for inst in end.instructions:
+                        self._visitExpr(inst)
+
+                if len(end.cfg_out) == 1:
+                    self.work_list.append(FlowWorkItem(end, end.cfg_out[0]))
+            elif isinstance(workItem, SSAWorkListItem):
+                if workItem.inst.opcode == "phi":
+                    self._visitPhi(workItem.inst)
+                else:
+                    self._visitExpr(workItem.inst)
                 pass
+
+        print(self.lattice)
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
-        labels = inst.get_label_operands()
         bb = inst.parent
         assert bb is not None
         vars = []
@@ -93,6 +107,34 @@ class SCCP(IRPass):
             self.lattice[inst.output] = value
             for use in self.uses[inst.output]:
                 self.worklist.add(use)
+
+    def _visitExpr(self, inst: IRInstruction):
+        opcode = inst.opcode
+        self._eval(inst)
+        if opcode == "add":
+            pass
+        elif opcode == "sub":
+            pass
+
+    def _eval(self, inst) -> LatticeItem:
+        opcode = inst.opcode
+
+        ops = []
+        for op in inst.get_non_label_operands():
+            if isinstance(op, IRVariable):
+                ops.append(self.lattice[op])
+            else:
+                ops.append(op)
+
+        ret = None
+        if LatticeEnum.BOTTOM in ops:
+            return LatticeEnum.BOTTOM
+        if opcode == "add":
+            ret = ops[0].value + ops[1].value
+        else:
+            return ops[0]
+
+        return IRLiteral(ret)
 
     def _compute_uses(self, dom: DominatorTree):
         self.uses = {}
