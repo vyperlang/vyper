@@ -241,7 +241,7 @@ def _build_node_identifier(ast_node):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_ir.assembly_to_evm(
+    bytecode, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
     # Sort line_number_map
@@ -253,7 +253,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
 
     pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
-    compressed_map = _compress_source_map(ast_map, out["pc_jump_map"])
+    compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
     out["pc_pos_map_compressed"] = compressed_map
     out["pc_pos_map"] = pc_pos_map
     out["pc_ast_map"] = node_id_map
@@ -262,16 +262,20 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     return out
 
 
-def _compress_source_map(ast_map, jump_map):
+def _compress_source_map(ast_map, jump_map, bytecode_size):
     ret = []
 
     jump_map = jump_map.copy()
+    ast_map = ast_map.copy()
 
-    for pc in sorted(ast_map):
-        ast_node = ast_map[pc]
-        # ast_node.src conveniently has the current position in
-        # the correct, compressed format
-        current_pos = [ast_node.src]
+    for pc in range(bytecode_size):
+        if pc in ast_map:
+            ast_node = ast_map.pop(pc)
+            # ast_node.src conveniently has the current position in
+            # the correct, compressed format
+            current_pos = [ast_node.src]
+        else:
+            current_pos = ["-1:-1:-1"]
 
         if pc in jump_map:
             jump_type = jump_map.pop(pc)
@@ -279,6 +283,7 @@ def _compress_source_map(ast_map, jump_map):
 
         ret.append(":".join(str(i) for i in current_pos))
 
+    assert len(ast_map) == 0, ast_map
     assert len(jump_map) == 0, jump_map
 
     return ";".join(ret)
