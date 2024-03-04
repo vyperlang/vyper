@@ -124,16 +124,18 @@ def get_array(arg1: address) -> Bytes[3]:
 def test_revert_propagation(get_contract, tx_failed, revert_string):
     raiser = f"""
 @external
-def run():
-    raise "{revert_string}"
+def run(x: bool) -> uint256:
+    if x:
+        raise "{revert_string}"
+    return 123
     """
     caller = """
 interface Raises:
-    def run(): nonpayable
+    def run(x: bool) -> uint256: pure
 
 @external
 def run(raiser: address):
-    extcall Raises(raiser).run()
+    a: uint256 = staticcall Raises(raiser).run(True)
     """
     c1 = get_contract(raiser)
     c2 = get_contract(caller)
