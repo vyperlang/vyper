@@ -374,6 +374,7 @@ class IRBasicBlock:
         self.instructions = []
         self.cfg_in = OrderedSet()
         self.cfg_out = OrderedSet()
+        self.cfg_in_exec = OrderedSet()
         self.out_vars = OrderedSet()
         self.reachable = OrderedSet()
         self.is_reachable = False
