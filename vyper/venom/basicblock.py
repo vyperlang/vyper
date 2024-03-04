@@ -466,6 +466,18 @@ class IRBasicBlock:
         """
         return [inst.output for inst in self.instructions if inst.output]
 
+    def get_uses(self) -> dict[IRVariable, IRInstruction]:
+        uses = {}
+        for inst in self.instructions:
+            ops = inst.get_non_label_operands()
+            for op in ops:
+                if not isinstance(op, IRVariable):
+                    continue
+                if op not in uses:
+                    uses[op] = OrderedSet()
+                uses[op].add(inst)
+        return uses
+
     @property
     def is_empty(self) -> bool:
         """
