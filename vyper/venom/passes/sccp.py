@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, SizeLimits
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.dominators import DominatorTree
 from vyper.venom.function import IRFunction
@@ -135,7 +135,9 @@ class SCCP(IRPass):
 
         ret = None
         if opcode == "add":
-            ret = IRLiteral(ops[0].value + ops[1].value)
+            ret = IRLiteral((ops[0].value + ops[1].value) & SizeLimits.MAX_UINT256)
+        elif opcode == "sub":
+            ret = IRLiteral((ops[0].value - ops[1].value) & SizeLimits.MAX_UINT256)
         elif len(ops) > 0:
             ret = ops[0]
         else:
