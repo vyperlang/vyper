@@ -33,10 +33,3 @@ def test_phi_case():
     calculate_cfg(ctx)
     MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
     calculate_liveness(ctx)
-    # _optimize_unused_variables(ctx)
-    # calculate_liveness(ctx)
-    print(ctx.as_graph())
-
-
-if __name__ == "__main__":
-    test_phi_case()
