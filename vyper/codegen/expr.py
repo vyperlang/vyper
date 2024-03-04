@@ -68,13 +68,6 @@ class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
     def __init__(self, node, context):
-        if isinstance(node, IRnode):
-            # this is a kludge for parse_AugAssign to pass in IRnodes
-            # directly.
-            # TODO fixme!
-            self.ir_node = node
-            return
-
         assert isinstance(node, vy_ast.VyperNode)
         if node.has_folded_value:
             node = node.get_folded_value()
@@ -377,7 +370,14 @@ class Expr:
         left = Expr.parse_value_expr(self.expr.left, self.context)
         right = Expr.parse_value_expr(self.expr.right, self.context)
 
-        is_shift_op = isinstance(self.expr.op, (vy_ast.LShift, vy_ast.RShift))
+        return Expr.handle_binop(self.expr.op, left, right, self.context)
+
+    @classmethod
+    def handle_binop(cls, op, left, right, context):
+        assert not left.is_pointer
+        assert not right.is_pointer
+
+        is_shift_op = isinstance(op, (vy_ast.LShift, vy_ast.RShift))
 
         if is_shift_op:
             assert is_numeric_type(left.typ)
@@ -386,25 +386,25 @@ class Expr:
             # Sanity check - ensure that we aren't dealing with different types
             # This should be unreachable due to the type check pass
             if left.typ != right.typ:
-                raise TypeCheckFailure(f"unreachable, {left.typ} != {right.typ}", self.expr)
+                raise TypeCheckFailure(f"unreachable: {left.typ} != {right.typ}")
             assert is_numeric_type(left.typ) or is_flag_type(left.typ)
 
         out_typ = left.typ
 
-        if isinstance(self.expr.op, vy_ast.BitAnd):
+        if isinstance(op, vy_ast.BitAnd):
             return IRnode.from_list(["and", left, right], typ=out_typ)
-        if isinstance(self.expr.op, vy_ast.BitOr):
+        if isinstance(op, vy_ast.BitOr):
             return IRnode.from_list(["or", left, right], typ=out_typ)
-        if isinstance(self.expr.op, vy_ast.BitXor):
+        if isinstance(op, vy_ast.BitXor):
             return IRnode.from_list(["xor", left, right], typ=out_typ)
 
-        if isinstance(self.expr.op, vy_ast.LShift):
+        if isinstance(op, vy_ast.LShift):
             new_typ = left.typ
             if new_typ.bits != 256:
                 # TODO implement me. ["and", 2**bits - 1, shl(right, left)]
                 raise TypeCheckFailure("unreachable")
             return IRnode.from_list(shl(right, left), typ=new_typ)
-        if isinstance(self.expr.op, vy_ast.RShift):
+        if isinstance(op, vy_ast.RShift):
             new_typ = left.typ
             if new_typ.bits != 256:
                 # TODO implement me. promote_signed_int(op(right, left), bits)
@@ -416,17 +416,17 @@ class Expr:
         assert is_numeric_type(left.typ)
 
         with left.cache_when_complex("x") as (b1, x), right.cache_when_complex("y") as (b2, y):
-            if isinstance(self.expr.op, vy_ast.Add):
+            if isinstance(op, vy_ast.Add):
                 ret = arithmetic.safe_add(x, y)
-            elif isinstance(self.expr.op, vy_ast.Sub):
+            elif isinstance(op, vy_ast.Sub):
                 ret = arithmetic.safe_sub(x, y)
-            elif isinstance(self.expr.op, vy_ast.Mult):
+            elif isinstance(op, vy_ast.Mult):
                 ret = arithmetic.safe_mul(x, y)
-            elif isinstance(self.expr.op, (vy_ast.Div, vy_ast.FloorDiv)):
+            elif isinstance(op, (vy_ast.Div, vy_ast.FloorDiv)):
                 ret = arithmetic.safe_div(x, y)
-            elif isinstance(self.expr.op, vy_ast.Mod):
+            elif isinstance(op, vy_ast.Mod):
                 ret = arithmetic.safe_mod(x, y)
-            elif isinstance(self.expr.op, vy_ast.Pow):
+            elif isinstance(op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
             else:
                 raise CompilerPanic("Unreachable")
