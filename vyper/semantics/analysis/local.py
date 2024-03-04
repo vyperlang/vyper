@@ -742,7 +742,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             kind = node.kind_str
             msg = f"cannot use `{kind}` here!"
             hint = f"remove the `{kind}` keyword"
-            raise CallViolation(msg, hint=hint)
+            raise CallViolation(msg, node._parent, hint=hint)
 
         if isinstance(func_type, ContractFunctionT):
             # function calls
@@ -761,7 +761,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     kind = node.kind_str
                     msg = f"Calls to internal functions cannot use the `{kind}` keyword."
                     hint = f"remove the `{kind}` keyword"
-                    raise CallViolation(msg, hint=hint)
+                    raise CallViolation(msg, node._parent, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():
