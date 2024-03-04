@@ -414,3 +414,19 @@ def foo(a: {typ}) -> {typ}:
     assert c.foo(100) == 6
     assert c.foo(1) == 666
     assert c.foo(0) == 31337
+
+
+def test_for_range_signed_int_overflow(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> DynArray[int256, 10]:
+    res: DynArray[int256, 10] = empty(DynArray[int256, 10])
+    x:int256 = max_value(int256)
+    y:int256 = min_value(int256)+2
+    for i:int256 in range(x,y , bound=10):
+        res.append(i)
+    return res
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()

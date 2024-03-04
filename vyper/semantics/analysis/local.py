@@ -186,7 +186,7 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
 # `module.foo` will return VarAccess for `module.foo`
 # `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
 def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
-    attrs: list[str] = []
+    path: list[str | object] = []
     info = get_expr_info(node)
 
     while info.var_info is None:
@@ -197,21 +197,21 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         if isinstance(node, vy_ast.Subscript):
             # Subscript is an analysis barrier
             # we cannot analyse if `x.y[ix1].z` overlaps with `x.y[ix2].z`.
-            attrs.clear()
+            path.append(VarAccess.SUBSCRIPT_ACCESS)
 
         if (attr := info.attr) is not None:
-            attrs.append(attr)
+            path.append(attr)
 
         assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
 
     # ignore `self.` as it interferes with VarAccess comparison across modules
-    if len(attrs) > 0 and attrs[-1] == "self":
-        attrs.pop()
-    attrs.reverse()
+    if len(path) > 0 and path[-1] == "self":
+        path.pop()
+    path.reverse()
 
-    return VarAccess(info.var_info, tuple(attrs))
+    return VarAccess(info.var_info, tuple(path))
 
 
 # get the chain of modules, e.g.
@@ -563,8 +563,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_Log(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Log must call an event", node)
+        # postcondition of Log.validate()
+        assert isinstance(node.value, vy_ast.Call)
+
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)

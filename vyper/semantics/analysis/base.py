@@ -1,6 +1,7 @@
 import enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import InputBundle
@@ -175,9 +176,9 @@ class VarInfo:
         self._modification_count = 0
 
     @property
-    def getter_type(self) -> Optional["ContractFunctionT"]:
+    def getter_ast(self) -> Optional[vy_ast.VyperNode]:
         assert self.decl_node is not None  # help mypy
-        ret = self.decl_node._metadata.get("getter_type", None)
+        ret = self.decl_node._expanded_getter
         assert (ret is not None) == self.is_public, self
         return ret
 
@@ -211,12 +212,40 @@ class VarInfo:
 @dataclass(frozen=True)
 class VarAccess:
     variable: VarInfo
-    attrs: tuple[str, ...]
+    path: tuple[str | object, ...]
+
+    # A sentinel indicating a subscript access
+    SUBSCRIPT_ACCESS: ClassVar[Any] = object()
+
+    @cached_property
+    def attrs(self):
+        ret = []
+        for s in self.path:
+            if s is self.SUBSCRIPT_ACCESS:
+                break
+            ret.append(s)
+        return tuple(ret)
 
     def contains(self, other):
         # VarAccess("v", ("a")) `contains` VarAccess("v", ("a", "b", "c"))
         sub_attrs = other.attrs[: len(self.attrs)]
         return self.variable == other.variable and sub_attrs == self.attrs
+
+    def to_dict(self):
+        var = self.variable
+        if var.decl_node is None:
+            # happens for builtins or `self` accesses
+            return None
+
+        # map SUBSCRIPT_ACCESS to `"$subscript_access"` (which is an identifier
+        # which can't be constructed by the user)
+        path = ["$subscript_access" if s is self.SUBSCRIPT_ACCESS else s for s in self.path]
+        varname = var.decl_node.target.id
+
+        module_node = var.decl_node.get_ancestor(vy_ast.Module)
+        module_path = module_node.path
+        ret = {"variable": varname, "module": module_path, "access_path": path}
+        return ret
 
 
 @dataclass

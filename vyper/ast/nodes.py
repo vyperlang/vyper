@@ -53,7 +53,8 @@ def get_node(
     ast_struct: Union[dict, python_ast.AST], parent: Optional["VyperNode"] = None
 ) -> "VyperNode":
     """
-    Convert an AST structure to a vyper AST node.
+    Convert an AST structure to a vyper AST node. Entry point to constructing
+    vyper AST nodes.
 
     This is a recursive call, all child nodes of the input value are also
     converted to Vyper nodes.
@@ -130,6 +131,9 @@ def get_node(
             f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
             stacklevel=2,
         )
+
+    node.validate()
+
     return node
 
 
@@ -728,6 +732,10 @@ class NamedExpr(Stmt):
 class Log(Stmt):
     __slots__ = ("value",)
 
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException("Log must call an event", self.value)
+
 
 class FlagDef(TopLevel):
     __slots__ = ("name", "body")
@@ -754,6 +762,23 @@ class ExprNode(VyperNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._expr_info = None
+
+    def to_dict(self):
+        ret = super().to_dict()
+        if self._expr_info is None:
+            return ret
+
+        reads = [s.to_dict() for s in self._expr_info._reads]
+        reads = [s for s in reads if s]
+        if reads:
+            ret["variable_reads"] = reads
+
+        writes = [s.to_dict() for s in self._expr_info._writes]
+        writes = [s for s in writes if s]
+        if writes:
+            ret["variable_writes"] = writes
+
+        return ret
 
 
 class Constant(ExprNode):
@@ -1261,7 +1286,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+    __slots__ = ("target", "annotation", "value")
 
 
 class VariableDecl(VyperNode):

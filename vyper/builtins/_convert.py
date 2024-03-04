@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp,
     clamp_basetype,
+    clamp_le,
     get_bytearray_length,
     int_clamp,
     is_bytes_m_type,
@@ -110,8 +111,7 @@ def _clamp_numeric_convert(arg, arg_bounds, out_bounds, arg_is_signed):
         # out_hi must be smaller than MAX_UINT256, so clample makes sense.
         # add an assertion, just in case this assumption ever changes.
         assert out_hi < 2**256 - 1, "bad assumption in numeric convert"
-        CLAMP_OP = "sle" if arg_is_signed else "le"
-        arg = clamp(CLAMP_OP, arg, out_hi)
+        arg = clamp_le(arg, out_hi, arg_is_signed)
 
     return arg
 

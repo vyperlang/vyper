@@ -115,10 +115,11 @@ class ContractFunctionT(VyperType):
         self._analysed = False
 
         # a list of internal functions this function calls.
-        # to be populated during analysis
+        # to be populated during module analysis.
         self.called_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # recursively reachable from this function
+        # to be populated during module analysis.
         self.reachable_internal_functions: OrderedSet[ContractFunctionT] = OrderedSet()
 
         # writes to variables from this function
@@ -475,9 +476,8 @@ class ContractFunctionT(VyperType):
         Used when determining if an interface has been implemented. This method
         should not be directly implemented by any inherited classes.
         """
-
-        if not self.is_external:
-            return False
+        if not self.is_external:  # pragma: nocover
+            raise CompilerPanic("unreachable!")
 
         arguments, return_type = self._iface_sig
         other_arguments, other_return_type = other._iface_sig
