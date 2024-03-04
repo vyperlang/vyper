@@ -131,11 +131,14 @@ def _construct_node_id_map(ast_struct):
 def test_node_id_map():
     code = TEST_CODE
     out = compile_code(code, output_formats=["annotated_ast_dict", "source_map", "ir"])
+    assert out["source_map"]["pc_ast_map_item_keys"] == ("source_id", "node_id")
+
     pc_ast_map = out["source_map"]["pc_ast_map"]
 
     ast_node_map = _construct_node_id_map(out["annotated_ast_dict"])
 
-    for pc, node_id in pc_ast_map.items():
+    for pc, (source_id, node_id) in pc_ast_map.items():
         assert isinstance(pc, int), pc
+        assert isinstance(source_id, int), source_id
         assert isinstance(node_id, int), node_id
         assert node_id in ast_node_map

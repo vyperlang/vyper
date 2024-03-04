@@ -239,7 +239,7 @@ def _build_asm(asm_list):
 
 def _build_node_identifier(ast_node):
     assert ast_node.module_node is not None, type(ast_node)
-    return {"source_id": ast_node.module_node.source_id, "node_id": ast_node.node_id}
+    return (ast_node.module_node.source_id, ast_node.node_id)
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
@@ -261,6 +261,8 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     out["pc_pos_map_compressed"] = compressed_map
     out["pc_pos_map"] = pc_pos_map
     out["pc_ast_map"] = node_id_map
+    # hint to consumers what the fields in pc_ast_map mean
+    out["pc_ast_map_item_keys"] = ("source_id", "node_id")
     return out
 
 
