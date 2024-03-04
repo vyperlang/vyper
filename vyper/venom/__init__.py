@@ -48,7 +48,8 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     internals = [bb for bb in ctx.basic_blocks if bb.label.value.startswith("internal")]
     make_ssa_pass = MakeSSA()
     make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
-    SCCP(make_ssa_pass.dom).run_pass(ctx, ctx.basic_blocks[0])
+    sccp_pass = SCCP(make_ssa_pass.dom)
+    sccp_pass.run_pass(ctx, ctx.basic_blocks[0])
 
     for entry in internals:
         MakeSSA().run_pass(ctx, entry)

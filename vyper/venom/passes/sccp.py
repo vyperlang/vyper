@@ -82,7 +82,11 @@ class SCCP(IRPass):
                     self._visitPhi(workItem.inst)
                 else:
                     self._visitExpr(workItem.inst)
-                pass
+                    # in_exec = [
+                    #     workItem.basic_block in bb.cfg_in_exec for bb in workItem.basic_block.cfg_in
+                    # ]
+                    if len(workItem.basic_block.cfg_in_exec) > 0:
+                        self._visitExpr(workItem.inst)
 
     def _visitPhi(self, inst: IRInstruction):
         assert inst.opcode == "phi", "Can't visit non phi instruction"
@@ -100,7 +104,7 @@ class SCCP(IRPass):
     def _visitExpr(self, inst: IRInstruction):
         print("Visit: ", inst.opcode)
         opcode = inst.opcode
-        if opcode in ["add", "sub"]:
+        if opcode in ["store", "add", "sub", "iszero", "shr", "shl"]:
             self._eval(inst)
         elif opcode == "push":
             self.lattice[inst.output] = inst.operands[0]
@@ -110,19 +114,40 @@ class SCCP(IRPass):
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
             lat = self.lattice[inst.operands[0]]
-            if _meet(lat, 0) == LatticeEnum.BOTTOM:
-                target = self.ctx.get_basic_block(inst.operands[2].value)
+            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
+            if lat == LatticeEnum.BOTTOM:
+                for op in inst.operands[1:]:
+                    target = self.ctx.get_basic_block(op.name)
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
+            else:
+                if lat.value == 0:
+                    target = self.ctx.get_basic_block(inst.operands[1].name)
+                else:
+                    target = self.ctx.get_basic_block(inst.operands[0].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
-            if _meet(lat, 1) == LatticeEnum.BOTTOM:
-                target = self.ctx.get_basic_block(inst.operands[1].value)
-                self.work_list.append(FlowWorkItem(inst.parent, target))
+            # if _meet(lat, 0) == LatticeEnum.BOTTOM:
+            #     target = self.ctx.get_basic_block(inst.operands[2].value)
+            #     self.work_list.append(FlowWorkItem(inst.parent, target))
+            # if _meet(lat, 1) == LatticeEnum.BOTTOM:
+            #     target = self.ctx.get_basic_block(inst.operands[1].value)
+            #     self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "djmp":
-            for op in inst.operands[1:]:
-                target = self.ctx.get_basic_block(op.name)
-                self.work_list.append(FlowWorkItem(inst.parent, target))
-        elif opcode == "param":
+            lat = self.lattice[inst.operands[0]]
+            assert lat != LatticeEnum.TOP, f"Got undefined var at jmp at {inst.parent}"
+            if lat == LatticeEnum.BOTTOM:
+                for op in inst.operands[1:]:
+                    target = self.ctx.get_basic_block(op.name)
+                    self.work_list.append(FlowWorkItem(inst.parent, target))
+            elif isinstance(lat, IRLiteral):
+                assert False, "Implement me"
+
+        elif opcode in ["param", "calldataload"]:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
             self._add_ssa_work_items(inst)
+        elif opcode == "mload":
+            self.lattice[inst.output] = LatticeEnum.BOTTOM
+        else:
+            self.lattice[inst.output] = LatticeEnum.BOTTOM
 
     def _eval(self, inst) -> LatticeItem:
         opcode = inst.opcode
@@ -141,24 +166,34 @@ class SCCP(IRPass):
             return LatticeEnum.BOTTOM
 
         ret = None
-        if opcode == "add":
+        if opcode == "store":
+            ret = ops[0]
+        elif opcode == "add":
             ret = IRLiteral((ops[0].value + ops[1].value) & SizeLimits.MAX_UINT256)
         elif opcode == "sub":
             ret = IRLiteral((ops[0].value - ops[1].value) & SizeLimits.MAX_UINT256)
+        elif opcode == "iszero":
+            ret = IRLiteral(1 if ops[0].value == 0 else 0)
+        elif opcode == "shr":
+            ret = IRLiteral((ops[0].value >> ops[1].value) & SizeLimits.MAX_UINT256)
+        elif opcode == "shl":
+            ret = IRLiteral((ops[0].value << ops[1].value) & SizeLimits.MAX_UINT256)
         elif len(ops) > 0:
             ret = ops[0]
         else:
             raise CompilerPanic("Bad constant evaluation")
 
-        self.lattice[inst.output] = ret
-        self._add_ssa_work_items(inst)
+        if self.lattice[inst.output].value != ret.value:
+            self.lattice[inst.output] = ret
+            self._add_ssa_work_items(inst)
+
         return ret
 
     def _add_ssa_work_items(self, inst: IRInstruction):
         if inst.output not in self.uses:
             self.uses[inst.output] = []
         for use in self.uses[inst.output]:
-            self.work_list.append(use)
+            self.work_list.append(SSAWorkListItem(use, use.parent))
 
     def _compute_uses(self, dom: DominatorTree):
         self.uses = {}
