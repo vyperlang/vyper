@@ -135,7 +135,7 @@ class VenomCompiler:
         # This is a side-effect of how dynamic jumps are temporarily being used
         # to support the O(1) dispatcher. -> look into calculate_cfg()
         for ctx in self.ctxs:
-            NormalizationPass.run_pass(ctx)
+            NormalizationPass().run_pass(ctx)
             calculate_cfg(ctx)
             calculate_liveness(ctx)
             calculate_dup_requirements(ctx)

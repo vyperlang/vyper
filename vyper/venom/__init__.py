@@ -45,9 +45,9 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     ir_pass_optimize_empty_blocks(ctx)
     ir_pass_remove_unreachable_blocks(ctx)
     internals = [bb for bb in ctx.basic_blocks if bb.label.value.startswith("internal")]
-    MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
+    MakeSSA().run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
-        MakeSSA.run_pass(ctx, entry)
+        MakeSSA().run_pass(ctx, entry)
 
     while True:
         changes = 0
@@ -63,7 +63,7 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
         calculate_liveness(ctx)
 
         changes += ir_pass_constant_propagation(ctx)
-        changes += DFTPass.run_pass(ctx)
+        changes += DFTPass().run_pass(ctx)
 
         calculate_cfg(ctx)
         calculate_liveness(ctx)
