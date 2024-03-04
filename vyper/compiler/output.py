@@ -2,8 +2,6 @@ import warnings
 from collections import OrderedDict, deque
 from pathlib import PurePath
 
-import asttokens
-
 from vyper.ast import ast_to_dict, parse_natspec
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.phases import CompilerData
@@ -255,9 +253,7 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
 
     pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
-    compressed_map = _compress_source_map(
-        compiler_data.source_code, pc_pos_map, out["pc_jump_map"], compiler_data.source_id
-    )
+    compressed_map = _compress_source_map(ast_map, out["pc_jump_map"])
     out["pc_pos_map_compressed"] = compressed_map
     out["pc_pos_map"] = pc_pos_map
     out["pc_ast_map"] = node_id_map
@@ -266,29 +262,24 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     return out
 
 
-def _compress_source_map(code, pos_map, jump_map, source_id):
-    linenos = asttokens.LineNumbers(code)
-    ret = [f"-1:-1:{source_id}:-"]
-    last_pos = [-1, -1, source_id]
+def _compress_source_map(ast_map, jump_map):
+    ret = []
 
-    for pc in sorted(pos_map)[1:]:
-        current_pos = [-1, -1, source_id]
-        if pos_map[pc]:
-            current_pos[0] = linenos.line_to_offset(*pos_map[pc][:2])
-            current_pos[1] = linenos.line_to_offset(*pos_map[pc][2:]) - current_pos[0]
+    jump_map = jump_map.copy()
+
+    for pc in sorted(ast_map):
+        ast_node = ast_map[pc]
+        # ast_node.src conveniently has the current position in
+        # the correct, compressed format
+        current_pos = [ast_node.src]
 
         if pc in jump_map:
-            current_pos.append(jump_map[pc])
-
-        for i in range(2, -1, -1):
-            if current_pos[i] != last_pos[i]:
-                last_pos[i] = current_pos[i]
-            elif len(current_pos) == i + 1:
-                current_pos.pop()
-            else:
-                current_pos[i] = ""
+            jump_type = jump_map.pop(pc)
+            current_pos.append(jump_type)
 
         ret.append(":".join(str(i) for i in current_pos))
+
+    assert len(jump_map) == 0, jump_map
 
     return ";".join(ret)
 
