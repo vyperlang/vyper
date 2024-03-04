@@ -63,6 +63,7 @@ class MakeSSA(IRPass):
             args.append(var)  # type: ignore
 
         phi = IRInstruction("phi", args, var)
+        phi.parent = basic_block
         basic_block.instructions.insert(0, phi)
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
