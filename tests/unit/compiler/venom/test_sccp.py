@@ -8,10 +8,10 @@ def test_simple_case():
     ctx = IRFunction(IRLabel("_global"))
 
     bb = ctx.get_basic_block()
-    bb.append_instruction("push", 32)
-    bb.append_instruction("push", 64)
-    bb.append_instruction("add")
-    bb.append_instruction("stop")
+    op1 = bb.append_instruction("push", 32)
+    op2 = bb.append_instruction("push", 64)
+    op3 = bb.append_instruction("add", op1, op2)
+    bb.append_instruction("return", 32, op3)
 
     make_ssa_pass = MakeSSA()
     make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])
