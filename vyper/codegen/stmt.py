@@ -44,9 +44,6 @@ class Stmt:
         self.ir_node.annotation = self.stmt.get("node_source_code")
         self.ir_node.source_pos = getpos(self.stmt)
 
-    def parse_Await(self):
-        return Stmt(self.stmt.value, self.context).ir_node
-
     def parse_Expr(self):
         return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
 

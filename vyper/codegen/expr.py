@@ -665,9 +665,6 @@ class Expr:
             min_int_val, _ = operand.typ.int_bounds
             return IRnode.from_list(["sub", 0, clamp("sgt", operand, min_int_val)], typ=operand.typ)
 
-    def parse_Await(self):
-        return Expr(self.expr.value, self.context).ir_node
-
     # Function calls
     def parse_Call(self):
         # TODO fix cyclic import
