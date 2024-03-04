@@ -137,49 +137,6 @@ def get_node(
     return node
 
 
-def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
-    """
-    Compare the represented value(s) of two vyper nodes.
-
-    This method evaluates a sort of "loose equality". It recursively compares the
-    values of each field within two different nodes but does not compare the
-    node_id or any members related to source offsets.
-
-    Arguments
-    ---------
-    left_node : VyperNode
-        First node object to compare.
-    right_node : VyperNode
-        Second node object to compare.
-
-    Returns
-    -------
-    bool
-        True if the given nodes represent the same value(s), False otherwise.
-    """
-    if not isinstance(left_node, type(right_node)):
-        return False
-
-    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
-        left_value = getattr(left_node, field_name, None)
-        right_value = getattr(right_node, field_name, None)
-
-        # compare types instead of isinstance() in case one node class inherits the other
-        if type(left_value) is not type(right_value):
-            return False
-
-        if isinstance(left_value, list):
-            if next((i for i in zip(left_value, right_value) if not compare_nodes(*i)), None):
-                return False
-        elif isinstance(left_value, VyperNode):
-            if not compare_nodes(left_value, right_value):
-                return False
-        elif left_value != right_value:
-            return False
-
-    return True
-
-
 def _to_node(obj, parent):
     # if object is a Python node or dict representing a node, convert to a Vyper node
     if isinstance(obj, (dict, python_ast.AST)):
