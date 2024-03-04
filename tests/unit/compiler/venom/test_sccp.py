@@ -39,7 +39,7 @@ def test_cont_jump_case():
     op1 = bb.append_instruction("push", 32)
     op2 = bb.append_instruction("push", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", br1.label, br2.label, op3)
+    bb.append_instruction("jnz", op3, br1.label, br2.label)
 
     br1.append_instruction("add", op3, 10)
     br1.append_instruction("stop")
@@ -75,7 +75,7 @@ def test_cont_phi_case():
     op1 = bb.append_instruction("push", 32)
     op2 = bb.append_instruction("push", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", br1.label, br2.label, op3)
+    bb.append_instruction("jnz", op3, br1.label, br2.label)
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
@@ -114,7 +114,7 @@ def test_cont_phi_const_case():
     op1 = bb.append_instruction("push", 32)
     op2 = bb.append_instruction("push", 64)
     op3 = bb.append_instruction("add", op1, op2)
-    bb.append_instruction("jnz", br1.label, br2.label, op3)
+    bb.append_instruction("jnz", op3, br1.label, br2.label)
 
     op4 = br1.append_instruction("add", op3, 10)
     br1.append_instruction("jmp", join.label)
@@ -135,3 +135,7 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%5", version=1)].value == 106
     assert sccp.lattice[IRVariable("%5", version=2)].value == 97
     assert sccp.lattice[IRVariable("%5")] == LatticeEnum.TOP
+
+
+# if __name__ == "__main__":
+#     test_cont_phi_const_case()

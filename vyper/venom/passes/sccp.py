@@ -53,7 +53,7 @@ class SCCP(IRPass):
     def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
 
         dummy = IRBasicBlock(IRLabel("__dummy_start"), self.ctx)
-        self.work_list.append(FlowWorkItem(dummy, self.ctx.basic_blocks[0]))
+        self.work_list.append(FlowWorkItem(dummy, entry))
 
         for v in self.uses.keys():
             self.lattice[v] = LatticeEnum.TOP
@@ -98,6 +98,7 @@ class SCCP(IRPass):
                 self.work_list.append(use)
 
     def _visitExpr(self, inst: IRInstruction):
+        print("Visit: ", inst.opcode)
         opcode = inst.opcode
         if opcode in ["add", "sub"]:
             self._eval(inst)
@@ -108,12 +109,16 @@ class SCCP(IRPass):
             target = self.ctx.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "jnz":
-            lat = self.lattice[inst.operands[2]]
+            lat = self.lattice[inst.operands[0]]
             if _meet(lat, 0) == LatticeEnum.BOTTOM:
-                target = self.ctx.get_basic_block(inst.operands[1].value)
+                target = self.ctx.get_basic_block(inst.operands[2].value)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
             if _meet(lat, 1) == LatticeEnum.BOTTOM:
-                target = self.ctx.get_basic_block(inst.operands[0].value)
+                target = self.ctx.get_basic_block(inst.operands[1].value)
+                self.work_list.append(FlowWorkItem(inst.parent, target))
+        elif opcode == "djmp":
+            for op in inst.operands[1:]:
+                target = self.ctx.get_basic_block(op.name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode == "param":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
@@ -123,9 +128,11 @@ class SCCP(IRPass):
         opcode = inst.opcode
 
         ops = []
-        for op in inst.get_non_label_operands():
+        for op in inst.operands:
             if isinstance(op, IRVariable):
                 ops.append(self.lattice[op])
+            elif isinstance(op, IRLabel):
+                return LatticeEnum.BOTTOM
             else:
                 ops.append(op)
 
