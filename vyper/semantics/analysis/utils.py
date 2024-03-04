@@ -314,16 +314,15 @@ class _ExprAnalyser:
                 "Numeric literal is outside of allowable range for number types", node
             )
 
-        hint = ""
+        msg = f"Could not determine type for literal value '{node.value}'"
         if isinstance(node, vy_ast.Hex) and len(node.value) == 42:
-            # call `validate_literal` for its side effect of throwing an exception for
-            # address checksum mismatch
+            # call `validate_literal` to add a hint on address checksum mismatch
             try:
                 AddressT().validate_literal(node)
             except BadChecksumAddress as e:
-                hint += e.message
+                raise InvalidLiteral(msg, node, hint=e.args[0])
 
-        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node, hint=hint)
+        raise InvalidLiteral(msg, node)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
@@ -581,7 +580,14 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    try:
+        given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    except InvalidLiteral as i:
+        # call `validate_literal` for its side effect of throwing an exception for
+        # address checksum mismatch only if the expected type is an address
+        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and len(node.value) == 42:
+            AddressT().validate_literal(node)
+        raise i
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
