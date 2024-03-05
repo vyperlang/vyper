@@ -67,8 +67,8 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     @classmethod
     def intersection(cls, *sets):
         res = OrderedSet()
-        if not sets:
-            return res
+        if len(sets) == 0:
+            raise ValueError("undefined: intersection of no sets")
         if len(sets) == 1:
             return sets[0].copy()
         for e in sets[0].keys():
