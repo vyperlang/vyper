@@ -5,11 +5,11 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES32_T
-from vyper.utils import SHA3_BASE, SHA3_PER_WORD, MemoryPositions, bytes_to_int, keccak256
+from vyper.utils import SHA3_BASE, SHA3_PER_WORD, MemoryPositions
 
 
 def _check_byteslike(typ):
-    if not isinstance(typ, _BytestringT) and typ != BYTES32_T:
+    if not isinstance(typ, _BytestringT) and typ != BYTES32_T:  # pragma: nocover
         # NOTE this may be checked at a higher level, but just be safe
         raise CompilerPanic("keccak256 only accepts bytes-like objects")
 
@@ -20,11 +20,6 @@ def _gas_bound(num_words):
 
 def keccak256_helper(to_hash, context):
     _check_byteslike(to_hash.typ)
-
-    # Can hash literals
-    # TODO this is dead code.
-    if isinstance(to_hash, bytes):
-        return IRnode.from_list(bytes_to_int(keccak256(to_hash)), typ=BYTES32_T)
 
     # Can hash bytes32 objects
     # TODO: Want to generalize to all bytes_M

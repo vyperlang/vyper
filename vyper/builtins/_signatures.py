@@ -29,7 +29,7 @@ def process_arg(arg, expected_arg_type, context):
     if isinstance(expected_arg_type, VyperType):
         return Expr(arg, context).ir_node
 
-    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
+    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: nocover
 
 
 def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):

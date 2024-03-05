@@ -114,6 +114,7 @@ def venom_xfail(request, venom_pipeline):
 
 @pytest.fixture
 def chdir_tmp_path(tmp_path):
+    # this is useful for when you want imports to have relpaths
     with working_directory(tmp_path):
         yield
 
