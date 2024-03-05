@@ -374,7 +374,11 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 msg = "not initialized!"
                 hint = f"add `{s.module_info.alias}.__init__()` to "
                 hint += "your `__init__()` function"
-                err_list.append(InitializerException(msg, s.node, hint=hint))
+
+                # grab the init function AST node for error message
+                # (it could be None, it's ok since it's just for diagnostics)
+                init_func_node = module_t.init_function.decl_node
+                err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
 
             err_list.raise_if_not_empty()
 
@@ -489,7 +493,22 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             item = next(iter(used_modules.values()))  # just pick one
             msg = f"`{module_info.alias}` uses `{item.alias}`, but it is not "
             msg += f"initialized with `{item.alias}`"
-            hint = f"add `{item.alias}` to its initializer list"
+
+            lhs = item.alias
+            rhs = None
+            # find the alias of the uninitialized module in this contract
+            # to fill out the error message with.
+            for k, v in self.namespace.items():
+                if isinstance(v, ModuleInfo) and v.module_t == item.module_t:
+                    rhs = k
+                    break
+
+            if rhs is None:
+                hint = "try importing {item.alias} first"
+            elif isinstance(module_ref, vy_ast.Name):
+                hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
+            else:
+                hint = f"add `{lhs} := {rhs}` to its initializer list"
             raise InitializerException(msg, node, hint=hint)
 
         # note: try to refactor. not a huge fan of mutating the
