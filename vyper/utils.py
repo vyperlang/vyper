@@ -35,6 +35,9 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def get(self, *args, **kwargs):
         raise RuntimeError("can't call get() on OrderedSet!")
 
+    def first(self):
+        return next(iter(self))
+
     def add(self, item: _T) -> None:
         self[item] = None
 
@@ -52,14 +55,25 @@ class OrderedSet(Generic[_T], dict[_T, None]):
         return self | other
 
     def update(self, other):
-        for item in other:
-            self.add(item)
+        super().update(self.__class__.fromkeys(other))
 
     def __or__(self, other):
         return self.__class__(super().__or__(other))
 
     def copy(self):
         return self.__class__(super().copy())
+
+    @classmethod
+    def intersection(cls, *sets):
+        res = OrderedSet()
+        if len(sets) == 0:
+            raise ValueError("undefined: intersection of no sets")
+        if len(sets) == 1:
+            return sets[0].copy()
+        for e in sets[0].keys():
+            if all(e in s for s in sets[1:]):
+                res.add(e)
+        return res
 
 
 class StringEnum(enum.Enum):
