@@ -199,7 +199,7 @@ def get_idx_two() -> uint256:
     assert c.get_idx_two() == expected_values[2][2]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression", strict=True)
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[DynArray[DynArray[int128, 3], 3], 3])

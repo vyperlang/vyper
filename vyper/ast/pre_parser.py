@@ -194,7 +194,9 @@ def pre_parse(code: str) -> tuple[Settings, ModificationOffsets, dict, str]:
                         settings.evm_version = evm_version
                     elif pragma.startswith("experimental-codegen"):
                         if settings.experimental_codegen is not None:
-                            raise StructureException("pragma experimental-codegen specified twice!", start)
+                            raise StructureException(
+                                "pragma experimental-codegen specified twice!", start
+                            )
                         settings.experimental_codegen = True
 
                     else:
