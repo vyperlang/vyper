@@ -55,8 +55,7 @@ class OrderedSet(Generic[_T], dict[_T, None]):
         return self | other
 
     def update(self, other):
-        for item in other:
-            self.add(item)
+        super().update(self.__class__.fromkeys(other))
 
     def __or__(self, other):
         return self.__class__(super().__or__(other))
