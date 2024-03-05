@@ -377,7 +377,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
                 # grab the init function AST node for error message
                 # (it could be None, it's ok since it's just for diagnostics)
-                init_func_node = module_t.init_function.decl_node
+                init_func_node = None
+                if module_t.init_function:
+                    init_func_node = module_t.init_function.decl_node
                 err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
 
             err_list.raise_if_not_empty()

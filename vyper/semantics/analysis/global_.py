@@ -60,7 +60,12 @@ def _validate_global_initializes_constraint(module_t: ModuleT):
         if u not in all_initialized_modules:
             found_module = module_t.find_module_info(u)
             if found_module is not None:
-                hint = f"add `initializes: {found_module.alias}` to `{module_t._module.path}`"
+                # TODO: do something about these constants
+                if str(module_t) in ("<unknown>", "VyperContract.vy"):
+                    module_str = "the top level of your main contract"
+                else:
+                    module_str = f"`{module_t}`"
+                hint = f"add `initializes: {found_module.alias}` to {module_str}"
             else:
                 # CMC 2024-02-06 is this actually reachable?
                 hint = f"ensure `{module_t}` is imported in your main contract!"

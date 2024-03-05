@@ -383,7 +383,7 @@ initializes: lib1
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "`lib2` uses `lib1`, but it is not initialized with `lib1`"
-    assert e.value._hint == "add `lib1` to its initializer list"
+    assert e.value._hint == "did you mean lib2[lib1 := lib1]?"
 
 
 def test_missing_uses(make_input_bundle):
