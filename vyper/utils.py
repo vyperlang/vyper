@@ -6,7 +6,6 @@ import sys
 import time
 import traceback
 import warnings
-from collections.abc import Iterator
 from typing import Generic, List, TypeVar, Union
 
 from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
@@ -37,7 +36,7 @@ class OrderedSet(Generic[_T], dict[_T, None]):
         raise RuntimeError("can't call get() on OrderedSet!")
 
     def first(self):
-        return next(iter(self.keys()))
+        return next(iter(self))
 
     def add(self, item: _T) -> None:
         self[item] = None
@@ -61,9 +60,6 @@ class OrderedSet(Generic[_T], dict[_T, None]):
 
     def __or__(self, other):
         return self.__class__(super().__or__(other))
-
-    def __iter__(self) -> Iterator[_T]:
-        return iter(self.keys())
 
     def copy(self):
         return self.__class__(super().copy())
