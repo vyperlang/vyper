@@ -14,6 +14,7 @@ extras_require = {
         "pytest-xdist>=2.5,<3.0",
         "pytest-split>=0.7.0,<1.0",
         "eth-tester[py-evm]>=0.9.0b1,<0.10",
+        "eth_abi>=4.0.0,<5.0.0",
         "py-evm>=0.7.0a1,<0.8",
         "web3==6.0.0",
         "tox>=3.15,<4.0",
