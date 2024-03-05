@@ -13,6 +13,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
+from vyper.exceptions import TypeCheckFailure
 
 Stmt = Any  # mypy kludge
 
@@ -24,8 +25,8 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
     jump_to_exit = ["exit_to", func_t._ir_info.exit_sequence_label]
 
     if context.return_type is None:
-        if stmt.value is not None:
-            return None  # triggers an exception
+        if stmt.value is not None:  # pragma: nocover
+            raise TypeCheckFailure("bad return")
 
     else:
         # sanity typecheck

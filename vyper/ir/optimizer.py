@@ -91,7 +91,7 @@ def _flip_comparison_op(opname):
         return opname.replace("g", "l")
     if "l" in opname:
         return opname.replace("l", "g")
-    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: notest
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
 # some annotations are really long. shorten them (except maybe in "verbose" mode?)
@@ -304,7 +304,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             # -1 | x == -1
             return finalize(args[1].value, [])
 
-        raise CompilerPanic("unreachable")  # pragma: notest
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # -1 - x == ~x (definition of two's complement)
     if binop == "sub" and _int(args[0], SIGNED) == -1:

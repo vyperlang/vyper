@@ -429,7 +429,7 @@ class Expr:
                 ret = arithmetic.safe_mod(x, y)
             elif isinstance(self.expr.op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic("Unreachable")
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
@@ -539,8 +539,8 @@ class Expr:
             op = "eq"
         elif isinstance(self.expr.op, vy_ast.NotEq):
             op = "ne"
-        else:
-            return  # pragma: notest
+        else:  # pragma: nocover
+            return
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, _BytestringT) and isinstance(right.typ, _BytestringT):
@@ -593,7 +593,7 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Or):
             return Expr._logical_or(values)
 
-        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: notest
+        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: nocover
 
     @staticmethod
     def _logical_and(values):

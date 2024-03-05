@@ -182,7 +182,7 @@ class Stmt:
             instantiate_msg = make_byte_array_copier(buf, msg_ir)
         else:
             buf = _get_last(msg_ir)
-            if not isinstance(buf, int):
+            if not isinstance(buf, int):  # pragma: nocover
                 raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
             instantiate_msg = msg_ir
 
@@ -414,9 +414,6 @@ def _is_terminated(code):
 
 # codegen a list of statements
 def parse_body(code, context, ensure_terminated=False):
-    if not isinstance(code, list):
-        return parse_stmt(code, context)
-
     ir_node = ["seq"]
     for stmt in code:
         ir = parse_stmt(stmt, context)
