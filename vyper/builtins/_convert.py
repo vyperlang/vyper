@@ -10,6 +10,7 @@ from vyper.codegen.core import (
     bytes_data_ptr,
     clamp,
     clamp_basetype,
+    clamp_bytestring,
     clamp_le,
     get_bytearray_length,
     int_clamp,
@@ -422,23 +423,25 @@ def to_address(expr, arg, out_typ):
     return IRnode.from_list(ret, out_typ)
 
 
+def _cast_bytestring(expr, arg, out_typ):
+    if isinstance(arg.typ, out_typ.__class__) and out_typ.maxlen <= arg.typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+    ret = ["seq"]
+    if out_typ.maxlen is None or out_typ.maxlen > arg.maxlen:
+        ret.append(clamp_bytestring(arg))
+    # NOTE: this is a pointer cast
+    return IRnode.from_list(arg, typ=out_typ)
+
+
 # question: should we allow bytesM -> String?
-@_input_types(BytesT)
+@_input_types(BytesT, StringT)
 def to_string(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT)
+@_input_types(StringT, BytesT)
 def to_bytes(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # TODO: more casts
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
 @_input_types(IntegerT)
