@@ -99,7 +99,7 @@ def check_venom_xfail(request, venom_pipeline):
         return
 
     # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(**marker.kwargs))
+    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
 
 
 @pytest.fixture
@@ -107,7 +107,7 @@ def venom_xfail(request, venom_pipeline):
     def _xfail(*args, **kwargs):
         if not venom_pipeline:
             return
-        request.node.add_marker(pytest.mark.xfail(*args, **kwargs))
+        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
 
     return _xfail
 

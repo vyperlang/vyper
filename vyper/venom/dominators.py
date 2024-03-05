@@ -56,10 +56,9 @@ class DominatorTree:
                 if bb == self.entry:
                     continue
                 preds = bb.cfg_in
-                if len(preds) > 0:
-                    new_dominators = OrderedSet.intersection(
-                        *[self.dominators[pred] for pred in preds]
-                    )
+                if len(preds) == 0:
+                    continue
+                new_dominators = OrderedSet.intersection(*[self.dominators[pred] for pred in preds])
                 new_dominators.add(bb)
                 if new_dominators != self.dominators[bb]:
                     self.dominators[bb] = new_dominators
