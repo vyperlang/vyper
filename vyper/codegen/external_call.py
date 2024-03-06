@@ -159,7 +159,7 @@ def _parse_kwargs(call_expr, context):
         default_return_value=call_kwargs.pop("default_return_value", None),
     )
 
-    if len(call_kwargs) != 0:
+    if len(call_kwargs) != 0:  # pragma: nocover
         raise TypeCheckFailure(f"Unexpected keyword arguments: {call_kwargs}")
 
     return ret

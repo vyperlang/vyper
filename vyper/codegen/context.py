@@ -211,12 +211,10 @@ class Context:
         var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
 
-    def fresh_varname(self, name: Optional[str] = None) -> str:
+    def fresh_varname(self, name: str) -> str:
         """
-        return a unique
+        return a unique variable name
         """
-        if name is None:
-            name = "var"
         t = self._internal_var_iter
         self._internal_var_iter += 1
         return f"{name}{t}"
@@ -251,4 +249,4 @@ class Context:
             return "a range expression"
         elif self.constancy == Constancy.Constant:
             return "a constant function"
-        raise CompilerPanic(f"unknown constancy in pp_constancy: {self.constancy}")
+        raise CompilerPanic(f"bad constancy: {self.constancy}")  # pragma: nocover
