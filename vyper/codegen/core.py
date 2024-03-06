@@ -654,6 +654,10 @@ def eval_once_check(name):
     return IRnode.from_list(["unique_symbol", name])
 
 
+def ensure_eval_once(name, irnode):
+    return ["seq", _freshname(name), irnode]
+
+
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location is None:
         raise CompilerPanic("cannot dereference non-pointer type")
