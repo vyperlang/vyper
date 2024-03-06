@@ -423,9 +423,13 @@ def to_address(expr, arg, out_typ):
 
 
 def _cast_bytestring(expr, arg, out_typ):
-    # can't convert Bytes[20] to Bytes[21]
+    # ban converting Bytes[20] to Bytes[21]
     if isinstance(arg.typ, out_typ.__class__) and arg.typ.maxlen <= out_typ.maxlen:
         _FAIL(arg.typ, out_typ, expr)
+    # can't downcast literals with known length (e.g. b"abc" to Bytes[2])
+    if isinstance(expr, vy_ast.Constant) and arg.typ.maxlen > out_typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+
     ret = ["seq"]
     if out_typ.maxlen < arg.typ.maxlen:
         ret.append(["assert", ["le", get_bytearray_length(arg), out_typ.maxlen]])
