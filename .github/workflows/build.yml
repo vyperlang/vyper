@@ -45,7 +45,7 @@ jobs:
 
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
           name: vyper-${{ matrix.os }}
@@ -74,7 +74,7 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           path: dist/vyper.*
           name: vyper-windows
@@ -86,13 +86,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v3
         with:
           path: artifacts/
 
       - name: Upload assets
         # fun - artifacts are downloaded into "artifact/".
-        # TODO: this needs to be tested since the upgrade to upload-artifact v4
+        # TODO: this needs to be tested when upgrading to upload-artifact v4
         working-directory: artifacts/artifact
         run: |
           set -Eeuxo pipefail
