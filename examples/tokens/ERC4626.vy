@@ -79,7 +79,7 @@ def transferFrom(sender: address, receiver: address, amount: uint256) -> bool:
 @view
 @external
 def totalAssets() -> uint256:
-    return self.asset.balanceOf(self)
+    return staticcall self.asset.balanceOf(self)
 
 
 @view
@@ -91,7 +91,7 @@ def _convertToAssets(shareAmount: uint256) -> uint256:
 
     # NOTE: `shareAmount = 0` is extremely rare case, not optimizing for it
     # NOTE: `totalAssets = 0` is extremely rare case, not optimizing for it
-    return shareAmount * self.asset.balanceOf(self) // totalSupply
+    return shareAmount * staticcall self.asset.balanceOf(self) // totalSupply
 
 
 @view
@@ -104,7 +104,7 @@ def convertToAssets(shareAmount: uint256) -> uint256:
 @internal
 def _convertToShares(assetAmount: uint256) -> uint256:
     totalSupply: uint256 = self.totalSupply
-    totalAssets: uint256 = self.asset.balanceOf(self)
+    totalAssets: uint256 = staticcall self.asset.balanceOf(self)
     if totalAssets == 0 or totalSupply == 0:
         return assetAmount  # 1:1 price
 
@@ -133,7 +133,7 @@ def previewDeposit(assets: uint256) -> uint256:
 @external
 def deposit(assets: uint256, receiver: address=msg.sender) -> uint256:
     shares: uint256 = self._convertToShares(assets)
-    self.asset.transferFrom(msg.sender, self, assets)
+    extcall self.asset.transferFrom(msg.sender, self, assets)
 
     self.totalSupply += shares
     self.balanceOf[receiver] += shares
@@ -153,7 +153,7 @@ def previewMint(shares: uint256) -> uint256:
     assets: uint256 = self._convertToAssets(shares)
 
     # NOTE: Vyper does lazy eval on `and`, so this avoids SLOADs most of the time
-    if assets == 0 and self.asset.balanceOf(self) == 0:
+    if assets == 0 and staticcall self.asset.balanceOf(self) == 0:
         return shares  # NOTE: Assume 1:1 price if nothing deposited yet
 
     return assets
@@ -163,10 +163,10 @@ def previewMint(shares: uint256) -> uint256:
 def mint(shares: uint256, receiver: address=msg.sender) -> uint256:
     assets: uint256 = self._convertToAssets(shares)
 
-    if assets == 0 and self.asset.balanceOf(self) == 0:
+    if assets == 0 and staticcall self.asset.balanceOf(self) == 0:
         assets = shares  # NOTE: Assume 1:1 price if nothing deposited yet
 
-    self.asset.transferFrom(msg.sender, self, assets)
+    extcall self.asset.transferFrom(msg.sender, self, assets)
 
     self.totalSupply += shares
     self.balanceOf[receiver] += shares
@@ -206,7 +206,7 @@ def withdraw(assets: uint256, receiver: address=msg.sender, owner: address=msg.s
     self.totalSupply -= shares
     self.balanceOf[owner] -= shares
 
-    self.asset.transfer(receiver, assets)
+    extcall self.asset.transfer(receiver, assets)
     log IERC4626.Withdraw(msg.sender, receiver, owner, assets, shares)
     return shares
 
@@ -232,7 +232,7 @@ def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sen
     self.totalSupply -= shares
     self.balanceOf[owner] -= shares
 
-    self.asset.transfer(receiver, assets)
+    extcall self.asset.transfer(receiver, assets)
     log IERC4626.Withdraw(msg.sender, receiver, owner, assets, shares)
     return assets
 
@@ -241,4 +241,4 @@ def redeem(shares: uint256, receiver: address=msg.sender, owner: address=msg.sen
 def DEBUG_steal_tokens(amount: uint256):
     # NOTE: This is the primary method of mocking share price changes
     # do not put in production code!!!
-    self.asset.transfer(msg.sender, amount)
+    extcall self.asset.transfer(msg.sender, amount)
