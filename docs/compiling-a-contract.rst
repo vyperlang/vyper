@@ -29,7 +29,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 .. code:: shell
 
-    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,annotated_ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
 
 .. note::
     The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.

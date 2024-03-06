@@ -74,6 +74,7 @@ class VyperType:
     _attribute_in_annotation: bool = False
 
     size_in_bytes = 32  # default; override for larger types
+    decl_node: Optional[vy_ast.VyperNode] = None
 
     def __init__(self, members: Optional[Dict] = None) -> None:
         self.members: Dict = {}
@@ -183,7 +184,7 @@ class VyperType:
         # TODO maybe make these AST classes inherit from "HasOperator"
         node: Union[vy_ast.UnaryOp, vy_ast.BinOp, vy_ast.AugAssign, vy_ast.Compare, vy_ast.BoolOp],
     ) -> None:
-        raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node)
+        raise InvalidOperation(f"Cannot perform {node.op.description} on {self}", node.op)
 
     def validate_comparator(self, node: vy_ast.Compare) -> None:
         """
@@ -307,10 +308,14 @@ class VyperType:
         """
         raise StructureException(f"'{self}' cannot be indexed into", node)
 
+    def _check_add_member(self, name):
+        if (prev_type := self.members.get(name)) is not None:
+            msg = f"Member '{name}' already exists in {self}"
+            raise NamespaceCollision(msg, prev_decl=prev_type.decl_node)
+
     def add_member(self, name: str, type_: "VyperType") -> None:
         validate_identifier(name)
-        if name in self.members:
-            raise NamespaceCollision(f"Member '{name}' already exists in {self}")
+        self._check_add_member(name)
         self.members[name] = type_
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
@@ -389,7 +394,7 @@ class TYPE_T(VyperType):
         raise StructureException("Value is not callable", node)
 
     # dispatch into get_type_member if it's dereferenced, ex.
-    # MyEnum.FOO
+    # MyFlag.FOO
     def get_member(self, key, node):
         if hasattr(self.typedef, "get_type_member"):
             return self.typedef.get_type_member(key, node)

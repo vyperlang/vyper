@@ -21,7 +21,7 @@ import contracts.library as library
 
 @external
 def foo(a: address) -> bool:
-    return IBar(a).bar(1)
+    return extcall IBar(a).bar(1)
 
 @external
 def baz() -> uint256:

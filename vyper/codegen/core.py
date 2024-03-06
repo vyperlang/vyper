@@ -178,14 +178,14 @@ def make_byte_array_copier(dst, src):
 
 
 def bytes_data_ptr(ptr):
-    if ptr.location is None:
+    if ptr.location is None:  # pragma: nocover
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, _BytestringT)
     return add_ofst(ptr, ptr.location.word_scale)
 
 
 def dynarray_data_ptr(ptr):
-    if ptr.location is None:
+    if ptr.location is None:  # pragma: nocover
         raise CompilerPanic("tried to modify non-pointer type")
     assert isinstance(ptr.typ, DArrayT)
     return add_ofst(ptr, ptr.location.word_scale)
@@ -510,8 +510,8 @@ def _get_element_ptr_tuplelike(parent, key):
     ofst = 0  # offset from parent start
 
     if parent.encoding == Encoding.ABI:
-        if parent.location == STORAGE:
-            raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
+        if parent.location in (STORAGE, TRANSIENT):  # pragma: nocover
+            raise CompilerPanic("storage variables should not be abi encoded")
 
         member_t = typ.member_types[attrs[index]]
 
@@ -544,7 +544,7 @@ def has_length_word(typ):
 def _get_element_ptr_array(parent, key, array_bounds_check):
     assert is_array_like(parent.typ)
 
-    if not is_integer_type(key.typ):
+    if not is_integer_type(key.typ):  # pragma: nocover
         raise TypeCheckFailure(f"{key.typ} used as array index")
 
     subtype = parent.typ.value_type
@@ -567,17 +567,21 @@ def _get_element_ptr_array(parent, key, array_bounds_check):
     if array_bounds_check:
         is_darray = isinstance(parent.typ, DArrayT)
         bound = get_dyn_array_count(parent) if is_darray else parent.typ.count
-        # uclamplt works, even for signed ints. since two's-complement
-        # is used, if the index is negative, (unsigned) LT will interpret
-        # it as a very large number, larger than any practical value for
-        # an array index, and the clamp will throw an error.
-        # NOTE: there are optimization rules for this when ix or bound is literal
-        ix = clamp("lt", ix, bound)
+        # NOTE: there are optimization rules for the bounds check when
+        # ix or bound is literal
+        with ix.cache_when_complex("ix") as (b1, ix):
+            LT = "slt" if ix.typ.is_signed else "lt"
+            # note: this is optimized out for unsigned integers
+            is_negative = [LT, ix, 0]
+            # always use unsigned ge, since bound is always an unsigned quantity
+            is_oob = ["ge", ix, bound]
+            checked_ix = ["seq", ["assert", ["iszero", ["or", is_negative, is_oob]]], ix]
+            ix = b1.resolve(IRnode.from_list(checked_ix))
         ix.set_error_msg(f"{parent.typ} bounds check")
 
     if parent.encoding == Encoding.ABI:
-        if parent.location == STORAGE:
-            raise CompilerPanic("storage variables should not be abi encoded")  # pragma: notest
+        if parent.location in (STORAGE, TRANSIENT):  # pragma: nocover
+            raise CompilerPanic("storage variables should not be abi encoded")
 
         member_abi_t = subtype.abi_type
 
@@ -603,8 +607,7 @@ def _get_element_ptr_mapping(parent, key):
     subtype = parent.typ.value_type
     key = unwrap_location(key)
 
-    # TODO when is key None?
-    if key is None or parent.location not in (STORAGE, TRANSIENT):
+    if parent.location not in (STORAGE, TRANSIENT):  # pragma: nocover
         raise TypeCheckFailure("bad dereference on mapping {parent}[{key}]")
 
     return IRnode.from_list(["sha3_64", parent, key], typ=subtype, location=parent.location)
@@ -626,18 +629,18 @@ def get_element_ptr(parent, key, array_bounds_check=True):
         elif is_array_like(typ):
             ret = _get_element_ptr_array(parent, key, array_bounds_check)
 
-        else:
-            raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")  # pragma: notest
+        else:  # pragma: nocover
+            raise CompilerPanic(f"get_element_ptr cannot be called on {typ}")
 
         return b.resolve(ret)
 
 
 def LOAD(ptr: IRnode) -> IRnode:
-    if ptr.location is None:
+    if ptr.location is None:  # pragma: nocover
         raise CompilerPanic("cannot dereference non-pointer type")
     op = ptr.location.load_op
-    if op is None:
-        raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
+    if op is None:  # pragma: nocover
+        raise CompilerPanic(f"unreachable {ptr.location}")
     return IRnode.from_list([op, ptr])
 
 
@@ -651,11 +654,11 @@ def eval_once_check(name):
 
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
-    if ptr.location is None:
+    if ptr.location is None:  # pragma: nocover
         raise CompilerPanic("cannot dereference non-pointer type")
     op = ptr.location.store_op
-    if op is None:
-        raise CompilerPanic(f"unreachable {ptr.location}")  # pragma: notest
+    if op is None:  # pragma: nocover
+        raise CompilerPanic(f"unreachable {ptr.location}")
 
     _check = _freshname(f"{op}_")
 
@@ -731,27 +734,28 @@ def dummy_node_for_type(typ):
 
 
 def _check_assign_bytes(left, right):
-    if right.typ.maxlen > left.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")  # pragma: notest
+    if right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
+        raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
 
     # stricter check for zeroing a byte array.
-    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:
-        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")  # pragma: notest
+    # TODO: these should be TypeCheckFailure instead of TypeMismatch
+    if right.value == "~empty" and right.typ.maxlen != left.typ.maxlen:  # pragma: nocover
+        raise TypeMismatch(f"Cannot cast from empty({right.typ}) to {left.typ}")
 
 
 def _check_assign_list(left, right):
     def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
-    if left.value == "multi":
+    if left.value == "multi":  # pragma: nocover
         # Cannot do something like [a, b, c] = [1, 2, 3]
-        FAIL()  # pragma: notest
+        FAIL()
 
     if isinstance(left.typ, SArrayT):
-        if not is_array_like(right.typ):
-            FAIL()  # pragma: notest
-        if left.typ.count != right.typ.count:
-            FAIL()  # pragma: notest
+        if not is_array_like(right.typ):  # pragma: nocover
+            FAIL()
+        if left.typ.count != right.typ.count:  # pragma: nocover
+            FAIL()
 
         # TODO recurse into left, right if literals?
         check_assign(
@@ -759,17 +763,17 @@ def _check_assign_list(left, right):
         )
 
     if isinstance(left.typ, DArrayT):
-        if not isinstance(right.typ, DArrayT):
-            FAIL()  # pragma: notest
+        if not isinstance(right.typ, DArrayT):  # pragma: nocover
+            FAIL()
 
-        if left.typ.count < right.typ.count:
-            FAIL()  # pragma: notest
+        if left.typ.count < right.typ.count:  # pragma: nocover
+            FAIL()
 
         # stricter check for zeroing
-        if right.value == "~empty" and right.typ.count != left.typ.count:
+        if right.value == "~empty" and right.typ.count != left.typ.count:  # pragma: nocover
             raise TypeCheckFailure(
                 f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )  # pragma: notest
+            )
 
         # TODO recurse into left, right if literals?
         check_assign(
@@ -781,13 +785,13 @@ def _check_assign_tuple(left, right):
     def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ}")
 
-    if not isinstance(right.typ, left.typ.__class__):
-        FAIL()  # pragma: notest
+    if not isinstance(right.typ, left.typ.__class__):  # pragma: nocover
+        FAIL()
 
     if isinstance(left.typ, StructT):
         for k in left.typ.member_types:
-            if k not in right.typ.member_types:
-                FAIL()  # pragma: notest
+            if k not in right.typ.member_types:  # pragma: nocover
+                FAIL()
             # TODO recurse into left, right if literals?
             check_assign(
                 dummy_node_for_type(left.typ.member_types[k]),
@@ -795,15 +799,15 @@ def _check_assign_tuple(left, right):
             )
 
         for k in right.typ.member_types:
-            if k not in left.typ.member_types:
-                FAIL()  # pragma: notest
+            if k not in left.typ.member_types:  # pragma: nocover
+                FAIL()
 
-        if left.typ.name != right.typ.name:
-            FAIL()  # pragma: notest
+        if left.typ.name != right.typ.name:  # pragma: nocover
+            FAIL()
 
     else:
-        if len(left.typ.member_types) != len(right.typ.member_types):
-            FAIL()  # pragma: notest
+        if len(left.typ.member_types) != len(right.typ.member_types):  # pragma: nocover
+            FAIL()
         for left_, right_ in zip(left.typ.member_types, right.typ.member_types):
             # TODO recurse into left, right if literals?
             check_assign(dummy_node_for_type(left_), dummy_node_for_type(right_))
@@ -827,8 +831,8 @@ def check_assign(left, right):
 
     elif left.typ._is_prim_word:
         # TODO once we propagate types from typechecker, introduce this check:
-        # if left.typ != right.typ:
-        #    FAIL()  # pragma: notest
+        # if left.typ != right.typ:  # pragma: nocover
+        #    FAIL()
         pass
 
     else:  # pragma: no cover
@@ -855,12 +859,12 @@ def reset_names():
 def needs_clamp(t, encoding):
     if encoding == Encoding.VYPER:
         return False
-    if encoding != Encoding.ABI:
-        raise CompilerPanic("unreachable")  # pragma: notest
+    if encoding != Encoding.ABI:  # pragma: nocover
+        raise CompilerPanic("unreachable")
     if isinstance(t, (_BytestringT, DArrayT)):
         return True
     if isinstance(t, FlagT):
-        return len(t._enum_members) < 256
+        return len(t._flag_members) < 256
     if isinstance(t, SArrayT):
         return needs_clamp(t.value_type, encoding)
     if is_tuple_like(t):
@@ -868,7 +872,7 @@ def needs_clamp(t, encoding):
     if t._is_prim_word:
         return t not in (INT256_T, UINT256_T, BYTES32_T)
 
-    raise CompilerPanic("unreachable")  # pragma: notest
+    raise CompilerPanic("unreachable")  # pragma: nocover
 
 
 # Create an x=y statement, where the types may be compound
@@ -1109,8 +1113,8 @@ def sar(bits, x):
 
 def clamp_bytestring(ir_node):
     t = ir_node.typ
-    if not isinstance(t, _BytestringT):
-        raise CompilerPanic(f"{t} passed to clamp_bytestring")  # pragma: notest
+    if not isinstance(t, _BytestringT):  # pragma: nocover
+        raise CompilerPanic(f"{t} passed to clamp_bytestring")
     ret = ["assert", ["le", get_bytearray_length(ir_node), t.maxlen]]
     return IRnode.from_list(ret, error_msg=f"{ir_node.typ} bounds check")
 
@@ -1125,14 +1129,14 @@ def clamp_dyn_array(ir_node):
 # clampers for basetype
 def clamp_basetype(ir_node):
     t = ir_node.typ
-    if not t._is_prim_word:
-        raise CompilerPanic(f"{t} passed to clamp_basetype")  # pragma: notest
+    if not t._is_prim_word:  # pragma: nocover
+        raise CompilerPanic(f"{t} passed to clamp_basetype")
 
     # copy of the input
     ir_node = unwrap_location(ir_node)
 
     if isinstance(t, FlagT):
-        bits = len(t._enum_members)
+        bits = len(t._flag_members)
         # assert x >> bits == 0
         ret = int_clamp(ir_node, bits, signed=False)
 
@@ -1164,8 +1168,8 @@ def int_clamp(ir_node, bits, signed=False):
     in bounds. (Consumers should use clamp_basetype instead which uses
     type-based dispatch and is a little safer.)
     """
-    if bits >= 256:
-        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({ir_node})")  # pragma: notest
+    if bits >= 256:  # pragma: nocover
+        raise CompilerPanic(f"invalid clamp: {bits}>=256 ({ir_node})")
 
     u = "u" if not signed else ""
     msg = f"{u}int{bits} bounds check"
@@ -1189,7 +1193,7 @@ def int_clamp(ir_node, bits, signed=False):
 
 
 def bytes_clamp(ir_node: IRnode, n_bytes: int) -> IRnode:
-    if not (0 < n_bytes <= 32):
+    if not (0 < n_bytes <= 32):  # pragma: nocover
         raise CompilerPanic(f"bad type: bytes{n_bytes}")
     msg = f"bytes{n_bytes} bounds check"
     with ir_node.cache_when_complex("val") as (b, val):
@@ -1220,6 +1224,11 @@ def clamp_nonzero(arg):
         check = IRnode.from_list(["assert", arg], error_msg="check nonzero")
         ret = ["seq", check, arg]
         return IRnode.from_list(b1.resolve(ret), typ=arg.typ)
+
+
+def clamp_le(arg, hi, signed):
+    LE = "sle" if signed else "le"
+    return clamp(LE, arg, hi)
 
 
 def clamp2(lo, arg, hi, signed):

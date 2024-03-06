@@ -38,11 +38,11 @@ CONTRACT_CODE = """
 
 @external
 def foo() -> {alias}.FooStruct:
-    return {alias}.FooStruct({{foo_: 13}})
+    return {alias}.FooStruct(foo_=13)
 
 @external
 def bar(a: address) -> {alias}.FooStruct:
-    return {alias}(a).bar()
+    return extcall {alias}(a).bar()
 """
 
 INTERFACE_CODE = """
@@ -172,11 +172,11 @@ def be_known() -> FooStruct:
 
 @external
 def know_thyself(a: address) -> ISelf.FooStruct:
-    return ISelf(a).be_known()
+    return extcall ISelf(a).be_known()
 
 @external
 def be_known() -> ISelf.FooStruct:
-    return ISelf.FooStruct({{foo_: 42}})
+    return ISelf.FooStruct(foo_=42)
     """
     make_file("contracts/ISelf.vyi", interface_code)
     meta = make_file("contracts/Self.vy", code)
@@ -192,11 +192,11 @@ def test_another_interface_implementation(import_stmt_foo, alias, tmp_path, make
 
 @external
 def foo(a: address) -> {alias}.FooStruct:
-    return {alias}(a).foo()
+    return extcall {alias}(a).foo()
 
 @external
 def bar(_foo: address) -> {alias}.FooStruct:
-    return {alias}(_foo).bar()
+    return extcall {alias}(_foo).bar()
     """
     make_file("contracts/IFoo.vyi", INTERFACE_CODE)
     baz = make_file("contracts/Baz.vy", baz_code)
