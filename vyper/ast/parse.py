@@ -55,9 +55,9 @@ def parse_to_ast_with_settings(
     """
     if "\x00" in source_code:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, for_loop_annotations, reformatted_code = pre_parse(source_code)
+    settings, class_types, for_loop_annotations, python_source = pre_parse(source_code)
     try:
-        py_ast = python_ast.parse(reformatted_code)
+        py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
         raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
@@ -72,6 +72,7 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
+        python_source,
         source_code,
         class_types,
         for_loop_annotations,
@@ -117,7 +118,8 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
-    source_code: str,
+    python_source: str,  # vyper code after pre-parsing
+    original_source: str,  # original vyper code
     modification_offsets: ModificationOffsets,
     for_loop_annotations: dict,
     source_id: int = 0,
@@ -144,9 +146,11 @@ def annotate_python_ast(
         The annotated and optimized AST.
     """
 
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    tokens = asttokens.ASTTokens(
+        original_source, tree=cast(Optional[python_ast.Module], parsed_ast)
+    )
     visitor = AnnotatingVisitor(
-        source_code,
+        python_source,
         modification_offsets,
         for_loop_annotations,
         tokens,
