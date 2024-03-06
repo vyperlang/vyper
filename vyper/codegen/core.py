@@ -655,7 +655,7 @@ def eval_once_check(name):
 
 
 def ensure_eval_once(name, irnode):
-    return ["seq", _freshname(name), irnode]
+    return ["seq", eval_once_check(_freshname(name)), irnode]
 
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
