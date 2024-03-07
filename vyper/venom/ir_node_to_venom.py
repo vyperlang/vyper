@@ -234,11 +234,12 @@ def _convert_ir_bb_list(ctx, ir, symbols):
 
 
 current_func = None
+var_list = []
 
 
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target
+    global _break_target, _continue_target, current_func, var_list
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])
@@ -253,6 +254,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in PASS_THROUGH_REVERSED_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
     elif ir.value == "return":
+        _append_return_args(ctx, *var_list)
         ctx.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
@@ -266,8 +268,9 @@ def _convert_ir_bb(ctx, ir, symbols):
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols)
         elif ir.args[0].value == "label":
-            is_external = ir.args[0].args[0].value.startswith("external")
-            is_internal = ir.args[0].args[0].value.startswith("internal")
+            current_func = ir.args[0].args[0].value
+            is_external = current_func.startswith("external")
+            is_internal = current_func.startswith("internal")
             if is_internal:
                 # Internal definition
                 var_list = ir.args[0].args[1]
@@ -431,12 +434,10 @@ def _convert_ir_bb(ctx, ir, symbols):
                 if bb.is_terminated:
                     bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
                     ctx.append_basic_block(bb)
-                ret_ofst, ret_size = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
-
-                _append_return_args(ctx, ret_ofst, ret_size)
+                var_list = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
 
                 bb = ctx.get_basic_block()
-                assert ret_ofst is not None
+                # assert ret_ofst is not None
 
             bb.append_instruction("jmp", label)
 
