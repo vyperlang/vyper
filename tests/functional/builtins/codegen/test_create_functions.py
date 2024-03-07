@@ -497,16 +497,10 @@ def test2(target: address, salt: bytes32) -> address:
 
     # can't create2 where contract already exists
     if revert_on_failure is False:
-        assert not c.test2(c.address, salt, transact={})
+        assert not c.test2(c.address, salt)
     else:
         with tx_failed():
-            c.test2(c.address, salt, transact={})
-
-    # test single byte contract
-    # test2 = c.test2(b"\x01", salt)
-    # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # with tx_failed():
-    #     c.test2(bytecode, salt)
+            c.test2(c.address, salt)
 
 
 # XXX: these various tests to check the msize allocator for

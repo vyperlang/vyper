@@ -1584,7 +1584,7 @@ CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
 
 # create helper functions
 # generates CREATE op sequence + zero check for result
-def _create_ir(value, buf, length, salt, checked=True):
+def _create_ir(value, buf, length, salt, revert_on_failure=True):
     args = [value, buf, length]
     create_op = "create"
     if salt is not CREATE2_SENTINEL:
@@ -1595,7 +1595,7 @@ def _create_ir(value, buf, length, salt, checked=True):
         ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
     )
 
-    if not checked:
+    if not revert_on_failure:
         return ret
 
     ret = clamp_nonzero(ret)
@@ -1758,7 +1758,7 @@ class CreateMinimalProxyTo(_CreateBase):
             ["mstore", buf, forwarder_preamble],
             ["mstore", ["add", buf, preamble_length], aligned_target],
             ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
-            _create_ir(value, buf, buf_len, salt=salt, checked=revert_on_failure),
+            _create_ir(value, buf, buf_len, salt, revert_on_failure),
         ]
 
 
@@ -1821,7 +1821,7 @@ class CreateCopyOf(_CreateBase):
                 buf = add_ofst(mem_ofst, 32 - preamble_len)
                 buf_len = ["add", codesize, preamble_len]
 
-                ir.append(_create_ir(value, buf, buf_len, salt, checked=revert_on_failure))
+                ir.append(_create_ir(value, buf, buf_len, salt, revert_on_failure))
 
                 return b1.resolve(b2.resolve(ir))
 
@@ -1922,7 +1922,7 @@ class CreateFromBlueprint(_CreateBase):
 
                 length = ["add", codesize, encoded_args_len]
 
-                ir.append(_create_ir(value, mem_ofst, length, salt, checked=revert_on_failure))
+                ir.append(_create_ir(value, mem_ofst, length, salt, revert_on_failure))
 
                 return b1.resolve(b2.resolve(ir))
 
