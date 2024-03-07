@@ -1803,13 +1803,10 @@ class CreateCopyOf(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
-                code_exists = ["sgt", codesize, 0]
-                if revert_on_failure:
-                    ir.append(
-                        IRnode.from_list(
-                            ["assert", code_exists], error_msg="empty target (create_copy_of)"
-                        )
-                    )
+                check_codesize = ["assert", codesize]
+                ir.append(
+                    IRnode.from_list(check_codesize, error_msg="empty target (create_copy_of)")
+                )
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1825,9 +1822,6 @@ class CreateCopyOf(_CreateBase):
                 buf_len = ["add", codesize, preamble_len]
 
                 ir.append(_create_ir(value, buf, buf_len, salt, checked=revert_on_failure))
-
-                if not revert_on_failure:
-                    ir = ["if", code_exists, ir, 0]
 
                 return b1.resolve(b2.resolve(ir))
 
@@ -1906,14 +1900,12 @@ class CreateFromBlueprint(_CreateBase):
                 # (code_ofst == (extcodesize target) would be empty
                 # initcode, which we disallow for hygiene reasons -
                 # same as `create_copy_of` on an empty target).
-                code_exists = ["sgt", codesize, 0]
-                if revert_on_failure:
-                    ir.append(
-                        IRnode.from_list(
-                            ["assert", code_exists],
-                            error_msg="empty target (create_from_blueprint)",
-                        )
+                check_codesize = ["assert", ["sgt", codesize, 0]]
+                ir.append(
+                    IRnode.from_list(
+                        check_codesize, error_msg="empty target (create_from_blueprint)"
                     )
+                )
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
@@ -1931,9 +1923,6 @@ class CreateFromBlueprint(_CreateBase):
                 length = ["add", codesize, encoded_args_len]
 
                 ir.append(_create_ir(value, mem_ofst, length, salt, checked=revert_on_failure))
-
-                if not revert_on_failure:
-                    ir = ["if", code_exists, ir, 0]
 
                 return b1.resolve(b2.resolve(ir))
 

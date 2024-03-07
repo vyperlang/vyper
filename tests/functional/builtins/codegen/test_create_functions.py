@@ -192,11 +192,8 @@ def test2(target: address, salt: bytes32):
 
     # extcodesize check
     zero_address = "0x" + "00" * 20
-    if revert_on_failure is False:
-        assert not d.test(zero_address)
-    else:
-        with tx_failed():
-            d.test(zero_address)
+    with tx_failed():
+        d.test(zero_address)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -485,11 +482,8 @@ def test2(target: address, salt: bytes32) -> address:
     assert w3.eth.get_code(test1) == bytecode
 
     # extcodesize check
-    if revert_on_failure is False:
-        assert not c.test("0x" + "00" * 20)
-    else:
-        with tx_failed():
-            c.test("0x" + "00" * 20)
+    with tx_failed():
+        c.test("0x" + "00" * 20)
 
     # test1 = c.test(b"\x01")
     # assert w3.eth.get_code(test1) == b"\x01"
