@@ -115,7 +115,7 @@ class CompilerData:
         _ = self._generate_ast  # force settings to be calculated
 
         # to force experimental codegen, uncomment:
-        # self.settings.experimental_codegen = True
+        self.settings.experimental_codegen = True
 
     @cached_property
     def source_code(self):

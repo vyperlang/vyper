@@ -107,6 +107,8 @@ PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
 
 SymbolTable = dict[str, Optional[IROperand]]
 
+count = 0
+
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRFunction:
@@ -128,12 +130,16 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
             else:
                 bb.append_instruction("stop")
 
-    # calculate_cfg(ctx)
-    # calculate_liveness(ctx)
-    # print(ctx.as_graph())
-    # import sys
+    # global count
+    # if count == 1:
+    #     calculate_cfg(ctx)
+    #     calculate_liveness(ctx)
+    #     print(ctx.as_graph())
+    #     import sys
 
-    # sys.exit()
+    #     sys.exit()
+
+    # count += 1
 
     return ctx
 
@@ -437,9 +443,8 @@ def _convert_ir_bb(ctx, ir, symbols):
                 var_list = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
 
                 bb = ctx.get_basic_block()
-                # assert ret_ofst is not None
 
-            bb.append_instruction("jmp", label)
+            # bb.append_instruction("jmp", label)
 
         elif is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
