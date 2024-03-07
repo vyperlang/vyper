@@ -80,12 +80,19 @@ jobs:
         # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
-        # run across other python versions.# we don't really need to run all
+        evm-version: ["shanghai"]
+        # run across other python versions. we don't really need to run all
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
-            opt-mode: gas
-            debug: false
+
+          # run across other evm versions
+          - evm-version: istanbul
+          - evm-version: london
+          - evm-version: berlin
+          - evm-version: paris
+          - evm-version: shanghai
+          - evm-version: cancun
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
 
