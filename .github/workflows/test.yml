@@ -85,6 +85,7 @@ jobs:
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
+          - python-version: ["3.12", "312"]
 
           # run across other evm versions
           - evm-version: istanbul
@@ -94,7 +95,7 @@ jobs:
           - evm-version: shanghai
           - evm-version: cancun
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
+    name: py${{ matrix.python-version[1] }}${{ matrix.opt-mode || 'gas' }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version || 'shanghai' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -111,8 +112,14 @@ jobs:
     - name: Install Tox
       run: pip install tox
 
-    - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
+    - name: Run tests
+      run: |
+        pytest \
+          --optimize ${{ matrix.opt-mode || 'gas' }} \
+          --evm-version ${{ matrix.evm-version || 'shanghai' }} \
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
+          --show-locals -r aR \
+          tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v4
