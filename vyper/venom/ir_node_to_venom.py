@@ -3,6 +3,7 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.utils import MemoryPositions
+from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -127,6 +128,13 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
             else:
                 bb.append_instruction("stop")
 
+    # calculate_cfg(ctx)
+    # calculate_liveness(ctx)
+    # print(ctx.as_graph())
+    # import sys
+
+    # sys.exit()
+
     return ctx
 
 
@@ -225,6 +233,9 @@ def _convert_ir_bb_list(ctx, ir, symbols):
     return ret
 
 
+current_func = None
+
+
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
     global _break_target, _continue_target
@@ -254,19 +265,22 @@ def _convert_ir_bb(ctx, ir, symbols):
             return None
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols)
-        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("internal"):
-            # Internal definition
-            var_list = ir.args[0].args[1]
-            does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-            symbols = {}
-            ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
-            for ir_node in ir.args:
-                ret = _convert_ir_bb(ctx, ir_node, symbols)
+        elif ir.args[0].value == "label":
+            is_external = ir.args[0].args[0].value.startswith("external")
+            is_internal = ir.args[0].args[0].value.startswith("internal")
+            if is_internal:
+                # Internal definition
+                var_list = ir.args[0].args[1]
+                does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+                symbols = {}
+                ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
+                for ir_node in ir.args:
+                    ret = _convert_ir_bb(ctx, ir_node, symbols)
 
-            return ret
-        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("external"):
-            ret = _convert_ir_bb(ctx, ir.args[0], symbols)
-            _append_return_args(ctx)
+                return ret
+            elif is_external:
+                ret = _convert_ir_bb(ctx, ir.args[0], symbols)
+                _append_return_args(ctx)
         else:
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
