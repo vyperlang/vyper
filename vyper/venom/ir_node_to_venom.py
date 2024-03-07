@@ -1,5 +1,5 @@
 from typing import Optional
-
+import re
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.utils import MemoryPositions
@@ -131,7 +131,7 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
                 bb.append_instruction("stop")
 
     # global count
-    # if count == 1:
+    # if count == 0:
     #     calculate_cfg(ctx)
     #     calculate_liveness(ctx)
     #     print(ctx.as_graph())
@@ -277,7 +277,7 @@ def _convert_ir_bb(ctx, ir, symbols):
             current_func = ir.args[0].args[0].value
             is_external = current_func.startswith("external")
             is_internal = current_func.startswith("internal")
-            if is_internal:
+            if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
                 # Internal definition
                 var_list = ir.args[0].args[1]
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
@@ -289,7 +289,6 @@ def _convert_ir_bb(ctx, ir, symbols):
                 return ret
             elif is_external:
                 ret = _convert_ir_bb(ctx, ir.args[0], symbols)
-                _append_return_args(ctx)
         else:
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
@@ -426,9 +425,17 @@ def _convert_ir_bb(ctx, ir, symbols):
             bb.append_instruction("jmp", label)
         bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
-        _convert_ir_bb(ctx, ir.args[2], symbols)
+        code = ir.args[2]
+        if code.value == "pass":
+            bb.append_instruction("stop")
+        else:
+            _convert_ir_bb(ctx, code, symbols)
     elif ir.value == "exit_to":
         label = IRLabel(ir.args[0].value)
+
+        if label.value == "return_pc":
+            ctx.get_basic_block().append_instruction("stop")
+            return None
 
         is_constructor = "__init__(" in label.name
         is_external = label.name.startswith("external") and not is_constructor
@@ -441,15 +448,11 @@ def _convert_ir_bb(ctx, ir, symbols):
                     bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
                     ctx.append_basic_block(bb)
                 var_list = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
-
-                bb = ctx.get_basic_block()
-
-            # bb.append_instruction("jmp", label)
-
         elif is_internal:
             assert ir.args[1].value == "return_pc", "return_pc not found"
             # TODO: never passing return values with the new convention
             bb.append_instruction("ret", symbols["return_pc"])
+
     elif ir.value == "dload":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
         bb = ctx.get_basic_block()
@@ -565,7 +568,9 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(exit_block)
 
         cond_block.append_instruction("jnz", cont_ret, exit_block.label, body_block.label)
-    elif ir.value in ["cleanup_repeat", "pass"]:
+    elif ir.value == "cleanup_repeat":
+        pass
+    elif ir.value == "pass":
         pass
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
