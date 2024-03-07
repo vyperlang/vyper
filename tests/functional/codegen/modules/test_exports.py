@@ -102,7 +102,7 @@ interface Foo:
 
 @external
 def call_bar(foo: Foo) -> uint256:
-    return foo.bar()
+    return extcall foo.bar()
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
     c = get_contract(main, input_bundle=input_bundle)

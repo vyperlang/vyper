@@ -83,6 +83,7 @@ def debug(pytestconfig):
 
 @pytest.fixture
 def chdir_tmp_path(tmp_path):
+    # this is useful for when you want imports to have relpaths
     with working_directory(tmp_path):
         yield
 

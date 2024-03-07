@@ -386,7 +386,7 @@ foos: Foo[3]
 @external
 def kick_foos():
     for foo: Foo in self.foos:
-        foo.kick()
+        extcall foo.kick()
     """,
 ]
 

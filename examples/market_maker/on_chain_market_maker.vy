@@ -8,7 +8,7 @@ totalTokenQty: public(uint256)
 # Constant set in `initiate` that's used to calculate
 # the amount of ether/tokens that are exchanged
 invariant: public(uint256)
-token_address: IERC20
+token: IERC20
 owner: public(address)
 
 # Sets the on chain market maker with its owner, initial token quantity,
@@ -17,8 +17,8 @@ owner: public(address)
 @payable
 def initiate(token_addr: address, token_quantity: uint256):
     assert self.invariant == 0
-    self.token_address = IERC20(token_addr)
-    self.token_address.transferFrom(msg.sender, self, token_quantity)
+    self.token = IERC20(token_addr)
+    extcall self.token.transferFrom(msg.sender, self, token_quantity)
     self.owner = msg.sender
     self.totalEthQty = msg.value
     self.totalTokenQty = token_quantity
@@ -33,14 +33,14 @@ def ethToTokens():
     eth_in_purchase: uint256 = msg.value - fee
     new_total_eth: uint256 = self.totalEthQty + eth_in_purchase
     new_total_tokens: uint256 = self.invariant // new_total_eth
-    self.token_address.transfer(msg.sender, self.totalTokenQty - new_total_tokens)
+    extcall self.token.transfer(msg.sender, self.totalTokenQty - new_total_tokens)
     self.totalEthQty = new_total_eth
     self.totalTokenQty = new_total_tokens
 
 # Sells tokens to the contract in exchange for ether
 @external
 def tokensToEth(sell_quantity: uint256):
-    self.token_address.transferFrom(msg.sender, self, sell_quantity)
+    extcall self.token.transferFrom(msg.sender, self, sell_quantity)
     new_total_tokens: uint256 = self.totalTokenQty + sell_quantity
     new_total_eth: uint256 = self.invariant // new_total_tokens
     eth_to_send: uint256 = self.totalEthQty - new_total_eth
@@ -52,5 +52,5 @@ def tokensToEth(sell_quantity: uint256):
 @external
 def ownerWithdraw():
     assert self.owner == msg.sender
-    self.token_address.transfer(self.owner, self.totalTokenQty)
+    extcall self.token.transfer(self.owner, self.totalTokenQty)
     selfdestruct(self.owner)

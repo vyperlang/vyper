@@ -1,3 +1,6 @@
+import pytest
+
+from vyper.compiler import compile_code
 from vyper.exceptions import StructureException, SyntaxException, UnknownType
 
 
@@ -6,16 +9,17 @@ def test_external_contract_call_declaration_expr(get_contract, tx_failed):
 lucky: public(int128)
 
 @external
-def set_lucky(_lucky: int128):
+def set_lucky(_lucky: int128) -> int128:
     self.lucky = _lucky
+    return self.lucky
 """
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128): nonpayable
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 
 interface ConstBar:
-    def set_lucky(_lucky: int128): view
+    def set_lucky(_lucky: int128) -> int128: view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -27,11 +31,11 @@ def __init__(contract_address: address):
 
 @external
 def modifiable_set_lucky(_lucky: int128):
-    self.modifiable_bar_contract.set_lucky(_lucky)
+    extcall self.modifiable_bar_contract.set_lucky(_lucky)
 
 @external
 def static_set_lucky(_lucky: int128):
-    self.static_bar_contract.set_lucky(_lucky)
+    s: int128 = staticcall self.static_bar_contract.set_lucky(_lucky)
     """
 
     c1 = get_contract(contract_1)
@@ -71,12 +75,12 @@ def __init__(contract_address: address):
 
 @external
 def modifiable_set_lucky(_lucky: int128) -> int128:
-    x: int128 = self.modifiable_bar_contract.set_lucky(_lucky)
+    x: int128 = extcall self.modifiable_bar_contract.set_lucky(_lucky)
     return x
 
 @external
 def static_set_lucky(_lucky: int128):
-    x:int128 = self.static_bar_contract.set_lucky(_lucky)
+    x:int128 = staticcall self.static_bar_contract.set_lucky(_lucky)
     """
 
     c1 = get_contract(contract_1)
@@ -94,16 +98,17 @@ def test_multiple_contract_state_changes(get_contract, tx_failed):
 lucky: public(int128)
 
 @external
-def set_lucky(_lucky: int128):
+def set_lucky(_lucky: int128) -> int128:
     self.lucky = _lucky
+    return self.lucky
 """
 
     contract_2 = """
 interface ModBar:
-    def set_lucky(_lucky: int128): nonpayable
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 
 interface ConstBar:
-    def set_lucky(_lucky: int128): view
+    def set_lucky(_lucky: int128) -> int128: view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -114,22 +119,22 @@ def __init__(contract_address: address):
     self.static_bar_contract = ConstBar(contract_address)
 
 @external
-def modifiable_set_lucky(_lucky: int128):
-    self.modifiable_bar_contract.set_lucky(_lucky)
+def modifiable_set_lucky(_lucky: int128) -> int128:
+    return extcall self.modifiable_bar_contract.set_lucky(_lucky)
 
 @external
-def static_set_lucky(_lucky: int128):
-    self.static_bar_contract.set_lucky(_lucky)
-"""
+def static_set_lucky(_lucky: int128) -> int128:
+    return staticcall self.static_bar_contract.set_lucky(_lucky)
+    """
 
     contract_3 = """
 interface ModBar:
-    def modifiable_set_lucky(_lucky: int128): nonpayable
-    def static_set_lucky(_lucky: int128): nonpayable
+    def modifiable_set_lucky(_lucky: int128) -> int128: nonpayable
+    def static_set_lucky(_lucky: int128) -> int128: nonpayable
 
 interface ConstBar:
-    def modifiable_set_lucky(_lucky: int128): view
-    def static_set_lucky(_lucky: int128): view
+    def modifiable_set_lucky(_lucky: int128) -> int128: view
+    def static_set_lucky(_lucky: int128) -> int128: view
 
 modifiable_bar_contract: ModBar
 static_bar_contract: ConstBar
@@ -141,19 +146,19 @@ def __init__(contract_address: address):
 
 @external
 def modifiable_modifiable_set_lucky(_lucky: int128):
-    self.modifiable_bar_contract.modifiable_set_lucky(_lucky)
+    extcall self.modifiable_bar_contract.modifiable_set_lucky(_lucky)
 
 @external
 def modifiable_static_set_lucky(_lucky: int128):
-    self.modifiable_bar_contract.static_set_lucky(_lucky)
+    extcall self.modifiable_bar_contract.static_set_lucky(_lucky)
 
 @external
-def static_static_set_lucky(_lucky: int128):
-    self.static_bar_contract.static_set_lucky(_lucky)
+def static_static_set_lucky(_lucky: int128) -> int128:
+    return staticcall self.static_bar_contract.static_set_lucky(_lucky)
 
 @external
-def static_modifiable_set_lucky(_lucky: int128):
-    self.static_bar_contract.modifiable_set_lucky(_lucky)
+def static_modifiable_set_lucky(_lucky: int128) -> int128:
+    return staticcall self.static_bar_contract.modifiable_set_lucky(_lucky)
     """
 
     c1 = get_contract(contract_1)
@@ -190,7 +195,7 @@ def foo(contract_address: address):
 
 @external
 def get_bar() -> int128:
-    return self.bar_contract.bar()
+    return staticcall self.bar_contract.bar()
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
@@ -199,16 +204,17 @@ def get_bar() -> int128:
     assert c2.get_bar() == 1
 
 
-def test_invalid_external_contract_call_declaration_1(assert_compile_failed, get_contract):
+def test_invalid_external_contract_call_declaration_1():
     contract_1 = """
 interface Bar:
     def bar() -> int128: pass
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), StructureException)
+    with pytest.raises(StructureException):
+        compile_code(contract_1)
 
 
-def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
+def test_invalid_external_contract_call_declaration_2():
     contract_1 = """
 interface Bar:
     def bar() -> int128: view
@@ -221,34 +227,34 @@ def foo(contract_address: address) -> int128:
     return self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    with pytest.raises(UnknownType):
+        compile_code(contract_1)
 
 
-def test_invalid_if_external_contract_doesnt_exist(get_contract, assert_compile_failed):
+def test_invalid_if_external_contract_doesnt_exist():
     code = """
 modifiable_bar_contract: Bar
-"""
+    """
 
-    assert_compile_failed(lambda: get_contract(code), UnknownType)
+    with pytest.raises(UnknownType):
+        compile_code(code)
 
 
-def test_invalid_if_not_in_valid_global_keywords(get_contract, assert_compile_failed):
+def test_invalid_if_not_in_valid_global_keywords():
     code = """
 interface Bar:
     def set_lucky(_lucky: int128): nonpayable
 
 modifiable_bar_contract: trusted(Bar)
     """
-    assert_compile_failed(lambda: get_contract(code), SyntaxException)
+    with pytest.raises(SyntaxException):
+        compile_code(code)
 
 
-def test_invalid_if_have_modifiability_not_declared(
-    get_contract_with_gas_estimation_for_constants, assert_compile_failed
-):
+def test_invalid_if_have_modifiability_not_declared():
     code = """
 interface Bar:
     def set_lucky(_lucky: int128): pass
-"""
-    assert_compile_failed(
-        lambda: get_contract_with_gas_estimation_for_constants(code), StructureException
-    )
+    """
+    with pytest.raises(StructureException):
+        compile_code(code)
