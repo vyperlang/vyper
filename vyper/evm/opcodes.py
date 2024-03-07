@@ -11,7 +11,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 1 year old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions = ("istanbul", "berlin", "london", "paris", "shanghai", "cancun")
+_evm_versions = ("berlin", "london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 
@@ -22,7 +22,7 @@ active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (istanbul, berlin, paris, shanghai, cancun)
+# gas cost (berlin, london, paris, shanghai, cancun)
 OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),

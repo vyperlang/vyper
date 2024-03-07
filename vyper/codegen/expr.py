@@ -32,7 +32,6 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
-    EvmVersionException,
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
@@ -230,11 +229,7 @@ class Expr:
         if self.expr.attr == "balance":
             addr = Expr.parse_value_expr(self.expr.value, self.context)
             if addr.typ == AddressT():
-                if (
-                    isinstance(self.expr.value, vy_ast.Name)
-                    and self.expr.value.id == "self"
-                    and version_check(begin="istanbul")
-                ):
+                if isinstance(self.expr.value, vy_ast.Name) and self.expr.value.id == "self":
                     seq = ["selfbalance"]
                 else:
                     seq = ["balance", addr]
@@ -310,10 +305,6 @@ class Expr:
             elif key == "tx.gasprice":
                 return IRnode.from_list(["gasprice"], typ=UINT256_T)
             elif key == "chain.id":
-                if not version_check(begin="istanbul"):
-                    raise EvmVersionException(
-                        "chain.id is unavailable prior to istanbul ruleset", self.expr
-                    )
                 return IRnode.from_list(["chainid"], typ=UINT256_T)
 
         # Other variables

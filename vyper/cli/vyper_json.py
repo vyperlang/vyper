@@ -143,8 +143,9 @@ def get_evm_version(input_dict: dict) -> Optional[str]:
         "spuriousDragon",
         "byzantium",
         "constantinople",
+        "istanbul",
     ):
-        raise JSONError("Vyper does not support pre-istanbul EVM versions")
+        raise JSONError("Vyper does not support pre-berlin EVM versions")
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 

@@ -176,12 +176,6 @@ Target Options
 The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
 
 
-.. py:attribute:: istanbul
-
-   - The ``CHAINID`` opcode is accessible via ``chain.id``
-   - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
-   - Gas estimates changed for ``SLOAD`` and ``BALANCE``
-
 .. py:attribute:: berlin
 
    - Gas estimates changed for ``EXTCODESIZE``, ``EXTCODECOPY``, ``EXTCODEHASH``, ``SLOAD``, ``SSTORE``, ``CALL``, ``CALLCODE``, ``DELEGATECALL`` and ``STATICCALL``
@@ -247,7 +241,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
+            "evmVersion": "shanghai",  // EVM version to compile for. Can be berlin, london, paris, shanghai (default) or cancun (experimental!).
             // optional, optimization mode
             // defaults to "gas". can be one of "gas", "codesize", "none",
             // false  and true (the last two are for backwards compatibility).
