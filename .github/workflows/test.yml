@@ -95,7 +95,7 @@ jobs:
           - evm-version: shanghai
           - evm-version: cancun
 
-    name: py${{ matrix.python-version[1] }}${{ matrix.opt-mode || 'gas' }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version || 'shanghai' }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode || 'gas' }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version || 'shanghai' }}
 
     steps:
     - uses: actions/checkout@v4
