@@ -1696,6 +1696,7 @@ class _CreateBase(BuiltinFunctionT):
     _kwargs = {
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
+        "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _return_type = AddressT()
 
@@ -1729,7 +1730,7 @@ class CreateMinimalProxyTo(_CreateBase):
         bytecode_len = 20 + len(b) + len(c)
         return _create_addl_gas_estimate(bytecode_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt):
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         target_address = args[0]
 
         buf = context.new_internal_variable(BytesT(96))
@@ -1757,7 +1758,7 @@ class CreateMinimalProxyTo(_CreateBase):
             ["mstore", buf, forwarder_preamble],
             ["mstore", ["add", buf, preamble_length], aligned_target],
             ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
-            _create_ir(value, buf, buf_len, salt=salt),
+            _create_ir(value, buf, buf_len, salt=salt, checked=revert_on_failure),
         ]
 
 
@@ -1786,7 +1787,7 @@ class CreateCopyOf(_CreateBase):
         # max possible runtime length + preamble length
         return _create_addl_gas_estimate(EIP_170_LIMIT + self._preamble_len, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt):
+    def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         target = args[0]
 
         # something we can pass to scope_multi
@@ -1802,10 +1803,13 @@ class CreateCopyOf(_CreateBase):
                 ir = ["seq"]
 
                 # make sure there is actually code at the target
-                check_codesize = ["assert", codesize]
-                ir.append(
-                    IRnode.from_list(check_codesize, error_msg="empty target (create_copy_of)")
-                )
+                code_exists = ["sgt", codesize, 0]
+                if revert_on_failure:
+                    ir.append(
+                        IRnode.from_list(
+                            ["assert", code_exists], error_msg="empty target (create_copy_of)"
+                        )
+                    )
 
                 # store the preamble at msize + 22 (zero padding)
                 preamble, preamble_len = _create_preamble(codesize)
@@ -1820,7 +1824,10 @@ class CreateCopyOf(_CreateBase):
                 buf = add_ofst(mem_ofst, 32 - preamble_len)
                 buf_len = ["add", codesize, preamble_len]
 
-                ir.append(_create_ir(value, buf, buf_len, salt))
+                ir.append(_create_ir(value, buf, buf_len, salt, checked=revert_on_failure))
+
+                if not revert_on_failure:
+                    ir = ["if", code_exists, ir, 0]
 
                 return b1.resolve(b2.resolve(ir))
 
@@ -1833,6 +1840,7 @@ class CreateFromBlueprint(_CreateBase):
         "salt": KwargSettings(BYTES32_T, empty_value),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
         "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
+        "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
 
@@ -1842,7 +1850,9 @@ class CreateFromBlueprint(_CreateBase):
         maxlen = EIP_170_LIMIT + ctor_args.typ.abi_type.size_bound()
         return _create_addl_gas_estimate(maxlen, should_use_create2)
 
-    def _build_create_IR(self, expr, args, context, value, salt, code_offset, raw_args):
+    def _build_create_IR(
+        self, expr, args, context, value, salt, code_offset, raw_args, revert_on_failure
+    ):
         target = args[0]
         ctor_args = args[1:]
 
@@ -1896,12 +1906,14 @@ class CreateFromBlueprint(_CreateBase):
                 # (code_ofst == (extcodesize target) would be empty
                 # initcode, which we disallow for hygiene reasons -
                 # same as `create_copy_of` on an empty target).
-                check_codesize = ["assert", ["sgt", codesize, 0]]
-                ir.append(
-                    IRnode.from_list(
-                        check_codesize, error_msg="empty target (create_from_blueprint)"
+                code_exists = ["sgt", codesize, 0]
+                if revert_on_failure:
+                    ir.append(
+                        IRnode.from_list(
+                            ["assert", code_exists],
+                            error_msg="empty target (create_from_blueprint)",
+                        )
                     )
-                )
 
                 # copy the target code into memory.
                 # layout starting from mem_ofst:
@@ -1918,7 +1930,10 @@ class CreateFromBlueprint(_CreateBase):
 
                 length = ["add", codesize, encoded_args_len]
 
-                ir.append(_create_ir(value, mem_ofst, length, salt))
+                ir.append(_create_ir(value, mem_ofst, length, salt, checked=revert_on_failure))
+
+                if not revert_on_failure:
+                    ir = ["if", code_exists, ir, 0]
 
                 return b1.resolve(b2.resolve(ir))
 

@@ -110,13 +110,17 @@ def test2(a: uint256) -> Bytes[100]:
     assert receipt["gasUsed"] < GAS_SENT
 
 
-def test_create_minimal_proxy_to_create2(get_contract, create2_address_of, keccak, tx_failed):
-    code = """
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
+def test_create_minimal_proxy_to_create2(
+    get_contract, create2_address_of, keccak, tx_failed, revert_on_failure
+):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
+    code = f"""
 main: address
 
 @external
 def test(_salt: bytes32) -> address:
-    self.main = create_minimal_proxy_to(self, salt=_salt)
+    self.main = create_minimal_proxy_to(self, salt=_salt{revert_arg})
     return self.main
     """
 
@@ -129,16 +133,28 @@ def test(_salt: bytes32) -> address:
 
     c.test(salt, transact={})
     # revert on collision
-    with tx_failed():
-        c.test(salt, transact={})
+    if revert_on_failure is False:
+        assert not c.test(salt)
+    else:
+        with tx_failed():
+            c.test(salt, transact={})
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
 # contract, and 0xfe7100 is ERC5202 magic
 @pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", ERC5202_PREFIX])
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
 def test_create_from_blueprint(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed, blueprint_prefix
+    get_contract,
+    deploy_blueprint_for,
+    w3,
+    keccak,
+    create2_address_of,
+    tx_failed,
+    blueprint_prefix,
+    revert_on_failure,
 ):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
     code = """
 @external
 def foo() -> uint256:
@@ -151,14 +167,16 @@ created_address: public(address)
 
 @external
 def test(target: address):
-    self.created_address = create_from_blueprint(target, code_offset={prefix_len})
+    self.created_address = create_from_blueprint(target, code_offset={prefix_len}{revert_arg})
 
 @external
 def test2(target: address, salt: bytes32):
-    self.created_address = create_from_blueprint(target, code_offset={prefix_len}, salt=salt)
+    self.created_address = create_from_blueprint(
+        target, code_offset={prefix_len}, salt=salt{revert_arg}
+    )
     """
 
-    # deploy a foo so we can compare its bytecode with factory deployed version
+    # deploy a foo, so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
     expected_runtime_code = w3.eth.get_code(foo_contract.address)
 
@@ -174,8 +192,11 @@ def test2(target: address, salt: bytes32):
 
     # extcodesize check
     zero_address = "0x" + "00" * 20
-    with tx_failed():
-        d.test(zero_address)
+    if revert_on_failure is False:
+        assert not d.test(zero_address)
+    else:
+        with tx_failed():
+            d.test(zero_address)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -191,8 +212,11 @@ def test2(target: address, salt: bytes32):
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
-    with tx_failed():
-        d.test2(f.address, salt)
+    if revert_on_failure is False:
+        assert not d.test2(f.address, salt)
+    else:
+        with tx_failed():
+            d.test2(f.address, salt)
 
 
 # test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
@@ -425,16 +449,18 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
         w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"})
 
 
-def test_create_copy_of(get_contract, w3, keccak, create2_address_of, tx_failed):
-    code = """
+@pytest.mark.parametrize("revert_on_failure", [True, False, None])
+def test_create_copy_of(get_contract, w3, keccak, create2_address_of, tx_failed, revert_on_failure):
+    revert_arg = "" if revert_on_failure is None else f", revert_on_failure={revert_on_failure}"
+    code = f"""
 created_address: public(address)
 @internal
 def _create_copy_of(target: address):
-    self.created_address = create_copy_of(target)
+    self.created_address = create_copy_of(target{revert_arg})
 
 @internal
 def _create_copy_of2(target: address, salt: bytes32):
-    self.created_address = create_copy_of(target, salt=salt)
+    self.created_address = create_copy_of(target, salt=salt{revert_arg})
 
 @external
 def test(target: address) -> address:
@@ -459,8 +485,11 @@ def test2(target: address, salt: bytes32) -> address:
     assert w3.eth.get_code(test1) == bytecode
 
     # extcodesize check
-    with tx_failed():
-        c.test("0x" + "00" * 20)
+    if revert_on_failure is False:
+        assert not c.test("0x" + "00" * 20)
+    else:
+        with tx_failed():
+            c.test("0x" + "00" * 20)
 
     # test1 = c.test(b"\x01")
     # assert w3.eth.get_code(test1) == b"\x01"
@@ -473,8 +502,11 @@ def test2(target: address, salt: bytes32) -> address:
     assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(bytecode))
 
     # can't create2 where contract already exists
-    with tx_failed():
-        c.test2(c.address, salt, transact={})
+    if revert_on_failure is False:
+        assert not c.test2(c.address, salt, transact={})
+    else:
+        with tx_failed():
+            c.test2(c.address, salt, transact={})
 
     # test single byte contract
     # test2 = c.test2(b"\x01", salt)
