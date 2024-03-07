@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+import vyper.evm.opcodes as evm
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -59,6 +60,10 @@ def pytest_addoption(parser):
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
+    parser.addoption(
+        "--evm-version", choices=[evm.EVM_VERSIONS], default="shanghai", help="set evm version"
+    )
+
 
 @pytest.fixture(scope="module")
 def output_formats():
@@ -79,6 +84,12 @@ def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
     _set_debug_mode(debug)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def evm_version(pytestconfig):
+    evm_version_str = pytestconfig.getoption("evm_version")
+    evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
 
 
 @pytest.fixture
@@ -308,7 +319,7 @@ def _get_contract(
     **kwargs,
 ):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
+    assert "evm_version" not in kwargs  # TODO: refactoring placeholder, remove me
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
@@ -383,7 +394,7 @@ def _deploy_blueprint_for(
     w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
 ):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
+    assert "evm_version" not in kwargs  # TODO: refactoring placeholder, remove me
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
