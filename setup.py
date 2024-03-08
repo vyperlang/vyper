@@ -20,6 +20,7 @@ extras_require = {
         "lark==1.1.2",
         "hypothesis[lark]>=5.37.1,<6.0",
         "eth-stdlib==0.2.6",
+        "pyrevm==0.2.1",
     ],
     "lint": [
         "black==23.12.0",

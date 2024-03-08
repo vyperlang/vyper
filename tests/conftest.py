@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+from tests.revm.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -155,6 +156,11 @@ def tester():
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
+
+
+@pytest.fixture(scope="module")
+def revm_env():
+    return RevmEnv()
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -336,6 +342,14 @@ def _get_contract(
 def get_contract(w3, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+
+    return fn
+
+
+@pytest.fixture(scope="module")
+def get_revm_contract(revm_env, optimize, output_formats):
+    def fn(source_code, *args, **kwargs):
+        return revm_env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
