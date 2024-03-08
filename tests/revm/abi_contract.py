@@ -221,10 +221,7 @@ class ABIContract:
         self._functions = functions
         self._bytecode = self.env.get_code(address)
         if not self._bytecode:
-            warn(
-                f"Requested {self} but there is no bytecode at that address!",
-                stacklevel=2,
-            )
+            warn(f"Requested {self} but there is no bytecode at that address!", stacklevel=2)
 
         overloads = defaultdict(list)
         for f in functions:

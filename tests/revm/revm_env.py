@@ -76,8 +76,7 @@ class RevmEnv:
             # test that all output formats can get generated
             output_formats=output_formats,
             settings=Settings(
-                evm_version=kwargs.pop("evm_version", None),
-                optimize=override_opt_level or optimize,
+                evm_version=kwargs.pop("evm_version", None), optimize=override_opt_level or optimize
             ),
             input_bundle=input_bundle,
             show_gas_estimates=True,  # Enable gas estimates for testing
