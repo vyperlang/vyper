@@ -16,7 +16,7 @@ Vyper abstract syntax tree (AST).
   * [`primitives.py`](types/primitives.py): Address, boolean, fixed length byte, integer and decimal types
   * [`shortcuts.py`](types/shortcuts.py): Helper constants for commonly used types
   * [`subscriptable.py`](types/subscriptable.py): Mapping, array and tuple types
-  * [`user.py`](types/user.py): Enum, event, interface and struct types
+  * [`user.py`](types/user.py): Flag, event, interface and struct types
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
 * [`analysis/`](analysis): Subpackage for type checking and syntax verification logic
   * [`annotation.py`](analysis/annotation.py): Annotates statements and expressions with the appropriate type information

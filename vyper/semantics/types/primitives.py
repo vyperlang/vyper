@@ -6,7 +6,13 @@ from typing import Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_FixedMxN, ABI_GIntM, ABIType
-from vyper.exceptions import CompilerPanic, InvalidLiteral, InvalidOperation, OverflowException
+from vyper.exceptions import (
+    CompilerPanic,
+    InvalidLiteral,
+    InvalidOperation,
+    OverflowException,
+    VyperException,
+)
 from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
 from .base import VyperType
@@ -195,6 +201,24 @@ class NumericT(_PrimT):
         return
 
 
+def _add_div_hint(node, e):
+    if isinstance(node.op, vy_ast.Div):
+        suggested = vy_ast.FloorDiv._pretty
+    elif isinstance(node.op, vy_ast.FloorDiv):
+        suggested = vy_ast.Div._pretty
+    else:
+        return e
+
+    if isinstance(node, vy_ast.BinOp):
+        e._hint = f"did you mean `{node.left.node_source_code} "
+        e._hint += f"{suggested} {node.right.node_source_code}`?"
+    elif isinstance(node, vy_ast.AugAssign):
+        e._hint = f"did you mean `{node.target.node_source_code} "
+        e._hint += f"{suggested}= {node.value.node_source_code}`?"
+
+    return e
+
+
 class IntegerT(NumericT):
     """
     General integer type. All signed and unsigned ints from uint8 thru int256
@@ -228,10 +252,16 @@ class IntegerT(NumericT):
 
     @cached_property
     def _invalid_ops(self):
-        invalid_ops = (vy_ast.Not,)
+        invalid_ops = (vy_ast.Not, vy_ast.Div)
         if not self.is_signed:
             return invalid_ops + (vy_ast.USub,)
         return invalid_ops
+
+    def validate_numeric_op(self, node) -> None:
+        try:
+            super().validate_numeric_op(node)
+        except VyperException as e:
+            raise _add_div_hint(node, e) from None
 
     @classmethod
     # TODO maybe cache these three classmethods
@@ -251,11 +281,17 @@ class IntegerT(NumericT):
         return ABI_GIntM(self.bits, self.is_signed)
 
     def compare_type(self, other: VyperType) -> bool:
-        if not super().compare_type(other):
-            return False
-        assert isinstance(other, IntegerT)  # mypy
+        # this function is performance sensitive
+        # originally:
+        # if not super().compare_type(other):
+        #    return False
+        # return self.is_signed == other.is_signed and self.bits == other.bits
 
-        return self.is_signed == other.is_signed and self.bits == other.bits
+        return (  # noqa: E721
+            self.__class__ == other.__class__
+            and self.is_signed == other.is_signed  # type: ignore
+            and self.bits == other.bits  # type: ignore
+        )
 
 
 # helper function for readability.
@@ -275,12 +311,25 @@ class DecimalT(NumericT):
     _decimal_places = 10  # TODO generalize
     _id = "decimal"
     _is_signed = True
-    _invalid_ops = (vy_ast.Pow, vy_ast.BitAnd, vy_ast.BitOr, vy_ast.BitXor, vy_ast.Not)
+    _invalid_ops = (
+        vy_ast.Pow,
+        vy_ast.FloorDiv,
+        vy_ast.BitAnd,
+        vy_ast.BitOr,
+        vy_ast.BitXor,
+        vy_ast.Not,
+    )
     _valid_literal = (vy_ast.Decimal,)
 
     _equality_attrs = ("_bits", "_decimal_places")
 
     ast_type = Decimal
+
+    def validate_numeric_op(self, node) -> None:
+        try:
+            super().validate_numeric_op(node)
+        except VyperException as e:
+            raise _add_div_hint(node, e) from None
 
     @cached_property
     def abi_type(self) -> ABIType:

@@ -10,7 +10,6 @@ from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     STORE,
     IRnode,
-    _freshname,
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
@@ -21,8 +20,8 @@ from vyper.codegen.core import (
     clamp_nonzero,
     copy_bytes,
     dummy_node_for_type,
+    ensure_eval_once,
     ensure_in_memory,
-    eval_once_check,
     eval_seq,
     get_bytearray_length,
     get_type_for_exact_size,
@@ -1165,6 +1164,7 @@ class RawCall(BuiltinFunctionT):
             else:
                 call_op = ["call", gas, to, value, *common_call_args]
 
+            call_op = ensure_eval_once("raw_call_builtin", call_op)
             call_ir += [call_op]
             call_ir = b1.resolve(call_ir)
 
@@ -1221,9 +1221,8 @@ class Send(BuiltinFunctionT):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(
-            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
-        )
+        send_op = ensure_eval_once("send_builtin", ["call", gas, to, value, 0, 0, 0, 0])
+        return IRnode.from_list(["assert", send_op], error_msg="send failed")
 
 
 class SelfDestruct(BuiltinFunctionT):
@@ -1235,13 +1234,13 @@ class SelfDestruct(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         if not self._warned:
-            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            vyper_warn(
+                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+            )
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
-        return IRnode.from_list(
-            ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
-        )
+        return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
 
 class BlockHash(BuiltinFunctionT):
@@ -1307,27 +1306,24 @@ class RawLog(BuiltinFunctionT):
 
         data = args[1]
 
+        log_op = "log" + str(topics_length)
+
         if data.typ == BYTES32_T:
             placeholder = context.new_internal_variable(BYTES32_T)
+            log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(topics_length), placeholder, 32] + topics,
+                    ensure_eval_once("raw_log", log_ir),
                 ]
             )
 
         input_buf = ensure_in_memory(data, context)
 
-        return IRnode.from_list(
-            [
-                "with",
-                "_sub",
-                input_buf,
-                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ]
-        )
+        log_ir = [log_op, ["add", "_sub", 32], ["mload", "_sub"], *topics]
+        return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
 class BitwiseAnd(BuiltinFunctionT):
@@ -1338,7 +1334,7 @@ class BitwiseAnd(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
+            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1363,7 +1359,7 @@ class BitwiseOr(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1388,7 +1384,7 @@ class BitwiseXor(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1413,7 +1409,7 @@ class BitwiseNot(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 1)
@@ -1439,7 +1435,7 @@ class Shift(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1590,9 +1586,7 @@ def _create_ir(value, buf, length, salt, checked=True):
         create_op = "create2"
         args.append(salt)
 
-    ret = IRnode.from_list(
-        ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
-    )
+    ret = IRnode.from_list(ensure_eval_once("create_builtin", [create_op, *args]))
 
     if not checked:
         return ret
@@ -1765,7 +1759,9 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 
     def build_IR(self, expr, context):
         if not self._warned:
-            vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
+            vyper_warn(
+                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+            )
             self._warned = True
 
         return super().build_IR(expr, context)
@@ -1829,7 +1825,7 @@ class CreateFromBlueprint(_CreateBase):
         "value": KwargSettings(UINT256_T, zero_value),
         "salt": KwargSettings(BYTES32_T, empty_value),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
-        "code_offset": KwargSettings(UINT256_T, zero_value),
+        "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
     }
     _has_varargs = True
 
@@ -2266,7 +2262,7 @@ class Breakpoint(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`breakpoint` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`breakpoint` should only be used for debugging!", node)
             self._warned = True
 
         return None
@@ -2286,7 +2282,7 @@ class Print(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
         return None

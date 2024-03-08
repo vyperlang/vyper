@@ -70,6 +70,9 @@ def foo():
                 r = d.args[0].args[0].value
                 if isinstance(r, str) and r.startswith("internal"):
                     ir_funcs.append(r)
-        assert ir_funcs == [
-            f._ir_info.internal_function_label(is_ctor_context=False) for f in sigs.values()
-        ]
+
+        expected = []
+        for f in foo_t.called_functions:
+            expected.append(f._ir_info.internal_function_label(is_ctor_context=False))
+
+        assert ir_funcs == expected

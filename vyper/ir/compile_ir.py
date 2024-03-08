@@ -385,8 +385,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) != 5:
-            raise CompilerPanic("bad number of repeat args")  # pragma: notest
+        if len(code.args) != 5:  # pragma: nocover
+            raise CompilerPanic("bad number of repeat args")
 
         i_name = code.args[0]
         start = code.args[1]
@@ -809,18 +809,26 @@ def _prune_unreachable_code(assembly):
     # unreachable
     changed = False
     i = 0
-    while i < len(assembly) - 2:
-        instr = assembly[i]
-        if isinstance(instr, list):
-            instr = assembly[i][-1]
+    while i < len(assembly) - 1:
+        if assembly[i] in _TERMINAL_OPS:
+            # find the next jumpdest or sublist
+            for j in range(i + 1, len(assembly)):
+                next_is_jumpdest = (
+                    j < len(assembly) - 1
+                    and is_symbol(assembly[j])
+                    and assembly[j + 1] == "JUMPDEST"
+                )
+                next_is_list = isinstance(assembly[j], list)
+                if next_is_jumpdest or next_is_list:
+                    break
+            else:
+                # fixup an off-by-one if we made it to the end of the assembly
+                # without finding an jumpdest or sublist
+                j = len(assembly)
+            changed = j > i + 1
+            del assembly[i + 1 : j]
 
-        if assembly[i] in _TERMINAL_OPS and not (
-            is_symbol(assembly[i + 1]) or isinstance(assembly[i + 1], list)
-        ):
-            changed = True
-            del assembly[i + 1]
-        else:
-            i += 1
+        i += 1
 
     return changed
 
@@ -1045,7 +1053,7 @@ def optimize_assembly(assembly):
         if not changed:
             return
 
-    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: nocover
 
 
 def adjust_pc_maps(pc_maps, ofst):
@@ -1230,7 +1238,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadat
             if is_symbol_map_indicator(assembly[i + 1]):
                 # Don't increment pc as the symbol itself doesn't go into code
                 if item in symbol_map:
-                    print(assembly)
                     raise CompilerPanic(f"duplicate jumpdest {item}")
 
                 symbol_map[item] = pc

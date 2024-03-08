@@ -138,7 +138,7 @@ interface ForeignContract:
 
 @external
 def test():
-    assert ForeignContract(msg.sender).not_really_constant() == 1
+    assert staticcall ForeignContract(msg.sender).not_really_constant() == 1
     """
     c1 = get_contract(foreign_code)
     c2 = get_contract(code, *[c1.address])

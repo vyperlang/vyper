@@ -214,7 +214,7 @@ class ConstantFolder(VyperNodeVisitorBase):
         # TODO: rename to vyper_type.try_fold_call_expr
         if not hasattr(typ, "_try_fold"):
             raise UnfoldableNode("unfoldable", node)
-        return typ._try_fold(node)  # type: ignore
+        return typ._try_fold(node)
 
     def visit_Subscript(self, node) -> vy_ast.ExprNode:
         slice_ = node.slice.get_folded_value()

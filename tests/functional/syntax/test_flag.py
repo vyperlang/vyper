@@ -158,10 +158,10 @@ struct Order:
 
 @external
 def run() -> Order:
-    return Order({
-        action: Action.BUY,
-        amount: 10**18
-        })
+    return Order(
+        action=Action.BUY,
+        amount=10**18
+        )
     """,
     "flag Foo:\n" + "\n".join([f"    member{i}" for i in range(256)]),
     """

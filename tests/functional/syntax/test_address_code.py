@@ -116,7 +116,7 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
 code: public(Bytes[4])
 """,
             NamespaceCollision,
-            "Value 'code' has already been declared",
+            "Member 'code' already exists in self",
         ),
     ],
 )
@@ -153,7 +153,7 @@ interface Test:
 
 @external
 def foo(x: address) -> Bytes[4]:
-    return slice(Test(x).out_literals().code, 0, 4)
+    return slice((staticcall Test(x).out_literals()).code, 0, 4)
 """,
     ],
 )

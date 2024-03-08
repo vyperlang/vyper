@@ -19,7 +19,7 @@ import ifaces
 
 @external
 def test_foo(s: ifaces.IFoo) -> bool:
-    assert s.foo() == block.number
+    assert extcall s.foo() == block.number
     return True
     """
 
