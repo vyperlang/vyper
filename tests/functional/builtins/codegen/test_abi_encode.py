@@ -284,7 +284,7 @@ interface Foo:
 
 @external
 def foo(addr: address) -> Bytes[164]:
-    return _abi_encode(Foo(addr).get_counter(), method_id=0xdeadbeef)
+    return _abi_encode(extcall Foo(addr).get_counter(), method_id=0xdeadbeef)
     """
 
     c2 = get_contract(contract_2)

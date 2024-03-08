@@ -126,19 +126,19 @@ def __init__(_purchase_contract: address):
 @payable
 @external
 def start_purchase():
-    self.purchase_contract.purchase(value=2)
+    extcall self.purchase_contract.purchase(value=2)
 
 
 @payable
 @external
 def start_received():
-    self.purchase_contract.received()
+   extcall self.purchase_contract.received()
 
 
 @external
 @payable
 def __default__():
-    self.purchase_contract.received()
+    extcall self.purchase_contract.received()
 
     """
 
