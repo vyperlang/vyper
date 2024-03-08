@@ -153,7 +153,7 @@ interface Test:
 
 @external
 def foo(x: address) -> Bytes[4]:
-    return slice(Test(x).out_literals().code, 0, 4)
+    return slice((staticcall Test(x).out_literals()).code, 0, 4)
 """,
     ],
 )

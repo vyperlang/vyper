@@ -66,7 +66,7 @@ interface Foo:
 
 @external
 def foo(a: Foo) -> uint256[2]:
-    return ecadd([1, 2], a.foo([1, 2]))
+    return ecadd([1, 2], extcall a.foo([1, 2]))
     """
     c1 = side_effects_contract("uint256[2]")
     c2 = get_contract(code)
@@ -148,7 +148,7 @@ interface Foo:
 
 @external
 def foo(a: Foo) -> uint256[2]:
-    return ecmul([1, 2], a.foo(3))
+    return ecmul([1, 2], extcall a.foo(3))
     """
     c1 = side_effects_contract("uint256")
     c2 = get_contract(code)

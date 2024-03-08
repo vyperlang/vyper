@@ -36,12 +36,12 @@ def test_uint256_mulmod_ext_call(
     w3, side_effects_contract, assert_side_effects_invoked, get_contract
 ):
     code = """
-@external
-def foo(f: Foo) -> uint256:
-    return uint256_mulmod(200, 3, f.foo(601))
-
 interface Foo:
     def foo(x: uint256) -> uint256: nonpayable
+
+@external
+def foo(f: Foo) -> uint256:
+    return uint256_mulmod(200, 3, extcall f.foo(601))
     """
 
     c1 = side_effects_contract("uint256")

@@ -75,7 +75,7 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
 
         # set some pointers for error messages
         expanded._original_node = node
-        expanded.set_parent(node._parent)
+        expanded.set_parent(node.parent)
 
         func_type = ContractFunctionT.from_FunctionDef(expanded)
         expanded._metadata["func_type"] = func_type

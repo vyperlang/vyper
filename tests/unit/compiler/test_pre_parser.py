@@ -49,7 +49,7 @@ bar_contract: Bar
 @external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
+    return extcall self.bar_contract.bar()
     """
 
     c1 = get_contract(contract_1)

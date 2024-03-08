@@ -217,18 +217,15 @@ import itoken as IToken
 interface EPI:
     def test() -> uint256: view
 
-
 token_address: IToken
-
 
 @deploy
 def __init__(_token_address: address):
     self.token_address = IToken(_token_address)
 
-
 @external
 def test():
-    self.token_address.transfer(msg.sender, 1000)
+    extcall self.token_address.transfer(msg.sender, 1000)
     """
 
     token = get_contract(token_code, input_bundle=input_bundle)
@@ -278,7 +275,7 @@ import one as IContract
 @external
 @view
 def bar(a_address: address) -> {typ}:
-    return IContract(a_address).foo()
+    return staticcall IContract(a_address).foo()
     """
 
     contract_a = get_contract(code1, input_bundle=input_bundle)
@@ -300,18 +297,15 @@ def transfer(to: address, amount: uint256) -> bool:
     code = """
 from ethereum.ercs import IERC20
 
-
 token_address: IERC20
-
 
 @deploy
 def __init__(_token_address: address):
     self.token_address = IERC20(_token_address)
 
-
 @external
 def test():
-    self.token_address.transfer(msg.sender, 1000)
+    extcall self.token_address.transfer(msg.sender, 1000)
     """
 
     erc20 = get_contract(token_code)
@@ -368,20 +362,20 @@ def __init__(addr: BadContract):
 
 @external
 def test_ok() -> {typ}:
-    return self.foo.ok()
+    return staticcall self.foo.ok()
 
 @external
 def test_fail() -> {typ}:
-    return self.foo.should_fail()
+    return staticcall self.foo.should_fail()
 
 @external
 def test_fail2() -> {typ}:
-    x: {typ} = self.foo.should_fail()
+    x: {typ} = staticcall self.foo.should_fail()
     return x
 
 @external
 def test_fail3() -> int256:
-    return convert(self.foo.should_fail(), int256)
+    return convert(staticcall self.foo.should_fail(), int256)
     """
 
     bad_c = get_contract(external_contract)
@@ -424,15 +418,15 @@ def __init__(addr: BadContract):
 
 @external
 def test_ok() -> Bytes[2]:
-    return self.foo.ok()
+    return staticcall self.foo.ok()
 
 @external
 def test_fail1() -> Bytes[3]:
-    return self.foo.should_fail()
+    return staticcall self.foo.should_fail()
 
 @external
 def test_fail2() -> Bytes[3]:
-    return concat(self.foo.should_fail(), b"")
+    return concat(staticcall self.foo.should_fail(), b"")
     """
 
     bad_c = get_contract(external_contract)
@@ -459,7 +453,7 @@ def returns_Bytes3() -> Bytes[3]:
 import BadJSONInterface
 @external
 def foo(x: BadJSONInterface) -> Bytes[2]:
-    return slice(x.returns_Bytes3(), 0, 2)
+    return slice(extcall x.returns_Bytes3(), 0, 2)
     """
 
     code = """
@@ -471,24 +465,22 @@ foo: BadJSONInterface
 def __init__(addr: BadJSONInterface):
     self.foo = addr
 
-
 @external
 def test_fail1() -> Bytes[2]:
     # should compile, but raise runtime exception
-    return self.foo.returns_Bytes3()
+    return extcall self.foo.returns_Bytes3()
 
 @external
 def test_fail2() -> Bytes[2]:
     # should compile, but raise runtime exception
-    x: Bytes[2] = self.foo.returns_Bytes3()
+    x: Bytes[2] = extcall self.foo.returns_Bytes3()
     return x
 
 @external
 def test_fail3() -> Bytes[3]:
     # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
     # (because test_fail3 comes after test_fail1)
-    return self.foo.returns_Bytes3()
-
+    return extcall self.foo.returns_Bytes3()
     """
 
     bad_c = get_contract(external_contract)
@@ -570,7 +562,7 @@ def foo() -> uint256 :
 
 @external
 def bar() -> uint256:
-    return Bar(self).foo()
+    return staticcall Bar(self).foo()
 """
     c = get_contract(code)
     assert c.bar() == 42
@@ -593,7 +585,7 @@ def foo() -> uint256 :
 
 @external
 def bar() -> uint256:
-    return self.bar_contract.foo()
+    return staticcall self.bar_contract.foo()
     """
     c = get_contract(code)
     assert c.bar() == 42
@@ -610,7 +602,7 @@ def foo() -> uint256 :
 
 @external
 def bar(a: address) -> uint256:
-    return Bar(a).foo()
+    return staticcall Bar(a).foo()
     """
     c = get_contract(code)
     assert c.bar(c.address) == 42
@@ -692,7 +684,7 @@ import jsonabi as jsonabi
 @external
 @view
 def test_call(a: address, b: {type_str}) -> {type_str}:
-    return jsonabi(a).test_json(b)
+    return staticcall jsonabi(a).test_json(b)
     """
     input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
 
