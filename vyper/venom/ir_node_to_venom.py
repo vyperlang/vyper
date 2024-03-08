@@ -4,7 +4,6 @@ from typing import Optional
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.utils import MemoryPositions
-from vyper.venom.analysis import calculate_cfg, calculate_liveness
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
