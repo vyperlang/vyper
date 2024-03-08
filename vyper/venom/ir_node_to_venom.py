@@ -142,11 +142,12 @@ def _convert_binary_op(
 
 
 def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
-    ctx.get_basic_block().append_instruction("jmp", label)
+    bb = ctx.get_basic_block()
+    if bb.is_terminated:
+        bb = IRBasicBlock(ctx.get_next_label("jmp_target"), ctx)
+        ctx.append_basic_block(bb)
 
-    label = ctx.get_next_label()
-    bb = IRBasicBlock(label, ctx)
-    ctx.append_basic_block(bb)
+    bb.append_instruction("jmp", label)
 
 
 def _new_block(ctx: IRFunction) -> IRBasicBlock:
@@ -400,7 +401,7 @@ def _convert_ir_bb(ctx, ir, symbols):
             if isinstance(c, int):
                 assert 0 <= c <= 255, "data with invalid size"
                 ctx.append_data("db", [c])  # type: ignore
-            elif isinstance(c, bytes):
+            elif isinstance(c.value, bytes):
                 ctx.append_data("db", [c])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(ctx, c, symbols)
