@@ -61,25 +61,29 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.11", "311"]]
         # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
-        evm-version: ["shanghai"]
+        evm-version:
+          - istanbul
+          - berlin
+          - london
+          - paris
+          - shanghai
+          - cancun
         # run across other python versions. we don't really need to run all
         # modes across all python versions - one is enough
+        # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
+          # test 3.11 across the entire matrix
+          - python-version: ["3.11", "311"]
+
           - python-version: ["3.10", "310"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
-
-          # run across other evm versions
-          - evm-version: istanbul
-          - evm-version: london
-          - evm-version: berlin
-          - evm-version: paris
-          - evm-version: shanghai
-          - evm-version: cancun
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode || 'gas' }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version || 'shanghai' }}
 
