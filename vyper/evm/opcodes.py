@@ -22,7 +22,7 @@ active_evm_version: int = EVM_VERSIONS[DEFAULT_EVM_VERSION]
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (berlin, london, paris, shanghai, cancun)
+# gas cost (london, paris, shanghai, cancun)
 OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
@@ -62,11 +62,11 @@ OPCODES: OpcodeMap = {
     "CODESIZE": (0x38, 0, 1, 2),
     "CODECOPY": (0x39, 3, 0, 3),
     "GASPRICE": (0x3A, 0, 1, 2),
-    "EXTCODESIZE": (0x3B, 1, 1, (700, 2600)),
-    "EXTCODECOPY": (0x3C, 4, 0, (700, 2600)),
+    "EXTCODESIZE": (0x3B, 1, 1, 2600),
+    "EXTCODECOPY": (0x3C, 4, 0, 2600),
     "RETURNDATASIZE": (0x3D, 0, 1, 2),
     "RETURNDATACOPY": (0x3E, 3, 0, 3),
-    "EXTCODEHASH": (0x3F, 1, 1, (700, 2600)),
+    "EXTCODEHASH": (0x3F, 1, 1, 2600),
     "BLOCKHASH": (0x40, 1, 1, 20),
     "COINBASE": (0x41, 0, 1, 2),
     "TIMESTAMP": (0x42, 0, 1, 2),
@@ -76,12 +76,12 @@ OPCODES: OpcodeMap = {
     "GASLIMIT": (0x45, 0, 1, 2),
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
-    "BASEFEE": (0x48, 0, 1, (None, 2)),
+    "BASEFEE": (0x48, 0, 1, 2),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
     "MSTORE8": (0x53, 2, 0, 3),
-    "SLOAD": (0x54, 1, 1, (800, 2100)),
+    "SLOAD": (0x54, 1, 1, 2100),
     "SSTORE": (0x55, 2, 0, 20000),
     "JUMP": (0x56, 1, 0, 8),
     "JUMPI": (0x57, 2, 0, 10),
@@ -89,7 +89,7 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
-    "MCOPY": (0x5E, 3, 0, (None, None, None, None, None, 3)),
+    "MCOPY": (0x5E, 3, 0, (None, None, None, 3)),
     "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
@@ -161,19 +161,19 @@ OPCODES: OpcodeMap = {
     "LOG3": (0xA3, 5, 0, 1500),
     "LOG4": (0xA4, 6, 0, 1875),
     "CREATE": (0xF0, 3, 1, 32000),
-    "CALL": (0xF1, 7, 1, (700, 2100)),
-    "CALLCODE": (0xF2, 7, 1, (700, 2100)),
+    "CALL": (0xF1, 7, 1, 2100),
+    "CALLCODE": (0xF2, 7, 1, 2100),
     "RETURN": (0xF3, 2, 0, 0),
-    "DELEGATECALL": (0xF4, 6, 1, (700, 2100)),
+    "DELEGATECALL": (0xF4, 6, 1, 2100),
     "CREATE2": (0xF5, 4, 1, 32000),
     "SELFDESTRUCT": (0xFF, 1, 0, 25000),
-    "STATICCALL": (0xFA, 6, 1, (700, 2100)),
+    "STATICCALL": (0xFA, 6, 1, 2100),
     "REVERT": (0xFD, 2, 0, 0),
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, (None, None, None, None, None, 100)),
-    "TSTORE": (0x5D, 2, 0, (None, None, None, None, None, 100)),
+    "TLOAD": (0x5C, 1, 1, (None, None, None, 100)),
+    "TSTORE": (0x5D, 2, 0, (None, None, None, 100)),
 }
 
 PSEUDO_OPCODES: OpcodeMap = {
