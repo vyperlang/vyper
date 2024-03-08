@@ -103,7 +103,7 @@ jobs:
           --optimize ${{ matrix.opt-mode || 'gas' }} \
           --evm-version ${{ matrix.evm-version || 'shanghai' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          --show-locals -r aR \
+          --showlocals -r aR \
           tests/
 
     - name: Upload Coverage
