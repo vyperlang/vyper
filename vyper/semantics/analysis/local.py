@@ -744,7 +744,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # builtin functions and interfaces
             if self.function_analyzer and hasattr(func_type, "mutability"):
-                self._check_call_mutability(func_type.mutability) # type: ignore
+                self._check_call_mutability(func_type.mutability)  # type: ignore
 
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
