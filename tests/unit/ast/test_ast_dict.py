@@ -665,12 +665,14 @@ def foo():
                     "type": {
                         "key_type": {"name": "address"},
                         "name": "HashMap",
+                        "typeclass": "hashmap",
                         "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
                 "type": {
                     "key_type": {"name": "address"},
                     "name": "HashMap",
+                    "typeclass": "hashmap",
                     "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
                 "value": None,

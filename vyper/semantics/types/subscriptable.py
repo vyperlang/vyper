@@ -41,6 +41,7 @@ class _SubscriptableT(VyperType):
 
 
 class HashMapT(_SubscriptableT):
+    typeclass = "hashmap"
     _id = "HashMap"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     _equality_attrs = ("key_type", "value_type")
