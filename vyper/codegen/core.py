@@ -670,7 +670,7 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location in (MEMORY, IMMUTABLES):
         return IRnode.from_list(store)
 
-    return IRnode.from_list(ensure_eval_once(_freshname(f"{op}_"), store))
+    return IRnode.from_list(ensure_eval_once(f"{op}_", store))
 
 
 # Unwrap location
