@@ -278,6 +278,10 @@ def _convert_ir_bb(ctx, ir, symbols):
                 ret = _convert_ir_bb(ctx, ir.args[0], symbols)
                 _append_return_args(ctx)
         else:
+            bb = ctx.get_basic_block()
+            if bb.is_terminated:
+                bb = IRBasicBlock(ctx.get_next_label("seq"), ctx)
+                ctx.append_basic_block(bb)
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
         for ir_node in ir.args[1:]:
