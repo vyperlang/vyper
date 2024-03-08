@@ -97,12 +97,12 @@ def foo(a: {data_type}) -> uint256:
 
 def test_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
-@external
-def foo(a: Foo) -> uint256:
-    return as_wei_value(a.foo(7), "ether")
-
 interface Foo:
     def foo(x: uint8) -> uint8: nonpayable
+
+@external
+def foo(a: Foo) -> uint256:
+    return as_wei_value(extcall a.foo(7), "ether")
     """
 
     c1 = side_effects_contract("uint8")

@@ -13,6 +13,7 @@ from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -108,7 +109,8 @@ def get_node(
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
-    if not vy_class:
+
+    if vy_class is None:
         if ast_struct["ast_type"] == "Delete":
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
@@ -273,6 +275,10 @@ class VyperNode:
         # add to children of parent last to ensure an accurate hash is generated
         if parent is not None:
             parent._children.append(self)
+
+    @property
+    def parent(self):
+        return self._parent
 
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
@@ -1211,6 +1217,26 @@ class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
     @property
+    def is_extcall(self):
+        return isinstance(self._parent, ExtCall)
+
+    @property
+    def is_staticcall(self):
+        return isinstance(self._parent, StaticCall)
+
+    @property
+    def is_plain_call(self):
+        return not (self.is_extcall or self.is_staticcall)
+
+    @property
+    def kind_str(self):
+        if self.is_extcall:
+            return "extcall"
+        if self.is_staticcall:
+            return "staticcall"
+        raise CompilerPanic("unreachable!")  # pragma: nocover
+
+    @property
     def is_terminus(self):
         # cursed import cycle!
         from vyper.builtins.functions import get_builtin_functions
@@ -1224,6 +1250,31 @@ class Call(ExprNode):
             return False
 
         return builtin_t._is_terminus
+
+
+class ExtCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            # TODO: investigate wrong col_offset for `self.value`
+            raise StructureException(
+                "`extcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
+
+
+class StaticCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException(
+                "`staticcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
 
 
 class keyword(VyperNode):

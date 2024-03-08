@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import CallViolation
 
 
@@ -14,7 +15,7 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit()
+    extcall self.piggy.deposit()
     """,
         # You don't have to send value in a payable call
         """
@@ -25,12 +26,12 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit()
+    extcall self.piggy.deposit()
     """,
     ],
 )
 def test_payable_call_compiles(source, get_contract):
-    get_contract(source)
+    _ = compile_code(source)
 
 
 @pytest.mark.parametrize(
@@ -44,12 +45,14 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit(value=self.balance)
+    # sends value to nonpayable function
+    extcall self.piggy.deposit(value=self.balance)
     """
     ],
 )
 def test_payable_compile_fail(source, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(source), CallViolation)
+    with pytest.raises(CallViolation):
+        compile_code(source)
 
 
 nonpayable_code = [
