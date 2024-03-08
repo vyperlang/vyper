@@ -156,7 +156,7 @@ interface Foo:
 @external
 @pure
 def bar(a: address) -> uint256:
-    return Foo(a).foo()
+    return extcall Foo(a).foo()
     """
         ),
         StateAccessViolation,
