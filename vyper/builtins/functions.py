@@ -1061,6 +1061,25 @@ class RawCall(BuiltinFunctionT):
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
+        delegate_call = kwargz.get("is_delegate_call")
+        static_call = kwargz.get("is_static_call")
+        if delegate_call and static_call:
+            raise ArgumentException(
+                "Call may use one of `is_delegate_call` or `is_static_call`, not both"
+            )
+
+        value = kwargz.get("value")
+        if (delegate_call or static_call) and value is not None:
+            raise ArgumentException("value= may not be passed for static or delegate calls!")
+
+        fn_node = node.get_ancestor(vy_ast.FunctionDef)
+        fn_type = fn_node._metadata["func_type"]
+        if not static_call and not fn_type.is_mutable:
+            raise StateAccessViolation(
+                f"Cannot make modifying calls from {fn_type.mutability},"
+                " use `is_static_call=True` to perform this action"
+            )
+
         outsize = kwargz.get("max_outsize")
         if outsize is not None:
             outsize = outsize.get_folded_value()
@@ -1105,20 +1124,6 @@ class RawCall(BuiltinFunctionT):
             kwargs["is_static_call"],
             kwargs["revert_on_failure"],
         )
-
-        if delegate_call and static_call:
-            raise ArgumentException(
-                "Call may use one of `is_delegate_call` or `is_static_call`, not both"
-            )
-
-        if (delegate_call or static_call) and value.value != 0:
-            raise ArgumentException("value= may not be passed for static or delegate calls!")
-
-        if not static_call and context.is_constant():
-            raise StateAccessViolation(
-                f"Cannot make modifying calls from {context.pp_constancy()},"
-                " use `is_static_call=True` to perform this action"
-            )
 
         if data.value == "~calldata":
             call_ir = ["with", "mem_ofst", "msize"]
