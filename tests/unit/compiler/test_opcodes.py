@@ -38,11 +38,11 @@ def test_version_check(evm_version):
     assert opcodes.version_check(begin=evm_version)
     assert opcodes.version_check(end=evm_version)
     assert opcodes.version_check(begin=evm_version, end=evm_version)
-    if evm_version not in ("berlin"):
-        assert not opcodes.version_check(end="berlin")
-    berlin_check = opcodes.version_check(begin="berlin_check")
-    assert berlin_check == (
-        opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["berlin_check"]
+    if evm_version not in ("london",):
+        assert not opcodes.version_check(end="london")
+    london_check = opcodes.version_check(begin="london")
+    assert london_check == (
+        opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["london"]
     )
 
 
