@@ -155,7 +155,7 @@ class SArrayT(_SequenceT):
 
     typeclass = "static_array"
 
-    _id = "SArray"
+    _id = "$SArray"
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -317,7 +317,7 @@ class TupleT(VyperType):
     typeclass = "tuple"
 
     _equality_attrs = ("members",)
-    _id = "_tuple"
+    _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
     # are in fact instantiable and the codegen works. if we

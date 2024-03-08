@@ -562,14 +562,14 @@ def foo():
                     "node_id": 62,
                     "type": {
                         "length": 1,
-                        "name": "SArray",
+                        "name": "$SArray",
                         "typeclass": "static_array",
                         "value_type": {"name": "Foo", "typeclass": "struct"},
                     },
                 },
                 "type": {
                     "length": 1,
-                    "name": "SArray",
+                    "name": "$SArray",
                     "typeclass": "static_array",
                     "value_type": {"name": "Foo", "typeclass": "struct"},
                 },
@@ -697,7 +697,7 @@ def foo():
                     "node_id": 100,
                     "type": {
                         "length": 2,
-                        "name": "SArray",
+                        "name": "$SArray",
                         "typeclass": "static_array",
                         "value_type": {
                             "bits": 256,
@@ -709,7 +709,7 @@ def foo():
                 },
                 "type": {
                     "length": 2,
-                    "name": "SArray",
+                    "name": "$SArray",
                     "typeclass": "static_array",
                     "value_type": {
                         "bits": 256,
@@ -935,7 +935,7 @@ def foo():
                                 "node_id": 153,
                                 "type": {
                                     "length": 1,
-                                    "name": "SArray",
+                                    "name": "$SArray",
                                     "typeclass": "static_array",
                                     "value_type": {"name": "Foo", "typeclass": "struct"},
                                 },
@@ -1037,7 +1037,7 @@ def foo():
                                     "node_id": 179,
                                     "type": {
                                         "length": 1,
-                                        "name": "SArray",
+                                        "name": "$SArray",
                                         "typeclass": "static_array",
                                         "value_type": {"name": "Foo", "typeclass": "struct"},
                                     },
@@ -1061,12 +1061,12 @@ def foo():
                                 },
                             ],
                             "node_id": 178,
-                            "type": {"members": {}, "name": "_tuple", "typeclass": "tuple"},
+                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                         },
                         "value": {
                             "ast_type": "ExtCall",
                             "node_id": 186,
-                            "type": {"members": {}, "name": "_tuple", "typeclass": "tuple"},
+                            "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                             "value": {
                                 "args": [],
                                 "ast_type": "Call",
@@ -1098,7 +1098,7 @@ def foo():
                                 },
                                 "keywords": [],
                                 "node_id": 187,
-                                "type": {"members": {}, "name": "_tuple", "typeclass": "tuple"},
+                                "type": {"members": {}, "name": "$Tuple", "typeclass": "tuple"},
                             },
                         },
                     },
