@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from vyper.codegen.ir_node import IRnode
@@ -188,7 +189,7 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Opti
 
 def _handle_internal_func(
     ctx: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
-) -> IRnode:
+):
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
 
@@ -201,7 +202,7 @@ def _handle_internal_func(
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
-    return ir.args[0].args[2]
+    _convert_ir_bb(ctx, ir.args[0].args[2], symbols)
 
 
 def _convert_ir_simple_node(
@@ -225,9 +226,13 @@ def _convert_ir_bb_list(ctx, ir, symbols):
     return ret
 
 
+current_func = None
+var_list: list[str] = []
+
+
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
-    global _break_target, _continue_target
+    global _break_target, _continue_target, current_func, var_list
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])
@@ -254,19 +259,23 @@ def _convert_ir_bb(ctx, ir, symbols):
             return None
         if ir.is_self_call:
             return _handle_self_call(ctx, ir, symbols)
-        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("internal"):
-            # Internal definition
-            var_list = ir.args[0].args[1]
-            does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
-            symbols = {}
-            ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
-            for ir_node in ir.args:
-                ret = _convert_ir_bb(ctx, ir_node, symbols)
+        elif ir.args[0].value == "label":
+            current_func = ir.args[0].args[0].value
+            is_external = current_func.startswith("external")
+            is_internal = current_func.startswith("internal")
+            if is_internal or len(re.findall(r"external.*__init__\(.*_deploy", current_func)) > 0:
+                # Internal definition
+                var_list = ir.args[0].args[1]
+                does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
+                symbols = {}
+                _handle_internal_func(ctx, ir, does_return_data, symbols)
+                for ir_node in ir.args[1:]:
+                    ret = _convert_ir_bb(ctx, ir_node, symbols)
 
-            return ret
-        elif ir.args[0].value == "label" and ir.args[0].args[0].value.startswith("external"):
-            ret = _convert_ir_bb(ctx, ir.args[0], symbols)
-            _append_return_args(ctx)
+                return ret
+            elif is_external:
+                ret = _convert_ir_bb(ctx, ir.args[0], symbols)
+                _append_return_args(ctx)
         else:
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
@@ -403,33 +412,28 @@ def _convert_ir_bb(ctx, ir, symbols):
             bb.append_instruction("jmp", label)
         bb = IRBasicBlock(label, ctx)
         ctx.append_basic_block(bb)
-        _convert_ir_bb(ctx, ir.args[2], symbols)
+        code = ir.args[2]
+        if code.value == "pass":
+            bb.append_instruction("stop")
+        else:
+            _convert_ir_bb(ctx, code, symbols)
     elif ir.value == "exit_to":
-        label = IRLabel(ir.args[0].value)
-
-        is_constructor = "__init__(" in label.name
-        is_external = label.name.startswith("external") and not is_constructor
-        is_internal = label.name.startswith("internal")
-
+        args = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
+        var_list = args
+        _append_return_args(ctx, *var_list)
         bb = ctx.get_basic_block()
-        if is_external:
-            if len(ir.args) > 1:  # no return value
-                if bb.is_terminated:
-                    bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
-                    ctx.append_basic_block(bb)
-                ret_ofst, ret_size = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
+        if bb.is_terminated:
+            bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
+            ctx.append_basic_block(bb)
+        bb = ctx.get_basic_block()
 
-                _append_return_args(ctx, ret_ofst, ret_size)
-
-                bb = ctx.get_basic_block()
-                assert ret_ofst is not None
-
+        label = IRLabel(ir.args[0].value)
+        if label.value == "return_pc":
+            label = symbols.get("return_pc")
+            bb.append_instruction("ret", label)
+        else:
             bb.append_instruction("jmp", label)
 
-        elif is_internal:
-            assert ir.args[1].value == "return_pc", "return_pc not found"
-            # TODO: never passing return values with the new convention
-            bb.append_instruction("ret", symbols["return_pc"])
     elif ir.value == "dload":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
         bb = ctx.get_basic_block()
@@ -545,7 +549,9 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(exit_block)
 
         cond_block.append_instruction("jnz", cont_ret, exit_block.label, body_block.label)
-    elif ir.value in ["cleanup_repeat", "pass"]:
+    elif ir.value == "cleanup_repeat":
+        pass
+    elif ir.value == "pass":
         pass
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
@@ -555,6 +561,8 @@ def _convert_ir_bb(ctx, ir, symbols):
         assert _continue_target is not None, "Continue with no contrinue target"
         ctx.get_basic_block().append_instruction("jmp", _continue_target.label)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
+    elif ir.value == "var_list":
+        pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         args = reversed([_convert_ir_bb(ctx, arg, symbols) for arg in ir.args])
         topic_count = int(ir.value[3:])

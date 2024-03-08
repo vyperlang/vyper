@@ -245,7 +245,7 @@ interface Foo:
 def foo(addr: address) -> (uint256, String[5]):
     a: uint256 = 0
     b: String[5] = ""
-    a, b = _abi_decode(Foo(addr).get_counter(), (uint256, String[5]), unwrap_tuple=False)
+    a, b = _abi_decode(extcall Foo(addr).get_counter(), (uint256, String[5]), unwrap_tuple=False)
     return a, b
     """
 

@@ -63,7 +63,7 @@ factory: Factory
 @external
 def setup(token_addr: address):
     self.token = IERC20(token_addr)
-    assert self.factory.getExchange(self.token.address) == self
+    assert staticcall self.factory.getExchange(self.token.address) == self
     """,
 ]
 
