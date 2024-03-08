@@ -489,7 +489,7 @@ import ifoo
 
 @external
 def bar():
-    ifoo(msg.sender).foo()
+    extcall ifoo(msg.sender).foo()
     """
     input_bundle = make_input_bundle({"ifoo.vyi": ifoo})
     out = compile_code(main, input_bundle=input_bundle, output_formats=["abi"])

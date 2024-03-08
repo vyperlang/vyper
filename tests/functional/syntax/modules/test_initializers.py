@@ -594,7 +594,7 @@ something: uint256
 
 @internal
 def foo() -> uint256:
-    lib1.counter[1][2], self.something = Foo(msg.sender).foo()
+    lib1.counter[1][2], self.something = extcall Foo(msg.sender).foo()
     """
     main = """
 import lib1
@@ -630,7 +630,7 @@ interface Foo:
 
 @internal
 def write_tuple():
-    self.counter[1][2], self.something = Foo(msg.sender).foo()
+    self.counter[1][2], self.something = extcall Foo(msg.sender).foo()
     """
     lib2 = """
 import lib1

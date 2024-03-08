@@ -5,8 +5,11 @@ import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    append_dyn_array,
+    check_assign,
     clamp,
     data_location_to_address_space,
+    dummy_node_for_type,
     ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
@@ -68,7 +71,7 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 class Expr:
     # TODO: Once other refactors are made reevaluate all inline imports
 
-    def __init__(self, node, context):
+    def __init__(self, node, context, is_stmt=False):
         if isinstance(node, IRnode):
             # this is a kludge for parse_AugAssign to pass in IRnodes
             # directly.
@@ -82,6 +85,7 @@ class Expr:
 
         self.expr = node
         self.context = context
+        self.is_stmt = is_stmt  # this came from an Expr node
 
         fn_name = f"parse_{type(node).__name__}"
         with tag_exceptions(node, fallback_exception_type=CodegenPanic, note=fn_name):
@@ -429,7 +433,7 @@ class Expr:
                 ret = arithmetic.safe_mod(x, y)
             elif isinstance(self.expr.op, vy_ast.Pow):
                 ret = arithmetic.safe_pow(x, y)
-            else:
+            else:  # pragma: nocover
                 raise CompilerPanic("Unreachable")
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=out_typ)
@@ -539,8 +543,8 @@ class Expr:
             op = "eq"
         elif isinstance(self.expr.op, vy_ast.NotEq):
             op = "ne"
-        else:
-            return  # pragma: notest
+        else:  # pragma: nocover
+            return
 
         # Compare (limited to 32) byte arrays.
         if isinstance(left.typ, _BytestringT) and isinstance(right.typ, _BytestringT):
@@ -593,7 +597,7 @@ class Expr:
         if isinstance(self.expr.op, vy_ast.Or):
             return Expr._logical_or(values)
 
-        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: notest
+        raise TypeCheckFailure(f"Unexpected boolop: {self.expr.op}")  # pragma: nocover
 
     @staticmethod
     def _logical_and(values):
@@ -664,22 +668,21 @@ class Expr:
     # Function calls
     def parse_Call(self):
         # TODO fix cyclic import
-        from vyper.builtins.functions import DISPATCH_TABLE
+        from vyper.builtins._signatures import BuiltinFunctionT
 
-        if isinstance(self.expr.func, vy_ast.Name):
-            function_name = self.expr.func.id
+        func_t = self.expr.func._metadata["type"]
 
-            if function_name in DISPATCH_TABLE:
-                return DISPATCH_TABLE[function_name].build_IR(self.expr, self.context)
-
-        func_type = self.expr.func._metadata["type"]
+        if isinstance(func_t, BuiltinFunctionT):
+            return func_t.build_IR(self.expr, self.context)
 
         # Struct constructor
-        if is_type_t(func_type, StructT):
+        if is_type_t(func_t, StructT):
+            assert not self.is_stmt  # sanity check typechecker
             return self.handle_struct_literal()
 
         # Interface constructor. Bar(<address>).
-        if is_type_t(func_type, InterfaceT):
+        if is_type_t(func_t, InterfaceT):
+            assert not self.is_stmt  # sanity check typechecker
             (arg0,) = self.expr.args
             arg_ir = Expr(arg0, self.context).ir_node
 
@@ -688,20 +691,47 @@ class Expr:
 
             return arg_ir
 
-        if isinstance(func_type, MemberFunctionT) and self.expr.func.attr == "pop":
-            # TODO consider moving this to builtins
+        if isinstance(func_t, MemberFunctionT):
             darray = Expr(self.expr.func.value, self.context).ir_node
-            assert len(self.expr.args) == 0
             assert isinstance(darray.typ, DArrayT)
-            return pop_dyn_array(darray, return_popped_item=True)
+            args = [Expr(x, self.context).ir_node for x in self.expr.args]
+            if self.expr.func.attr == "pop":
+                # TODO consider moving this to builtins
+                darray = Expr(self.expr.func.value, self.context).ir_node
+                assert len(self.expr.args) == 0
+                return_item = not self.is_stmt
+                return pop_dyn_array(darray, return_popped_item=return_item)
+            elif self.expr.func.attr == "append":
+                (arg,) = args
+                check_assign(
+                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
+                )
+                return append_dyn_array(darray, arg)
 
-        if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal or func_type.is_constructor:
-                return self_call.ir_for_self_call(self.expr, self.context)
-            else:
-                return external_call.ir_for_external_call(self.expr, self.context)
+        assert isinstance(func_t, ContractFunctionT)
+        assert func_t.is_internal or func_t.is_constructor
+        return self_call.ir_for_self_call(self.expr, self.context)
 
-        raise CompilerPanic("unreachable", self.expr)
+    @classmethod
+    def handle_external_call(cls, expr, context):
+        # TODO fix cyclic import
+        from vyper.builtins._signatures import BuiltinFunctionT
+
+        call_node = expr.value
+        assert isinstance(call_node, vy_ast.Call)
+
+        func_t = call_node.func._metadata["type"]
+
+        if isinstance(func_t, BuiltinFunctionT):
+            return func_t.build_IR(call_node, context)
+
+        return external_call.ir_for_external_call(call_node, context)
+
+    def parse_ExtCall(self):
+        return self.handle_external_call(self.expr, self.context)
+
+    def parse_StaticCall(self):
+        return self.handle_external_call(self.expr, self.context)
 
     def parse_List(self):
         typ = self.expr._metadata["type"]
