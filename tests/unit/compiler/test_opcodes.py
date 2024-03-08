@@ -41,9 +41,7 @@ def test_version_check(evm_version):
     if evm_version not in ("london",):
         assert not opcodes.version_check(end="london")
     london_check = opcodes.version_check(begin="london")
-    assert london_check == (
-        opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["london"]
-    )
+    assert london_check == (opcodes.EVM_VERSIONS[evm_version] >= opcodes.EVM_VERSIONS["london"])
 
 
 def test_get_opcodes(evm_version):

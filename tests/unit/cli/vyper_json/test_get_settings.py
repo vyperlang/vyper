@@ -19,7 +19,7 @@ def test_unknown_evm():
         "constantinople",
         "petersburg",
         "istanbul",
-        "berlin", 
+        "berlin",
     ],
 )
 def test_early_evm(evm_version):
