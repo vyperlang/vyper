@@ -169,7 +169,11 @@ class VenomCompiler:
                     label = inst.operands[0].value
                     data_segments[label] = [DataHeader(f"_sym_{label}")]
                 elif inst.opcode == "db":
-                    data_segments[label].append(f"_sym_{inst.operands[0].value}")
+                    data = inst.operands[0].value
+                    if isinstance(data, bytes):
+                        data_segments[label].append(data)
+                    else:
+                        data_segments[label].append(f"_sym_{inst.operands[0].value}")
 
             asm.extend(list(data_segments.values()))
 
