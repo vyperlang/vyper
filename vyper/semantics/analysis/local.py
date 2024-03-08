@@ -359,7 +359,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             msg = "reason must be a string or the special `UNREACHABLE` value"
             raise TypeMismatch(msg, msg_node) from e
 
-
     def visit_Assert(self, node):
         if node.msg:
             self._validate_revert_reason(node.msg)
@@ -639,6 +638,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
+            # note: infer_type caches the resolved type on node._metadata["type"]
             typ = infer_type(node, expected_type=typ)
 
         super().visit(node, typ)

@@ -13,8 +13,8 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    infer_type,
     get_exact_type_from_node,
+    infer_type,
     validate_unique_method_ids,
 )
 from vyper.semantics.data_locations import DataLocation

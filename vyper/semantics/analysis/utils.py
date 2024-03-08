@@ -21,7 +21,7 @@ from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, V
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
-from vyper.semantics.types.bytestrings import BytesT, StringT
+from vyper.semantics.types.bytestrings import BytesT, StringT, _DynLength
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import checksum_encode, int_to_fourbytes
@@ -566,6 +566,7 @@ def infer_type(node, expected_type):
     node._metadata["type"] = ret
     return ret
 
+
 def _infer_type_helper(node, expected_type):
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
@@ -614,7 +615,12 @@ def _infer_type_helper(node, expected_type):
         vy_ast.Name, include_self=True
     ):
         given = given_types[0]
-        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", node)
+        hint = None
+        # TODO: refactor the suggestions code. compare_type could maybe return
+        # a suggestion if the type is close.
+        if isinstance(given, _DynLength) and given.length is None:
+            hint = f"did you mean `convert({node.node_source_code}, {expected_type[0]})`?"
+        raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", hint=hint)
     else:
         if len(given_types) == 1:
             given_str = str(given_types[0])
@@ -622,13 +628,12 @@ def _infer_type_helper(node, expected_type):
             types_str = sorted(str(i) for i in given_types)
             given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
 
-        suggestion_str = ""
+        hint = None
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
-            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+            hint = f" Did you mean `{checksum_encode(node.value)}`?"
 
         raise TypeMismatch(
-            f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
-            node,
+            f"Expected {expected_str} but literal can only be cast as {given_str}.", hint=hint
         )
 
 

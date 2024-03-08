@@ -24,11 +24,7 @@ from vyper.semantics.analysis.base import (
     VarAccess,
     VarOffset,
 )
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    get_exact_type_from_node,
-    infer_type,
-)
+from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node, infer_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.primitives import BoolT
@@ -788,7 +784,7 @@ def _parse_args(
             if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
                 raise StateAccessViolation("Value must be literal or environment variable", value)
             infer_type(value, expected_type=type_)
-            keyword_args.append(KeywordArg(argname, type_, default_value=value,ast_source=arg))
+            keyword_args.append(KeywordArg(argname, type_, default_value=value, ast_source=arg))
 
         argnames.add(argname)
 

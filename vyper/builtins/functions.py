@@ -292,11 +292,6 @@ class Slice(BuiltinFunctionT):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
         arg = node.args[0]
@@ -325,19 +320,13 @@ class Slice(BuiltinFunctionT):
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
-        # we know the length statically
+        return_cls = arg_type.__class__
         if length_literal is not None:
-            return_type.set_length(length_literal)
+            return_type = return_cls(length_literal)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = return_cls(arg_type.length)
 
         return return_type
-
-    def infer_arg_types(self, node, expected_return_typ=None):
-        self._validate_arg_types(node)
-        # return a concrete type for `b`
-        b_type = get_possible_types_from_node(node.args[0]).pop()
-        return [b_type, self._inputs[1][1], self._inputs[2][1]]
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -492,12 +481,8 @@ class Concat(BuiltinFunctionT):
         for arg_t in arg_types:
             length += arg_t.length
 
-        if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-        return_type.set_length(length)
-        return return_type
+        return_type_cls = arg_types[0].__class__
+        return return_type_cls(length)
 
     def infer_arg_types(self, node, expected_return_typ=None):
         if len(node.args) < 2:
@@ -865,7 +850,7 @@ class Extract32(BuiltinFunctionT):
                     "Output type must be one of integer, bytes32 or address", node.keywords[0].value
                 )
             output_typedef = TYPE_T(output_type)
-            #node.keywords[0].value._metadata["type"] = output_typedef
+            # node.keywords[0].value._metadata["type"] = output_typedef
         else:
             output_typedef = TYPE_T(BYTES32_T)
 
@@ -1080,8 +1065,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -2404,9 +2388,7 @@ class ABIEncode(BuiltinFunctionT):
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):

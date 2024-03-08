@@ -7,11 +7,7 @@ from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    get_exact_type_from_node,
-    infer_type,
-)
+from vyper.semantics.analysis.utils import check_modifiability, get_exact_type_from_node, infer_type
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
 
