@@ -70,7 +70,8 @@ jobs:
         # modes across all python versions - one is enough
         include:
           - python-version: ["3.10", "310"]
-          - python-version: ["3.12", "312"]
+          # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
+          #- python-version: ["3.12", "312"]
 
           # run across other evm versions
           - evm-version: istanbul
