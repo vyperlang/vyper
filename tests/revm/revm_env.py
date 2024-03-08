@@ -15,10 +15,10 @@ from vyper.compiler.settings import OptimizationLevel
 
 
 class RevmEnv:
-    def __init__(self) -> None:
+    def __init__(self, gas_limit) -> None:
         self.block = BlockEnv(timestamp=100, prevrandao=bytes([0] * 32))
         self.env = Env(block=self.block)
-        self.evm = EVM(env=self.env)
+        self.evm = EVM(env=self.env, gas_limit=gas_limit)
         self.bytecode: dict[HexAddress, str] = {}
         self.contracts: dict[HexAddress, ABIContract] = {}
         self._accounts: list[Account] = get_default_account_keys()
@@ -29,16 +29,18 @@ class RevmEnv:
 
     def execute_code(
         self,
-        to_address: str,
-        sender: str,
-        data: bytes,
-        value: bytes,
+        to_address: HexAddress,
+        sender: HexAddress,
+        data: list[int] | None,
+        value: int | None,
         gas: int,
         is_modifying: bool,
         contract: "ABIContract",
+        transact=None,
     ):
         try:
-            output = self.evm.call_raw(
+            fn = self.evm.call_raw_committing if transact is None else self.evm.call_raw
+            output = fn(
                 to=to_address,
                 caller=sender,
                 data=data,
@@ -49,13 +51,14 @@ class RevmEnv:
             )
             return bytes(output)
         except RuntimeError as e:
-            assert e.args == ("Revert",), f"Expected revert, got {e.args}"
+            (cause,) = e.args
+            assert cause in ("Revert", "OutOfGas"), f"Unexpected error {e}"
             raise TransactionFailed()
 
-    def get_code(self, address: str):
+    def get_code(self, address: HexAddress):
         return self.bytecode[address]
 
-    def register_contract(self, address: str, contract: "ABIContract"):
+    def register_contract(self, address: HexAddress, contract: "ABIContract"):
         self.contracts[address] = contract
 
     def deploy_source(

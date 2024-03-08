@@ -1,10 +1,11 @@
 # wrapper module around whatever encoder we are using
+from decimal import Decimal
 from typing import Any
 
 from eth.codecs.abi.decoder import Decoder
 from eth.codecs.abi.encoder import Encoder
 from eth.codecs.abi.exceptions import ABIError
-from eth.codecs.abi.nodes import ABITypeNode, BytesNode
+from eth.codecs.abi.nodes import ABITypeNode, BytesNode, FixedNode
 from eth.codecs.abi.parser import Parser
 
 _parsers: dict[str, ABITypeNode] = {}
@@ -21,6 +22,12 @@ class _Encoder(Encoder):
             assert value.startswith("0x"), "Sanity check failed: expected hex string"
             value = bytes.fromhex(value[2:])
         return super().visit_BytesNode(node, value)
+
+    @classmethod
+    def visit_FixedNode(cls, node: FixedNode, value: Decimal | int) -> bytes:
+        if isinstance(value, int):
+            value = Decimal(value)
+        return super().visit_FixedNode(node, value)
 
 
 def _get_parser(schema: str):

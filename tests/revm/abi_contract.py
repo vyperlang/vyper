@@ -4,13 +4,12 @@ from os.path import basename
 from typing import TYPE_CHECKING, Any, Optional, Union
 from warnings import warn
 
-from eth.abc import ComputationAPI
+from eth_typing import HexAddress
 
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
 from vyper.utils import method_id
 
-from .abi import ABIError, abi_decode, abi_encode, is_abi_encodable
-from .base_evm_contract import BoaError, StackTrace, _handle_child_trace
+from .abi import abi_decode, abi_encode, is_abi_encodable
 
 if TYPE_CHECKING:
     from tests.revm.revm_env import RevmEnv
@@ -113,6 +112,7 @@ class ABIFunction:
             gas=gas,
             is_modifying=self.is_mutable,
             contract=self.contract,
+            transact=transact,
         )
 
         match self.contract.marshal_to_python(computation, self.return_type):
@@ -210,7 +210,7 @@ class ABIContract:
         name: str,
         abi: dict,
         functions: list[ABIFunction],
-        address: str,
+        address: HexAddress,
         filename: Optional[str] = None,
     ):
         self.env = env
@@ -243,39 +243,14 @@ class ABIContract:
         """
         return {function.method_id: function for function in self._functions}
 
-    def handle_error(self, computation):
-        raise BoaError(self.stack_trace(computation))
-
-    def marshal_to_python(self, computation, abi_type: list[str]) -> tuple[Any, ...]:
+    def marshal_to_python(self, result: bytes, abi_type: list[str]) -> tuple[Any, ...]:
         """
         Convert the output of a contract call to a Python object.
-        :param computation: the computation object returned by `execute_code`
+        :param result: the computation result returned by `execute_code`
         :param abi_type: the ABI type of the return value.
         """
-        # when there's no contract in the address, the computation output is empty
-        # if computation.is_error:
-        #     return self.handle_error(computation)
-
         schema = f"({_format_abi_type(abi_type)})"
-        try:
-            return abi_decode(schema, computation)
-        except ABIError as e:
-            raise BoaError(self.stack_trace(computation)) from e
-
-    def stack_trace(self, computation: ComputationAPI) -> StackTrace:
-        """
-        Create a stack trace for a failed contract call.
-        """
-        calldata_method_id = bytes(computation.msg.data[:4])
-        if calldata_method_id in self.method_id_map:
-            function = self.method_id_map[calldata_method_id]
-            msg = f"  ({self}.{function.pretty_signature})"
-        else:
-            # Method might not be specified in the ABI
-            msg = f"  (unknown method id {self}.0x{calldata_method_id.hex()})"
-
-        return_trace = StackTrace([msg])
-        return _handle_child_trace(computation, self.env, return_trace)
+        return abi_decode(schema, result)
 
     @property
     def deployer(self) -> "ABIContractFactory":
@@ -310,7 +285,7 @@ class ABIContractFactory:
         functions = [ABIFunction(item, name) for item in abi if item.get("type") == "function"]
         return cls(basename(name), abi, functions, filename=name)
 
-    def at(self, env, address: str) -> ABIContract:
+    def at(self, env, address: HexAddress) -> ABIContract:
         """
         Create an ABI contract object for a deployed contract at `address`.
         """

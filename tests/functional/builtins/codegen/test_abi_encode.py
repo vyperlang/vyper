@@ -310,7 +310,7 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     """
     c = get_contract(code)
     bs = b"\x00" * 32
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(bytes)", (bs,)))
 
 
 def test_abi_encode_private_dynarray(get_contract):
@@ -349,7 +349,7 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
         [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[][][])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[][][])", (bs,)))
 
 
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))

@@ -149,18 +149,23 @@ CONCISE_NORMALIZERS = (_none_addr,)
 
 
 @pytest.fixture(scope="module")
-def tester():
+def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
     # (note: 2**63 - 1 is max that evm allows)
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10**10})
+    return 10**10
+
+
+@pytest.fixture(scope="module")
+def tester(gas_limit):
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": gas_limit})
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
 
 
 @pytest.fixture(scope="module")
-def revm_env():
-    return RevmEnv()
+def revm_env(gas_limit):
+    return RevmEnv(gas_limit)
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -480,8 +485,7 @@ def foo(s: {ret_type}) -> {ret_type}:
     self.counter += 1
     return s
     """
-        contract = get_contract(code)
-        return contract
+        return get_contract(code)
 
     return generate
 

@@ -21,7 +21,7 @@ extras_require = {
         "lark==1.1.9",
         "hypothesis[lark]>=5.37.1,<6.0",
         "eth-stdlib==0.2.6",
-        "pyrevm==0.2.1",
+        "git+https://github.com/gakonst/pyrevm",
     ],
     "lint": [
         "black==23.12.0",
