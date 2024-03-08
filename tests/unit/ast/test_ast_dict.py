@@ -234,6 +234,7 @@ def foo():
     assert main_sha256sum == main_file.sha256sum
     _strip_source_annotations(main_ast, to_strip=to_strip)
 
+    # TODO: would be nice to refactor this into bunch of small test cases
     assert main_ast == {
         "ast_type": "Module",
         "body": [
