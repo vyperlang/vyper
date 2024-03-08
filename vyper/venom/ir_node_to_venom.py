@@ -1,5 +1,6 @@
-from typing import Optional
 import re
+from typing import Optional
+
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
 from vyper.utils import MemoryPositions
@@ -107,8 +108,6 @@ PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
 
 SymbolTable = dict[str, Optional[IROperand]]
 
-count = 0
-
 
 # convert IRnode directly to venom
 def ir_node_to_venom(ir: IRnode) -> IRFunction:
@@ -129,19 +128,6 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
                     bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
             else:
                 bb.append_instruction("stop")
-
-    # global count
-    # if count == 1:
-    #     calculate_cfg(ctx)
-    #     ctx.remove_unreachable_blocks()
-    #     calculate_cfg(ctx)
-    #     calculate_liveness(ctx)
-    #     print(ctx.as_graph())
-    #     import sys
-
-    #     sys.exit()
-
-    # count += 1
 
     return ctx
 
@@ -204,7 +190,7 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Opti
 
 def _handle_internal_func(
     ctx: IRFunction, ir: IRnode, does_return_data: bool, symbols: SymbolTable
-) -> IRnode:
+):
     bb = IRBasicBlock(IRLabel(ir.args[0].args[0].value, True), ctx)  # type: ignore
     bb = ctx.append_basic_block(bb)
 
@@ -217,7 +203,7 @@ def _handle_internal_func(
     symbols["return_pc"] = bb.append_instruction("param")
     bb.instructions[-1].annotation = "return_pc"
 
-    return _convert_ir_bb(ctx, ir.args[0].args[2], symbols)
+    _convert_ir_bb(ctx, ir.args[0].args[2], symbols)
 
 
 def _convert_ir_simple_node(
@@ -242,7 +228,7 @@ def _convert_ir_bb_list(ctx, ir, symbols):
 
 
 current_func = None
-var_list = []
+var_list: list[str] = []
 
 
 def _convert_ir_bb(ctx, ir, symbols):
@@ -284,7 +270,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 var_list = ir.args[0].args[1]
                 does_return_data = IRnode.from_list(["return_buffer"]) in var_list.args
                 symbols = {}
-                _ir = _handle_internal_func(ctx, ir, does_return_data, symbols)
+                _handle_internal_func(ctx, ir, does_return_data, symbols)
                 for ir_node in ir.args[1:]:
                     ret = _convert_ir_bb(ctx, ir_node, symbols)
 
