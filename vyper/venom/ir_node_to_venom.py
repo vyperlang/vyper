@@ -248,7 +248,6 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in PASS_THROUGH_REVERSED_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
     elif ir.value == "return":
-        _append_return_args(ctx, *var_list)
         ctx.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
         )
@@ -277,6 +276,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 return ret
             elif is_external:
                 ret = _convert_ir_bb(ctx, ir.args[0], symbols)
+                _append_return_args(ctx)
         else:
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
@@ -421,6 +421,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value == "exit_to":
         args = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
         var_list = args
+        _append_return_args(ctx, *var_list)
         bb = ctx.get_basic_block()
         if bb.is_terminated:
             bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
@@ -433,23 +434,6 @@ def _convert_ir_bb(ctx, ir, symbols):
             bb.append_instruction("ret", label)
         else:
             bb.append_instruction("jmp", label)
-
-        is_constructor = "__init__(" in current_func
-
-        # is_external = label.name.startswith("external") and not is_constructor
-        # is_internal = label.name.startswith("internal")
-
-        # bb = ctx.get_basic_block()
-        # if is_external:
-        #     if len(ir.args) > 1:
-        #         if bb.is_terminated:
-        #             bb = IRBasicBlock(ctx.get_next_label("exit_to"), ctx)
-        #             ctx.append_basic_block(bb)
-        #         var_list = _convert_ir_bb_list(ctx, ir.args[1:], symbols)
-        # elif is_internal:
-        #     assert ir.args[1].value == "return_pc", "return_pc not found"
-        #     # TODO: never passing return values with the new convention
-        #     bb.append_instruction("ret", symbols["return_pc"])
 
     elif ir.value == "dload":
         arg_0 = _convert_ir_bb(ctx, ir.args[0], symbols)
