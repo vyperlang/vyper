@@ -11,7 +11,7 @@ from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRules
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 1 year old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions = ("berlin", "london", "paris", "shanghai", "cancun")
+_evm_versions = ("london", "paris", "shanghai", "cancun")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 
