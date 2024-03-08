@@ -86,9 +86,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
         ([123, 456, 789], 160, "DynArray[uint256, 3]", "(uint256[])", True),
     ],
 )
-def test_abi_decode_single(
-    w3, get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple
-):
+def test_abi_decode_single(get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple):
     contract = f"""
 @external
 def foo(x: Bytes[{input_len}]) -> {output_typ}:

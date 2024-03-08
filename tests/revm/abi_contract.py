@@ -31,7 +31,8 @@ class ABIFunction:
 
     @property
     def name(self) -> str:
-        return self._abi["name"]
+        # note: the `constructor` definition does not have a name
+        return self._abi.get("name") or self._abi["type"]
 
     @cached_property
     def argument_types(self) -> list:
@@ -200,7 +201,7 @@ class ABIContract:
     """A contract that has been deployed to the blockchain and created via an ABI."""
 
     @property
-    def address(self) -> str:
+    def address(self) -> HexAddress:
         assert self._address is not None
         return self._address
 

@@ -5,15 +5,25 @@ from typing import Any
 from eth.codecs.abi.decoder import Decoder
 from eth.codecs.abi.encoder import Encoder
 from eth.codecs.abi.exceptions import ABIError
-from eth.codecs.abi.nodes import ABITypeNode, BytesNode, FixedNode
+from eth.codecs.abi.nodes import ABITypeNode, AddressNode, BytesNode, FixedNode
 from eth.codecs.abi.parser import Parser
+from hexbytes import HexBytes
 
 _parsers: dict[str, ABITypeNode] = {}
 
 
+class _Decoder(Decoder):
+    @classmethod
+    def visit_AddressNode(
+        cls, node: AddressNode, value: bytes, checksum: bool = True, **kwargs: Any
+    ) -> str | None:
+        address = super().visit_AddressNode(node, value, checksum, **kwargs)
+        return address if address != "0x0000000000000000000000000000000000000000" else None
+
+
 class _Encoder(Encoder):
     """
-    Custom encoder that parses bytes from hex to bytes
+    Custom encoder that converts some types to the expected format.
     """
 
     @classmethod
@@ -29,6 +39,12 @@ class _Encoder(Encoder):
             value = Decimal(value)
         return super().visit_FixedNode(node, value)
 
+    @classmethod
+    def visit_AddressNode(cls, node: AddressNode, value: str | HexBytes) -> bytes:
+        if isinstance(value, HexBytes):
+            value = value.hex()
+        return super().visit_AddressNode(node, value)
+
 
 def _get_parser(schema: str):
     try:
@@ -43,7 +59,7 @@ def abi_encode(schema: str, data: Any) -> bytes:
 
 
 def abi_decode(schema: str, data: bytes) -> Any:
-    return Decoder.decode(_get_parser(schema), data)
+    return _Decoder.decode(_get_parser(schema), data)
 
 
 def is_abi_encodable(abi_type: str, data: Any) -> bool:

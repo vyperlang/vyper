@@ -1,31 +1,38 @@
 import json
 from typing import Callable
 
-from eth_account import Account
+from eth_keys.datatypes import PrivateKey
 from eth_tester.backends.pyevm.main import get_default_account_keys
 from eth_tester.exceptions import TransactionFailed
 from eth_typing import HexAddress
 from eth_utils import to_checksum_address
-from pyrevm import EVM, BlockEnv, Env
+from pyrevm import EVM, Env
 
-from tests.revm.abi_contract import ABIContract, ABIContractFactory
+from tests.revm.abi import abi_encode
+from tests.revm.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.compiler.settings import OptimizationLevel
 
 
 class RevmEnv:
-    def __init__(self, gas_limit) -> None:
-        self.block = BlockEnv(timestamp=100, prevrandao=bytes([0] * 32))
-        self.env = Env(block=self.block)
+    def __init__(self, gas_limit: int) -> None:
+        self.env = Env()
         self.evm = EVM(env=self.env, gas_limit=gas_limit)
         self.bytecode: dict[HexAddress, str] = {}
         self.contracts: dict[HexAddress, ABIContract] = {}
-        self._accounts: list[Account] = get_default_account_keys()
+        self._keys: list[PrivateKey] = get_default_account_keys()
+
+    @property
+    def accounts(self) -> list[HexAddress]:
+        return [k.public_key.to_checksum_address() for k in self._keys]
 
     @property
     def deployer(self) -> HexAddress:
-        return self._accounts[0].public_key.to_checksum_address()
+        return self._keys[0].public_key.to_checksum_address()
+
+    def set_balance(self, address: HexAddress, value: int):
+        self.evm.set_balance(address, value)
 
     def execute_code(
         self,
@@ -53,7 +60,7 @@ class RevmEnv:
         except RuntimeError as e:
             (cause,) = e.args
             assert cause in ("Revert", "OutOfGas"), f"Unexpected error {e}"
-            raise TransactionFailed()
+            raise TransactionFailed(cause)
 
     def get_code(self, address: HexAddress):
         return self.bytecode[address]
@@ -87,20 +94,30 @@ class RevmEnv:
 
         abi = out["abi"]
         bytecode = out["bytecode"]
-        value = kwargs.pop("value_in_eth", 0) * 10**18  # Handle deploying with an eth value.
+        value = (
+            kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
+        )  # Handle deploying with an eth value.
 
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
     def deploy(self, abi: list[dict], bytecode: str, value: int, *args, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi=abi)
-        # Deploy the contract
+
+        initcode = bytes.fromhex(bytecode[2:])
+        if args or kwargs:
+            ctor_abi = next(i for i in abi if i["type"] == "constructor")
+            ctor = ABIFunction(ctor_abi, contract_name=factory._name)
+            initcode += abi_encode(ctor.signature, ctor._merge_kwargs(*args, **kwargs))
+
         deployed_at = self.evm.deploy(
             deployer=self.deployer,
-            code=list(bytes.fromhex(bytecode[2:])),
+            code=list(initcode),
             value=value,
             _abi=json.dumps(abi),
         )
         address = to_checksum_address(deployed_at)
         self.bytecode[address] = bytecode
-        # tx_info = {"from": self.deployer, "value": value, "gasPrice": 0, **kwargs}
-        return factory.at(self, address)
+
+        abi_contract = factory.at(self, address)
+
+        return abi_contract

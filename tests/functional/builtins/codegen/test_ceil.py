@@ -106,7 +106,7 @@ def ceil_param(p: decimal) -> int256:
     assert c.ceil_param(Decimal("-7777777.7777777")) == -7777777
 
 
-def test_ceil_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
+def test_ceil_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
     def foo(x: decimal) -> decimal: payable
