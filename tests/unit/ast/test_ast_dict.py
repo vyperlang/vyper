@@ -194,7 +194,7 @@ def foo():
     self.sarray_var[0] = empty(Foo)
     self.darray_var[1] = empty(Foo)
 
-    self.sarray_var, t = self.interface_var.return_tuple()
+    self.sarray_var, t = extcall self.interface_var.return_tuple()
 
 @external
 def bar():
