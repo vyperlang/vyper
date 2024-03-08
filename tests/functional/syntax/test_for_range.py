@@ -3,13 +3,7 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import (
-    ArgumentException,
-    StateAccessViolation,
-    StructureException,
-    TypeMismatch,
-    UnknownType,
-)
+from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
 
 fail_list = [
     (
@@ -44,8 +38,8 @@ def foo():
     for _: uint256 in range(10, bound=x):
         pass
     """,
-        StateAccessViolation,
-        "Bound must be a literal",
+        StructureException,
+        "Bound must be a literal integer",
         None,
         "x",
     ),
@@ -106,7 +100,7 @@ def bar():
     for i: uint256 in range(x):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -119,7 +113,7 @@ def bar():
     for i: uint256 in range(0, x):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -132,7 +126,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return n
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n * 10",
@@ -145,7 +139,7 @@ def bar():
     for i: uint256 in range(0, x + 1):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x + 1",
@@ -170,7 +164,7 @@ def bar():
     for i: uint256 in range(x, x):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -183,7 +177,7 @@ def foo():
     for i: int128 in range(x, x + 10):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -196,7 +190,7 @@ def repeat(n: uint256) -> uint256:
         pass
     return x
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "n",
@@ -209,7 +203,7 @@ def foo(x: int128):
     for i: int128 in range(x, x + y):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -221,7 +215,7 @@ def bar(x: uint256):
     for i: uint256 in range(3, x):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
         "Value must be a literal integer, unless a bound is specified",
         None,
         "x",
@@ -303,6 +297,31 @@ def foo():
         "Did you mean 'uint96', or maybe 'uint8'?",
         "uint9",
     ),
+    (
+        """
+@external
+def foo():
+    for i:decimal in range(1.1, 2.2):
+        pass
+    """,
+        StructureException,
+        "Value must be a literal integer, unless a bound is specified",
+        None,
+        "1.1",
+    ),
+    (
+        """
+@external
+def foo():
+    x:decimal = 1.1
+    for i:decimal in range(x, x + 2.0, bound=10.1):
+        pass
+    """,
+        StructureException,
+        "Bound must be a literal integer",
+        None,
+        "10.1",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
@@ -367,7 +386,7 @@ foos: Foo[3]
 @external
 def kick_foos():
     for foo: Foo in self.foos:
-        foo.kick()
+        extcall foo.kick()
     """,
 ]
 

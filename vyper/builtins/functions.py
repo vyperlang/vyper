@@ -1239,7 +1239,9 @@ class SelfDestruct(BuiltinFunctionT):
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         if not self._warned:
-            vyper_warn("`selfdestruct` is deprecated! The opcode is no longer recommended for use.")
+            vyper_warn(
+                "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
+            )
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
@@ -1343,7 +1345,7 @@ class BitwiseAnd(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.")
+            vyper_warn("`bitwise_and()` is deprecated! Please use the & operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1368,7 +1370,7 @@ class BitwiseOr(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.")
+            vyper_warn("`bitwise_or()` is deprecated! Please use the | operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1393,7 +1395,7 @@ class BitwiseXor(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.")
+            vyper_warn("`bitwise_xor()` is deprecated! Please use the ^ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1418,7 +1420,7 @@ class BitwiseNot(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.")
+            vyper_warn("`bitwise_not()` is deprecated! Please use the ~ operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 1)
@@ -1444,7 +1446,7 @@ class Shift(BuiltinFunctionT):
 
     def _try_fold(self, node):
         if not self.__class__._warned:
-            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.")
+            vyper_warn("`shift()` is deprecated! Please use the << or >> operator instead.", node)
             self.__class__._warned = True
 
         validate_call_args(node, 2)
@@ -1770,7 +1772,9 @@ class CreateForwarderTo(CreateMinimalProxyTo):
 
     def build_IR(self, expr, context):
         if not self._warned:
-            vyper_warn("`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!")
+            vyper_warn(
+                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+            )
             self._warned = True
 
         return super().build_IR(expr, context)
@@ -2271,7 +2275,7 @@ class Breakpoint(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`breakpoint` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`breakpoint` should only be used for debugging!", node)
             self._warned = True
 
         return None
@@ -2291,7 +2295,7 @@ class Print(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         if not self._warned:
-            vyper_warn("`print` should only be used for debugging!\n" + node._annotated_source)
+            vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
         return None

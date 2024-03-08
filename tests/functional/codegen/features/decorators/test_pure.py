@@ -47,7 +47,7 @@ interface Foo:
 @pure
 @external
 def foo(a: address) -> int128:
-    return Foo(a).foo()
+    return staticcall Foo(a).foo()
     """
     )
     assert c2.foo(c1.address) == 5

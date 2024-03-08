@@ -13,6 +13,7 @@ from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS
 from vyper.exceptions import (
     ArgumentException,
+    CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -53,7 +54,8 @@ def get_node(
     ast_struct: Union[dict, python_ast.AST], parent: Optional["VyperNode"] = None
 ) -> "VyperNode":
     """
-    Convert an AST structure to a vyper AST node.
+    Convert an AST structure to a vyper AST node. Entry point to constructing
+    vyper AST nodes.
 
     This is a recursive call, all child nodes of the input value are also
     converted to Vyper nodes.
@@ -83,21 +85,19 @@ def get_node(
     if ast_struct["ast_type"] == "AnnAssign" and isinstance(parent, Module):
         # Replace `implements` interface declarations `AnnAssign` with `ImplementsDecl`
         if getattr(ast_struct["target"], "id", None) == "implements":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`implements` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "ImplementsDecl"
 
         # Replace "uses:" `AnnAssign` nodes with `UsesDecl`
         elif getattr(ast_struct["target"], "id", None) == "uses":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`uses` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "UsesDecl"
 
         # Replace "initializes:" `AnnAssign` nodes with `InitializesDecl`
         elif getattr(ast_struct["target"], "id", None) == "initializes":
-            if ast_struct["value"] is not None:
-                _raise_syntax_exc("`initializes` cannot have a value assigned", ast_struct)
             ast_struct["ast_type"] = "InitializesDecl"
+
+        # Replace "exports:" `AnnAssign` nodes with `ExportsDecl`
+        elif getattr(ast_struct["target"], "id", None) == "exports":
+            ast_struct["ast_type"] = "ExportsDecl"
 
         # Replace state and local variable declarations `AnnAssign` with `VariableDecl`
         else:
@@ -109,7 +109,8 @@ def get_node(
         ast_struct["ast_type"] = "FlagDef"
 
     vy_class = getattr(sys.modules[__name__], ast_struct["ast_type"], None)
-    if not vy_class:
+
+    if vy_class is None:
         if ast_struct["ast_type"] == "Delete":
             _raise_syntax_exc("Deleting is not supported", ast_struct)
         elif ast_struct["ast_type"] in ("ExtSlice", "Slice"):
@@ -132,6 +133,9 @@ def get_node(
             f"enum will be deprecated in a future release, use flag instead. {pretty_printed_node}",
             stacklevel=2,
         )
+
+    node.validate()
+
     return node
 
 
@@ -315,6 +319,10 @@ class VyperNode:
         if parent is not None:
             parent._children.append(self)
 
+    @property
+    def parent(self):
+        return self._parent
+
     # set parent, can be useful when inserting copied nodes into the AST
     def set_parent(self, parent: "VyperNode"):
         self._parent = parent
@@ -402,6 +410,10 @@ class VyperNode:
         returned instead.
         """
         return getattr(self, "_description", type(self).__name__)
+
+    @property
+    def module_node(self):
+        return self.get_ancestor(Module)
 
     @property
     def is_literal_value(self):
@@ -642,54 +654,10 @@ class TopLevel(VyperNode):
 
     __slots__ = ("body", "name", "doc_string")
 
-    def __getitem__(self, key):
-        return self.body[key]
-
-    def __iter__(self):
-        return iter(self.body)
-
-    def __len__(self):
-        return len(self.body)
-
-    def __contains__(self, obj):
-        return obj in self.body
-
 
 class Module(TopLevel):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
-
-    def add_to_body(self, node: VyperNode) -> None:
-        """
-        Add a new node to the body of this node.
-
-        This method should be used in favor of directly modifying `body`, as
-        it also sets the parent/child relationships used in node traversal.
-
-        Arguments
-        ---------
-        node: VyperNode
-            Vyper node to be appended to the body of the this node.
-        """
-        self.body.append(node)
-        node._depth = self._depth + 1
-        node._parent = self
-        self._children.append(node)
-
-    def remove_from_body(self, node: VyperNode) -> None:
-        """
-        Remove a node from the body of this node.
-
-        This method should be used in favor of directly modifying `body`, as
-        it also removes the parent/child relationship used in node traversal.
-
-        Arguments
-        ---------
-        node: VyperNode
-            Vyper node to be appended to the body of the this node.
-        """
-        self.body.remove(node)
-        self._children.remove(node)
 
     @contextlib.contextmanager
     def namespace(self):
@@ -770,6 +738,10 @@ class NamedExpr(Stmt):
 class Log(Stmt):
     __slots__ = ("value",)
 
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException("Log must call an event", self.value)
+
 
 class FlagDef(TopLevel):
     __slots__ = ("name", "body")
@@ -796,6 +768,23 @@ class ExprNode(VyperNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._expr_info = None
+
+    def to_dict(self):
+        ret = super().to_dict()
+        if self._expr_info is None:
+            return ret
+
+        reads = [s.to_dict() for s in self._expr_info._reads]
+        reads = [s for s in reads if s]
+        if reads:
+            ret["variable_reads"] = reads
+
+        writes = [s.to_dict() for s in self._expr_info._writes]
+        writes = [s for s in writes if s]
+        if writes:
+            ret["variable_writes"] = writes
+
+        return ret
 
 
 class Constant(ExprNode):
@@ -1253,6 +1242,26 @@ class Call(ExprNode):
     __slots__ = ("func", "args", "keywords")
 
     @property
+    def is_extcall(self):
+        return isinstance(self._parent, ExtCall)
+
+    @property
+    def is_staticcall(self):
+        return isinstance(self._parent, StaticCall)
+
+    @property
+    def is_plain_call(self):
+        return not (self.is_extcall or self.is_staticcall)
+
+    @property
+    def kind_str(self):
+        if self.is_extcall:
+            return "extcall"
+        if self.is_staticcall:
+            return "staticcall"
+        raise CompilerPanic("unreachable!")  # pragma: nocover
+
+    @property
     def is_terminus(self):
         # cursed import cycle!
         from vyper.builtins.functions import get_builtin_functions
@@ -1266,6 +1275,31 @@ class Call(ExprNode):
             return False
 
         return builtin_t._is_terminus
+
+
+class ExtCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            # TODO: investigate wrong col_offset for `self.value`
+            raise StructureException(
+                "`extcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
+
+
+class StaticCall(ExprNode):
+    __slots__ = ("value",)
+
+    def validate(self):
+        if not isinstance(self.value, Call):
+            raise StructureException(
+                "`staticcall` must be followed by a function call",
+                self.value,
+                hint="did you forget parentheses?",
+            )
 
 
 class keyword(VyperNode):
@@ -1303,7 +1337,7 @@ class Assign(Stmt):
 
 
 class AnnAssign(VyperNode):
-    __slots__ = ("target", "annotation", "value", "simple")
+    __slots__ = ("target", "annotation", "value")
 
 
 class VariableDecl(VyperNode):
@@ -1336,6 +1370,7 @@ class VariableDecl(VyperNode):
         "is_public",
         "is_immutable",
         "is_transient",
+        "_expanded_getter",
     )
 
     def __init__(self, *args, **kwargs):
@@ -1345,6 +1380,7 @@ class VariableDecl(VyperNode):
         self.is_public = False
         self.is_immutable = False
         self.is_transient = False
+        self._expanded_getter = None
 
         def _check_args(annotation, call_name):
             # do the same thing as `validate_call_args`
@@ -1372,6 +1408,7 @@ class VariableDecl(VyperNode):
         if isinstance(self.annotation, Call):
             _raise_syntax_exc("Invalid scope for variable declaration", self.annotation)
 
+    @property
     def _pretty_location(self) -> str:
         if self.is_constant:
             return "Constant"
@@ -1389,6 +1426,8 @@ class VariableDecl(VyperNode):
             raise VariableDeclarationException(
                 f"{self._pretty_location} variables cannot have an initial value", self.value
             )
+        if not isinstance(self.target, Name):
+            raise VariableDeclarationException("Invalid variable declaration", self.target)
 
 
 class AugAssign(Stmt):
@@ -1443,10 +1482,9 @@ class ImplementsDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         if not isinstance(self.annotation, (Name, Attribute)):
             raise StructureException("invalid implements", self.annotation)
 
@@ -1473,10 +1511,9 @@ class UsesDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         items = as_tuple(self.annotation)
         for item in items:
             if not isinstance(item, (Name, Attribute)):
@@ -1494,10 +1531,9 @@ class InitializesDecl(Stmt):
     """
 
     __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def validate(self):
         module_ref = self.annotation
         if isinstance(module_ref, Subscript):
             dependencies = as_tuple(module_ref.slice)
@@ -1515,6 +1551,26 @@ class InitializesDecl(Stmt):
 
         if not isinstance(module_ref, (Name, Attribute)):
             raise StructureException("invalid module", module_ref)
+
+
+class ExportsDecl(Stmt):
+    """
+    An `exports` declaration.
+
+    Attributes
+    ----------
+    annotation : Name | Attribute | Tuple
+        List of exports
+    """
+
+    __slots__ = ("annotation",)
+    _only_empty_fields = ("value",)
+
+    def validate(self):
+        items = as_tuple(self.annotation)
+        for item in items:
+            if not isinstance(item, (Name, Attribute)):
+                raise StructureException("invalid exports", item)
 
 
 class If(Stmt):

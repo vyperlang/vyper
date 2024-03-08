@@ -76,25 +76,24 @@ def test_valid_literals(build_node, type_):
     sources = VALID_LITERALS[type_]
     for source in sources:
         node = build_node(source)
-
         do_validate_node(type_, node)
 
 
 @pytest.mark.parametrize("type_", TYPES.keys())
 @pytest.mark.parametrize("source", INVALID_LITERALS)
 def test_invalid_literals(build_node, type_, source):
-    node = build_node(source)
     with pytest.raises((InvalidLiteral, OverflowException, UnexpectedNodeType)):
-        do_validate_node(type_, node)
+        # build_node throws; no need to run do_validate_node
+        build_node(source)
 
 
 @pytest.mark.parametrize("type_,type_str", TYPES.items())
 @pytest.mark.parametrize("source", INVALID_NODES + ["{}"])
 def test_invalid_node(build_node, type_, type_str, source):
     source = source.format(type_str)
-    node = build_node(source)
 
     with pytest.raises((InvalidLiteral, UnexpectedNodeType)):
+        node = build_node(source)
         do_validate_node(type_, node)
 
 
@@ -102,9 +101,8 @@ def test_invalid_node(build_node, type_, type_str, source):
 @pytest.mark.parametrize("type_", TYPES.keys())
 @pytest.mark.parametrize("source", ALL_LITERALS)
 def test_from_annotation_literal(build_node, type_, source):
-    node = build_node(source)
-
-    with pytest.raises(InvalidType):
+    with pytest.raises((InvalidType, InvalidLiteral, OverflowException)):
+        node = build_node(source)
         type_from_annotation(node)
 
 
@@ -119,9 +117,9 @@ def _check_type_equals(type_, t):
 @pytest.mark.parametrize("source", INVALID_NODES)
 def test_invalid_annotations(build_node, type_, type_str, source):
     source = source.format(type_str)
-    node = build_node(source)
 
     with pytest.raises((StructureException, InvalidType)):
+        node = build_node(source)
         t = type_from_annotation(node)
         _check_type_equals(type_, t)
 
@@ -129,12 +127,12 @@ def test_invalid_annotations(build_node, type_, type_str, source):
 @pytest.mark.parametrize("type_", TYPES.keys())
 @pytest.mark.parametrize("type_str", TYPES.values())
 def test_from_annotation(build_node, type_, type_str):
-    node = build_node(type_str)
-
     if type_str == TYPES[type_]:
+        node = build_node(type_str)
         t = type_from_annotation(node)
         _check_type_equals(type_, t)
     else:
         with pytest.raises(InvalidType):
+            node = build_node(type_str)
             t = type_from_annotation(node)
             _check_type_equals(type_, t)
