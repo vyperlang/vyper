@@ -61,7 +61,10 @@ def pytest_addoption(parser):
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
     parser.addoption(
-        "--evm-version", choices=list(evm.EVM_VERSIONS.keys()), default="shanghai", help="set evm version"
+        "--evm-version",
+        choices=list(evm.EVM_VERSIONS.keys()),
+        default="shanghai",
+        help="set evm version",
     )
 
 
