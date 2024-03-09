@@ -436,7 +436,8 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_CALL_VIOLATION)
 def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
-    assert_compile_failed(lambda: compile_code(failing_contract_code), CallViolation)
+    with pytest.raises(CallViolation):
+        _ = compile_code(failing_contract_code)
 
 
 FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
@@ -534,10 +535,9 @@ def bar():
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_TYPE_MISMATCH)
 @pytest.mark.parametrize("decorator", ["external", "internal"])
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
-    assert_compile_failed(
-        lambda: compile_code(failing_contract_code.format(decorator)),
-        ArgumentException if decorator == "internal" else CallViolation,
-    )
+    exc = ArgumentException if decorator == "internal" else CallViolation
+    with pytest.raises(exc):
+        _ = compile_code(failing_contract_code.format(decorator))
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])

@@ -1,22 +1,16 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.builtins.functions import STMT_DISPATCH_TABLE
-from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LOAD,
     STORE,
     IRnode,
-    append_dyn_array,
-    check_assign,
     clamp_le,
-    dummy_node_for_type,
     get_dyn_array_count,
     get_element_ptr,
     make_byte_array_copier,
     make_setter,
-    pop_dyn_array,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
@@ -29,8 +23,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
     tag_exceptions,
 )
-from vyper.semantics.types import DArrayT, MemberFunctionT
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 
 
@@ -51,8 +44,7 @@ class Stmt:
         self.ir_node.ast_source = self.stmt
 
     def parse_Expr(self):
-        # TODO: follow analysis modules and dispatch down to expr.py
-        return Stmt(self.stmt.value, self.context).ir_node
+        return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
 
     def parse_Pass(self):
         return IRnode.from_list("pass")
@@ -120,34 +112,6 @@ class Stmt:
 
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
-    def parse_Call(self):
-        if isinstance(self.stmt.func, vy_ast.Name):
-            funcname = self.stmt.func.id
-            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
-
-        func_type = self.stmt.func._metadata["type"]
-
-        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                (arg,) = args
-                assert isinstance(darray.typ, DArrayT)
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
-
-                return append_dyn_array(darray, arg)
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
-
-        if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal or func_type.is_constructor:
-                return self_call.ir_for_self_call(self.stmt, self.context)
-            else:
-                return external_call.ir_for_external_call(self.stmt, self.context)
-
     def _assert_reason(self, test_expr, msg):
         # from parse_Raise: None passed as the assert condition
         is_raise = test_expr is None
@@ -181,7 +145,7 @@ class Stmt:
             instantiate_msg = make_byte_array_copier(buf, msg_ir)
         else:
             buf = _get_last(msg_ir)
-            if not isinstance(buf, int):
+            if not isinstance(buf, int):  # pragma: nocover
                 raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
             instantiate_msg = msg_ir
 
@@ -402,9 +366,6 @@ def _is_terminated(code):
 
 # codegen a list of statements
 def parse_body(code, context, ensure_terminated=False):
-    if not isinstance(code, list):
-        return parse_stmt(code, context)
-
     ir_node = ["seq"]
     for stmt in code:
         ir = parse_stmt(stmt, context)

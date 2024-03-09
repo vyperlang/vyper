@@ -464,10 +464,22 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Expressions without assignment are disallowed", node)
+        # NOTE: standalone staticcalls are banned!
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall)):
+            raise StructureException(
+                "Expressions without assignment are disallowed",
+                node,
+                hint="did you mean to assign the result to a variable?",
+            )
 
-        fn_type = get_exact_type_from_node(node.value.func)
+        if isinstance(node.value, vy_ast.ExtCall):
+            call_node = node.value.value
+        else:
+            call_node = node.value
+
+        func = call_node.func
+
+        fn_type = get_exact_type_from_node(func)
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -476,14 +488,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
         # NOTE: fetch_call_return validates call args.
-        return_value = map_void(fn_type.fetch_call_return(node.value))
+        return_value = map_void(fn_type.fetch_call_return(call_node))
         if (
             return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
-                f"Function '{fn_type._id}' cannot be called without assigning the result", node
+                f"Function `{fn_type}` cannot be called without assigning the result"
             )
         self.expr_visitor.visit(node.value, return_value)
 
@@ -684,6 +696,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
+
         _validate_address_code(node, value_type)
 
         self.visit(node.value, value_type)
@@ -712,12 +725,43 @@ class ExprVisitor(VyperNodeVisitorBase):
             msg = f"Cannot call a {call_mutability} function from a {self.func.mutability} function"
             raise StateAccessViolation(msg)
 
+    def visit_ExtCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_StaticCall(self, node, typ):
+        return self.visit(node.value, typ)
+
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
         func_info = get_expr_info(node.func, is_callable=True)
         func_type = func_info.typ
 
+        # TODO: unify the APIs for different callable types so that
+        # we don't need so much branching here.
+
+        if not node.is_plain_call and not isinstance(func_type, ContractFunctionT):
+            kind = node.kind_str
+            msg = f"cannot use `{kind}` here!"
+            hint = f"remove the `{kind}` keyword"
+            raise CallViolation(msg, node.parent, hint=hint)
+
         if isinstance(func_type, ContractFunctionT):
             # function calls
+            if func_type.is_external:
+                missing_keyword = node.is_plain_call
+                is_static = func_type.mutability < StateMutability.NONPAYABLE
+
+                if is_static != node.is_staticcall or missing_keyword:
+                    should = "staticcall" if is_static else "extcall"
+                    msg = f"Calls to external {func_type.mutability} functions "
+                    msg += f"must use the `{should}` keyword."
+                    hint = f"try `{should} {node.node_source_code}`"
+                    raise CallViolation(msg, hint=hint)
+            else:
+                if not node.is_plain_call:
+                    kind = node.kind_str
+                    msg = f"Calls to internal functions cannot use the `{kind}` keyword."
+                    hint = f"remove the `{kind}` keyword"
+                    raise CallViolation(msg, node.parent, hint=hint)
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():

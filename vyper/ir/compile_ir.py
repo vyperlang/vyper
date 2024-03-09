@@ -382,8 +382,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) != 5:
-            raise CompilerPanic("bad number of repeat args")  # pragma: notest
+        if len(code.args) != 5:  # pragma: nocover
+            raise CompilerPanic("bad number of repeat args")
 
         i_name = code.args[0]
         start = code.args[1]
@@ -1051,7 +1051,7 @@ def optimize_assembly(assembly):
         if not changed:
             return
 
-    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: nocover
 
 
 def adjust_pc_maps(pc_maps, ofst):

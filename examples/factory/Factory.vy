@@ -35,12 +35,12 @@ def register():
     # NOTE: Should do checks that it hasn't already been set,
     #       which has to be rectified with any upgrade strategy.
     exchange: Exchange = Exchange(msg.sender)
-    self.exchanges[exchange.token()] = exchange
+    self.exchanges[staticcall exchange.token()] = exchange
 
 
 @external
 def trade(_token1: IERC20, _token2: IERC20, _amt: uint256):
     # Perform a straight exchange of token1 to token 2 (1:1 price)
     # NOTE: Any practical implementation would need to solve the price oracle problem
-    self.exchanges[_token1].receive(msg.sender, _amt)
-    self.exchanges[_token2].transfer(msg.sender, _amt)
+    extcall self.exchanges[_token1].receive(msg.sender, _amt)
+    extcall self.exchanges[_token2].transfer(msg.sender, _amt)

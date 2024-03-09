@@ -29,7 +29,7 @@ def process_arg(arg, expected_arg_type, context):
     if isinstance(expected_arg_type, VyperType):
         return Expr(arg, context).ir_node
 
-    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: notest
+    raise CompilerPanic(f"Unexpected type: {expected_arg_type}")  # pragma: nocover
 
 
 def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
@@ -80,6 +80,8 @@ def process_inputs(wrapped_fn):
 
 
 class BuiltinFunctionT(VyperType):
+    typeclass = "builtin_function"
+
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
