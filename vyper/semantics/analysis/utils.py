@@ -20,7 +20,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType, map_void
 from vyper.semantics.types.bytestrings import BytesT, StringT, _DynLength
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -283,12 +283,10 @@ class _ExprAnalyser:
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
-        return_value = var.fetch_call_return(node)
-        if return_value:
-            if isinstance(return_value, list):
-                return return_value
-            return [return_value]
-        raise InvalidType(f"{var} did not return a value", node)
+        return_value = map_void(var.fetch_call_return(node))
+        if isinstance(return_value, list):
+            return return_value
+        return [return_value]
 
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
@@ -598,7 +596,7 @@ def _infer_type_helper(node, expected_type):
     else:
         for given, expected in itertools.product(given_types, expected_type):
             if expected.compare_type(given):
-                return given
+                return expected
 
     # validation failed, prepare a meaningful error message
     if len(expected_type) > 1:
