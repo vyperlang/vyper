@@ -17,6 +17,7 @@ from vyper.utils import OrderedSet, keccak256
 TRANSLATE_MAP = {
     "abi": "abi",
     "ast": "ast_dict",
+    "annotated_ast": "annotated_ast_dict",
     "devdoc": "devdoc",
     "evm.methodIdentifiers": "method_identifiers",
     "evm.bytecode.object": "bytecode",
@@ -313,8 +314,12 @@ def format_to_output_dict(compiler_data: dict) -> dict:
     for path, data in compiler_data.items():
         path = str(path)  # Path breaks json serializability
         output_dict["sources"][path] = {"id": data["source_id"]}
-        if "ast_dict" in data:
-            output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
+
+        for k in ("ast_dict", "annotated_ast_dict"):
+            if k in data:
+                # un-translate the key
+                k2 = k.removesuffix("_dict")
+                output_dict["sources"][path][k2] = data[k]["ast"]
 
         name = PurePath(path).stem
         output_dict["contracts"][path] = {name: {}}
