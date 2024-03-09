@@ -1,5 +1,5 @@
 import warnings
-from collections import OrderedDict, deque
+from collections import deque
 from pathlib import PurePath
 
 from vyper.ast import ast_to_dict, parse_natspec
@@ -240,23 +240,25 @@ def _build_node_identifier(ast_node):
     return (ast_node.module_node.source_id, ast_node.node_id)
 
 
-def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
+def build_source_map_output(compiler_data: CompilerData) -> dict:
     """
     Generate source map output in various formats. Note that integrations
     are encouraged to use pc_ast_map since the information it provides is
     a superset of the other formats, and the other types are included
     for legacy reasons.
     """
-    bytecode, line_number_map = compile_ir.assembly_to_evm(
+    bytecode, pc_maps = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
+    # sort the pc maps alphabetically
+    # CMC 2024-03-09 is this really necessary?
+    out = {}
+    for k in sorted(pc_maps.keys()):
+        out[k] = pc_maps[k]
 
     ast_map = out.pop("pc_raw_ast_map")
 
+    assert isinstance(ast_map, dict)  # lint
     if 0 not in ast_map:
         # tag it with source id
         ast_map[0] = compiler_data.annotated_vyper_module
