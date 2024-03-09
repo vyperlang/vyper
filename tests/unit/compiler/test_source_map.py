@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.utils import expand_source_map
@@ -84,22 +86,19 @@ def update_foo():
 
 
 def test_compress_source_map():
-    code = """
-@external
-def foo() -> uint256:
-    return 42
-    """
+    # mock the required VyperNode fields in compress_source_map
+    # fake_node = namedtuple("fake_node", ("lineno", "col_offset", "end_lineno", "end_col_offset"))
+    fake_node = namedtuple("fake_node", ["src"])
+
     compressed = _compress_source_map(
-        code, {"0": None, "2": (2, 0, 4, 13), "3": (2, 0, 2, 8), "5": (2, 0, 2, 8)}, {"3": "o"}, 2
+        {2: fake_node("-1:-1:-1"), 3: fake_node("1:45"), 5: fake_node("45:49")}, {3: "o"}, 6
     )
-    assert compressed == "-1:-1:2:-;1:45;:8::o;"
+    assert compressed == "-1:-1:-1;-1:-1:-1;-1:-1:-1;1:45:o;-1:-1:-1;45:49"
 
 
 def test_expand_source_map():
-    compressed = "-1:-1:0:-;;13:42:1;:21;::0:o;:::-;1::1;"
+    compressed = "13:42:1;:21;::0:o;:::-;1::1;"
     expanded = [
-        [-1, -1, 0, "-"],
-        [-1, -1, 0, None],
         [13, 42, 1, None],
         [13, 21, 1, None],
         [13, 21, 0, "o"],
