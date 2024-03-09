@@ -25,7 +25,7 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div
+from vyper.utils import MAX_DECIMAL_PLACES, SizeLimits, annotate_source_code, evm_div, sha256sum
 
 NODE_BASE_ATTRIBUTES = (
     "_children",
@@ -137,49 +137,6 @@ def get_node(
     node.validate()
 
     return node
-
-
-def compare_nodes(left_node: "VyperNode", right_node: "VyperNode") -> bool:
-    """
-    Compare the represented value(s) of two vyper nodes.
-
-    This method evaluates a sort of "loose equality". It recursively compares the
-    values of each field within two different nodes but does not compare the
-    node_id or any members related to source offsets.
-
-    Arguments
-    ---------
-    left_node : VyperNode
-        First node object to compare.
-    right_node : VyperNode
-        Second node object to compare.
-
-    Returns
-    -------
-    bool
-        True if the given nodes represent the same value(s), False otherwise.
-    """
-    if not isinstance(left_node, type(right_node)):
-        return False
-
-    for field_name in (i for i in left_node.get_fields() if i not in VyperNode.__slots__):
-        left_value = getattr(left_node, field_name, None)
-        right_value = getattr(right_node, field_name, None)
-
-        # compare types instead of isinstance() in case one node class inherits the other
-        if type(left_value) is not type(right_value):
-            return False
-
-        if isinstance(left_value, list):
-            if next((i for i in zip(left_value, right_value) if not compare_nodes(*i)), None):
-                return False
-        elif isinstance(left_value, VyperNode):
-            if not compare_nodes(left_value, right_value):
-                return False
-        elif left_value != right_value:
-            return False
-
-    return True
 
 
 def _to_node(obj, parent):
@@ -375,6 +332,8 @@ class VyperNode:
         return pickle.loads(pickle.dumps(self))
 
     def __eq__(self, other):
+        # CMC 2024-03-03 I'm not sure it makes much sense to compare AST
+        # nodes, especially if they come from other modules
         if not isinstance(other, type(self)):
             return False
         if getattr(other, "node_id", None) != getattr(self, "node_id", None):
@@ -413,7 +372,15 @@ class VyperNode:
 
     @property
     def module_node(self):
+        if isinstance(self, Module):
+            return self
         return self.get_ancestor(Module)
+
+    def get_id_dict(self):
+        source_id = None
+        if self.module_node is not None:
+            source_id = self.module_node.source_id
+        return {"node_id": self.node_id, "source_id": source_id}
 
     @property
     def is_literal_value(self):
@@ -487,8 +454,9 @@ class VyperNode:
             else:
                 ast_dict[key] = _to_dict(value)
 
+        # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
-            ast_dict["type"] = str(self._metadata["type"])
+            ast_dict["type"] = self._metadata["type"].to_dict()
 
         return ast_dict
 
@@ -658,6 +626,13 @@ class TopLevel(VyperNode):
 class Module(TopLevel):
     # metadata
     __slots__ = ("path", "resolved_path", "source_id")
+
+    def to_dict(self):
+        return dict(source_sha256sum=self.source_sha256sum, **super().to_dict())
+
+    @property
+    def source_sha256sum(self):
+        return sha256sum(self.full_source_code)
 
     @contextlib.contextmanager
     def namespace(self):
@@ -1453,6 +1428,13 @@ class Pass(Stmt):
 
 class _ImportStmt(Stmt):
     __slots__ = ("name", "alias")
+
+    def to_dict(self):
+        ret = super().to_dict()
+        if (import_info := self._metadata.get("import_info")) is not None:
+            ret["import_info"] = import_info.to_dict()
+
+        return ret
 
     def __init__(self, *args, **kwargs):
         if len(kwargs["names"]) > 1:

@@ -18,7 +18,7 @@ def x():
     """
     )
 
-    assert vy_ast.compare_nodes(expected, mutated)
+    assert expected == mutated
 
 
 def test_binary_length():
