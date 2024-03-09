@@ -173,7 +173,7 @@ When using the JSON interface, you can include the ``"evmVersion"`` key within t
 Target Options
 --------------
 
-The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version. In general, there is a soft rule that the compiler will support 3 years of hard fork rulesets, but this policy may be revisited as appropriate.
+The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version. In general, the compiler team maintains an informal policy that the compiler will support 3 years of hard fork rulesets, but this policy may be revisited as appropriate.
 
 
 .. py:attribute:: london
