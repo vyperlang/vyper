@@ -241,6 +241,12 @@ def _build_node_identifier(ast_node):
 
 
 def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
+    """
+    Generate source map output in various formats. Note that integrations
+    are encouraged to use pc_ast_map since the information it provides is
+    a superset of the other formats, and the other types are included
+    for legacy reasons.
+    """
     bytecode, line_number_map = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
@@ -262,6 +268,9 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
     return out
 
 
+# generate a solidity-style source map. this functionality is deprecated
+# in favor of pc_ast_map, and may not be maintained to the same level
+# as pc_ast_map.
 def _compress_source_map(ast_map, jump_map, bytecode_size):
     ret = []
 
