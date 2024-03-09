@@ -2,10 +2,12 @@ import contextlib
 import json
 import os
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
 from vyper.exceptions import JSONError
+from vyper.utils import sha256sum
 
 # a type to make mypy happy
 PathLike = Path | PurePath
@@ -25,6 +27,10 @@ class CompilerInput:
 @dataclass
 class FileInput(CompilerInput):
     source_code: str
+
+    @cached_property
+    def sha256sum(self):
+        return sha256sum(self.source_code)
 
 
 @dataclass
