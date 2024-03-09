@@ -196,20 +196,19 @@ class Stmt:
         assert "type" in self.stmt.target.target._metadata
         target_type = self.stmt.target.target._metadata["type"]
 
-        # Get arg0
         range_call: vy_ast.Call = self.stmt.iter
         assert isinstance(range_call, vy_ast.Call)
-        args_len = len(range_call.args)
-        if args_len == 1:
-            arg0, arg1 = (IRnode.from_list(0, typ=target_type), range_call.args[0])
-        elif args_len == 2:
-            arg0, arg1 = range_call.args
-        else:  # pragma: nocover
-            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
         with self.context.range_scope():
-            start = Expr.parse_value_expr(arg0, self.context)
-            end = Expr.parse_value_expr(arg1, self.context)
+            args = [Expr.parse_value_expr(arg, self.context) for arg in range_call.args]
+            if len(args) == 1:
+                start = IRnode.from_list(0, typ=target_type)
+                end = args[0]
+            elif len(args) == 2:
+                start, end = args
+            else:  # pragma: nocover
+                raise TypeCheckFailure("unreachable")
+
             kwargs = {
                 s.arg: Expr.parse_value_expr(s.value, self.context) for s in range_call.keywords
             }
