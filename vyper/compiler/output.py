@@ -257,6 +257,10 @@ def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
 
     ast_map = out.pop("pc_raw_ast_map")
 
+    if 0 not in ast_map:
+        # tag it with source id
+        ast_map[0] = compiler_data.annotated_vyper_module
+
     pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
     node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
     compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
