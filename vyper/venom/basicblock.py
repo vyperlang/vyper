@@ -222,6 +222,8 @@ class IRInstruction:
     parent: Optional["IRBasicBlock"]
     fence_id: int
     annotation: Optional[str]
+    source_pos: int
+    error_msg: str
 
     def __init__(
         self,
@@ -240,6 +242,8 @@ class IRInstruction:
         self.parent = None
         self.fence_id = -1
         self.annotation = None
+        self.source_pos = None
+        self.error_msg = None
 
     def get_label_operands(self) -> list[IRLabel]:
         """
@@ -411,6 +415,8 @@ class IRBasicBlock:
 
         inst = IRInstruction(opcode, inst_args, ret)
         inst.parent = self
+        inst.source_pos = self.parent.source_pos
+        inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
 
@@ -432,6 +438,8 @@ class IRBasicBlock:
 
         inst = IRInstruction("invoke", inst_args, ret)
         inst.parent = self
+        inst.source_pos = self.parent.source_pos
+        inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
 
@@ -442,6 +450,8 @@ class IRBasicBlock:
             assert not self.is_terminated, self
             index = len(self.instructions)
         instruction.parent = self
+        instruction.source_pos = self.parent.source_pos
+        instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 
     def remove_instruction(self, instruction: IRInstruction) -> None:

@@ -1,3 +1,4 @@
+import functools
 import re
 from typing import Optional
 
@@ -231,9 +232,23 @@ current_func = None
 var_list: list[str] = []
 
 
+def pop_source_on_return(func):
+    @functools.wraps(func)
+    def pop_source(*args, **kwargs):
+        ctx = args[0]
+        ret = func(*args, **kwargs)
+        ctx.pop_source()
+        return ret
+
+    return pop_source
+
+
+@pop_source_on_return
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
     global _break_target, _continue_target, current_func, var_list
+
+    ctx.push_source(ir)
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])

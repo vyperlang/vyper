@@ -1,8 +1,16 @@
 from collections import Counter
+import functools
 from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
-from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, mksymbol, optimize_assembly
+from vyper.ir.compile_ir import (
+    PUSH,
+    DataHeader,
+    Instruction,
+    RuntimeHeader,
+    mksymbol,
+    optimize_assembly,
+)
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import (
     calculate_cfg,
@@ -97,6 +105,16 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 )
 
 _REVERT_POSTAMBLE = ["_sym___revert", "JUMPDEST", *PUSH(0), "DUP1", "REVERT"]
+
+
+def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
+    ret = []
+    for op in asm:
+        if isinstance(op, str) and not isinstance(op, Instruction):
+            ret.append(Instruction(op, inst.source_pos, inst.error_msg))
+        else:
+            ret.append(op)
+    return ret
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -264,7 +282,7 @@ class VenomCompiler:
         main_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
 
         for inst in param_insts:
-            asm = self._generate_evm_for_instruction(asm, inst, stack)
+            asm.extend(self._generate_evm_for_instruction(inst, stack))
 
         self._clean_unused_params(asm, basicblock, stack)
 
@@ -276,7 +294,7 @@ class VenomCompiler:
 
             next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
 
-            asm = self._generate_evm_for_instruction(asm, inst, stack, next_liveness)
+            asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
 
         for bb in basicblock.reachable:
             self._generate_evm_for_basicblock_r(asm, bb, stack.copy())
@@ -326,11 +344,11 @@ class VenomCompiler:
 
     def _generate_evm_for_instruction(
         self,
-        assembly: list,
         inst: IRInstruction,
         stack: StackModel,
         next_liveness: OrderedSet = None,
     ) -> list[str]:
+        assembly = []
         if next_liveness is None:
             next_liveness = OrderedSet()
         opcode = inst.opcode
@@ -378,7 +396,7 @@ class VenomCompiler:
                 stack.poke(0, ret)
             else:
                 stack.poke(depth, ret)
-            return assembly
+            return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack)
@@ -514,7 +532,7 @@ class VenomCompiler:
             if "call" in inst.opcode and inst.output not in next_liveness:
                 self.pop(assembly, stack)
 
-        return assembly
+        return apply_line_numbers(inst, assembly)
 
     def pop(self, assembly, stack, num=1):
         stack.pop(num)
