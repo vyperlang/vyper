@@ -222,8 +222,8 @@ class IRInstruction:
     parent: Optional["IRBasicBlock"]
     fence_id: int
     annotation: Optional[str]
-    source_pos: int
-    error_msg: str
+    source_pos: Optional[int]
+    error_msg: Optional[str]
 
     def __init__(
         self,

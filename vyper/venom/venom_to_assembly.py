@@ -1,5 +1,4 @@
 from collections import Counter
-import functools
 from typing import Any
 
 from vyper.exceptions import CompilerPanic, StackTooDeep
@@ -114,7 +113,7 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
             ret.append(Instruction(op, inst.source_pos, inst.error_msg))
         else:
             ret.append(op)
-    return ret
+    return ret  # type: ignore
 
 
 # TODO: "assembly" gets into the recursion due to how the original
@@ -343,12 +342,9 @@ class VenomCompiler:
             self.pop(asm, stack)
 
     def _generate_evm_for_instruction(
-        self,
-        inst: IRInstruction,
-        stack: StackModel,
-        next_liveness: OrderedSet = None,
+        self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
-        assembly = []
+        assembly: list[str | int] = []
         if next_liveness is None:
             next_liveness = OrderedSet()
         opcode = inst.opcode
