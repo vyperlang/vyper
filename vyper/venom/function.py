@@ -1,7 +1,6 @@
 from typing import Iterator, Optional
+
 from vyper.codegen.ir_node import IRnode
-
-
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
     CFG_ALTERING_INSTRUCTIONS,
