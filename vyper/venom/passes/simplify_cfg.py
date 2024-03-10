@@ -22,12 +22,13 @@ class SimplifyCFGPass(IRPass):
                         if inst.opcode == "phi":
                             bb.instructions.insert(0, inst)
                         else:
+                            inst.parent = bb
                             bb.instructions.append(inst)
                     bb.cfg_out = next.cfg_out
 
                     for n in next.cfg_out:
-                        del n.cfg_in[next]
-                        n.cfg_in.add(bb)
+                        n.remove_cfg_in(next)
+                        n.add_cfg_in(bb)
 
                     assert next in ctx.basic_blocks, next.label
                     to_be_removed.append(next)
