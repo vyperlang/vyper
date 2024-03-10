@@ -18,6 +18,7 @@ from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
 from vyper.venom.passes.normalization import NormalizationPass
+from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
@@ -44,6 +45,14 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
 
     ir_pass_optimize_empty_blocks(ctx)
     ir_pass_remove_unreachable_blocks(ctx)
+
+    calculate_cfg(ctx)
+    SimplifyCFGPass.run_pass(ctx)
+    SimplifyCFGPass.run_pass(ctx)
+    SimplifyCFGPass.run_pass(ctx)
+    ir_pass_remove_unreachable_blocks(ctx)
+    calculate_cfg(ctx)
+
     internals = [
         bb
         for bb in ctx.basic_blocks
