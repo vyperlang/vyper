@@ -143,6 +143,7 @@ class IRFunction:
         # Remove phi instructions that reference removed basic blocks
         for bb in removed:
             for out_bb in bb.cfg_out:
+                out_bb.remove_cfg_in(bb)
                 for inst in out_bb.instructions:
                     if inst.opcode != "phi":
                         continue
