@@ -128,7 +128,7 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
                 else:
                     bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
             else:
-                bb.append_instruction("stop")
+                bb.append_instruction("exit")
 
     return ctx
 

@@ -266,11 +266,6 @@ class VenomCompiler:
             return
         self.visited_basicblocks.add(basicblock)
 
-        bb_label = basicblock.label.value
-        is_constructor_cleanup = (
-            "__init__" in bb_label and "_cleanup" in bb_label
-        ) or bb_label == "__global"
-
         # assembly entry point into the block
         asm.append(f"_sym_{basicblock.label}")
         asm.append("JUMPDEST")
@@ -286,11 +281,6 @@ class VenomCompiler:
         self._clean_unused_params(asm, basicblock, stack)
 
         for i, inst in enumerate(main_insts):
-            if is_constructor_cleanup and inst.opcode == "stop":
-                asm.append("_sym__ctor_exit")
-                asm.append("JUMP")
-                continue
-
             next_liveness = main_insts[i + 1].liveness if i + 1 < len(main_insts) else OrderedSet()
 
             asm.extend(self._generate_evm_for_instruction(inst, stack, next_liveness))
