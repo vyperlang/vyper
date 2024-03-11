@@ -1,6 +1,5 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import calculate_cfg
-from vyper.venom.basicblock import IRBasicBlock, IRLabel
+from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
