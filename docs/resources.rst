@@ -15,6 +15,12 @@ General
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`_
 - `A curated list of Vyper resources, libraries, tools, and more <https://github.com/stars/pcaversaccio/lists/vyper>`_
 
+Editors
+-------
+
+- `vyper-lsp <https://github.com/vyperlang/vyper-lsp>`__ syntax highlighting and autocompletion for Visual Studio Code, Emacs, Vim and others
+- `Remix <https://remix.ethereum.org/>`__ - online environment for developing Ethereum smart contracts
+
 Frameworks and tooling
 ----------------------
 
