@@ -1,3 +1,4 @@
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import calculate_cfg
 from vyper.venom.basicblock import IRBasicBlock, IRLabel
 from vyper.venom.function import IRFunction
@@ -5,39 +6,44 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class SimplifyCFGPass(IRPass):
-    def _merge_blocks(self) -> None:
-        ctx = self.ctx
+    visited: OrderedSet
 
-        to_be_removed = []
+    def _merge_blocks(self, a: IRBasicBlock, b: IRBasicBlock):
+        a.instructions.pop()
+        for inst in b.instructions:
+            assert inst.opcode != "phi", "Not implemented yet"
+            if inst.opcode == "phi":
+                a.instructions.insert(0, inst)
+            else:
+                inst.parent = a
+                a.instructions.append(inst)
+        a.cfg_out = b.cfg_out
 
-        for bb in ctx.basic_blocks:
-            if bb in to_be_removed:
-                continue
-            if len(bb.cfg_out) == 1:
-                next = bb.cfg_out.first()
-                if len(next.cfg_in) == 1:
-                    bb.instructions.pop()
-                    for inst in next.instructions:
-                        assert inst.opcode != "phi", "Not implemented yet"
-                        if inst.opcode == "phi":
-                            bb.instructions.insert(0, inst)
-                        else:
-                            inst.parent = bb
-                            bb.instructions.append(inst)
-                    bb.cfg_out = next.cfg_out
+        for n in b.cfg_out:
+            n.remove_cfg_in(b)
+            n.add_cfg_in(a)
 
-                    for n in next.cfg_out:
-                        n.remove_cfg_in(next)
-                        n.add_cfg_in(bb)
+    def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
+        if len(bb.cfg_out) == 1:
+            next = bb.cfg_out.first()
+            if len(next.cfg_in) == 1:
+                self._merge_blocks(bb, next)
+                self.ctx.basic_blocks.remove(next)
+                self._collapse_chained_blocks_r(bb)
+                return
 
-                    assert next in ctx.basic_blocks, next.label
-                    to_be_removed.append(next)
+        if bb in self.visited:
+            return
+        self.visited.add(bb)
 
-        for bb in to_be_removed:
-            # assert bb in ctx.basic_blocks, bb.label
-            ctx.basic_blocks.remove(bb)
+        for bb_out in bb.cfg_out:
+            self._collapse_chained_blocks_r(bb_out)
 
-    def _run_pass(self, ctx: IRFunction) -> None:
+    def _collapse_chained_blocks(self, entry: IRBasicBlock):
+        self.visited = OrderedSet()
+        self._collapse_chained_blocks_r(entry)
+
+    def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> None:
         self.ctx = ctx
 
-        self._merge_blocks()
+        self._collapse_chained_blocks(entry)
