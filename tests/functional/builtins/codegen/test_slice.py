@@ -2,6 +2,8 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from vyper import ast as vy_ast
+from vyper.builtins import functions as vy_fn
 from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import ArgumentException, TypeMismatch
 
@@ -435,3 +437,64 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()
         == result
     )
+
+
+code_comptime = [
+    (
+        """
+@external
+@view
+def baz() -> Bytes[16]:
+    return slice(0x1234567891234567891234567891234567891234567891234567891234567891, 0, 16)
+        """,
+        "12345678912345678912345678912345",
+    ),
+    (
+        """
+@external
+@view
+def baz() -> String[5]:
+    return slice("why hello! how are you?", 4, 5)
+        """,
+        "hello",
+    ),
+    (
+        """
+@external
+@view
+def baz() -> Bytes[6]:
+    return slice(b'gm sir, how are you ?', 0, 6)
+        """,
+        "gm sir".encode("utf-8").hex(),
+    ),
+]
+
+
+@pytest.mark.parametrize("code,result", code_comptime)
+def test_comptime(get_contract, code, result):
+    c = get_contract(code)
+    ret = c.baz()
+    if isinstance(ret, bytes):
+        assert ret.hex() == result
+    else:
+        assert ret == result
+
+
+error_slice = [
+    "slice(0x00, 0, 1)",
+    "slice(b'\x01\x02\x03\x04\x05\x06\x07\x08\x09\x10', 10, 1)",
+    "slice(b'', 0, 1)",
+    'slice("why hello! how are you?", 32, 1)',
+    'slice("why hello! how are you?", -1, 1)',
+    'slice("why hello! how are you?", 4, 0)',
+    'slice("why hello! how are you?", 0, 33)',
+    'slice("why hello! how are you?", 16, 10)',
+]
+
+
+@pytest.mark.parametrize("code", error_slice)
+def test_slice_error(code):
+    vyper_ast = vy_ast.parse_to_ast(code)
+    old_node = vyper_ast.body[0].value
+    with pytest.raises(ArgumentException):
+        vy_fn.DISPATCH_TABLE["slice"].evaluate(old_node)
