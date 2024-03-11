@@ -327,7 +327,7 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     """
     c = get_contract(code)
     bs = [1, 2, 3]
-    assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
+    assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[])", (bs,)))
 
 
 def test_abi_encode_private_nested_dynarray(get_contract):
