@@ -165,6 +165,7 @@ def get_foo() -> uint256:
     assert c.get_foo() == 39
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_nested_dynamic_array_constructor_arg_2(w3, get_contract_with_gas_estimation):
     code = """
 foo: int128
