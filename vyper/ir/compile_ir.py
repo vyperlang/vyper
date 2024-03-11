@@ -161,6 +161,12 @@ def _add_postambles(asm_ops):
         # shared failure block
         to_append.extend(_revert_string)
 
+    _revertdata_label = "_sym_propagate_revert_data"
+    _revertdata_string = [_revertdata_label, "JUMPDEST", "RETURNDATASIZE", *PUSH(0), *PUSH(0), "RETURNDATACOPY", "RETURNDATASIZE", "REVERT"]
+    if _revertdata_label in asm_ops:
+        # shared failure block
+        to_append.extend(_revertdata_string)
+
     if len(to_append) > 0:
         # insert the postambles *before* runtime code
         # so the data section of the runtime code can't bork the postambles.
