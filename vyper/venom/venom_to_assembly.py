@@ -481,6 +481,8 @@ class VenomCompiler:
             assembly.append("JUMP")
         elif opcode == "return":
             assembly.append("RETURN")
+        elif opcode == "exit":
+            assembly.extend(["_sym__ctor_exit", "JUMP"])
         elif opcode == "phi":
             pass
         elif opcode == "sha3":

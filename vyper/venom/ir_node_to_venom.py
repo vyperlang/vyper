@@ -85,6 +85,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "assert",
         "assert_unreachable",
+        "exit",
     ]
 )
 
@@ -434,7 +435,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(bb)
         code = ir.args[2]
         if code.value == "pass":
-            bb.append_instruction("stop")
+            bb.append_instruction("exit")
         else:
             _convert_ir_bb(ctx, code, symbols)
     elif ir.value == "exit_to":

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "exit"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -62,6 +62,7 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "djmp",
         "jnz",
         "log",
+        "exit",
     ]
 )
 
