@@ -40,6 +40,7 @@ class RevmEnv:
         sender: HexAddress,
         data: list[int] | None,
         value: int | None,
+        # todo: use or remove arguments
         gas: int,
         is_modifying: bool,
         contract: "ABIContract",
@@ -59,7 +60,7 @@ class RevmEnv:
             return bytes(output)
         except RuntimeError as e:
             (cause,) = e.args
-            assert cause in ("Revert", "OutOfGas"), f"Unexpected error {e}"
+            assert cause in ("Revert", "OutOfGas", "InvalidOperandOOG"), f"Unexpected error {e}"
             raise TransactionFailed(cause)
 
     def get_code(self, address: HexAddress):
@@ -110,10 +111,7 @@ class RevmEnv:
             initcode += abi_encode(ctor.signature, ctor._merge_kwargs(*args, **kwargs))
 
         deployed_at = self.evm.deploy(
-            deployer=self.deployer,
-            code=list(initcode),
-            value=value,
-            _abi=json.dumps(abi),
+            deployer=self.deployer, code=list(initcode), value=value, _abi=json.dumps(abi)
         )
         address = to_checksum_address(deployed_at)
         self.bytecode[address] = bytecode
