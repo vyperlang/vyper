@@ -560,5 +560,6 @@ def _evm_swap_for(depth: int) -> str:
 
 def _evm_dup_for(depth: int) -> str:
     dup_idx = 1 - depth
-    assert 1 <= dup_idx <= 16, f"Unsupported dup depth {dup_idx}"
+    if not (1 <= dup_idx <= 16):
+        raise StackTooDeep(f"Unsupported dup depth {dup_idx}")
     return f"DUP{dup_idx}"
