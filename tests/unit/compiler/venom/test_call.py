@@ -13,7 +13,7 @@ token_address: IERC20
 @payable
 def foo(token_addr: address, token_quantity: uint256):
     self.token_address = IERC20(token_addr)
-    self.token_address.transferFrom(msg.sender, self, token_quantity)
+    extcall self.token_address.transferFrom(msg.sender, self, token_quantity)
 """
     return get_contract(contract_code)
 

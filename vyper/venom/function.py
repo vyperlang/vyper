@@ -1,5 +1,6 @@
 from typing import Iterator, Optional
 
+from vyper.codegen.ir_node import IRnode
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
     CFG_ALTERING_INSTRUCTIONS,
@@ -29,6 +30,10 @@ class IRFunction:
     last_label: int
     last_variable: int
 
+    # Used during code generation
+    _source_pos: list[int]
+    _error_msg: list[str]
+
     def __init__(self, name: IRLabel = None) -> None:
         if name is None:
             name = GLOBAL_LABEL
@@ -41,6 +46,9 @@ class IRFunction:
         self.data_segment = []
         self.last_label = 0
         self.last_variable = 0
+
+        self._source_pos = []
+        self._error_msg = []
 
         self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
@@ -135,6 +143,7 @@ class IRFunction:
         # Remove phi instructions that reference removed basic blocks
         for bb in removed:
             for out_bb in bb.cfg_out:
+                out_bb.remove_cfg_in(bb)
                 for inst in out_bb.instructions:
                     if inst.opcode != "phi":
                         continue
@@ -199,6 +208,25 @@ class IRFunction:
 
         # The function is normalized
         return True
+
+    def push_source(self, ir):
+        if isinstance(ir, IRnode):
+            self._source_pos.append(ir.source_pos)
+            self._error_msg.append(ir.error_msg)
+
+    def pop_source(self):
+        assert len(self._source_pos) > 0, "Empty source stack"
+        self._source_pos.pop()
+        assert len(self._error_msg) > 0, "Empty error stack"
+        self._error_msg.pop()
+
+    @property
+    def source_pos(self) -> Optional[int]:
+        return self._source_pos[-1] if len(self._source_pos) > 0 else None
+
+    @property
+    def error_msg(self) -> Optional[str]:
+        return self._error_msg[-1] if len(self._error_msg) > 0 else None
 
     def copy(self):
         new = IRFunction(self.name)

@@ -1,3 +1,4 @@
+import functools
 import re
 from typing import Optional
 
@@ -84,6 +85,7 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "assert",
         "assert_unreachable",
+        "exit",
     ]
 )
 
@@ -126,7 +128,7 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
                 else:
                     bb.append_instruction("jmp", ctx.basic_blocks[i + 1].label)
             else:
-                bb.append_instruction("stop")
+                bb.append_instruction("exit")
 
     return ctx
 
@@ -231,9 +233,23 @@ current_func = None
 var_list: list[str] = []
 
 
+def pop_source_on_return(func):
+    @functools.wraps(func)
+    def pop_source(*args, **kwargs):
+        ctx = args[0]
+        ret = func(*args, **kwargs)
+        ctx.pop_source()
+        return ret
+
+    return pop_source
+
+
+@pop_source_on_return
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
     global _break_target, _continue_target, current_func, var_list
+
+    ctx.push_source(ir)
 
     if ir.value in _BINARY_IR_INSTRUCTIONS:
         return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])
@@ -278,6 +294,10 @@ def _convert_ir_bb(ctx, ir, symbols):
                 ret = _convert_ir_bb(ctx, ir.args[0], symbols)
                 _append_return_args(ctx)
         else:
+            bb = ctx.get_basic_block()
+            if bb.is_terminated:
+                bb = IRBasicBlock(ctx.get_next_label("seq"), ctx)
+                ctx.append_basic_block(bb)
             ret = _convert_ir_bb(ctx, ir.args[0], symbols)
 
         for ir_node in ir.args[1:]:
@@ -415,7 +435,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(bb)
         code = ir.args[2]
         if code.value == "pass":
-            bb.append_instruction("stop")
+            bb.append_instruction("exit")
         else:
             _convert_ir_bb(ctx, code, symbols)
     elif ir.value == "exit_to":

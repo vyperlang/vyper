@@ -116,7 +116,7 @@ def input_vars_from(source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IR
 
             # bad path into this phi node
             if source.label not in inst.operands:
-                raise CompilerPanic(f"unreachable: {inst}")
+                raise CompilerPanic(f"unreachable: {inst} from {source.label}")
 
             for label, var in inst.phi_operands:
                 if label == source.label:
