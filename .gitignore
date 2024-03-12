@@ -41,6 +41,7 @@ docs/vyper.*.rst
 .tox/
 .mypy_cache/
 .hypothesis/
+prof/
 
 # vyper
 vyper/version.py

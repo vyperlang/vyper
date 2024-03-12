@@ -60,6 +60,7 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: [["3.11", "311"]]
         # run in modes: --optimize [gas, none, codesize]
@@ -86,6 +87,9 @@ jobs:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
 
+    - name: Setup Graphviz for profiling tests
+      uses: ts-graphviz/setup-graphviz@v2
+
     - name: Install Tox
       run: pip install tox
 
@@ -98,6 +102,12 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
 
+    - name: Upload profiling data
+      uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: profiling-${{ matrix.python-version[1] }}-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
+        path: prof/combined.svg
 
   core-tests-success:
     if: always()
@@ -117,6 +127,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
 
@@ -128,6 +139,9 @@ jobs:
       with:
         python-version: "3.11"
         cache: "pip"
+
+    - name: Setup Graphviz for profiling tests
+      uses: ts-graphviz/setup-graphviz@v2
 
     - name: Install Tox
       run: pip install tox
@@ -146,6 +160,13 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
+
+    - name: Upload profiling data
+      uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: profiling-fuzzing-${{ matrix.group }}
+        path: prof/combined.svg
 
   slow-tests-success:
     if: always()
