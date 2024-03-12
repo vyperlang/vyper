@@ -173,20 +173,10 @@ When using the JSON interface, you can include the ``"evmVersion"`` key within t
 Target Options
 --------------
 
-The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
+The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version. In general, the compiler team maintains an informal policy that the compiler will support 3 years of hard fork rulesets, but this policy may be revisited as appropriate.
 
 
-.. py:attribute:: istanbul
-
-   - The ``CHAINID`` opcode is accessible via ``chain.id``
-   - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
-   - Gas estimates changed for ``SLOAD`` and ``BALANCE``
-
-.. py:attribute:: berlin
-
-   - Gas estimates changed for ``EXTCODESIZE``, ``EXTCODECOPY``, ``EXTCODEHASH``, ``SLOAD``, ``SSTORE``, ``CALL``, ``CALLCODE``, ``DELEGATECALL`` and ``STATICCALL``
-   - Functions marked with ``@nonreentrant`` are protected with different values (3 and 2) than contracts targeting pre-berlin.
-   - ``BASEFEE`` is accessible via ``block.basefee``
+.. py:attribute:: london
 
 .. py:attribute:: paris
 
@@ -247,7 +237,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
+            "evmVersion": "shanghai",  // EVM version to compile for. Can be london, paris, shanghai (default) or cancun (experimental!).
             // optional, optimization mode
             // defaults to "gas". can be one of "gas", "codesize", "none",
             // false  and true (the last two are for backwards compatibility).
