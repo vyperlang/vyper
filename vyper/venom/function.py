@@ -263,7 +263,6 @@ class IRFunction:
         return ret
 
     def __repr__(self) -> str:
-        return self.as_graph()
         str = f"IRFunction: {self.name}\n"
         for bb in self.basic_blocks:
             str += f"{bb}\n"

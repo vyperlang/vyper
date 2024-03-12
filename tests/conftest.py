@@ -66,6 +66,8 @@ def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
     del output_formats["bb"]
     del output_formats["bb_runtime"]
+    del output_formats["cfg"]
+    del output_formats["cfg_runtime"]
     return output_formats
 
 
