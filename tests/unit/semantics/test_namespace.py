@@ -1,15 +1,15 @@
 import pytest
 
-from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
+from vyper.exceptions import NamespaceCollision, UndeclaredDefinition
 from vyper.semantics import environment
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import PRIMITIVE_TYPES
 
 
-def test_get_namespace():
+def test_get_namespace(namespace):
     ns = get_namespace()
     ns2 = get_namespace()
-    assert ns == ns2
+    assert ns is ns2
 
 
 def test_builtin_context_manager(namespace):
@@ -26,10 +26,9 @@ def test_builtin_types(namespace):
         assert namespace[key] == value
 
 
-def test_builtin_types_persist_after_clear(namespace):
-    namespace.clear()
-    for key, value in PRIMITIVE_TYPES.items():
-        assert namespace[key] == value
+def test_clear_blocked(namespace):
+    with pytest.raises(RuntimeError):
+        namespace.clear()
 
 
 def test_context_manager_constant_vars(namespace):
@@ -47,7 +46,7 @@ def test_context_manager_mutable_vars(namespace):
             assert key in namespace
 
     for key in environment.MUTABLE_ENVIRONMENT_VARS.keys():
-        assert key not in namespace
+        assert key in namespace
 
 
 def test_context_manager(namespace):
@@ -60,12 +59,6 @@ def test_context_manager(namespace):
         assert "bar" not in namespace
 
     assert "foo" not in namespace
-
-
-def test_incorrect_context_invocation(namespace):
-    with pytest.raises(CompilerPanic):
-        with namespace:
-            pass
 
 
 def test_namespace_collision(namespace):

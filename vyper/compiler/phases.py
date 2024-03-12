@@ -1,6 +1,6 @@
 import copy
 import warnings
-from functools import cached_property
+from functools import cached_property, wraps
 from pathlib import Path, PurePath
 from typing import Optional
 
@@ -10,9 +10,11 @@ from vyper.codegen.core import anchor_opt_level
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.evm.opcodes import anchor_evm_version
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics.namespace import Namespace, override_global_namespace
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -40,6 +42,17 @@ def _merge_settings(cli: Settings, pragma: Settings):
     )
 
     return ret
+
+
+def wrap_context(method):
+    @wraps(method)
+    def f(self, *args, **kwargs):
+        with anchor_opt_level(self.settings.optimize), anchor_evm_version(
+            self.settings.evm_version
+        ), override_global_namespace(self._namespace):
+            return method(self, *args, **kwargs)
+
+    return f
 
 
 class CompilerData:
@@ -111,10 +124,10 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
-        _ = self._generate_ast  # force settings to be calculated
+        self._settings = settings or Settings()
+        self._namespace = Namespace.vyper_namespace()
 
     @cached_property
     def source_code(self):
@@ -137,26 +150,34 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        self.settings = _merge_settings(self.settings, settings)
-        if self.settings.optimize is None:
-            self.settings.optimize = OptimizationLevel.default()
+        self._settings = _merge_settings(self._settings, settings)
 
-        if self.settings.experimental_codegen is None:
-            self.settings.experimental_codegen = False
+        if self._settings.optimize is None:
+            self._settings.optimize = OptimizationLevel.default()
 
-        # note self.settings.compiler_version is erased here as it is
+        if self._settings.experimental_codegen is None:
+            self._settings.experimental_codegen = False
+
+        # note self._settings.compiler_version is erased here as it is
         # not used after pre-parsing
         return ast
+
+    @cached_property
+    def settings(self):
+        _ = self._generate_ast  # force settings to be calculated
+        return self._settings
 
     @cached_property
     def vyper_module(self):
         return self._generate_ast
 
     @cached_property
+    @wrap_context
     def annotated_vyper_module(self) -> vy_ast.Module:
         return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
+    @wrap_context
     def compilation_target(self):
         """
         Get the annotated AST, and additionally run the global checks
@@ -167,32 +188,38 @@ class CompilerData:
         return self.annotated_vyper_module
 
     @cached_property
+    @wrap_context
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
         return set_data_positions(module_ast, self.storage_layout_override)
 
     @property
+    @wrap_context
     def global_ctx(self) -> ModuleT:
         # ensure storage layout is computed
         _ = self.storage_layout
         return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
+    @wrap_context
     def _ir_output(self):
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
+    @wrap_context
     def ir_nodes(self) -> IRnode:
         ir, ir_runtime = self._ir_output
         return ir
 
     @property
+    @wrap_context
     def ir_runtime(self) -> IRnode:
         ir, ir_runtime = self._ir_output
         return ir_runtime
 
     @property
+    @wrap_context
     def function_signatures(self) -> dict[str, ContractFunctionT]:
         # some metadata gets calculated during codegen, so
         # ensure codegen is run:
@@ -202,6 +229,7 @@ class CompilerData:
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
+    @wrap_context
     def venom_functions(self):
         deploy_ir, runtime_ir = self._ir_output
         deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
@@ -209,6 +237,7 @@ class CompilerData:
         return deploy_venom, runtime_venom
 
     @cached_property
+    @wrap_context
     def assembly(self) -> list:
         if self.settings.experimental_codegen:
             deploy_code, runtime_code = self.venom_functions
@@ -220,6 +249,7 @@ class CompilerData:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
 
     @cached_property
+    @wrap_context
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
             _, runtime_code = self.venom_functions
@@ -229,15 +259,18 @@ class CompilerData:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
+    @wrap_context
     def bytecode(self) -> bytes:
         insert_compiler_metadata = not self.no_bytecode_metadata
         return generate_bytecode(self.assembly, insert_compiler_metadata=insert_compiler_metadata)
 
     @cached_property
+    @wrap_context
     def bytecode_runtime(self) -> bytes:
         return generate_bytecode(self.assembly_runtime, insert_compiler_metadata=False)
 
     @cached_property
+    @wrap_context
     def blueprint_bytecode(self) -> bytes:
         blueprint_bytecode = ERC5202_PREFIX + self.bytecode
 
@@ -290,8 +323,7 @@ def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple
         IR to generate deployment bytecode
         IR to generate runtime bytecode
     """
-    with anchor_opt_level(optimize):
-        ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
+    ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
     if optimize != OptimizationLevel.NONE:
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)

@@ -1,3 +1,4 @@
+import copy
 import os
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -61,6 +62,7 @@ def analyze_module(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph = None,
+    namespace: Namespace = None,
     is_interface: bool = False,
 ) -> ModuleT:
     """
@@ -71,7 +73,11 @@ def analyze_module(
     if import_graph is None:
         import_graph = ImportGraph()
 
-    return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
+    if namespace is None:
+        namespace = Namespace.vyper_namespace()
+
+    with override_global_namespace(namespace):
+        return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
 
 
 def _analyze_module_r(
@@ -237,11 +243,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(n)
 
         # attach namespace to the module for downstream use.
-        _ns = Namespace()
-        # note that we don't just copy the namespace because
-        # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
-        self.ast._metadata["namespace"] = _ns
+        self.ast._metadata["namespace"] = copy.copy(self.namespace)
 
     def _visit_nodes_linear(self, node_type):
         for node in self._to_visit.copy():
@@ -760,7 +762,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             module_ast = self._ast_from_file(file)
 
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(Namespace.vyper_namespace()):
                 module_t = _analyze_module_r(
                     module_ast,
                     self.input_bundle,
@@ -780,7 +782,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assert isinstance(file, FileInput)  # mypy hint
             module_ast = self._ast_from_file(file)
 
-            with override_global_namespace(Namespace()):
+            with override_global_namespace(Namespace.vyper_namespace()):
                 _analyze_module_r(
                     module_ast,
                     self.input_bundle,
@@ -889,6 +891,6 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, In
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)
 
-    with override_global_namespace(Namespace()):
+    with override_global_namespace(Namespace.vyper_namespace()):
         module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
     return file, module_t.interface

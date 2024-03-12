@@ -115,18 +115,17 @@ def compile_from_file_input(
     )
 
     ret = {}
-    with anchor_evm_version(compiler_data.settings.evm_version):
-        for output_format in output_formats:
-            if output_format not in OUTPUT_FORMATS:
-                raise ValueError(f"Unsupported format type {repr(output_format)}")
-            try:
-                formatter = OUTPUT_FORMATS[output_format]
-                ret[output_format] = formatter(compiler_data)
-            except Exception as exc:
-                if exc_handler is not None:
-                    exc_handler(str(file_input.path), exc)
-                else:
-                    raise exc
+    for output_format in output_formats:
+        if output_format not in OUTPUT_FORMATS:
+            raise ValueError(f"Unsupported format type {repr(output_format)}")
+        try:
+            formatter = OUTPUT_FORMATS[output_format]
+            ret[output_format] = formatter(compiler_data)
+        except Exception as exc:
+            if exc_handler is not None:
+                exc_handler(str(file_input.path), exc)
+            else:
+                raise exc
 
     return ret
 

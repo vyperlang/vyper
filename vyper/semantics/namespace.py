@@ -1,4 +1,5 @@
 import contextlib
+import copy
 
 from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
@@ -11,7 +12,7 @@ class Namespace(dict):
 
     Attributes
     ----------
-    _scopes : List[Set]
+    _scopes : list[set]
         List of sets containing the key names for each scope
     """
 
@@ -20,8 +21,8 @@ class Namespace(dict):
         self._scopes = []
         return self
 
-    def __init__(self):
-        super().__init__()
+    @classmethod
+    def vyper_namespace(cls):
         # NOTE cyclic imports!
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
@@ -29,9 +30,20 @@ class Namespace(dict):
         from vyper.semantics.analysis.base import VarInfo
         from vyper.semantics.types import PRIMITIVE_TYPES
 
+        self = cls()
+
         self.update(PRIMITIVE_TYPES)
         self.update(environment.get_constant_vars())
+        self.update(environment.get_mutable_vars())  # global `self` variable
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
+        return self
+
+    def __copy__(self):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.update(self)
+        ret._scopes = copy.deepcopy(self._scopes)
+        return ret
 
     def __eq__(self, other):
         return self is other
@@ -40,6 +52,7 @@ class Namespace(dict):
         if self._scopes:
             self.validate_assignment(attr)
             self._scopes[-1].add(attr)
+
         assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
@@ -49,16 +62,7 @@ class Namespace(dict):
             raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
         return super().__getitem__(key)
 
-    def __enter__(self):
-        if not self._scopes:
-            raise CompilerPanic("Context manager must be invoked via namespace.enter_scope()")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if not self._scopes:
-            raise CompilerPanic("Bad use of namespace as a context manager")
-        for key in self._scopes.pop():
-            del self[key]
-
+    @contextlib.contextmanager
     def enter_scope(self):
         """
         Enter a new scope within the namespace.
@@ -66,24 +70,26 @@ class Namespace(dict):
         Called as a context manager, e.g. `with namespace.enter_scope():`
         All items that are added within the context are removed upon exit.
         """
-        # NOTE cyclic imports!
-        from vyper.semantics import environment
+        scope = set()
+        self._scopes.append(scope)
+        try:
+            yield
+        finally:
+            self.popscope()
 
-        self._scopes.append(set())
-
-        if len(self._scopes) == 1:
-            # add mutable vars (`self`) to the initial scope
-            self.update(environment.get_mutable_vars())
-
-        return self
+    def popscope(self):
+        if not self._scopes:
+            raise CompilerPanic("Bad use of namespace as a context manager")
+        to_delete = self._scopes.pop()
+        for key in to_delete:
+            del self[key]
 
     def update(self, other):
         for key, value in other.items():
             self.__setitem__(key, value)
 
     def clear(self):
-        super().clear()
-        self.__init__()
+        raise RuntimeError("should not use clear() on Namespace")
 
     def validate_assignment(self, attr):
         validate_identifier(attr)
@@ -97,16 +103,21 @@ class Namespace(dict):
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
+_namespace = None
+
+
+# CMC 2024-02-28 refactor this away! the global variable causes many
+# problems. what we may be able to do is have a global compilation context
+# object which contains the current compilation target as well as the current
+# namespace.
 def get_namespace():
     """
     Get the global namespace object.
     """
     global _namespace
-    try:
-        return _namespace
-    except NameError:
-        _namespace = Namespace()
-        return _namespace
+    if _namespace is None:
+        _namespace = Namespace.vyper_namespace()
+    return _namespace
 
 
 @contextlib.contextmanager
