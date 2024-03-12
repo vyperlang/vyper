@@ -235,7 +235,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         if node.body:
             n = node.body[0]
-            if isinstance(n, python_ast.Expr) and isinstance(n.value, python_ast.Str):
+            if isinstance(n, python_ast.Expr) and isinstance(n.value, python_ast.Constant):
                 self.generic_visit(n.value)
                 n.value.ast_type = "DocStr"
                 del node.body[0]
