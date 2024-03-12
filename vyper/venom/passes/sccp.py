@@ -102,11 +102,11 @@ class SCCP(IRPass):
                 self.work_list.append(use)
 
     def _visitExpr(self, inst: IRInstruction):
-        print("Visit: ", inst.opcode)
+        # print("Visit: ", inst.opcode)
         opcode = inst.opcode
-        if opcode in ["store", "add", "sub", "iszero", "shr", "shl"]:
+        if opcode in ["add", "sub", "iszero", "shr", "shl"]:
             self._eval(inst)
-        elif opcode == "push":
+        elif opcode in ["push", "store"]:
             self.lattice[inst.output] = inst.operands[0]
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
