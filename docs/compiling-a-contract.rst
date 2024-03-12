@@ -275,11 +275,14 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    evm.bytecode.opcodes - Opcodes list
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
+            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
             // Additionally, `*` can be used as a wildcard to request everything.
+            // Note that the sourceMapFull.pc_ast_map is the recommended source map to use;
+            // the other types are included for legacy and compatibility reasons.
             //
             "outputSelection": {
                 "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
