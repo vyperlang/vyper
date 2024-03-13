@@ -21,10 +21,7 @@ def __default__():
     """
     settings = Settings(evm_version=evm_version)
     opcodes = compiler.compile_code(code, output_formats=["opcodes"], settings=settings)["opcodes"]
-    if EVM_VERSIONS[evm_version] >= EVM_VERSIONS["istanbul"]:
-        assert "SELFBALANCE" in opcodes
-    else:
-        assert "SELFBALANCE" not in opcodes
+    assert "SELFBALANCE" in opcodes
 
     c = get_contract_with_gas_estimation(code, evm_version=evm_version)
     w3.eth.send_transaction({"to": c.address, "value": 1337})

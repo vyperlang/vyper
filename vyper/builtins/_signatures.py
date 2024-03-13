@@ -76,6 +76,8 @@ def process_inputs(wrapped_fn):
 
 
 class BuiltinFunctionT(VyperType):
+    typeclass = "builtin_function"
+
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}

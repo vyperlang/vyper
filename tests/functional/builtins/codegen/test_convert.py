@@ -225,7 +225,7 @@ def _padconvert(val_bits, direction, n, padding_byte=None):
     """
     Takes the ABI representation of a value, and convert the padding if needed.
     If fill_zeroes is false, the two halves of the bytestring are just swapped
-    and the dirty bytes remain dirty. If fill_zeroes is true, the the padding
+    and the dirty bytes remain dirty. If fill_zeroes is true, the padding
     bytes get set to 0
     """
     assert len(val_bits) == 32
