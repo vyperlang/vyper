@@ -62,21 +62,29 @@ jobs:
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
-        evm-version:
-          - istanbul
-          - berlin
-          - london
-          - paris
-          - shanghai
-          - cancun
+        debug: [true, false]
+        opt-mode: ["gas", "none", "codesize"]
+        evm-version: [shanghai]
+
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
-          # test 3.11 across the entire matrix
+          # test default settings with 3.11 across all supported evm versions
           - python-version: ["3.11", "311"]
-            debug: [true, false]
-            opt-mode: ["gas", "none", "codesize"]
-            # limit this matrix to shanghai test
+            debug: false
+            opt-mode: gas
+            evm-version: london
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: paris
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
             evm-version: shanghai
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: cancun
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
@@ -87,7 +95,7 @@ jobs:
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode || 'gas' }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version || 'shanghai' }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -107,8 +115,8 @@ jobs:
     - name: Run tests
       run: |
         pytest \
-          --optimize ${{ matrix.opt-mode || 'gas' }} \
-          --evm-version ${{ matrix.evm-version || 'shanghai' }} \
+          --optimize ${{ matrix.opt-mode }} \
+          --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           --showlocals -r aR \
           tests/
