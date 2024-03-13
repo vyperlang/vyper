@@ -305,35 +305,7 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         return ret
     elif ir.value in ["delegatecall", "staticcall", "call"]:
-        idx = 0
-        gas = _convert_ir_bb(ctx, ir.args[idx], symbols)
-        address = _convert_ir_bb(ctx, ir.args[idx + 1], symbols)
-
-        value = None
-        if ir.value == "call":
-            value = _convert_ir_bb(ctx, ir.args[idx + 2], symbols)
-        else:
-            idx -= 1
-
-        argsOffset, argsSize, retOffset, retSize = _convert_ir_bb_list(
-            ctx, ir.args[idx + 3 : idx + 7], symbols
-        )
-
-        if isinstance(argsOffset, IRLiteral):
-            offset = int(argsOffset.value)
-            argsOffsetVar = symbols.get(f"&{offset}", None)
-            if argsOffsetVar is None:  # or offset > 0:
-                argsOffsetVar = argsOffset
-            else:  # pragma: nocover
-                argsOffsetVar = argsOffset
-        else:
-            argsOffsetVar = argsOffset
-
-        if ir.value == "call":
-            args = [retSize, retOffset, argsSize, argsOffsetVar, value, address, gas]
-        else:
-            args = [retSize, retOffset, argsSize, argsOffsetVar, address, gas]
-
+        args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols))
         return ctx.get_basic_block().append_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
@@ -585,7 +557,7 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value == "var_list":
         pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
-        args = reversed([_convert_ir_bb(ctx, arg, symbols) for arg in ir.args])
+        args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols))
         topic_count = int(ir.value[3:])
         assert topic_count >= 0 and topic_count <= 4, "invalid topic count"
         ctx.get_basic_block().append_instruction("log", topic_count, *args)

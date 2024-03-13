@@ -365,8 +365,6 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
-        elif opcode in ["call", "staticcall", "delegatecall"]:
-            operands = inst.operands[::-1]
         else:
             operands = inst.operands
 
