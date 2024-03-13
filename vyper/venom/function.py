@@ -211,7 +211,7 @@ class IRFunction:
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
-            self._source_pos.append(ir.source_pos)
+            self._source_pos.append(ir.ast_source)
             self._error_msg.append(ir.error_msg)
 
     def pop_source(self):
