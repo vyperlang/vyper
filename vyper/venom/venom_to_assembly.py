@@ -365,6 +365,8 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode in ["call", "staticcall", "delegatecall"]:
+            operands = inst.operands[::-1]
         else:
             operands = inst.operands
 
@@ -397,7 +399,7 @@ class VenomCompiler:
             # NOTE: stack in general can contain multiple copies of the same variable,
             # however we are safe in the case of jmp/djmp/jnz as it's not going to
             # have multiples.
-            target_stack_list = [x for x in target_stack.keys()]
+            target_stack_list = list(target_stack.keys())
             self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
