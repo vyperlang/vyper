@@ -7,10 +7,10 @@ from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility
 from vyper.semantics.types.module import ModuleT
 
 
-def _strip_source_pos(ir_node):
-    ir_node.source_pos = None
+def _strip_ast_source(ir_node):
+    ir_node.ast_source = None
     for x in ir_node.args:
-        _strip_source_pos(x)
+        _strip_ast_source(x)
 
 
 def generate_inline_function(code, variables, variables_2, memory_allocator):
@@ -38,5 +38,5 @@ def generate_inline_function(code, variables, variables_2, memory_allocator):
     # NOTE if we ever use this for inlining user-code, it would make
     # sense to fix the offsets of the source positions in the generated
     # code instead of stripping them.
-    _strip_source_pos(generated_ir)
+    _strip_ast_source(generated_ir)
     return new_context, generated_ir
