@@ -19,27 +19,27 @@ c: public(Bytes[32])
 d: public(int128[4])
 foo: public(HashMap[uint256, uint256[3]])
 dyn_array: DynArray[uint256, 3]
-e: public(String[47])
+e: public(String[48])
 f: public(int256[1])
 g: public(StructTwo[2])
 h: public(int256[1])
 
 
-@external
+@deploy
 def __init__():
-    self.a = StructOne({a: "ok", b: [4,5,6]})
+    self.a = StructOne(a="ok", b=[4,5,6])
     self.b = [7, 8]
     self.c = b"thisisthirtytwobytesokhowdoyoudo"
     self.d = [-1, -2, -3, -4]
-    self.e = "A realllllly long string but we wont use it all"
+    self.e = "A realllllly long string but we won't use it all"
     self.f = [33]
     self.g = [
-        StructTwo({a: b"hello", b: [-66, 420], c: "another string"}),
-        StructTwo({
-            a: b"gbye",
-            b: [1337, 888],
-            c: "whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
-        })
+        StructTwo(a=b"hello", b=[-66, 420], c="another string"),
+        StructTwo(
+            a=b"gbye",
+            b=[1337, 888],
+            c="whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
+        )
     ]
     self.dyn_array = [1, 2, 3]
     self.h =  [123456789]
@@ -47,14 +47,8 @@ def __init__():
     self.foo[1] = [123, 456, 789]
 
 @external
-@nonreentrant('lock')
+@nonreentrant
 def with_lock():
-    pass
-
-
-@external
-@nonreentrant('otherlock')
-def with_other_lock():
     pass
 """
 
@@ -65,7 +59,7 @@ def test_storage_slots(get_contract):
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A realllllly long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we won't use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
@@ -84,13 +78,12 @@ def test_reentrancy_lock(get_contract):
     # if re-entrancy locks are incorrectly placed within storage, these
     # calls will either revert or correupt the data that we read later
     c.with_lock()
-    c.with_other_lock()
 
     assert c.a() == ("ok", [4, 5, 6])
     assert [c.b(i) for i in range(2)] == [7, 8]
     assert c.c() == b"thisisthirtytwobytesokhowdoyoudo"
     assert [c.d(i) for i in range(4)] == [-1, -2, -3, -4]
-    assert c.e() == "A realllllly long string but we wont use it all"
+    assert c.e() == "A realllllly long string but we won't use it all"
     assert c.f(0) == 33
     assert c.g(0) == (b"hello", [-66, 420], "another string")
     assert c.g(1) == (
@@ -105,11 +98,11 @@ def test_reentrancy_lock(get_contract):
 
 def test_allocator_overflow(get_contract):
     code = """
-x: uint256
+# --> global nonreentrancy slot allocated here <--
 y: uint256[max_value(uint256)]
     """
     with pytest.raises(
         StorageLayoutException,
-        match=f"Invalid storage slot for var y, tried to allocate slots 1 through {2**256}\n",
+        match=f"Invalid storage slot, tried to allocate slots 1 through {2**256}",
     ):
         get_contract(code)

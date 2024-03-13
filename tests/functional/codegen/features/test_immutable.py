@@ -20,7 +20,7 @@ def test_value_storage_retrieval(typ, value, get_contract):
     code = f"""
 VALUE: immutable({typ})
 
-@external
+@deploy
 def __init__(_value: {typ}):
     VALUE = _value
 
@@ -41,7 +41,7 @@ A: immutable(uint256)
 a: public(uint256)
 
 
-@external
+@deploy
 def __init__(_a: uint256):
     A = _a
     self.a = A
@@ -63,7 +63,7 @@ a: immutable(uint256)
 b: immutable(address)
 c: immutable(String[64])
 
-@external
+@deploy
 def __init__(_a: uint256, _b: address, _c: String[64]):
     a = _a
     b = _b
@@ -89,14 +89,14 @@ struct MyStruct:
 
 my_struct: immutable(MyStruct)
 
-@external
+@deploy
 def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
-    my_struct = MyStruct({
-        a: _a,
-        b: _b,
-        c: _c,
-        d: _d
-    })
+    my_struct = MyStruct(
+        a=_a,
+        b=_b,
+        c=_c,
+        d=_d
+    )
 
 @view
 @external
@@ -108,11 +108,34 @@ def get_my_struct() -> MyStruct:
     assert c.get_my_struct() == values
 
 
+def test_complex_immutable_modifiable(get_contract):
+    code = """
+struct MyStruct:
+    a: uint256
+
+my_struct: immutable(MyStruct)
+
+@deploy
+def __init__(a: uint256):
+    my_struct = MyStruct(a=a)
+
+    # struct members are modifiable after initialization
+    my_struct.a += 1
+
+@view
+@external
+def get_my_struct() -> MyStruct:
+    return my_struct
+    """
+    c = get_contract(code, 1)
+    assert c.get_my_struct() == (2,)
+
+
 def test_list_immutable(get_contract):
     code = """
 my_list: immutable(uint256[3])
 
-@external
+@deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
     my_list = [_a, _b, _c]
 
@@ -130,7 +153,7 @@ def test_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[uint256, 3])
 
-@external
+@deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
     my_list = [_a, _b, _c]
 
@@ -154,7 +177,7 @@ def test_nested_dynarray_immutable_2(get_contract):
     code = """
 my_list: immutable(DynArray[DynArray[uint256, 3], 3])
 
-@external
+@deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
     my_list = [[_a, _b, _c], [_b, _a, _c], [_c, _b, _a]]
 
@@ -179,7 +202,7 @@ def test_nested_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[DynArray[DynArray[int128, 3], 3], 3])
 
-@external
+@deploy
 def __init__(x: int128, y: int128, z: int128):
     my_list = [
         [[x, y, z], [y, z, x], [z, y, x]],
@@ -227,7 +250,7 @@ def foo() -> uint256:
 counter: uint256
 VALUE: immutable(uint256)
 
-@external
+@deploy
 def __init__(x: uint256):
     self.counter = x
     self.foo()
@@ -257,7 +280,7 @@ a: public(immutable(uint256))
 b: public(uint256)
 
 @payable
-@external
+@deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)
     self.b = a
@@ -281,7 +304,7 @@ a: public(immutable(uint256))
 b: public(uint256)
 
 @payable
-@external
+@deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)
     self.b = a
@@ -299,7 +322,7 @@ def test_internal_functions_called_by_ctor_location(get_contract):
 d: uint256
 x: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     self.d = 1
     x = 2
@@ -323,7 +346,7 @@ def test_nested_internal_function_immutables(get_contract):
 d: public(uint256)
 x: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     self.d = 1
     x = 2
@@ -348,7 +371,7 @@ def test_immutable_read_ctor_and_runtime(get_contract):
 d: public(uint256)
 x: public(immutable(uint256))
 
-@external
+@deploy
 def __init__():
     self.d = 1
     x = 2

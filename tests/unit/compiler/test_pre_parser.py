@@ -49,7 +49,7 @@ bar_contract: Bar
 @external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
+    return extcall self.bar_contract.bar()
     """
 
     c1 = get_contract(contract_1)
@@ -90,10 +90,10 @@ def test():
 
 def test_evm_version_check(assert_compile_failed):
     code = """
-#pragma evm-version berlin
+#pragma evm-version london
     """
     assert compile_code(code, settings=Settings(evm_version=None)) is not None
-    assert compile_code(code, settings=Settings(evm_version="berlin")) is not None
+    assert compile_code(code, settings=Settings(evm_version="london")) is not None
     # should fail if compile options indicate different evm version
     # from source pragma
     with pytest.raises(StructureException):

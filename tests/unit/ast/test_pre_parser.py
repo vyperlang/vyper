@@ -173,7 +173,7 @@ pragma_examples = [
 @pytest.mark.parametrize("code, pre_parse_settings, compiler_data_settings", pragma_examples)
 def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_version):
     mock_version("0.3.10")
-    settings, _, _ = pre_parse(code)
+    settings, _, _, _ = pre_parse(code)
 
     assert settings == pre_parse_settings
 
@@ -183,6 +183,9 @@ def test_parse_pragmas(code, pre_parse_settings, compiler_data_settings, mock_ve
     if compiler_data_settings is None:
         # None is sentinel here meaning that nothing changed
         compiler_data_settings = pre_parse_settings
+
+    # cannot be set via pragma, don't check
+    compiler_data_settings.experimental_codegen = False
 
     assert compiler_data.settings == compiler_data_settings
 

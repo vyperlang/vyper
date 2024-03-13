@@ -8,7 +8,7 @@ fail_list = [
     """
 VALUE: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     pass
     """,
@@ -25,7 +25,7 @@ def get_value() -> uint256:
     """
 VALUE: immutable(uint256) = 3
 
-@external
+@deploy
 def __init__():
     pass
     """,
@@ -33,7 +33,7 @@ def __init__():
     """
 VALUE: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     VALUE = 0
 
@@ -45,7 +45,7 @@ def set_value(_value: uint256):
     """
 VALUE: immutable(uint256)
 
-@external
+@deploy
 def __init__(_value: uint256):
     VALUE = _value * 3
     VALUE = VALUE + 1
@@ -54,7 +54,7 @@ def __init__(_value: uint256):
     """
 VALUE: immutable(public(uint256))
 
-@external
+@deploy
 def __init__(_value: uint256):
     VALUE = _value * 3
     """,
@@ -63,7 +63,7 @@ def __init__(_value: uint256):
 
 @pytest.mark.parametrize("bad_code", fail_list)
 def test_compilation_fails_with_exception(bad_code):
-    with pytest.raises(Exception):
+    with pytest.raises(VyperException):
         compile_code(bad_code)
 
 
@@ -85,7 +85,7 @@ def test_compilation_simple_usage(typ):
     code = f"""
 VALUE: immutable({typ})
 
-@external
+@deploy
 def __init__(_value: {typ}):
     VALUE = _value
 
@@ -103,7 +103,7 @@ pass_list = [
     """
 VALUE: immutable(uint256)
 
-@external
+@deploy
 def __init__(_value: uint256):
     VALUE = _value * 3
     x: uint256 = VALUE + 1
@@ -121,7 +121,7 @@ fail_list_with_messages = [
         """
 imm: immutable(uint256)
 
-@external
+@deploy
 def __init__(x: uint256):
     self.imm = x
     """,
@@ -131,7 +131,7 @@ def __init__(x: uint256):
         """
 imm: immutable(uint256)
 
-@external
+@deploy
 def __init__(x: uint256):
     x = imm
 
@@ -145,7 +145,7 @@ def report():
         """
 imm: immutable(uint256)
 
-@external
+@deploy
 def __init__(x: uint256):
     imm = x
 
@@ -163,9 +163,9 @@ struct Foo:
 
 x: immutable(Foo)
 
-@external
+@deploy
 def __init__():
-    x = Foo({a:1})
+    x = Foo(a=1)
 
 @external
 def hello() :

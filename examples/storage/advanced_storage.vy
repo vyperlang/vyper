@@ -1,10 +1,12 @@
+#pragma version >0.3.10
+
 event DataChange:
     setter: indexed(address)
     value: int128
 
 storedData: public(int128)
 
-@external
+@deploy
 def __init__(_x: int128):
   self.storedData = _x
 

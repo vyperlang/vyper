@@ -17,7 +17,7 @@ def test_basic_slice(get_contract_with_gas_estimation):
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     inp: Bytes[50] = inp1
-    for i in range(1, 11):
+    for i: uint256 in range(1, 11):
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
@@ -41,7 +41,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 def test_slice_immutable(
     get_contract,
     assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     bytesdata,
     start,
@@ -57,7 +57,7 @@ def test_slice_immutable(
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
-@external
+@deploy
 def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
     IMMUTABLE_BYTES = inp
     IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
@@ -79,7 +79,8 @@ def do_splice() -> Bytes[{length_bound}]:
         assert_compile_failed(lambda: _get_contract(), ArgumentException)
     elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
         # deploy fail
-        assert_tx_failed(lambda: _get_contract())
+        with tx_failed():
+            _get_contract()
     else:
         c = _get_contract()
         assert c.do_splice() == bytesdata[start : start + length]
@@ -95,7 +96,7 @@ def do_splice() -> Bytes[{length_bound}]:
 def test_slice_bytes_fuzz(
     get_contract,
     assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     location,
     bytesdata,
@@ -118,7 +119,7 @@ foo: Bytes[{length_bound}]
     elif location == "code":
         preamble = f"""
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
-@external
+@deploy
 def __init__(foo: Bytes[{length_bound}]):
     IMMUTABLE_BYTES = foo
     """
@@ -175,10 +176,12 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
     elif location == "code" and len(bytesdata) > length_bound:
         # deploy fail
-        assert_tx_failed(lambda: _get_contract())
+        with tx_failed():
+            _get_contract()
     elif end > len(bytesdata) or len(bytesdata) > length_bound:
         c = _get_contract()
-        assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
+        with tx_failed():
+            c.do_slice(bytesdata, start, length)
     else:
         c = _get_contract()
         assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
@@ -227,7 +230,7 @@ def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
     code = """
 LENGTH: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     LENGTH = 5
 
@@ -311,7 +314,7 @@ code_bytes32 = [
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
@@ -322,7 +325,7 @@ def bar() -> Bytes[{length}]:
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 

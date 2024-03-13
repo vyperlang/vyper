@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Union
 import vyper.ast as vy_ast  # break an import cycle
 import vyper.codegen.core as codegen
 import vyper.compiler.output as output
-from vyper.compiler.input_bundle import InputBundle, PathLike
+from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
 from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
@@ -14,6 +14,8 @@ from vyper.typing import ContractPath, OutputFormats, StorageLayout
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    # requires annotated_vyper_module
+    "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,
@@ -21,6 +23,8 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
+    "bb": output.build_bb_output,
+    "bb_runtime": output.build_bb_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
@@ -44,10 +48,8 @@ OUTPUT_FORMATS = {
 UNKNOWN_CONTRACT_NAME = "<unknown>"
 
 
-def compile_code(
-    contract_source: str,
-    contract_name: str = UNKNOWN_CONTRACT_NAME,
-    source_id: int = 0,
+def compile_from_file_input(
+    file_input: FileInput,
     input_bundle: InputBundle = None,
     settings: Settings = None,
     output_formats: Optional[OutputFormats] = None,
@@ -57,6 +59,8 @@ def compile_code(
     exc_handler: Optional[Callable] = None,
 ) -> dict:
     """
+    Main entry point into the compiler.
+
     Generate consumable compiler output(s) from a single contract source code.
     Basically, a wrapper around CompilerData which munges the output
     data into the requested output formats.
@@ -71,6 +75,8 @@ def compile_code(
     evm_version: str, optional
         The target EVM ruleset to compile for. If not given, defaults to the latest
         implemented ruleset.
+    source_id: int, optional
+        source_id to tag AST nodes with. -1 if not provided.
     settings: Settings, optional
         Compiler settings.
     show_gas_estimates: bool, optional
@@ -80,6 +86,8 @@ def compile_code(
         two arguments - the name of the contract, and the exception that was raised
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
+    experimental_codegen: bool
+        Use experimental codegen. Defaults to False
 
     Returns
     -------
@@ -95,11 +103,11 @@ def compile_code(
     # make IR output the same between runs
     codegen.reset_names()
 
+    # TODO: maybe at this point we might as well just pass a `FileInput`
+    # directly to `CompilerData`.
     compiler_data = CompilerData(
-        contract_source,
+        file_input,
         input_bundle,
-        Path(contract_name),
-        source_id,
         settings,
         storage_layout_override,
         show_gas_estimates,
@@ -116,8 +124,33 @@ def compile_code(
                 ret[output_format] = formatter(compiler_data)
             except Exception as exc:
                 if exc_handler is not None:
-                    exc_handler(contract_name, exc)
+                    exc_handler(str(file_input.path), exc)
                 else:
                     raise exc
 
     return ret
+
+
+def compile_code(
+    source_code: str,
+    contract_path: str | PathLike = UNKNOWN_CONTRACT_NAME,
+    source_id: int = -1,
+    resolved_path: PathLike | None = None,
+    *args,
+    **kwargs,
+):
+    # this function could be renamed to compile_from_string
+    """
+    Do the same thing as compile_from_file_input but takes a string for source
+    code. This was previously the main entry point into the compiler
+    # (`compile_from_file_input()` is newer)
+    """
+    if isinstance(contract_path, str):
+        contract_path = Path(contract_path)
+    file_input = FileInput(
+        source_id=source_id,
+        source_code=source_code,
+        path=contract_path,
+        resolved_path=resolved_path or contract_path,  # type: ignore
+    )
+    return compile_from_file_input(file_input, *args, **kwargs)

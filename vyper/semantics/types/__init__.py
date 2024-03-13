@@ -1,10 +1,11 @@
 from . import primitives, subscriptable, user
-from .base import TYPE_T, KwargSettings, VyperType, is_type_t
+from .base import TYPE_T, VOID_TYPE, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import MemberFunctionT
-from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from .module import InterfaceT
+from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT
-from .user import EnumT, EventT, InterfaceT, StructT
+from .user import EventT, FlagT, StructT
 
 
 def _get_primitive_types():

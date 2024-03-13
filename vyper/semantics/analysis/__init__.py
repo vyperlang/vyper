@@ -1,17 +1,5 @@
-import vyper.ast as vy_ast
-
 from .. import types  # break a dependency cycle.
-from ..namespace import get_namespace
-from .local import validate_functions
-from .module import add_module_namespace
-from .utils import _ExprAnalyser
+from .global_ import validate_compilation_target
+from .module import analyze_module
 
-
-def validate_semantics(vyper_ast, input_bundle):
-    # validate semantics and annotate AST with type/semantics information
-    namespace = get_namespace()
-
-    with namespace.enter_scope():
-        add_module_namespace(vyper_ast, input_bundle)
-        vy_ast.expansion.expand_annotated_ast(vyper_ast)
-        validate_functions(vyper_ast)
+__all__ = [validate_compilation_target, analyze_module]  # type: ignore[misc]

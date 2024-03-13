@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
@@ -41,7 +41,8 @@ class _SubscriptableT(VyperType):
 
 
 class HashMapT(_SubscriptableT):
-    _id = "HashMap"
+    typeclass = "hashmap"
+    _id = "HashMap"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     _equality_attrs = ("key_type", "value_type")
 
@@ -68,12 +69,11 @@ class HashMapT(_SubscriptableT):
         return self.value_type
 
     @classmethod
-    def from_annotation(cls, node: Union[vy_ast.Name, vy_ast.Call, vy_ast.Subscript]) -> "HashMapT":
+    def from_annotation(cls, node: vy_ast.Subscript) -> "HashMapT":
         if (
             not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or len(node.slice.value.elements) != 2
+            or not isinstance(node.slice, vy_ast.Tuple)
+            or len(node.slice.elements) != 2
         ):
             raise StructureException(
                 (
@@ -83,7 +83,7 @@ class HashMapT(_SubscriptableT):
                 node,
             )
 
-        k_ast, v_ast = node.slice.value.elements
+        k_ast, v_ast = node.slice.elements
         key_type = type_from_annotation(k_ast, DataLocation.STORAGE)
         if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
@@ -112,7 +112,7 @@ class _SequenceT(_SubscriptableT):
             raise InvalidType("Array length is invalid")
 
         if length >= 2**64:
-            warnings.warn("Use of large arrays can be unsafe!")
+            warnings.warn("Use of large arrays can be unsafe!", stacklevel=2)
 
         super().__init__(UINT256_T, value_type)
         self.length = length
@@ -152,6 +152,10 @@ class SArrayT(_SequenceT):
     """
     Static array type
     """
+
+    typeclass = "static_array"
+
+    _id = "$SArray"
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -198,7 +202,7 @@ class SArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
-        if not isinstance(node, vy_ast.Subscript) or not isinstance(node.slice, vy_ast.Index):
+        if not isinstance(node, vy_ast.Subscript):
             raise StructureException(
                 "Arrays must be defined with base type and length, e.g. bool[5]", node
             )
@@ -218,9 +222,12 @@ class DArrayT(_SequenceT):
     Dynamic array type
     """
 
+    typeclass = "dynamic_array"
+
     _valid_literal = (vy_ast.List,)
     _as_array = True
-    _id = "DynArray"
+
+    _id = "DynArray"  # CMC 2024-03-03 maybe this would be better as repr(self)
 
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
@@ -274,24 +281,30 @@ class DArrayT(_SequenceT):
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
-        if (
-            not isinstance(node, vy_ast.Subscript)
-            or not isinstance(node.slice, vy_ast.Index)
-            or not isinstance(node.slice.value, vy_ast.Tuple)
-            or not isinstance(node.slice.value.elements[1], vy_ast.Int)
-            or len(node.slice.value.elements) != 2
-        ):
-            raise StructureException(
-                "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]",
-                node,
-            )
+        # common error message, different ast locations
+        err_msg = "DynArray must be defined with base type and max length, e.g. DynArray[bool, 5]"
 
-        value_type = type_from_annotation(node.slice.value.elements[0])
+        if not isinstance(node, vy_ast.Subscript):
+            raise StructureException(err_msg, node)
+
+        if not isinstance(node.slice, vy_ast.Tuple) or len(node.slice.elements) != 2:
+            raise StructureException(err_msg, node.slice)
+
+        length_node = node.slice.elements[1]
+        if length_node.has_folded_value:
+            length_node = length_node.get_folded_value()
+
+        if not isinstance(length_node, vy_ast.Int):
+            raise StructureException(err_msg, length_node)
+
+        length = length_node.value
+
+        value_node = node.slice.elements[0]
+        value_type = type_from_annotation(value_node)
         if not value_type._as_darray:
-            raise StructureException(f"Arrays of {value_type} are not allowed", node)
+            raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        max_length = node.slice.value.elements[1].value
-        return cls(value_type, max_length)
+        return cls(value_type, length)
 
 
 class TupleT(VyperType):
@@ -301,7 +314,10 @@ class TupleT(VyperType):
     This class is used to represent multiple return values from functions.
     """
 
+    typeclass = "tuple"
+
     _equality_attrs = ("members",)
+    _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
     # are in fact instantiable and the codegen works. if we
@@ -333,7 +349,7 @@ class TupleT(VyperType):
         return list(enumerate(self.member_types))
 
     @classmethod
-    def from_annotation(cls, node: vy_ast.Tuple) -> VyperType:
+    def from_annotation(cls, node: vy_ast.Tuple) -> "TupleT":
         values = node.elements
         types = tuple(type_from_annotation(v) for v in values)
         return cls(types)

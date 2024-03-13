@@ -1,13 +1,20 @@
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.context import Context, VariableRecord
-from vyper.codegen.core import get_element_ptr, getpos, make_setter, needs_clamp
+from vyper.codegen.core import get_element_ptr, make_setter, needs_clamp
 from vyper.codegen.expr import Expr
-from vyper.codegen.function_definitions.utils import get_nonreentrant_lock
+from vyper.codegen.function_definitions.common import (
+    EntryPointInfo,
+    ExternalFuncIR,
+    get_nonreentrant_lock,
+    initialize_context,
+    tag_frame_info,
+)
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
 from vyper.evm.address_space import CALLDATA, DATA, MEMORY
 from vyper.semantics.types import TupleT
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.utils import calc_mem_gas
 
 
 # register function args with the local calling context.
@@ -32,7 +39,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
             dst = IRnode(p, typ=arg.typ, location=MEMORY)
 
             copy_arg = make_setter(dst, arg_ir)
-            copy_arg.source_pos = getpos(arg.ast_source)
+            copy_arg.ast_source = arg.ast_source
             ret.append(copy_arg)
         else:
             assert abi_encoding_matches_vyper(arg.typ)
@@ -51,7 +58,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
 
 def _generate_kwarg_handlers(
     func_t: ContractFunctionT, context: Context
-) -> dict[str, tuple[int, IRnode]]:
+) -> dict[str, EntryPointInfo]:
     # generate kwarg handlers.
     # since they might come in thru calldata or be default,
     # allocate them in memory and then fill it in based on calldata or default,
@@ -94,18 +101,18 @@ def _generate_kwarg_handlers(
             rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(arg_meta.ast_source)
+            copy_arg.ast_source = arg_meta.ast_source
             ret.append(copy_arg)
 
         for x in default_kwargs:
             dst = context.lookup_var(x.name).pos
             lhs = IRnode(dst, location=MEMORY, typ=x.typ)
-            lhs.source_pos = getpos(x.ast_source)
+            lhs.ast_source = x.ast_source
             kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
             copy_arg = make_setter(lhs, rhs)
-            copy_arg.source_pos = getpos(x.ast_source)
+            copy_arg.ast_source = x.ast_source
             ret.append(copy_arg)
 
         ret.append(["goto", func_t._ir_info.external_function_base_entry_label])
@@ -126,34 +133,54 @@ def _generate_kwarg_handlers(
         default_kwargs = keyword_args[i:]
 
         sig, calldata_min_size, ir_node = handler_for(calldata_kwargs, default_kwargs)
-        ret[sig] = calldata_min_size, ir_node
+        assert sig not in ret
+        ret[sig] = EntryPointInfo(func_t, calldata_min_size, ir_node)
 
     sig, calldata_min_size, ir_node = handler_for(keyword_args, [])
 
-    ret[sig] = calldata_min_size, ir_node
+    assert sig not in ret
+    ret[sig] = EntryPointInfo(func_t, calldata_min_size, ir_node)
 
     return ret
 
 
-def generate_ir_for_external_function(code, func_t, context):
+def _adjust_gas_estimate(func_t, common_ir):
+    # adjust gas estimate to include cost of mem expansion
+    # frame_size of external function includes all private functions called
+    # (note: internal functions do not need to adjust gas estimate since
+    frame_info = func_t._ir_info.frame_info
+
+    mem_expansion_cost = calc_mem_gas(frame_info.mem_used)
+    common_ir.add_gas_estimate += mem_expansion_cost
+    func_t._ir_info.gas_estimate = common_ir.gas
+
+    # pass metadata through for venom pipeline:
+    common_ir.passthrough_metadata["func_t"] = func_t
+    common_ir.passthrough_metadata["frame_info"] = frame_info
+
+
+def generate_ir_for_external_function(code, compilation_target):
     # TODO type hints:
     # def generate_ir_for_external_function(
     #    code: vy_ast.FunctionDef,
-    #    func_t: ContractFunctionT,
-    #    context: Context,
+    #    compilation_target: ModuleT,
     # ) -> IRnode:
     """
     Return the IR for an external function. Returns IR for the body
     of the function, handle kwargs and exit the function. Also returns
     metadata required for `module.py` to construct the selector table.
     """
+    func_t = code._metadata["func_type"]
+    assert func_t.is_external or func_t.is_constructor  # sanity check
+
+    context = initialize_context(func_t, compilation_target, func_t.is_constructor)
     nonreentrant_pre, nonreentrant_post = get_nonreentrant_lock(func_t)
 
     # generate handlers for base args and register the variable records
     handle_base_args = _register_function_args(func_t, context)
 
     # generate handlers for kwargs and register the variable records
-    kwarg_handlers = _generate_kwarg_handlers(func_t, context)
+    entry_points = _generate_kwarg_handlers(func_t, context)
 
     body = ["seq"]
     # once optional args have been handled,
@@ -183,6 +210,10 @@ def generate_ir_for_external_function(code, func_t, context):
 
     # the ir which comprises the main body of the function,
     # besides any kwarg handling
-    func_common_ir = IRnode.from_list(["seq", body, exit_], source_pos=getpos(code))
+    func_common_ir = IRnode.from_list(["seq", body, exit_], ast_source=code)
 
-    return kwarg_handlers, func_common_ir
+    tag_frame_info(func_t, context)
+
+    _adjust_gas_estimate(func_t, func_common_ir)
+
+    return ExternalFuncIR(entry_points, func_common_ir)

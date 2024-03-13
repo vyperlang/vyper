@@ -52,18 +52,18 @@ def foo(x: int128) -> uint256:
     return convert(x, uint256)
     """,
     """
-from vyper.interfaces import ERC20
+from ethereum.ercs import IERC20
 
 interface Factory:
     def getExchange(token_addr: address) -> address: view
 
-token: ERC20
+token: IERC20
 factory: Factory
 
 @external
 def setup(token_addr: address):
-    self.token = ERC20(token_addr)
-    assert self.factory.getExchange(self.token.address) == self
+    self.token = IERC20(token_addr)
+    assert staticcall self.factory.getExchange(self.token.address) == self
     """,
 ]
 

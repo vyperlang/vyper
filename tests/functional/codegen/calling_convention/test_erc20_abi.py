@@ -33,41 +33,41 @@ interface ERC20Contract:
 
 token_address: ERC20Contract
 
-@external
+@deploy
 def __init__(token_addr: address):
     self.token_address = ERC20Contract(token_addr)
 
 @external
 def name() -> String[64]:
-    return self.token_address.name()
+    return staticcall self.token_address.name()
 
 @external
 def symbol() -> String[32]:
-    return self.token_address.symbol()
+    return staticcall self.token_address.symbol()
 
 @external
 def decimals() -> uint256:
-    return self.token_address.decimals()
+    return staticcall self.token_address.decimals()
 
 @external
 def balanceOf(_owner: address) -> uint256:
-    return self.token_address.balanceOf(_owner)
+    return staticcall self.token_address.balanceOf(_owner)
 
 @external
 def totalSupply() -> uint256:
-    return self.token_address.totalSupply()
+    return staticcall self.token_address.totalSupply()
 
 @external
 def transfer(_to: address, _value: uint256) -> bool:
-    return self.token_address.transfer(_to, _value)
+    return extcall self.token_address.transfer(_to, _value)
 
 @external
 def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
-    return self.token_address.transferFrom(_from, _to, _value)
+    return extcall self.token_address.transferFrom(_from, _to, _value)
 
 @external
 def allowance(_owner: address, _spender: address) -> uint256:
-    return self.token_address.allowance(_owner, _spender)
+    return extcall self.token_address.allowance(_owner, _spender)
     """
     return get_contract(erc20_caller_code, *[erc20.address])
 
@@ -81,7 +81,7 @@ def test_initial_state(w3, erc20_caller):
     assert erc20_caller.decimals() == TOKEN_DECIMALS
 
 
-def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
+def test_call_transfer(w3, erc20, erc20_caller, tx_failed):
     # Basic transfer.
     erc20.transfer(erc20_caller.address, 10, transact={})
     assert erc20.balanceOf(erc20_caller.address) == 10
@@ -90,13 +90,12 @@ def test_call_transfer(w3, erc20, erc20_caller, assert_tx_failed):
     assert erc20.balanceOf(w3.eth.accounts[1]) == 10
 
     # more than allowed
-    assert_tx_failed(lambda: erc20_caller.transfer(w3.eth.accounts[1], TOKEN_TOTAL_SUPPLY))
+    with tx_failed():
+        erc20_caller.transfer(w3.eth.accounts[1], TOKEN_TOTAL_SUPPLY)
 
     # Negative transfer value.
-    assert_tx_failed(
-        function_to_test=lambda: erc20_caller.transfer(w3.eth.accounts[1], -1),
-        exception=ValidationError,
-    )
+    with tx_failed(ValidationError):
+        erc20_caller.transfer(w3.eth.accounts[1], -1)
 
 
 def test_caller_approve_allowance(w3, erc20, erc20_caller):
@@ -105,11 +104,10 @@ def test_caller_approve_allowance(w3, erc20, erc20_caller):
     assert erc20_caller.allowance(w3.eth.accounts[0], erc20_caller.address) == 10
 
 
-def test_caller_tranfer_from(w3, erc20, erc20_caller, assert_tx_failed):
+def test_caller_tranfer_from(w3, erc20, erc20_caller, tx_failed):
     # Cannot transfer tokens that are unavailable
-    assert_tx_failed(
-        lambda: erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10)
-    )
+    with tx_failed():
+        erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 10)
     assert erc20.balanceOf(erc20_caller.address) == 0
     assert erc20.approve(erc20_caller.address, 10, transact={})
     erc20_caller.transferFrom(w3.eth.accounts[0], erc20_caller.address, 5, transact={})

@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, tag_exceptions
 
 
 class VyperNodeVisitorBase:
@@ -16,9 +16,11 @@ class VyperNodeVisitorBase:
         # node types with a shared parent
         for class_ in node.__class__.mro():
             ast_type = class_.__name__
-            visitor_fn = getattr(self, f"visit_{ast_type}", None)
-            if visitor_fn:
-                return visitor_fn(node, *args)
+
+            with tag_exceptions(node):
+                visitor_fn = getattr(self, f"visit_{ast_type}", None)
+                if visitor_fn:
+                    return visitor_fn(node, *args)
 
         node_type = type(node).__name__
         raise StructureException(

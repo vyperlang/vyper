@@ -7,7 +7,6 @@ def foo(i: bool) -> int128:
     else:
         assert 2 != 0
         return 7
-    return 11
     """
 
     c = get_contract_with_gas_estimation(conditional_return_code)

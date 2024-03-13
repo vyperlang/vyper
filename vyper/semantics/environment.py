@@ -1,7 +1,7 @@
 from typing import Dict
 
-from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.types import AddressT, BytesT, VyperType
+from vyper.semantics.analysis.base import Modifiability, VarInfo
+from vyper.semantics.types import AddressT, BytesT, SelfT, VyperType
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 
@@ -52,12 +52,12 @@ def get_constant_vars() -> Dict:
     """
     result = {}
     for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, is_constant=True)
+        result[k] = VarInfo(v, modifiability=Modifiability.RUNTIME_CONSTANT)
 
     return result
 
 
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": AddressT}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": SelfT}
 
 
 def get_mutable_vars() -> Dict:

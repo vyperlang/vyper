@@ -6,7 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
-from vyper.utils import EIP_170_LIMIT, checksum_encode, keccak256
+from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
 # initcode used by create_minimal_proxy_to
@@ -44,30 +44,23 @@ def test() -> address:
 
 def test_create_minimal_proxy_to_call(get_contract, w3):
     code = """
-
 interface SubContract:
-
     def hello() -> Bytes[100]: view
 
-
 other: public(address)
-
 
 @external
 def test() -> address:
     self.other = create_minimal_proxy_to(self)
     return self.other
 
-
 @external
 def hello() -> Bytes[100]:
     return b"hello world!"
 
-
 @external
 def test2() -> Bytes[100]:
-    return SubContract(self.other).hello()
-
+    return staticcall SubContract(self.other).hello()
     """
 
     c = get_contract(code)
@@ -77,32 +70,26 @@ def test2() -> Bytes[100]:
     assert c.test2() == b"hello world!"
 
 
-def test_minimal_proxy_exception(w3, get_contract, assert_tx_failed):
+def test_minimal_proxy_exception(w3, get_contract, tx_failed):
     code = """
-
 interface SubContract:
-
     def hello(a: uint256) -> Bytes[100]: view
 
-
 other: public(address)
-
 
 @external
 def test() -> address:
     self.other = create_minimal_proxy_to(self)
     return self.other
 
-
 @external
 def hello(a: uint256) -> Bytes[100]:
     assert a > 0, "invaliddddd"
     return b"hello world!"
 
-
 @external
 def test2(a: uint256) -> Bytes[100]:
-    return SubContract(self.other).hello(a)
+    return staticcall SubContract(self.other).hello(a)
     """
 
     c = get_contract(code)
@@ -111,7 +98,8 @@ def test2(a: uint256) -> Bytes[100]:
     c.test(transact={})
     assert c.test2(1) == b"hello world!"
 
-    assert_tx_failed(lambda: c.test2(0))
+    with tx_failed():
+        c.test2(0)
 
     GAS_SENT = 30000
     tx_hash = c.test2(0, transact={"gas": GAS_SENT})
@@ -122,9 +110,7 @@ def test2(a: uint256) -> Bytes[100]:
     assert receipt["gasUsed"] < GAS_SENT
 
 
-def test_create_minimal_proxy_to_create2(
-    get_contract, create2_address_of, keccak, assert_tx_failed
-):
+def test_create_minimal_proxy_to_create2(get_contract, create2_address_of, keccak, tx_failed):
     code = """
 main: address
 
@@ -143,20 +129,15 @@ def test(_salt: bytes32) -> address:
 
     c.test(salt, transact={})
     # revert on collision
-    assert_tx_failed(lambda: c.test(salt, transact={}))
+    with tx_failed():
+        c.test(salt, transact={})
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
 # contract, and 0xfe7100 is ERC5202 magic
-@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", b"\xfe\71\x00"])
+@pytest.mark.parametrize("blueprint_prefix", [b"", b"\xfe", ERC5202_PREFIX])
 def test_create_from_blueprint(
-    get_contract,
-    deploy_blueprint_for,
-    w3,
-    keccak,
-    create2_address_of,
-    assert_tx_failed,
-    blueprint_prefix,
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed, blueprint_prefix
 ):
     code = """
 @external
@@ -193,7 +174,8 @@ def test2(target: address, salt: bytes32):
 
     # extcodesize check
     zero_address = "0x" + "00" * 20
-    assert_tx_failed(lambda: d.test(zero_address))
+    with tx_failed():
+        d.test(zero_address)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -209,16 +191,77 @@ def test2(target: address, salt: bytes32):
     assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, salt))
+    with tx_failed():
+        d.test2(f.address, salt)
+
+
+# test blueprints with 0xfe7100 prefix, which is the EIP 5202 standard.
+# code offset by default should be 3 here.
+def test_create_from_blueprint_default_offset(
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed
+):
+    code = """
+@external
+def foo() -> uint256:
+    return 123
+    """
+
+    deployer_code = """
+created_address: public(address)
+
+@external
+def test(target: address):
+    self.created_address = create_from_blueprint(target)
+
+@external
+def test2(target: address, salt: bytes32):
+    self.created_address = create_from_blueprint(target, salt=salt)
+    """
+
+    # deploy a foo so we can compare its bytecode with factory deployed version
+    foo_contract = get_contract(code)
+    expected_runtime_code = w3.eth.get_code(foo_contract.address)
+
+    f, FooContract = deploy_blueprint_for(code)
+
+    d = get_contract(deployer_code)
+
+    d.test(f.address, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 123
+
+    # extcodesize check
+    zero_address = "0x" + "00" * 20
+    with tx_failed():
+        d.test(zero_address)
+
+    # now same thing but with create2
+    salt = keccak(b"vyper")
+    d.test2(f.address, salt, transact={})
+
+    test = FooContract(d.created_address())
+    assert w3.eth.get_code(test.address) == expected_runtime_code
+    assert test.foo() == 123
+
+    # check if the create2 address matches our offchain calculation
+    initcode = w3.eth.get_code(f.address)
+    initcode = initcode[len(ERC5202_PREFIX) :]  # strip the prefix
+    assert HexBytes(test.address) == create2_address_of(d.address, salt, initcode)
+
+    # can't collide addresses
+    with tx_failed():
+        d.test2(f.address, salt)
 
 
 def test_create_from_blueprint_bad_code_offset(
-    get_contract, get_contract_from_ir, deploy_blueprint_for, w3, assert_tx_failed
+    get_contract, get_contract_from_ir, deploy_blueprint_for, w3, tx_failed
 ):
     deployer_code = """
 BLUEPRINT: immutable(address)
 
-@external
+@deploy
 def __init__(blueprint_address: address):
     BLUEPRINT = blueprint_address
 
@@ -242,8 +285,6 @@ def test(code_ofst: uint256) -> address:
     tx_info = {"from": w3.eth.accounts[0], "value": 0, "gasPrice": 0}
     tx_hash = deploy_transaction.transact(tx_info)
     blueprint_address = w3.eth.get_transaction_receipt(tx_hash)["contractAddress"]
-    blueprint_code = w3.eth.get_code(blueprint_address)
-    print("BLUEPRINT CODE:", blueprint_code)
 
     d = get_contract(deployer_code, blueprint_address)
 
@@ -254,15 +295,17 @@ def test(code_ofst: uint256) -> address:
     d.test(initcode_len - 1)
 
     # code_offset=len(blueprint) NOT fine! would EXTCODECOPY empty initcode
-    assert_tx_failed(lambda: d.test(initcode_len))
+    with tx_failed():
+        d.test(initcode_len)
 
     # code_offset=EIP_170_LIMIT definitely not fine!
-    assert_tx_failed(lambda: d.test(EIP_170_LIMIT))
+    with tx_failed():
+        d.test(EIP_170_LIMIT)
 
 
 # test create_from_blueprint with args
 def test_create_from_blueprint_args(
-    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, assert_tx_failed
+    get_contract, deploy_blueprint_for, w3, keccak, create2_address_of, tx_failed
 ):
     code = """
 struct Bar:
@@ -271,7 +314,7 @@ struct Bar:
 FOO: immutable(String[128])
 BAR: immutable(Bar)
 
-@external
+@deploy
 def __init__(foo: String[128], bar: Bar):
     FOO = foo
     BAR = bar
@@ -322,7 +365,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
 
     d = get_contract(deployer_code)
 
-    initcode = w3.eth.get_code(f.address)
+    initcode = w3.eth.get_code(f.address)[3:]
 
     d.test(f.address, FOO, BAR, transact={})
 
@@ -332,7 +375,8 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.bar() == BAR
 
     # extcodesize check
-    assert_tx_failed(lambda: d.test("0x" + "00" * 20, FOO, BAR))
+    with tx_failed():
+        d.test("0x" + "00" * 20, FOO, BAR)
 
     # now same thing but with create2
     salt = keccak(b"vyper")
@@ -359,9 +403,11 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     assert test.bar() == BAR
 
     # can't collide addresses
-    assert_tx_failed(lambda: d.test2(f.address, FOO, BAR, salt))
+    with tx_failed():
+        d.test2(f.address, FOO, BAR, salt)
     # ditto - with raw_args
-    assert_tx_failed(lambda: d.test4(f.address, encoded_args, salt))
+    with tx_failed():
+        d.test4(f.address, encoded_args, salt)
 
     # but creating a contract with different args is ok
     FOO = "bar"
@@ -375,10 +421,11 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     BAR = ("",)
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
-    assert_tx_failed(lambda: w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"}))
+    with tx_failed():
+        w3.eth.send_transaction({"to": d.address, "data": f"{sig}{encoded}"})
 
 
-def test_create_copy_of(get_contract, w3, keccak, create2_address_of, assert_tx_failed):
+def test_create_copy_of(get_contract, w3, keccak, create2_address_of, tx_failed):
     code = """
 created_address: public(address)
 @internal
@@ -412,7 +459,8 @@ def test2(target: address, salt: bytes32) -> address:
     assert w3.eth.get_code(test1) == bytecode
 
     # extcodesize check
-    assert_tx_failed(lambda: c.test("0x" + "00" * 20))
+    with tx_failed():
+        c.test("0x" + "00" * 20)
 
     # test1 = c.test(b"\x01")
     # assert w3.eth.get_code(test1) == b"\x01"
@@ -425,12 +473,14 @@ def test2(target: address, salt: bytes32) -> address:
     assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(bytecode))
 
     # can't create2 where contract already exists
-    assert_tx_failed(lambda: c.test2(c.address, salt, transact={}))
+    with tx_failed():
+        c.test2(c.address, salt, transact={})
 
     # test single byte contract
     # test2 = c.test2(b"\x01", salt)
     # assert HexBytes(test2) == create2_address_of(c.address, salt, vyper_initcode(b"\x01"))
-    # assert_tx_failed(lambda: c.test2(bytecode, salt))
+    # with tx_failed():
+    #     c.test2(bytecode, salt)
 
 
 # XXX: these various tests to check the msize allocator for
@@ -445,7 +495,7 @@ def test_create_from_blueprint_complex_value(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__(x: uint256):
     self.var = x
@@ -502,7 +552,7 @@ def test_create_from_blueprint_complex_salt_raw_args(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__(x: uint256):
     self.var = x
@@ -560,7 +610,7 @@ def test_create_from_blueprint_complex_salt_no_constructor_args(
     code = """
 var: uint256
 
-@external
+@deploy
 @payable
 def __init__():
     self.var = 12

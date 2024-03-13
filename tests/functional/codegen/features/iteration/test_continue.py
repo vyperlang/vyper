@@ -7,7 +7,7 @@ def test_continue1(get_contract_with_gas_estimation):
     code = """
 @external
 def foo() -> bool:
-    for i in range(2):
+    for i: uint256 in range(2):
         continue
         return False
     return True
@@ -21,7 +21,7 @@ def test_continue2(get_contract_with_gas_estimation):
 @external
 def foo() -> int128:
     x: int128 = 0
-    for i in range(3):
+    for i: int128 in range(3):
         x += 1
         continue
         x -= 1
@@ -36,7 +36,7 @@ def test_continue3(get_contract_with_gas_estimation):
 @external
 def foo() -> int128:
     x: int128 = 0
-    for i in range(3):
+    for i: int128 in range(3):
         x += i
         continue
     return x
@@ -50,7 +50,7 @@ def test_continue4(get_contract_with_gas_estimation):
 @external
 def foo() -> int128:
     x: int128 = 0
-    for i in range(6):
+    for i: int128 in range(6):
         if i % 2 == 0:
             continue
         x += 1
@@ -83,7 +83,7 @@ def foo():
         """
 @external
 def foo():
-    for i in [1, 2, 3]:
+    for i: uint256 in [1, 2, 3]:
         b: uint256 = i
     if True:
         continue

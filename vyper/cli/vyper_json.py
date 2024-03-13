@@ -12,11 +12,12 @@ from vyper.compiler.input_bundle import FileInput, JSONInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
-from vyper.utils import keccak256
+from vyper.utils import OrderedSet, keccak256
 
 TRANSLATE_MAP = {
     "abi": "abi",
     "ast": "ast_dict",
+    "annotated_ast": "annotated_ast_dict",
     "devdoc": "devdoc",
     "evm.methodIdentifiers": "method_identifiers",
     "evm.bytecode.object": "bytecode",
@@ -143,19 +144,14 @@ def get_evm_version(input_dict: dict) -> Optional[str]:
         "spuriousDragon",
         "byzantium",
         "constantinople",
+        "istanbul",
+        "berlin",
     ):
-        raise JSONError("Vyper does not support pre-istanbul EVM versions")
+        raise JSONError("Vyper does not support pre-london EVM versions")
     if evm_version not in EVM_VERSIONS:
         raise JSONError(f"Unknown EVM version - '{evm_version}'")
 
     return evm_version
-
-
-def get_compilation_targets(input_dict: dict) -> list[PurePath]:
-    # TODO: once we have modules, add optional "compilation_targets" key
-    # which specifies which sources we actually want to compile.
-
-    return [PurePath(p) for p in input_dict["sources"].keys()]
 
 
 def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
@@ -218,14 +214,14 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
 
 # get unique output formats for each contract, given the input_dict
 # NOTE: would maybe be nice to raise on duplicated output formats
-def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePath, list[str]]:
+def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
     output_formats: dict[PurePath, list[str]] = {}
     for path, outputs in input_dict["settings"]["outputSelection"].items():
         if isinstance(outputs, dict):
             # if outputs are given in solc json format, collapse them into a single list
-            outputs = set(x for i in outputs.values() for x in i)
+            outputs = OrderedSet(x for i in outputs.values() for x in i)
         else:
-            outputs = set(outputs)
+            outputs = OrderedSet(outputs)
 
         for key in [i for i in ("evm", "evm.bytecode", "evm.deployedBytecode") if i in outputs]:
             outputs.remove(key)
@@ -239,13 +235,13 @@ def get_output_formats(input_dict: dict, targets: list[PurePath]) -> dict[PurePa
             except KeyError as e:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
-        outputs = sorted(set(outputs))
+        outputs = sorted(list(outputs))
 
         if path == "*":
-            output_paths = targets
+            output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
         else:
             output_paths = [PurePath(path)]
-            if output_paths[0] not in targets:
+            if str(output_paths[0]) not in input_dict["sources"]:
                 raise JSONError(f"outputSelection references unknown contract '{output_paths[0]}'")
 
         for output_path in output_paths:
@@ -269,7 +265,8 @@ def compile_from_input_dict(
     if isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         warnings.warn(
-            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'."
+            "optimize: <bool> is deprecated! please use one of 'gas', 'codesize', 'none'.",
+            stacklevel=2,
         )
         optimize = OptimizationLevel.default() if optimize else OptimizationLevel.NONE
     elif isinstance(optimize, str):
@@ -281,9 +278,9 @@ def compile_from_input_dict(
 
     no_bytecode_metadata = not input_dict["settings"].get("bytecodeMetadata", True)
 
-    compilation_targets = get_compilation_targets(input_dict)
     sources = get_inputs(input_dict)
-    output_formats = get_output_formats(input_dict, compilation_targets)
+    output_formats = get_output_formats(input_dict)
+    compilation_targets = list(output_formats.keys())
 
     input_bundle = JSONInputBundle(sources, search_paths=[Path(root_folder)])
 
@@ -295,12 +292,10 @@ def compile_from_input_dict(
                 # use load_file to get a unique source_id
                 file = input_bundle.load_file(contract_path)
                 assert isinstance(file, FileInput)  # mypy hint
-                data = vyper.compile_code(
-                    file.source_code,
-                    contract_name=str(file.path),
+                data = vyper.compile_from_file_input(
+                    file,
                     input_bundle=input_bundle,
                     output_formats=output_formats[contract_path],
-                    source_id=file.source_id,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
@@ -321,8 +316,12 @@ def format_to_output_dict(compiler_data: dict) -> dict:
     for path, data in compiler_data.items():
         path = str(path)  # Path breaks json serializability
         output_dict["sources"][path] = {"id": data["source_id"]}
-        if "ast_dict" in data:
-            output_dict["sources"][path]["ast"] = data["ast_dict"]["ast"]
+
+        for k in ("ast_dict", "annotated_ast_dict"):
+            if k in data:
+                # un-translate the key
+                k2 = k.removesuffix("_dict")
+                output_dict["sources"][path][k2] = data[k]["ast"]
 
         name = PurePath(path).stem
         output_dict["contracts"][path] = {name: {}}

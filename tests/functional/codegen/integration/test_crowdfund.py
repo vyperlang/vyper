@@ -13,7 +13,7 @@ goal: public(uint256)
 refundIndex: int128
 timelimit: public(uint256)
 
-@external
+@deploy
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
@@ -52,7 +52,7 @@ def finalize():
 @external
 def refund():
     ind: int128 = self.refundIndex
-    for i in range(ind, ind + 30):
+    for i: int128 in range(ind, ind + 30, bound=30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
             return
@@ -63,10 +63,13 @@ def refund():
 
     """
     a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
+
     c = get_contract_with_gas_estimation_for_constants(crowdfund, *[a1, 50, 60])
+    start_timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
+
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
-    assert c.deadline() - c.block_timestamp() == 59
+    assert c.deadline() - start_timestamp == 60
     assert not c.expired()
     assert not c.reached()
     c.participate(transact={"value": 49})
@@ -106,7 +109,7 @@ goal: uint256
 refundIndex: int128
 timelimit: public(uint256)
 
-@external
+@deploy
 def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.beneficiary = _beneficiary
     self.deadline = block.timestamp + _timelimit
@@ -118,7 +121,7 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 def participate():
     assert block.timestamp < self.deadline
     nfi: int128 = self.nextFunderIndex
-    self.funders[nfi] = Funder({sender: msg.sender, value: msg.value})
+    self.funders[nfi] = Funder(sender=msg.sender, value=msg.value)
     self.nextFunderIndex = nfi + 1
 
 @external
@@ -144,7 +147,7 @@ def finalize():
 @external
 def refund():
     ind: int128 = self.refundIndex
-    for i in range(ind, ind + 30):
+    for i: int128 in range(ind, ind + 30, bound=30):
         if i >= self.nextFunderIndex:
             self.refundIndex = self.nextFunderIndex
             return
