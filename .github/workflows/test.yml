@@ -62,9 +62,9 @@ jobs:
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
-        debug: [true, false]
         opt-mode: ["gas", "none", "codesize"]
         evm-version: [shanghai]
+        debug: [true, false]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -92,6 +92,7 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
+
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
 
