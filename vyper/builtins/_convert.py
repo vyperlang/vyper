@@ -422,23 +422,31 @@ def to_address(expr, arg, out_typ):
     return IRnode.from_list(ret, out_typ)
 
 
+def _cast_bytestring(expr, arg, out_typ):
+    # ban converting Bytes[20] to Bytes[21]
+    if isinstance(arg.typ, out_typ.__class__) and arg.typ.maxlen <= out_typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+    # can't downcast literals with known length (e.g. b"abc" to Bytes[2])
+    if isinstance(expr, vy_ast.Constant) and arg.typ.maxlen > out_typ.maxlen:
+        _FAIL(arg.typ, out_typ, expr)
+
+    ret = ["seq"]
+    if out_typ.maxlen < arg.typ.maxlen:
+        ret.append(["assert", ["le", get_bytearray_length(arg), out_typ.maxlen]])
+    ret.append(arg)
+    # NOTE: this is a pointer cast
+    return IRnode.from_list(ret, typ=out_typ, location=arg.location, encoding=arg.encoding)
+
+
 # question: should we allow bytesM -> String?
-@_input_types(BytesT)
+@_input_types(BytesT, StringT)
 def to_string(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT)
+@_input_types(StringT, BytesT)
 def to_bytes(expr, arg, out_typ):
-    _check_bytes(expr, arg, out_typ, out_typ.maxlen)
-
-    # TODO: more casts
-
-    # NOTE: this is a pointer cast
-    return IRnode.from_list(arg, typ=out_typ)
+    return _cast_bytestring(expr, arg, out_typ)
 
 
 @_input_types(IntegerT)
