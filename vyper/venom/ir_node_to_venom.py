@@ -107,6 +107,8 @@ PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
     ]
 )
 
+NOOP_INSTRUCTIONS = frozenset(["pass", "cleanup_repeat", "var_list", "unique_symbol"])
+
 SymbolTable = dict[str, Optional[IROperand]]
 
 
@@ -473,11 +475,6 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value in []:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
         ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
-    elif ir.value == "unique_symbol":
-        sym = ir.args[0]
-        new_var = ctx.get_next_variable()
-        symbols[f"&{sym.value}"] = new_var
-        return new_var
     elif ir.value == "repeat":
 
         def emit_body_blocks():
@@ -542,10 +539,6 @@ def _convert_ir_bb(ctx, ir, symbols):
         ctx.append_basic_block(exit_block)
 
         cond_block.append_instruction("jnz", cont_ret, exit_block.label, body_block.label)
-    elif ir.value == "cleanup_repeat":
-        pass
-    elif ir.value == "pass":
-        pass
     elif ir.value == "break":
         assert _break_target is not None, "Break with no break target"
         ctx.get_basic_block().append_instruction("jmp", _break_target.label)
@@ -554,7 +547,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         assert _continue_target is not None, "Continue with no contrinue target"
         ctx.get_basic_block().append_instruction("jmp", _continue_target.label)
         ctx.append_basic_block(IRBasicBlock(ctx.get_next_label(), ctx))
-    elif ir.value == "var_list":
+    elif ir.value in NOOP_INSTRUCTIONS:
         pass
     elif isinstance(ir.value, str) and ir.value.startswith("log"):
         args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols))
