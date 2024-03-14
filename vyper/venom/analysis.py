@@ -170,3 +170,20 @@ class DFG:
                     dfg._dfg_outputs[op] = inst
 
         return dfg
+
+    def as_graph(self) -> str:
+        """
+        Generate a graphviz representation of the dfg
+        """
+        lines = ["digraph dfg_graph {"]
+        for var, inputs in self._dfg_inputs.items():
+            for input in inputs:
+                for op in input.get_outputs():
+                    if isinstance(op, IRVariable):
+                        lines.append(f'    " {var.name} " -> " {op.name} "')
+
+        lines.append("}")
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return self.as_graph()
