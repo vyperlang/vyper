@@ -18,7 +18,7 @@ my_map: transient(HashMap[address, uint256])
 
 
 def test_transient_compiles():
-    if version_check(begin="cancun"):
+    if not version_check(begin="cancun"):
         return
 
     getter_code = """
