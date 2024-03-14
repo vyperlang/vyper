@@ -161,6 +161,9 @@ jobs:
         python-version: "3.11"
         cache: "pip"
 
+    - name: Install dependencies
+      run: pip install .[test]
+
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this manually/locally and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `pytest -m "fuzzing" --store-durations -r aR tests/`
@@ -208,6 +211,9 @@ jobs:
       with:
         python-version: "3.11"
         cache: "pip"
+
+    - name: Install dependencies
+      run: pip install .[test]
 
     - name: Run tests
       run: pytest --memorymock tests/
