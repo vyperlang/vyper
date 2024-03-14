@@ -39,7 +39,7 @@ hypothesis.settings.load_profile("ci")
 
 
 def set_evm_verbose_logging():
-    logger = logging.getLogger("eth.vm.computation.Computation")
+    logger = logging.getLogger("eth.vm.computation.BaseComputation")
     setup_DEBUG2_logging()
     logger.setLevel("DEBUG2")
 
