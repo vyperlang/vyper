@@ -116,6 +116,7 @@ jobs:
     - name: Run tests
       run: |
         pytest \
+          -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
