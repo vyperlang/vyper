@@ -506,7 +506,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     break
 
             if rhs is None:
-                hint = "try importing {item.alias} first"
+                hint = f"try importing {item.alias} first"
             elif isinstance(module_ref, vy_ast.NamedExpr):
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
             else:
