@@ -91,6 +91,9 @@ def debug(pytestconfig):
 
 @pytest.fixture(scope="session", autouse=True)
 def evm_version(pytestconfig):
+    # note: we configure the evm version that we emit code for,
+    # but eth-tester is only configured with the latest mainnet
+    # version.
     evm_version_str = pytestconfig.getoption("evm_version")
     evm.DEFAULT_EVM_VERSION = evm_version_str
     # this should get overridden by anchor_evm_version,
