@@ -507,7 +507,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             if rhs is None:
                 hint = "try importing {item.alias} first"
-            elif isinstance(module_ref, vy_ast.Name):
+            elif isinstance(module_ref, vy_ast.NamedExpr):
                 hint = f"did you mean {module_ref.id}[{lhs} := {rhs}]?"
             else:
                 hint = f"add `{lhs} := {rhs}` to its initializer list"
