@@ -218,6 +218,9 @@ class VenomCompiler:
             if depth == final_stack_depth:
                 continue
 
+            if op == stack.peek(final_stack_depth):
+                continue
+
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
