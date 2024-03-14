@@ -220,7 +220,10 @@ class Convert(BuiltinFunctionT):
 
         # block conversions between same type
         if target_type.compare_type(value_type):
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+            raise InvalidType(
+                f"Value and target type are both `{target_type}`",
+                hint="try removing the call to `convert()`",
+            )
 
         return [value_type, TYPE_T(target_type)]
 
