@@ -328,7 +328,6 @@ def _get_contract(
     **kwargs,
 ):
     settings = Settings()
-    assert "evm_version" not in kwargs  # TODO: refactoring placeholder, remove me
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
@@ -403,7 +402,6 @@ def _deploy_blueprint_for(
     w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
 ):
     settings = Settings()
-    assert "evm_version" not in kwargs  # TODO: refactoring placeholder, remove me
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
