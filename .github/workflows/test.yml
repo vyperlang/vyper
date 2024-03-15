@@ -62,17 +62,42 @@ jobs:
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
-        # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
+        evm-version: [shanghai]
         debug: [true, false]
-        # run across other python versions.# we don't really need to run all
-        # modes across all python versions - one is enough
+
+        # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
+          # test default settings with 3.11 across all supported evm versions
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: london
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: paris
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: shanghai
+          # enable when py-evm makes it work:
+          #- python-version: ["3.11", "311"]
+          #  debug: false
+          #  opt-mode: gas
+          #  evm-version: cancun
+
+          # run across other python versions. we don't really need to run all
+          # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
+            evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
+          # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
+          #- python-version: ["3.12", "312"]
+
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -86,11 +111,18 @@ jobs:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
 
-    - name: Install Tox
-      run: pip install tox
+    - name: Install dependencies
+      run: pip install .[test]
 
-    - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
+    - name: Run tests
+      run: |
+        pytest \
+          -m "not fuzzing" \
+          --optimize ${{ matrix.opt-mode }} \
+          --evm-version ${{ matrix.evm-version }} \
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
+          --showlocals -r aR \
+          tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v4
