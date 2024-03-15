@@ -19,7 +19,7 @@ my_map: transient(HashMap[address, uint256])
 
 def test_transient_compiles():
     if not version_check(begin="cancun"):
-        return
+        pytest.skip("transient storage will not compile pre-cancun")
 
     getter_code = """
 my_map: public(transient(HashMap[address, uint256]))
