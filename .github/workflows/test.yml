@@ -93,9 +93,10 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
-
-          # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
-          #- python-version: ["3.12", "312"]
+          - python-version: ["3.12", "312"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version }}
 
