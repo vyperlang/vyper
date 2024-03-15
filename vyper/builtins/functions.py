@@ -440,12 +440,13 @@ class Slice(BuiltinFunctionT):
 
             # make sure we don't overrun the source buffer, checking for
             # overflow:
-            # `assert start+length <= src_len && start+length <= length`
+            # valid inputs satisfy: `assert start+length <= src_len && start+length > start`
+
             bounds_check = [
                 "with",
                 "end",
                 ["add", start, length],
-                ["assert", ["iszero", ["or", ["gt", "end", src_len], ["gt", "end", length]]]],
+                ["assert", ["iszero", ["or", ["gt", "end", src_len], ["lt", "end", start]]]],
             ]
 
             ret = [
