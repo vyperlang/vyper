@@ -51,11 +51,14 @@ def utf8_encodable(terminal: str) -> bool:
         return False
 
 
+ALLOWED_CHARS = st.characters(codec="utf-8", min_codepoint=1)
+
+
 # With help from hyposmith
 # https://github.com/Zac-HD/hypothesmith/blob/master/src/hypothesmith/syntactic.py
 class GrammarStrategy(LarkStrategy):
     def __init__(self, grammar, start, explicit_strategies):
-        super().__init__(grammar, start, explicit_strategies)
+        super().__init__(grammar, start, explicit_strategies, alphabet=ALLOWED_CHARS)
         self.terminal_strategies = {
             k: v.map(lambda s: s.replace("\0", "")).filter(utf8_encodable)
             for k, v in self.terminal_strategies.items()  # type: ignore
