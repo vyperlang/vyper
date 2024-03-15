@@ -26,6 +26,9 @@ jobs:
     - name: Install Dependencies
       run: pip install .[lint]
 
+    - name: Debug dependencies
+      run: pip freeze
+
     - name: Run Black
       run: black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
 
@@ -114,6 +117,9 @@ jobs:
 
     - name: Install dependencies
       run: pip install .[test]
+
+    - name: Debug dependencies
+      run: pip freeze
 
     - name: Run tests
       run: |
