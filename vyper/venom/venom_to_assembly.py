@@ -218,6 +218,9 @@ class VenomCompiler:
             if depth == final_stack_depth:
                 continue
 
+            if op == stack.peek(final_stack_depth):
+                continue
+
             self.swap(assembly, stack, depth)
             self.swap(assembly, stack, final_stack_depth)
 
@@ -397,7 +400,7 @@ class VenomCompiler:
             # NOTE: stack in general can contain multiple copies of the same variable,
             # however we are safe in the case of jmp/djmp/jnz as it's not going to
             # have multiples.
-            target_stack_list = [x for x in target_stack.keys()]
+            target_stack_list = list(target_stack.keys())
             self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered

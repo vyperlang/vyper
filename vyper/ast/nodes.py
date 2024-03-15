@@ -146,7 +146,7 @@ def _to_node(obj, parent):
     if isinstance(obj, VyperNode):
         # if object is already a vyper node, make sure the parent is set correctly
         # and fix any missing source offsets
-        obj._parent = parent
+        obj.set_parent(parent)
         for field_name in NODE_SRC_ATTRIBUTES:
             if getattr(obj, field_name) is None:
                 setattr(obj, field_name, getattr(parent, field_name, None))

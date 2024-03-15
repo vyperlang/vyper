@@ -1,3 +1,4 @@
+from typing import Optional
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
@@ -144,8 +145,8 @@ class DFG:
         return self._dfg_inputs.get(op, [])
 
     # the instruction which produces this variable.
-    def get_producing_instruction(self, op: IRVariable) -> IRInstruction:
-        return self._dfg_outputs[op]
+    def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
+        return self._dfg_outputs.get(op)
 
     @classmethod
     def build_dfg(cls, ctx: IRFunction) -> "DFG":
@@ -170,3 +171,20 @@ class DFG:
                     dfg._dfg_outputs[op] = inst
 
         return dfg
+
+    def as_graph(self) -> str:
+        """
+        Generate a graphviz representation of the dfg
+        """
+        lines = ["digraph dfg_graph {"]
+        for var, inputs in self._dfg_inputs.items():
+            for input in inputs:
+                for op in input.get_outputs():
+                    if isinstance(op, IRVariable):
+                        lines.append(f'    " {var.name} " -> " {op.name} "')
+
+        lines.append("}")
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return self.as_graph()

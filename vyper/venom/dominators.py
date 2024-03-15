@@ -149,6 +149,6 @@ class DominatorTree:
             idom = self.immediate_dominator(bb)
             if idom is None:
                 continue
-            lines.append(f'    "{idom.label}" -> "{bb.label}"')
+            lines.append(f'    " {idom.label} " -> " {bb.label} "')
         lines.append("}")
         return "\n".join(lines)
