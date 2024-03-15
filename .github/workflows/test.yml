@@ -81,11 +81,10 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: shanghai
-          # enable when py-evm makes it work:
-          #- python-version: ["3.11", "311"]
-          #  debug: false
-          #  opt-mode: gas
-          #  evm-version: cancun
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: cancun
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
