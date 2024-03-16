@@ -145,7 +145,7 @@ def test(addr: address) -> (int128, address, String[10]):
     a: int128 = 0
     b: address = empty(address)
     c: String[10] = ""
-    (a, b, c) = Test(addr).out_literals()
+    (a, b, c) = staticcall Test(addr).out_literals()
     return a, b,c
     """
     c1 = get_contract_with_gas_estimation(contract_1)

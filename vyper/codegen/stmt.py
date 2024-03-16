@@ -1,23 +1,16 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
-from vyper.builtins.functions import STMT_DISPATCH_TABLE
-from vyper.codegen import external_call, self_call
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LOAD,
     STORE,
     IRnode,
-    append_dyn_array,
-    check_assign,
-    clamp,
-    dummy_node_for_type,
+    clamp_le,
     get_dyn_array_count,
     get_element_ptr,
-    getpos,
     make_byte_array_copier,
     make_setter,
-    pop_dyn_array,
     zero_pad,
 )
 from vyper.codegen.expr import Expr
@@ -30,8 +23,7 @@ from vyper.exceptions import (
     TypeCheckFailure,
     tag_exceptions,
 )
-from vyper.semantics.types import DArrayT, MemberFunctionT
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 
 
@@ -49,11 +41,10 @@ class Stmt:
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
-        self.ir_node.source_pos = getpos(self.stmt)
+        self.ir_node.ast_source = self.stmt
 
     def parse_Expr(self):
-        # TODO: follow analysis modules and dispatch down to expr.py
-        return Stmt(self.stmt.value, self.context).ir_node
+        return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
 
     def parse_Pass(self):
         return IRnode.from_list("pass")
@@ -121,34 +112,6 @@ class Stmt:
 
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
-    def parse_Call(self):
-        if isinstance(self.stmt.func, vy_ast.Name):
-            funcname = self.stmt.func.id
-            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
-
-        func_type = self.stmt.func._metadata["type"]
-
-        if isinstance(func_type, MemberFunctionT) and self.stmt.func.attr in ("append", "pop"):
-            darray = Expr(self.stmt.func.value, self.context).ir_node
-            args = [Expr(x, self.context).ir_node for x in self.stmt.args]
-            if self.stmt.func.attr == "append":
-                (arg,) = args
-                assert isinstance(darray.typ, DArrayT)
-                check_assign(
-                    dummy_node_for_type(darray.typ.value_type), dummy_node_for_type(arg.typ)
-                )
-
-                return append_dyn_array(darray, arg)
-            else:
-                assert len(args) == 0
-                return pop_dyn_array(darray, return_popped_item=False)
-
-        if isinstance(func_type, ContractFunctionT):
-            if func_type.is_internal or func_type.is_constructor:
-                return self_call.ir_for_self_call(self.stmt, self.context)
-            else:
-                return external_call.ir_for_external_call(self.stmt, self.context)
-
     def _assert_reason(self, test_expr, msg):
         # from parse_Raise: None passed as the assert condition
         is_raise = test_expr is None
@@ -182,7 +145,7 @@ class Stmt:
             instantiate_msg = make_byte_array_copier(buf, msg_ir)
         else:
             buf = _get_last(msg_ir)
-            if not isinstance(buf, int):
+            if not isinstance(buf, int):  # pragma: nocover
                 raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
             instantiate_msg = msg_ir
 
@@ -233,20 +196,19 @@ class Stmt:
         assert "type" in self.stmt.target.target._metadata
         target_type = self.stmt.target.target._metadata["type"]
 
-        # Get arg0
         range_call: vy_ast.Call = self.stmt.iter
         assert isinstance(range_call, vy_ast.Call)
-        args_len = len(range_call.args)
-        if args_len == 1:
-            arg0, arg1 = (IRnode.from_list(0, typ=target_type), range_call.args[0])
-        elif args_len == 2:
-            arg0, arg1 = range_call.args
-        else:  # pragma: nocover
-            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
         with self.context.range_scope():
-            start = Expr.parse_value_expr(arg0, self.context)
-            end = Expr.parse_value_expr(arg1, self.context)
+            args = [Expr.parse_value_expr(arg, self.context) for arg in range_call.args]
+            if len(args) == 1:
+                start = IRnode.from_list(0, typ=target_type)
+                end = args[0]
+            elif len(args) == 2:
+                start, end = args
+            else:  # pragma: nocover
+                raise TypeCheckFailure("unreachable")
+
             kwargs = {
                 s.arg: Expr.parse_value_expr(s.value, self.context) for s in range_call.keywords
             }
@@ -255,7 +217,7 @@ class Stmt:
             with end.cache_when_complex("end") as (b1, end):
                 # note: the check for rounds<=rounds_bound happens in asm
                 # generation for `repeat`.
-                clamped_start = clamp("le", start, end)
+                clamped_start = clamp_le(start, end, target_type.is_signed)
                 rounds = b1.resolve(IRnode.from_list(["sub", end, clamped_start]))
             rounds_bound = kwargs.pop("bound").int_value()
         else:
@@ -336,8 +298,8 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+        right = Expr.parse_value_expr(self.stmt.value, self.context)
 
-        sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not target.typ._is_prim_word:
             # because of this check, we do not need to check for
             # make_setter references lhs<->rhs as in parse_Assign -
@@ -345,20 +307,9 @@ class Stmt:
             raise TypeCheckFailure("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
-            rhs = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    left=IRnode.from_list(LOAD(target), typ=target.typ),
-                    right=sub,
-                    op=self.stmt.op,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
-                    node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
-            return b.resolve(STORE(target, rhs))
+            left = IRnode.from_list(LOAD(target), typ=target.typ)
+            new_val = Expr.handle_binop(self.stmt.op, left, right, self.context)
+            return b.resolve(STORE(target, new_val))
 
     def parse_Continue(self):
         return IRnode.from_list("continue")
@@ -414,9 +365,6 @@ def _is_terminated(code):
 
 # codegen a list of statements
 def parse_body(code, context, ensure_terminated=False):
-    if not isinstance(code, list):
-        return parse_stmt(code, context)
-
     ir_node = ["seq"]
     for stmt in code:
         ir = parse_stmt(stmt, context)

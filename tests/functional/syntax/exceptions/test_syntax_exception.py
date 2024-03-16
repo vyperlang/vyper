@@ -98,6 +98,11 @@ def foo():
     for i: $$$ in range(0, 10):
         pass
     """,
+    """
+struct S:
+    x: int128
+s: S = S(x=int128, 1)
+    """,
 ]
 
 

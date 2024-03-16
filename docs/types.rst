@@ -95,7 +95,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x // y``     Integer division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 =============  ======================
@@ -131,6 +131,8 @@ Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int2
 .. note::
    While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
 
+.. note::
+   Integer division has different rounding semantics than Python for negative numbers: Vyper rounds towards zero, while Python rounds towards negative infinity. For example, ``-1 // 2`` will return ``-1`` in Python, but ``0`` in Vyper. This preserves the spirit (but not the text!) of the reasoning for Python's round-towards-negative-infinity behavior, which is that the behavior of ``//`` combined with the behavior of ``%`` preserves the following identity no matter if the quantities are negative or non-negative: ``(x // y) * y + (x % y) == x``.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -181,7 +183,7 @@ Operator                     Description
 ``x + y``                    Addition
 ``x - y``                    Subtraction
 ``x * y``                    Multiplication
-``x / y``                    Division
+``x // y``                   Integer division
 ``x**y``                     Exponentiation
 ``x % y``                    Modulo
 ===========================  ======================
@@ -270,7 +272,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x / y``      Decimal division
 ``x % y``      Modulo
 =============  ==========================================
 
@@ -588,7 +590,7 @@ Struct members can be accessed via ``struct.argname``.
         value2: decimal
 
     # Declaring a struct variable
-    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2.0})
+    exampleStruct: MyStruct = MyStruct(value1=1, value2=2.0)
 
     # Accessing a value
     exampleStruct.value1 = 1
@@ -675,6 +677,6 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Narrowing conversions (e.g., ``int256 -> int128``) check that the input is in bounds for the output type.
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
-* Enums can be converted to and from ``uint256`` only.
+* Flags can be converted to and from ``uint256`` only.
 
 A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`__. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`__.

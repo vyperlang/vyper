@@ -3,13 +3,14 @@ import contextlib
 import decimal
 import enum
 import functools
+import hashlib
 import sys
 import time
 import traceback
 import warnings
 from typing import Generic, List, TypeVar, Union
 
-from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral
+from vyper.exceptions import CompilerPanic, DecimalOverrideException, InvalidLiteral, VyperException
 
 _T = TypeVar("_T")
 
@@ -36,6 +37,9 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def get(self, *args, **kwargs):
         raise RuntimeError("can't call get() on OrderedSet!")
 
+    def first(self):
+        return next(iter(self))
+
     def add(self, item: _T) -> None:
         self[item] = None
 
@@ -53,14 +57,25 @@ class OrderedSet(Generic[_T], dict[_T, None]):
         return self | other
 
     def update(self, other):
-        for item in other:
-            self.add(item)
+        super().update(self.__class__.fromkeys(other))
 
     def __or__(self, other):
         return self.__class__(super().__or__(other))
 
     def copy(self):
         return self.__class__(super().copy())
+
+    @classmethod
+    def intersection(cls, *sets):
+        res = OrderedSet()
+        if len(sets) == 0:
+            raise ValueError("undefined: intersection of no sets")
+        if len(sets) == 1:
+            return sets[0].copy()
+        for e in sets[0].keys():
+            if all(e in s for s in sets[1:]):
+                res.add(e)
+        return res
 
 
 class StringEnum(enum.Enum):
@@ -146,6 +161,11 @@ except ImportError:
     keccak256 = lambda x: _sha3.sha3_256(x).digest()  # noqa: E731
 
 
+@functools.lru_cache(maxsize=512)
+def sha256sum(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).digest().hex()
+
+
 # Converts four bytes to an integer
 def fourbytes_to_int(inp):
     return (inp[0] << 24) + (inp[1] << 16) + (inp[2] << 8) + inp[3]
@@ -208,8 +228,11 @@ def trace(n=5, out=sys.stderr):
 
 
 # print a warning
-def vyper_warn(msg, prefix="Warning: ", file_=sys.stderr):
-    print(f"{prefix}{msg}", file=file_)
+def vyper_warn(msg, node=None):
+    if node is not None:
+        # use VyperException for its formatting abilities
+        msg = str(VyperException(msg, node))
+    warnings.warn(msg, stacklevel=2)
 
 
 # converts a signature like Func(bool,uint256,address) to its 4 byte method ID
@@ -398,6 +421,7 @@ VALID_IR_MACROS = {
 
 
 EIP_170_LIMIT = 0x6000  # 24kb
+ERC5202_PREFIX = b"\xFE\x71\x00"  # default prefix from ERC-5202
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
@@ -431,17 +455,13 @@ def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1)
     return "".join(indented_lines)
 
 
-def timeit(func):
-    @functools.wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
-        return result
-
-    return timeit_wrapper
+@contextlib.contextmanager
+def timeit(msg):
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    print(f"{msg}: Took {total_time:.4f} seconds")
 
 
 @contextlib.contextmanager

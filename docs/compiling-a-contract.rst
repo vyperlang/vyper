@@ -29,7 +29,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 .. code:: shell
 
-    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,annotated_ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
 
 .. note::
     The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
@@ -173,20 +173,10 @@ When using the JSON interface, you can include the ``"evmVersion"`` key within t
 Target Options
 --------------
 
-The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
+The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version. In general, the compiler team maintains an informal policy that the compiler will support 3 years of hard fork rulesets, but this policy may be revisited as appropriate.
 
 
-.. py:attribute:: istanbul
-
-   - The ``CHAINID`` opcode is accessible via ``chain.id``
-   - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
-   - Gas estimates changed for ``SLOAD`` and ``BALANCE``
-
-.. py:attribute:: berlin
-
-   - Gas estimates changed for ``EXTCODESIZE``, ``EXTCODECOPY``, ``EXTCODEHASH``, ``SLOAD``, ``SSTORE``, ``CALL``, ``CALLCODE``, ``DELEGATECALL`` and ``STATICCALL``
-   - Functions marked with ``@nonreentrant`` are protected with different values (3 and 2) than contracts targeting pre-berlin.
-   - ``BASEFEE`` is accessible via ``block.basefee``
+.. py:attribute:: london
 
 .. py:attribute:: paris
 
@@ -247,7 +237,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
+            "evmVersion": "shanghai",  // EVM version to compile for. Can be london, paris, shanghai (default) or cancun (experimental!).
             // optional, optimization mode
             // defaults to "gas". can be one of "gas", "codesize", "none",
             // false  and true (the last two are for backwards compatibility).
@@ -275,11 +265,14 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    evm.bytecode.opcodes - Opcodes list
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
+            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
             // Additionally, `*` can be used as a wildcard to request everything.
+            // Note that the sourceMapFull.pc_ast_map is the recommended source map to use;
+            // the other types are included for legacy and compatibility reasons.
             //
             "outputSelection": {
                 "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract

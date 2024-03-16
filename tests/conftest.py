@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+import vyper.evm.opcodes as evm
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -22,6 +23,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
+from vyper.utils import ERC5202_PREFIX
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -37,7 +39,7 @@ hypothesis.settings.load_profile("ci")
 
 
 def set_evm_verbose_logging():
-    logger = logging.getLogger("eth.vm.computation.Computation")
+    logger = logging.getLogger("eth.vm.computation.BaseComputation")
     setup_DEBUG2_logging()
     logger.setLevel("DEBUG2")
 
@@ -57,6 +59,13 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
+
+    parser.addoption(
+        "--evm-version",
+        choices=list(evm.EVM_VERSIONS.keys()),
+        default="shanghai",
+        help="set evm version",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -80,8 +89,21 @@ def debug(pytestconfig):
     _set_debug_mode(debug)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def evm_version(pytestconfig):
+    # note: we configure the evm version that we emit code for,
+    # but eth-tester is only configured with the latest mainnet
+    # version.
+    evm_version_str = pytestconfig.getoption("evm_version")
+    evm.DEFAULT_EVM_VERSION = evm_version_str
+    # this should get overridden by anchor_evm_version,
+    # but set it anyway
+    evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
+
+
 @pytest.fixture
 def chdir_tmp_path(tmp_path):
+    # this is useful for when you want imports to have relpaths
     with working_directory(tmp_path):
         yield
 
@@ -306,7 +328,6 @@ def _get_contract(
     **kwargs,
 ):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
@@ -377,9 +398,10 @@ def get_contract_module(optimize, output_formats):
     return get_contract_module
 
 
-def _deploy_blueprint_for(w3, source_code, optimize, output_formats, initcode_prefix=b"", **kwargs):
+def _deploy_blueprint_for(
+    w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
+):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,

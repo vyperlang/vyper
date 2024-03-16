@@ -1,7 +1,7 @@
 import ast as python_ast
 import tokenize
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 import asttokens
 
@@ -10,6 +10,7 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
+from vyper.utils import sha256sum, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -18,7 +19,7 @@ def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
 
 
 def parse_to_ast_with_settings(
-    source_code: str,
+    vyper_source: str,
     source_id: int = 0,
     module_path: Optional[str] = None,
     resolved_path: Optional[str] = None,
@@ -29,7 +30,7 @@ def parse_to_ast_with_settings(
 
     Parameters
     ----------
-    source_code : str
+    vyper_source: str
         The Vyper source code to parse.
     source_id : int, optional
         Source id to use in the `src` member of each node.
@@ -52,14 +53,14 @@ def parse_to_ast_with_settings(
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    if "\x00" in source_code:
+    if "\x00" in vyper_source:
         raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    settings, class_types, for_loop_annotations, reformatted_code = pre_parse(source_code)
+    settings, class_types, for_loop_annotations, python_source = pre_parse(vyper_source)
     try:
-        py_ast = python_ast.parse(reformatted_code)
+        py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
+        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from e
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
@@ -71,10 +72,10 @@ def parse_to_ast_with_settings(
 
     annotate_python_ast(
         py_ast,
-        source_code,
+        vyper_source,
         class_types,
         for_loop_annotations,
-        source_id,
+        source_id=source_id,
         module_path=module_path,
         resolved_path=resolved_path,
     )
@@ -116,7 +117,7 @@ def dict_to_ast(ast_struct: Union[Dict, List]) -> Union[vy_ast.VyperNode, List]:
 
 def annotate_python_ast(
     parsed_ast: python_ast.AST,
-    source_code: str,
+    vyper_source: str,
     modification_offsets: ModificationOffsets,
     for_loop_annotations: dict,
     source_id: int = 0,
@@ -130,8 +131,8 @@ def annotate_python_ast(
     ----------
     parsed_ast : AST
         The AST to be annotated and optimized.
-    source_code : str
-        The originating source code of the AST.
+    vyper_source: str
+        The original vyper source code
     loop_var_annotations: dict
         A mapping of line numbers of `For` nodes to the tokens of the type
         annotation of the iterator extracted during pre-parsing.
@@ -142,10 +143,11 @@ def annotate_python_ast(
     -------
         The annotated and optimized AST.
     """
-
-    tokens = asttokens.ASTTokens(source_code, tree=cast(Optional[python_ast.Module], parsed_ast))
+    tokens = asttokens.ASTTokens(vyper_source)
+    assert isinstance(parsed_ast, python_ast.Module)  # help mypy
+    tokens.mark_tokens(parsed_ast)
     visitor = AnnotatingVisitor(
-        source_code,
+        vyper_source,
         modification_offsets,
         for_loop_annotations,
         tokens,
@@ -210,6 +212,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.end_lineno = end[0]
         node.end_col_offset = end[1]
 
+        # TODO: adjust end_lineno and end_col_offset when this node is in
+        # modification_offsets
+
         if hasattr(node, "last_token"):
             start_pos = node.first_token.startpos
             end_pos = node.last_token.endpos
@@ -239,8 +244,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        # TODO: is this the best place for these? maybe they can be on
+        # CompilerData instead.
         node.path = self._module_path
         node.resolved_path = self._resolved_path
+        node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
         return self._visit_docstring(node)
 
@@ -336,8 +344,41 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.value, python_ast.Yield):
+            # CMC 2024-03-03 consider unremoving this from the enclosing Expr
             node = node.value
             node.ast_type = self._modification_offsets[(node.lineno, node.col_offset)]
+
+        return node
+
+    def visit_Await(self, node):
+        start_pos = node.lineno, node.col_offset  # grab these before generic_visit modifies them
+        self.generic_visit(node)
+        node.ast_type = self._modification_offsets[start_pos]
+        return node
+
+    def visit_Call(self, node):
+        # Convert structs declared as `Dict` node for vyper < 0.4.0 to kwargs
+        if len(node.args) == 1 and isinstance(node.args[0], python_ast.Dict):
+            msg = "Instantiating a struct using a dictionary is deprecated "
+            msg += "as of v0.4.0 and will be disallowed in a future release. "
+            msg += "Use kwargs instead e.g. Foo(a=1, b=2)"
+
+            # add full_source_code so that str(VyperException(msg, node)) works
+            node.full_source_code = self._source_code
+            vyper_warn(msg, node)
+
+            dict_ = node.args[0]
+            kw_list = []
+
+            assert len(dict_.keys) == len(dict_.values)
+            for key, value in zip(dict_.keys, dict_.values):
+                replacement_kw_node = python_ast.keyword(key.id, value)
+                kw_list.append(replacement_kw_node)
+
+            node.args = []
+            node.keywords = kw_list
+
+        self.generic_visit(node)
 
         return node
 

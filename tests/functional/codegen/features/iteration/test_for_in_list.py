@@ -10,7 +10,6 @@ from vyper.exceptions import (
     InvalidType,
     IteratorException,
     NamespaceCollision,
-    StateAccessViolation,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -52,8 +51,8 @@ struct S:
 @external
 def data() -> int128:
     sss: DynArray[DynArray[S, 10], 10] = [
-        [S({x:1, y:2})],
-        [S({x:3, y:4}), S({x:5, y:6}), S({x:7, y:8}), S({x:9, y:10})]
+        [S(x=1, y=2)],
+        [S(x=3, y=4), S(x=5, y=6), S(x=7, y=8), S(x=9, y=10)]
         ]
     ret: int128 = 0
     for ss: DynArray[S, 10] in sss:
@@ -133,7 +132,7 @@ struct S:
 @external
 def data() -> int128:
     ret: int128 = 0
-    for ss: S[1] in [[S({x:1, y:2})]]:
+    for ss: S[1] in [[S(x=1, y=2)]]:
         for s: S in ss:
             ret += s.x + s.y
     return ret""",
@@ -714,7 +713,7 @@ def foo():
     for i: uint256 in range(a):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
     ),
     (
         """
@@ -724,7 +723,7 @@ def foo():
     for i: int128 in range(a,a-3):
         pass
     """,
-        StateAccessViolation,
+        StructureException,
     ),
     # invalid argument length
     (

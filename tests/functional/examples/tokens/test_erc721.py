@@ -102,7 +102,7 @@ def test_transferFrom_by_owner(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -121,7 +121,7 @@ def test_transferFrom_by_approved(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[1]
+    assert args.token_id == SOMEONE_TOKEN_IDS[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[1]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -140,7 +140,7 @@ def test_transferFrom_by_operator(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[2]
+    assert args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -176,7 +176,7 @@ def test_safeTransferFrom_by_owner(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -197,7 +197,7 @@ def test_safeTransferFrom_by_approved(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[1]
+    assert args.token_id == SOMEONE_TOKEN_IDS[1]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[1]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -218,7 +218,7 @@ def test_safeTransferFrom_by_operator(c, w3, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[2]
+    assert args.token_id == SOMEONE_TOKEN_IDS[2]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[2]) == operator
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(operator) == 2
@@ -254,7 +254,7 @@ def onERC721Received(
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == receiver.address
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     assert c.ownerOf(SOMEONE_TOKEN_IDS[0]) == receiver.address
     assert c.balanceOf(someone) == 2
     assert c.balanceOf(receiver.address) == 1
@@ -282,7 +282,7 @@ def test_approve(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.owner == someone
     assert args.approved == operator
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
 
 
 def test_setApprovalForAll(c, w3, tx_failed, get_logs):
@@ -322,7 +322,7 @@ def test_mint(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == ZERO_ADDRESS
     assert args.receiver == someone
-    assert args.tokenId == NEW_TOKEN_ID
+    assert args.token_id == NEW_TOKEN_ID
     assert c.ownerOf(NEW_TOKEN_ID) == someone
     assert c.balanceOf(someone) == 4
 
@@ -342,7 +342,7 @@ def test_burn(c, w3, tx_failed, get_logs):
     args = logs[0].args
     assert args.sender == someone
     assert args.receiver == ZERO_ADDRESS
-    assert args.tokenId == SOMEONE_TOKEN_IDS[0]
+    assert args.token_id == SOMEONE_TOKEN_IDS[0]
     with tx_failed():
         c.ownerOf(SOMEONE_TOKEN_IDS[0])
     assert c.balanceOf(someone) == 2

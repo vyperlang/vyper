@@ -27,19 +27,19 @@ h: public(int256[1])
 
 @deploy
 def __init__():
-    self.a = StructOne({a: "ok", b: [4,5,6]})
+    self.a = StructOne(a="ok", b=[4,5,6])
     self.b = [7, 8]
     self.c = b"thisisthirtytwobytesokhowdoyoudo"
     self.d = [-1, -2, -3, -4]
     self.e = "A realllllly long string but we won't use it all"
     self.f = [33]
     self.g = [
-        StructTwo({a: b"hello", b: [-66, 420], c: "another string"}),
-        StructTwo({
-            a: b"gbye",
-            b: [1337, 888],
-            c: "whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
-        })
+        StructTwo(a=b"hello", b=[-66, 420], c="another string"),
+        StructTwo(
+            a=b"gbye",
+            b=[1337, 888],
+            c="whatifthisstringtakesuptheentirelengthwouldthatbesobadidothinkso"
+        )
     ]
     self.dyn_array = [1, 2, 3]
     self.h =  [123456789]
