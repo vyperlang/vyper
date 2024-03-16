@@ -87,6 +87,14 @@ jobs:
           #  opt-mode: gas
           #  evm-version: cancun
 
+          # run with `--memorymock`, but only need to do it one configuration
+          # TODO: consider removing the memorymock tests
+          - python-version: ["3.11", "311"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
+            memorymock: true
+
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
@@ -97,7 +105,7 @@ jobs:
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -121,6 +129,7 @@ jobs:
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
+          ${{ matrix.memorymock && '--memorymock' || '' }} \
           --showlocals -r aR \
           tests/
 
@@ -190,30 +199,3 @@ jobs:
       - name: Check slow tests all succeeded
         if: ${{ needs.fuzzing.result != 'success' }}
         run: exit 1
-
-  memory:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-          # need to fetch unshallow so that setuptools_scm can infer the version
-          fetch-depth: 0
-
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-        cache: "pip"
-
-    - name: Install Tox
-      run: pip install tox
-
-    - name: Run Tox
-      run: TOXENV=memory tox -r
-
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
