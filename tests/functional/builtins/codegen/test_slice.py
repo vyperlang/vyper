@@ -2,7 +2,8 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
@@ -17,7 +18,7 @@ def test_basic_slice(get_contract_with_gas_estimation):
 @external
 def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     inp: Bytes[50] = inp1
-    for i in range(1, 11):
+    for i: uint256 in range(1, 11):
         inp = slice(inp, 1, 30 - i * 2)
     return inp
     """
@@ -32,6 +33,12 @@ _draw_1024_1 = st.integers(min_value=1, max_value=1024)
 _bytes_1024 = st.binary(min_size=0, max_size=1024)
 
 
+def _fail_contract(code, opt_level, exceptions):
+    settings = Settings(optimize=opt_level)
+    with pytest.raises(exceptions):
+        compile_code(code, settings)
+
+
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
@@ -40,8 +47,7 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 @pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
-    assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     bytesdata,
     start,
@@ -57,7 +63,7 @@ def test_slice_immutable(
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
-@external
+@deploy
 def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
     IMMUTABLE_BYTES = inp
     IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
@@ -76,10 +82,12 @@ def do_splice() -> Bytes[{length_bound}]:
         or (use_literal_start and start > length_bound)
         or (use_literal_length and length == 0)
     ):
-        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+        _fail_contract(code, opt_level, ArgumentException)
+
     elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
         # deploy fail
-        assert_tx_failed(lambda: _get_contract())
+        with tx_failed():
+            _get_contract()
     else:
         c = _get_contract()
         assert c.do_splice() == bytesdata[start : start + length]
@@ -94,8 +102,7 @@ def do_splice() -> Bytes[{length_bound}]:
 @pytest.mark.fuzzing
 def test_slice_bytes_fuzz(
     get_contract,
-    assert_compile_failed,
-    assert_tx_failed,
+    tx_failed,
     opt_level,
     location,
     bytesdata,
@@ -118,7 +125,7 @@ foo: Bytes[{length_bound}]
     elif location == "code":
         preamble = f"""
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
-@external
+@deploy
 def __init__(foo: Bytes[{length_bound}]):
     IMMUTABLE_BYTES = foo
     """
@@ -172,13 +179,16 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     )
 
     if compile_time_oob or slice_output_too_large:
-        assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
+        _fail_contract(code, opt_level, (ArgumentException, TypeMismatch))
+
     elif location == "code" and len(bytesdata) > length_bound:
         # deploy fail
-        assert_tx_failed(lambda: _get_contract())
+        with tx_failed():
+            _get_contract()
     elif end > len(bytesdata) or len(bytesdata) > length_bound:
         c = _get_contract()
-        assert_tx_failed(lambda: c.do_slice(bytesdata, start, length))
+        with tx_failed():
+            c.do_slice(bytesdata, start, length)
     else:
         c = _get_contract()
         assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
@@ -227,7 +237,7 @@ def test_slice_immutable_length_arg(get_contract_with_gas_estimation):
     code = """
 LENGTH: immutable(uint256)
 
-@external
+@deploy
 def __init__():
     LENGTH = 5
 
@@ -311,7 +321,7 @@ code_bytes32 = [
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
@@ -322,7 +332,7 @@ def bar() -> Bytes[{length}]:
     """
 foo: bytes32
 
-@external
+@deploy
 def __init__():
     self.foo = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 

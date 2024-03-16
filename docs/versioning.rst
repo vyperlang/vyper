@@ -22,7 +22,7 @@ on the type of user, so that users can stay informed about the progress of Vyper
 +=============+==============================================+
 | Developers  | Write smart contracts in Vyper               |
 +-------------+----------------------------------------------+
-| Integrators | Integerating Vyper package or CLI into tools |
+| Integrators | Integrating Vyper package or CLI into tools  |
 +-------------+----------------------------------------------+
 | Auditors    | Aware of Vyper features and security issues  |
 +-------------+----------------------------------------------+

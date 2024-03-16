@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 from vyper.utils import OrderedSet
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "jnz", "ret", "return", "revert", "deploy", "stop"])
+BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop"])
 
 VOLATILE_INSTRUCTIONS = frozenset(
     [
@@ -33,7 +33,6 @@ VOLATILE_INSTRUCTIONS = frozenset(
 
 NO_OUTPUT_INSTRUCTIONS = frozenset(
     [
-        "deploy",
         "mstore",
         "sstore",
         "dstore",
@@ -50,12 +49,13 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "invalid",
         "invoke",
         "jmp",
+        "djmp",
         "jnz",
         "log",
     ]
 )
 
-CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "jnz", "call", "staticcall", "invoke", "deploy"])
+CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 
 if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
@@ -236,6 +236,16 @@ class IRInstruction:
             if operand in replacements:
                 self.operands[i] = replacements[operand]
 
+    def replace_label_operands(self, replacements: dict) -> None:
+        """
+        Update label operands with replacements.
+        replacements are represented using a dict: "key" is replaced by "value".
+        """
+        replacements = {k.value: v for k, v in replacements.items()}
+        for i, operand in enumerate(self.operands):
+            if isinstance(operand, IRLabel) and operand.value in replacements:
+                self.operands[i] = replacements[operand.value]
+
     def __repr__(self) -> str:
         s = ""
         if self.output:
@@ -260,7 +270,7 @@ def _ir_operand_from_value(val: Any) -> IROperand:
     if isinstance(val, IROperand):
         return val
 
-    assert isinstance(val, int)
+    assert isinstance(val, int), val
     return IRLiteral(val)
 
 
@@ -400,8 +410,8 @@ class IRBasicBlock:
     def __repr__(self) -> str:
         s = (
             f"{repr(self.label)}:  IN={[bb.label for bb in self.cfg_in]}"
-            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars} \n"
+            f" OUT={[bb.label for bb in self.cfg_out]} => {self.out_vars}\n"
         )
         for instruction in self.instructions:
-            s += f"    {instruction}\n"
+            s += f"    {str(instruction).strip()}\n"
         return s

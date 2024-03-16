@@ -9,7 +9,7 @@ from vyper.venom.basicblock import (
     MemType,
 )
 
-GLOBAL_LABEL = IRLabel("global")
+GLOBAL_LABEL = IRLabel("__global")
 
 
 class IRFunction:
@@ -18,7 +18,10 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
+    entry_points: list[IRLabel]  # entry points
     args: list
+    ctor_mem_size: Optional[int]
+    immutables_len: Optional[int]
     basic_blocks: list[IRBasicBlock]
     data_segment: list[IRInstruction]
     last_label: int
@@ -28,13 +31,29 @@ class IRFunction:
         if name is None:
             name = GLOBAL_LABEL
         self.name = name
+        self.entry_points = []
         self.args = []
+        self.ctor_mem_size = None
+        self.immutables_len = None
         self.basic_blocks = []
         self.data_segment = []
         self.last_label = 0
         self.last_variable = 0
 
+        self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
+
+    def add_entry_point(self, label: IRLabel) -> None:
+        """
+        Add entry point.
+        """
+        self.entry_points.append(label)
+
+    def remove_entry_point(self, label: IRLabel) -> None:
+        """
+        Remove entry point.
+        """
+        self.entry_points.remove(label)
 
     def append_basic_block(self, bb: IRBasicBlock) -> IRBasicBlock:
         """
@@ -91,7 +110,7 @@ class IRFunction:
         removed = 0
         new_basic_blocks = []
         for bb in self.basic_blocks:
-            if not bb.is_reachable and bb.label.value != "global":
+            if not bb.is_reachable and bb.label not in self.entry_points:
                 removed += 1
             else:
                 new_basic_blocks.append(bb)
@@ -119,23 +138,11 @@ class IRFunction:
             if len(bb.cfg_in) <= 1:
                 continue
 
-            # Check if there is a conditional jump at the end
+            # Check if there is a branching jump at the end
             # of one of the predecessors
-            #
-            # TODO: this check could be:
-            #  `if len(in_bb.cfg_out) > 1: return False`
-            # but the cfg is currently not calculated "correctly" for
-            # certain special instructions (deploy instruction and
-            # selector table indirect jumps).
             for in_bb in bb.cfg_in:
-                jump_inst = in_bb.instructions[-1]
-                if jump_inst.opcode != "jnz":
-                    continue
-                if jump_inst.opcode == "jmp" and isinstance(jump_inst.operands[0], IRLabel):
-                    continue
-
-                # The function is not normalized
-                return False
+                if len(in_bb.cfg_out) > 1:
+                    return False
 
         # The function is normalized
         return True
@@ -156,4 +163,4 @@ class IRFunction:
             str += "Data segment:\n"
             for inst in self.data_segment:
                 str += f"{inst}\n"
-        return str
+        return str.strip()

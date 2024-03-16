@@ -23,7 +23,7 @@ wei_denoms = {
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_uint256(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_uint256(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: uint256) -> uint256:
@@ -36,11 +36,12 @@ def foo(a: uint256) -> uint256:
     assert c.foo(value) == value * (10**multiplier)
 
     value = (2**256 - 1) // (10 ** (multiplier - 1))
-    assert_tx_failed(lambda: c.foo(value))
+    with tx_failed():
+        c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_int128(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_int128(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: int128) -> uint256:
@@ -54,7 +55,7 @@ def foo(a: int128) -> uint256:
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
-def test_wei_decimal(get_contract, assert_tx_failed, denom, multiplier):
+def test_wei_decimal(get_contract, tx_failed, denom, multiplier):
     code = f"""
 @external
 def foo(a: decimal) -> uint256:
@@ -69,7 +70,7 @@ def foo(a: decimal) -> uint256:
 
 @pytest.mark.parametrize("value", (-1, -(2**127)))
 @pytest.mark.parametrize("data_type", ["decimal", "int128"])
-def test_negative_value_reverts(get_contract, assert_tx_failed, value, data_type):
+def test_negative_value_reverts(get_contract, tx_failed, value, data_type):
     code = f"""
 @external
 def foo(a: {data_type}) -> uint256:
@@ -77,12 +78,13 @@ def foo(a: {data_type}) -> uint256:
     """
 
     c = get_contract(code)
-    assert_tx_failed(lambda: c.foo(value))
+    with tx_failed():
+        c.foo(value)
 
 
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
 @pytest.mark.parametrize("data_type", ["decimal", "int128", "uint256"])
-def test_zero_value(get_contract, assert_tx_failed, denom, multiplier, data_type):
+def test_zero_value(get_contract, tx_failed, denom, multiplier, data_type):
     code = f"""
 @external
 def foo(a: {data_type}) -> uint256:
@@ -95,12 +97,12 @@ def foo(a: {data_type}) -> uint256:
 
 def test_ext_call(w3, side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
-@external
-def foo(a: Foo) -> uint256:
-    return as_wei_value(a.foo(7), "ether")
-
 interface Foo:
     def foo(x: uint8) -> uint8: nonpayable
+
+@external
+def foo(a: Foo) -> uint256:
+    return as_wei_value(extcall a.foo(7), "ether")
     """
 
     c1 = side_effects_contract("uint8")

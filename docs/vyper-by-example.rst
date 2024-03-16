@@ -19,7 +19,7 @@ period ends, a predetermined beneficiary will receive the amount of the highest
 bid.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 As you can see, this example only has a constructor, two methods to call, and
@@ -29,7 +29,7 @@ need for a basic implementation of an auction smart contract.
 Let's get started!
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
-  :language: python
+  :language: vyper
   :lineno-start: 3
   :lines: 3-17
 
@@ -54,7 +54,7 @@ within the same contract. The ``public`` function additionally creates a
 Now, the constructor.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
-  :language: python
+  :language: vyper
   :lineno-start: 22
   :lines: 22-27
 
@@ -72,7 +72,7 @@ caller as we will soon see.
 With initial setup out of the way, lets look at how our users can make bids.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
-  :language: python
+  :language: vyper
   :lineno-start: 33
   :lines: 33-46
 
@@ -95,7 +95,7 @@ We will send back the previous ``highestBid`` to the previous ``highestBidder`` 
 our new ``highestBid`` and ``highestBidder``.
 
 .. literalinclude:: ../examples/auctions/simple_open_auction.vy
-  :language: python
+  :language: vyper
   :lineno-start: 60
   :lines: 60-85
 
@@ -141,13 +141,13 @@ Solidity, this blind auction allows for an auction where there is no time pressu
 .. _counterpart: https://solidity.readthedocs.io/en/v0.5.0/solidity-by-example.html#id2
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 While this blind auction is almost functionally identical to the blind auction implemented in Solidity, the differences in their implementations help illustrate the differences between Solidity and Vyper.
 
 .. literalinclude:: ../examples/auctions/blind_auction.vy
-  :language: python
+  :language: vyper
   :lineno-start: 28
   :lines: 28-30
 
@@ -184,14 +184,14 @@ we want to explore one way how an escrow system can be implemented trustlessly.
 Let's go!
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 This is also a moderately short contract, however a little more complex in
 logic. Let's break down this contract bit by bit.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :lineno-start: 16
   :lines: 16-19
 
@@ -200,7 +200,7 @@ their respective data types. Remember that the ``public`` function allows the
 variables to be *readable* by an external caller, but not *writeable*.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :lineno-start: 22
   :lines: 22-29
 
@@ -215,7 +215,7 @@ in the contract variable ``self.value`` and saves the contract creator into
 ``True``.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :lineno-start: 31
   :lines: 31-36
 
@@ -231,7 +231,7 @@ contract will call the ``selfdestruct()`` function and refunds the seller and
 subsequently destroys the contract.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :lineno-start: 38
   :lines: 38-45
 
@@ -244,7 +244,7 @@ contract has a balance equal to 4 times the item value and the seller must
 send the item to the buyer.
 
 .. literalinclude:: ../examples/safe_remote_purchase/safe_remote_purchase.vy
-  :language: python
+  :language: vyper
   :lineno-start: 47
   :lines: 47-61
 
@@ -276,14 +276,14 @@ Participants will be refunded their respective contributions if the total
 funding does not reach its target goal.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 Most of this code should be relatively straightforward after going through our
 previous examples. Let's dive right in.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :lineno-start: 3
   :lines: 3-13
 
@@ -304,7 +304,7 @@ once the crowdfunding period is over—as determined by the ``deadline`` and
 of all participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :lineno-start: 9
   :lines: 9-15
 
@@ -317,7 +317,7 @@ a definitive end time for the crowdfunding period.
 Now lets take a look at how a person can participate in the crowdfund.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :lineno-start: 17
   :lines: 17-23
 
@@ -331,7 +331,7 @@ mapping, ``self.nextFunderIndex`` increments appropriately to properly index
 each participant.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :lineno-start: 25
   :lines: 25-31
 
@@ -352,7 +352,7 @@ crowdfunding campaign isn't successful? We're going to need a way to refund
 all the participants.
 
 .. literalinclude:: ../examples/crowdfund.vy
-  :language: python
+  :language: vyper
   :lineno-start: 33
   :lines: 33-42
 
@@ -374,14 +374,14 @@ determined upon calling the ``winningProposals()`` method, which iterates throug
 all the proposals and returns the one with the greatest number of votes.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 As we can see, this is the contract of moderate length which we will dissect
 section by section. Let’s begin!
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 3
   :lines: 3-25
 
@@ -402,7 +402,7 @@ their respective datatypes.
 Let’s move onto the constructor.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 53
   :lines: 53-62
 
@@ -421,7 +421,7 @@ their respective index in the original array as its key.
 Now that the initial setup is done, lets take a look at the functionality.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 66
   :lines: 66-75
 
@@ -437,7 +437,7 @@ voting power, we will set their ``weight`` to ``1`` and we will keep track of th
 total number of voters by incrementing ``voterCount``.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 120
   :lines: 120-135
 
@@ -452,7 +452,7 @@ the delegate had already voted or increase the  delegate’s vote ``weight``
 if the delegate has not yet voted.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 139
   :lines: 139-151
 
@@ -472,7 +472,7 @@ costs gas. By having the ``@view`` decorator, we let the EVM know that this
 is a read-only function and we benefit by saving gas fees.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 153
   :lines: 153-170
 
@@ -484,7 +484,7 @@ respectively by looping through all the proposals.
 ``winningProposal()`` is an external function allowing access to ``_winningProposal()``.
 
 .. literalinclude:: ../examples/voting/ballot.vy
-  :language: python
+  :language: vyper
   :lineno-start: 175
   :lines: 175-178
 
@@ -515,7 +515,7 @@ contract, holds all shares of the company at first but can sell them all.
 Let's get started.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :linenos:
 
 .. note:: Throughout this contract, we use a pattern where ``@external`` functions return data from ``@internal`` functions that have the same name prepended with an underscore. This is because Vyper does not allow calls between external functions within the same contract. The internal function handles the logic, while the external function acts as a getter to allow viewing.
@@ -526,7 +526,7 @@ that the contract logs. We then declare our global variables, followed by
 function definitions.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 3
   :lines: 3-27
 
@@ -537,7 +537,7 @@ represents the wei value of a share and ``holdings`` is a mapping that maps an
 address to the number of shares the address owns.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 29
   :lines: 29-40
 
@@ -548,7 +548,7 @@ company's address is initialized to hold all shares of the company in the
 ``holdings`` mapping.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 42
   :lines: 42-46
 
@@ -567,7 +567,7 @@ Now, lets take a look at a method that lets a person buy stock from the
 company's holding.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 51
   :lines: 51-64
 
@@ -579,7 +579,7 @@ and transferred to the sender's in the ``holdings`` mapping.
 Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 66
   :lines: 66-71
 
@@ -588,7 +588,7 @@ and returns its corresponding stock holdings by keying into ``self.holdings``.
 Again, an external function ``getHolding()`` is included to allow access.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 72
   :lines: 72-76
 
@@ -596,7 +596,7 @@ To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 78
   :lines: 78-95
 
@@ -609,7 +609,7 @@ ether to complete the sale. If all conditions are met, the holdings are deducted
 from the seller and given to the company. The ethers are then sent to the seller.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 97
   :lines: 97-110
 
@@ -620,7 +620,7 @@ than ``0`` and ``asserts`` whether the sender has enough stocks to send. If
 both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 112
   :lines: 112-124
 
@@ -632,7 +632,7 @@ enough funds to pay the amount. If both conditions satisfy, the contract
 sends its ether to an address.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 126
   :lines: 126-130
 
@@ -641,7 +641,7 @@ shares the company has sold and the price of each share. Internally, we get
 this value by calling the ``_debt()`` method. Externally it is accessed via ``debt()``.
 
 .. literalinclude:: ../examples/stock/company.vy
-  :language: python
+  :language: vyper
   :lineno-start: 132
   :lines: 132-138
 

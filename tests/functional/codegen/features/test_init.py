@@ -5,7 +5,7 @@ def test_basic_init_function(get_contract):
     code = """
 val: public(uint256)
 
-@external
+@deploy
 def __init__(a: uint256):
     self.val = a
     """
@@ -24,13 +24,15 @@ def __init__(a: uint256):
     assert "CALLDATALOAD" not in assembly[:ir_return_idx_start] + assembly[ir_return_idx_end:]
 
 
-def test_init_calls_internal(get_contract, assert_compile_failed, assert_tx_failed):
+def test_init_calls_internal(get_contract, assert_compile_failed, tx_failed):
     code = """
 foo: public(uint8)
+
 @internal
 def bar(x: uint256) -> uint8:
     return convert(x, uint8) * 7
-@external
+
+@deploy
 def __init__(a: uint256):
     self.foo = self.bar(a)
 
@@ -46,7 +48,8 @@ def baz() -> uint8:
     n = 6
     c = get_contract(code, n)
     assert c.foo() == n * 7
-    assert_tx_failed(lambda: c.baz())
+    with tx_failed():
+        c.baz()
 
     n = 255
     assert_compile_failed(lambda: get_contract(code, n))
@@ -60,7 +63,7 @@ def test_nested_internal_call_from_ctor(get_contract):
     code = """
 x: uint256
 
-@external
+@deploy
 def __init__():
     self.a()
 

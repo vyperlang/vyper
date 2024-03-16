@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import CallViolation
 
 
@@ -14,7 +15,7 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit()
+    extcall self.piggy.deposit()
     """,
         # You don't have to send value in a payable call
         """
@@ -25,12 +26,12 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit()
+    extcall self.piggy.deposit()
     """,
     ],
 )
 def test_payable_call_compiles(source, get_contract):
-    get_contract(source)
+    _ = compile_code(source)
 
 
 @pytest.mark.parametrize(
@@ -44,12 +45,14 @@ piggy: PiggyBank
 
 @external
 def foo():
-    self.piggy.deposit(value=self.balance)
+    # sends value to nonpayable function
+    extcall self.piggy.deposit(value=self.balance)
     """
     ],
 )
 def test_payable_compile_fail(source, get_contract, assert_compile_failed):
-    assert_compile_failed(lambda: get_contract(source), CallViolation)
+    with pytest.raises(CallViolation):
+        compile_code(source)
 
 
 nonpayable_code = [
@@ -122,7 +125,7 @@ def bar() -> bool:
     """,
     """
 # payable init function
-@external
+@deploy
 @payable
 def __init__():
     a: int128 = 1
@@ -177,14 +180,13 @@ def baz() -> bool:
 
 
 @pytest.mark.parametrize("code", nonpayable_code)
-def test_nonpayable_runtime_assertion(w3, keccak, assert_tx_failed, get_contract, code):
+def test_nonpayable_runtime_assertion(w3, keccak, tx_failed, get_contract, code):
     c = get_contract(code)
 
     c.foo(transact={"value": 0})
     sig = keccak("foo()".encode()).hex()[:10]
-    assert_tx_failed(
-        lambda: w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18})
-    )
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18})
 
 
 payable_code = [
@@ -280,7 +282,7 @@ def baz() -> bool:
     """,
     """
 # init function
-@external
+@deploy
 def __init__():
     a: int128 = 1
 
@@ -352,10 +354,10 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"}),
+    w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
 
 
-def test_nonpayable_default_func_invalid_calldata(get_contract, w3, assert_tx_failed):
+def test_nonpayable_default_func_invalid_calldata(get_contract, w3, tx_failed):
     code = """
 @external
 @payable
@@ -369,12 +371,11 @@ def __default__():
 
     c = get_contract(code)
     w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
-    assert_tx_failed(
-        lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
-    )
+    with tx_failed():
+        w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
 
 
-def test_batch_nonpayable(get_contract, w3, assert_tx_failed):
+def test_batch_nonpayable(get_contract, w3, tx_failed):
     code = """
 @external
 def foo() -> bool:
@@ -390,6 +391,5 @@ def __default__():
     data = bytes([1, 2, 3, 4])
     for i in range(5):
         calldata = "0x" + data[:i].hex()
-        assert_tx_failed(
-            lambda: w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})
-        )
+        with tx_failed():
+            w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})

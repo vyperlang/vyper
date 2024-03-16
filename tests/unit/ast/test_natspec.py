@@ -60,7 +60,7 @@ expected_devdoc = {
 
 
 def parse_natspec(code):
-    vyper_ast = CompilerData(code).vyper_module_folded
+    vyper_ast = CompilerData(code).annotated_vyper_module
     return vy_ast.parse_natspec(vyper_ast)
 
 
@@ -186,7 +186,7 @@ def test_partial_natspec():
 @external
 def foo():
     '''
-    Regular comments preceeding natspec is not allowed
+    Regular comments preceding natspec is not allowed
     @notice this is natspec
     '''
     pass

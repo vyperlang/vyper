@@ -1,8 +1,6 @@
 import warnings
-from collections import OrderedDict, deque
+from collections import deque
 from pathlib import PurePath
-
-import asttokens
 
 from vyper.ast import ast_to_dict, parse_natspec
 from vyper.codegen.ir_node import IRnode
@@ -23,18 +21,26 @@ def build_ast_dict(compiler_data: CompilerData) -> dict:
     return ast_dict
 
 
+def build_annotated_ast_dict(compiler_data: CompilerData) -> dict:
+    annotated_ast_dict = {
+        "contract_name": str(compiler_data.contract_path),
+        "ast": ast_to_dict(compiler_data.annotated_vyper_module),
+    }
+    return annotated_ast_dict
+
+
 def build_devdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return devdoc
 
 
 def build_userdoc(compiler_data: CompilerData) -> dict:
-    userdoc, devdoc = parse_natspec(compiler_data.vyper_module_folded)
+    userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
     # capitalize words separated by '_'
     # ex: test_interface.vy -> TestInterface
@@ -53,7 +59,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.vyper_module_folded._metadata["type"].interface
+    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     out = ""
 
     if interface.events:
@@ -76,6 +82,14 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
+def build_bb_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[0]
+
+
+def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
+    return compiler_data.venom_functions[1]
+
+
 def build_ir_output(compiler_data: CompilerData) -> IRnode:
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
@@ -89,6 +103,9 @@ def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
 
 
 def _ir_to_dict(ir_node):
+    # Currently only supported with IRnode and not VenomIR
+    if not isinstance(ir_node, IRnode):
+        return
     args = ir_node.args
     if len(args) > 0 or ir_node.value == "seq":
         return {ir_node.value: [_ir_to_dict(x) for x in args]}
@@ -155,16 +172,14 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
 
 
 def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
-    module_t = compiler_data.vyper_module_folded._metadata["type"]
-    functions = module_t.function_defs
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    functions = module_t.exposed_functions
 
-    return {
-        k: hex(v) for func in functions for k, v in func._metadata["func_type"].method_ids.items()
-    }
+    return {k: hex(v) for fn_t in functions for k, v in fn_t.method_ids.items()}
 
 
 def build_abi_output(compiler_data: CompilerData) -> list:
-    module_t = compiler_data.vyper_module_folded._metadata["type"]
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
     _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
     abi = module_t.interface.to_toplevel_abi_dict()
@@ -220,45 +235,71 @@ def _build_asm(asm_list):
     return output_string
 
 
-def build_source_map_output(compiler_data: CompilerData) -> OrderedDict:
-    _, line_number_map = compile_ir.assembly_to_evm(
+def _build_node_identifier(ast_node):
+    assert ast_node.module_node is not None, type(ast_node)
+    return (ast_node.module_node.source_id, ast_node.node_id)
+
+
+def build_source_map_output(compiler_data: CompilerData) -> dict:
+    """
+    Generate source map output in various formats. Note that integrations
+    are encouraged to use pc_ast_map since the information it provides is
+    a superset of the other formats, and the other types are included
+    for legacy reasons.
+    """
+    bytecode, pc_maps = compile_ir.assembly_to_evm(
         compiler_data.assembly_runtime, insert_compiler_metadata=False
     )
-    # Sort line_number_map
-    out = OrderedDict()
-    for k in sorted(line_number_map.keys()):
-        out[k] = line_number_map[k]
+    # sort the pc maps alphabetically
+    # CMC 2024-03-09 is this really necessary?
+    out = {}
+    for k in sorted(pc_maps.keys()):
+        out[k] = pc_maps[k]
 
-    out["pc_pos_map_compressed"] = _compress_source_map(
-        compiler_data.source_code, out["pc_pos_map"], out["pc_jump_map"], compiler_data.source_id
-    )
-    out["pc_pos_map"] = dict((k, v) for k, v in out["pc_pos_map"].items() if v)
+    ast_map = out.pop("pc_raw_ast_map")
+
+    assert isinstance(ast_map, dict)  # lint
+    if 0 not in ast_map:
+        # tag it with source id
+        ast_map[0] = compiler_data.annotated_vyper_module
+
+    pc_pos_map = {k: compile_ir.getpos(v) for (k, v) in ast_map.items()}
+    node_id_map = {k: _build_node_identifier(v) for (k, v) in ast_map.items()}
+    compressed_map = _compress_source_map(ast_map, out["pc_jump_map"], len(bytecode))
+    out["pc_pos_map_compressed"] = compressed_map
+    out["pc_pos_map"] = pc_pos_map
+    out["pc_ast_map"] = node_id_map
+    # hint to consumers what the fields in pc_ast_map mean
+    out["pc_ast_map_item_keys"] = ("source_id", "node_id")
     return out
 
 
-def _compress_source_map(code, pos_map, jump_map, source_id):
-    linenos = asttokens.LineNumbers(code)
-    ret = [f"-1:-1:{source_id}:-"]
-    last_pos = [-1, -1, source_id]
+# generate a solidity-style source map. this functionality is deprecated
+# in favor of pc_ast_map, and may not be maintained to the same level
+# as pc_ast_map.
+def _compress_source_map(ast_map, jump_map, bytecode_size):
+    ret = []
 
-    for pc in sorted(pos_map)[1:]:
-        current_pos = [-1, -1, source_id]
-        if pos_map[pc]:
-            current_pos[0] = linenos.line_to_offset(*pos_map[pc][:2])
-            current_pos[1] = linenos.line_to_offset(*pos_map[pc][2:]) - current_pos[0]
+    jump_map = jump_map.copy()
+    ast_map = ast_map.copy()
+
+    for pc in range(bytecode_size):
+        if pc in ast_map:
+            ast_node = ast_map.pop(pc)
+            # ast_node.src conveniently has the current position in
+            # the correct, compressed format
+            current_pos = [ast_node.src]
+        else:
+            current_pos = ["-1:-1:-1"]
 
         if pc in jump_map:
-            current_pos.append(jump_map[pc])
-
-        for i in range(2, -1, -1):
-            if current_pos[i] != last_pos[i]:
-                last_pos[i] = current_pos[i]
-            elif len(current_pos) == i + 1:
-                current_pos.pop()
-            else:
-                current_pos[i] = ""
+            jump_type = jump_map.pop(pc)
+            current_pos.append(jump_type)
 
         ret.append(":".join(str(i) for i in current_pos))
+
+    assert len(ast_map) == 0, ast_map
+    assert len(jump_map) == 0, jump_map
 
     return ";".join(ret)
 
@@ -311,7 +352,7 @@ def _build_opcodes(bytecode: bytes) -> str:
             # (instead of code) at end of contract
             # CMC 2023-07-13 maybe just strip known data segments?
             push_len = min(push_len, len(bytecode_sequence))
-            push_values = [hex(bytecode_sequence.popleft())[2:] for i in range(push_len)]
-            opcode_output.append(f"0x{''.join(push_values).upper()}")
+            push_values = [f"{bytecode_sequence.popleft():0>2X}" for i in range(push_len)]
+            opcode_output.append(f"0x{''.join(push_values)}")
 
     return " ".join(opcode_output)

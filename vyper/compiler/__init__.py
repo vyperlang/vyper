@@ -8,12 +8,14 @@ import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
+from vyper.evm.opcodes import anchor_evm_version
 from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {
     # requires vyper_module
     "ast_dict": output.build_ast_dict,
+    # requires annotated_vyper_module
+    "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
     # requires global_ctx
     "devdoc": output.build_devdoc,
@@ -21,6 +23,8 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
+    "bb": output.build_bb_output,
+    "bb_runtime": output.build_bb_runtime_output,
     "ir": output.build_ir_output,
     "ir_runtime": output.build_ir_runtime_output,
     "ir_dict": output.build_ir_dict_output,
@@ -53,7 +57,6 @@ def compile_from_file_input(
     no_bytecode_metadata: bool = False,
     show_gas_estimates: bool = False,
     exc_handler: Optional[Callable] = None,
-    experimental_codegen: bool = False,
 ) -> dict:
     """
     Main entry point into the compiler.
@@ -83,6 +86,8 @@ def compile_from_file_input(
         two arguments - the name of the contract, and the exception that was raised
     no_bytecode_metadata: bool, optional
         Do not add metadata to bytecode. Defaults to False
+    experimental_codegen: bool
+        Use experimental codegen. Defaults to False
 
     Returns
     -------
@@ -107,7 +112,6 @@ def compile_from_file_input(
         storage_layout_override,
         show_gas_estimates,
         no_bytecode_metadata,
-        experimental_codegen,
     )
 
     ret = {}

@@ -4,8 +4,15 @@ from decimal import Decimal
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidType
+from vyper.exceptions import TypeMismatch
 from vyper.utils import MemoryPositions
+
+
+def search_for_sublist(ir, sublist):
+    _list = ir.to_list() if hasattr(ir, "to_list") else ir
+    if _list == sublist:
+        return True
+    return isinstance(_list, list) and any(search_for_sublist(i, sublist) for i in _list)
 
 
 def test_builtin_constants(get_contract_with_gas_estimation):
@@ -151,7 +158,7 @@ MY_CONSTANT: constant({storage_type}) = 1
 def foo() -> {return_type}:
     return MY_CONSTANT
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidType)
+    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
 def test_constant_address(get_contract):
@@ -192,7 +199,7 @@ def test() -> Bytes[100]:
     assert c.test() == test_str
 
 
-def test_constant_folds(search_for_sublist):
+def test_constant_folds():
     some_prime = 10013677
     code = f"""
 SOME_CONSTANT: constant(uint256) = 11 + 1
@@ -205,11 +212,9 @@ def test() -> uint256:
     ret: uint256 = 2**SOME_CONSTANT * SOME_PRIME
     return ret
     """
-
     ir = compile_code(code, output_formats=["ir"])["ir"]
-    assert search_for_sublist(
-        ir, ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
-    )
+    search = ["mstore", [MemoryPositions.RESERVED_MEMORY], [2**12 * some_prime]]
+    assert search_for_sublist(ir, search)
 
 
 def test_constant_lists(get_contract):

@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import contextmanager
 from functools import wraps
 
 import hypothesis
@@ -14,12 +15,15 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
+import vyper.evm.opcodes as evm
+from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
+from vyper.utils import ERC5202_PREFIX
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -35,7 +39,7 @@ hypothesis.settings.load_profile("ci")
 
 
 def set_evm_verbose_logging():
-    logger = logging.getLogger("eth.vm.computation.Computation")
+    logger = logging.getLogger("eth.vm.computation.BaseComputation")
     setup_DEBUG2_logging()
     logger.setLevel("DEBUG2")
 
@@ -56,6 +60,21 @@ def pytest_addoption(parser):
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
 
+    parser.addoption(
+        "--evm-version",
+        choices=list(evm.EVM_VERSIONS.keys()),
+        default="shanghai",
+        help="set evm version",
+    )
+
+
+@pytest.fixture(scope="module")
+def output_formats():
+    output_formats = compiler.OUTPUT_FORMATS.copy()
+    del output_formats["bb"]
+    del output_formats["bb_runtime"]
+    return output_formats
+
 
 @pytest.fixture(scope="module")
 def optimize(pytestconfig):
@@ -68,6 +87,25 @@ def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
     _set_debug_mode(debug)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def evm_version(pytestconfig):
+    # note: we configure the evm version that we emit code for,
+    # but eth-tester is only configured with the latest mainnet
+    # version.
+    evm_version_str = pytestconfig.getoption("evm_version")
+    evm.DEFAULT_EVM_VERSION = evm_version_str
+    # this should get overridden by anchor_evm_version,
+    # but set it anyway
+    evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
+
+
+@pytest.fixture
+def chdir_tmp_path(tmp_path):
+    # this is useful for when you want imports to have relpaths
+    with working_directory(tmp_path):
+        yield
 
 
 @pytest.fixture
@@ -280,15 +318,21 @@ def get_contract_from_ir(w3, optimize):
 
 
 def _get_contract(
-    w3, source_code, optimize, *args, override_opt_level=None, input_bundle=None, **kwargs
+    w3,
+    source_code,
+    optimize,
+    output_formats,
+    *args,
+    override_opt_level=None,
+    input_bundle=None,
+    **kwargs,
 ):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = override_opt_level or optimize
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
-        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
+        output_formats=output_formats,
         settings=settings,
         input_bundle=input_bundle,
         show_gas_estimates=True,  # Enable gas estimates for testing
@@ -308,17 +352,17 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize):
+def get_contract(w3, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize):
+def get_contract_with_gas_estimation(tester, w3, optimize, output_formats):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
-        contract = _get_contract(w3, source_code, optimize, *args, **kwargs)
+        contract = _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
                 set_decorator_to_contract_function(w3, tester, contract, source_code, abi_["name"])
@@ -328,15 +372,15 @@ def get_contract_with_gas_estimation(tester, w3, optimize):
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize):
+def get_contract_with_gas_estimation_for_constants(w3, optimize, output_formats):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize):
+def get_contract_module(optimize, output_formats):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -349,18 +393,19 @@ def get_contract_module(optimize):
     w3.eth.set_gas_price_strategy(zero_gas_price_strategy)
 
     def get_contract_module(source_code, *args, **kwargs):
-        return _get_contract(w3, source_code, optimize, *args, **kwargs)
+        return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return get_contract_module
 
 
-def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwargs):
+def _deploy_blueprint_for(
+    w3, source_code, optimize, output_formats, initcode_prefix=ERC5202_PREFIX, **kwargs
+):
     settings = Settings()
-    settings.evm_version = kwargs.pop("evm_version", None)
     settings.optimize = optimize
     out = compiler.compile_code(
         source_code,
-        output_formats=list(compiler.OUTPUT_FORMATS.keys()),
+        output_formats=output_formats,
         settings=settings,
         show_gas_estimates=True,  # Enable gas estimates for testing
     )
@@ -393,9 +438,9 @@ def _deploy_blueprint_for(w3, source_code, optimize, initcode_prefix=b"", **kwar
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, optimize):
+def deploy_blueprint_for(w3, optimize, output_formats):
     def deploy_blueprint_for(source_code, *args, **kwargs):
-        return _deploy_blueprint_for(w3, source_code, optimize, *args, **kwargs)
+        return _deploy_blueprint_for(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return deploy_blueprint_for
 
@@ -409,23 +454,6 @@ def assert_compile_failed():
             function_to_test()
 
     return assert_compile_failed
-
-
-# TODO this should not be a fixture
-@pytest.fixture
-def search_for_sublist():
-    def search_for_sublist(ir, sublist):
-        _list = ir.to_list() if hasattr(ir, "to_list") else ir
-        if _list == sublist:
-            return True
-        if isinstance(_list, list):
-            for i in _list:
-                ret = search_for_sublist(i, sublist)
-                if ret is True:
-                    return ret
-        return False
-
-    return search_for_sublist
 
 
 @pytest.fixture
@@ -484,16 +512,16 @@ def get_logs(w3):
     return get_logs
 
 
-# TODO replace me with function like `with anchor_state()`
 @pytest.fixture(scope="module")
-def assert_tx_failed(tester):
-    def assert_tx_failed(function_to_test, exception=TransactionFailed, exc_text=None):
+def tx_failed(tester):
+    @contextmanager
+    def fn(exception=TransactionFailed, exc_text=None):
         snapshot_id = tester.take_snapshot()
         with pytest.raises(exception) as excinfo:
-            function_to_test()
+            yield excinfo
         tester.revert_to_snapshot(snapshot_id)
         if exc_text:
             # TODO test equality
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
-    return assert_tx_failed
+    return fn

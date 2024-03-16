@@ -5,16 +5,18 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
-    EnumDeclarationException,
     EventDeclarationException,
+    FlagDeclarationException,
     InvalidAttribute,
     NamespaceCollision,
     StructureException,
+    UnfoldableNode,
     UnknownAttribute,
     VariableDeclarationException,
 )
+from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import validate_expected_type
+from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -42,23 +44,25 @@ class _UserType(VyperType):
         return hash(id(self))
 
 
-# note: enum behaves a lot like uint256, or uints in general.
-class EnumT(_UserType):
+# note: flag behaves a lot like uint256, or uints in general.
+class FlagT(_UserType):
+    typeclass = "flag"
+
     # this is a carveout because currently we allow dynamic arrays of
-    # enums, but not static arrays of enums
+    # flags, but not static arrays of flags
     _as_darray = True
     _is_prim_word = True
     _as_hashmap_key = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
-            raise EnumDeclarationException("Enums are limited to 256 members!")
+            raise FlagDeclarationException("Flags are limited to 256 members!")
 
         super().__init__(members=None)
 
         self._id = name
 
-        self._enum_members = members
+        self._flag_members = members
 
         # use a VyperType for convenient access to the `get_member` function
         # also conveniently checks well-formedness of the members namespace
@@ -72,8 +76,8 @@ class EnumT(_UserType):
         return self
 
     def __repr__(self):
-        arg_types = ",".join(repr(a) for a in self._enum_members)
-        return f"enum {self.name}({arg_types})"
+        arg_types = ",".join(repr(a) for a in self._flag_members)
+        return f"flag {self.name}({arg_types})"
 
     @property
     def abi_type(self):
@@ -103,31 +107,31 @@ class EnumT(_UserType):
     #    return f"{self.name}({','.join(v.canonical_abi_type for v in self.arguments)})"
 
     @classmethod
-    def from_EnumDef(cls, base_node: vy_ast.EnumDef) -> "EnumT":
+    def from_FlagDef(cls, base_node: vy_ast.FlagDef) -> "FlagT":
         """
-        Generate an `Enum` object from a Vyper ast node.
+        Generate an `Flag` object from a Vyper ast node.
 
         Arguments
         ---------
-        base_node : EnumDef
-            Vyper ast node defining the enum
+        base_node : FlagDef
+            Vyper ast node defining the flag
         Returns
         -------
-        Enum
+        Flag
         """
         members: dict = {}
 
         if len(base_node.body) == 1 and isinstance(base_node.body[0], vy_ast.Pass):
-            raise EnumDeclarationException("Enum must have members", base_node)
+            raise FlagDeclarationException("Flag must have members", base_node)
 
         for i, node in enumerate(base_node.body):
             if not isinstance(node, vy_ast.Expr) or not isinstance(node.value, vy_ast.Name):
-                raise EnumDeclarationException("Invalid syntax for enum member", node)
+                raise FlagDeclarationException("Invalid syntax for flag member", node)
 
             member_name = node.value.id
             if member_name in members:
-                raise EnumDeclarationException(
-                    f"Enum member '{member_name}' has already been declared", node.value
+                raise FlagDeclarationException(
+                    f"Flag member '{member_name}' has already been declared", node.value
                 )
 
             members[member_name] = i
@@ -161,6 +165,8 @@ class EventT(_UserType):
         Name of the event.
     """
 
+    typeclass = "event"
+
     _invalid_locations = tuple(iter(DataLocation))  # not instantiable in any location
 
     def __init__(
@@ -177,6 +183,10 @@ class EventT(_UserType):
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
         self.decl_node = decl_node
+
+    @property
+    def _id(self):
+        return self.name
 
     # backward compatible
     @property
@@ -237,14 +247,19 @@ class EventT(_UserType):
             return cls(base_node.name, members, indexed, base_node)
 
         for node in base_node.body:
+            # TODO: these syntax checks should be in EventDef.validate()
             if not isinstance(node, vy_ast.AnnAssign):
                 raise StructureException("Events can only contain variable definitions", node)
             if node.value is not None:
-                raise StructureException("Cannot assign a value during event declaration", node)
+                raise StructureException(
+                    "Cannot assign a value during event declaration", node.value
+                )
             if not isinstance(node.target, vy_ast.Name):
                 raise StructureException("Invalid syntax for event member name", node.target)
+
             member_name = node.target.id
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"Event member '{member_name}' has already been declared", node.target
                 )
@@ -285,6 +300,7 @@ class EventT(_UserType):
 
 
 class StructT(_UserType):
+    typeclass = "struct"
     _as_array = True
 
     def __init__(self, _id, members, ast_def=None):
@@ -346,6 +362,7 @@ class StructT(_UserType):
             member_name = node.target.id
 
             if member_name in members:
+                # TODO: add prev_decl
                 raise NamespaceCollision(
                     f"struct member '{member_name}' has already been declared", node.value
                 )
@@ -356,6 +373,16 @@ class StructT(_UserType):
 
     def __repr__(self):
         return f"{self._id} declaration object"
+
+    def _try_fold(self, node):
+        if len(node.args) != 1:
+            raise UnfoldableNode("wrong number of args", node.args)
+        args = [arg.get_folded_value() for arg in node.args]
+        if not isinstance(args[0], vy_ast.Dict):
+            raise UnfoldableNode("not a dict")
+
+        # it can't be reduced, but this lets upstream code know it's constant
+        return node
 
     @property
     def size_in_bytes(self):
@@ -369,38 +396,36 @@ class StructT(_UserType):
         components = [t.to_abi_arg(name=k) for k, t in self.member_types.items()]
         return {"name": name, "type": "tuple", "components": components}
 
-    # TODO breaking change: use kwargs instead of dict
-    # when using the type itself (not an instance) in the call position
-    # maybe rename to _ctor_call_return
     def _ctor_call_return(self, node: vy_ast.Call) -> "StructT":
-        validate_call_args(node, 1)
-        if not isinstance(node.args[0], vy_ast.Dict):
+        if len(node.args) > 0:
             raise VariableDeclarationException(
-                "Struct values must be declared via dictionary", node.args[0]
+                "Struct values must be declared as kwargs e.g. Foo(a=1, b=2)", node.args[0]
             )
         if next((i for i in self.member_types.values() if isinstance(i, HashMapT)), False):
             raise VariableDeclarationException(
                 "Struct contains a mapping and so cannot be declared as a literal", node
             )
 
+        # manually validate kwargs for better error messages instead of
+        # relying on `validate_call_args`
         members = self.member_types.copy()
         keys = list(self.member_types.keys())
-        for i, (key, value) in enumerate(zip(node.args[0].keys, node.args[0].values)):
-            if key is None or key.get("id") not in members:
-                suggestions_str = get_levenshtein_error_suggestions(key.get("id"), members, 1.0)
-                raise UnknownAttribute(
-                    f"Unknown or duplicate struct member. {suggestions_str}", key or value
-                )
-            expected_key = keys[i]
-            if key.id != expected_key:
+        for i, kwarg in enumerate(node.keywords):
+            # x=5 => kwarg(arg="x", value=Int(5))
+            argname = kwarg.arg
+            if argname not in members:
+                hint = get_levenshtein_error_suggestions(argname, members, 1.0)
+                raise UnknownAttribute("Unknown or duplicate struct member.", kwarg, hint=hint)
+            expected = keys[i]
+            if argname != expected:
                 raise InvalidAttribute(
                     "Struct keys are required to be in order, but got "
-                    f"`{key.id}` instead of `{expected_key}`. (Reminder: the "
+                    f"`{argname}` instead of `{expected}`. (Reminder: the "
                     f"keys in this struct are {list(self.member_types.items())})",
-                    key,
+                    kwarg,
                 )
-
-            validate_expected_type(value, members.pop(key.id))
+            expected_type = members.pop(argname)
+            validate_expected_type(kwarg.value, expected_type)
 
         if members:
             raise VariableDeclarationException(
@@ -408,3 +433,6 @@ class StructT(_UserType):
             )
 
         return self
+
+    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
+        return all(check_modifiability(k.value, modifiability) for k in node.keywords)

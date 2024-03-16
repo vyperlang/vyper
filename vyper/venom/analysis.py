@@ -19,36 +19,6 @@ def calculate_cfg(ctx: IRFunction) -> None:
         bb.cfg_out = OrderedSet()
         bb.out_vars = OrderedSet()
 
-    # TODO: This is a hack to support the old IR format where `deploy` is
-    # an instruction. in the future we should have two entry points, one
-    # for the initcode and one for the runtime code.
-    deploy_bb = None
-    after_deploy_bb = None
-    for i, bb in enumerate(ctx.basic_blocks):
-        if bb.instructions[0].opcode == "deploy":
-            deploy_bb = bb
-            after_deploy_bb = ctx.basic_blocks[i + 1]
-            break
-
-    if deploy_bb is not None:
-        assert after_deploy_bb is not None, "No block after deploy block"
-        entry_block = after_deploy_bb
-        has_constructor = ctx.basic_blocks[0].instructions[0].opcode != "deploy"
-        if has_constructor:
-            deploy_bb.add_cfg_in(ctx.basic_blocks[0])
-            entry_block.add_cfg_in(deploy_bb)
-    else:
-        entry_block = ctx.basic_blocks[0]
-
-    # TODO: Special case for the jump table of selector buckets and fallback.
-    # this will be cleaner when we introduce an "indirect jump" instruction
-    # for the selector table (which includes all possible targets). it will
-    # also clean up the code for normalization because it will not have to
-    # handle this case specially.
-    for bb in ctx.basic_blocks:
-        if "selector_bucket_" in bb.label.value or bb.label.value == "fallback":
-            bb.add_cfg_in(entry_block)
-
     for bb in ctx.basic_blocks:
         assert len(bb.instructions) > 0, "Basic block should not be empty"
         last_inst = bb.instructions[-1]
@@ -72,10 +42,12 @@ def _reset_liveness(ctx: IRFunction) -> None:
             inst.liveness = OrderedSet()
 
 
-def _calculate_liveness_bb(bb: IRBasicBlock) -> None:
+def _calculate_liveness(bb: IRBasicBlock) -> bool:
     """
     Compute liveness of each instruction in the basic block.
+    Returns True if liveness changed
     """
+    orig_liveness = bb.instructions[0].liveness.copy()
     liveness = bb.out_vars.copy()
     for instruction in reversed(bb.instructions):
         ops = instruction.get_inputs()
@@ -90,29 +62,31 @@ def _calculate_liveness_bb(bb: IRBasicBlock) -> None:
             liveness.remove(out)
         instruction.liveness = liveness
 
+    return orig_liveness != bb.instructions[0].liveness
 
-def _calculate_liveness_r(bb: IRBasicBlock, visited: dict) -> None:
-    assert isinstance(visited, dict)
+
+def _calculate_out_vars(bb: IRBasicBlock) -> bool:
+    """
+    Compute out_vars of basic block.
+    Returns True if out_vars changed
+    """
+    out_vars = bb.out_vars.copy()
     for out_bb in bb.cfg_out:
-        if visited.get(bb) == out_bb:
-            continue
-        visited[bb] = out_bb
-
-        # recurse
-        _calculate_liveness_r(out_bb, visited)
-
         target_vars = input_vars_from(bb, out_bb)
-
-        # the output stack layout for bb. it produces a stack layout
-        # which works for all possible cfg_outs from the bb.
         bb.out_vars = bb.out_vars.union(target_vars)
-
-    _calculate_liveness_bb(bb)
+    return out_vars != bb.out_vars
 
 
 def calculate_liveness(ctx: IRFunction) -> None:
     _reset_liveness(ctx)
-    _calculate_liveness_r(ctx.basic_blocks[0], dict())
+    while True:
+        changed = False
+        for bb in ctx.basic_blocks:
+            changed |= _calculate_out_vars(bb)
+            changed |= _calculate_liveness(bb)
+
+        if not changed:
+            break
 
 
 # calculate the input variables into self from source

@@ -116,7 +116,7 @@ def code_slice(x: address, y: uint256) -> Bytes[4]:
 code: public(Bytes[4])
 """,
             NamespaceCollision,
-            "Value 'code' has already been declared",
+            "Member 'code' already exists in self",
         ),
     ],
 )
@@ -125,7 +125,6 @@ def test_address_code_compile_error(
 ):
     with pytest.raises(error_type) as excinfo:
         compiler.compile_code(bad_code)
-    assert type(excinfo.value) == error_type
     assert excinfo.value.message == error_message
 
 
@@ -154,7 +153,7 @@ interface Test:
 
 @external
 def foo(x: address) -> Bytes[4]:
-    return slice(Test(x).out_literals().code, 0, 4)
+    return slice((staticcall Test(x).out_literals()).code, 0, 4)
 """,
     ],
 )
@@ -166,7 +165,7 @@ def test_address_code_self_success(get_contract, optimize):
     code = """
 code_deployment: public(Bytes[32])
 
-@external
+@deploy
 def __init__():
     self.code_deployment = slice(self.code, 0, 32)
 
@@ -187,7 +186,7 @@ def test_address_code_self_runtime_error_deployment(get_contract):
     code = """
 dummy: public(Bytes[1000000])
 
-@external
+@deploy
 def __init__():
     self.dummy = slice(self.code, 0, 1000000)
 """

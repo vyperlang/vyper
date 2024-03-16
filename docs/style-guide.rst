@@ -94,7 +94,7 @@ Internal Imports
 
 Internal imports are those between two modules inside the same Vyper package.
 
-    * Internal imports **may** use either ``import`` or ``from ..`` syntax. The imported value **shoould** be a module, not an object. Importing modules instead of objects avoids circular dependency issues.
+    * Internal imports **may** use either ``import`` or ``from ..`` syntax. The imported value **should** be a module, not an object. Importing modules instead of objects avoids circular dependency issues.
     * Internal imports **may** be aliased where it aids readability.
     * Internal imports **must** use absolute paths. Relative imports cause issues when the module is moved.
 
@@ -250,7 +250,7 @@ Maintainers  **may** request a rebase, or choose to squash merge pull requests t
 Conventional Commits
 --------------------
 
-Commit messages **should** adhere to the `Conventional Commits <https://www.conventionalcommits.org/>`_ standard. A convetional commit message is structured as follows:
+Commit messages **should** adhere to the `Conventional Commits <https://www.conventionalcommits.org/>`_ standard. A conventional commit message is structured as follows:
 
 ::
 

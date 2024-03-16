@@ -512,9 +512,7 @@ def generate_methods(draw, max_calldata_bytes):
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @pytest.mark.fuzzing
-def test_selector_table_fuzz(
-    max_calldata_bytes, opt_level, w3, get_contract, assert_tx_failed, get_logs
-):
+def test_selector_table_fuzz(max_calldata_bytes, opt_level, w3, get_contract, tx_failed, get_logs):
     def abi_sig(func_id, calldata_words, n_default_args):
         params = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         params.extend(["uint256"] * n_default_args)
@@ -600,7 +598,8 @@ event _Return:
                 else:
                     hexstr = (method_id + argsdata).hex()
                     txdata = {"to": c.address, "data": hexstr, "value": 1}
-                    assert_tx_failed(lambda: w3.eth.send_transaction(txdata))
+                    with tx_failed():
+                        w3.eth.send_transaction(txdata)
 
                 # now do calldatasize check
                 # strip some bytes
@@ -610,7 +609,8 @@ event _Return:
                 if n_calldata_words == 0 and j == 0:
                     # no args, hit default function
                     if default_fn_mutability == "":
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        with tx_failed():
+                            w3.eth.send_transaction(tx_params)
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
@@ -628,8 +628,10 @@ event _Return:
 
                         # check default function reverts
                         tx_params["value"] = 1
-                        assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                        with tx_failed():
+                            w3.eth.send_transaction(tx_params)
                 else:
-                    assert_tx_failed(lambda: w3.eth.send_transaction(tx_params))
+                    with tx_failed():
+                        w3.eth.send_transaction(tx_params)
 
     _test()
