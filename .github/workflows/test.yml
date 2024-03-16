@@ -105,7 +105,7 @@ jobs:
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
 
     steps:
     - uses: actions/checkout@v4
