@@ -164,10 +164,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up python
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: "python3.11"
+        python-version: "3.11"
         cache: "pip"
 
     - name: Install dependencies
