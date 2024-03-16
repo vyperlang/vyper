@@ -214,9 +214,9 @@ def apply_line_numbers(func):
 def check_duplicated_nodes(ir_node, seen=None):
     seen = seen or set()
 
-    if ir_node.is_complex_ir and id(ir_node) in seen:
+    if ir_node.is_complex_ir and ir_node._id in seen:
         raise CompilerPanic(f"bad code {ir_node}", ir_node.ast_source)
-    seen.add(id(ir_node))
+    seen.add(ir_node._id)
 
     for arg in ir_node.args:
         check_duplicated_nodes(arg, seen)

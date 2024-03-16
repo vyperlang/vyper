@@ -139,6 +139,9 @@ class IRnode:
     func_ir: Any
     common_ir: Any
 
+    _id: int
+    _next_id: int = -1
+
     def __init__(
         self,
         value: Union[str, int],
@@ -153,6 +156,7 @@ class IRnode:
         encoding: Encoding = Encoding.VYPER,
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
+        _id: int = None,
     ):
         if args is None:
             args = []
@@ -174,6 +178,8 @@ class IRnode:
         self.passthrough_metadata = passthrough_metadata or {}
         self.func_ir = None
         self.common_ir = None
+
+        self._id = self.ensure_id()
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -357,6 +363,16 @@ class IRnode:
         ret.__dict__ = self.__dict__.copy()
         ret.args = [copy.deepcopy(arg) for arg in ret.args]
         return ret
+
+    @classmethod
+    def generate_id(cls):
+        cls._next_id += 1
+        return cls._next_id
+
+    def ensure_id(self):
+        if not hasattr(self, "_id"):
+            self._id = self.generate_id()
+        return self._id
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
