@@ -8,7 +8,7 @@ from setuptools import setup
 
 extras_require = {
     "test": [
-        "pytest>=6.2.5,<7.0",
+        "pytest>=8.0,<9.0",
         "pytest-cov>=2.10,<3.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=2.5,<3.0",
@@ -19,8 +19,9 @@ extras_require = {
         "web3==6.0.0",
         "tox>=3.15,<4.0",
         "lark==1.1.9",
-        "hypothesis[lark]>=5.37.1,<6.0",
-        "eth-stdlib==0.2.6",
+        "hypothesis[lark]>=6.0,<7.0",
+        "eth-stdlib==0.2.7",
+        "setuptools",
     ],
     "lint": [
         "black==23.12.0",
@@ -115,6 +116,7 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     package_data={"vyper.ast": ["grammar.lark"]},
     data_files=[("", [hash_file_rel_path])],
