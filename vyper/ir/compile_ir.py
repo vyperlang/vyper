@@ -210,6 +210,11 @@ def apply_line_numbers(func):
 
     return apply_line_no_wrapper
 
+_seen_ir_nodes = None
+
+def _reset_seen_ir_nodes():
+    global _seen_ir_nodes
+    _seen_ir_nodes = set()
 
 @apply_line_numbers
 def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
@@ -219,6 +224,9 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
     _rewrite_return_sequences(code)
+
+    _reset_seen_ir_nodes()
+    print(code)
 
     res = _compile_to_assembly(code)
 
@@ -234,6 +242,11 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
 # Compiles IR to assembly
 @apply_line_numbers
 def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=None, height=0):
+    global _seen_ir_nodes
+    if code.is_complex_ir and id(code) in _seen_ir_nodes:
+        raise CompilerPanic(f"bad code {code}", code.ast_source)
+    _seen_ir_nodes.add(id(code))
+
     if withargs is None:
         withargs = {}
     if not isinstance(withargs, dict):

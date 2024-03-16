@@ -489,7 +489,7 @@ class IRnode:
             return hex(self.value)
         if not isinstance(self.value, str):
             return str(self.value)
-        return self.value
+        return f"({id(self)}):{self.value}"
 
     @staticmethod
     def _colorise_keywords(val):
