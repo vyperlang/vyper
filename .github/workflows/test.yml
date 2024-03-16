@@ -114,7 +114,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install uv
-        uv pip install "vyper[test] @ ."
+        uv pip install --system "vyper[test] @ ."
 
     - name: Run tests
       run: |
@@ -167,7 +167,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install uv
-        uv pip install "vyper[test] @ ."
+        uv pip install --system "vyper[test] @ ."
 
     # cytoolz is an implicit dependency of eth-account, see
     # https://github.com/ethereum/eth-account/issues/215
