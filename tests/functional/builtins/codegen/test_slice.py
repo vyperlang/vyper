@@ -2,7 +2,8 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
@@ -32,6 +33,12 @@ _draw_1024_1 = st.integers(min_value=1, max_value=1024)
 _bytes_1024 = st.binary(min_size=0, max_size=1024)
 
 
+def _fail_contract(code, opt_level, exceptions):
+    settings = Settings(optimize=opt_level)
+    with pytest.raises(exceptions):
+        compile_code(code, settings)
+
+
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
@@ -40,7 +47,6 @@ _bytes_1024 = st.binary(min_size=0, max_size=1024)
 @pytest.mark.fuzzing
 def test_slice_immutable(
     get_contract,
-    assert_compile_failed,
     tx_failed,
     opt_level,
     bytesdata,
@@ -76,7 +82,8 @@ def do_splice() -> Bytes[{length_bound}]:
         or (use_literal_start and start > length_bound)
         or (use_literal_length and length == 0)
     ):
-        assert_compile_failed(lambda: _get_contract(), ArgumentException)
+        _fail_contract(code, opt_level, ArgumentException)
+
     elif start + length > len(bytesdata) or (len(bytesdata) > length_bound):
         # deploy fail
         with tx_failed():
@@ -95,7 +102,6 @@ def do_splice() -> Bytes[{length_bound}]:
 @pytest.mark.fuzzing
 def test_slice_bytes_fuzz(
     get_contract,
-    assert_compile_failed,
     tx_failed,
     opt_level,
     location,
@@ -173,7 +179,8 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     )
 
     if compile_time_oob or slice_output_too_large:
-        assert_compile_failed(lambda: _get_contract(), (ArgumentException, TypeMismatch))
+        _fail_contract(code, opt_level, (ArgumentException, TypeMismatch))
+
     elif location == "code" and len(bytesdata) > length_bound:
         # deploy fail
         with tx_failed():
