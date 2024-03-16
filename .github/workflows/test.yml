@@ -114,6 +114,11 @@ jobs:
     - name: Install dependencies
       run: pip install .[test]
 
+    # cytoolz is an implicit dependency of eth-account, see
+    # https://github.com/ethereum/eth-account/issues/215
+    - name: Install cytoolz
+      run: pip install cytoolz
+
     - name: Run tests
       run: |
         pytest \
