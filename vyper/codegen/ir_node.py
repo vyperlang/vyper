@@ -182,6 +182,9 @@ class IRnode:
         self._id = _id  # type: ignore[assignment]
         self.ensure_id()
 
+        # helpful for debugging:
+        # self._origin = traceback.extract_stack()
+
         assert self.value is not None, "None is not allowed as IRnode value"
 
         # Determine this node's valency (1 if it pushes a value on the stack,
@@ -505,6 +508,8 @@ class IRnode:
             return hex(self.value)
         if not isinstance(self.value, str):
             return str(self.value)
+        # useful for debugging
+        # return f"{self._id}:{self.value}"
         return self.value
 
     @staticmethod
@@ -575,11 +580,13 @@ class IRnode:
         is_self_call: bool = False,
         passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
+        _id=None,
     ) -> "IRnode":
         if isinstance(typ, str):  # pragma: nocover
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
+            assert _id is None
             # note: this modify-and-returnclause is a little weird since
             # the input gets modified. CC 20191121.
             if typ is not None:
@@ -608,6 +615,7 @@ class IRnode:
                 error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
+                _id=_id,
             )
         else:
             return cls(
@@ -623,4 +631,5 @@ class IRnode:
                 error_msg=error_msg,
                 is_self_call=is_self_call,
                 passthrough_metadata=passthrough_metadata,
+                _id=_id,
             )

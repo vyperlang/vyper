@@ -442,6 +442,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     add_gas_estimate = node.add_gas_estimate
     is_self_call = node.is_self_call
     passthrough_metadata = node.passthrough_metadata
+    _id = node._id
 
     changed = False
 
@@ -466,6 +467,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             add_gas_estimate=add_gas_estimate,
             is_self_call=is_self_call,
             passthrough_metadata=passthrough_metadata,
+            _id=_id,
         )
 
         if should_check_symbols:
