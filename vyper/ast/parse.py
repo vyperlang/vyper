@@ -435,7 +435,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                     node.col_offset,
                 )
             node.ast_type = "Hex"
-            node.n = value
+            node.value = value
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
@@ -449,15 +449,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 )
             node.value = int(value, 2).to_bytes(len(value) // 8, "big")
 
-        elif isinstance(node.n, float):
+        elif isinstance(node.value, float):
             node.ast_type = "Decimal"
-            node.n = Decimal(value)
+            node.value = Decimal(value)
 
-        elif isinstance(node.n, int):
+        elif isinstance(node.value, int):
             node.ast_type = "Int"
 
         else:
-            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
+            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.value).__name__}")
 
         return node
 
