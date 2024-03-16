@@ -228,6 +228,10 @@ class Convert(BuiltinFunctionT):
 
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
+
+# make sure we don't overrun the source buffer, checking for
+# overflow:
+# valid inputs satisfy: `assert start+length <= src_len && start+length > start`
 def _make_slice_bounds_check(start, length, src_len):
     return [
         "with",
@@ -443,17 +447,6 @@ class Slice(BuiltinFunctionT):
                 copy_maxlen = buflen
 
             do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
-
-            # make sure we don't overrun the source buffer, checking for
-            # overflow:
-            # valid inputs satisfy: `assert start+length <= src_len && start+length > start`
-
-            bounds_check = [
-                "with",
-                "end",
-                ["add", start, length],
-                ["assert", ["iszero", ["or", ["gt", "end", src_len], ["lt", "end", start]]]],
-            ]
 
             ret = [
                 "seq",
