@@ -50,11 +50,12 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Tox
-        run: pip install tox
+      - name: Install deps
+        # TODO these should really be in setup.py
+        run: pip install shibuya sphinx sphinx-copybutton
 
-      - name: Run Tox
-        run: TOXENV=docs tox -r
+      - name: Run docs
+        run: sphinx-build -E -b html docs dist/docs -n -q --color
 
   # "Regular"/core tests.
   tests:
@@ -70,17 +71,19 @@ jobs:
         include:
           # test default settings with default python across all supported evm
           # versions
-          - debug: false
+          - evm-version: london
+            debug: false
             opt-mode: gas
-            evm-version: london
-          - debug: false
+
+          - evm-version: paris
+            debug: false
             opt-mode: gas
-            evm-version: paris
 
           # redundant shanghai rule, for clarity
-          - debug: false
+          - evm-version: shanghai
+            debug: false
             opt-mode: gas
-            evm-version: shanghai
+
           # enable when py-evm makes it work:
           #-
           #  debug: false
@@ -89,9 +92,9 @@ jobs:
 
           # run with `--memorymock`, but only need to do it one configuration
           # TODO: consider removing the memorymock tests entirely
-          - opt-mode: gas
+          - memorymock: true
             debug: false
-            memorymock: true
+            opt-mode: gas
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
