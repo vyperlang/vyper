@@ -123,14 +123,14 @@ jobs:
       run: pip install .[test]
 
     - name: Run tests
-      run: |
-        pytest \
-          -m "not fuzzing" \
-          --optimize ${{ matrix.opt-mode }} \
-          --evm-version ${{ matrix.evm-version }} \
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
-          ${{ matrix.memorymock && '--memorymock' || '' }} \
-          --showlocals -r aR \
+      run: >
+        pytest
+          -m "not fuzzing"
+          --optimize ${{ matrix.opt-mode }}
+          --evm-version ${{ matrix.evm-version }}
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
+          ${{ matrix.memorymock && '--memorymock' || '' }}
+          --showlocals -r aR
           tests/
 
     - name: Upload Coverage
@@ -180,12 +180,12 @@ jobs:
       run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run tests
-      run: |
-        pytest \
-          -m "fuzzing" \
-          --splits 60 \
-          --group ${{ matrix.group }} \
-          --splitting-algorithm least_duration \
+      run: >
+        pytest
+          -m "fuzzing"
+          --splits 60
+          --group ${{ matrix.group }}
+          --splitting-algorithm least_duration
           -r aR tests/
 
     - name: Upload Coverage
