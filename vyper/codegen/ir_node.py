@@ -179,7 +179,8 @@ class IRnode:
         self.func_ir = None
         self.common_ir = None
 
-        self._id = self.ensure_id()
+        self._id = _id  # type: ignore[assignment]
+        self.ensure_id()
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -370,9 +371,8 @@ class IRnode:
         return cls._next_id
 
     def ensure_id(self):
-        if not hasattr(self, "_id"):
+        if self._id is None:
             self._id = self.generate_id()
-        return self._id
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
