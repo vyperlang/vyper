@@ -69,32 +69,35 @@ jobs:
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
-          # test default settings with default python across all supported evm
-          # versions
-          - evm-version: london
+          # test default settings with 3.11 across all supported evm versions
+          - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
+            evm-version: london
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: paris
 
-          - evm-version: paris
+          # redundant rule, for clarity
+          - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
-
-          # redundant shanghai rule, for clarity
-          - evm-version: shanghai
-            debug: false
-            opt-mode: gas
+            evm-version: shanghai
 
           # enable when py-evm makes it work:
-          #-
+          #- python-version: ["3.11", "311"]
           #  debug: false
           #  opt-mode: gas
           #  evm-version: cancun
 
           # run with `--memorymock`, but only need to do it one configuration
-          # TODO: consider removing the memorymock tests entirely
-          - memorymock: true
-            debug: false
+          # TODO: consider removing the memorymock tests
+          - python-version: ["3.11", "311"]
             opt-mode: gas
+            debug: false
+            evm-version: shanghai
+            memorymock: true
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
