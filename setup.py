@@ -9,7 +9,7 @@ from setuptools import setup
 extras_require = {
     "test": [
         "pytest>=8.0,<9.0",
-        "pytest-cov>=2.10,<3.0",
+        "pytest-cov>=4.1,<5.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=2.5,<3.0",
         "pytest-split>=0.7.0,<1.0",
