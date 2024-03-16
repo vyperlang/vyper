@@ -65,11 +65,11 @@ class GrammarStrategy(LarkStrategy):
         }
 
     def draw_symbol(self, data, symbol, draw_state):  # type: ignore
-        count = len(draw_state.result)
+        count = len(draw_state)
         super().draw_symbol(data, symbol, draw_state)
         try:
             compile(
-                source="".join(draw_state.result[count:])
+                source="".join(draw_state[count:])
                 .replace("contract", "class")
                 .replace("struct", "class"),  # HACK: Python ast.parse
                 filename="<string>",
