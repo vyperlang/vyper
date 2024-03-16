@@ -37,8 +37,11 @@ def test_basic_grammar_empty():
     assert len(tree.children) == 0
 
 
-def good_terminal(terminal: str) -> bool:
-    return all(bad not in terminal for bad in ("\x00", "\\ ", "\x0c"))
+def fix_terminal(terminal: str) -> bool:
+    # these throw exceptions in the grammar
+    for bad in ("\x00", "\\ ", "\x0c"):
+        terminal = terminal.replace(bad, " ")
+    return terminal
 
 
 ALLOWED_CHARS = st.characters(codec="utf-8", min_codepoint=1)
@@ -50,8 +53,7 @@ class GrammarStrategy(LarkStrategy):
     def __init__(self, grammar, start, explicit_strategies):
         super().__init__(grammar, start, explicit_strategies, alphabet=ALLOWED_CHARS)
         self.terminal_strategies = {
-            k: v.map(lambda s: s.replace("\0", "")).filter(good_terminal)
-            for k, v in self.terminal_strategies.items()  # type: ignore
+            k: v.map(fix_terminal) for k, v in self.terminal_strategies.items()  # type: ignore
         }
 
     def draw_symbol(self, data, symbol, draw_state):  # type: ignore
