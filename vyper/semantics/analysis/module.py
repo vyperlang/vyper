@@ -4,8 +4,13 @@ from typing import Any, Optional
 
 import vyper.builtins.interfaces
 from vyper import ast as vy_ast
-from vyper.ast.validation import validate_literal_nodes
-from vyper.compiler.input_bundle import ABIInput, FileInput, FilesystemInputBundle, InputBundle
+from vyper.compiler.input_bundle import (
+    ABIInput,
+    CompilerInput,
+    FileInput,
+    FilesystemInputBundle,
+    InputBundle,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     BorrowException,
@@ -52,23 +57,33 @@ from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
 
 
-def validate_module_semantics_r(
+def analyze_module(
+    module_ast: vy_ast.Module,
+    input_bundle: InputBundle,
+    import_graph: ImportGraph = None,
+    is_interface: bool = False,
+) -> ModuleT:
+    """
+    Analyze a Vyper module AST node, recursively analyze all its imports,
+    add all module-level objects to the namespace, type-check/validate
+    semantics and annotate with type and analysis info
+    """
+    if import_graph is None:
+        import_graph = ImportGraph()
+
+    return _analyze_module_r(module_ast, input_bundle, import_graph, is_interface)
+
+
+def _analyze_module_r(
     module_ast: vy_ast.Module,
     input_bundle: InputBundle,
     import_graph: ImportGraph,
-    is_interface: bool,
-) -> ModuleT:
-    """
-    Analyze a Vyper module AST node, add all module-level objects to the
-    namespace, type-check/validate semantics and annotate with type and analysis info
-    """
+    is_interface: bool = False,
+):
     if "type" in module_ast._metadata:
         # we don't need to analyse again, skip out
         assert isinstance(module_ast._metadata["type"], ModuleT)
         return module_ast._metadata["type"]
-
-    # TODO: move this to parser or VyperNode construction
-    validate_literal_nodes(module_ast)
 
     # validate semantics and annotate AST with type/semantics information
     namespace = get_namespace()
@@ -511,7 +526,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             if not isinstance(func_t, ContractFunctionT):
                 raise StructureException("not a function!", decl_node, item)
             if not func_t.is_external:
-                raise StructureException("not an external function!", decl_node, item)
+                raise StructureException("can't export non-external functions!", decl_node, item)
 
             self._add_exposed_function(func_t, item, relax=False)
             with tag_exceptions(item):  # tag with specific item
@@ -706,9 +721,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
     def _add_import(
         self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
     ) -> None:
-        module_info = self._load_import(node, level, qualified_module_name, alias)
+        compiler_input, module_info = self._load_import(node, level, qualified_module_name, alias)
         node._metadata["import_info"] = ImportInfo(
-            module_info, alias, qualified_module_name, self.input_bundle, node
+            module_info, alias, qualified_module_name, compiler_input, node
         )
         self.namespace[alias] = module_info
 
@@ -723,17 +738,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def _load_import_helper(
         self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> Any:
-        if module_str.startswith("vyper.interfaces"):
-            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
-            raise ModuleNotFound(module_str, hint=hint)
+    ) -> tuple[CompilerInput, Any]:
         if _is_builtin(module_str):
-            components = module_str.split(".")
-            # hint: rename ERC20 to IERC20
-            if components[-1].startswith("ERC"):
-                module_prefix = components[-1]
-                hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
-                raise ModuleNotFound(module_str, hint=hint)
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
@@ -755,14 +761,14 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                module_t = validate_module_semantics_r(
+                module_t = _analyze_module_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
                     is_interface=False,
                 )
 
-                return ModuleInfo(module_t, alias)
+                return file, ModuleInfo(module_t, alias)
 
         except FileNotFoundError as e:
             # escape `e` from the block scope, it can make things
@@ -775,7 +781,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = self._ast_from_file(file)
 
             with override_global_namespace(Namespace()):
-                validate_module_semantics_r(
+                _analyze_module_r(
                     module_ast,
                     self.input_bundle,
                     import_graph=self._import_graph,
@@ -783,7 +789,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 )
                 module_t = module_ast._metadata["type"]
 
-                return module_t.interface
+                return file, module_t.interface
 
         except FileNotFoundError:
             pass
@@ -791,13 +797,17 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         try:
             file = self.input_bundle.load_file(path.with_suffix(".json"))
             assert isinstance(file, ABIInput)  # mypy hint
-            return InterfaceT.from_json_abi(str(file.path), file.abi)
+            return file, InterfaceT.from_json_abi(str(file.path), file.abi)
         except FileNotFoundError:
             pass
 
+        hint = None
+        if module_str.startswith("vyper.interfaces"):
+            hint = "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
         # copy search_paths, makes debugging a bit easier
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
-        raise ModuleNotFound(module_str, node) from err
+        raise ModuleNotFound(module_str, hint=hint) from err
 
 
 def _parse_and_fold_ast(file: FileInput) -> vy_ast.Module:
@@ -840,9 +850,9 @@ def _is_builtin(module_str):
     return any(module_str.startswith(prefix) for prefix in BUILTIN_PREFIXES)
 
 
-def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
+def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, InterfaceT]:
     if not _is_builtin(module_str):
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}")
+        raise ModuleNotFound(module_str)
 
     builtins_path = vyper.builtins.interfaces.__path__[0]
     # hygiene: convert to relpath to avoid leaking user directory info
@@ -866,14 +876,19 @@ def _load_builtin_import(level: int, module_str: str) -> InterfaceT:
     try:
         file = input_bundle.load_file(path)
         assert isinstance(file, FileInput)  # mypy hint
-    except FileNotFoundError:
-        raise ModuleNotFoundError(f"Not a builtin: {module_str}") from None
+    except FileNotFoundError as e:
+        hint = None
+        components = module_str.split(".")
+        # common issue for upgrading codebases from v0.3.x to v0.4.x -
+        # hint: rename ERC20 to IERC20
+        if components[-1].startswith("ERC"):
+            module_prefix = components[-1]
+            hint = f"try renaming `{module_prefix}` to `I{module_prefix}`"
+        raise ModuleNotFound(module_str, hint=hint) from e
 
     # TODO: it might be good to cache this computation
     interface_ast = _parse_and_fold_ast(file)
 
     with override_global_namespace(Namespace()):
-        module_t = validate_module_semantics_r(
-            interface_ast, input_bundle, ImportGraph(), is_interface=True
-        )
-    return module_t.interface
+        module_t = _analyze_module_r(interface_ast, input_bundle, ImportGraph(), is_interface=True)
+    return file, module_t.interface

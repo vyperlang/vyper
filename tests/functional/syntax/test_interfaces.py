@@ -6,6 +6,7 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidReference,
     InvalidType,
+    ModuleNotFound,
     NamespaceCollision,
     StructureException,
     SyntaxException,
@@ -229,7 +230,7 @@ from ethereum.ercs import IERC20
 b: IERC20
 @external
 def test(input: address):
-    assert self.b.totalSupply() == IERC20(input).totalSupply()
+    assert staticcall self.b.totalSupply() == staticcall IERC20(input).totalSupply()
     """,
     """
 from ethereum.ercs import IERC20
@@ -242,10 +243,10 @@ token: IERC20
 
 @external
 def test():
-    assert self.factory.getExchange(self.token.address) == self
-    exchange: address = self.factory.getExchange(self.token.address)
+    assert staticcall self.factory.getExchange(self.token.address) == self
+    exchange: address = staticcall self.factory.getExchange(self.token.address)
     assert exchange == self.token.address
-    assert self.token.totalSupply() > 0
+    assert staticcall self.token.totalSupply() > 0
     """,
     """
 interface Foo:
@@ -325,7 +326,7 @@ interface Foo:
 @external
 def bar(x: address):
     a: Foo = Foo(x)
-    a.append(1)
+    extcall a.append(1)
     """,
     """
 interface Foo:
@@ -334,7 +335,7 @@ interface Foo:
 @external
 def foo(x: address):
     a: Foo = Foo(x)
-    a.pop()
+    extcall a.pop()
     """,
     """
 interface ITestInterface:
@@ -398,3 +399,25 @@ def foobar():
 """
 
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_builtins_not_found():
+    code = """
+from vyper.interfaces import foobar
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+
+    assert e.value._message == "vyper.interfaces.foobar"
+    assert e.value._hint == "try renaming `vyper.interfaces` to `ethereum.ercs`"
+
+
+@pytest.mark.parametrize("erc", ("ERC20", "ERC721", "ERC4626"))
+def test_builtins_not_found2(erc):
+    code = f"""
+from ethereum.ercs import {erc}
+    """
+    with pytest.raises(ModuleNotFound) as e:
+        compiler.compile_code(code)
+    assert e.value._message == f"ethereum.ercs.{erc}"
+    assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"

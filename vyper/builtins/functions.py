@@ -10,7 +10,6 @@ from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     STORE,
     IRnode,
-    _freshname,
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
@@ -21,8 +20,8 @@ from vyper.codegen.core import (
     clamp_nonzero,
     copy_bytes,
     dummy_node_for_type,
+    ensure_eval_once,
     ensure_in_memory,
-    eval_once_check,
     eval_seq,
     get_bytearray_length,
     get_type_for_exact_size,
@@ -1173,6 +1172,7 @@ class RawCall(BuiltinFunctionT):
             else:
                 call_op = ["call", gas, to, value, *common_call_args]
 
+            call_op = ensure_eval_once("raw_call_builtin", call_op)
             call_ir += [call_op]
             call_ir = b1.resolve(call_ir)
 
@@ -1229,9 +1229,8 @@ class Send(BuiltinFunctionT):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(
-            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
-        )
+        send_op = ensure_eval_once("send_builtin", ["call", gas, to, value, 0, 0, 0, 0])
+        return IRnode.from_list(["assert", send_op], error_msg="send failed")
 
 
 class SelfDestruct(BuiltinFunctionT):
@@ -1249,9 +1248,7 @@ class SelfDestruct(BuiltinFunctionT):
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
-        return IRnode.from_list(
-            ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
-        )
+        return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
 
 class BlockHash(BuiltinFunctionT):
@@ -1317,27 +1314,24 @@ class RawLog(BuiltinFunctionT):
 
         data = args[1]
 
+        log_op = "log" + str(topics_length)
+
         if data.typ == BYTES32_T:
             placeholder = context.new_internal_variable(BYTES32_T)
+            log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(topics_length), placeholder, 32] + topics,
+                    ensure_eval_once("raw_log", log_ir),
                 ]
             )
 
         input_buf = ensure_in_memory(data, context)
 
-        return IRnode.from_list(
-            [
-                "with",
-                "_sub",
-                input_buf,
-                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ]
-        )
+        log_ir = [log_op, ["add", "_sub", 32], ["mload", "_sub"], *topics]
+        return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
 class BitwiseAnd(BuiltinFunctionT):
@@ -1600,9 +1594,7 @@ def _create_ir(value, buf, length, salt, checked=True):
         create_op = "create2"
         args.append(salt)
 
-    ret = IRnode.from_list(
-        ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
-    )
+    ret = IRnode.from_list(ensure_eval_once("create_builtin", [create_op, *args]))
 
     if not checked:
         return ret

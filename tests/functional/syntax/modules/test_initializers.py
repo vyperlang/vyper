@@ -594,7 +594,7 @@ something: uint256
 
 @internal
 def foo() -> uint256:
-    lib1.counter[1][2], self.something = Foo(msg.sender).foo()
+    lib1.counter[1][2], self.something = extcall Foo(msg.sender).foo()
     """
     main = """
 import lib1
@@ -630,7 +630,7 @@ interface Foo:
 
 @internal
 def write_tuple():
-    self.counter[1][2], self.something = Foo(msg.sender).foo()
+    self.counter[1][2], self.something = extcall Foo(msg.sender).foo()
     """
     lib2 = """
 import lib1
@@ -1208,3 +1208,23 @@ uses: (lib1, lib2)  # should get UndeclaredDefinition
     with pytest.raises(UndeclaredDefinition) as e:
         compile_code(main, input_bundle=input_bundle)
     assert e.value._message == "'lib2' has not been declared."
+
+
+def test_partial_compilation(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    main = """
+import lib1
+
+uses: lib1
+
+@internal
+def use_lib1():
+    lib1.counter += 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    assert (
+        compile_code(main, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
+        is not None
+    )

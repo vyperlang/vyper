@@ -83,38 +83,32 @@ def b():
         """
 interface A:
     def bar() -> uint16: view
+
 @external
 @pure
-def test(to:address):
-    a:A = A(to)
-    x:uint16 = a.bar()
-    """,
-        """
-interface A:
-    def bar() -> uint16: view
-@external
-@pure
-def test(to:address):
-    a:A = A(to)
-    a.bar()
+def test(to: address):
+    a: A = A(to)
+    x: uint16 = staticcall a.bar()
     """,
         """
 interface A:
     def bar() -> uint16: nonpayable
+
 @external
 @view
-def test(to:address):
-    a:A = A(to)
-    x:uint16 = a.bar()
+def test(to: address):
+    a: A = A(to)
+    x: uint16 = extcall a.bar()
     """,
         """
 interface A:
     def bar() -> uint16: nonpayable
+
 @external
 @view
-def test(to:address):
-    a:A = A(to)
-    a.bar()
+def test(to: address):
+    a: A = A(to)
+    extcall a.bar()
     """,
         """
 a:DynArray[uint16,3]
@@ -135,7 +129,7 @@ token: IERC20
 @external
 @view
 def topup(amount: uint256):
-    assert self.token.transferFrom(msg.sender, self, amount)
+    assert extcall self.token.transferFrom(msg.sender, self, amount)
     """,
     ],
 )

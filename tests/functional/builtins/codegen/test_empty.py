@@ -445,7 +445,7 @@ def pub2() -> bool:
 @external
 def pub3(x: address) -> bool:
     self.write_junk_to_memory()
-    return Mirror(x).test_empty(empty(int128[111]), empty(Bytes[1024]), empty(Bytes[31]))
+    return staticcall Mirror(x).test_empty(empty(int128[111]), empty(Bytes[1024]), empty(Bytes[31]))
     """
     c = get_contract_with_gas_estimation(code)
     mirror = get_contract_with_gas_estimation(code)
@@ -658,7 +658,7 @@ interface Foo:
 @view
 @external
 def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
-    return Foo(a).foo(12, {a}, 42, {b})
+    return staticcall Foo(a).foo(12, {a}, 42, {b})
     """
 
     c1 = get_contract(code_a)
