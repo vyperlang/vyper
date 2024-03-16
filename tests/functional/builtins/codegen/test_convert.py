@@ -3,6 +3,7 @@ import itertools
 
 # import random
 from decimal import Decimal
+import math
 
 import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
@@ -255,6 +256,11 @@ def _from_bits(val_bits, o_typ):
 
 def _to_bits(val, i_typ):
     # i_typ: the type to convert from
+    if isinstance(i_typ, DecimalT):
+        val = val * i_typ.divisor
+        assert math.ceil(val) == math.floor(val)
+        val = int(val)
+
     return abi.encode(i_typ.abi_type.selector_name(), val)
 
 
