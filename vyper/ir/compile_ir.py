@@ -210,11 +210,23 @@ def apply_line_numbers(func):
 
     return apply_line_no_wrapper
 
+def check_duplicated_nodes(ir_node, seen=None):
+    seen = seen or set()
+
+    if ir_node.is_complex_ir and id(ir_node) in seen:
+        raise CompilerPanic(f"bad code {ir_node}", ir_node.ast_source)
+    seen.add(id(ir_node))
+
+    for arg in ir_node.args:
+        check_duplicated_nodes(arg, seen)
+
 
 @apply_line_numbers
 def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     global _revert_label
     _revert_label = mksymbol("revert")
+
+    check_duplicated_nodes(code)
 
     # don't overwrite ir since the original might need to be output, e.g. `-f ir,asm`
     code = copy.deepcopy(code)
