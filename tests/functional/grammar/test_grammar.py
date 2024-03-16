@@ -37,18 +37,8 @@ def test_basic_grammar_empty():
     assert len(tree.children) == 0
 
 
-def utf8_encodable(terminal: str) -> bool:
-    try:
-        if "\x00" not in terminal and "\\ " not in terminal and "\x0c" not in terminal:
-            terminal.encode("utf-8-sig")
-            return True
-        else:
-            return False
-    except UnicodeEncodeError:  # pragma: no cover
-        # Very rarely, a "." in some terminal regex will generate a surrogate
-        # character that cannot be encoded as UTF-8.  We apply this filter to
-        # ensure it doesn't happen at runtime, but don't worry about coverage.
-        return False
+def good_terminal(terminal: str) -> bool:
+    return all(bad not in terminal for bad in ("\x00", "\\ ", "\x0c"))
 
 
 ALLOWED_CHARS = st.characters(codec="utf-8", min_codepoint=1)
@@ -60,7 +50,7 @@ class GrammarStrategy(LarkStrategy):
     def __init__(self, grammar, start, explicit_strategies):
         super().__init__(grammar, start, explicit_strategies, alphabet=ALLOWED_CHARS)
         self.terminal_strategies = {
-            k: v.map(lambda s: s.replace("\0", "")).filter(utf8_encodable)
+            k: v.map(lambda s: s.replace("\0", "")).filter(good_terminal)
             for k, v in self.terminal_strategies.items()  # type: ignore
         }
 
@@ -105,7 +95,7 @@ def has_no_docstrings(c):
 
 
 @pytest.mark.fuzzing
-@given(code=from_grammar().filter(lambda c: utf8_encodable(c)))
+@given(code=from_grammar())
 @hypothesis.settings(
     max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
 )
