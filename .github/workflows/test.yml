@@ -101,6 +101,7 @@ jobs:
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
+            evm-version: shanghai
 
           # TODO 3.12 doesn't work yet, investigate - may be hypothesis issue
           #- python-version: ["3.12", "312"]
