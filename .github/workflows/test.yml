@@ -99,7 +99,6 @@ jobs:
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
-            evm-version: shanghai
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}-${{ matrix.evm-version }}
 
