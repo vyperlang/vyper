@@ -179,7 +179,7 @@ jobs:
     - name: Run tests
       run: |
         pytest \
-          -m "fuzzing"
+          -m "fuzzing" \
           --splits 60 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
