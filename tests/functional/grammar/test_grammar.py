@@ -92,7 +92,9 @@ def has_no_docstrings(c):
 
 @pytest.mark.fuzzing
 @given(code=from_grammar())
-@hypothesis.settings(max_examples=500, suppress_health_check=[HealthCheck.too_slow])
+@hypothesis.settings(
+    max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
+)
 def test_grammar_bruteforce(code):
     _, _, _, reformatted_code = pre_parse(code + "\n")
     tree = parse_to_ast(reformatted_code)
