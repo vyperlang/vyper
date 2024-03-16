@@ -20,7 +20,7 @@ extras_require = {
         "tox>=3.15,<4.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
-        "eth-stdlib==0.2.6",
+        "eth-stdlib==0.2.7",
         "setuptools",
     ],
     "lint": [
