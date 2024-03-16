@@ -210,6 +210,7 @@ def apply_line_numbers(func):
 
     return apply_line_no_wrapper
 
+
 def check_duplicated_nodes(ir_node, seen=None):
     seen = seen or set()
 
