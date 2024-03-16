@@ -66,6 +66,7 @@ jobs:
         opt-mode: ["gas", "none", "codesize"]
         evm-version: [shanghai]
         debug: [true, false]
+        memorymock: [false]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
