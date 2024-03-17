@@ -67,7 +67,7 @@ jobs:
       matrix:
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
-        group: [1, 2, 3]
+        group: [1, 2, 3, 4, 5, 6]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -93,6 +93,7 @@ jobs:
           # TODO: consider removing the memorymock tests
           - opt-mode: gas
             debug: false
+            evm-version: shanghai
             memorymock: true
 
           # run across other python versions. we don't really need to run all
@@ -100,9 +101,13 @@ jobs:
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
+            memorymock: false
+            evm-version: shanghai
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
+            memorymock: false
+            evm-version: shanghai
 
     name: py${{ matrix.python-version[1] || '311' }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version || 'shanghai' }}-group${{ matrix.group }}
 
@@ -132,7 +137,7 @@ jobs:
     - name: Run tests
       run: |
         pytest \
-          --splits 3 \
+          --splits 6 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
           --dist worksteal \
