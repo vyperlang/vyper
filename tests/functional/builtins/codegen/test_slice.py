@@ -437,26 +437,27 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
     )
 
 
+# test cases crafted based on advisory GHSA-9x7f-gwxq-6f2c
 oob_fail_list = [
     """
 d: public(Bytes[256])
 	
 @external
 def do_slice():
-	x : uint256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935 # 2**256-1
+	x : uint256 = max_value(uint256) 
 	self.d = b"\x01\x02\x03\x04\x05\x06"
-	assert len(slice(self.d, 1, x))==115792089237316195423570985008687907853269984665640564039457584007913129639935
+	assert len(slice(self.d, 1, x)) == max_value(uint256)
     """,
     """
 @external
 def do_slice():
-    x: uint256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935  # 2**256 - 1
-    y: uint256 = 22704331223003175573249212746801550559464702875615796870481879217237868556850   # 0x3232323232323232323232323232323232323232323232323232323232323232
+    x: uint256 = max_value(uint256)
+    # y == 0x3232323232323232323232323232323232323232323232323232323232323232
+    y: uint256 = 22704331223003175573249212746801550559464702875615796870481879217237868556850
     z: uint96 = 1
     if True:
         placeholder : uint256[16] = [y, y, y, y, y, y, y, y, y, y, y, y, y, y, y, y]
-    s :String[32] = slice(uint2str(z), 1, x)	# uint2str(z) == "1"
-    #print(len(s))
+    s :String[32] = slice(uint2str(z), 1, x)
     assert slice(s, 1, 2) == "22"
     """,
     """
@@ -470,8 +471,7 @@ def __init__():
 
 @external
 def do_slice() -> Bytes[64]:
-    # max - 63
-    start: uint256 = 115792089237316195423570985008687907853269984665640564039457584007913129639872
+    start: uint256 = max_value(uint256) - 63
     return slice(self.x, start, 64) 
     """,
     # tests bounds check in adhoc location calldata
@@ -486,7 +486,7 @@ def choose_value(_x: uint256, _y: uint256, _z: uint256, idx: uint256) -> Bytes[3
 
 @external
 def do_slice():
-    idx: uint256 = 115792089237316195423570985008687907853269984665640564039457584007913129639908
+    idx: uint256 = max_value(uint256) - 27
     ret: uint256 = _abi_decode(extcall IFace(self).choose_value(1, 2, 3, idx), uint256)
     assert ret == 0
     """
