@@ -65,7 +65,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [["3.11", "311"]]
         opt-mode: ["gas", "none", "codesize"]
         evm-version: [shanghai]
         debug: [true, false]
@@ -75,18 +74,15 @@ jobs:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
           # test default settings with 3.11 across all supported evm versions
-          - python-version: ["3.11", "311"]
-            debug: false
+          - debug: false
             opt-mode: gas
             evm-version: london
-          - python-version: ["3.11", "311"]
-            debug: false
+          - debug: false
             opt-mode: gas
             evm-version: paris
 
-          # redundant rule, for clarity
-          - python-version: ["3.11", "311"]
-            debug: false
+          # redundant shanghai rule, for clarity
+          - debug: false
             opt-mode: gas
             evm-version: shanghai
 
@@ -98,8 +94,7 @@ jobs:
 
           # run with `--memorymock`, but only need to do it one configuration
           # TODO: consider removing the memorymock tests
-          - python-version: ["3.11", "311"]
-            opt-mode: gas
+          - opt-mode: gas
             debug: false
             evm-version: shanghai
             memorymock: true
@@ -115,7 +110,7 @@ jobs:
             debug: false
             evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
+    name: py${{ matrix.python-version[1] || "311" }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
 
     steps:
     - uses: actions/checkout@v4
@@ -123,10 +118,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] }}
+    - name: Set up Python ${{ matrix.python-version[0] || "3.11" }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] }}
+        python-version: ${{ matrix.python-version[0] || "3.11" }}
         cache: "pip"
 
     # fetch test durations for splitting
