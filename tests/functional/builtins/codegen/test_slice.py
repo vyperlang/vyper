@@ -435,3 +435,66 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
         c.bar(3, "0x0001020304050607080910111213141516171819202122232425262728293031", 5).hex()
         == result
     )
+
+
+# test cases crafted based on advisory GHSA-9x7f-gwxq-6f2c
+oob_fail_list = [
+    """
+d: public(Bytes[256])
+	
+@external
+def do_slice():
+	x : uint256 = max_value(uint256) 
+	self.d = b"\x01\x02\x03\x04\x05\x06"
+	assert len(slice(self.d, 1, x)) == max_value(uint256)
+    """,
+    """
+@external
+def do_slice():
+    x: uint256 = max_value(uint256)
+    # y == 0x3232323232323232323232323232323232323232323232323232323232323232
+    y: uint256 = 22704331223003175573249212746801550559464702875615796870481879217237868556850
+    z: uint96 = 1
+    if True:
+        placeholder : uint256[16] = [y, y, y, y, y, y, y, y, y, y, y, y, y, y, y, y]
+    s :String[32] = slice(uint2str(z), 1, x)
+    assert slice(s, 1, 2) == "22"
+    """,
+    """
+x: public(Bytes[64])
+secret: uint256
+
+@deploy
+def __init__():
+    self.x = empty(Bytes[64])
+    self.secret = 42
+
+@external
+def do_slice() -> Bytes[64]:
+    start: uint256 = max_value(uint256) - 63
+    return slice(self.x, start, 64) 
+    """,
+    # tests bounds check in adhoc location calldata
+    """
+interface IFace:
+    def choose_value(_x: uint256, _y: uint256, _z: uint256, idx: uint256) -> Bytes[32]: nonpayable
+
+@external
+def choose_value(_x: uint256, _y: uint256, _z: uint256, idx: uint256) -> Bytes[32]:
+    assert idx % 32 == 4
+    return slice(msg.data, idx, 32)
+
+@external
+def do_slice():
+    idx: uint256 = max_value(uint256) - 27
+    ret: uint256 = _abi_decode(extcall IFace(self).choose_value(1, 2, 3, idx), uint256)
+    assert ret == 0
+    """
+]
+
+
+@pytest.mark.parametrize("bad_code", oob_fail_list)
+def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
+    c = get_contract(bad_code)
+    with tx_failed():
+        c.do_slice()

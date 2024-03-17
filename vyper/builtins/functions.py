@@ -229,6 +229,17 @@ class Convert(BuiltinFunctionT):
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
+# make sure we don't overrun the source buffer, checking for
+# overflow:
+# valid inputs satisfy: `assert start+length <= src_len && start+length > start`
+def _make_slice_bounds_check(start, length, src_len):
+    return [
+        "with",
+        "end",
+        ["add", start, length],
+        ["assert", ["iszero", ["or", ["gt", "end", src_len], ["lt", "end", start]]]],
+    ]
+
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
@@ -241,7 +252,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     if sub.value == "~calldata":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "calldatasize"),
             ["mstore", np, length],
             ["calldatacopy", np + 32, start, length],
             np,
@@ -251,7 +262,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     elif sub.value == "~selfcode":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "codesize"),
             ["mstore", np, length],
             ["codecopy", np + 32, start, length],
             np,
@@ -266,8 +277,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             sub.args[0],
             [
                 "seq",
-                # runtime bounds check
-                ["assert", ["le", ["add", start, length], ["extcodesize", "_extcode_address"]]],
+                _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -438,19 +448,9 @@ class Slice(BuiltinFunctionT):
 
             do_copy = copy_bytes(copy_dst, copy_src, copy_len, copy_maxlen)
 
-            # make sure we don't overrun the source buffer, checking for
-            # overflow:
-            # `assert start+length <= src_len && start+length <= length`
-            bounds_check = [
-                "with",
-                "end",
-                ["add", start, length],
-                ["assert", ["iszero", ["or", ["gt", "end", src_len], ["gt", "end", length]]]],
-            ]
-
             ret = [
                 "seq",
-                bounds_check,
+                _make_slice_bounds_check(start, length, src_len),
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
