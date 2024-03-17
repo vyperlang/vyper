@@ -199,6 +199,7 @@ jobs:
           --splits 100 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
+          --dist worksteal \
           -r aR tests/
 
     - name: Upload Coverage
