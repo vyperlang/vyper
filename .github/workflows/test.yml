@@ -115,6 +115,16 @@ jobs:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
 
+    # fetch test durations
+    # NOTE: if the tests get poorly distributed, run this and commit the
+    # resulting `.test_durations` file to the `vyper-test-durations` repo.
+    # `pytest --store-durations -r aR tests/`
+    - name: Fetch test-durations
+      run: curl \
+        --location \
+        "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" \
+        -o .test_durations
+
     - name: Install dependencies
       run: pip install .[test]
 
@@ -175,7 +185,7 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `TOXENV=fuzzing tox -r -- --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
     - name: Run Tox
       run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
