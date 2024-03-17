@@ -66,7 +66,6 @@ jobs:
     strategy:
       matrix:
         opt-mode: ["gas", "none", "codesize"]
-        evm-version: [shanghai]
         debug: [true, false]
         group: [1, 2, 3]
         memorymock: [false]
@@ -81,14 +80,10 @@ jobs:
             opt-mode: gas
             evm-version: paris
 
-          # redundant shanghai rule, for clarity
-          - debug: false
-            opt-mode: gas
-            evm-version: shanghai
+          # shanghai is already the default
 
           # enable when py-evm makes it work:
-          #- python-version: ["3.11", "311"]
-          #  debug: false
+          #- debug: false
           #  opt-mode: gas
           #  evm-version: cancun
 
@@ -96,7 +91,6 @@ jobs:
           # TODO: consider removing the memorymock tests
           - opt-mode: gas
             debug: false
-            evm-version: shanghai
             memorymock: true
 
           # run across other python versions. we don't really need to run all
@@ -104,11 +98,9 @@ jobs:
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
-            evm-version: shanghai
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
-            evm-version: shanghai
 
     name: py${{ matrix.python-version[1] || '311' }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
 
@@ -144,7 +136,7 @@ jobs:
           --dist worksteal \
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
-          --evm-version ${{ matrix.evm-version }} \
+          --evm-version ${{ matrix.evm-version || 'shanghai' }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           --showlocals -r aR \
