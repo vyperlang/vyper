@@ -71,9 +71,6 @@ jobs:
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
-          - evm-version: shanghai
-            memorymock: false
-
           # test default settings with 3.11 across all supported evm versions
           - debug: false
             opt-mode: gas
