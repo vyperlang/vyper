@@ -68,6 +68,27 @@ def pytest_addoption(parser):
     )
 
 
+def pytest_collection_modifyitems(config, items):
+    try:
+        with open(".test_durations") as f:
+            s = f.read()
+            durations = json.loads(s)
+    except FileNotFoundError:
+        durations = {}
+
+    timings = {}
+    for item in items:
+        path, _, reqname = item.location
+        request_id = f"{path}::{reqname}"
+        timing = durations.get(request_id, None)
+        if timing is not None:
+            timings[item] = timing
+
+    meantime = sum(timings.values()) / len(timings)
+    # sort by highest time first
+    items.sort(key=lambda item: -timings.get(item, meantime))
+
+
 @pytest.fixture(scope="module")
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
