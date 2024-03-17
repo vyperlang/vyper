@@ -6,4 +6,4 @@
 
 # run pytest but bail out on first error and suppress coverage.
 # useful for dev workflow
-pytest -q --no-cov -s --instafail -x --disable-warnings "$@"
+pytest --dist worksteal -q --no-cov -s --instafail -x --disable-warnings "$@"
