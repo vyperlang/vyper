@@ -9,7 +9,7 @@ from setuptools import setup
 extras_require = {
     "test": [
         "pytest>=8.0,<9.0",
-        "pytest-cov>=2.10,<3.0",
+        "pytest-cov>=4.1,<5.0",
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=2.5,<3.0",
         "pytest-split>=0.7.0,<1.0",
@@ -17,7 +17,6 @@ extras_require = {
         "eth_abi>=4.0.0,<5.0.0",
         "py-evm>=0.7.0a1,<0.8",
         "web3==6.0.0",
-        "tox>=3.15,<4.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
