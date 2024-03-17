@@ -68,7 +68,6 @@ jobs:
         opt-mode: ["gas", "none", "codesize"]
         debug: [true, false]
         group: [1, 2, 3]
-        memorymock: [false]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
