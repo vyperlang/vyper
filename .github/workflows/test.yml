@@ -102,7 +102,7 @@ jobs:
             opt-mode: gas
             debug: false
 
-    name: py${{ matrix.python-version[1] || '311' }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
+    name: py${{ matrix.python-version[1] || '311' }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version || 'shanghai' }}-group${{ matrix.group }}
 
     steps:
     - uses: actions/checkout@v4
