@@ -17,7 +17,6 @@ extras_require = {
         "eth_abi>=4.0.0,<5.0.0",
         "py-evm>=0.7.0a1,<0.8",
         "web3==6.0.0",
-        "tox>=3.15,<4.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
