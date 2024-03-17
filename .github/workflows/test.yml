@@ -124,6 +124,7 @@ jobs:
     - name: Run tests
       run: |
         pytest \
+          --dist worksteal \
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
