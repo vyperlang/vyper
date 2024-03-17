@@ -178,7 +178,7 @@ jobs:
       run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
 
     - name: Run Tox
-      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
+      run: TOXENV=fuzzing tox -r -- --splits 100 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v4
