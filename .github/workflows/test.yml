@@ -110,7 +110,7 @@ jobs:
             debug: false
             evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] || "311" }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
+    name: py${{ matrix.python-version[1] || '311' }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-group${{ matrix.group }}
 
     steps:
     - uses: actions/checkout@v4
@@ -118,10 +118,10 @@ jobs:
           # need to fetch unshallow so that setuptools_scm can infer the version
           fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version[0] || "3.11" }}
+    - name: Set up Python ${{ matrix.python-version[0] || '3.11' }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version[0] || "3.11" }}
+        python-version: ${{ matrix.python-version[0] || '3.11' }}
         cache: "pip"
 
     # fetch test durations for splitting
