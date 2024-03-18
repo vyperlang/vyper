@@ -206,11 +206,12 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyFlag.foo
-        if (
-            isinstance(typ, FlagT)
-            and isinstance(self.expr.value, vy_ast.Name)
-            and typ.name == self.expr.value.id
+        # (lib1).MyFlag.foo
+        if isinstance(typ, FlagT) and (
+                (isinstance(self.expr.value, vy_ast.Name)
+                 and typ.name == self.expr.value.id)
+                or (isinstance(self.expr.value, vy_ast.Attribute)
+                    and typ.name == self.expr.value.attr)
         ):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]

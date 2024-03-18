@@ -300,6 +300,10 @@ class ModuleT(VyperType):
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
+        for f in self.flag_defs:
+            self.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
+            self._helper.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
+
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
             self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
@@ -346,6 +350,10 @@ class ModuleT(VyperType):
     @cached_property
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
+
+    @cached_property
+    def flag_defs(self):
+        return self._module.get_children(vy_ast.FlagDef)
 
     @property
     def struct_defs(self):
