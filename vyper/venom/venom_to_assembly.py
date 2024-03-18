@@ -530,10 +530,20 @@ class VenomCompiler:
         assembly.extend(["POP"] * num)
 
     def swap(self, assembly, stack, depth):
+        # Swaps of the top is no op
         if depth == 0:
             return
+
+        inst = _evm_swap_for(depth)
+
+        # Double swaps cancel each other out
+        if len(assembly) > 0 and inst == assembly[-1]:
+            assembly.pop()
+            stack.swap(depth)
+            return
+
         stack.swap(depth)
-        assembly.append(_evm_swap_for(depth))
+        assembly.append(inst)
 
     def dup(self, assembly, stack, depth):
         stack.dup(depth)
