@@ -308,7 +308,7 @@ def _allocate_layout_r(
         if location == DataLocation.CODE:
             item = {"type": str(type_), "length": size, "offset": offset}
         elif location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            item = {"type": str(type_), "slot": offset}
+            item = {"type": str(type_), "n_slots": size, "slot": offset}
         else:  # pragma: nocover
             raise CompilerPanic("unreachable")
         ret[layout_key][node.target.id] = item

@@ -42,10 +42,10 @@ def public_foo3():
 
     assert out["layout"]["storage_layout"] == {
         "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-        "foo": {"slot": 1, "type": "HashMap[address, uint256]"},
-        "arr": {"slot": 2, "type": "DynArray[uint256, 3]"},
-        "baz": {"slot": 6, "type": "Bytes[65]"},
-        "bar": {"slot": 10, "type": "uint256"},
+        "foo": {"slot": 1, "type": "HashMap[address, uint256]", "n_slots": 1},
+        "arr": {"slot": 2, "type": "DynArray[uint256, 3]", "n_slots": 4},
+        "baz": {"slot": 6, "type": "Bytes[65]", "n_slots": 4},
+        "bar": {"slot": 10, "type": "uint256", "n_slots": 1},
     }
 
 
@@ -68,7 +68,7 @@ def __init__():
         },
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "name": {"slot": 1, "type": "String[32]"},
+            "name": {"slot": 1, "type": "String[32]", "n_slots": 2},
         },
     }
 
@@ -115,9 +115,9 @@ def __init__():
         },
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "counter2": {"slot": 2, "type": "uint256"},
-            "a_library": {"supply": {"slot": 3, "type": "uint256"}},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "counter2": {"slot": 2, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 3, "type": "uint256", "n_slots": 1}},
         },
     }
 
@@ -164,9 +164,9 @@ def __init__():
         },
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "a_library": {"supply": {"slot": 2, "type": "uint256"}},
-            "counter2": {"slot": 3, "type": "uint256"},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},
+            "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
         },
     }
 
@@ -247,10 +247,10 @@ def bar():
         },
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
-            "lib2": {"storage_variable": {"slot": 2, "type": "uint256"}},
-            "counter2": {"slot": 3, "type": "uint256"},
-            "a_library": {"supply": {"slot": 4, "type": "uint256"}},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
+            "lib2": {"storage_variable": {"slot": 2, "type": "uint256", "n_slots": 1}},
+            "counter2": {"slot": 3, "type": "uint256", "n_slots": 1},
+            "a_library": {"supply": {"slot": 4, "type": "uint256", "n_slots": 1}},
         },
     }
 
@@ -326,12 +326,12 @@ def foo() -> uint256:
         },
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
-            "counter": {"slot": 1, "type": "uint256"},
+            "counter": {"slot": 1, "type": "uint256", "n_slots": 1},
             "lib2": {
-                "lib1": {"supply": {"slot": 2, "type": "uint256"}},
-                "storage_variable": {"slot": 3, "type": "uint256"},
+                "lib1": {"supply": {"slot": 2, "type": "uint256", "n_slots": 1}},
+                "storage_variable": {"slot": 3, "type": "uint256", "n_slots": 1},
             },
-            "counter2": {"slot": 4, "type": "uint256"},
+            "counter2": {"slot": 4, "type": "uint256", "n_slots": 1},
         },
     }
 
