@@ -22,7 +22,7 @@ repos:
     -   id: mypy
         additional_dependencies:
           - "types-setuptools"
-        args:  # settings from tox.ini
+        args:  # settings from Makefile
           - --install-types
           - --non-interactive
           - --follow-imports=silent
