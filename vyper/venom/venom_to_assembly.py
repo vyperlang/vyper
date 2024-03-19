@@ -534,16 +534,8 @@ class VenomCompiler:
         if depth == 0:
             return
 
-        inst = _evm_swap_for(depth)
-
-        # Double swaps cancel each other out
-        if len(assembly) > 0 and inst == assembly[-1]:
-            assembly.pop()
-            stack.swap(depth)
-            return
-
         stack.swap(depth)
-        assembly.append(inst)
+        assembly.append(_evm_swap_for(depth))
 
     def dup(self, assembly, stack, depth):
         stack.dup(depth)
