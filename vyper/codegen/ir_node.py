@@ -135,6 +135,7 @@ class IRnode:
     args: List["IRnode"]
     value: Union[str, int]
     is_self_call: bool
+    passthrough_metadata: dict[str, Any]
     func_ir: Any
     common_ir: Any
 
@@ -151,6 +152,7 @@ class IRnode:
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
         is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
     ):
         if args is None:
             args = []
@@ -169,6 +171,7 @@ class IRnode:
         self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
         self.is_self_call = is_self_call
+        self.passthrough_metadata = passthrough_metadata or {}
         self.func_ir = None
         self.common_ir = None
 
@@ -554,6 +557,7 @@ class IRnode:
         mutable: bool = True,
         add_gas_estimate: int = 0,
         is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
         if isinstance(typ, str):  # pragma: nocover
@@ -587,6 +591,7 @@ class IRnode:
                 encoding=encoding,
                 error_msg=error_msg,
                 is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )
         else:
             return cls(
@@ -601,4 +606,5 @@ class IRnode:
                 encoding=encoding,
                 error_msg=error_msg,
                 is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )
