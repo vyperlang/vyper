@@ -1,4 +1,5 @@
 from typing import Optional
+
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import (
