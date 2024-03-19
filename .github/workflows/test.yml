@@ -62,7 +62,7 @@ jobs:
 
   # "Regular"/core tests.
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-test-32-core
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
