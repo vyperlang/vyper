@@ -167,13 +167,15 @@ def _extcodesize_check(address):
     return IRnode.from_list(["assert", ["extcodesize", address]], error_msg="extcodesize is zero")
 
 
-def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context):
+def _external_call_helper(
+    contract_address, args_ir, call_kwargs, call_expr, context, discard_output
+):
     fn_type = call_expr.func._metadata["type"]
 
     out_type = call_expr._metadata["type"]
-    if out_type is VOID_TYPE:
+    if out_type is VOID_TYPE or discard_output:
+        assert (out_type is VOID_TYPE) == (fn_type.return_type is None), out_type
         out_type = None  # makes downstream logic cleaner
-        assert fn_type.return_type is None
     else:
         check_assign(dummy_node_for_type(out_type), dummy_node_for_type(fn_type.return_type))
 
@@ -224,7 +226,7 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     return IRnode.from_list(ret, typ=out_type, location=MEMORY)
 
 
-def ir_for_external_call(call_expr, context):
+def ir_for_external_call(call_expr, context, discard_output):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     contract_address = Expr.parse_value_expr(call_expr.func.value, context)
@@ -234,5 +236,7 @@ def ir_for_external_call(call_expr, context):
 
     with contract_address.cache_when_complex("external_contract") as (b1, contract_address):
         return b1.resolve(
-            _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, context)
+            _external_call_helper(
+                contract_address, args_ir, call_kwargs, call_expr, context, discard_output
+            )
         )

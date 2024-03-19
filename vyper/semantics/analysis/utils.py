@@ -21,7 +21,7 @@ from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, V
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType, map_void
-from vyper.semantics.types.bytestrings import BytesT, StringT, _DynLength
+from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import checksum_encode, int_to_fourbytes
@@ -616,8 +616,6 @@ def _infer_type_helper(node, expected_type):
         hint = None
         # TODO: refactor the suggestions code. compare_type could maybe return
         # a suggestion if the type is close.
-        if isinstance(given, _DynLength) and given.length is None:
-            hint = f"did you mean `convert({node.node_source_code}, {expected_type[0]})`?"
         raise TypeMismatch(f"Given reference has type {given}, expected {expected_str}", hint=hint)
     else:
         if len(given_types) == 1:

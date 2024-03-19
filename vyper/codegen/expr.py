@@ -702,26 +702,27 @@ class Expr:
         assert func_t.is_internal or func_t.is_constructor
         return self_call.ir_for_self_call(self.expr, self.context)
 
-    @classmethod
-    def handle_external_call(cls, expr, context):
+    def handle_external_call(self):
         # TODO fix cyclic import
         from vyper.builtins._signatures import BuiltinFunctionT
 
-        call_node = expr.value
+        call_node = self.expr.value
         assert isinstance(call_node, vy_ast.Call)
 
         func_t = call_node.func._metadata["type"]
 
         if isinstance(func_t, BuiltinFunctionT):
-            return func_t.build_IR(call_node, context)
+            return func_t.build_IR(call_node, self.context)
 
-        return external_call.ir_for_external_call(call_node, context)
+        return external_call.ir_for_external_call(
+            call_node, self.context, discard_output=self.is_stmt
+        )
 
     def parse_ExtCall(self):
-        return self.handle_external_call(self.expr, self.context)
+        return self.handle_external_call()
 
     def parse_StaticCall(self):
-        return self.handle_external_call(self.expr, self.context)
+        return self.handle_external_call()
 
     def parse_List(self):
         typ = self.expr._metadata["type"]

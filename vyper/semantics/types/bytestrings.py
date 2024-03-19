@@ -93,7 +93,7 @@ class _BytestringT(_DynLength):
 
         # cannot assign Bytes[...] to Bytes[N] without going through convert()
         if other._length is UNKNOWN_LENGTH:
-            return False
+            return True
 
         return self._length >= other._length
 

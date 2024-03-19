@@ -727,7 +727,11 @@ def dummy_node_for_type(typ):
 
 
 def _check_assign_bytes(left, right):
-    if left.typ.maxlen is not None and right.typ.maxlen > left.typ.maxlen:  # pragma: nocover
+    if (
+        left.typ.maxlen is not None
+        and right.typ.maxlen is not None
+        and right.typ.maxlen > left.typ.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Cannot cast from {right.typ} to {left.typ}")
 
     # stricter check for zeroing a byte array.
