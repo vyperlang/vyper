@@ -1,6 +1,6 @@
 def test_import_flag_types(make_input_bundle, get_contract):
     lib1 = """
-import lib2 
+import lib2
 
 flag Roles:
     ADMIN
