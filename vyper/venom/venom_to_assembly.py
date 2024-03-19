@@ -483,9 +483,9 @@ class VenomCompiler:
         elif opcode == "sha3_64":
             assembly.extend(
                 [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "MSTORE",
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
                     "MSTORE",
                     *PUSH(64),
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
