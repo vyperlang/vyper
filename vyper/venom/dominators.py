@@ -64,11 +64,6 @@ class DominatorTree:
                     self.dominators[bb] = new_dominators
                     changed = True
 
-        # for bb in basic_blocks:
-        #     print(bb.label)
-        #     for dom in self.dominators[bb]:
-        #         print("    ", dom.label)
-
     def _compute_idoms(self):
         """
         Compute immediate dominators
@@ -85,11 +80,6 @@ class DominatorTree:
         for dom, target in self.idoms.items():
             self.dominated[target].add(dom)
 
-        # for dom, targets in self.dominated.items():
-        #     print(dom.label)
-        #     for t in targets:
-        #         print("    ", t.label)
-
     def _compute_df(self):
         """
         Compute dominance frontier
@@ -104,11 +94,6 @@ class DominatorTree:
                     while runner != self.idoms[bb]:
                         self.df[runner].add(bb)
                         runner = self.idoms[runner]
-
-        # for bb in self.dfs:
-        #     print(bb.label)
-        #     for df in self.df[bb]:
-        #         print("    ", df.label)
 
     def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> OrderedSet[IRBasicBlock]:
         """
