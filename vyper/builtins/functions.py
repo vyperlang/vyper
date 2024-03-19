@@ -367,7 +367,7 @@ class Slice(BuiltinFunctionT):
 
             # add 32 bytes to the buffer size bc word access might
             # be unaligned (see below)
-            if src.location == STORAGE:
+            if src.location.word_addressable:
                 buflen += 32
 
             # Get returntype string or bytes
@@ -394,8 +394,8 @@ class Slice(BuiltinFunctionT):
                 src_data = bytes_data_ptr(src)
 
             # general case. byte-for-byte copy
-            if src.location == STORAGE:
-                # because slice uses byte-addressing but storage
+            if src.location.word_addressable:
+                # because slice uses byte-addressing but storage/tstorage
                 # is word-aligned, this algorithm starts at some number
                 # of bytes before the data section starts, and might copy
                 # an extra word. the pseudocode is:
