@@ -36,7 +36,7 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.evm.address_space import MEMORY, STORAGE
+from vyper.evm.address_space import MEMORY
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
@@ -828,17 +828,18 @@ class ECMul(_ECArith):
     _precompile = 0x7
 
 
-def _generic_element_getter(op):
+def _generic_element_getter(loc):
     def f(index):
+        scale = loc.word_scale
+        # Indexing is done by words
+        # - add 'scale' to skip the length slot
+        # - for byte-addressable locations multiply by 32
+        # - for word-addressable locations multiply by 1 which will be optimized out
         return IRnode.from_list(
-            [op, ["add", "_sub", ["add", 32, ["mul", 32, index]]]], typ=INT128_T
+            [loc.load_op, ["add", "_sub", ["add", scale, ["mul", scale, index]]]], typ=INT128_T
         )
 
     return f
-
-
-def _storage_element_getter(index):
-    return IRnode.from_list(["sload", ["add", "_sub", ["add", 1, index]]], typ=INT128_T)
 
 
 class Extract32(BuiltinFunctionT):
@@ -875,18 +876,10 @@ class Extract32(BuiltinFunctionT):
         sub, index = args
         ret_type = kwargs["output_type"]
 
-        # Get length and specific element
-        if sub.location == STORAGE:
-            lengetter = IRnode.from_list(["sload", "_sub"], typ=INT128_T)
-            elementgetter = _storage_element_getter
-
-        else:
-            op = sub.location.load_op
-            lengetter = IRnode.from_list([op, "_sub"], typ=INT128_T)
-            elementgetter = _generic_element_getter(op)
+        lengetter = IRnode.from_list([sub.location.load_op, "_sub"], typ=INT128_T)
+        elementgetter = _generic_element_getter(sub.location)
 
         # TODO rewrite all this with cache_when_complex and bitshifts
-
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
             o = IRnode.from_list(
