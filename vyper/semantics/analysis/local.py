@@ -637,7 +637,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         return "module"
 
     def visit(self, node, typ):
-        if not isinstance(typ, TYPE_T):
+        if isinstance(typ, TYPE_T):
+            node._metadata["type"] = typ
+        else:
             # note: infer_type caches the resolved type on node._metadata["type"]
             typ = infer_type(node, expected_type=typ)
 
