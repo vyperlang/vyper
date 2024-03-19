@@ -139,8 +139,6 @@ class MakeSSA(IRPass):
                 entry.instructions.remove(inst)
             elif new_ops_len == 2:
                 entry.instructions.remove(inst)
-                # inst.opcode = "store"
-                # inst.operands = [new_ops[1]]
             else:
                 inst.operands = new_ops
 
