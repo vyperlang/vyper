@@ -206,7 +206,8 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # (lib1).MyFlag.foo
+        # check if we have a flag constant, e.g.
+        # [lib1].MyFlag.FOO
         if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]
