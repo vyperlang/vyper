@@ -8,7 +8,7 @@ import vyper.compiler.output as output
 from vyper.compiler.input_bundle import FileInput, InputBundle, PathLike
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, anchor_evm_version
+from vyper.evm.opcodes import anchor_evm_version
 from vyper.typing import ContractPath, OutputFormats, StorageLayout
 
 OUTPUT_FORMATS = {

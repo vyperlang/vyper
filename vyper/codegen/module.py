@@ -229,7 +229,9 @@ def _selector_section_dense(external_functions, module_t):
             error_msg="bad calldatasize or callvalue",
         )
         x.append(check_entry_conditions)
-        x.append(["jump", function_label])
+        jump_targets = [func.args[0].value for func in function_irs]
+        jump_instr = IRnode.from_list(["djump", function_label, *jump_targets])
+        x.append(jump_instr)
         selector_section.append(b1.resolve(x))
 
     bucket_headers = ["data", "BUCKET_HEADERS"]

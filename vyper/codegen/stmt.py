@@ -9,7 +9,6 @@ from vyper.codegen.core import (
     clamp_le,
     get_dyn_array_count,
     get_element_ptr,
-    getpos,
     make_byte_array_copier,
     make_setter,
     zero_pad,
@@ -42,7 +41,7 @@ class Stmt:
             assert isinstance(self.ir_node, IRnode), self.ir_node
 
         self.ir_node.annotation = self.stmt.get("node_source_code")
-        self.ir_node.source_pos = getpos(self.stmt)
+        self.ir_node.ast_source = self.stmt
 
     def parse_Expr(self):
         return Expr(self.stmt.value, self.context, is_stmt=True).ir_node
@@ -197,20 +196,19 @@ class Stmt:
         assert "type" in self.stmt.target.target._metadata
         target_type = self.stmt.target.target._metadata["type"]
 
-        # Get arg0
         range_call: vy_ast.Call = self.stmt.iter
         assert isinstance(range_call, vy_ast.Call)
-        args_len = len(range_call.args)
-        if args_len == 1:
-            arg0, arg1 = (IRnode.from_list(0, typ=target_type), range_call.args[0])
-        elif args_len == 2:
-            arg0, arg1 = range_call.args
-        else:  # pragma: nocover
-            raise TypeCheckFailure("unreachable: bad # of arguments to range()")
 
         with self.context.range_scope():
-            start = Expr.parse_value_expr(arg0, self.context)
-            end = Expr.parse_value_expr(arg1, self.context)
+            args = [Expr.parse_value_expr(arg, self.context) for arg in range_call.args]
+            if len(args) == 1:
+                start = IRnode.from_list(0, typ=target_type)
+                end = args[0]
+            elif len(args) == 2:
+                start, end = args
+            else:  # pragma: nocover
+                raise TypeCheckFailure("unreachable")
+
             kwargs = {
                 s.arg: Expr.parse_value_expr(s.value, self.context) for s in range_call.keywords
             }
@@ -300,8 +298,8 @@ class Stmt:
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
+        right = Expr.parse_value_expr(self.stmt.value, self.context)
 
-        sub = Expr.parse_value_expr(self.stmt.value, self.context)
         if not target.typ._is_prim_word:
             # because of this check, we do not need to check for
             # make_setter references lhs<->rhs as in parse_Assign -
@@ -309,20 +307,9 @@ class Stmt:
             raise TypeCheckFailure("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
-            rhs = Expr.parse_value_expr(
-                vy_ast.BinOp(
-                    left=IRnode.from_list(LOAD(target), typ=target.typ),
-                    right=sub,
-                    op=self.stmt.op,
-                    lineno=self.stmt.lineno,
-                    col_offset=self.stmt.col_offset,
-                    end_lineno=self.stmt.end_lineno,
-                    end_col_offset=self.stmt.end_col_offset,
-                    node_source_code=self.stmt.get("node_source_code"),
-                ),
-                self.context,
-            )
-            return b.resolve(STORE(target, rhs))
+            left = IRnode.from_list(LOAD(target), typ=target.typ)
+            new_val = Expr.handle_binop(self.stmt.op, left, right, self.context)
+            return b.resolve(STORE(target, new_val))
 
     def parse_Continue(self):
         return IRnode.from_list("continue")
