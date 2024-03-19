@@ -23,5 +23,4 @@ def test_duplicate_operands():
     bb.append_instruction("stop")
 
     asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
-    print(asm)
     assert asm == ["PUSH1", 10, "DUP1", "DUP1", "ADD", "MUL", "STOP"]
