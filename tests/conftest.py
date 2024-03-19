@@ -165,7 +165,7 @@ def tester(gas_limit):
 
 @pytest.fixture(scope="module")
 def revm_env(gas_limit):
-    return RevmEnv(gas_limit)
+    return RevmEnv(gas_limit, tracing=False)
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -444,6 +444,14 @@ def deploy_blueprint_for(w3, optimize, output_formats):
         return _deploy_blueprint_for(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return deploy_blueprint_for
+
+
+@pytest.fixture(scope="module")
+def deploy_blueprint_revm(revm_env, optimize, output_formats):
+    def deploy_blueprint_revm(source_code, *args, **kwargs):
+        return revm_env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
+
+    return deploy_blueprint_revm
 
 
 # TODO: this should not be a fixture.

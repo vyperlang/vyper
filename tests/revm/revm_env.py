@@ -6,19 +6,20 @@ from eth_tester.backends.pyevm.main import get_default_account_keys
 from eth_tester.exceptions import TransactionFailed
 from eth_typing import HexAddress
 from eth_utils import to_checksum_address
-from pyrevm import EVM, Env
+from hexbytes import HexBytes
+from pyrevm import EVM
 
 from tests.revm.abi import abi_encode
 from tests.revm.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.compiler.settings import OptimizationLevel
+from vyper.utils import ERC5202_PREFIX
 
 
 class RevmEnv:
-    def __init__(self, gas_limit: int) -> None:
-        self.env = Env()
-        self.evm = EVM(env=self.env, gas_limit=gas_limit)
+    def __init__(self, gas_limit: int, tracing=False) -> None:
+        self.evm = EVM(gas_limit=gas_limit, tracing=tracing)
         self.bytecode: dict[HexAddress, str] = {}
         self.contracts: dict[HexAddress, ABIContract] = {}
         self._keys: list[PrivateKey] = get_default_account_keys()
@@ -38,7 +39,7 @@ class RevmEnv:
         self,
         to_address: HexAddress,
         sender: HexAddress,
-        data: list[int] | None,
+        data: bytes | None,
         value: int | None,
         # todo: use or remove arguments
         gas: int,
@@ -51,7 +52,7 @@ class RevmEnv:
             output = fn(
                 to=to_address,
                 caller=sender,
-                data=data,
+                calldata=data,
                 value=value,
                 # gas=gas,
                 # is_modifying=self.is_mutable,
@@ -59,12 +60,10 @@ class RevmEnv:
             )
             return bytes(output)
         except RuntimeError as e:
-            (cause,) = e.args
-            assert cause in ("Revert", "OutOfGas", "InvalidOperandOOG"), f"Unexpected error {e}"
-            raise TransactionFailed(cause)
+            raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: HexAddress):
-        return self.bytecode[address]
+        return self.evm.basic(address).code
 
     def register_contract(self, address: HexAddress, contract: "ABIContract"):
         self.contracts[address] = contract
@@ -77,31 +76,63 @@ class RevmEnv:
         *args,
         override_opt_level=None,
         input_bundle=None,
+        evm_version=None,
         **kwargs,
     ) -> ABIContract:
-        out = compile_code(
-            source_code,
-            # test that all output formats can get generated
-            output_formats=output_formats,
-            settings=Settings(
-                evm_version=kwargs.pop("evm_version", None), optimize=override_opt_level or optimize
-            ),
-            input_bundle=input_bundle,
-            show_gas_estimates=True,  # Enable gas estimates for testing
+        abi, bytecode = self._compile(
+            source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
         )
-
-        parse_vyper_source(source_code)  # Test grammar.
-        json.dumps(out["metadata"])  # test metadata is json serializable
-
-        abi = out["abi"]
-        bytecode = out["bytecode"]
         value = (
             kwargs.pop("value", 0) or kwargs.pop("value_in_eth", 0) * 10**18
         )  # Handle deploying with an eth value.
 
         return self.deploy(abi, bytecode, value, *args, **kwargs)
 
-    def deploy(self, abi: list[dict], bytecode: str, value: int, *args, **kwargs):
+    def _compile(
+        self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+    ):
+        out = compile_code(
+            source_code,
+            # test that all output formats can get generated
+            output_formats=output_formats,
+            settings=Settings(evm_version=evm_version, optimize=override_opt_level or optimize),
+            input_bundle=input_bundle,
+            show_gas_estimates=True,  # Enable gas estimates for testing
+        )
+        parse_vyper_source(source_code)  # Test grammar.
+        json.dumps(out["metadata"])  # test metadata is json serializable
+        return out["abi"], out["bytecode"]
+
+    def deploy_blueprint(
+        self,
+        source_code,
+        optimize,
+        output_formats,
+        *args,
+        override_opt_level=None,
+        input_bundle=None,
+        evm_version=None,
+        initcode_prefix=ERC5202_PREFIX,
+    ):
+        abi, bytecode = self._compile(
+            source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
+        )
+        bytecode = HexBytes(initcode_prefix) + HexBytes(bytecode)
+        bytecode_len = len(bytecode)
+        bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
+        # prepend a quick deploy preamble
+        deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
+        deploy_bytecode = HexBytes(deploy_preamble) + bytecode
+
+        deployer_abi = []  # just a constructor
+        deployer = self.deploy(deployer_abi, deploy_bytecode.hex())
+
+        def factory(address):
+            return ABIContractFactory.from_abi_dict(abi).at(self, address)
+
+        return deployer, factory
+
+    def deploy(self, abi: list[dict], bytecode: str, value=0, *args, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi=abi)
 
         initcode = bytes.fromhex(bytecode[2:])
@@ -110,9 +141,13 @@ class RevmEnv:
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
             initcode += abi_encode(ctor.signature, ctor._merge_kwargs(*args, **kwargs))
 
-        deployed_at = self.evm.deploy(
-            deployer=self.deployer, code=list(initcode), value=value, _abi=json.dumps(abi)
-        )
+        try:
+            deployed_at = self.evm.deploy(
+                deployer=self.deployer, code=list(initcode), value=value, _abi=json.dumps(abi)
+            )
+        except RuntimeError as e:
+            raise TransactionFailed(*e.args) from e
+
         address = to_checksum_address(deployed_at)
         self.bytecode[address] = bytecode
 

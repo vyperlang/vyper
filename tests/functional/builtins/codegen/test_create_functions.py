@@ -123,14 +123,12 @@ def test(_salt: bytes32) -> address:
     c = get_contract(code)
 
     salt = keccak(b"vyper")
-    assert HexBytes(c.test(salt)) == create2_address_of(
-        c.address, salt, eip1167_initcode(c.address)
-    )
+    result = c.test(salt)
+    assert HexBytes(result) == create2_address_of(c.address, salt, eip1167_initcode(c.address))
 
-    c.test(salt, transact={})
     # revert on collision
     with tx_failed():
-        c.test(salt, transact={})
+        c.test(salt)
 
 
 # test blueprints with various prefixes - 0xfe would block calls to the blueprint
@@ -164,18 +162,16 @@ def test2(target: address, salt: bytes32):
     self.created_address = create_from_blueprint(target, code_offset={prefix_len}, salt=salt)
     """
 
-    # deploy a foo so we can compare its bytecode with factory deployed version
+    # deploy a foo, so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code)
-    expected_runtime_code = revm_env.get_code(foo_contract.address)
-
     f, FooContract = deploy_blueprint_for(code, initcode_prefix=blueprint_prefix)
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={})
+    d.test(f.address)
 
     test = FooContract(d.created_address())
-    assert revm_env.get_code(test.address) == expected_runtime_code
+    assert revm_env.get_code(test.address) == revm_env.get_code(foo_contract.address)
     assert test.foo() == 123
 
     # extcodesize check
@@ -188,7 +184,7 @@ def test2(target: address, salt: bytes32):
     d.test2(f.address, salt, transact={})
 
     test = FooContract(d.created_address())
-    assert revm_env.get_code(test.address) == expected_runtime_code
+    assert revm_env.get_code(test.address) == revm_env.get_code(foo_contract.address)
     assert test.foo() == 123
 
     # check if the create2 address matches our offchain calculation
