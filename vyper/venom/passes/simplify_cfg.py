@@ -20,23 +20,23 @@ class SimplifyCFGPass(IRPass):
         # Update CFG
         a.cfg_out = b.cfg_out
         if len(b.cfg_out) > 0:
-            next = b.cfg_out.first()
-            next.remove_cfg_in(b)
-            next.add_cfg_in(a)
+            next_bb = b.cfg_out.first()
+            next_bb.remove_cfg_in(b)
+            next_bb.add_cfg_in(a)
 
         self.ctx.basic_blocks.remove(b)
 
     def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
-        next = b.cfg_out.first()
+        next_bb = b.cfg_out.first()
         jump_inst = a.instructions[-1]
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
-        jump_inst.operands[jump_inst.operands.index(b.label)] = next.label
+        jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
 
         # Update CFG
         a.remove_cfg_out(b)
-        a.add_cfg_out(next)
-        next.remove_cfg_in(b)
-        next.add_cfg_in(a)
+        a.add_cfg_out(next_bb)
+        next_bb.remove_cfg_in(b)
+        next_bb.add_cfg_in(a)
 
         self.ctx.basic_blocks.remove(b)
 
@@ -45,16 +45,20 @@ class SimplifyCFGPass(IRPass):
         DFS into the cfg and collapse blocks with a single predecessor to the predecessor
         """
         if len(bb.cfg_out) == 1:
-            next = bb.cfg_out.first()
-            if len(next.cfg_in) == 1:
-                self._merge_blocks(bb, next)
+            next_bb = bb.cfg_out.first()
+            if len(next_bb.cfg_in) == 1:
+                self._merge_blocks(bb, next_bb)
                 self._collapse_chained_blocks_r(bb)
                 return
         elif len(bb.cfg_out) > 1:
             bb_out = bb.cfg_out.copy()
-            for next in bb_out:
-                if len(next.cfg_in) == 1 and len(next.cfg_out) == 1 and len(next.instructions) == 1:
-                    self._merge_jump(bb, next)
+            for next_bb in bb_out:
+                if (
+                    len(next_bb.cfg_in) == 1
+                    and len(next_bb.cfg_out) == 1
+                    and len(next_bb.instructions) == 1
+                ):
+                    self._merge_jump(bb, next_bb)
                     self._collapse_chained_blocks_r(bb)
                     return
 
