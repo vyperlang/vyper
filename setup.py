@@ -15,7 +15,7 @@ extras_require = {
         "pytest-split>=0.7.0,<1.0",
         "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
-        "py-evm>=0.10.0b2,<0.11",
+        "py-evm>=0.10.0b4,<0.11",
         "web3==6.0.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
