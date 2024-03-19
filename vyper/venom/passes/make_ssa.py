@@ -7,6 +7,10 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class MakeSSA(IRPass):
+    """
+    This pass converts the function into Static Single Assignment (SSA) form.
+    """
+
     dom: DominatorTree
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
@@ -29,6 +33,9 @@ class MakeSSA(IRPass):
         return 0
 
     def _add_phi_nodes(self):
+        """
+        Add phi nodes to the function.
+        """
         self._compute_defs()
         self.work = {var: 0 for var in self.dom.dfs}
         self.has_already = {var: 0 for var in self.dom.dfs}
@@ -84,6 +91,9 @@ class MakeSSA(IRPass):
         return True
 
     def _rename_vars(self, basic_block: IRBasicBlock):
+        """
+        Rename variables in the basic block. This follows the placement of phi nodes.
+        """
         outs = []
         for inst in basic_block.instructions:
             new_ops = []
@@ -148,6 +158,9 @@ class MakeSSA(IRPass):
             self._remove_degenerate_phis(bb)
 
     def _compute_defs(self):
+        """
+        Compute the definition points of variables in the function.
+        """
         self.defs = {}
         for bb in self.dom.dfs:
             assignments = bb.get_assignments()
