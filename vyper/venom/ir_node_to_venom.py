@@ -194,8 +194,13 @@ def _handle_internal_func(
     _convert_ir_bb(ctx, ir.args[0].args[2], symbols)
 
 
-def _convert_ir_simple_node( ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Optional[IRVariable]:
-    args = reversed([_convert_ir_bb(ctx, arg, symbols) for arg in ir.args])
+def _convert_ir_simple_node(
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
+) -> Optional[IRVariable]:
+    # execute in order
+    args = [_convert_ir_bb(ctx, arg, symbols) for arg in ir.args]
+    # reverse for stack
+    args.reverse()
     return ctx.get_basic_block().append_instruction(ir.value, *args)  # type: ignore
 
 
