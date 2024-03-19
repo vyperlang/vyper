@@ -59,7 +59,7 @@ def pytest_addoption(parser):
         help="change optimization mode",
     )
     parser.addoption("--enable-compiler-debug-mode", action="store_true")
-    parser.addoption("--use-venom", action="store_true")
+    parser.addoption("--experimental-codegen", action="store_true")
 
     parser.addoption(
         "--evm-version",
@@ -93,15 +93,15 @@ def debug(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def venom_pipeline(pytestconfig):
+def experimental_codegen(pytestconfig):
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
 
 
 @pytest.fixture(autouse=True)
-def check_venom_xfail(request, venom_pipeline):
-    if not venom_pipeline:
+def check_venom_xfail(request, experimental_codegen):
+    if not experimental_codegen:
         return
 
     marker = request.node.get_closest_marker("venom_xfail")
@@ -113,9 +113,9 @@ def check_venom_xfail(request, venom_pipeline):
 
 
 @pytest.fixture
-def venom_xfail(request, venom_pipeline):
+def venom_xfail(request, experimental_codegen):
     def _xfail(*args, **kwargs):
-        if not venom_pipeline:
+        if not experimental_codegen:
             return
         request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
 
@@ -355,7 +355,7 @@ def _get_contract(
     w3,
     source_code,
     optimize,
-    venom_pipeline,
+    experimental_codegen,
     output_formats,
     *args,
     override_opt_level=None,
@@ -364,7 +364,7 @@ def _get_contract(
 ):
     settings = Settings()
     settings.optimize = override_opt_level or optimize
-    settings.experimental_codegen = venom_pipeline
+    settings.experimental_codegen = experimental_codegen
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
@@ -388,20 +388,20 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize, venom_pipeline, output_formats):
+def get_contract(w3, optimize, experimental_codegen, output_formats):
     def fn(source_code, *args, **kwargs):
         return _get_contract(
-            w3, source_code, optimize, venom_pipeline, output_formats, *args, **kwargs
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return fn
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation(tester, w3, optimize, venom_pipeline, output_formats):
+def get_contract_with_gas_estimation(tester, w3, optimize, experimental_codegen, output_formats):
     def get_contract_with_gas_estimation(source_code, *args, **kwargs):
         contract = _get_contract(
-            w3, source_code, optimize, venom_pipeline, output_formats, *args, **kwargs
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
         for abi_ in contract._classic_contract.functions.abi:
             if abi_["type"] == "function":
@@ -412,17 +412,19 @@ def get_contract_with_gas_estimation(tester, w3, optimize, venom_pipeline, outpu
 
 
 @pytest.fixture
-def get_contract_with_gas_estimation_for_constants(w3, optimize, venom_pipeline, output_formats):
+def get_contract_with_gas_estimation_for_constants(
+    w3, optimize, experimental_codegen, output_formats
+):
     def get_contract_with_gas_estimation_for_constants(source_code, *args, **kwargs):
         return _get_contract(
-            w3, source_code, optimize, venom_pipeline, output_formats, *args, **kwargs
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return get_contract_with_gas_estimation_for_constants
 
 
 @pytest.fixture(scope="module")
-def get_contract_module(optimize, venom_pipeline, output_formats):
+def get_contract_module(optimize, experimental_codegen, output_formats):
     """
     This fixture is used for Hypothesis tests to ensure that
     the same contract is called over multiple runs of the test.
@@ -436,7 +438,7 @@ def get_contract_module(optimize, venom_pipeline, output_formats):
 
     def get_contract_module(source_code, *args, **kwargs):
         return _get_contract(
-            w3, source_code, optimize, venom_pipeline, output_formats, *args, **kwargs
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return get_contract_module
@@ -446,14 +448,14 @@ def _deploy_blueprint_for(
     w3,
     source_code,
     optimize,
-    venom_pipeline,
+    experimental_codegen,
     output_formats,
     initcode_prefix=ERC5202_PREFIX,
     **kwargs,
 ):
     settings = Settings()
     settings.optimize = optimize
-    settings.experimental_codegen = venom_pipeline
+    settings.experimental_codegen = experimental_codegen
     out = compiler.compile_code(
         source_code,
         output_formats=output_formats,
@@ -489,10 +491,10 @@ def _deploy_blueprint_for(
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_for(w3, optimize, venom_pipeline, output_formats):
+def deploy_blueprint_for(w3, optimize, experimental_codegen, output_formats):
     def deploy_blueprint_for(source_code, *args, **kwargs):
         return _deploy_blueprint_for(
-            w3, source_code, optimize, venom_pipeline, output_formats, *args, **kwargs
+            w3, source_code, optimize, experimental_codegen, output_formats, *args, **kwargs
         )
 
     return deploy_blueprint_for
