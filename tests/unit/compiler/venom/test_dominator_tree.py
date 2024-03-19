@@ -14,12 +14,12 @@ def _add_bb(
 ) -> IRBasicBlock:
     bb = bb if bb is not None else IRBasicBlock(label, ctx)
     ctx.append_basic_block(bb)
-    cgf_outs_len = len(cfg_outs)
-    if cgf_outs_len == 0:
+    cfg_outs_len = len(cfg_outs)
+    if cfg_outs_len == 0:
         bb.append_instruction("stop")
-    elif cgf_outs_len == 1:
+    elif cfg_outs_len == 1:
         bb.append_instruction("jmp", cfg_outs[0])
-    elif cgf_outs_len == 2:
+    elif cfg_outs_len == 2:
         bb.append_instruction("jnz", IRLiteral(1), cfg_outs[0], cfg_outs[1])
     else:
         raise CompilerPanic("Invalid number of CFG outs")
