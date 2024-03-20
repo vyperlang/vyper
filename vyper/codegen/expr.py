@@ -177,7 +177,11 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
-            ret.passthrough_metadata["alloca"] = (self.expr.id, var.pos, var.typ.memory_bytes_required)
+            ret.passthrough_metadata["alloca"] = (
+                self.expr.id,
+                var.pos,
+                var.typ.memory_bytes_required,
+            )
             ret._referenced_variables = {var}
             return ret
 
@@ -455,9 +459,10 @@ class Expr:
 
         ret = ["seq"]
 
-        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
-            "haystack"
-        ) as (b2, right):
+        with (
+            left.cache_when_complex("needle") as (b1, left),
+            right.cache_when_complex("haystack") as (b2, right),
+        ):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time
