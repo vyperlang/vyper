@@ -342,8 +342,7 @@ class VenomCompiler:
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
         assembly: list[str | int] = []
-        if next_liveness is None:
-            next_liveness = OrderedSet()
+        next_liveness = next_liveness or OrderedSet()
         opcode = inst.opcode
 
         #
