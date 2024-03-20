@@ -1,4 +1,5 @@
 from typing import Any
+from vyper.compiler.settings import OptimizationLevel
 
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
@@ -89,7 +90,7 @@ class VenomCompiler:
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
 
-    def generate_evm(self, no_optimize: bool = False) -> list[str]:
+    def generate_evm(self, optimization_level: OptimizationLevel) -> list[str]:
         self.visited_instructions = OrderedSet()
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
@@ -143,8 +144,7 @@ class VenomCompiler:
 
             asm.extend(list(data_segments.values()))
 
-        if no_optimize is False:
-            optimize_assembly(top_asm)
+        optimize_assembly(top_asm, optimization_level)
 
         return top_asm
 
