@@ -110,7 +110,7 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
         if isinstance(op, str) and not isinstance(op, Instruction):
-            ret.append(Instruction(op, inst.source_pos, inst.error_msg))
+            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
         else:
             ret.append(op)
     return ret  # type: ignore

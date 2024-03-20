@@ -31,7 +31,7 @@ class IRFunction:
     last_variable: int
 
     # Used during code generation
-    _source_pos: list[int]
+    _ast_source: list[int]
     _error_msg: list[str]
 
     def __init__(self, name: IRLabel = None) -> None:
@@ -47,7 +47,7 @@ class IRFunction:
         self.last_label = 0
         self.last_variable = 0
 
-        self._source_pos = []
+        self._ast_source = []
         self._error_msg = []
 
         self.add_entry_point(name)
@@ -211,18 +211,18 @@ class IRFunction:
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
-            self._source_pos.append(ir.ast_source)
+            self._ast_source.append(ir.ast_source)
             self._error_msg.append(ir.error_msg)
 
     def pop_source(self):
-        assert len(self._source_pos) > 0, "Empty source stack"
-        self._source_pos.pop()
+        assert len(self._ast_source) > 0, "Empty source stack"
+        self._ast_source.pop()
         assert len(self._error_msg) > 0, "Empty error stack"
         self._error_msg.pop()
 
     @property
-    def source_pos(self) -> Optional[int]:
-        return self._source_pos[-1] if len(self._source_pos) > 0 else None
+    def ast_source(self) -> Optional[int]:
+        return self._ast_source[-1] if len(self._ast_source) > 0 else None
 
     @property
     def error_msg(self) -> Optional[str]:
