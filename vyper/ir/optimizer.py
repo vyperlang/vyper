@@ -91,7 +91,7 @@ def _flip_comparison_op(opname):
         return opname.replace("g", "l")
     if "l" in opname:
         return opname.replace("l", "g")
-    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: notest
+    raise CompilerPanic(f"bad comparison op {opname}")  # pragma: nocover
 
 
 # some annotations are really long. shorten them (except maybe in "verbose" mode?)
@@ -304,7 +304,7 @@ def _optimize_binop(binop, args, ann, parent_op):
             # -1 | x == -1
             return finalize(args[1].value, [])
 
-        raise CompilerPanic("unreachable")  # pragma: notest
+        raise CompilerPanic("unreachable")  # pragma: nocover
 
     # -1 - x == ~x (definition of two's complement)
     if binop == "sub" and _int(args[0], SIGNED) == -1:
@@ -436,10 +436,12 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     value = node.value
     typ = node.typ
     location = node.location
-    source_pos = node.source_pos
+    ast_source = node.ast_source
     error_msg = node.error_msg
     annotation = node.annotation
     add_gas_estimate = node.add_gas_estimate
+    is_self_call = node.is_self_call
+    passthrough_metadata = node.passthrough_metadata
 
     changed = False
 
@@ -458,10 +460,12 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
             ir_builder,
             typ=typ,
             location=location,
-            source_pos=source_pos,
+            ast_source=ast_source,
             error_msg=error_msg,
             annotation=annotation,
             add_gas_estimate=add_gas_estimate,
+            is_self_call=is_self_call,
+            passthrough_metadata=passthrough_metadata,
         )
 
         if should_check_symbols:
@@ -548,7 +552,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
         if _evm_int(argz[0]) == 0:
             raise StaticAssertionException(
                 f"assertion found to fail at compile time. (hint: did you mean `raise`?) {node}",
-                source_pos,
+                ast_source,
             )
         else:
             changed = True
@@ -611,7 +615,7 @@ def _merge_memzero(argz):
             changed = True
             new_ir = IRnode.from_list(
                 ["calldatacopy", initial_offset, "calldatasize", total_length],
-                source_pos=mstore_nodes[0].source_pos,
+                ast_source=mstore_nodes[0].ast_source,
             )
             # replace first zero'ing operation with optimized node and remove the rest
             argz[idx] = new_ir
@@ -654,7 +658,7 @@ def _rewrite_mstore_dload(argz):
             dst = arg.args[0]
             src = arg.args[1].args[0]
             len_ = 32
-            argz[i] = IRnode.from_list(["dloadbytes", dst, src, len_], source_pos=arg.source_pos)
+            argz[i] = IRnode.from_list(["dloadbytes", dst, src, len_], ast_source=arg.ast_source)
             changed = True
     return changed
 
@@ -662,10 +666,10 @@ def _rewrite_mstore_dload(argz):
 def _merge_mload(argz):
     if not version_check(begin="cancun"):
         return False
-    return _merge_load(argz, "mload", "mcopy")
+    return _merge_load(argz, "mload", "mcopy", allow_overlap=False)
 
 
-def _merge_load(argz, _LOAD, _COPY):
+def _merge_load(argz, _LOAD, _COPY, allow_overlap=True):
     # look for sequential operations copying from X to Y
     # and merge them into a single copy operation
     changed = False
@@ -689,9 +693,14 @@ def _merge_load(argz, _LOAD, _COPY):
                 initial_dst_offset = dst_offset
                 initial_src_offset = src_offset
                 idx = i
+
+            # dst and src overlap, discontinue the optimization
+            has_overlap = initial_src_offset < initial_dst_offset < src_offset + 32
+
             if (
                 initial_dst_offset + total_length == dst_offset
                 and initial_src_offset + total_length == src_offset
+                and (allow_overlap or not has_overlap)
             ):
                 mstore_nodes.append(ir_node)
                 total_length += 32
@@ -707,7 +716,7 @@ def _merge_load(argz, _LOAD, _COPY):
             changed = True
             new_ir = IRnode.from_list(
                 [_COPY, initial_dst_offset, initial_src_offset, total_length],
-                source_pos=mstore_nodes[0].source_pos,
+                ast_source=mstore_nodes[0].ast_source,
             )
             # replace first copy operation with optimized node and remove the rest
             argz[idx] = new_ir

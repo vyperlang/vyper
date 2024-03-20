@@ -28,14 +28,6 @@ class AddrSpace:
     # TODO maybe make positional instead of defaulting to None
     store_op: Optional[str] = None
 
-    @property
-    def word_addressable(self) -> bool:
-        return self.word_scale == 1
-
-    @property
-    def byte_addressable(self) -> bool:
-        return self.word_scale == 32
-
 
 # alternative:
 # class Memory(AddrSpace):

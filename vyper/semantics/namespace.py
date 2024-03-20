@@ -1,12 +1,7 @@
 import contextlib
-import re
 
-from vyper.exceptions import (
-    CompilerPanic,
-    NamespaceCollision,
-    StructureException,
-    UndeclaredDefinition,
-)
+from vyper.ast.identifiers import validate_identifier
+from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 
 
@@ -50,8 +45,8 @@ class Namespace(dict):
 
     def __getitem__(self, key):
         if key not in self:
-            suggestions_str = get_levenshtein_error_suggestions(key, self, 0.2)
-            raise UndeclaredDefinition(f"'{key}' has not been declared. {suggestions_str}")
+            hint = get_levenshtein_error_suggestions(key, self, 0.2)
+            raise UndeclaredDefinition(f"'{key}' has not been declared.", hint=hint)
         return super().__getitem__(key)
 
     def __enter__(self):
@@ -94,13 +89,17 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            obj = super().__getitem__(attr)
-            raise NamespaceCollision(f"'{attr}' has already been declared as a {obj}")
+            prev = super().__getitem__(attr)
+            prev_decl = getattr(prev, "decl_node", None)
+            msg = f"'{attr}' has already been declared"
+            if prev_decl is None:
+                msg += " as a {prev}"
+            raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
 def get_namespace():
     """
-    Get the active namespace object.
+    Get the global namespace object.
     """
     global _namespace
     try:
@@ -121,111 +120,3 @@ def override_global_namespace(ns):
     finally:
         # unclobber
         _namespace = tmp
-
-
-def validate_identifier(attr):
-    if not re.match("^[_a-zA-Z][a-zA-Z0-9_]*$", attr):
-        raise StructureException(f"'{attr}' contains invalid character(s)")
-    if attr.lower() in RESERVED_KEYWORDS:
-        raise StructureException(f"'{attr}' is a reserved keyword")
-
-
-# https://docs.python.org/3/reference/lexical_analysis.html#keywords
-# note we don't technically need to block all python reserved keywords,
-# but do it for hygiene
-_PYTHON_RESERVED_KEYWORDS = {
-    "False",
-    "None",
-    "True",
-    "and",
-    "as",
-    "assert",
-    "async",
-    "await",
-    "break",
-    "class",
-    "continue",
-    "def",
-    "del",
-    "elif",
-    "else",
-    "except",
-    "finally",
-    "for",
-    "from",
-    "global",
-    "if",
-    "import",
-    "in",
-    "is",
-    "lambda",
-    "nonlocal",
-    "not",
-    "or",
-    "pass",
-    "raise",
-    "return",
-    "try",
-    "while",
-    "with",
-    "yield",
-}
-_PYTHON_RESERVED_KEYWORDS = {s.lower() for s in _PYTHON_RESERVED_KEYWORDS}
-
-# Cannot be used for variable or member naming
-RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
-    # decorators
-    "public",
-    "external",
-    "nonpayable",
-    "constant",
-    "immutable",
-    "transient",
-    "internal",
-    "payable",
-    "nonreentrant",
-    # "class" keywords
-    "interface",
-    "struct",
-    "event",
-    "enum",
-    # EVM operations
-    "unreachable",
-    # special functions (no name mangling)
-    "init",
-    "_init_",
-    "___init___",
-    "____init____",
-    "default",
-    "_default_",
-    "___default___",
-    "____default____",
-    # more control flow and special operations
-    "range",
-    # more special operations
-    "indexed",
-    # denominations
-    "ether",
-    "wei",
-    "finney",
-    "szabo",
-    "shannon",
-    "lovelace",
-    "ada",
-    "babbage",
-    "gwei",
-    "kwei",
-    "mwei",
-    "twei",
-    "pwei",
-    # sentinal constant values
-    # TODO remove when these are removed from the language
-    "zero_address",
-    "empty_bytes32",
-    "max_int128",
-    "min_int128",
-    "max_decimal",
-    "min_decimal",
-    "max_uint256",
-    "zero_wei",
-}

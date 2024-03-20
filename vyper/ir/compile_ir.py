@@ -1,11 +1,15 @@
 import copy
 import functools
 import math
+from dataclasses import dataclass
+
+import cbor2
 
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
+from vyper.ir.optimizer import COMMUTATIVE_OPS
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
 
@@ -50,8 +54,8 @@ def mksymbol(name=""):
     return f"_sym_{name}{_next_symbol}"
 
 
-def mkdebug(pc_debugger, source_pos):
-    i = Instruction("DEBUG", source_pos)
+def mkdebug(pc_debugger, ast_source):
+    i = Instruction("DEBUG", ast_source)
     i.pc_debugger = pc_debugger
     return [i]
 
@@ -129,7 +133,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             # works for both internal and external exit_to
             more_args = ["pass" if t.value == "return_pc" else t for t in args[1:]]
             _t.append(["goto", dest] + more_args)
-            ir_node.args = IRnode.from_list(_t, source_pos=ir_node.source_pos).args
+            ir_node.args = IRnode.from_list(_t, ast_source=ir_node.ast_source).args
 
     if ir_node.value == "label":
         label_params = set(t.value for t in ir_node.args[1].args)
@@ -161,7 +165,7 @@ def _add_postambles(asm_ops):
         # insert the postambles *before* runtime code
         # so the data section of the runtime code can't bork the postambles.
         runtime = None
-        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], _RuntimeHeader):
+        if isinstance(asm_ops[-1], list) and isinstance(asm_ops[-1][0], RuntimeHeader):
             runtime = asm_ops.pop()
 
         # for some reason there might not be a STOP at the end of asm_ops.
@@ -183,14 +187,11 @@ class Instruction(str):
     def __new__(cls, sstr, *args, **kwargs):
         return super().__new__(cls, sstr)
 
-    def __init__(self, sstr, source_pos=None, error_msg=None):
+    def __init__(self, sstr, ast_source=None, error_msg=None):
         self.error_msg = error_msg
         self.pc_debugger = False
 
-        if source_pos is not None:
-            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = source_pos
-        else:
-            self.lineno, self.col_offset, self.end_lineno, self.end_col_offset = [None] * 4
+        self.ast_source = ast_source
 
 
 def apply_line_numbers(func):
@@ -200,7 +201,7 @@ def apply_line_numbers(func):
         ret = func(*args, **kwargs)
 
         new_ret = [
-            Instruction(i, code.source_pos, code.error_msg)
+            Instruction(i, code.ast_source, code.error_msg)
             if isinstance(i, str) and not isinstance(i, Instruction)
             else i
             for i in ret
@@ -226,7 +227,7 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
     _relocate_segments(res)
 
     if optimize != OptimizationLevel.NONE:
-        _optimize_assembly(res)
+        optimize_assembly(res)
     return res
 
 
@@ -381,8 +382,8 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     # }
     elif code.value == "repeat":
         o = []
-        if len(code.args) != 5:
-            raise CompilerPanic("bad number of repeat args")  # pragma: notest
+        if len(code.args) != 5:  # pragma: nocover
+            raise CompilerPanic("bad number of repeat args")
 
         i_name = code.args[0]
         start = code.args[1]
@@ -412,7 +413,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
                 )
             )
             # stack: i, rounds, rounds_bound
-            # assert rounds <= rounds_bound
+            # assert 0 <= rounds <= rounds_bound (for rounds_bound < 2**255)
             # TODO this runtime assertion shouldn't fail for
             # internally generated repeats.
             o.extend(["DUP2", "GT"] + _assert_false())
@@ -507,9 +508,9 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
     elif code.value == "deploy":
         memsize = code.args[0].value  # used later to calculate _mem_deploy_start
         ir = code.args[1]
-        padding = code.args[2].value
+        immutables_len = code.args[2].value
         assert isinstance(memsize, int), "non-int memsize"
-        assert isinstance(padding, int), "non-int padding"
+        assert isinstance(immutables_len, int), "non-int immutables_len"
 
         runtime_begin = mksymbol("runtime_begin")
 
@@ -521,14 +522,14 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         o.extend(["_sym_subcode_size", runtime_begin, "_mem_deploy_start", "CODECOPY"])
 
         # calculate the len of runtime code
-        o.extend(["_OFST", "_sym_subcode_size", padding])  # stack: len
+        o.extend(["_OFST", "_sym_subcode_size", immutables_len])  # stack: len
         o.extend(["_mem_deploy_start"])  # stack: len mem_ofst
         o.extend(["RETURN"])
 
         # since the asm data structures are very primitive, to make sure
         # assembly_to_evm is able to calculate data offsets correctly,
         # we pass the memsize via magic opcodes to the subcode
-        subcode = [_RuntimeHeader(runtime_begin, memsize)] + subcode
+        subcode = [RuntimeHeader(runtime_begin, memsize, immutables_len)] + subcode
 
         # append the runtime code after the ctor code
         # `append(...)` call here is intentional.
@@ -672,7 +673,7 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         )
 
     elif code.value == "data":
-        data_node = [_DataHeader("_sym_" + code.args[0].value)]
+        data_node = [DataHeader("_sym_" + code.args[0].value)]
 
         for c in code.args[1:]:
             if isinstance(c.value, int):
@@ -697,6 +698,13 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
         for i, c in enumerate(reversed(code.args[1:])):
             o.extend(_compile_to_assembly(c, withargs, existing_labels, break_dest, height + i))
         o.extend(["_sym_" + code.args[0].value, "JUMP"])
+        return o
+    elif code.value == "djump":
+        o = []
+        # "djump" compiles to a raw EVM jump instruction
+        jump_target = code.args[0]
+        o.extend(_compile_to_assembly(jump_target, withargs, existing_labels, break_dest, height))
+        o.append("JUMP")
         return o
     # push a literal symbol
     elif code.value == "symbol":
@@ -754,37 +762,38 @@ def _compile_to_assembly(code, withargs=None, existing_labels=None, break_dest=N
 
     # inject debug opcode.
     elif code.value == "debugger":
-        return mkdebug(pc_debugger=False, source_pos=code.source_pos)
+        return mkdebug(pc_debugger=False, ast_source=code.ast_source)
     # inject debug opcode.
     elif code.value == "pc_debugger":
-        return mkdebug(pc_debugger=True, source_pos=code.source_pos)
+        return mkdebug(pc_debugger=True, ast_source=code.ast_source)
     else:  # pragma: no cover
         raise ValueError(f"Weird code element: {type(code)} {code}")
 
 
-def note_line_num(line_number_map, item, pos):
-    # Record line number attached to pos.
-    if isinstance(item, Instruction):
-        if item.lineno is not None:
-            offsets = (item.lineno, item.col_offset, item.end_lineno, item.end_col_offset)
-        else:
-            offsets = None
+def getpos(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
 
-        line_number_map["pc_pos_map"][pos] = offsets
+
+def note_line_num(line_number_map, pc, item):
+    # Record AST attached to pc
+    if isinstance(item, Instruction):
+        if (ast_node := item.ast_source) is not None:
+            ast_node = ast_node.get_original_node()
+            if hasattr(ast_node, "node_id"):
+                line_number_map["pc_raw_ast_map"][pc] = ast_node
 
         if item.error_msg is not None:
-            line_number_map["error_map"][pos] = item.error_msg
+            line_number_map["error_map"][pc] = item.error_msg
 
-    added_line_breakpoint = note_breakpoint(line_number_map, item, pos)
-    return added_line_breakpoint
+    note_breakpoint(line_number_map, pc, item)
 
 
-def note_breakpoint(line_number_map, item, pos):
-    # Record line number attached to pos.
+def note_breakpoint(line_number_map, pc, item):
+    # Record line number attached to pc
     if item == "DEBUG":
         # Is PC debugger, create PC breakpoint.
         if item.pc_debugger:
-            line_number_map["pc_breakpoints"].add(pos)
+            line_number_map["pc_breakpoints"].add(pc)
         # Create line number breakpoint.
         else:
             line_number_map["breakpoints"].add(item.lineno + 1)
@@ -798,18 +807,26 @@ def _prune_unreachable_code(assembly):
     # unreachable
     changed = False
     i = 0
-    while i < len(assembly) - 2:
-        instr = assembly[i]
-        if isinstance(instr, list):
-            instr = assembly[i][-1]
+    while i < len(assembly) - 1:
+        if assembly[i] in _TERMINAL_OPS:
+            # find the next jumpdest or sublist
+            for j in range(i + 1, len(assembly)):
+                next_is_jumpdest = (
+                    j < len(assembly) - 1
+                    and is_symbol(assembly[j])
+                    and assembly[j + 1] == "JUMPDEST"
+                )
+                next_is_list = isinstance(assembly[j], list)
+                if next_is_jumpdest or next_is_list:
+                    break
+            else:
+                # fixup an off-by-one if we made it to the end of the assembly
+                # without finding an jumpdest or sublist
+                j = len(assembly)
+            changed = j > i + 1
+            del assembly[i + 1 : j]
 
-        if assembly[i] in _TERMINAL_OPS and not (
-            is_symbol(assembly[i + 1]) or isinstance(assembly[i + 1], list)
-        ):
-            changed = True
-            del assembly[i + 1]
-        else:
-            i += 1
+        i += 1
 
     return changed
 
@@ -960,7 +977,7 @@ def _prune_unused_jumpdests(assembly):
             used_jumpdests.add(assembly[i])
 
     for item in assembly:
-        if isinstance(item, list) and isinstance(item[0], _DataHeader):
+        if isinstance(item, list) and isinstance(item[0], DataHeader):
             # add symbols used in data sections as they are likely
             # used for a jumptable.
             for t in item:
@@ -983,6 +1000,12 @@ def _stack_peephole_opts(assembly):
     changed = False
     i = 0
     while i < len(assembly) - 2:
+        if assembly[i : i + 3] == ["DUP1", "SWAP2", "SWAP1"]:
+            changed = True
+            del assembly[i + 2]
+            assembly[i] = "SWAP1"
+            assembly[i + 1] = "DUP2"
+            continue
         # usually generated by with statements that return their input like
         # (with x (...x))
         if assembly[i : i + 3] == ["DUP1", "SWAP1", "POP"]:
@@ -997,16 +1020,22 @@ def _stack_peephole_opts(assembly):
             changed = True
             del assembly[i]
             continue
+        if assembly[i : i + 2] == ["SWAP1", "SWAP1"]:
+            changed = True
+            del assembly[i : i + 2]
+        if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:
+            changed = True
+            del assembly[i]
         i += 1
 
     return changed
 
 
 # optimize assembly, in place
-def _optimize_assembly(assembly):
+def optimize_assembly(assembly):
     for x in assembly:
-        if isinstance(x, list) and isinstance(x[0], _RuntimeHeader):
-            _optimize_assembly(x)
+        if isinstance(x, list) and isinstance(x[0], RuntimeHeader):
+            optimize_assembly(x)
 
     for _ in range(1024):
         changed = False
@@ -1022,7 +1051,7 @@ def _optimize_assembly(assembly):
         if not changed:
             return
 
-    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: notest
+    raise CompilerPanic("infinite loop detected during assembly reduction")  # pragma: nocover
 
 
 def adjust_pc_maps(pc_maps, ofst):
@@ -1033,7 +1062,7 @@ def adjust_pc_maps(pc_maps, ofst):
     ret["breakpoints"] = pc_maps["breakpoints"].copy()
     ret["pc_breakpoints"] = {pc + ofst for pc in pc_maps["pc_breakpoints"]}
     ret["pc_jump_map"] = {k + ofst: v for (k, v) in pc_maps["pc_jump_map"].items()}
-    ret["pc_pos_map"] = {k + ofst: v for (k, v) in pc_maps["pc_pos_map"].items()}
+    ret["pc_raw_ast_map"] = {k + ofst: v for (k, v) in pc_maps["pc_raw_ast_map"].items()}
     ret["error_map"] = {k + ofst: v for (k, v) in pc_maps["error_map"].items()}
 
     return ret
@@ -1044,7 +1073,7 @@ SYMBOL_SIZE = 2  # size of a PUSH instruction for a code symbol
 
 def _data_to_evm(assembly, symbol_map):
     ret = bytearray()
-    assert isinstance(assembly[0], _DataHeader)
+    assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
         if is_symbol(item):
             symbol = symbol_map[item].to_bytes(SYMBOL_SIZE, "big")
@@ -1062,7 +1091,7 @@ def _data_to_evm(assembly, symbol_map):
 # predict what length of an assembly [data] node will be in bytecode
 def _length_of_data(assembly):
     ret = 0
-    assert isinstance(assembly[0], _DataHeader)
+    assert isinstance(assembly[0], DataHeader)
     for item in assembly[1:]:
         if is_symbol(item):
             ret += SYMBOL_SIZE
@@ -1077,18 +1106,19 @@ def _length_of_data(assembly):
     return ret
 
 
-class _RuntimeHeader:
-    def __init__(self, label, ctor_mem_size):
-        self.label = label
-        self.ctor_mem_size = ctor_mem_size
+@dataclass
+class RuntimeHeader:
+    label: str
+    ctor_mem_size: int
+    immutables_len: int
 
     def __repr__(self):
-        return f"<RUNTIME {self.label} mem @{self.ctor_mem_size}>"
+        return f"<RUNTIME {self.label} mem @{self.ctor_mem_size} imms @{self.immutables_len}>"
 
 
-class _DataHeader:
-    def __init__(self, label):
-        self.label = label
+@dataclass
+class DataHeader:
+    label: str
 
     def __repr__(self):
         return f"DATA {self.label}"
@@ -1103,11 +1133,11 @@ def _relocate_segments(assembly):
     code_segments = []
     for t in assembly:
         if isinstance(t, list):
-            if isinstance(t[0], _DataHeader):
+            if isinstance(t[0], DataHeader):
                 data_segments.append(t)
             else:
                 _relocate_segments(t)  # recurse
-                assert isinstance(t[0], _RuntimeHeader)
+                assert isinstance(t[0], RuntimeHeader)
                 code_segments.append(t)
         else:
             non_data_segments.append(t)
@@ -1118,28 +1148,28 @@ def _relocate_segments(assembly):
 
 
 # TODO: change API to split assembly_to_evm and assembly_to_source/symbol_maps
-def assembly_to_evm(assembly, pc_ofst=0, insert_vyper_signature=False):
+def assembly_to_evm(assembly, pc_ofst=0, insert_compiler_metadata=False):
     bytecode, source_maps, _ = assembly_to_evm_with_symbol_map(
-        assembly, pc_ofst=pc_ofst, insert_vyper_signature=insert_vyper_signature
+        assembly, pc_ofst=pc_ofst, insert_compiler_metadata=insert_compiler_metadata
     )
     return bytecode, source_maps
 
 
-def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=False):
+def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_compiler_metadata=False):
     """
     Assembles assembly into EVM
 
     assembly: list of asm instructions
     pc_ofst: when constructing the source map, the amount to offset all
              pcs by (no effect until we add deploy code source map)
-    insert_vyper_signature: whether to append vyper metadata to output
+    insert_compiler_metadata: whether to append vyper metadata to output
                             (should be true for runtime code)
     """
     line_number_map = {
         "breakpoints": set(),
         "pc_breakpoints": set(),
         "pc_jump_map": {0: "-"},
-        "pc_pos_map": {},
+        "pc_raw_ast_map": {},
         "error_map": {},
     }
 
@@ -1147,12 +1177,6 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
     symbol_map = {}
 
     runtime_code, runtime_code_start, runtime_code_end = None, None, None
-
-    bytecode_suffix = b""
-    if insert_vyper_signature:
-        # CBOR encoded: {"vyper": [major,minor,patch]}
-        bytecode_suffix += b"\xa1\x65vyper\x83" + bytes(list(version_tuple))
-        bytecode_suffix += len(bytecode_suffix).to_bytes(2, "big")
 
     # to optimize the size of deploy code - we want to use the smallest
     # PUSH instruction possible which can support all memory symbols
@@ -1162,7 +1186,7 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
     mem_ofst_size, ctor_mem_size = None, None
     max_mem_ofst = 0
     for i, item in enumerate(assembly):
-        if isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        if isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             assert runtime_code is None, "Multiple subcodes"
 
             assert ctor_mem_size is None
@@ -1181,10 +1205,13 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
     if runtime_code_end is not None:
         mem_ofst_size = calc_mem_ofst_size(runtime_code_end + max_mem_ofst)
 
+    data_section_lengths = []
+    immutables_len = None
+
     # go through the code, resolving symbolic locations
     # (i.e. JUMPDEST locations) to actual code locations
     for i, item in enumerate(assembly):
-        note_line_num(line_number_map, item, pc)
+        note_line_num(line_number_map, pc, item)
         if item == "DEBUG":
             continue  # skip debug
 
@@ -1223,18 +1250,41 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             # [_OFST, _sym_foo, bar] -> PUSH2 (foo+bar)
             # [_OFST, _mem_foo, bar] -> PUSHN (foo+bar)
             pc -= 1
-        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
+            # we are in initcode
             symbol_map[item[0].label] = pc
             # add source map for all items in the runtime map
             t = adjust_pc_maps(runtime_map, pc)
             for key in line_number_map:
                 line_number_map[key].update(t[key])
+            immutables_len = item[0].immutables_len
             pc += len(runtime_code)
-        elif isinstance(item, list) and isinstance(item[0], _DataHeader):
+            # grab lengths of data sections from the runtime
+            for t in item:
+                if isinstance(t, list) and isinstance(t[0], DataHeader):
+                    data_section_lengths.append(_length_of_data(t))
+
+        elif isinstance(item, list) and isinstance(item[0], DataHeader):
             symbol_map[item[0].label] = pc
             pc += _length_of_data(item)
         else:
             pc += 1
+
+    bytecode_suffix = b""
+    if insert_compiler_metadata:
+        # this will hold true when we are in initcode
+        assert immutables_len is not None
+        metadata = (
+            len(runtime_code),
+            data_section_lengths,
+            immutables_len,
+            {"vyper": version_tuple},
+        )
+        bytecode_suffix += cbor2.dumps(metadata)
+        # append the length of the footer, *including* the length
+        # of the length bytes themselves.
+        suffix_len = len(bytecode_suffix) + 2
+        bytecode_suffix += suffix_len.to_bytes(2, "big")
 
     pc += len(bytecode_suffix)
 
@@ -1287,9 +1337,9 @@ def assembly_to_evm_with_symbol_map(assembly, pc_ofst=0, insert_vyper_signature=
             ret.append(DUP_OFFSET + int(item[3:]))
         elif item[:4] == "SWAP":
             ret.append(SWAP_OFFSET + int(item[4:]))
-        elif isinstance(item, list) and isinstance(item[0], _RuntimeHeader):
+        elif isinstance(item, list) and isinstance(item[0], RuntimeHeader):
             ret.extend(runtime_code)
-        elif isinstance(item, list) and isinstance(item[0], _DataHeader):
+        elif isinstance(item, list) and isinstance(item[0], DataHeader):
             ret.extend(_data_to_evm(item, symbol_map))
         else:  # pragma: no cover
             # unreachable

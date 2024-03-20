@@ -1,11 +1,11 @@
 # validation utils for ast
-# TODO this really belongs in vyper/semantics/validation/utils
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import ArgumentException, CompilerPanic, StructureException
 
 
+# TODO this really belongs in vyper/semantics/validation/utils
 def validate_call_args(
     node: vy_ast.Call, arg_count: Union[int, tuple], kwargs: Optional[list] = None
 ) -> None:
@@ -95,20 +95,3 @@ def validate_call_args(
         if key.arg in kwargs_seen:
             raise ArgumentException(f"Duplicate keyword argument '{key.arg}'", key)
         kwargs_seen.add(key.arg)
-
-
-def validate_literal_nodes(vyper_module: vy_ast.Module) -> None:
-    """
-    Individually validate Vyper AST nodes.
-
-    Calls the `validate` method of each node to verify that literal nodes
-    do not contain invalid values.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top level Vyper AST node.
-    """
-    for node in vyper_module.get_descendants():
-        if hasattr(node, "validate"):
-            node.validate()

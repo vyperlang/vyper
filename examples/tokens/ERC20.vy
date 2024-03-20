@@ -1,22 +1,18 @@
-# @dev Implementation of ERC-20 token standard.
+#pragma version >0.3.10
+
+###########################################################################
+## THIS IS EXAMPLE CODE, NOT MEANT TO BE USED IN PRODUCTION! CAVEAT EMPTOR!
+###########################################################################
+
+# @dev example implementation of an ERC20 token
 # @author Takayuki Jimba (@yudetamago)
 # https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 
-from vyper.interfaces import ERC20
-from vyper.interfaces import ERC20Detailed
+from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
 
-implements: ERC20
-implements: ERC20Detailed
-
-event Transfer:
-    sender: indexed(address)
-    receiver: indexed(address)
-    value: uint256
-
-event Approval:
-    owner: indexed(address)
-    spender: indexed(address)
-    value: uint256
+implements: IERC20
+implements: IERC20Detailed
 
 name: public(String[32])
 symbol: public(String[32])
@@ -25,7 +21,7 @@ decimals: public(uint8)
 # NOTE: By declaring `balanceOf` as public, vyper automatically generates a 'balanceOf()' getter
 #       method to allow access to account balances.
 #       The _KeyType will become a required parameter for the getter and it will return _ValueType.
-#       See: https://vyper.readthedocs.io/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
+#       See: https://docs.vyperlang.org/en/v0.1.0-beta.8/types.html?highlight=getter#mappings
 balanceOf: public(HashMap[address, uint256])
 # By declaring `allowance` as public, vyper automatically generates the `allowance()` getter
 allowance: public(HashMap[address, HashMap[address, uint256]])
@@ -34,7 +30,7 @@ totalSupply: public(uint256)
 minter: address
 
 
-@external
+@deploy
 def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: uint256):
     init_supply: uint256 = _supply * 10 ** convert(_decimals, uint256)
     self.name = _name
@@ -43,7 +39,7 @@ def __init__(_name: String[32], _symbol: String[32], _decimals: uint8, _supply: 
     self.balanceOf[msg.sender] = init_supply
     self.totalSupply = init_supply
     self.minter = msg.sender
-    log Transfer(empty(address), msg.sender, init_supply)
+    log IERC20.Transfer(empty(address), msg.sender, init_supply)
 
 
 
@@ -58,7 +54,7 @@ def transfer(_to : address, _value : uint256) -> bool:
     #       so the following subtraction would revert on insufficient balance
     self.balanceOf[msg.sender] -= _value
     self.balanceOf[_to] += _value
-    log Transfer(msg.sender, _to, _value)
+    log IERC20.Transfer(msg.sender, _to, _value)
     return True
 
 
@@ -77,7 +73,7 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     # NOTE: vyper does not allow underflows
     #      so the following subtraction would revert on insufficient allowance
     self.allowance[_from][msg.sender] -= _value
-    log Transfer(_from, _to, _value)
+    log IERC20.Transfer(_from, _to, _value)
     return True
 
 
@@ -93,7 +89,7 @@ def approve(_spender : address, _value : uint256) -> bool:
     @param _value The amount of tokens to be spent.
     """
     self.allowance[msg.sender][_spender] = _value
-    log Approval(msg.sender, _spender, _value)
+    log IERC20.Approval(msg.sender, _spender, _value)
     return True
 
 
@@ -110,7 +106,7 @@ def mint(_to: address, _value: uint256):
     assert _to != empty(address)
     self.totalSupply += _value
     self.balanceOf[_to] += _value
-    log Transfer(empty(address), _to, _value)
+    log IERC20.Transfer(empty(address), _to, _value)
 
 
 @internal
@@ -124,7 +120,7 @@ def _burn(_to: address, _value: uint256):
     assert _to != empty(address)
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
-    log Transfer(_to, empty(address), _value)
+    log IERC20.Transfer(_to, empty(address), _value)
 
 
 @external

@@ -9,7 +9,7 @@ It is un-audited software, use with caution.
 ## Audit reports
 
 Vyper is constantly changing and improving.
-This means the lastest version available may not be audited.
+This means the latest version available may not be audited.
 We try to ensure the highest security code possible, but occasionally things slip through.
 
 ### Compiler Audits
@@ -48,7 +48,7 @@ https://github.com/vyperlang/vyper/security/advisories
 
 If you think you have found a security vulnerability with a project that has used Vyper,
 please report the vulnerability to the relevant project's security disclosure program prior
-to reporting to us. If one is not available, please email your vulnerability to security@vyperlang.org.
+to reporting to us. If one is not available, submit it at https://github.com/vyperlang/vyper/security/advisories.
 
 **Please Do Not Log An Issue** mentioning the vulnerability.
 

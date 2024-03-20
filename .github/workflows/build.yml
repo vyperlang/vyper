@@ -1,4 +1,4 @@
-name: Build and release artifacts
+name: Build artifacts
 
 on:
   workflow_dispatch:
@@ -8,8 +8,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
   release:
-    types: [released]
+    types: [published]  # releases and pre-releases (release candidates)
 
 defaults:
   run:
@@ -23,7 +24,7 @@ jobs:
         os: [ubuntu-20.04, macos-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -31,16 +32,17 @@ jobs:
             fetch-depth: 0
 
       - name: Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Generate Binary
         run: >-
-          pip install --no-binary pycryptodome . &&
+          pip install --no-binary pycryptodome --no-binary cbor2 . &&
           pip install pyinstaller &&
           make freeze
+
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -51,7 +53,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
@@ -59,7 +61,7 @@ jobs:
             fetch-depth: 0
 
       - name: Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -81,13 +83,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v3
         with:
           path: artifacts/
 
       - name: Upload assets
         # fun - artifacts are downloaded into "artifact/".
+        # TODO: this needs to be tested when upgrading to upload-artifact v4
         working-directory: artifacts/artifact
         run: |
           set -Eeuxo pipefail
@@ -98,6 +101,16 @@ jobs:
               -X POST \
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
               -H "Content-Type: application/octet-stream" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME}" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME/+/%2B}" \
               --data-binary "@${BIN_NAME}"
           done
+
+  # check build success for pull requests
+  build-success:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [windows-build, unix-build]
+    steps:
+      - name: check that all builds succeeded
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1

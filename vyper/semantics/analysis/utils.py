@@ -17,7 +17,7 @@ from vyper.exceptions import (
     ZeroDivisionException,
 )
 from vyper.semantics import types
-from vyper.semantics.analysis.base import ExprInfo, VarInfo
+from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
@@ -61,42 +61,42 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode) -> ExprInfo:
-        t = self.get_exact_type_from_node(node)
+    def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
+        t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
 
         # if it's a Name, we have varinfo for it
         if isinstance(node, vy_ast.Name):
-            varinfo = self.namespace[node.id]
-            return ExprInfo.from_varinfo(varinfo)
+            info = self.namespace[node.id]
+
+            if isinstance(info, VarInfo):
+                return ExprInfo.from_varinfo(info)
+
+            if isinstance(info, ModuleInfo):
+                return ExprInfo.from_moduleinfo(info)
+
+            if isinstance(info, VyperType):
+                return ExprInfo(TYPE_T(info))
+
+            raise CompilerPanic(f"unreachable! {info}", node)
 
         if isinstance(node, vy_ast.Attribute):
             # if it's an Attr, we check the parent exprinfo and
             # propagate the parent exprinfo members down into the new expr
             # note: Attribute(expr value, identifier attr)
 
-            name = node.attr
-            info = self.get_expr_info(node.value)
+            info = self.get_expr_info(node.value, is_callable=is_callable)
+            attr = node.attr
 
-            t = info.typ.get_member(name, node)
+            t = info.typ.get_member(attr, node)
 
             # it's a top-level variable
             if isinstance(t, VarInfo):
-                return ExprInfo.from_varinfo(t)
+                return ExprInfo.from_varinfo(t, attr=attr)
 
-            # it's something else, like my_struct.foo
-            return info.copy_with_type(t)
+            if isinstance(t, ModuleInfo):
+                return ExprInfo.from_moduleinfo(t, attr=attr)
 
-        if isinstance(node, vy_ast.Tuple):
-            # always use the most restrictive location re: modification
-            # kludge! for validate_modification in local analysis of Assign
-            types = [self.get_expr_info(n) for n in node.elements]
-            location = sorted((i.location for i in types), key=lambda k: k.value)[-1]
-            is_constant = any((getattr(i, "is_constant", False) for i in types))
-            is_immutable = any((getattr(i, "is_immutable", False) for i in types))
-
-            return ExprInfo(
-                t, location=location, is_constant=is_constant, is_immutable=is_immutable
-            )
+            return info.copy_with_type(t, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
@@ -130,8 +130,7 @@ class _ExprAnalyser:
     def get_possible_types_from_node(self, node, include_type_exprs=False):
         """
         Find all possible types for a given node.
-        If the node's metadata contains type information propagated from constant folding,
-        then that type is returned.
+        If the node's metadata contains type information, then that type is returned.
 
         Arguments
         ---------
@@ -181,6 +180,7 @@ class _ExprAnalyser:
 
     def types_from_Attribute(self, node):
         is_self_reference = node.get("value.id") == "self"
+
         # variable attribute, e.g. `foo.bar`
         t = self.get_exact_type_from_node(node.value, include_type_exprs=True)
         name = node.attr
@@ -192,22 +192,25 @@ class _ExprAnalyser:
 
         try:
             s = t.get_member(name, node)
-            if isinstance(s, VyperType):
+
+            if isinstance(s, (VyperType, TYPE_T)):
                 # ex. foo.bar(). bar() is a ContractFunctionT
                 return [s]
+
+            # general case. s is a VarInfo, e.g. self.foo
             if is_self_reference and (s.is_constant or s.is_immutable):
                 _raise_invalid_reference(name, node)
-            # general case. s is a VarInfo, e.g. self.foo
             return [s.typ]
-        except UnknownAttribute:
+
+        except UnknownAttribute as e:
             if not is_self_reference:
-                raise
+                raise e from None
             if name in self.namespace:
                 _raise_invalid_reference(name, node)
 
-            suggestions_str = get_levenshtein_error_suggestions(name, t.members, 0.4)
+            hint = get_levenshtein_error_suggestions(name, t.members, 0.4)
             raise UndeclaredDefinition(
-                f"Storage variable '{name}' has not been declared. {suggestions_str}", node
+                f"Storage variable '{name}' has not been declared.", node, hint=hint
             ) from None
 
     def types_from_BinOp(self, node):
@@ -222,7 +225,7 @@ class _ExprAnalyser:
             types_list = get_common_types(node.left, node.right)
 
         if (
-            isinstance(node.op, (vy_ast.Div, vy_ast.Mod))
+            isinstance(node.op, (vy_ast.Div, vy_ast.FloorDiv, vy_ast.Mod))
             and isinstance(node.right, vy_ast.Num)
             and not node.right.value
         ):
@@ -240,13 +243,13 @@ class _ExprAnalyser:
         # comparisons, e.g. `x < y`
 
         # TODO fixme circular import
-        from vyper.semantics.types.user import EnumT
+        from vyper.semantics.types.user import FlagT
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             left = self.get_possible_types_from_node(node.left)
             right = self.get_possible_types_from_node(node.right)
-            if any(isinstance(t, EnumT) for t in left):
+            if any(isinstance(t, FlagT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
@@ -269,11 +272,21 @@ class _ExprAnalyser:
             _validate_op(node, types_list, "validate_comparator")
         return [BoolT()]
 
+    def types_from_ExtCall(self, node):
+        call_node = node.value
+        return self._find_fn(call_node)(call_node)
+
+    def types_from_StaticCall(self, node):
+        call_node = node.value
+        return self._find_fn(call_node)(call_node)
+
     def types_from_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
         var = self.get_exact_type_from_node(node.func, include_type_exprs=True)
         return_value = var.fetch_call_return(node)
         if return_value:
+            if isinstance(return_value, list):
+                return return_value
             return [return_value]
         raise InvalidType(f"{var} did not return a value", node)
 
@@ -309,13 +322,31 @@ class _ExprAnalyser:
             )
         raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
 
+    def types_from_IfExp(self, node):
+        validate_expected_type(node.test, BoolT())
+        types_list = get_common_types(node.body, node.orelse)
+
+        if not types_list:
+            a = get_possible_types_from_node(node.body)[0]
+            b = get_possible_types_from_node(node.orelse)[0]
+            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+
+        return types_list
+
     def types_from_List(self, node):
         # literal array
         if _is_empty_list(node):
-            # empty list literal `[]`
             ret = []
-            # subtype can be anything
-            for t in types.PRIMITIVE_TYPES.values():
+
+            if len(node.elements) > 0:
+                # empty nested list literals `[[], []]`
+                subtypes = self.get_possible_types_from_node(node.elements[0])
+            else:
+                # empty list literal `[]`
+                # subtype can be anything
+                subtypes = types.PRIMITIVE_TYPES.values()
+
+            for t in subtypes:
                 # 1 is minimum possible length for dynarray,
                 # can be assigned to anything
                 if isinstance(t, VyperType):
@@ -353,26 +384,27 @@ class _ExprAnalyser:
             # when this is a type, we want to lower it
             if isinstance(t, VyperType):
                 # TYPE_T is used to handle cases where a type can occur in call or
-                # attribute conditions, like Enum.foo or MyStruct({...})
+                # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
             return [t.typ]
+
         except VyperException as exc:
             raise exc.with_annotation(node) from None
 
     def types_from_Subscript(self, node):
         # index access, e.g. `foo[1]`
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             types_list = self.get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:
-                t.validate_index_type(node.slice.value)
-                ret.append(t.get_subscripted_type(node.slice.value))
+                t.validate_index_type(node.slice)
+                ret.append(t.get_subscripted_type(node.slice))
             return ret
 
         t = self.get_exact_type_from_node(node.value)
-        t.validate_index_type(node.slice.value)
-        return [t.get_subscripted_type(node.slice.value)]
+        t.validate_index_type(node.slice)
+        return [t.get_subscripted_type(node.slice)]
 
     def types_from_Tuple(self, node):
         types_list = [self.get_exact_type_from_node(i) for i in node.elements]
@@ -382,17 +414,6 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
-
-    def types_from_IfExp(self, node):
-        validate_expected_type(node.test, BoolT())
-        types_list = get_common_types(node.body, node.orelse)
-
-        if not types_list:
-            a = get_possible_types_from_node(node.body)[0]
-            b = get_possible_types_from_node(node.orelse)[0]
-            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
-
-        return types_list
 
 
 def _is_empty_list(node):
@@ -460,11 +481,14 @@ def get_exact_type_from_node(node):
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
 
 
-def get_expr_info(node: vy_ast.VyperNode) -> ExprInfo:
-    return _ExprAnalyser().get_expr_info(node)
+def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
+    if node._expr_info is None:
+        node._expr_info = _ExprAnalyser().get_expr_info(node, is_callable)
+    return node._expr_info
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
+    # this function is a performance hotspot
     """
     Return a list of common possible types between one or more nodes.
 
@@ -485,12 +509,14 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     for item in nodes[1:]:
         new_types = _ExprAnalyser().get_possible_types_from_node(item)
 
-        common = [i for i in common_types if _is_type_in_list(i, new_types)]
+        tmp = []
+        for c in common_types:
+            for t in new_types:
+                if t.compare_type(c) or c.compare_type(t):
+                    tmp.append(c)
+                    break
 
-        rejected = [i for i in common_types if i not in common]
-        common += [i for i in new_types if _is_type_in_list(i, rejected)]
-
-        common_types = common
+        common_types = tmp
 
     if filter_fn is not None:
         common_types = [i for i in common_types if filter_fn(i)]
@@ -534,10 +560,25 @@ def validate_expected_type(node, expected_type):
     -------
     None
     """
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
-
     if not isinstance(expected_type, tuple):
         expected_type = (expected_type,)
+
+    if isinstance(node, vy_ast.Tuple):
+        possible_tuple_types = [t for t in expected_type if isinstance(t, TupleT)]
+        for t in possible_tuple_types:
+            if len(t.member_types) != len(node.elements):
+                continue
+            for item_ast, item_type in zip(node.elements, t.member_types):
+                try:
+                    validate_expected_type(item_ast, item_type)
+                    return
+                except VyperException:
+                    pass
+        else:
+            # fail block
+            pass
+
+    given_types = _ExprAnalyser().get_possible_types_from_node(node)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
@@ -578,8 +619,7 @@ def validate_expected_type(node, expected_type):
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
             suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
 
-        # CMC 2022-02-14 maybe TypeMismatch would make more sense here
-        raise InvalidType(
+        raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
             node,
         )
@@ -609,54 +649,31 @@ def validate_unique_method_ids(functions: List) -> None:
         seen.add(method_id)
 
 
-def check_kwargable(node: vy_ast.VyperNode) -> bool:
+def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
     """
-    Check if the given node can be used as a default arg
+    Check if the given node is not more modifiable than the given modifiability.
     """
-    if _check_literal(node):
+    if node.is_literal_value or node.has_folded_value:
         return True
+
+    if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
+        return all(check_modifiability(i, modifiability) for i in (node.left, node.right))
+
+    if isinstance(node, vy_ast.BoolOp):
+        return all(check_modifiability(i, modifiability) for i in node.values)
+
+    if isinstance(node, vy_ast.UnaryOp):
+        return check_modifiability(node.operand, modifiability)
+
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_kwargable(item) for item in node.elements)
+        return all(check_modifiability(item, modifiability) for item in node.elements)
+
     if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_kwargable(v) for v in args[0].values)
-
         call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
 
-    value_type = get_expr_info(node)
-    # is_constant here actually means not_assignable, and is to be renamed
-    return value_type.is_constant
+        # structs and interfaces
+        if hasattr(call_type, "check_modifiability_for_call"):
+            return call_type.check_modifiability_for_call(node, modifiability)
 
-
-def _check_literal(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal value.
-    """
-    if isinstance(node, vy_ast.Constant):
-        return True
-    elif isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(_check_literal(item) for item in node.elements)
-    return False
-
-
-def check_constant(node: vy_ast.VyperNode) -> bool:
-    """
-    Check if the given node is a literal or constant value.
-    """
-    if _check_literal(node):
-        return True
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_constant(item) for item in node.elements)
-    if isinstance(node, vy_ast.Call):
-        args = node.args
-        if len(args) == 1 and isinstance(args[0], vy_ast.Dict):
-            return all(check_constant(v) for v in args[0].values)
-
-        call_type = get_exact_type_from_node(node.func)
-        if getattr(call_type, "_kwargable", False):
-            return True
-
-    return False
+    info = get_expr_info(node)
+    return info.modifiability <= modifiability

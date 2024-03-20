@@ -1,8 +1,11 @@
+import contextlib
+import copy
 import re
 from enum import Enum, auto
 from functools import cached_property
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
+import vyper.ast as vy_ast
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
@@ -46,10 +49,42 @@ class Encoding(Enum):
     # future: packed
 
 
+# shortcut for chaining multiple cache_when_complex calls
+# CMC 2023-08-10 remove this _as soon as_ we have
+# real variables in IR (that we can declare without explicit scoping -
+# needs liveness analysis).
+@contextlib.contextmanager
+def scope_multi(ir_nodes, names):
+    assert len(ir_nodes) == len(names)
+
+    builders = []
+    scoped_ir_nodes = []
+
+    class _MultiBuilder:
+        def resolve(self, body):
+            # sanity check that it's initialized properly
+            assert len(builders) == len(ir_nodes)
+            ret = body
+            for b in reversed(builders):
+                ret = b.resolve(ret)
+            return ret
+
+    mb = _MultiBuilder()
+
+    with contextlib.ExitStack() as stack:
+        for arg, name in zip(ir_nodes, names):
+            b, ir_node = stack.enter_context(arg.cache_when_complex(name))
+
+            builders.append(b)
+            scoped_ir_nodes.append(ir_node)
+
+        yield mb, scoped_ir_nodes
+
+
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        if should_inline and ir_node._optimized.is_complex_ir:
+        if should_inline and ir_node._optimized.is_complex_ir:  # pragma: nocover
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -99,6 +134,10 @@ class IRnode:
     valency: int
     args: List["IRnode"]
     value: Union[str, int]
+    is_self_call: bool
+    passthrough_metadata: dict[str, Any]
+    func_ir: Any
+    common_ir: Any
 
     def __init__(
         self,
@@ -106,12 +145,14 @@ class IRnode:
         args: List["IRnode"] = None,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
         encoding: Encoding = Encoding.VYPER,
+        is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
     ):
         if args is None:
             args = []
@@ -122,35 +163,35 @@ class IRnode:
         assert isinstance(typ, VyperType) or typ is None, repr(typ)
         self.typ = typ
         self.location = location
-        self.source_pos = source_pos
+        self.ast_source = ast_source
         self.error_msg = error_msg
         self.annotation = annotation
         self.mutable = mutable
         self.add_gas_estimate = add_gas_estimate
         self.encoding = encoding
         self.as_hex = AS_HEX_DEFAULT
+        self.is_self_call = is_self_call
+        self.passthrough_metadata = passthrough_metadata or {}
+        self.func_ir = None
+        self.common_ir = None
 
-        def _check(condition, err):
-            if not condition:
-                raise CompilerPanic(str(err))
-
-        _check(self.value is not None, "None is not allowed as IRnode value")
+        assert self.value is not None, "None is not allowed as IRnode value"
 
         # Determine this node's valency (1 if it pushes a value on the stack,
         # 0 otherwise) and checks to make sure the number and valencies of
         # children are correct. Also, find an upper bound on gas consumption
         # Numbers
         if isinstance(self.value, int):
-            _check(len(self.args) == 0, "int can't have arguments")
+            assert len(self.args) == 0, "int can't have arguments"
 
             # integers must be in the range (MIN_INT256, MAX_UINT256)
-            _check(-(2**255) <= self.value < 2**256, "out of range")
+            assert -(2**255) <= self.value < 2**256, "out of range"
 
             self.valency = 1
             self._gas = 5
         elif isinstance(self.value, bytes):
             # a literal bytes value, probably inside a "data" node.
-            _check(len(self.args) == 0, "bytes can't have arguments")
+            assert len(self.args) == 0, "bytes can't have arguments"
 
             self.valency = 0
             self._gas = 0
@@ -160,10 +201,9 @@ class IRnode:
             if self.value.upper() in get_ir_opcodes():
                 _, ins, outs, gas = get_ir_opcodes()[self.value.upper()]
                 self.valency = outs
-                _check(
-                    len(self.args) == ins,
-                    f"Number of arguments mismatched: {self.value} {self.args}",
-                )
+                assert (
+                    len(self.args) == ins
+                ), f"Number of arguments mismatched: {self.value} {self.args}"
                 # We add 2 per stack height at push time and take it back
                 # at pop time; this makes `break` easier to handle
                 self._gas = gas + 2 * (outs - ins)
@@ -172,10 +212,10 @@ class IRnode:
                     # consumed for internal functions, therefore we whitelist this as a zero valency
                     # allowed argument.
                     zero_valency_whitelist = {"pass", "pop"}
-                    _check(
-                        arg.valency == 1 or arg.value in zero_valency_whitelist,
-                        f"invalid argument to `{self.value}`: {arg}",
-                    )
+                    assert (
+                        arg.valency == 1 or arg.value in zero_valency_whitelist
+                    ), f"invalid argument to `{self.value}`: {arg}"
+
                     self._gas += arg.gas
                 # Dynamic gas cost: 8 gas for each byte of logging data
                 if self.value.upper()[0:3] == "LOG" and isinstance(self.args[1].value, int):
@@ -203,30 +243,27 @@ class IRnode:
                     self._gas = self.args[0].gas + max(self.args[1].gas, self.args[2].gas) + 3
                 if len(self.args) == 2:
                     self._gas = self.args[0].gas + self.args[1].gas + 17
-                _check(
-                    self.args[0].valency > 0,
-                    f"zerovalent argument as a test to an if statement: {self.args[0]}",
-                )
-                _check(len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments")
+                assert (
+                    self.args[0].valency > 0
+                ), f"zerovalent argument as a test to an if statement: {self.args[0]}"
+                assert len(self.args) in (2, 3), "if statement can only have 2 or 3 arguments"
                 self.valency = self.args[1].valency
             # With statements: with <var> <initial> <statement>
             elif self.value == "with":
-                _check(len(self.args) == 3, self)
-                _check(
-                    len(self.args[0].args) == 0 and isinstance(self.args[0].value, str),
-                    f"first argument to with statement must be a variable name: {self.args[0]}",
-                )
-                _check(
-                    self.args[1].valency == 1 or self.args[1].value == "pass",
-                    f"zerovalent argument to with statement: {self.args[1]}",
-                )
+                assert len(self.args) == 3, self
+                assert len(self.args[0].args) == 0 and isinstance(
+                    self.args[0].value, str
+                ), f"first argument to with statement must be a variable name: {self.args[0]}"
+                assert (
+                    self.args[1].valency == 1 or self.args[1].value == "pass"
+                ), f"zerovalent argument to with statement: {self.args[1]}"
                 self.valency = self.args[2].valency
                 self._gas = sum([arg.gas for arg in self.args]) + 5
             # Repeat statements: repeat <index_name> <startval> <rounds> <rounds_bound> <body>
             elif self.value == "repeat":
-                _check(
-                    len(self.args) == 5, "repeat(index_name, startval, rounds, rounds_bound, body)"
-                )
+                assert (
+                    len(self.args) == 5
+                ), "repeat(index_name, startval, rounds, rounds_bound, body)"
 
                 counter_ptr = self.args[0]
                 start = self.args[1]
@@ -234,13 +271,12 @@ class IRnode:
                 repeat_bound = self.args[3]
                 body = self.args[4]
 
-                _check(
-                    isinstance(repeat_bound.value, int) and repeat_bound.value > 0,
-                    f"repeat bound must be a compile-time positive integer: {self.args[2]}",
-                )
-                _check(repeat_count.valency == 1, repeat_count)
-                _check(counter_ptr.valency == 1, counter_ptr)
-                _check(start.valency == 1, start)
+                assert (
+                    isinstance(repeat_bound.value, int) and repeat_bound.value > 0
+                ), f"repeat bound must be a compile-time positive integer: {self.args[2]}"
+                assert repeat_count.valency == 1, repeat_count
+                assert counter_ptr.valency == 1, counter_ptr
+                assert start.valency == 1, start
 
                 self.valency = 0
 
@@ -263,19 +299,17 @@ class IRnode:
             # then JUMP to my_label.
             elif self.value in ("goto", "exit_to"):
                 for arg in self.args:
-                    _check(
-                        arg.valency == 1 or arg.value == "pass",
-                        f"zerovalent argument to goto {arg}",
-                    )
+                    assert (
+                        arg.valency == 1 or arg.value == "pass"
+                    ), f"zerovalent argument to goto {arg}"
 
                 self.valency = 0
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "label":
-                _check(
-                    self.args[1].value == "var_list",
-                    f"2nd argument to label must be var_list, {self}",
-                )
-                _check(len(args) == 3, f"label should have 3 args but has {len(args)}, {self}")
+                assert (
+                    self.args[1].value == "var_list"
+                ), f"2nd argument to label must be var_list, {self}"
+                assert len(args) == 3, f"label should have 3 args but has {len(args)}, {self}"
                 self.valency = 0
                 self._gas = 1 + sum(t.gas for t in self.args)
             elif self.value == "unique_symbol":
@@ -291,7 +325,7 @@ class IRnode:
             # var_list names a variable number stack variables
             elif self.value == "var_list":
                 for arg in self.args:
-                    if not isinstance(arg.value, str) or len(arg.args) > 0:
+                    if not isinstance(arg.value, str) or len(arg.args) > 0:  # pragma: nocover
                         raise CodegenPanic(f"var_list only takes strings: {self.args}")
                 self.valency = 0
                 self._gas = 0
@@ -299,41 +333,45 @@ class IRnode:
             # Multi statements: multi <expr> <expr> ...
             elif self.value == "multi":
                 for arg in self.args:
-                    _check(
-                        arg.valency > 0, f"Multi expects all children to not be zerovalent: {arg}"
-                    )
+                    assert (
+                        arg.valency > 0
+                    ), f"Multi expects all children to not be zerovalent: {arg}"
                 self.valency = sum([arg.valency for arg in self.args])
                 self._gas = sum([arg.gas for arg in self.args])
             elif self.value == "deploy":
                 self.valency = 0
-                _check(len(self.args) == 3, f"`deploy` should have three args {self}")
+                assert len(self.args) == 3, f"`deploy` should have three args {self}"
                 self._gas = NullAttractor()  # unknown
             # Stack variables
             else:
                 self.valency = 1
                 self._gas = 3
-        elif self.value is None:
-            self.valency = 1
-            # None IRnodes always get compiled into something else, e.g.
-            # mzero or PUSH1 0, and the gas will get re-estimated then.
-            self._gas = 3
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
+
+    # deepcopy is a perf hotspot; it pays to optimize it a little
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.__dict__ = self.__dict__.copy()
+        ret.args = [copy.deepcopy(arg) for arg in ret.args]
+        return ret
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
     def gas(self):
         return self._gas + self.add_gas_estimate
 
-    # the IR should be cached.
-    # TODO make this private. turns out usages are all for the caching
-    # idiom that cache_when_complex addresses
+    # the IR should be cached and/or evaluated exactly once
     @property
     def is_complex_ir(self):
         # list of items not to cache. note can add other env variables
         # which do not change, e.g. calldatasize, coinbase, etc.
-        do_not_cache = {"~empty", "calldatasize"}
+        # reads (from memory or storage) should not be cached because
+        # they can have or be affected by side effects.
+        do_not_cache = {"~empty", "calldatasize", "callvalue"}
+
         return (
             isinstance(self.value, str)
             and (self.value.lower() in VALID_IR_MACROS or self.value.upper() in get_ir_opcodes())
@@ -372,11 +410,15 @@ class IRnode:
         return ret
 
     @property
-    def is_literal(self):
+    def is_literal(self) -> bool:
         return isinstance(self.value, int) or self.value == "multi"
 
+    def int_value(self) -> int:
+        assert isinstance(self.value, int)
+        return self.value
+
     @property
-    def is_pointer(self):
+    def is_pointer(self) -> bool:
         # not used yet but should help refactor/clarify downstream code
         # eventually
         return self.location is not None
@@ -426,12 +468,6 @@ class IRnode:
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
-    def __getitem__(self, i):
-        return self.to_list()[i]
-
-    def __len__(self):
-        return len(self.to_list())
-
     # TODO this seems like a not useful and also confusing function
     # check if dead code and remove - CMC 2021-12-13
     def to_list(self):
@@ -443,11 +479,8 @@ class IRnode:
             and self.args == other.args
             and self.typ == other.typ
             and self.location == other.location
-            and self.source_pos == other.source_pos
-            and self.annotation == other.annotation
             and self.mutable == other.mutable
             and self.add_gas_estimate == other.add_gas_estimate
-            and self.valency == other.valency
         )
 
     @property
@@ -481,13 +514,13 @@ class IRnode:
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
-        prev_lineno = self.source_pos[0] if self.source_pos else None
+        prev_lineno = self.ast_source.lineno if self.ast_source else None
         arg_lineno = None
         annotated = False
         has_inner_newlines = False
         for arg in self.args:
             o += ",\n  "
-            arg_lineno = arg.source_pos[0] if arg.source_pos else None
+            arg_lineno = arg.ast_source.lineno if arg.ast_source else None
             if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ("seq", "if"):
                 o += f"# Line {(arg_lineno)}\n  "
                 prev_lineno = arg_lineno
@@ -518,14 +551,16 @@ class IRnode:
         obj: Any,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
         add_gas_estimate: int = 0,
+        is_self_call: bool = False,
+        passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
-        if isinstance(typ, str):
+        if isinstance(typ, str):  # pragma: nocover
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
@@ -533,8 +568,8 @@ class IRnode:
             # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
-            if obj.source_pos is None:
-                obj.source_pos = source_pos
+            if obj.ast_source is None:
+                obj.ast_source = ast_source
             if obj.location is None:
                 obj.location = location
             if obj.encoding is None:
@@ -552,20 +587,24 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 encoding=encoding,
                 error_msg=error_msg,
+                is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
+                [cls.from_list(o, ast_source=ast_source) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
                 mutable=mutable,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
                 error_msg=error_msg,
+                is_self_call=is_self_call,
+                passthrough_metadata=passthrough_metadata,
             )
