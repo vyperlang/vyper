@@ -124,6 +124,12 @@ class IRLiteral(IRValue):
         assert isinstance(value, int), "value must be an int"
         self.value = value
 
+    def __hash__(self) -> int:
+        return self.value.__hash__()
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
+
     def __repr__(self) -> str:
         return str(self.value)
 
@@ -198,6 +204,12 @@ class IRLabel(IROperand):
         assert isinstance(value, str), "value must be an str"
         self.value = value
         self.is_symbol = is_symbol
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
 
     def __repr__(self) -> str:
         return self.value
