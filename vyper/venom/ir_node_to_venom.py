@@ -374,7 +374,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 assert 0 <= c <= 255, "data with invalid size"
                 ctx.append_data("db", [c])  # type: ignore
             elif isinstance(c.value, bytes):
-                ctx.append_data("db", [c])  # type: ignore
+                ctx.append_data("db", [c.value])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(ctx, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore

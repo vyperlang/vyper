@@ -50,7 +50,7 @@ class SimplifyCFGPass(IRPass):
                 self._merge_blocks(bb, next_bb)
                 self._collapse_chained_blocks_r(bb)
                 return
-        elif len(bb.cfg_out) > 1:
+        elif len(bb.cfg_out) == 2:
             bb_out = bb.cfg_out.copy()
             for next_bb in bb_out:
                 if (
