@@ -364,7 +364,7 @@ class VenomCompiler:
         elif opcode == "istore":
             addr = inst.operands[1]
             if isinstance(addr, IRLiteral):
-                operands = inst.operands[0:1]
+                operands = inst.operands[:1]
             else:
                 operands = inst.operands
         elif opcode == "log":
