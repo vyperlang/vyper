@@ -1038,7 +1038,7 @@ def optimize_assembly(assembly, optimize=OptimizationLevel.GAS):
 
     for x in assembly:
         if isinstance(x, list) and isinstance(x[0], RuntimeHeader):
-            optimize_assembly(x)
+            optimize_assembly(x, optimize)
 
     for _ in range(1024):
         changed = False
