@@ -15,7 +15,6 @@ class MakeSSA(IRPass):
     defs: dict[IRVariable, OrderedSet[IRBasicBlock]]
 
     def _run_pass(self, ctx: IRFunction, entry: IRBasicBlock) -> int:
-        global count
         self.ctx = ctx
 
         calculate_cfg(ctx)
