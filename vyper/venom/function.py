@@ -31,8 +31,8 @@ class IRFunction:
     last_variable: int
 
     # Used during code generation
-    _ast_source: list[int]
-    _error_msg: list[str]
+    _ast_source_stack: list[int]
+    _error_msg_stack: list[str]
 
     def __init__(self, name: IRLabel = None) -> None:
         if name is None:
@@ -47,8 +47,8 @@ class IRFunction:
         self.last_label = 0
         self.last_variable = 0
 
-        self._ast_source = []
-        self._error_msg = []
+        self._ast_source_stack = []
+        self._error_msg_stack = []
 
         self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
@@ -211,22 +211,22 @@ class IRFunction:
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
-            self._ast_source.append(ir.ast_source)
-            self._error_msg.append(ir.error_msg)
+            self._ast_source_stack.append(ir.ast_source)
+            self._error_msg_stack.append(ir.error_msg)
 
     def pop_source(self):
-        assert len(self._ast_source) > 0, "Empty source stack"
-        self._ast_source.pop()
-        assert len(self._error_msg) > 0, "Empty error stack"
-        self._error_msg.pop()
+        assert len(self._ast_source_stack) > 0, "Empty source stack"
+        self._ast_source_stack.pop()
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     @property
     def ast_source(self) -> Optional[int]:
-        return self._ast_source[-1] if len(self._ast_source) > 0 else None
+        return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
 
     @property
     def error_msg(self) -> Optional[str]:
-        return self._error_msg[-1] if len(self._error_msg) > 0 else None
+        return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
     def copy(self):
         new = IRFunction(self.name)
