@@ -250,6 +250,10 @@ class VenomCompiler:
                 continue
 
             if isinstance(op, IRLiteral):
+                if op.value < -(2**255):
+                    raise Exception(f"Value too low: {op.value}")
+                elif op.value >= 2**256:
+                    raise Exception(f"Value too high: {op.value}")
                 assembly.extend(PUSH(op.value % 2**256))
                 stack.push(op)
                 continue
