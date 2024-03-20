@@ -21,7 +21,6 @@ extras_require = {
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
-        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [
         "black==23.12.0",
