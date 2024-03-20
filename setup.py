@@ -20,6 +20,7 @@ extras_require = {
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
+        "eth-rlp>=2.0", # sentinel to find out if dependencies have been updated
         "setuptools",
     ],
     "lint": [
