@@ -226,8 +226,8 @@ def compile_to_assembly(code, optimize=OptimizationLevel.GAS):
 
     _relocate_segments(res)
 
-    if optimize != OptimizationLevel.NONE:
-        optimize_assembly(res)
+    optimize_assembly(res, optimize)
+
     return res
 
 
@@ -1032,7 +1032,10 @@ def _stack_peephole_opts(assembly):
 
 
 # optimize assembly, in place
-def optimize_assembly(assembly):
+def optimize_assembly(assembly, optimize=OptimizationLevel.GAS):
+    if optimize == OptimizationLevel.NONE:
+        return
+
     for x in assembly:
         if isinstance(x, list) and isinstance(x[0], RuntimeHeader):
             optimize_assembly(x)
@@ -1044,7 +1047,10 @@ def optimize_assembly(assembly):
         changed |= _merge_iszero(assembly)
         changed |= _merge_jumpdests(assembly)
         changed |= _prune_inefficient_jumps(assembly)
-        changed |= _optimize_inefficient_jumps(assembly)
+
+        if optimize == OptimizationLevel.CODESIZE:
+            changed |= _optimize_inefficient_jumps(assembly)
+
         changed |= _prune_unused_jumpdests(assembly)
         changed |= _stack_peephole_opts(assembly)
 
