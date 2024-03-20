@@ -1,6 +1,6 @@
 from typing import Any
-from vyper.compiler.settings import OptimizationLevel
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.compile_ir import PUSH, DataHeader, RuntimeHeader, optimize_assembly
 from vyper.utils import MemoryPositions, OrderedSet
 from vyper.venom.analysis import calculate_cfg, calculate_liveness, input_vars_from
