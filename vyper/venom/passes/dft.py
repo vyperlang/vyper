@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import DFG
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -8,6 +8,7 @@ from vyper.venom.passes.base_pass import IRPass
 class DFTPass(IRPass):
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
         for op in inst.get_outputs():
+            assert isinstance(op, IRVariable), f"expected variable, got {op}"
             for uses_this in reversed(self.dfg.get_uses(op)):
                 if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
                     # don't reorder across basic block or fence boundaries
