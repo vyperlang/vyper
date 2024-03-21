@@ -229,16 +229,18 @@ class Convert(BuiltinFunctionT):
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
-# make sure we don't overrun the source buffer, checking for
-# overflow:
-# valid inputs satisfy: `assert start+length <= src_len && start+length > start`
+# make sure we don't overrun the source buffer, checking for overflow:
+# valid inputs satisfy:
+#   `assert !(start+length > src_len || start+length < start`
 def _make_slice_bounds_check(start, length, src_len):
-    return [
-        "with",
-        "end",
-        ["add", start, length],
-        ["assert", ["iszero", ["or", ["gt", "end", src_len], ["lt", "end", start]]]],
-    ]
+    assert src_len.is_literal
+    with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (b2, length):
+        with add_ofst(start, length).cache_when_complex("end") as (b3, end):
+            arithmetic_overflow = ["lt", end, start]
+            buffer_oob = ["gt", end, src_len]
+            fail = ["or", arithmetic_overflow, buffer_oob]
+            ok = ["iszero", fail]
+            return b1.resolve(b2.resolve(b3.resolve(["assert", ok])))
 
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
