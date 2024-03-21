@@ -10,33 +10,33 @@ class DominatorTree:
     """
 
     ctx: IRFunction
-    entry: IRBasicBlock
+    entry_block: IRBasicBlock
     dfs_order: dict[IRBasicBlock, int]
-    dfs: list[IRBasicBlock]
+    dfs_walk: list[IRBasicBlock]
     dominators: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    idoms: dict[IRBasicBlock, IRBasicBlock]
+    immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    df: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     def __init__(self, ctx: IRFunction, entry: IRBasicBlock):
         self.ctx = ctx
-        self.entry = entry
+        self.entry_block = entry
         self.dfs_order = {}
-        self.dfs = []
+        self.dfs_walk = []
         self.dominators = {}
-        self.idoms = {}
+        self.immediate_dominators = {}
         self.dominated = {}
-        self.df = {}
+        self.dominator_frontiers = {}
         self._compute()
 
     def dominates(self, bb1, bb2):
         return bb2 in self.dominators[bb1]
 
     def immediate_dominator(self, bb):
-        return self.idoms.get(bb)
+        return self.immediate_dominators.get(bb)
 
     def _compute(self):
-        self._dfs(self.entry, OrderedSet())
+        self._dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
@@ -44,7 +44,7 @@ class DominatorTree:
     def _compute_dominators(self):
         basic_blocks = list(self.dfs_order.keys())
         self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
-        self.dominators[self.entry] = OrderedSet({self.entry})
+        self.dominators[self.entry_block] = OrderedSet({self.entry_block})
         changed = True
         count = len(basic_blocks) ** 2  # TODO: find a proper bound for this
         while changed:
@@ -53,7 +53,7 @@ class DominatorTree:
                 raise CompilerPanic("Dominators computation failed to converge")
             changed = False
             for bb in basic_blocks:
-                if bb == self.entry:
+                if bb == self.entry_block:
                     continue
                 preds = bb.cfg_in
                 if len(preds) == 0:
@@ -68,32 +68,32 @@ class DominatorTree:
         """
         Compute immediate dominators
         """
-        self.idoms = {bb: None for bb in self.dfs_order.keys()}
-        self.idoms[self.entry] = self.entry
-        for bb in self.dfs:
-            if bb == self.entry:
+        self.immediate_dominators = {bb: None for bb in self.dfs_order.keys()}
+        self.immediate_dominators[self.entry_block] = self.entry_block
+        for bb in self.dfs_walk:
+            if bb == self.entry_block:
                 continue
             doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
-            self.idoms[bb] = doms[1]
+            self.immediate_dominators[bb] = doms[1]
 
-        self.dominated = {bb: OrderedSet() for bb in self.dfs}
-        for dom, target in self.idoms.items():
+        self.dominated = {bb: OrderedSet() for bb in self.dfs_walk}
+        for dom, target in self.immediate_dominators.items():
             self.dominated[target].add(dom)
 
     def _compute_df(self):
         """
         Compute dominance frontier
         """
-        basic_blocks = self.dfs
-        self.df = {bb: OrderedSet() for bb in basic_blocks}
+        basic_blocks = self.dfs_walk
+        self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
 
-        for bb in self.dfs:
+        for bb in self.dfs_walk:
             if len(bb.cfg_in) > 1:
                 for pred in bb.cfg_in:
                     runner = pred
-                    while runner != self.idoms[bb]:
-                        self.df[runner].add(bb)
-                        runner = self.idoms[runner]
+                    while runner != self.immediate_dominators[bb]:
+                        self.dominator_frontiers[runner].add(bb)
+                        runner = self.immediate_dominators[runner]
 
     def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> OrderedSet[IRBasicBlock]:
         """
@@ -101,16 +101,16 @@ class DominatorTree:
         """
         df = OrderedSet[IRBasicBlock]()
         for bb in basic_blocks:
-            df.update(self.df[bb])
+            df.update(self.dominator_frontiers[bb])
         return df
 
     def _intersect(self, bb1, bb2):
         dfs_order = self.dfs_order
         while bb1 != bb2:
             while dfs_order[bb1] < dfs_order[bb2]:
-                bb1 = self.idoms[bb1]
+                bb1 = self.immediate_dominators[bb1]
             while dfs_order[bb1] > dfs_order[bb2]:
-                bb2 = self.idoms[bb2]
+                bb2 = self.immediate_dominators[bb2]
         return bb1
 
     def _dfs(self, entry: IRBasicBlock, visited):
@@ -120,8 +120,8 @@ class DominatorTree:
             if bb not in visited:
                 self._dfs(bb, visited)
 
-        self.dfs.append(entry)
-        self.dfs_order[entry] = len(self.dfs)
+        self.dfs_walk.append(entry)
+        self.dfs_order[entry] = len(self.dfs_walk)
 
     def as_graph(self) -> str:
         """
@@ -129,7 +129,7 @@ class DominatorTree:
         """
         lines = ["digraph dominator_tree {"]
         for bb in self.ctx.basic_blocks:
-            if bb == self.entry:
+            if bb == self.entry_block:
                 continue
             idom = self.immediate_dominator(bb)
             if idom is None:
