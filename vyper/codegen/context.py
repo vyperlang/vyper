@@ -64,6 +64,7 @@ class VariableRecord:
             annotation=self.name,
             encoding=self.encoding,
             mutable=self.mutable,
+            location=self.location,
         )
         ret._referenced_vars = {self}
         if self.location == MEMORY:  # don't need alloca in other locations

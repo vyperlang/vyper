@@ -247,16 +247,16 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
 
     dst_typ = BytesT(length.value)
     # allocate a buffer for the return value
-    np = context.new_internal_variable(dst_typ)
+    buf = context.new_internal_variable(dst_typ)
 
     # `msg.data` by `calldatacopy`
     if sub.value == "~calldata":
         node = [
             "seq",
             _make_slice_bounds_check(start, length, "calldatasize"),
-            ["mstore", np, length],
-            ["calldatacopy", add_ofst(np, 32), start, length],
-            np,
+            ["mstore", buf, length],
+            ["calldatacopy", add_ofst(buf, 32), start, length],
+            buf,
         ]
 
     # `self.code` by `codecopy`
@@ -264,9 +264,9 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
         node = [
             "seq",
             _make_slice_bounds_check(start, length, "codesize"),
-            ["mstore", np, length],
-            ["codecopy", add_ofst(np, 32), start, length],
-            np,
+            ["mstore", buf, length],
+            ["codecopy", add_ofst(buf, 32), start, length],
+            buf,
         ]
 
     # `<address>.code` by `extcodecopy`
@@ -279,9 +279,9 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             [
                 "seq",
                 _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
-                ["mstore", np, length],
-                ["extcodecopy", "_extcode_address", add_ofst(np, 32), start, length],
-                np,
+                ["mstore", buf, length],
+                ["extcodecopy", "_extcode_address", add_ofst(buf, 32), start, length],
+                buf,
             ],
         ]
 
@@ -551,10 +551,8 @@ class Concat(BuiltinFunctionT):
 
         # respect API of copy_bytes
         bufsize = dst_maxlen + 32
-        buf = context.new_internal_variable(BytesT(bufsize))
-
-        # Node representing the position of the output in memory
-        dst = IRnode.from_list(buf, typ=ret_typ, location=MEMORY, annotation="concat destination")
+        dst = context.new_internal_variable(BytesT(bufsize))
+        dst.annotation = "concat destination"
 
         ret = ["seq"]
         # stack item representing our current offset in the dst buffer
@@ -782,9 +780,9 @@ class ECRecover(BuiltinFunctionT):
                 # clear output memory first, ecrecover can return 0 bytes
                 ["mstore", output_buf, 0],
                 ["mstore", input_buf, args[0]],
-                ["mstore", input_buf + 32, args[1]],
-                ["mstore", input_buf + 64, args[2]],
-                ["mstore", input_buf + 96, args[3]],
+                ["mstore", add_ofst(input_buf, 32), args[1]],
+                ["mstore", add_ofst(input_buf, 64), args[2]],
+                ["mstore", add_ofst(input_buf, 96), args[3]],
                 ["staticcall", "gas", 1, input_buf, 128, output_buf, 32],
                 ["mload", output_buf],
             ],
@@ -798,9 +796,7 @@ class _ECArith(BuiltinFunctionT):
         args_tuple = ir_tuple_from_args(_args)
 
         args_t = args_tuple.typ
-        input_buf = IRnode.from_list(
-            context.new_internal_variable(args_t), typ=args_t, location=MEMORY
-        )
+        input_buf = context.new_internal_variable(args_t)
         ret_t = self._return_type
 
         ret = ["seq"]
@@ -1149,9 +1145,7 @@ class RawCall(BuiltinFunctionT):
             args_ofst = add_ofst(input_buf, 32)
             args_len = ["mload", input_buf]
 
-        output_node = IRnode.from_list(
-            context.new_internal_variable(BytesT(outsize)), typ=BytesT(outsize), location=MEMORY
-        )
+        output_node = context.new_internal_variable(BytesT(outsize))
 
         bool_ty = BoolT()
 
@@ -1757,8 +1751,8 @@ class CreateMinimalProxyTo(_CreateBase):
         return [
             "seq",
             ["mstore", buf, forwarder_preamble],
-            ["mstore", ["add", buf, preamble_length], aligned_target],
-            ["mstore", ["add", buf, preamble_length + 20], forwarder_post],
+            ["mstore", add_ofst(buf, preamble_length), aligned_target],
+            ["mstore", add_ofst(buf, preamble_length + 20), forwarder_post],
             _create_ir(value, buf, buf_len, salt=salt),
         ]
 
@@ -1864,9 +1858,7 @@ class CreateFromBlueprint(_CreateBase):
             # pretend we allocated enough memory for the encoder
             # (we didn't, but we are clobbering unused memory so it's safe.)
             bufsz = to_encode.typ.abi_type.size_bound()
-            argbuf = IRnode.from_list(
-                context.new_internal_variable(get_type_for_exact_size(bufsz)), location=MEMORY
-            )
+            argbuf = context.new_internal_variable(get_type_for_exact_size(bufsz))
 
             # return a complex expression which writes to memory and returns
             # the length of the encoded data
@@ -2113,13 +2105,13 @@ class Uint2Str(BuiltinFunctionT):
                     # clobber val, and return it as a pointer
                     [
                         "seq",
-                        ["mstore", ["sub", buf + n_digits, i], i],
-                        ["set", val, ["sub", buf + n_digits, i]],
+                        ["mstore", ["sub", add_ofst(buf, n_digits), i], i],
+                        ["set", val, ["sub", add_ofst(buf, n_digits), i]],
                         "break",
                     ],
                     [
                         "seq",
-                        ["mstore", ["sub", buf + n_digits, i], ["add", 48, ["mod", val, 10]]],
+                        ["mstore", ["sub", add_ofst(buf, n_digits), i], ["add", 48, ["mod", val, 10]]],
                         ["set", val, ["div", val, 10]],
                     ],
                 ],
@@ -2313,7 +2305,7 @@ class Print(BuiltinFunctionT):
 
             ret = ["seq"]
             ret.append(["mstore", buf, method_id])
-            encode = abi_encode(buf + 32, args_as_tuple, context, buflen, returns_len=True)
+            encode = abi_encode(add_ofst(buf, 32), args_as_tuple, context, buflen, returns_len=True)
 
         else:
             method_id = method_id_int("log(string,bytes)")
@@ -2335,7 +2327,7 @@ class Print(BuiltinFunctionT):
             # 32 bytes extra space for the method id
             payload_buf = context.new_internal_variable(payload_t)
             encode_payload = abi_encode(
-                payload_buf + 32, args_as_tuple, context, payload_buflen, returns_len=True
+                add_ofst(payload_buf, 32), args_as_tuple, context, payload_buflen, returns_len=True
             )
 
             ret.append(["mstore", payload_buf, encode_payload])
@@ -2457,7 +2449,7 @@ class ABIEncode(BuiltinFunctionT):
             # <32 bytes length> | <4 bytes method_id> | <everything else>
             # write the unaligned method_id first, then we will
             # overwrite the 28 bytes of zeros with the bytestring length
-            ret += [["mstore", buf + 4, method_id]]
+            ret += [["mstore", add_ofst(buf, 4), method_id]]
             # abi encode, and grab length as stack item
             length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
             # write the output length to where bytestring stores its length
@@ -2465,7 +2457,7 @@ class ABIEncode(BuiltinFunctionT):
 
         else:
             # abi encode and grab length as stack item
-            length = abi_encode(buf + 32, encode_input, context, returns_len=True, bufsz=maxlen)
+            length = abi_encode(add_ofst(buf, 32), encode_input, context, returns_len=True, bufsz=maxlen)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, length]]
 
@@ -2550,7 +2542,6 @@ class ABIDecode(BuiltinFunctionT):
             # input validation
 
             output_buf = context.new_internal_variable(wrapped_typ)
-            output = IRnode.from_list(output_buf, typ=wrapped_typ, location=MEMORY)
 
             # sanity check buffer size for wrapped output type will not buffer overflow
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
