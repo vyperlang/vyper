@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from vyper.codegen.ir_node import Encoding
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType
@@ -91,6 +92,8 @@ class Context:
         # either the constructor, or called from the constructor
         self.is_ctor_context = is_ctor_context
 
+        self.settings = get_global_settings()
+
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
 
@@ -140,10 +143,7 @@ class Context:
             (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
         ]
         for name, var in released:
-            n = var.typ.memory_bytes_required
-            assert n == var.size
-            self.memory_allocator.deallocate_memory(var.pos, n)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
@@ -164,14 +164,26 @@ class Context:
         # Remove all variables that have specific scope_id attached
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
-            n = var.typ.memory_bytes_required
-            # sanity check the type's size hasn't changed since allocation.
-            assert n == var.size
-            self.memory_allocator.deallocate_memory(var.pos, n)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
+
+    def deallocate_variable(self, varname, var):
+        assert varname == var.name
+
+        # sanity check the type's size hasn't changed since allocation.
+        n = var.typ.memory_bytes_required
+        assert n == var.size
+
+        if self.settings.experimental_codegen:
+            # do not deallocate at this stage because this will break
+            # analysis in venom; venom will do its own alloc/dealloc/analysis.
+            pass
+        else:
+            self.memory_allocator.deallocate_memory(var.pos, var.size)
+
+        del self.vars[var.name]
 
     def _new_variable(
         self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
