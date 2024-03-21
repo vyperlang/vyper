@@ -233,14 +233,12 @@ ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 # valid inputs satisfy:
 #   `assert !(start+length > src_len || start+length < start`
 def _make_slice_bounds_check(start, length, src_len):
-    assert src_len.is_literal
-    with start.cache_when_complex("start") as (b1, start), length.cache_when_complex("length") as (b2, length):
-        with add_ofst(start, length).cache_when_complex("end") as (b3, end):
+    with start.cache_when_complex("start") as (b1, start):
+        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
             arithmetic_overflow = ["lt", end, start]
             buffer_oob = ["gt", end, src_len]
-            fail = ["or", arithmetic_overflow, buffer_oob]
-            ok = ["iszero", fail]
-            return b1.resolve(b2.resolve(b3.resolve(["assert", ok])))
+            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            return b1.resolve(b2.resolve(["assert", ok]))
 
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
