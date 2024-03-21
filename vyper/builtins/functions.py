@@ -901,16 +901,13 @@ class Extract32(BuiltinFunctionT):
                 with mi32.cache_when_complex("_mi32") as (
                         b3, mi32
                 ), di32.cache_when_complex("_di32") as (b4, di32):
-                    left_bytes = [
-                        "mul",
-                        [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])],
-                        ["exp", 256, mi32]
-                        ]
-                    right_bytes = [
-                        "div",
-                        [load_op, add_ofst(sub, ["add", scale, ["mul", scale, ["add", di32, 1]]])],
-                        ["exp", 256, ["sub", 32, mi32]],
-                    ]
+
+                    left_payload = [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])]
+                    left_bytes = shl(["mul", 8, mi32], left_payload)
+
+                    right_payload = [load_op, add_ofst(sub, ["add", scale, ["mul", scale, ["add", di32, 1]]])]
+                    right_bytes = shr(["mul", 8, ["sub", 32, mi32]], right_payload)
+
                     ret = [
                         "if",
                         mi32,
@@ -918,6 +915,7 @@ class Extract32(BuiltinFunctionT):
                         [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])],
                     ]
                     o = IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))), typ=ret_type, annotation="extracting 32 bytes")
+
         return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
 
