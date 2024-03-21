@@ -26,6 +26,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "mload",
         "calldatacopy",
         "mcopy",
+        "extcodecopy",
         "returndatacopy",
         "codecopy",
         "dloadbytes",
