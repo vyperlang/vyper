@@ -774,7 +774,6 @@ class Constant(ExprNode):
 class Num(Constant):
     # inherited class for all numeric constant node types
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     @property
     def n(self):
@@ -843,7 +842,6 @@ class Hex(Constant):
     """
 
     __slots__ = ()
-    _translated_fields = {"n": "value"}
 
     def validate(self):
         if "_" in self.value:
