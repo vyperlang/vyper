@@ -9,7 +9,9 @@ class DFTPass(IRPass):
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
         for op in inst.get_outputs():
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
-            for uses_this in reversed(self.dfg.get_uses(op)):
+            uses = self.dfg.get_uses(op)
+
+            for uses_this in uses:
                 if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
                     # don't reorder across basic block or fence boundaries
                     continue
@@ -25,7 +27,7 @@ class DFTPass(IRPass):
             bb.instructions.append(inst)
             return
 
-        for op in inst.liveness:
+        for op in inst.get_inputs():
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
             if target.parent != inst.parent or target.fence_id != inst.fence_id:
