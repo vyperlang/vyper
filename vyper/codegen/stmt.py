@@ -142,7 +142,8 @@ class Stmt:
         # TODO maybe use ensure_in_memory
         if msg_ir.location != MEMORY:
             buf = self.context.new_internal_variable(msg_ir.typ)
-            instantiate_msg = make_byte_array_copier(buf, msg_ir)
+            dst = IRnode.from_list(buf, typ=msg_ir.typ, location=MEMORY)
+            instantiate_msg = make_byte_array_copier(dst, msg_ir)
         else:
             buf = _get_last(msg_ir)
             if not isinstance(buf, int):  # pragma: nocover
