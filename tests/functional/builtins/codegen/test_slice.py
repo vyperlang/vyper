@@ -448,12 +448,12 @@ def test_slice_bytes32_calldata_extended(get_contract, code, result):
 oob_fail_list = [
     """
 d: public(Bytes[256])
-	
+
 @external
 def do_slice():
-	x : uint256 = max_value(uint256) 
-	self.d = b"\x01\x02\x03\x04\x05\x06"
-	assert len(slice(self.d, 1, x)) == max_value(uint256)
+    x : uint256 = max_value(uint256)
+    self.d = b"\x01\x02\x03\x04\x05\x06"
+    assert len(slice(self.d, 1, x)) == max_value(uint256)
     """,
     """
 @external
@@ -464,7 +464,7 @@ def do_slice():
     z: uint96 = 1
     if True:
         placeholder : uint256[16] = [y, y, y, y, y, y, y, y, y, y, y, y, y, y, y, y]
-    s :String[32] = slice(uint2str(z), 1, x)
+    s: String[32] = slice(uint2str(z), 1, x)
     assert slice(s, 1, 2) == "22"
     """,
     """
@@ -479,7 +479,7 @@ def __init__():
 @external
 def do_slice() -> Bytes[64]:
     start: uint256 = max_value(uint256) - 63
-    return slice(self.x, start, 64) 
+    return slice(self.x, start, 64)
     """,
     # tests bounds check in adhoc location calldata
     """
@@ -496,7 +496,7 @@ def do_slice():
     idx: uint256 = max_value(uint256) - 27
     ret: uint256 = _abi_decode(extcall IFace(self).choose_value(1, 2, 3, idx), uint256)
     assert ret == 0
-    """
+    """,
 ]
 
 

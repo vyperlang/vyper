@@ -240,6 +240,7 @@ def _make_slice_bounds_check(start, length, src_len):
             ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
             return b1.resolve(b2.resolve(["assert", ok]))
 
+
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
