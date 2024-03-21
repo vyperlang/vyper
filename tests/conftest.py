@@ -81,7 +81,7 @@ def output_formats():
     return output_formats
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def optimize(pytestconfig):
     flag = pytestconfig.getoption("optimize")
     return OptimizationLevel.from_string(flag)
