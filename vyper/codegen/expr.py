@@ -459,10 +459,9 @@ class Expr:
 
         ret = ["seq"]
 
-        with (
-            left.cache_when_complex("needle") as (b1, left),
-            right.cache_when_complex("haystack") as (b2, right),
-        ):
+        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
+            "haystack"
+        ) as (b2, right):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time

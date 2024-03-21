@@ -9,7 +9,7 @@ class IRPass:
         t = cls()
         count = 0
 
-        for i in range(1000):
+        for _ in range(1000):
             changes_count = t._run_pass(*args, **kwargs) or 0
             count += changes_count
             if changes_count == 0:
