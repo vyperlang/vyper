@@ -8,6 +8,7 @@ from typing import Any, Iterable, Iterator, Optional, Set, TypeVar
 
 import vyper
 import vyper.codegen.ir_node as ir_node
+import vyper.evm.opcodes as evm
 from vyper.cli import vyper_json
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle
 from vyper.compiler.settings import (
@@ -16,7 +17,6 @@ from vyper.compiler.settings import (
     Settings,
     _set_debug_mode,
 )
-from vyper.evm.opcodes import DEFAULT_EVM_VERSION, EVM_VERSIONS
 from vyper.typing import ContractPath, OutputFormats
 
 T = TypeVar("T")
@@ -106,9 +106,9 @@ def _parse_args(argv):
     )
     parser.add_argument(
         "--evm-version",
-        help=f"Select desired EVM version (default {DEFAULT_EVM_VERSION}). "
+        help=f"Select desired EVM version (default {evm.DEFAULT_EVM_VERSION}). "
         "note: cancun support is EXPERIMENTAL",
-        choices=list(EVM_VERSIONS),
+        choices=list(evm.EVM_VERSIONS),
         dest="evm_version",
     )
     parser.add_argument("--no-optimize", help="Do not optimize", action="store_true")
