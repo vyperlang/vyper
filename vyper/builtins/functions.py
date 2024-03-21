@@ -877,30 +877,12 @@ class Extract32(BuiltinFunctionT):
         sub, index = args
         ret_type = kwargs["output_type"]
 
-
         scale = sub.location.word_scale
         load_op = sub.location.load_op
 
-        lengetter = IRnode.from_list([sub.location.load_op, "_sub"], typ=INT128_T)
-        elementgetter = _generic_element_getter(sub.location)
-
-        # TODO rewrite all this with cache_when_complex and bitshifts
+        # TODO rewrite all this with bitshifts
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
-            """
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    elementgetter(
-                        ["div", clamp2(0, index, ["sub", lengetter, 32], signed=True), 32]
-                    ),
-                ],
-                typ=ret_type,
-                annotation="extracting 32 bytes",
-            )
-            """
             with sub.cache_when_complex("_sub") as (b1, sub):
                 length = get_bytearray_length(sub)
                 idx = ["div", clamp2(0, index, ["sub", length, 32], signed=True), 32]
@@ -919,74 +901,24 @@ class Extract32(BuiltinFunctionT):
                 with mi32.cache_when_complex("_mi32") as (
                         b3, mi32
                 ), di32.cache_when_complex("_di32") as (b4, di32):
+                    left_bytes = [
+                        "mul",
+                        [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])],
+                        ["exp", 256, mi32]
+                        ]
+                    right_bytes = [
+                        "div",
+                        [load_op, add_ofst(sub, ["add", scale, ["mul", scale, ["add", di32, 1]]])],
+                        ["exp", 256, ["sub", 32, mi32]],
+                    ]
                     ret = [
                         "if",
                         mi32,
-                        [
-                            "add",
-                            [
-                                "mul",
-                                [load_op, ["add", sub, ["add", scale, ["mul", scale, di32]]]],
-                                ["exp", 256, mi32]],
-                            [
-                                "div",
-                                [load_op, ["add", sub, (["add", scale, ["mul", scale, ["add", di32, 1]]])]],
-                                ["exp", 256, ["sub", 32, mi32]],
-                            ],
-                        ],
-                        [load_op, ["add", sub, ["add", scale, ["mul", scale, di32]]]],
+                        ["add", left_bytes, right_bytes],
+                        [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])],
                     ]
                     o = IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))), typ=ret_type, annotation="extracting 32 bytes")
         return IRnode.from_list(clamp_basetype(o), typ=ret_type)
-
-        """
-            o = IRnode.from_list(
-                [
-                    "with",
-                    "_sub",
-                    sub,
-                    [
-                        "with",
-                        "_len",
-                        lengetter,
-                        [
-                            "with",
-                            "_index",
-                            clamp2(0, index, ["sub", "_len", 32], signed=True),
-                            [
-                                "with",
-                                "_mi32",
-                                ["mod", "_index", 32],
-                                [
-                                    "with",
-                                    "_di32",
-                                    ["div", "_index", 32],
-                                    [
-                                        "if",
-                                        "_mi32",
-                                        [
-                                            "add",
-                                            [
-                                                "mul",
-                                                [load_op, ["add", "_sub", ["add", scale, ["mul", scale, "_di32"]]]],
-                                                ["exp", 256, "_mi32"]],
-                                            [
-                                                "div",
-                                                [load_op, ["add", "_sub", ["add", scale, ["mul", scale, ["add", "_di32", 1]]]]],
-                                                ["exp", 256, ["sub", 32, "_mi32"]],
-                                            ],
-                                        ],
-                                        [load_op, ["add", "_sub", ["add", scale, ["mul", scale, "_di32"]]]],
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                typ=ret_type,
-                annotation="extract32",
-            )
-            """
 
 
 class AsWeiValue(BuiltinFunctionT):
