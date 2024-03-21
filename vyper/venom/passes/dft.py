@@ -20,7 +20,7 @@ class DFTPass(IRPass):
         for op in inst.liveness:
             target = self.dfg.get_producing_instruction(op)
             assert target is not None, f"no producing instruction for {op}"
-            if target is None or target.parent != inst.parent or target.fence_id != inst.fence_id:
+            if target.parent != inst.parent or target.fence_id != inst.fence_id:
                 # don't reorder across basic block or fence boundaries
                 continue
             self._process_instruction_r(bb, target)
