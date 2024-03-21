@@ -36,8 +36,8 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        self.work = {var: 0 for var in self.dom.dfs}
-        self.has_already = {var: 0 for var in self.dom.dfs}
+        self.work = {var: 0 for var in self.dom.dfs_walk}
+        self.has_already = {var: 0 for var in self.dom.dfs_walk}
         i = 0
 
         # Iterate over all variables
@@ -46,7 +46,7 @@ class MakeSSA(IRPass):
             defs = list(d)
             while len(defs) > 0:
                 bb = defs.pop()
-                for dom in self.dom.df[bb]:
+                for dom in self.dom.dominator_frontiers[bb]:
                     if self.has_already[dom] >= i:
                         continue
 
@@ -161,7 +161,7 @@ class MakeSSA(IRPass):
         Compute the definition points of variables in the function.
         """
         self.defs = {}
-        for bb in self.dom.dfs:
+        for bb in self.dom.dfs_walk:
             assignments = bb.get_assignments()
             for var in assignments:
                 if var not in self.defs:
