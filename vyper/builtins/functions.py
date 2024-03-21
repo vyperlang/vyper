@@ -836,7 +836,8 @@ def _generic_element_getter(loc):
         # - for byte-addressable locations multiply by 32
         # - for word-addressable locations multiply by 1 which will be optimized out
         return IRnode.from_list(
-            [loc.load_op, ["add", "_sub", ["add", scale, ["mul", scale, index]]]], typ=INT128_T
+            [loc.load_op, ["add", "_sub", ["add", scale, ["mul", scale, index]]]]
+            #[loc.load_op, add_ofst("_sub", ["add", scale, ["mul", scale, index]])]
         )
 
     return f
@@ -876,12 +877,17 @@ class Extract32(BuiltinFunctionT):
         sub, index = args
         ret_type = kwargs["output_type"]
 
+
+        scale = sub.location.word_scale
+        load_op = sub.location.load_op
+
         lengetter = IRnode.from_list([sub.location.load_op, "_sub"], typ=INT128_T)
         elementgetter = _generic_element_getter(sub.location)
 
         # TODO rewrite all this with cache_when_complex and bitshifts
         # Special case: index known to be a multiple of 32
         if isinstance(index.value, int) and not index.value % 32:
+            """
             o = IRnode.from_list(
                 [
                     "with",
@@ -894,8 +900,46 @@ class Extract32(BuiltinFunctionT):
                 typ=ret_type,
                 annotation="extracting 32 bytes",
             )
+            """
+            with sub.cache_when_complex("_sub") as (b1, sub):
+                length = get_bytearray_length(sub)
+                idx = ["div", clamp2(0, index, ["sub", length, 32], signed=True), 32]
+                ret = [load_op, ["add", sub, ["add", scale, ["mul", scale, idx]]]]
+                o = IRnode.from_list(b1.resolve(ret), typ=ret_type, annotation="extracting 32 bytes")
+                return IRnode.from_list(clamp_basetype(o), typ=ret_type)
+
         # General case
-        else:
+        with sub.cache_when_complex("_sub") as (b1, sub):
+            length = get_bytearray_length(sub)
+            with index.cache_when_complex("_index") as (b2, index):
+                idx = clamp2(0, index, ["sub", length, 32], signed=True)
+                mi32 = IRnode.from_list(["mod", idx, 32])
+                di32 = IRnode.from_list(["div", idx, 32])
+
+                with mi32.cache_when_complex("_mi32") as (
+                        b3, mi32
+                ), di32.cache_when_complex("_di32") as (b4, di32):
+                    ret = [
+                        "if",
+                        mi32,
+                        [
+                            "add",
+                            [
+                                "mul",
+                                [load_op, ["add", sub, ["add", scale, ["mul", scale, di32]]]],
+                                ["exp", 256, mi32]],
+                            [
+                                "div",
+                                [load_op, ["add", sub, (["add", scale, ["mul", scale, ["add", di32, 1]]])]],
+                                ["exp", 256, ["sub", 32, mi32]],
+                            ],
+                        ],
+                        [load_op, ["add", sub, ["add", scale, ["mul", scale, di32]]]],
+                    ]
+                    o = IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))), typ=ret_type, annotation="extracting 32 bytes")
+        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
+
+        """
             o = IRnode.from_list(
                 [
                     "with",
@@ -922,14 +966,17 @@ class Extract32(BuiltinFunctionT):
                                         "_mi32",
                                         [
                                             "add",
-                                            ["mul", elementgetter("_di32"), ["exp", 256, "_mi32"]],
+                                            [
+                                                "mul",
+                                                [load_op, ["add", "_sub", ["add", scale, ["mul", scale, "_di32"]]]],
+                                                ["exp", 256, "_mi32"]],
                                             [
                                                 "div",
-                                                elementgetter(["add", "_di32", 1]),
+                                                [load_op, ["add", "_sub", ["add", scale, ["mul", scale, ["add", "_di32", 1]]]]],
                                                 ["exp", 256, ["sub", 32, "_mi32"]],
                                             ],
                                         ],
-                                        elementgetter("_di32"),
+                                        [load_op, ["add", "_sub", ["add", scale, ["mul", scale, "_di32"]]]],
                                     ],
                                 ],
                             ],
@@ -939,7 +986,7 @@ class Extract32(BuiltinFunctionT):
                 typ=ret_type,
                 annotation="extract32",
             )
-        return IRnode.from_list(clamp_basetype(o), typ=ret_type)
+            """
 
 
 class AsWeiValue(BuiltinFunctionT):
