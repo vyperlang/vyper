@@ -7,6 +7,13 @@ from vyper.venom.passes.base_pass import IRPass
 
 class DFTPass(IRPass):
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction):
+        for op in inst.get_outputs():
+            for uses_this in reversed(self.dfg.get_uses(op)):
+                if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
+                    # don't reorder across basic block or fence boundaries
+                    continue
+                self._process_instruction_r(bb, uses_this)
+
         if inst in self.visited_instructions:
             return
         self.visited_instructions.add(inst)

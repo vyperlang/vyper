@@ -169,7 +169,7 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Opti
 
     bb = ctx.get_basic_block()
     if len(goto_ir.args) > 2:
-        ret_args.append(return_buf.value)  # type: ignore
+        ret_args.append(return_buf)  # type: ignore
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
