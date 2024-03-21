@@ -2451,7 +2451,7 @@ class ABIEncode(BuiltinFunctionT):
             # overwrite the 28 bytes of zeros with the bytestring length
             ret += [["mstore", add_ofst(buf, 4), method_id]]
             # abi encode, and grab length as stack item
-            length = abi_encode(buf + 36, encode_input, context, returns_len=True, bufsz=maxlen)
+            length = abi_encode(add_ofst(buf, 36), encode_input, context, returns_len=True, bufsz=maxlen)
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
 
@@ -2545,7 +2545,7 @@ class ABIDecode(BuiltinFunctionT):
 
             # sanity check buffer size for wrapped output type will not buffer overflow
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
-            ret.append(make_setter(output, to_decode))
+            ret.append(make_setter(output_buf, to_decode))
 
             ret.append(output)
             # finalize. set the type and location for the return buffer.
