@@ -2,9 +2,12 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from tests.utils import wrap_typ_with_storage_loc
+
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import ArgumentException, TypeMismatch
+from vyper.evm.opcodes import version_check
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -93,7 +96,7 @@ def do_splice() -> Bytes[{length_bound}]:
         assert c.do_splice() == bytesdata[start : start + length]
 
 
-@pytest.mark.parametrize("location", ("storage", "calldata", "memory", "literal", "code"))
+@pytest.mark.parametrize("location", ["storage", "transient", "calldata", "memory", "literal", "code"])
 @pytest.mark.parametrize("use_literal_start", (True, False))
 @pytest.mark.parametrize("use_literal_length", (True, False))
 @pytest.mark.parametrize("opt_level", list(OptimizationLevel))
@@ -112,10 +115,18 @@ def test_slice_bytes_fuzz(
     use_literal_length,
     length_bound,
 ):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
     preamble = ""
     if location == "memory":
         spliced_code = f"foo: Bytes[{length_bound}] = inp"
         foo = "foo"
+    elif location == "transient" or location == "storage":
+        preamble = f"""
+foo: {wrap_typ_with_storage_loc(f"Bytes[{length_bound}]", location)}
+         """
+        spliced_code = "self.foo = inp"
+        foo = "self.foo"
     elif location == "storage":
         preamble = f"""
 foo: Bytes[{length_bound}]
@@ -194,10 +205,11 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
         assert c.do_slice(bytesdata, start, length) == bytesdata[start:end], code
 
 
-def test_slice_private(get_contract):
+@pytest.mark.parametrize("location", ["storage"] if not version_check(begin="cancun") else ["storage", "transient"])
+def test_slice_private(get_contract, location):
     # test there are no buffer overruns in the slice function
-    code = """
-bytez: public(String[12])
+    code = f"""
+bytez: public({wrap_typ_with_storage_loc("String[12]", location)})
 
 @internal
 def _slice(start: uint256, length: uint256):

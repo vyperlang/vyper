@@ -19,3 +19,11 @@ def parse_and_fold(source_code):
     ast = vy_ast.parse_to_ast(source_code)
     constant_fold(ast)
     return ast
+
+
+def wrap_typ_with_storage_loc(typ, loc):
+    if loc == "storage":
+        return typ
+    elif loc == "transient":
+        return f"transient({typ})"
+    assert False, f"unreachable storage location {loc}"
