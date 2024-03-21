@@ -21,7 +21,7 @@ from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
+from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
@@ -91,7 +91,7 @@ def optimize(pytestconfig):
 def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
-    _set_debug_mode(debug)
+    return debug
 
 
 @pytest.fixture(scope="session")
@@ -99,6 +99,27 @@ def experimental_codegen(pytestconfig):
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
+
+
+@pytest.fixture(scope="session")
+def evm_version(pytestconfig):
+    # note: we configure the evm version that we emit code for,
+    # but eth-tester is only configured with the latest mainnet
+    # version. luckily, evms are backwards compatible.
+    evm_version_str = pytestconfig.getoption("evm_version")
+    assert isinstance(evm_version_str, str)
+    return evm_version_str
+
+
+@pytest.fixture(scope="session", autouse=True)
+def global_settings(evm_version, experimental_codegen, optimize, debug):
+    settings = Settings(
+        optimize=optimize,
+        evm_version=evm_version,
+        experimental_codegen=experimental_codegen,
+        debug=debug,
+    )
+    set_global_settings(settings)
 
 
 @pytest.fixture(autouse=True)
@@ -122,18 +143,6 @@ def venom_xfail(request, experimental_codegen):
         request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
 
     return _xfail
-
-
-@pytest.fixture(scope="session", autouse=True)
-def evm_version(pytestconfig):
-    # note: we configure the evm version that we emit code for,
-    # but eth-tester is only configured with the latest mainnet
-    # version.
-    evm_version_str = pytestconfig.getoption("evm_version")
-    evm.DEFAULT_EVM_VERSION = evm_version_str
-    # this should get overridden by anchor_evm_version,
-    # but set it anyway
-    evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
 
 
 @pytest.fixture
