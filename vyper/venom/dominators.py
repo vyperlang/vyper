@@ -6,7 +6,9 @@ from vyper.venom.function import IRFunction
 
 class DominatorTree:
     """
-    Dominator tree.
+    Dominator tree implementation. This class computes the dominator tree of a
+    function and provides methods to query the tree. The tree is computed using
+    the Lengauer-Tarjan algorithm.
     """
 
     ctx: IRFunction
@@ -30,18 +32,30 @@ class DominatorTree:
         self._compute()
 
     def dominates(self, bb1, bb2):
+        """
+        Check if bb1 dominates bb2.
+        """
         return bb2 in self.dominators[bb1]
 
     def immediate_dominator(self, bb):
+        """
+        Return the immediate dominator of a basic block.
+        """
         return self.immediate_dominators.get(bb)
 
     def _compute(self):
+        """
+        Compute the dominator tree.
+        """
         self._dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
 
     def _compute_dominators(self):
+        """
+        Compute dominators
+        """
         basic_blocks = list(self.dfs_order.keys())
         self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
         self.dominators[self.entry_block] = OrderedSet({self.entry_block})
@@ -105,6 +119,9 @@ class DominatorTree:
         return df
 
     def _intersect(self, bb1, bb2):
+        """
+        Find the nearest common dominator of two basic blocks.
+        """
         dfs_order = self.dfs_order
         while bb1 != bb2:
             while dfs_order[bb1] < dfs_order[bb2]:
@@ -114,6 +131,12 @@ class DominatorTree:
         return bb1
 
     def _dfs(self, entry: IRBasicBlock, visited):
+        """
+        Depth-first search to compute the DFS order of the basic blocks. This
+        is used to compute the dominator tree. The sequence of basic blocks in
+        the DFS order is stored in `self.dfs_walk`. The DFS order of each basic
+        block is stored in `self.dfs_order`.
+        """
         visited.add(entry)
 
         for bb in entry.cfg_out:
