@@ -255,7 +255,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             "seq",
             _make_slice_bounds_check(start, length, "calldatasize"),
             ["mstore", np, length],
-            ["calldatacopy", np + 32, start, length],
+            ["calldatacopy", add_ofst(np, 32), start, length],
             np,
         ]
 
@@ -265,7 +265,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             "seq",
             _make_slice_bounds_check(start, length, "codesize"),
             ["mstore", np, length],
-            ["codecopy", np + 32, start, length],
+            ["codecopy", add_ofst(np, 32), start, length],
             np,
         ]
 
@@ -280,7 +280,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
                 "seq",
                 _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
                 ["mstore", np, length],
-                ["extcodecopy", "_extcode_address", np + 32, start, length],
+                ["extcodecopy", "_extcode_address", add_ofst(np, 32), start, length],
                 np,
             ],
         ]

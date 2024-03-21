@@ -35,8 +35,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
 
         if needs_clamp(arg.typ, Encoding.ABI):
             # allocate a memory slot for it and copy
-            p = context.new_variable(arg.name, arg.typ, is_mutable=False)
-            dst = IRnode(p, typ=arg.typ, location=MEMORY)
+            dst = context.new_variable(arg.name, arg.typ, is_mutable=False)
 
             copy_arg = make_setter(dst, arg_ir)
             copy_arg.ast_source = arg.ast_source

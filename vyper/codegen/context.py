@@ -3,7 +3,7 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.codegen.ir_node import Encoding
+from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
@@ -13,6 +13,17 @@ from vyper.semantics.types import VyperType
 class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
+
+
+@dataclass(frozen=True)
+class Alloca:
+    name: str
+    pos: int
+    typ: VyperType
+    size: int
+
+    def __post_init__(self):
+        assert self.typ.memory_bytes_required == self.size
 
 
 # Function variable
@@ -28,6 +39,8 @@ class VariableRecord:
     blockscopes: Optional[list] = None
     defined_at: Any = None
     is_internal: bool = False
+
+    # the following members are probably dead
     is_immutable: bool = False
     is_transient: bool = False
     data_offset: Optional[int] = None
@@ -43,6 +56,21 @@ class VariableRecord:
         ret = vars(self)
         ret["allocated"] = self.typ.memory_bytes_required
         return f"VariableRecord({ret})"
+
+    def as_ir_node(self):
+        ret = IRnode.from_list(
+            self.pos,
+            typ=self.typ,
+            annotation=self.name,
+            encoding=self.encoding,
+            mutable=self.mutable,
+        )
+        ret._referenced_vars = {self}
+        if self.location == MEMORY:  # don't need alloca in other locations
+            ret.passthrough_metadata["alloca"] = Alloca(
+                name=self.name, pos=self.pos, typ=self.typ, size=self.typ.memory_bytes_required
+            )
+        return ret
 
 
 # compilation context for a function
@@ -100,6 +128,9 @@ class Context:
     def check_is_not_constant(self, err, expr):
         if self.is_constant():
             raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
+
+    def get_var(self, name):
+        return self.vars[name]
 
     # convenience properties
     @property
@@ -187,12 +218,12 @@ class Context:
 
     def _new_variable(
         self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
-    ) -> int:
+    ) -> IRnode:
         var_pos = self.memory_allocator.allocate_memory(var_size)
 
         assert var_pos + var_size <= self.memory_allocator.size_of_mem, "function frame overrun"
 
-        self.vars[name] = VariableRecord(
+        var = VariableRecord(
             name=name,
             pos=var_pos,
             typ=typ,
@@ -201,11 +232,12 @@ class Context:
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
         )
-        return var_pos
+        self.vars[name] = var
+        return var.as_ir_node()
 
-    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> int:
+    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> IRnode:
         """
-        Allocate memory for a user-defined variable.
+        Allocate memory for a user-defined variable and return an IR node referencing it.
 
         Arguments
         ---------
@@ -232,7 +264,7 @@ class Context:
         return f"{name}{t}"
 
     # do we ever allocate immutable internal variables?
-    def new_internal_variable(self, typ: VyperType) -> int:
+    def new_internal_variable(self, typ: VyperType) -> IRnode:
         """
         Allocate memory for an internal variable.
 
@@ -252,7 +284,7 @@ class Context:
         var_size = typ.memory_bytes_required
         return self._new_variable(name, typ, var_size, True)
 
-    def lookup_var(self, varname):
+    def lookup_var(self, varname) -> VariableRecord:
         return self.vars[varname]
 
     # Pretty print constancy for error messages
