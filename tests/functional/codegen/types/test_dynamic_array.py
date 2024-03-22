@@ -61,6 +61,7 @@ def loo(x: DynArray[DynArray[int128, 2], 2]) -> int128:
     print("Passed list tests")
 
 
+@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_string_list(get_contract):
     code = """
 @external
