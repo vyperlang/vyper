@@ -1,4 +1,5 @@
 import binascii
+import itertools
 import contextlib
 import decimal
 import enum
@@ -27,8 +28,7 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def __init__(self, iterable=None):
         super().__init__()
         if iterable is not None:
-            for item in iterable:
-                self.add(item)
+            self.update(iterable)
 
     def __repr__(self):
         keys = ", ".join(repr(k) for k in self.keys())
@@ -46,24 +46,38 @@ class OrderedSet(Generic[_T], dict[_T, None]):
     def remove(self, item: _T) -> None:
         del self[item]
 
+    def drop(self, item: _T):
+        # friendly version of remove
+        super().pop(item, None)
+
+    def dropmany(self, iterable):
+        for item in iterable:
+            self.drop(item)
+
     def difference(self, other):
         ret = self.copy()
-        for k in other.keys():
-            if k in ret:
-                ret.remove(k)
+        ret.dropmany(other)
         return ret
+
+    def update(self, other):
+        # CMC 2024-03-22 for some reason, this is faster than super().update?
+        # (maybe size dependent)
+        for item in other:
+            self.add(item)
+
+    def __ior__(self, other):
+        self.update(other)
+        return self
 
     def union(self, other):
         return self | other
 
-    def update(self, other):
-        super().update(self.__class__.fromkeys(other))
-
     def __or__(self, other):
-        return self.__class__(super().__or__(other))
+        cls = self.__class__
+        return cls(itertools.chain(self, other))
 
     def copy(self):
-        return self.__class__(super().copy())
+        return self.__class__(iter(self))
 
     @classmethod
     def intersection(cls, *sets):

@@ -1,4 +1,5 @@
 from typing import Optional
+import itertools
 
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
@@ -53,12 +54,14 @@ def _calculate_liveness(bb: IRBasicBlock) -> bool:
     orig_liveness = bb.instructions[0].liveness.copy()
     liveness = bb.out_vars.copy()
     for instruction in reversed(bb.instructions):
-        ops = instruction.get_inputs()
+        ins = instruction.get_inputs()
+        outs = instruction.get_outputs()
 
-        liveness = liveness.union(OrderedSet.fromkeys(ops))
-        out = instruction.get_outputs()[0] if len(instruction.get_outputs()) > 0 else None
-        if out in liveness:
-            liveness.remove(out)
+        if ins or outs:
+            liveness = liveness.copy()
+            liveness.update(ins)
+            liveness.dropmany(outs)
+
         instruction.liveness = liveness
 
     return orig_liveness != bb.instructions[0].liveness
