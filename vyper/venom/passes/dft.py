@@ -15,9 +15,12 @@ class DFTPass(IRPass):
                 if uses_this.parent != inst.parent or uses_this.fence_id != inst.fence_id:
                     # don't reorder across basic block or fence boundaries
                     continue
-                self._process_instruction_r(
-                    bb, uses_this, 1000 if uses_this.opcode in BB_TERMINATORS else offset
-                )
+
+                # if the instruction is a terminator, we need to place it at the end of the basic block
+                # along with all the instructions that "lead" to it
+                if uses_this.opcode in BB_TERMINATORS:
+                    offset = len(bb.instructions)
+                self._process_instruction_r(bb, uses_this, offset)
 
         if inst in self.visited_instructions:
             return
@@ -27,8 +30,7 @@ class DFTPass(IRPass):
             # phi instructions stay at the beginning of the basic block
             # and no input processing is needed
             # bb.instructions.append(inst)
-            self.inst_order_num += 1
-            self.inst_order[inst] = self.inst_order_num + offset
+            self.inst_order[inst] = 0
             return
 
         for op in inst.get_inputs():
@@ -39,7 +41,6 @@ class DFTPass(IRPass):
                 continue
             self._process_instruction_r(bb, target, offset)
 
-        # bb.instructions.append(inst)
         self.inst_order_num += 1
         self.inst_order[inst] = self.inst_order_num + offset
 
@@ -51,13 +52,15 @@ class DFTPass(IRPass):
             if inst.volatile:
                 self.fence_id += 1
 
+        # We go throught the instructions and calculate the order in which they should be executed
+        # based on the data flow graph. This order is stored in the inst_order dictionary.
+        # We then sort the instructions based on this order.
         self.inst_order = {}
         self.inst_order_num = 0
         for inst in bb.instructions:
             self._process_instruction_r(bb, inst)
 
         bb.instructions.sort(key=lambda x: self.inst_order[x])
-        pass
 
     def _run_pass(self, ctx: IRFunction) -> None:
         self.ctx = ctx
