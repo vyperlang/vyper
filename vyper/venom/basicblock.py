@@ -1,5 +1,6 @@
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
+from functools import cached_property
 
 from vyper.utils import OrderedSet
 
