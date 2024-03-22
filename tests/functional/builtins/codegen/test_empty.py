@@ -1,5 +1,6 @@
 import pytest
 
+from tests.conftest import _get_contract
 from vyper.exceptions import InstantiationException, TypeMismatch
 
 
@@ -667,7 +668,7 @@ def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
     assert c2.bar(c1.address) == [12] + expected + [42]
 
 
-def test_empty_array_in_event_logging(get_contract, get_logs):
+def test_empty_array_in_event_logging(get_contract, get_logs, optimize, output_formats, w3):
     code = """
 event MyLog:
     arg1: Bytes[64]
@@ -687,7 +688,8 @@ def foo():
     )
     """
 
-    c = get_contract(code)
+    # todo: add logs to pyrevm
+    c = _get_contract(w3, code, optimize, output_formats)
     log = get_logs(c.foo(transact={}), c, "MyLog")[0]
 
     assert log.args.arg1 == b"hello" * 9

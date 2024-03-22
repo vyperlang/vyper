@@ -201,7 +201,7 @@ def foo_call(_addr: address):
     outer_contract.foo_call(inner_contract.address)
 
     # manually specifying an insufficient amount should fail
-    outer_contract = get_contract(outer_code.format(", gas=15000"))
+    outer_contract = get_contract(outer_code.format(", gas=2250"))
     with tx_failed():
         outer_contract.foo_call(inner_contract.address)
 

@@ -2,6 +2,7 @@
 from decimal import Decimal
 from typing import Any
 
+from eth.codecs.abi import nodes
 from eth.codecs.abi.decoder import Decoder
 from eth.codecs.abi.encoder import Encoder
 from eth.codecs.abi.exceptions import ABIError
@@ -19,6 +20,11 @@ class _Decoder(Decoder):
     ) -> str | None:
         address = super().visit_AddressNode(node, value, checksum, **kwargs)
         return address if address != "0x0000000000000000000000000000000000000000" else None
+
+    @classmethod
+    def visit_TupleNode(cls, node: nodes.TupleNode, value: bytes, **kwargs) -> list:
+        tup = super().visit_TupleNode(node, value, **kwargs)
+        return list(tup)
 
 
 class _Encoder(Encoder):

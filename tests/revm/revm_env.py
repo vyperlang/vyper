@@ -31,6 +31,9 @@ class RevmEnv:
     def deployer(self) -> HexAddress:
         return self._keys[0].public_key.to_checksum_address()
 
+    def get_balance(self, address: HexAddress) -> int:
+        return self.evm.get_balance(address)
+
     def set_balance(self, address: HexAddress, value: int):
         self.evm.set_balance(address, value)
 
@@ -46,9 +49,10 @@ class RevmEnv:
         gas: int = 0,
         is_modifying: bool = True,
         # TODO: Remove the following. They are not used.
-        transact=None,
+        transact: dict | None = None,
         contract=None,
     ):
+        gas = transact.get("gas", gas) if transact else gas
         try:
             output = self.evm.message_call(
                 to=to_address,
@@ -125,7 +129,8 @@ class RevmEnv:
         deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi = []  # just a constructor
-        deployer = self.deploy(deployer_abi, deploy_bytecode, value=0, *args)
+        value = 0
+        deployer = self.deploy(deployer_abi, deploy_bytecode, value, *args)
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)

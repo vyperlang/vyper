@@ -102,12 +102,12 @@ def test2(a: uint256) -> Bytes[100]:
         c.test2(0)
 
     GAS_SENT = 30000
-    tx_hash = c.test2(0)
+    with tx_failed():
+        c.test2(0, transact={"gas": GAS_SENT})
 
-    receipt = revm_env.get_transaction_receipt(tx_hash)
-
-    assert receipt["status"] == 0
-    assert receipt["gasUsed"] < GAS_SENT
+    receipt = revm_env.evm.result
+    assert receipt.is_success is False
+    assert receipt.gas_used < GAS_SENT
 
 
 def test_create_minimal_proxy_to_create2(get_contract, create2_address_of, keccak, tx_failed):

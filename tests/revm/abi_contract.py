@@ -122,7 +122,8 @@ class ABIFunction:
             case (single,):
                 return single
             case multiple:
-                return tuple(multiple)
+                # this should return a tuple, but for backwards compatibility we return a list
+                return multiple
 
 
 class ABIOverload:
@@ -241,7 +242,7 @@ class ABIContract:
         """
         return {function.method_id: function for function in self._functions}
 
-    def marshal_to_python(self, result: bytes, abi_type: list[str]) -> tuple[Any, ...]:
+    def marshal_to_python(self, result: bytes, abi_type: list[str]) -> list[Any]:
         """
         Convert the output of a contract call to a Python object.
         :param result: the computation result returned by `execute_code`
