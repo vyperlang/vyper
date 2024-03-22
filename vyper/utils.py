@@ -58,7 +58,7 @@ class OrderedSet(Generic[_T]):
 
     def dropmany(self, iterable):
         for item in iterable:
-            self.drop(item)
+            self._data.pop(item, None)
 
     def difference(self, other):
         ret = self.copy()
@@ -66,28 +66,29 @@ class OrderedSet(Generic[_T]):
         return ret
 
     def update(self, other):
-        # CMC 2024-03-22 for some reason, this is faster than super().update?
+        # CMC 2024-03-22 for some reason, this is faster than dict.update?
         # (maybe size dependent)
         for item in other:
-            self.add(item)
+            self._data[item] = None
+
+    def union(self, other):
+        return self | other
 
     def __ior__(self, other):
         self.update(other)
         return self
 
-    def union(self, other):
-        return self | other
-
     def __or__(self, other):
         ret = self.copy()
-        ret |= other
+        ret.update(other)
         return ret
 
     def __eq__(self, other):
         return self._data == other._data
 
     def copy(self):
-        ret = self.__class__()
+        cls = self.__class__
+        ret = cls.__new__(cls)
         ret._data = self._data.copy()
         return ret
 
