@@ -49,6 +49,7 @@ class IRFunction:
 
         self._ast_source_stack = []
         self._error_msg_stack = []
+        self._bb_index = {}
 
         self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
@@ -76,6 +77,15 @@ class IRFunction:
 
         return self.basic_blocks[-1]
 
+    def _get_basicblock_index(self, label: str):
+        ix = self._bb_index.get(label, -1)
+        if 0 <= ix < len(self.basic_blocks) and self.basic_blocks[ix].label == label:
+            return ix
+        # do a reindex
+        self._bb_index = dict((bb.label, ix) for ix, bb in enumerate(self.basic_blocks))
+        return self._bb_index[label]
+
+
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
@@ -83,18 +93,16 @@ class IRFunction:
         """
         if label is None:
             return self.basic_blocks[-1]
-        for bb in self.basic_blocks:
-            if bb.label.value == label:
-                return bb
-        raise AssertionError(f"Basic block '{label}' not found")
+        ix = self._get_basicblock_index(label)
+        return self.basic_blocks[ix]
 
     def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
         """
         Get basic block after label.
         """
-        for i, bb in enumerate(self.basic_blocks[:-1]):
-            if bb.label.value == label.value:
-                return self.basic_blocks[i + 1]
+        ix = self._get_basicblock_index(label.value)
+        if 0 <= ix < len(self.basic_blocks) - 1:
+            return self.basic_blocks[ix + 1]
         raise AssertionError(f"Basic block after '{label}' not found")
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:

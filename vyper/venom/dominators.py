@@ -58,7 +58,7 @@ class DominatorTree:
         """
         basic_blocks = list(self.dfs_order.keys())
         self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
-        self.dominators[self.entry_block] = OrderedSet({self.entry_block})
+        self.dominators[self.entry_block] = OrderedSet([self.entry_block])
         changed = True
         count = len(basic_blocks) ** 2  # TODO: find a proper bound for this
         while changed:
