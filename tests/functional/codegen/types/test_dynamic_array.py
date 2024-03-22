@@ -867,7 +867,6 @@ def parse_list_fail():
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), OverflowException)
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_2d_array_input_1(get_contract):
     code = """
 @internal
@@ -887,7 +886,6 @@ def test_values(
     assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 def test_2d_array_input_2(get_contract):
     code = """
 @internal

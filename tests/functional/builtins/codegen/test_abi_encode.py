@@ -178,7 +178,6 @@ nested_2d_array_args = [
 ]
 
 
-@pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
 @pytest.mark.parametrize("args", nested_2d_array_args)
 def test_abi_encode_nested_dynarray(get_contract, args):
     code = """
