@@ -58,6 +58,7 @@ def _calculate_liveness(bb: IRBasicBlock) -> bool:
         outs = instruction.get_outputs()
 
         if ins or outs:
+            # perf: only copy if changed
             liveness = liveness.copy()
             liveness.update(ins)
             liveness.dropmany(outs)
