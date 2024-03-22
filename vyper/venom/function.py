@@ -85,7 +85,6 @@ class IRFunction:
         self._bb_index = dict((bb.label, ix) for ix, bb in enumerate(self.basic_blocks))
         return self._bb_index[label]
 
-
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
         Get basic block by label.
