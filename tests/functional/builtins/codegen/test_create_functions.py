@@ -354,7 +354,9 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     self.created_address = create_from_blueprint(target, arg1, arg2)
     """
     FOO = "hello!"
-    BAR = ("world!",)
+    BAR = [
+        "world!",
+    ]
 
     # deploy a foo so we can compare its bytecode with factory deployed version
     foo_contract = get_contract(code, FOO, BAR)

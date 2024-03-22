@@ -60,17 +60,17 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     assert tuple(c.abi_decode(encoded)) == (TEST_ADDR, -1, True, Decimal("-123.4"), test_bytes32)
 
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
-    human_tuple = (
+    human_tuple = [
         "foobar",
         ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
-    )
-    args = tuple([human_tuple[0]] + list(human_tuple[1]))
+    ]
+
     human_t = "((string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32)))"
     human_encoded = abi.encode(human_t, (human_tuple,))
-    assert tuple(c.abi_decode_struct(human_encoded)) == (
+    assert c.abi_decode_struct(human_encoded) == [
         "foobar",
-        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
-    )
+        ["vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32],
+    ]
 
 
 @pytest.mark.parametrize(
