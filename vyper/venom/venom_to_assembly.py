@@ -407,7 +407,7 @@ class VenomCompiler:
             # NOTE: stack in general can contain multiple copies of the same variable,
             # however we are safe in the case of jmp/djmp/jnz as it's not going to
             # have multiples.
-            target_stack_list = list(target_stack.keys())
+            target_stack_list = list(target_stack)
             self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
