@@ -154,7 +154,7 @@ jobs:
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
-          ${{ matrix.experimental-codegen && '--experimental-codegen || '' }} \
+          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
           --showlocals -r aR \
           tests/
 
