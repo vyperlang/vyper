@@ -13,15 +13,16 @@ extras_require = {
         "pytest-instafail>=0.4,<1.0",
         "pytest-xdist>=3.5,<4.0",
         "pytest-split>=0.7.0,<1.0",
-        "eth-tester[py-evm]>=0.9.0b1,<0.10",
+        "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
-        "py-evm>=0.7.0a1,<0.8",
+        "py-evm>=0.10.0b4,<0.11",
         "web3==6.0.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",
         "eth-stdlib==0.2.7",
         "setuptools",
         "pyrevm @ git+https://github.com/gakonst/pyrevm.git@master",
+        "typing_extensions",  # we can remove this once dependencies upgrade to eth-rlp>=2.0
     ],
     "lint": [
         "black==23.12.0",
