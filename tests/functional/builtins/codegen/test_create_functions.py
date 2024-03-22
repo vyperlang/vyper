@@ -42,7 +42,7 @@ def test() -> address:
     assert c.test() == checksum_encode("0x" + expected_create_address.hex())
 
 
-def test_create_minimal_proxy_to_call(get_contract, revm_env):
+def test_create_minimal_proxy_to_call(get_contract):
     code = """
 interface SubContract:
     def hello() -> Bytes[100]: view
@@ -102,7 +102,7 @@ def test2(a: uint256) -> Bytes[100]:
         c.test2(0)
 
     GAS_SENT = 30000
-    tx_hash = c.test2(0, transact={"gas": GAS_SENT})
+    tx_hash = c.test2(0)
 
     receipt = revm_env.get_transaction_receipt(tx_hash)
 
@@ -282,11 +282,8 @@ def test(code_ofst: uint256) -> address:
         compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
     )
     # manually deploy the bytecode
-    c = revm_env.contract(abi=[], bytecode=bytecode)
-    deploy_transaction = c.constructor()
-    tx_info = {"from": revm_env.accounts[0], "value": 0, "gasPrice": 0}
-    tx_hash = deploy_transaction.transact(tx_info)
-    blueprint_address = revm_env.get_transaction_receipt(tx_hash)["contractAddress"]
+    c = revm_env.deploy(abi=[], bytecode=bytecode)
+    blueprint_address = c.address
 
     d = get_contract(deployer_code, blueprint_address)
 
@@ -424,7 +421,7 @@ def should_fail(target: address, arg1: String[129], arg2: Bar):
     sig = keccak("should_fail(address,string,(string))".encode()).hex()[:10]
     encoded = abi.encode("(address,string,(string))", (f.address, FOO, BAR)).hex()
     with tx_failed():
-        revm_env.send_transaction({"to": d.address, "data": f"{sig}{encoded}"})
+        revm_env.execute_code(d.address, revm_env.deployer, HexBytes(f"{sig}{encoded}"))
 
 
 def test_create_copy_of(get_contract, revm_env, keccak, create2_address_of, tx_failed):
@@ -539,7 +536,8 @@ def test(target: address):
 
     d = get_contract(deployer_code)
 
-    d.test(f.address, transact={"value": 3})
+    revm_env.set_balance(revm_env.deployer, 3)
+    d.test(f.address, value=3)
 
     test = FooContract(d.created_address())
     assert revm_env.get_code(test.address) == expected_runtime_code

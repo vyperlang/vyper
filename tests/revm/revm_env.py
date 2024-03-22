@@ -1,5 +1,5 @@
 import json
-from typing import Callable
+from typing import Callable, Tuple
 
 from eth_keys.datatypes import PrivateKey
 from eth_tester.backends.pyevm.main import get_default_account_keys
@@ -20,7 +20,6 @@ from vyper.utils import ERC5202_PREFIX
 class RevmEnv:
     def __init__(self, gas_limit: int, tracing=False) -> None:
         self.evm = EVM(gas_limit=gas_limit, tracing=tracing)
-        self.bytecode: dict[HexAddress, str] = {}
         self.contracts: dict[HexAddress, ABIContract] = {}
         self._keys: list[PrivateKey] = get_default_account_keys()
 
@@ -35,35 +34,36 @@ class RevmEnv:
     def set_balance(self, address: HexAddress, value: int):
         self.evm.set_balance(address, value)
 
+    def contract(self, abi, bytecode) -> "ABIContract":
+        return ABIContractFactory.from_abi_dict(abi).at(self, bytecode)
+
     def execute_code(
         self,
         to_address: HexAddress,
         sender: HexAddress,
         data: bytes | None,
-        value: int | None,
-        # todo: use or remove arguments
-        gas: int,
-        is_modifying: bool,
-        contract: "ABIContract",
+        value: int | None = None,
+        gas: int = 0,
+        is_modifying: bool = True,
+        # TODO: Remove the following. They are not used.
         transact=None,
+        contract=None,
     ):
         try:
-            fn = self.evm.call_raw_committing if transact is None else self.evm.call_raw
-            output = fn(
+            output = self.evm.message_call(
                 to=to_address,
                 caller=sender,
                 calldata=data,
                 value=value,
-                # gas=gas,
-                # is_modifying=self.is_mutable,
-                # contract=self.contract,
+                gas=gas,
+                is_static=not is_modifying,
             )
             return bytes(output)
         except RuntimeError as e:
             raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: HexAddress):
-        return self.evm.basic(address).code
+        return HexBytes(self.evm.basic(address).code.rstrip(b"\0"))
 
     def register_contract(self, address: HexAddress, contract: "ABIContract"):
         self.contracts[address] = contract
@@ -90,7 +90,7 @@ class RevmEnv:
 
     def _compile(
         self, source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
-    ):
+    ) -> Tuple[list[dict], HexBytes]:
         out = compile_code(
             source_code,
             # test that all output formats can get generated
@@ -101,7 +101,7 @@ class RevmEnv:
         )
         parse_vyper_source(source_code)  # Test grammar.
         json.dumps(out["metadata"])  # test metadata is json serializable
-        return out["abi"], out["bytecode"]
+        return out["abi"], HexBytes(out["bytecode"])
 
     def deploy_blueprint(
         self,
@@ -117,25 +117,25 @@ class RevmEnv:
         abi, bytecode = self._compile(
             source_code, optimize, output_formats, override_opt_level, input_bundle, evm_version
         )
-        bytecode = HexBytes(initcode_prefix) + HexBytes(bytecode)
+        bytecode = HexBytes(initcode_prefix + bytecode)
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
         # prepend a quick deploy preamble
         deploy_preamble = HexBytes("61" + bytecode_len_hex + "3d81600a3d39f3")
-        deploy_bytecode = HexBytes(deploy_preamble) + bytecode
+        deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi = []  # just a constructor
-        deployer = self.deploy(deployer_abi, deploy_bytecode.hex())
+        deployer = self.deploy(deployer_abi, deploy_bytecode, value=0, *args)
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
 
         return deployer, factory
 
-    def deploy(self, abi: list[dict], bytecode: str, value=0, *args, **kwargs):
+    def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
         factory = ABIContractFactory.from_abi_dict(abi=abi)
 
-        initcode = bytes.fromhex(bytecode[2:])
+        initcode = bytecode
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
@@ -143,14 +143,10 @@ class RevmEnv:
 
         try:
             deployed_at = self.evm.deploy(
-                deployer=self.deployer, code=list(initcode), value=value, _abi=json.dumps(abi)
+                deployer=self.deployer, code=initcode, value=value, _abi=json.dumps(abi)
             )
         except RuntimeError as e:
             raise TransactionFailed(*e.args) from e
 
         address = to_checksum_address(deployed_at)
-        self.bytecode[address] = bytecode
-
-        abi_contract = factory.at(self, address)
-
-        return abi_contract
+        return factory.at(self, address)
