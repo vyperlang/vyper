@@ -23,7 +23,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import StructureException
+from vyper.exceptions import TransientStorageException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import ERC5202_PREFIX
 
@@ -327,14 +327,13 @@ def _get_contract(
     *args,
     override_opt_level=None,
     input_bundle=None,
-    has_transient_storage=False,
     **kwargs,
 ):
     settings = Settings()
     settings.optimize = override_opt_level or optimize
 
-    if has_transient_storage and not version_check(begin="cancun"):
-        with pytest.raises(StructureException):
+    if not version_check(begin="cancun"):
+        with pytest.raises(TransientStorageException):
             compiler.compile_code(source_code)
         return
 
