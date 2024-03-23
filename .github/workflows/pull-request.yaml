@@ -38,9 +38,11 @@ jobs:
             venom
           requireScope: true
           subjectPattern: '^(?![A-Z]).+$'
-          subjectPatternError: >
+          subjectPatternError: |
+
             Starts with uppercase letter: '{subject}'
             (Full PR title: '{title}')
+
           headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
           validateSingleCommit: true
           validateSingleCommitMatchesPrTitle: true
