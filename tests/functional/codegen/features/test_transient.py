@@ -5,16 +5,12 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import StructureException, VyperException
 
 
-def test_transient_blocked(evm_version):
+def test_transient_blocked(get_contract):
     # test transient is blocked on pre-cancun and compiles post-cancun
     code = """
 my_map: transient(HashMap[address, uint256])
     """
-    if version_check(begin="cancun"):
-        assert compile_code(code) is not None
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
+    get_contract(code, has_transient_storage=True)
 
 
 def test_transient_compiles():
@@ -80,12 +76,9 @@ def foo(a: {typ}) -> {typ}:
     return self.bar
     """
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.foo(value) == value
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 @pytest.mark.parametrize("val", [0, 1, 2**256 - 1])
@@ -107,13 +100,10 @@ def a1() -> uint256:
     return self.A
     """
 
+    c = get_contract(code, val, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code, val)
         assert c.a() == val
         assert c.a1() == 0
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_multiple_transient_values(get_contract):
@@ -132,7 +122,7 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
 
     if version_check(begin="cancun"):
-        c = get_contract(code)
+        c = get_contract(code, has_transient_storage=True)
         assert c.foo(*values) == list(values)
     else:
         # multiple errors
@@ -162,12 +152,9 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
     """
     values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2**200))
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.foo(*values) == values
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_complex_transient_modifiable(get_contract):
@@ -187,12 +174,9 @@ def foo(a: uint256) -> MyStruct:
     return self.my_struct
     """
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.foo(1) == (2,)
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_list_transient(get_contract):
@@ -206,12 +190,9 @@ def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
     """
     values = (100, 42, 23230)
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.foo(*values) == list(values)
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_dynarray_transient(get_contract):
@@ -230,13 +211,10 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     """
     values = (100, 42, 23230)
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.get_my_list(*values) == list(values)
         assert c.get_idx_two(*values) == values[2]
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_nested_dynarray_transient_2(get_contract):
@@ -256,13 +234,10 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     values = (100, 42, 23230)
     expected_values = [[100, 42, 23230], [42, 100, 23230], [23230, 42, 100]]
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.get_my_list(*values) == expected_values
         assert c.get_idx_two(*values) == expected_values[2][2]
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_nested_dynarray_transient(get_contract):
@@ -310,13 +285,10 @@ def get_idx_two(x: int128, y: int128, z: int128) -> int128:
         [[146, 123, 148], [-146, -123, -148], [-2993, -1517, -2701]],
     ]
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.get_my_list(*values) == expected_values
         assert c.get_idx_two(*values) == expected_values[2][2][2]
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 @pytest.mark.parametrize("n", range(5))
@@ -338,12 +310,9 @@ def bar(x: uint256) -> uint256:
     return self.val
     """
 
+    c = get_contract(code, has_transient_storage=True)
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.bar(n) == n + 2
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
 
 
 def test_nested_internal_function_transient(get_contract):
@@ -366,9 +335,7 @@ def b():
     self.d = self.x
     """
 
+    c = get_contract(code, has_transient_storage=True)
+
     if version_check(begin="cancun"):
-        c = get_contract(code)
         assert c.d() == 2
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
