@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import copy
 
 import vyper.utils as util
 from vyper.codegen.abi_encoder import abi_encode
@@ -94,13 +95,11 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
 
     encoding = Encoding.ABI
 
-    buf = IRnode.from_list(
-        buf,
-        typ=wrapped_return_t,
-        location=MEMORY,
-        encoding=encoding,
-        annotation=f"{expr.node_source_code} returndata buffer",
-    )
+    assert buf.location == MEMORY
+    buf = copy.copy(buf)
+    buf.typ = wrapped_return_t
+    buf.encoding = encoding
+    buf.annotation=f"{expr.node_source_code} returndata buffer"
 
     unpacker = ["seq"]
 
