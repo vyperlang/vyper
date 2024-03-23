@@ -9,8 +9,8 @@ on:
       - edited
       - synchronize
 
-#permissions:
-#  pull-requests: read
+permissions:
+  pull-requests: read
 
 jobs:
   conventional-commit:
@@ -18,3 +18,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
