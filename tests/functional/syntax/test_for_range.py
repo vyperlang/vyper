@@ -3,7 +3,7 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StructureException, TypeMismatch, UnknownType
+from vyper.exceptions import ArgumentException, StateAccessViolation, StructureException, TypeMismatch, UnknownType
 
 fail_list = [
     (
@@ -322,6 +322,26 @@ def foo():
         None,
         "10.1",
     ),
+    (
+        """
+d: DynArray[uint256, 10]
+
+interface I:
+    def foo() -> DynArray[uint256, 10]: view
+    def bar() -> uint256: payable
+
+
+@external
+def bar(t: address) -> uint256:
+    for i: uint256 in range(extcall I(t).bar(), bound=10):
+        self.d.append(i)
+    return 1
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression.",
+        None,
+        "extcall I(t).bar()",
+    )
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
