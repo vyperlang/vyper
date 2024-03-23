@@ -2555,7 +2555,7 @@ class ABIDecode(BuiltinFunctionT):
             assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
             ret.append(make_setter(output_buf, to_decode))
 
-            ret.append(output)
+            ret.append(output_buf)
             # finalize. set the type and location for the return buffer.
             # (note: unwraps the tuple type if necessary)
             ret = IRnode.from_list(ret, typ=output_typ, location=MEMORY)
