@@ -1,6 +1,7 @@
 import functools
 import re
 from typing import Optional
+import contextlib
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
@@ -231,6 +232,20 @@ def pop_source_on_return(func):
     return pop_source
 
 
+@contextlib.contextmanager
+def pushvar(map_, key, value):
+    SENTINEL = object()
+    old = map_.get(key, SENTINEL)
+    map_[key] = value
+    try:
+        yield
+    finally:
+        if old is not SENTINEL:
+            map_[key] = old
+        else:
+            del map_[key]
+
+
 @pop_source_on_return
 def _convert_ir_bb(ctx, ir, symbols):
     assert isinstance(ir, IRnode), ir
@@ -345,13 +360,10 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         ret = ctx.get_basic_block().append_instruction("store", ret)
 
-        # Handle with nesting with same symbol
-        with_symbols = symbols.copy()
-
         sym = ir.args[0]
-        with_symbols[sym.value] = ret
+        with pushvar(symbols, sym.value, ret):
+            return _convert_ir_bb(ctx, ir.args[2], symbols)  # body
 
-        return _convert_ir_bb(ctx, ir.args[2], with_symbols)  # body
     elif ir.value == "goto":
         _append_jmp(ctx, IRLabel(ir.args[0].value))
     elif ir.value == "djump":
