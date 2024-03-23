@@ -2131,7 +2131,7 @@ class Uint2Str(BuiltinFunctionT):
             ret = [
                 "if",
                 ["eq", val, 0],
-                ["seq", ["mstore", buf + 1, ord("0")], ["mstore", buf, 1], buf],
+                ["seq", ["mstore", add_ofst(buf, 1), ord("0")], ["mstore", buf, 1], buf],
                 ["seq", ret, val],
             ]
 
