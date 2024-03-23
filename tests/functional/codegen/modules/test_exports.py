@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_simple_export(make_input_bundle, get_contract):
     lib1 = """
 @external
