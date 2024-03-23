@@ -7,6 +7,7 @@ from vyper.codegen.core import (
     STORE,
     IRnode,
     clamp_le,
+    ensure_in_memory,
     get_dyn_array_count,
     get_element_ptr,
     make_byte_array_copier,
@@ -139,16 +140,8 @@ class Stmt:
                 return ir.value
             return _get_last(ir.args[-1])
 
-        # TODO maybe use ensure_in_memory
-        if msg_ir.location != MEMORY:
-            buf = self.context.new_internal_variable(msg_ir.typ)
-            dst = IRnode.from_list(buf, typ=msg_ir.typ, location=MEMORY)
-            instantiate_msg = make_byte_array_copier(dst, msg_ir)
-        else:
-            buf = _get_last(msg_ir)
-            if not isinstance(buf, int):  # pragma: nocover
-                raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
-            instantiate_msg = msg_ir
+        instantiate_msg = ensure_in_memory(msg_ir, self.context)
+        buf = _get_last(instantiate_msg)
 
         # offset of bytes in (bytes,)
         method_id = util.method_id_int("Error(string)")
