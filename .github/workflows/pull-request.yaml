@@ -27,15 +27,21 @@ jobs:
             fix
             chore
             refactor
+          # ci: continuous integration
+          # docs: documentation
+          # test: test suite
+          # lang: language changes
+          # ux: language changes (UX)
+          # tool: integration
+          # ir: (old) IR/codegen changes
+          # venom: venom changes
           scopes: |
             ci
             docs
             test
             lang
             ux
-            # integration:
             tool
-            # old IR updates:
             ir
             venom
           requireScope: true
