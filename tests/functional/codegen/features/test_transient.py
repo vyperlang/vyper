@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import TransientStorageException, VyperException
+from vyper.exceptions import VyperException
 
 
 def test_transient_blocked(get_contract):
