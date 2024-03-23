@@ -206,12 +206,9 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyFlag.foo
-        if (
-            isinstance(typ, FlagT)
-            and isinstance(self.expr.value, vy_ast.Name)
-            and typ.name == self.expr.value.id
-        ):
+        # check if we have a flag constant, e.g.
+        # [lib1].MyFlag.FOO
+        if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]
             value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
