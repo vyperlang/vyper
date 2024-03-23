@@ -34,9 +34,7 @@ extras_require = {
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
-extras_require["dev"] = (
-    extras_require["test"] + extras_require["lint"] + extras_require["dev"]
-)
+extras_require["dev"] = extras_require["test"] + extras_require["lint"] + extras_require["dev"]
 
 with open("README.md", "r") as f:
     long_description = f.read()
