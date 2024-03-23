@@ -37,7 +37,7 @@ jobs:
             ir  # old IR updates
             venom
           requireScope: true
-          subjectPattern: "^(?![A-Z]).+$"
-          headerPattern: "^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$"
+          subjectPattern: '^(?![A-Z]).+$'
+          headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
           validateSingleCommit: true
           validateSingleCommitMatchesPrTitle: true
