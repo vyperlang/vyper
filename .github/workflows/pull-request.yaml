@@ -13,7 +13,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  main:
+  conventional-commit:
     name: Validate PR title
     runs-on: ubuntu-latest
     steps:
