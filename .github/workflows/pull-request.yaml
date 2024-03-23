@@ -20,5 +20,24 @@ jobs:
       - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # https://github.com/amannn/action-semantic-pull-request?tab=readme-ov-file#configuration
         with:
-          headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
+          types: |
+            feat
+            fix
+            chore
+            refactor
+          scopes: |
+            ci
+            docs
+            test
+            lang
+            ux
+            tool  # integration
+            ir  # old IR updates
+            venom
+          requireScope: true
+          subjectPattern: "^(?![A-Z]).+$"
+          headerPattern: "^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$"
+          validateSingleCommit: true
+          validateSingleCommitMatchesPrTitle: true
