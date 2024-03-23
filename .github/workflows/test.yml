@@ -90,11 +90,10 @@ jobs:
             opt-mode: gas
             evm-version: shanghai
 
-          # enable when py-evm makes it work:
-          #- python-version: ["3.11", "311"]
-          #  debug: false
-          #  opt-mode: gas
-          #  evm-version: cancun
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: cancun
 
           # test experimental pipeline
           - python-version: ["3.11", "311"]
