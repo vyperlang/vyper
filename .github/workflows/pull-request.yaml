@@ -9,8 +9,8 @@ on:
       - edited
       - synchronize
 
-permissions:
-  pull-requests: read
+#permissions:
+#  pull-requests: read
 
 jobs:
   conventional-commit:
