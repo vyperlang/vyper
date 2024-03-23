@@ -6,6 +6,9 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class DFTPass(IRPass):
+    inst_order: dict[IRInstruction, int]
+    inst_order_num: int
+
     def _process_instruction_r(self, bb: IRBasicBlock, inst: IRInstruction, offset: int = 0):
         for op in inst.get_outputs():
             assert isinstance(op, IRVariable), f"expected variable, got {op}"
@@ -16,7 +19,8 @@ class DFTPass(IRPass):
                     # don't reorder across basic block or fence boundaries
                     continue
 
-                # if the instruction is a terminator, we need to place it at the end of the basic block
+                # if the instruction is a terminator, we need to place
+                # it at the end of the basic block
                 # along with all the instructions that "lead" to it
                 if uses_this.opcode in BB_TERMINATORS:
                     offset = len(bb.instructions)

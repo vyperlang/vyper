@@ -33,6 +33,7 @@ class IRFunction:
     # Used during code generation
     _ast_source_stack: list[int]
     _error_msg_stack: list[str]
+    _bb_index: dict[str, int]
 
     def __init__(self, name: IRLabel = None) -> None:
         if name is None:
@@ -82,7 +83,7 @@ class IRFunction:
         if 0 <= ix < len(self.basic_blocks) and self.basic_blocks[ix].label == label:
             return ix
         # do a reindex
-        self._bb_index = dict((bb.label, ix) for ix, bb in enumerate(self.basic_blocks))
+        self._bb_index = dict((bb.label.name, ix) for ix, bb in enumerate(self.basic_blocks))
         return self._bb_index[label]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:

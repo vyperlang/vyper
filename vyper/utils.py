@@ -1,5 +1,4 @@
 import binascii
-import itertools
 import contextlib
 import decimal
 import enum
