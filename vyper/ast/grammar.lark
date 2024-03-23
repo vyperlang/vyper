@@ -98,7 +98,7 @@ tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | a
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
 map_def: _MAP "[" ( NAME | array_def ) "," type "]"
-imported_type: NAME "." NAME
+imported_type: NAME ("." NAME)+
 type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
