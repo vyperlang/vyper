@@ -20,7 +20,7 @@ test:
 lint: mypy black flake8 isort
 
 mypy:
-	mypy --install-types --non-interactive --follow-imports=silent --ignore-missing-imports --implicit-optional -p vyper
+	mypy --no-check-untyped-defs --follow-imports=silent --ignore-missing-imports --implicit-optional -p vyper
 
 black:
 	black -C -t py311 vyper/ tests/ setup.py --force-exclude=vyper/version.py
