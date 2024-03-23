@@ -1,10 +1,8 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.evm.opcodes import EVM_VERSIONS, anchor_evm_version, version_check
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StructureException
-
-POST_CANCUN = {k: v for k, v in EVM_VERSIONS.items() if v >= EVM_VERSIONS["cancun"]}
 
 
 def test_transient_blocked(evm_version):
