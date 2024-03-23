@@ -138,7 +138,7 @@ def foo():
     """
 @external
 def foo():
-    x: uint256 = block.prevrandao + 185
+    x: bytes32 = block.prevrandao
     if tx.origin == self:
         y: Bytes[35] = concat(block.prevhash, b"dog")
     """,
