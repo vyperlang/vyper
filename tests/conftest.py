@@ -85,7 +85,7 @@ def optimize(pytestconfig):
     return OptimizationLevel.from_string(flag)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def debug(pytestconfig):
     debug = pytestconfig.getoption("enable_compiler_debug_mode")
     assert isinstance(debug, bool)
