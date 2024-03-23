@@ -3,7 +3,13 @@ import re
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import ArgumentException, StateAccessViolation, StructureException, TypeMismatch, UnknownType
+from vyper.exceptions import (
+    ArgumentException,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+    UnknownType,
+)
 
 fail_list = [
     (

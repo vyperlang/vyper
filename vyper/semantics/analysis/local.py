@@ -937,8 +937,7 @@ def _validate_range_call(node: vy_ast.Call):
 
     if any(isinstance((extcall := n), vy_ast.ExtCall) for n in (start, end)):
         raise StateAccessViolation(
-            "May not call state modifying function within a range expression.",
-            extcall,
+            "May not call state modifying function within a range expression.", extcall
         )
 
     if "bound" in kwargs:
