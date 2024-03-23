@@ -37,11 +37,9 @@ jobs:
             ir  # old IR updates
             venom
           requireScope: true
-          subjectPattern: '^(?![A-Z]).+$'
+          subjectPattern: '^(?[a-z]).+$'
           subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            didn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
+            "Starts with non-lowercase letter: `{subject}`"
           headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
           validateSingleCommit: true
           validateSingleCommitMatchesPrTitle: true
