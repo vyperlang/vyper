@@ -323,6 +323,9 @@ class ModuleT(VyperType):
             # can access interfaces in type position
             self._helper.add_member(name, TYPE_T(interface_t))
 
+    def __str__(self):
+        return f"module {self._id}"
+
     # __eq__ is very strict on ModuleT - object equality! this is because we
     # don't want to reason about where a module came from (i.e. input bundle,
     # search path, symlinked vs normalized path, etc.)
