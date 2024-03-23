@@ -134,7 +134,7 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      run: >
+      run: >-
         pytest
           -m "not fuzzing"
           --optimize ${{ matrix.opt-mode }}
@@ -193,14 +193,14 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `pytest -m "fuzzing" --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: >
+      run: >-
         curl
         --location
         "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations"
         -o .test_durations
 
     - name: Run tests
-      run: >
+      run: >-
         pytest
           -m "fuzzing"
           --splits 120
