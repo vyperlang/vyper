@@ -935,6 +935,12 @@ def _validate_range_call(node: vy_ast.Call):
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
     start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
 
+    if any(isinstance((extcall := n), vy_ast.ExtCall) for n in (start, end)):
+        raise StateAccessViolation(
+            "May not call state modifying function within a range expression.",
+            extcall,
+        )
+
     if "bound" in kwargs:
         bound = kwargs["bound"]
         if bound.has_folded_value:
