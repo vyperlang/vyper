@@ -33,8 +33,10 @@ jobs:
             test
             lang
             ux
-            tool  # integration
-            ir  # old IR updates
+            # integration:
+            tool
+            # old IR updates:
+            ir
             venom
           requireScope: true
           subjectPattern: '^(?![A-Z]).+$'
