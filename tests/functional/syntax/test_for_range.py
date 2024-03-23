@@ -324,24 +324,34 @@ def foo():
     ),
     (
         """
-d: DynArray[uint256, 10]
-
 interface I:
-    def foo() -> DynArray[uint256, 10]: view
     def bar() -> uint256: payable
 
-
 @external
-def bar(t: address) -> uint256:
+def bar(t: address):
     for i: uint256 in range(extcall I(t).bar(), bound=10):
-        self.d.append(i)
-    return 1
+        pass
     """,
         StateAccessViolation,
         "May not call state modifying function within a range expression.",
         None,
         "extcall I(t).bar()",
-    )
+    ),
+    (
+        """
+interface I:
+    def bar() -> uint256: payable
+
+@external
+def bar(t: address):
+    for i: uint256 in range(1, extcall I(t).bar(), bound=10):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression.",
+        None,
+        "extcall I(t).bar()",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
