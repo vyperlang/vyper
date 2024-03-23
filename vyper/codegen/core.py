@@ -432,10 +432,7 @@ def pop_dyn_array(darray_node, return_popped_item):
 # add an offset to a pointer, keeping location and encoding info
 def add_ofst(ptr, ofst):
     ret = ["add", ptr, ofst]
-    ret = IRnode.from_list(ret, location=ptr.location, encoding=ptr.encoding)
-    if "alloca" in ptr.passthrough_metadata:
-        ret.passthrough_metadata["alloca"] = ptr.passthrough_metadata["alloca"]
-    return ret
+    return IRnode.from_list(ret, location=ptr.location, encoding=ptr.encoding)
 
 
 # shorthand util

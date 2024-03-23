@@ -18,7 +18,7 @@ class Constancy(enum.Enum):
 @dataclass(frozen=True)
 class Alloca:
     name: str
-    pos: int
+    offset: int
     typ: VyperType
     size: int
 
@@ -39,6 +39,7 @@ class VariableRecord:
     blockscopes: Optional[list] = None
     defined_at: Any = None
     is_internal: bool = False
+    alloca: Optional[Alloca] = None
 
     # the following members are probably dead
     is_immutable: bool = False
@@ -67,10 +68,8 @@ class VariableRecord:
             location=self.location,
         )
         ret._referenced_variables = {self}
-        if self.location == MEMORY:  # don't need alloca in other locations
-            ret.passthrough_metadata["alloca"] = Alloca(
-                name=self.name, pos=self.pos, typ=self.typ, size=self.typ.memory_bytes_required
-            )
+        if self.alloca is not None:
+            ret.passthrough_metadata["alloca"] = self.alloca
         return ret
 
 
@@ -129,9 +128,6 @@ class Context:
     def check_is_not_constant(self, err, expr):
         if self.is_constant():
             raise StateAccessViolation(f"Cannot {err} from {self.pp_constancy()}", expr)
-
-    def get_var(self, name):
-        return self.vars[name]
 
     # convenience properties
     @property
@@ -218,20 +214,34 @@ class Context:
         del self.vars[var.name]
 
     def _new_variable(
-        self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
+        self, name: str, typ: VyperType, is_internal: bool, is_mutable: bool = True
     ) -> IRnode:
-        var_pos = self.memory_allocator.allocate_memory(var_size)
+        size = typ.memory_bytes_required
 
-        assert var_pos + var_size <= self.memory_allocator.size_of_mem, "function frame overrun"
+        ofst = self.memory_allocator.allocate_memory(size)
+        assert ofst + size <= self.memory_allocator.size_of_mem, "function frame overrun"
+
+        pos = ofst
+        alloca = None
+        if self.settings.experimental_codegen:
+            # convert it into an abstract pointer
+            pos = f"$alloca_{ofst}_{size}"
+            alloca = Alloca(
+                name=name,
+                offset=ofst,
+                typ=typ,
+                size=size,
+            )
 
         var = VariableRecord(
             name=name,
-            pos=var_pos,
+            pos=pos,
             typ=typ,
-            size=var_size,
+            size=size,
             mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
+            alloca=alloca,
         )
         self.vars[name] = var
         return var.as_ir_node()
@@ -253,8 +263,7 @@ class Context:
             Memory offset for the variable
         """
 
-        var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
+        return self._new_variable(name, typ, is_internal=False, is_mutable=is_mutable)
 
     def fresh_varname(self, name: str) -> str:
         """
@@ -264,7 +273,6 @@ class Context:
         self._internal_var_iter += 1
         return f"{name}{t}"
 
-    # do we ever allocate immutable internal variables?
     def new_internal_variable(self, typ: VyperType) -> IRnode:
         """
         Allocate memory for an internal variable.
@@ -282,8 +290,7 @@ class Context:
         # internal variable names begin with a number sign so there is no chance for collision
         name = self.fresh_varname("#internal")
 
-        var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, True)
+        return self._new_variable(name, typ, is_internal=True)
 
     def lookup_var(self, varname) -> VariableRecord:
         return self.vars[varname]

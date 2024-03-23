@@ -2323,7 +2323,9 @@ class Print(BuiltinFunctionT):
             ret.append(["mstore", schema_buf, len(schema)])
 
             # TODO use Expr.make_bytelike, or better have a `bytestring` IRnode type
-            ret.append(["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))])
+            ret.append(
+                ["mstore", add_ofst(schema_buf, 32), bytes_to_int(schema.ljust(32, b"\x00"))]
+            )
 
             payload_buflen = args_abi_t.size_bound()
             payload_t = BytesT(payload_buflen)
@@ -2350,7 +2352,9 @@ class Print(BuiltinFunctionT):
 
         # debug address that tooling uses
         CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
-        ret.append(["staticcall", "gas", CONSOLE_ADDRESS, add_ofst(buf, 28), ["add", 4, encode], 0, 0])
+        ret.append(
+            ["staticcall", "gas", CONSOLE_ADDRESS, add_ofst(buf, 28), ["add", 4, encode], 0, 0]
+        )
 
         return IRnode.from_list(ret, annotation="print:" + sig)
 
