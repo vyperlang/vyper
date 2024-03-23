@@ -2,7 +2,7 @@ import pytest
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, VyperException
 
 
 def test_transient_blocked(evm_version):
@@ -135,7 +135,8 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
         c = get_contract(code)
         assert c.foo(*values) == list(values)
     else:
-        with pytest.raises(StructureException):
+        # multiple errors
+        with pytest.raises(VyperException):
             compile_code(code)
 
 
@@ -364,5 +365,10 @@ def a():
 def b():
     self.d = self.x
     """
-    c = get_contract(code)
-    assert c.d() == 2
+
+    if version_check(begin="cancun"):
+        c = get_contract(code)
+        assert c.d() == 2
+    else:
+        with pytest.raises(StructureException):
+            compile_code(code)
