@@ -657,6 +657,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
     def visit_FlagDef(self, node):
         obj = FlagT.from_FlagDef(node)
+        node._metadata["flag_type"] = obj
         self.namespace[node.name] = obj
 
     def visit_EventDef(self, node):
