@@ -66,7 +66,7 @@ class VariableRecord:
             mutable=self.mutable,
             location=self.location,
         )
-        ret._referenced_vars = {self}
+        ret._referenced_variables = {self}
         if self.location == MEMORY:  # don't need alloca in other locations
             ret.passthrough_metadata["alloca"] = Alloca(
                 name=self.name, pos=self.pos, typ=self.typ, size=self.typ.memory_bytes_required
