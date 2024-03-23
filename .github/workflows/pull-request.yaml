@@ -37,9 +37,9 @@ jobs:
             ir  # old IR updates
             venom
           requireScope: true
-          subjectPattern: '^(?[a-z]).+$'
+          subjectPattern: '^(?![A-Z]).+$'
           subjectPatternError: |
-            "Starts with non-lowercase letter: `{subject}`"
+            "Starts with uppercase letter: `{subject}`"
           headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
           validateSingleCommit: true
           validateSingleCommitMatchesPrTitle: true
