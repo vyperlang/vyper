@@ -436,10 +436,15 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         return bb.append_instruction("mload", arg_0)
     elif ir.value == "mstore":
+        # REVIEW: this should probably be
+        # arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
         arg_1, arg_0 = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
 
         if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
+
+        # REVIEW: should probably be
+        # ctx.get_basic_block().append_instruction("mstore", arg_0, arg_1)
         ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
     elif ir.value == "ceil32":
         x = ir.args[0]
@@ -447,9 +452,12 @@ def _convert_ir_bb(ctx, ir, symbols):
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "select":
         # b ^ ((a ^ b) * cond) where cond is 1 or 0
+        # REVIEW: should protect a, b from double evaluation
+        # (e.g. `with "b" b (...)`)
         cond, a, b = ir.args
         expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
         return _convert_ir_bb(ctx, expanded, symbols)
+    # REVIEW: dead branch
     elif ir.value in []:
         arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
         ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
