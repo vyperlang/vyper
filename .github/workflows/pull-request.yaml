@@ -39,8 +39,8 @@ jobs:
           requireScope: true
           subjectPattern: '^(?![A-Z]).+$'
           subjectPatternError: |
-            'Starts with uppercase letter: "{subject}"'
-            '(Full PR title: "{title}")'
+            Starts with uppercase letter: '{subject}'
+            (Full PR title: '{title}')
           headerPattern: '^(\w*)(?:\[([\w$.\-*/ ]*)\])?: (.*)$'
           validateSingleCommit: true
           validateSingleCommitMatchesPrTitle: true
