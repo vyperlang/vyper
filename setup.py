@@ -31,12 +31,11 @@ extras_require = {
         "isort==5.13.2",
         "mypy==1.5",
     ],
-    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
 extras_require["dev"] = (
-    extras_require["test"] + extras_require["lint"] + extras_require["docs"] + extras_require["dev"]
+    extras_require["test"] + extras_require["lint"] + extras_require["dev"]
 )
 
 with open("README.md", "r") as f:
