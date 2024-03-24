@@ -43,6 +43,30 @@ def build_userdoc(compiler_data: CompilerData) -> dict:
     return userdoc
 
 
+def _get_compression_method():
+    # try to find a compression library, if none are available then
+    # fall back to ZIP_STORED
+    # (note: these should all be on all modern systems and in particular
+    # they should be in the build environment for our build artifacts,
+    # write the graceful fallback anyway).
+    try:
+        import lzma  # noqa: F401
+
+        return zipfile.ZIP_LZMA
+    except ImportError:
+        pass
+
+    try:
+        import zlip  # noqa: F401
+
+        return zipfile.ZIP_DEFLATED
+    except ImportError:
+        pass
+
+    # fallback
+    return zipfile.ZIP_STORED
+
+
 def build_archive(compiler_data: CompilerData) -> str:
     compilation_target = compiler_data.compilation_target._metadata["type"]
     imports = compilation_target.reachable_imports
@@ -54,7 +78,9 @@ def build_archive(compiler_data: CompilerData) -> str:
 
     used_search_paths: OrderedSet = OrderedSet()
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, mode="w", compresslevel=9) as archive:
+
+    method = _get_compression_method()
+    with zipfile.ZipFile(buf, mode="w", compression=method, compresslevel=9) as archive:
         for c in compiler_inputs:
             path = str(c.resolved_path)
             if path in seen:
