@@ -60,9 +60,16 @@ jobs:
       - name: Run docs
         run: sphinx-build -E -b html docs dist/docs -n -q --color
 
+  changed:
+    runs-on: ubuntu-latest
+    # exit 1 if there are any changes in the repo besides docs/ directory
+    run: git diff --quiet master -- . ':!docs/'
+
   # "Regular"/core tests.
   tests:
     runs-on: ubuntu-latest
+    needs: changed
+    if: {{ needs.changed.result != "success" }}
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
@@ -168,6 +175,9 @@ jobs:
   # the regular test suite)
   fuzzing:
     runs-on: ubuntu-latest
+
+    needs: changed
+    if: {{ needs.changed.result != "success" }}
 
     strategy:
       matrix:
