@@ -447,16 +447,9 @@ def _convert_ir_bb(ctx, ir, symbols):
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "select":
-        # b ^ ((a ^ b) * cond) where cond is 1 or 0
-        # REVIEW: should protect a, b from double evaluation
-        # (e.g. `with "b" b (...)`)
         cond, a, b = ir.args
-        expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
+        expanded = IRnode.from_list(["with", "b", b, ["xor", "b", ["mul", cond, ["xor", a, "b"]]]])
         return _convert_ir_bb(ctx, expanded, symbols)
-    # REVIEW: dead branch
-    elif ir.value in []:
-        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
-        ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
     elif ir.value == "repeat":
 
         def emit_body_blocks():
