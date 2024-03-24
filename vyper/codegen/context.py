@@ -226,12 +226,7 @@ class Context:
         if self.settings.experimental_codegen:
             # convert it into an abstract pointer
             pos = f"$alloca_{ofst}_{size}"
-            alloca = Alloca(
-                name=name,
-                offset=ofst,
-                typ=typ,
-                size=size,
-            )
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size)
 
         var = VariableRecord(
             name=name,

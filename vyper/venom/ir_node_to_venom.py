@@ -1,7 +1,7 @@
+import contextlib
 import functools
 import re
 from typing import Optional
-import contextlib
 
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.opcodes import get_opcodes
