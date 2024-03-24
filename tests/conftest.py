@@ -531,12 +531,10 @@ def tx_failed(tester):
 
 
 @pytest.fixture(autouse=True)
-def check_myxfail(request):
-    if request.node.get_closest_marker("transient"):
-        print("transient!!!")
-        if not version_check(begin="cancun"):
-            request.node.add_marker(
-                pytest.mark.xfail(
-                    reason="transient storage", raises=TransientStorageException, strict=True
-                )
+def check_transient_marker(request):
+    if request.node.get_closest_marker("transient") and not version_check(begin="cancun"):
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="transient storage", raises=TransientStorageException, strict=True
             )
+        )
