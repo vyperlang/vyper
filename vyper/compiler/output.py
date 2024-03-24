@@ -1,4 +1,7 @@
+import base64
+import io
 import warnings
+import zipfile
 from collections import deque
 from pathlib import PurePath
 
@@ -37,6 +40,32 @@ def build_devdoc(compiler_data: CompilerData) -> dict:
 def build_userdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
+
+
+def build_archive(compiler_data: CompilerData) -> str:
+    compilation_target = compiler_data.compilation_target._metadata["type"]
+    imports = compilation_target.reachable_imports
+
+    compiler_inputs = [t.compiler_input for t in imports]
+    compiler_inputs.append(compiler_data.file_input)
+
+    seen = set()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compresslevel=9) as archive:
+        for c in compiler_inputs:
+            if c.path in seen:
+                continue
+            seen.add(c.path)
+            archive.writestr(str(c.path), c.contents)
+
+        # construct the manifest file
+        archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
+        search_paths = "\n".join(str(p) for p in compiler_data.input_bundle.search_paths)
+        archive.writestr("MANIFEST/searchpaths", search_paths)
+
+    s = buf.getvalue()
+    return base64.b64encode(s).decode("utf-8")
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:

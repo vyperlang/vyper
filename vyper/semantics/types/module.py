@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
@@ -395,6 +395,21 @@ class ModuleT(VyperType):
             if isinstance(module_info, InterfaceT):
                 continue
             ret[info.alias] = module_info
+        return ret
+
+    @cached_property
+    def reachable_imports(self) -> OrderedSet[Union[InterfaceT, "ModuleInfo"]]:
+        ret: OrderedSet = OrderedSet()
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+            ret.add(info)
+
+            if isinstance(info.typ, InterfaceT):
+                # can't have nested imports
+                continue
+
+            ret.update(info.typ.typ.reachable_imports)
+
         return ret
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:

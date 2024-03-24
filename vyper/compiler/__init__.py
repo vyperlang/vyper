@@ -17,9 +17,9 @@ OUTPUT_FORMATS = {
     # requires annotated_vyper_module
     "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
-    # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
+    "archive": output.build_archive,
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,

@@ -102,7 +102,7 @@ class CompilerData:
 
         if isinstance(file_input, str):
             file_input = FileInput(
-                source_code=file_input,
+                contents=file_input,
                 source_id=-1,
                 path=DEFAULT_CONTRACT_PATH,
                 resolved_path=DEFAULT_CONTRACT_PATH,
