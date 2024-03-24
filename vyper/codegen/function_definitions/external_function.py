@@ -11,7 +11,7 @@ from vyper.codegen.function_definitions.common import (
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.codegen.stmt import parse_body
-from vyper.evm.address_space import CALLDATA, DATA, MEMORY
+from vyper.evm.address_space import CALLDATA, DATA
 from vyper.semantics.types import TupleT
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.utils import calc_mem_gas
@@ -93,9 +93,7 @@ def _generate_kwarg_handlers(
         for i, arg_meta in enumerate(calldata_kwargs):
             k = func_t.n_positional_args + i
 
-            dst = context.lookup_var(arg_meta.name).pos
-
-            lhs = IRnode(dst, location=MEMORY, typ=arg_meta.typ)
+            lhs = context.lookup_var(arg_meta.name).as_ir_node()
 
             rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
 
@@ -104,8 +102,7 @@ def _generate_kwarg_handlers(
             ret.append(copy_arg)
 
         for x in default_kwargs:
-            dst = context.lookup_var(x.name).pos
-            lhs = IRnode(dst, location=MEMORY, typ=x.typ)
+            lhs = context.lookup_var(x.name).as_ir_node()
             lhs.ast_source = x.ast_source
             kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
