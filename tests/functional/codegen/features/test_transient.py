@@ -1,4 +1,5 @@
 import pytest
+from eth_tester.exceptions import TransactionFailed
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
@@ -47,21 +48,21 @@ def setter(k: address, v: uint256):
 
 @pytest.mark.transient
 @pytest.mark.parametrize(
-    "typ,value",
+    "typ,value,zero",
     [
-        ("uint256", 42),
-        ("int256", -(2**200)),
-        ("int128", -(2**126)),
-        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-        ("bytes32", b"deadbeef" * 4),
-        ("bool", True),
-        ("String[10]", "Vyper hiss"),
-        ("Bytes[10]", b"Vyper hiss"),
+        ("uint256", 42, 0),
+        ("int256", -(2**200), 0),
+        ("int128", -(2**126), 0),
+        ("address", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", None),
+        ("bytes32", b"deadbeef" * 4, b"\x00" * 32),
+        ("bool", True, False),
+        ("String[10]", "Vyper hiss", ""),
+        ("Bytes[10]", b"Vyper hiss", b""),
     ],
 )
-def test_value_storage_retrieval(typ, value, get_contract):
+def test_value_storage_retrieval(typ, value, zero, get_contract):
     code = f"""
-bar: transient({typ})
+bar: public(transient({typ}))
 
 @external
 def foo(a: {typ}) -> {typ}:
@@ -70,9 +71,11 @@ def foo(a: {typ}) -> {typ}:
     """
 
     c = get_contract(code)
+    assert c.bar() == zero
     assert c.foo(value) == value
-    print("cancun: {}", version_check(begin="cancun"))
-    print("did not throw")
+    assert c.bar() == zero
+    assert c.foo(value) == value
+    assert c.bar() == zero
 
 
 @pytest.mark.transient
@@ -102,9 +105,9 @@ def a1() -> uint256:
 
 def test_multiple_transient_values(get_contract):
     code = """
-a: transient(uint256)
-b: transient(address)
-c: transient(String[64])
+a: public(transient(uint256))
+b: public(transient(address))
+c: public(transient(String[64]))
 
 @external
 def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[64]):
@@ -117,6 +120,10 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
 
     if version_check(begin="cancun"):
         c = get_contract(code)
+        assert c.foo(*values) == list(values)
+        assert c.a() == 0
+        assert c.b() is None
+        assert c.c() == ""
         assert c.foo(*values) == list(values)
     else:
         # multiple errors
@@ -133,7 +140,7 @@ struct MyStruct:
     c: address
     d: int256
 
-my_struct: transient(MyStruct)
+my_struct: public(transient(MyStruct))
 
 @external
 def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
@@ -149,6 +156,8 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
 
     c = get_contract(code)
     assert c.foo(*values) == values
+    assert c.my_struct() == (0, 0, None, 0)
+    assert c.foo(*values) == values
 
 
 @pytest.mark.transient
@@ -157,7 +166,7 @@ def test_complex_transient_modifiable(get_contract):
 struct MyStruct:
     a: uint256
 
-my_struct: transient(MyStruct)
+my_struct: public(transient(MyStruct))
 
 @external
 def foo(a: uint256) -> MyStruct:
@@ -171,12 +180,14 @@ def foo(a: uint256) -> MyStruct:
 
     c = get_contract(code)
     assert c.foo(1) == (2,)
+    assert c.my_struct() == (0,)
+    assert c.foo(1) == (2,)
 
 
 @pytest.mark.transient
 def test_list_transient(get_contract):
     code = """
-my_list: transient(uint256[3])
+my_list: public(transient(uint256[3]))
 
 @external
 def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
@@ -187,12 +198,15 @@ def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
 
     c = get_contract(code)
     assert c.foo(*values) == list(values)
+    for i in range(3):
+        assert c.my_list(i) == 0
+    assert c.foo(*values) == list(values)
 
 
 @pytest.mark.transient
 def test_dynarray_transient(get_contract):
     code = """
-my_list: transient(DynArray[uint256, 3])
+my_list: public(transient(DynArray[uint256, 3]))
 
 @external
 def get_my_list(_a: uint256, _b: uint256, _c: uint256) -> DynArray[uint256, 3]:
@@ -208,13 +222,17 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == list(values)
+    with pytest.raises(TransactionFailed):
+        c.my_list(0)
     assert c.get_idx_two(*values) == values[2]
+    with pytest.raises(TransactionFailed):
+        c.my_list(0)
 
 
 @pytest.mark.transient
 def test_nested_dynarray_transient_2(get_contract):
     code = """
-my_list: transient(DynArray[DynArray[uint256, 3], 3])
+my_list: public(transient(DynArray[DynArray[uint256, 3], 3]))
 
 @external
 def get_my_list(_a: uint256, _b: uint256, _c: uint256) -> DynArray[DynArray[uint256, 3], 3]:
@@ -237,7 +255,7 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
 @pytest.mark.transient
 def test_nested_dynarray_transient(get_contract):
     code = """
-my_list: transient(DynArray[DynArray[DynArray[int128, 3], 3], 3])
+my_list: public(transient(DynArray[DynArray[DynArray[int128, 3], 3], 3]))
 
 @external
 def get_my_list(x: int128, y: int128, z: int128) -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
@@ -282,7 +300,11 @@ def get_idx_two(x: int128, y: int128, z: int128) -> int128:
 
     c = get_contract(code)
     assert c.get_my_list(*values) == expected_values
+    with pytest.raises(TransactionFailed):
+        c.my_list(0, 0, 0)
     assert c.get_idx_two(*values) == expected_values[2][2][2]
+    with pytest.raises(TransactionFailed):
+        c.my_list(0, 0, 0)
 
 
 @pytest.mark.transient
@@ -295,7 +317,7 @@ def foo() -> uint256:
     return self.counter
 
 counter: uint256
-val: transient(uint256)
+val: public(transient(uint256))
 
 @external
 def bar(x: uint256) -> uint256:
@@ -306,6 +328,8 @@ def bar(x: uint256) -> uint256:
     """
 
     c = get_contract(code)
+    assert c.bar(n) == n + 2
+    assert c.val() == 0
     assert c.bar(n) == n + 2
 
 
@@ -332,3 +356,4 @@ def b():
 
     c = get_contract(code)
     assert c.d() == 2
+    assert c.x() == 0
