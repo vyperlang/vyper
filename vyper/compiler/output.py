@@ -13,6 +13,7 @@ from vyper.evm import opcodes
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
+from vyper.utils import OrderedSet
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -51,18 +52,23 @@ def build_archive(compiler_data: CompilerData) -> str:
 
     seen = set()
 
+    used_search_paths: OrderedSet = OrderedSet()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compresslevel=9) as archive:
         for c in compiler_inputs:
-            if c.path in seen:
+            path = str(c.resolved_path)
+            if path in seen:
                 continue
-            seen.add(c.path)
-            archive.writestr(str(c.path), c.contents)
+            seen.add(path)
+            archive.writestr(str(path), c.contents)
+
+            for sp in compiler_data.input_bundle.search_paths:
+                if c.resolved_path.is_relative_to(sp):
+                    used_search_paths.add(sp)
 
         # construct the manifest file
         archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
-        search_paths = "\n".join(str(p) for p in compiler_data.input_bundle.search_paths)
-        archive.writestr("MANIFEST/searchpaths", search_paths)
+        archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in used_search_paths))
 
     s = buf.getvalue()
     return base64.b64encode(s).decode("utf-8")
