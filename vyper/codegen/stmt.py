@@ -7,12 +7,12 @@ from vyper.codegen.core import (
     LOAD,
     STORE,
     IRnode,
-    add_ofst,
     clamp_le,
     get_dyn_array_count,
     get_element_ptr,
     get_type_for_exact_size,
     make_setter,
+    wrap_value_for_external_return,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
@@ -127,7 +127,8 @@ class Stmt:
         finally:
             self.context.constancy = tmp
 
-        bufsz = msg_ir.typ.memory_bytes_required + 64
+        msg_ir = wrap_value_for_external_return(msg_ir)
+        bufsz = 64 + msg_ir.typ.memory_bytes_required
         buf = self.context.new_internal_variable(get_type_for_exact_size(bufsz))
 
         # offset of bytes in (bytes,)
@@ -135,15 +136,14 @@ class Stmt:
 
         # abi encode method_id + bytestring to `buf+32`, then
         # write method_id to `buf` and get out of here
+        payload_buf = buf + 32
         bufsz -= 32  # reduce buffer by size of `method_id` slot
-        encoded_length = abi_encode(
-            add_ofst(buf, 32), msg_ir, self.context, bufsz, returns_len=True
-        )
+        encoded_length = abi_encode(payload_buf, msg_ir, self.context, bufsz, returns_len=True)
         with encoded_length.cache_when_complex("encoded_len") as (b1, encoded_length):
             revert_seq = [
                 "seq",
                 ["mstore", buf, method_id],
-                ["revert", add_ofst(buf, 28), ["add", 4 + 32, encoded_length]],
+                ["revert", buf + 28, ["add", 4, encoded_length]],
             ]
             revert_seq = b1.resolve(revert_seq)
 
