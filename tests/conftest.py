@@ -332,11 +332,6 @@ def _get_contract(
     settings = Settings()
     settings.optimize = override_opt_level or optimize
 
-    if not version_check(begin="cancun"):
-        with pytest.raises(TransientStorageException):
-            compiler.compile_code(source_code)
-        return
-
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
@@ -533,3 +528,15 @@ def tx_failed(tester):
             assert exc_text in str(excinfo.value), (exc_text, excinfo.value)
 
     return fn
+
+
+@pytest.fixture(autouse=True)
+def check_myxfail(request):
+    if request.node.get_closest_marker("transient"):
+        print("transient!!!")
+        if not version_check(begin="cancun"):
+            request.node.add_marker(
+                pytest.mark.xfail(
+                    reason="transient storage", raises=TransientStorageException, strict=True
+                )
+            )
