@@ -34,6 +34,7 @@ jobs:
           # ux: language changes (UX)
           # tool: integration
           # ir: (old) IR/codegen changes
+          # codegen: lowering from vyper AST to codegen
           # venom: venom changes
           scopes: |
             ci
@@ -43,6 +44,7 @@ jobs:
             ux
             tool
             ir
+            codegen
             venom
           requireScope: true
           subjectPattern: '^(?![A-Z]).+$'
