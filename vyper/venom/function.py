@@ -74,16 +74,20 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
         self.basic_blocks.append(bb)
 
-        # TODO add sanity check somewhere that basic blocks have unique labels
-
         return self.basic_blocks[-1]
 
     def _get_basicblock_index(self, label: str):
+        # perf: keep an "index" of labels to block indices to
+        # perform fast lookup.
+        # TODO: maybe better just to throw basic blocks in an ordered
+        # dict of some kind.
         ix = self._bb_index.get(label, -1)
         if 0 <= ix < len(self.basic_blocks) and self.basic_blocks[ix].label == label:
             return ix
         # do a reindex
         self._bb_index = dict((bb.label.name, ix) for ix, bb in enumerate(self.basic_blocks))
+        # sanity check - no duplicate labels
+        assert len(self._bb_index) == len(self.basic_blocks)
         return self._bb_index[label]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
@@ -115,7 +119,7 @@ class IRFunction:
 
     def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
         """
-        Get basic blocks that contain label.
+        Get basic blocks that point to the given basic block
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
