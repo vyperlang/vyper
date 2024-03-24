@@ -149,7 +149,7 @@ def compile_code(
         contract_path = Path(contract_path)
     file_input = FileInput(
         source_id=source_id,
-        source_code=source_code,
+        contents=source_code,
         path=contract_path,
         resolved_path=resolved_path or contract_path,  # type: ignore
     )
