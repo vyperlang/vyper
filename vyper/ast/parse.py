@@ -10,7 +10,7 @@ from vyper.ast.pre_parser import pre_parse
 from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 from vyper.typing import ModificationOffsets
-from vyper.utils import vyper_warn
+from vyper.utils import sha256sum, vyper_warn
 
 
 def parse_to_ast(*args: Any, **kwargs: Any) -> vy_ast.Module:
@@ -60,7 +60,7 @@ def parse_to_ast_with_settings(
         py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from e
+        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
@@ -244,8 +244,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
+        # TODO: is this the best place for these? maybe they can be on
+        # CompilerData instead.
         node.path = self._module_path
         node.resolved_path = self._resolved_path
+        node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
         return self._visit_docstring(node)
 
@@ -432,7 +435,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                     node.col_offset,
                 )
             node.ast_type = "Hex"
-            node.n = value
+            node.value = value
 
         elif value.lower()[:2] == "0b":
             node.ast_type = "Bytes"
@@ -446,15 +449,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 )
             node.value = int(value, 2).to_bytes(len(value) // 8, "big")
 
-        elif isinstance(node.n, float):
+        elif isinstance(node.value, float):
             node.ast_type = "Decimal"
-            node.n = Decimal(value)
+            node.value = Decimal(value)
 
-        elif isinstance(node.n, int):
+        elif isinstance(node.value, int):
             node.ast_type = "Int"
 
-        else:
-            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.n).__name__}")
+        else:  # pragma: nocover
+            raise CompilerPanic(f"Unexpected type for Constant value: {type(node.value).__name__}")
 
         return node
 
