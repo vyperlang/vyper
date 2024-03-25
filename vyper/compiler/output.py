@@ -104,10 +104,16 @@ def build_archive(compiler_data: CompilerData) -> str:
         sps = [sp for sp, count in used_search_paths.items() if count > 0]
         archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
 
+        archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
+
         assert archive.testzip() is None  # sanity check
 
     s = buf.getvalue()
     return base64.b64encode(s).decode("utf-8")
+
+
+def build_integrity(compiler_data: CompilerData) -> str:
+    return compiler_data.compilation_target._metadata["type"].integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:

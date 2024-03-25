@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABIType
@@ -22,10 +22,10 @@ from vyper.semantics.types.base import TYPE_T, VyperType, is_type_t
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.primitives import AddressT
 from vyper.semantics.types.user import EventT, StructT, _UserType
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, sha256sum
 
 if TYPE_CHECKING:
-    from vyper.semantics.analysis.base import ModuleInfo
+    from vyper.semantics.analysis.base import ImportInfo, ModuleInfo
 
 
 class InterfaceT(_UserType):
@@ -397,20 +397,39 @@ class ModuleT(VyperType):
             ret[info.alias] = module_info
         return ret
 
+    # TODO: maybe this should actually be implemented in compiler/phases.py
     @cached_property
-    def reachable_imports(self) -> OrderedSet[Union[InterfaceT, "ModuleInfo"]]:
-        ret: OrderedSet = OrderedSet()
+    def reachable_imports(self) -> list["ImportInfo"]:
+        """
+        Return (recursively) reachable imports from this module as a list in
+        depth-first (descendants-first) order.
+        """
+        ret = []
         for s in self.import_stmts:
             info = s._metadata["import_info"]
-            ret.add(info)
 
-            if isinstance(info.typ, InterfaceT):
-                # can't have nested imports
-                continue
+            # NOTE: this needs to be redone if interfaces can import other interfaces
+            if not isinstance(info.typ, InterfaceT):
+                ret.extend(info.typ.typ.reachable_imports)
 
-            ret.update(info.typ.typ.reachable_imports)
+            ret.append(info)
 
         return ret
+
+    @cached_property
+    def integrity_sum(self) -> str:
+        acc = [sha256sum(self._module.full_source_code)]
+        for s in self.import_stmts:
+            info = s._metadata["import_info"]
+
+            if isinstance(info.typ, InterfaceT):
+                # NOTE: this needs to be redone if interfaces can import other interfaces
+                acc.append(info.compiler_input.sha256sum)
+            else:
+                assert isinstance(info.typ.typ, ModuleT)
+                acc.append(info.typ.typ.integrity_sum)
+
+        return sha256sum("".join(acc))
 
     def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
         for s in self.imported_modules.values():
