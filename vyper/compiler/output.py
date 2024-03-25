@@ -1,6 +1,7 @@
 import base64
 import importlib
 import io
+import json
 import warnings
 import zipfile
 from collections import deque
@@ -105,6 +106,10 @@ def build_archive(compiler_data: CompilerData) -> str:
         archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
 
         archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
+
+        settings = compiler_data.original_settings
+        archive.writestr("MANIFEST/settings.json", json.dumps(settings.as_dict()))
+        archive.writestr("MANIFEST/cli_settings.txt", settings.as_cli())
 
         assert archive.testzip() is None  # sanity check
 

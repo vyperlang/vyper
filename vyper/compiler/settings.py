@@ -1,3 +1,4 @@
+import dataclasses
 import os
 from dataclasses import dataclass
 from enum import Enum
@@ -16,6 +17,7 @@ else:
     VYPER_TRACEBACK_LIMIT = None
 
 
+# TODO: use StringEnum (requires refactoring vyper.utils to avoid import cycle)
 class OptimizationLevel(Enum):
     NONE = 1
     GAS = 2
@@ -36,6 +38,9 @@ class OptimizationLevel(Enum):
     def default(cls):
         return cls.GAS
 
+    def __str__(self):
+        return self._name_.lower()
+
 
 @dataclass
 class Settings:
@@ -43,6 +48,27 @@ class Settings:
     optimize: Optional[OptimizationLevel] = None
     evm_version: Optional[str] = None
     experimental_codegen: Optional[bool] = None
+
+    def as_cli(self):
+        ret = []
+        if self.optimize is not None:
+            ret.append(" --optimize " + str(self.optimize))
+        if self.experimental_codegen is True:
+            ret.append(" --experimental-codegen")
+        if self.evm_version is not None:
+            ret.append(" --evm-version " + self.evm_version)
+
+        return " ".join(ret)
+
+    def as_dict(self):
+        ret = dataclasses.asdict(self)
+        # compiler_version is not a compiler input, it can only come from
+        # source code pragma.
+        ret.pop("compiler_version", None)
+        ret = {k: v for (k, v) in ret.items() if v is not None}
+        if "optimize" in ret:
+            ret["optimize"] = str(ret["optimize"])
+        return ret
 
 
 _DEBUG = False
