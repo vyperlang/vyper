@@ -134,16 +134,16 @@ jobs:
       run: pip freeze
 
     - name: Run tests
-      run: >-
+      run: |
         pytest
-          -m "not fuzzing"
-          --optimize ${{ matrix.opt-mode }}
-          --evm-version ${{ matrix.evm-version }}
-          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }}
-          ${{ matrix.memorymock && '--memorymock' || '' }}
-          --cov-branch
-          --cov-report xml:coverage.xml
-          --cov=vyper
+          -m "not fuzzing" \
+          --optimize ${{ matrix.opt-mode }} \
+          --evm-version ${{ matrix.evm-version }} \
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
+          ${{ matrix.memorymock && '--memorymock' || '' }} \
+          --cov-branch \
+          --cov-report xml:coverage.xml \
+          --cov=vyper \
           tests/
 
     - name: Upload Coverage
@@ -193,22 +193,19 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `pytest -m "fuzzing" --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: >-
-        curl
-        --location
-        "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations"
-        -o .test_durations
+      run: |
+        curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
     - name: Run tests
-      run: >-
-        pytest
-          -m "fuzzing"
-          --splits 120
-          --group ${{ matrix.group }}
-          --splitting-algorithm least_duration
-          --cov-branch
-          --cov-report xml:coverage.xml
-          --cov=vyper
+      run: |
+        pytest \
+          -m "fuzzing" \
+          --splits 120 \
+          --group ${{ matrix.group }} \
+          --splitting-algorithm least_duration \
+          --cov-branch \
+          --cov-report xml:coverage.xml \
+          --cov=vyper \
           tests/
 
     - name: Upload Coverage
