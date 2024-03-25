@@ -12,6 +12,7 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.ir import compile_ir
+from vyper.semantics.analysis.module import _is_builtin
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -63,7 +64,9 @@ def build_archive(compiler_data: CompilerData) -> str:
     compilation_target = compiler_data.compilation_target._metadata["type"]
     imports = compilation_target.reachable_imports
 
-    compiler_inputs = [t.compiler_input for t in imports]
+    compiler_inputs = [
+        t.compiler_input for t in imports if not _is_builtin(t.qualified_module_name)
+    ]
     compiler_inputs.append(compiler_data.file_input)
 
     seen_paths = set()
