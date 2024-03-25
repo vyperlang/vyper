@@ -10,7 +10,6 @@ from vyper.codegen.context import Context, VariableRecord
 from vyper.codegen.core import (
     STORE,
     IRnode,
-    _freshname,
     add_ofst,
     bytes_data_ptr,
     calculate_type_for_external_return,
@@ -21,8 +20,8 @@ from vyper.codegen.core import (
     clamp_nonzero,
     copy_bytes,
     dummy_node_for_type,
+    ensure_eval_once,
     ensure_in_memory,
-    eval_once_check,
     eval_seq,
     get_bytearray_length,
     get_type_for_exact_size,
@@ -230,6 +229,18 @@ class Convert(BuiltinFunctionT):
 ADHOC_SLICE_NODE_MACROS = ["~calldata", "~selfcode", "~extcode"]
 
 
+# make sure we don't overrun the source buffer, checking for overflow:
+# valid inputs satisfy:
+#   `assert !(start+length > src_len || start+length < start`
+def _make_slice_bounds_check(start, length, src_len):
+    with start.cache_when_complex("start") as (b1, start):
+        with add_ofst(start, length).cache_when_complex("end") as (b2, end):
+            arithmetic_overflow = ["lt", end, start]
+            buffer_oob = ["gt", end, src_len]
+            ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
+            return b1.resolve(b2.resolve(["assert", ok]))
+
+
 def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context: Context) -> IRnode:
     assert length.is_literal, "typechecker failed"
     assert isinstance(length.value, int)  # mypy hint
@@ -242,7 +253,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     if sub.value == "~calldata":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "calldatasize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "calldatasize"),
             ["mstore", np, length],
             ["calldatacopy", np + 32, start, length],
             np,
@@ -252,7 +263,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
     elif sub.value == "~selfcode":
         node = [
             "seq",
-            ["assert", ["le", ["add", start, length], "codesize"]],  # runtime bounds check
+            _make_slice_bounds_check(start, length, "codesize"),
             ["mstore", np, length],
             ["codecopy", np + 32, start, length],
             np,
@@ -267,8 +278,7 @@ def _build_adhoc_slice_node(sub: IRnode, start: IRnode, length: IRnode, context:
             sub.args[0],
             [
                 "seq",
-                # runtime bounds check
-                ["assert", ["le", ["add", start, length], ["extcodesize", "_extcode_address"]]],
+                _make_slice_bounds_check(start, length, ["extcodesize", "_extcode_address"]),
                 ["mstore", np, length],
                 ["extcodecopy", "_extcode_address", np + 32, start, length],
                 np,
@@ -441,8 +451,7 @@ class Slice(BuiltinFunctionT):
 
             ret = [
                 "seq",
-                # make sure we don't overrun the source buffer
-                ["assert", ["le", ["add", start, length], src_len]],  # bounds check
+                _make_slice_bounds_check(start, length, src_len),
                 do_copy,
                 ["mstore", dst, length],  # set length
                 dst,  # return pointer to dst
@@ -1164,6 +1173,7 @@ class RawCall(BuiltinFunctionT):
             else:
                 call_op = ["call", gas, to, value, *common_call_args]
 
+            call_op = ensure_eval_once("raw_call_builtin", call_op)
             call_ir += [call_op]
             call_ir = b1.resolve(call_ir)
 
@@ -1220,9 +1230,8 @@ class Send(BuiltinFunctionT):
         to, value = args
         gas = kwargs["gas"]
         context.check_is_not_constant("send ether", expr)
-        return IRnode.from_list(
-            ["assert", ["call", gas, to, value, 0, 0, 0, 0]], error_msg="send failed"
-        )
+        send_op = ensure_eval_once("send_builtin", ["call", gas, to, value, 0, 0, 0, 0])
+        return IRnode.from_list(["assert", send_op], error_msg="send failed")
 
 
 class SelfDestruct(BuiltinFunctionT):
@@ -1240,9 +1249,7 @@ class SelfDestruct(BuiltinFunctionT):
             self._warned = True
 
         context.check_is_not_constant("selfdestruct", expr)
-        return IRnode.from_list(
-            ["seq", eval_once_check(_freshname("selfdestruct")), ["selfdestruct", args[0]]]
-        )
+        return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
 
 class BlockHash(BuiltinFunctionT):
@@ -1308,27 +1315,24 @@ class RawLog(BuiltinFunctionT):
 
         data = args[1]
 
+        log_op = "log" + str(topics_length)
+
         if data.typ == BYTES32_T:
             placeholder = context.new_internal_variable(BYTES32_T)
+            log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
                 [
                     "seq",
                     # TODO use make_setter
                     ["mstore", placeholder, unwrap_location(data)],
-                    ["log" + str(topics_length), placeholder, 32] + topics,
+                    ensure_eval_once("raw_log", log_ir),
                 ]
             )
 
         input_buf = ensure_in_memory(data, context)
 
-        return IRnode.from_list(
-            [
-                "with",
-                "_sub",
-                input_buf,
-                ["log" + str(topics_length), ["add", "_sub", 32], ["mload", "_sub"], *topics],
-            ]
-        )
+        log_ir = [log_op, ["add", "_sub", 32], ["mload", "_sub"], *topics]
+        return IRnode.from_list(["with", "_sub", input_buf, ensure_eval_once("raw_log", log_ir)])
 
 
 class BitwiseAnd(BuiltinFunctionT):
@@ -1591,9 +1595,7 @@ def _create_ir(value, buf, length, salt, revert_on_failure=True):
         create_op = "create2"
         args.append(salt)
 
-    ret = IRnode.from_list(
-        ["seq", eval_once_check(_freshname("create_builtin")), [create_op, *args]]
-    )
+    ret = IRnode.from_list(ensure_eval_once("create_builtin", [create_op, *args]))
 
     if not revert_on_failure:
         return ret

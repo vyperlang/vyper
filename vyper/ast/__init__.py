@@ -5,7 +5,7 @@ import sys
 
 from . import nodes, validation
 from .natspec import parse_natspec
-from .nodes import compare_nodes, as_tuple
+from .nodes import as_tuple
 from .utils import ast_to_dict
 from .parse import parse_to_ast, parse_to_ast_with_settings
 
