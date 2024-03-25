@@ -135,7 +135,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest
+        pytest \
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
