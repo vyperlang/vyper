@@ -331,7 +331,6 @@ def _get_contract(
 ):
     settings = Settings()
     settings.optimize = override_opt_level or optimize
-
     out = compiler.compile_code(
         source_code,
         # test that all output formats can get generated
