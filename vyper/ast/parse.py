@@ -60,7 +60,7 @@ def parse_to_ast_with_settings(
         py_ast = python_ast.parse(python_source)
     except SyntaxError as e:
         # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from e
+        raise SyntaxException(str(e), vyper_source, e.lineno, e.offset) from None
 
     # Add dummy function node to ensure local variables are treated as `AnnAssign`
     # instead of state variables (`VariableDecl`)
