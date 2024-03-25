@@ -46,9 +46,11 @@ class _Encoder(Encoder):
         return super().visit_FixedNode(node, value)
 
     @classmethod
-    def visit_AddressNode(cls, node: AddressNode, value: str | HexBytes) -> bytes:
+    def visit_AddressNode(cls, node: AddressNode, value: str | bytes | HexBytes) -> bytes:
         if isinstance(value, HexBytes):
             value = value.hex()
+        if isinstance(value, bytes):
+            value = "0x" + value.hex()
         return super().visit_AddressNode(node, value)
 
 

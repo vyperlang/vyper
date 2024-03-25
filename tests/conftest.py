@@ -16,6 +16,7 @@ from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
 import vyper.evm.opcodes as evm
+from tests.revm.abi_contract import ABIContract
 from tests.revm.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
@@ -470,6 +471,16 @@ def deploy_blueprint_revm(revm_env, optimize, output_formats):
         return revm_env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
 
     return deploy_blueprint_revm
+
+
+@pytest.fixture(scope="module")
+def get_logs_revm(revm_env):
+    def get_logs(tx_result, c: ABIContract, event_name):
+        logs = revm_env.evm.result.logs
+        parsed_logs = [c.parse_log(log) for log in logs if c.address == log.address]
+        return [log for log in parsed_logs if log.event == event_name]
+
+    return get_logs
 
 
 # TODO: this should not be a fixture.
