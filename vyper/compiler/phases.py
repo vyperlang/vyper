@@ -111,7 +111,7 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.original_settings = settings or Settings()
+        self.original_settings = settings
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
 
     @cached_property

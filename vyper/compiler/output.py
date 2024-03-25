@@ -108,8 +108,12 @@ def build_archive(compiler_data: CompilerData) -> str:
         archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
 
         settings = compiler_data.original_settings
-        archive.writestr("MANIFEST/settings.json", json.dumps(settings.as_dict()))
-        archive.writestr("MANIFEST/cli_settings.txt", settings.as_cli())
+        if settings is not None:
+            archive.writestr("MANIFEST/settings.json", json.dumps(settings.as_dict()))
+            archive.writestr("MANIFEST/cli_settings.txt", settings.as_cli())
+        else:
+            archive.writestr("MANIFEST/settings.json", json.dumps(None))
+            archive.writestr("MANIFEST/cli_settings.txt", "")
 
         assert archive.testzip() is None  # sanity check
 

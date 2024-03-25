@@ -70,6 +70,10 @@ class Settings:
             ret["optimize"] = str(ret["optimize"])
         return ret
 
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
 
 _DEBUG = False
 
