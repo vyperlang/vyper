@@ -111,10 +111,8 @@ class CompilerData:
         self.storage_layout_override = storage_layout
         self.show_gas_estimates = show_gas_estimates
         self.no_bytecode_metadata = no_bytecode_metadata
-        self.settings = settings or Settings()
+        self.original_settings = settings or Settings()
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
-
-        _ = self._generate_ast  # force settings to be calculated
 
     @cached_property
     def source_code(self):
@@ -137,20 +135,27 @@ class CompilerData:
             resolved_path=str(self.file_input.resolved_path),
         )
 
-        self.settings = _merge_settings(self.settings, settings)
-        if self.settings.optimize is None:
-            self.settings.optimize = OptimizationLevel.default()
+        og_settings = self.original_settings
+        settings = _merge_settings(og_settings, settings)
+        assert self.original_settings == og_settings  # be paranoid
 
-        if self.settings.experimental_codegen is None:
-            self.settings.experimental_codegen = False
+        if settings.optimize is None:
+            settings.optimize = OptimizationLevel.default()
 
-        # note self.settings.compiler_version is erased here as it is
-        # not used after pre-parsing
-        return ast
+        if settings.experimental_codegen is None:
+            settings.experimental_codegen = False
+
+        return settings, ast
+
+    @cached_property
+    def settings(self):
+        settings, _ = self._generate_ast
+        return settings
 
     @cached_property
     def vyper_module(self):
-        return self._generate_ast
+        _, ast = self._generate_ast
+        return ast
 
     @cached_property
     def annotated_vyper_module(self) -> vy_ast.Module:
