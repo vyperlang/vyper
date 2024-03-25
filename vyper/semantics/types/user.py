@@ -16,7 +16,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.analysis.utils import check_modifiability, validate_expected_type
+from vyper.semantics.analysis.utils import check_modifiability, infer_type
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -283,7 +283,7 @@ class EventT(_UserType):
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
-            validate_expected_type(arg, expected)
+            infer_type(arg, expected)
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -424,8 +424,9 @@ class StructT(_UserType):
                     f"keys in this struct are {list(self.member_types.items())})",
                     kwarg,
                 )
+
             expected_type = members.pop(argname)
-            validate_expected_type(kwarg.value, expected_type)
+            infer_type(kwarg.value, expected_type)
 
         if members:
             raise VariableDeclarationException(

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
@@ -167,7 +167,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> Optional[int]:
     """
     Return the literal value for a `Subscript` index.
 
@@ -178,9 +178,9 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     Returns
     -------
-    int
+    Optional[int]
         Literal integer value.
-        In the future, will return `None` if the subscript is an Ellipsis
+        Return `None` if the subscript is an Ellipsis
     """
     # this is imported to improve error messages
     # TODO: revisit this!
@@ -188,6 +188,9 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     if node.has_folded_value:
         node = node.get_folded_value()
+
+    if isinstance(node, vy_ast.Ellipsis):
+        return None
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_
