@@ -1,4 +1,5 @@
 import base64
+import importlib
 import io
 import warnings
 import zipfile
@@ -50,15 +51,7 @@ def _get_compression_method():
     # they should be in the build environment for our build artifacts,
     # write the graceful fallback anyway).
     try:
-        import lzma  # noqa: F401
-
-        return zipfile.ZIP_LZMA
-    except ImportError:
-        pass
-
-    try:
-        import zlip  # noqa: F401
-
+        importlib.import_module("zlib")
         return zipfile.ZIP_DEFLATED
     except ImportError:
         pass
