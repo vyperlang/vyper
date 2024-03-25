@@ -14,7 +14,6 @@ from vyper.evm import opcodes
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
-from vyper.utils import OrderedSet
 from vyper.warnings import ContractSizeLimitWarning
 
 
@@ -67,27 +66,39 @@ def build_archive(compiler_data: CompilerData) -> str:
     compiler_inputs = [t.compiler_input for t in imports]
     compiler_inputs.append(compiler_data.file_input)
 
-    seen = set()
-
-    used_search_paths: OrderedSet = OrderedSet()
+    seen_paths = set()
+    # only write those search paths into the manifest which are actually used
+    # setup: create a dict with the input bundle's search paths, to preserve
+    # order of seen search paths.
+    used_search_paths = {sp: 0 for sp in compiler_data.input_bundle.search_paths}
     buf = io.BytesIO()
 
     method = _get_compression_method()
     with zipfile.ZipFile(buf, mode="w", compression=method, compresslevel=9) as archive:
         for c in compiler_inputs:
             path = str(c.resolved_path)
-            if path in seen:
+            if path in seen_paths:
                 continue
-            seen.add(path)
+            seen_paths.add(path)
             archive.writestr(str(path), c.contents)
 
-            for sp in compiler_data.input_bundle.search_paths:
+            # recover the search path that was used for this CompilerInput.
+            # note that it is not sufficient to thread the "search path that
+            # was used" into CompilerInput because search_paths are modified
+            # during compilation (so a search path which does not exist in
+            # the original search_paths set could be used for a given file).
+            for sp in reversed(compiler_data.input_bundle.search_paths):
                 if c.resolved_path.is_relative_to(sp):
-                    used_search_paths.add(sp)
+                    used_search_paths[sp] += 1
+                    break
 
         # construct the manifest file
         archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
-        archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in used_search_paths))
+
+        sps = [sp for sp, count in used_search_paths.items() if count > 0]
+        archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
+
+        assert archive.testzip() is None  # sanity check
 
     s = buf.getvalue()
     return base64.b64encode(s).decode("utf-8")
