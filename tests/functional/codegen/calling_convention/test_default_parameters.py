@@ -3,9 +3,9 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.exceptions import (
     InvalidLiteral,
-    InvalidType,
     NonPayableViolation,
     StateAccessViolation,
+    TypeMismatch,
     UndeclaredDefinition,
 )
 
@@ -109,6 +109,38 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
     assert c.fooBar(b"booo", [22, 11], b"lucky", [24, 25, 26]) == [b"booo", 11, b"lucky", 26]
     # no default values
     assert c.fooBar(b"booo", [55, 66]) == [b"booo", 66, c_default, d_default]
+
+
+def test_default_param_interface(get_contract):
+    code = """
+interface Foo:
+    def bar(): payable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+
+@external
+def bar(a: uint256, b: Foo = Foo(0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7)) -> Foo:
+    return b
+
+@external
+def baz(a: uint256, b: Foo = Foo(empty(address))) -> Foo:
+    return b
+
+@external
+def faz(a: uint256, b: Foo = FOO) -> Foo:
+    return b
+    """
+    c = get_contract(code)
+
+    addr1 = "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+    addr2 = "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7"
+
+    assert c.bar(1) == addr2
+    assert c.bar(1, addr1) == addr1
+    assert c.baz(1) is None
+    assert c.baz(1, "0x0000000000000000000000000000000000000000") is None
+    assert c.faz(1) == addr1
+    assert c.faz(1, addr1) == addr1
 
 
 def test_default_param_internal_function(get_contract):
@@ -277,7 +309,7 @@ struct Bar:
     b: uint256
 
 @external
-def foo(bar: Bar = Bar({a: msg.sender, b: 1})): pass
+def foo(bar: Bar = Bar(a=msg.sender, b=1)): pass
     """,
     """
 struct Baz:
@@ -289,7 +321,7 @@ struct Bar:
     b: Baz
 
 @external
-def foo(bar: Bar = Bar({a: msg.sender, b: Baz({c: block.coinbase, d: -10})})): pass
+def foo(bar: Bar = Bar(a=msg.sender, b=Baz(c=block.coinbase, d=-10))): pass
     """,
     """
 A: public(address)
@@ -304,6 +336,48 @@ A: public(int112)
 @external
 def foo(a: int112 = min_value(int112)):
     self.A = a
+    """,
+    """
+struct X:
+    x: int128
+    y: address
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
+@external
+def out_literals(a: int128 = BAR.x + 1) -> X:
+    return BAR
+    """,
+    """
+struct X:
+    x: int128
+    y: address
+struct Y:
+    x: X
+    y: uint256
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
+FOO: constant(Y) = Y(x=BAR, y=256)
+@external
+def out_literals(a: int128 = FOO.x.x + 1) -> Y:
+    return FOO
+    """,
+    """
+struct Bar:
+    a: bool
+
+BAR: constant(Bar) = Bar(a=True)
+
+@external
+def foo(x: bool = True and not BAR.a):
+    pass
+    """,
+    """
+struct Bar:
+    a: uint256
+
+BAR: constant(Bar) = Bar(a=123)
+
+@external
+def foo(x: bool = BAR.a + 1 > 456):
+    pass
     """,
 ]
 
@@ -330,7 +404,7 @@ def foo(xx: int128, y: int128 = xx): pass
 @external
 def foo(a: uint256 = -1): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -338,7 +412,7 @@ def foo(a: uint256 = -1): pass
 @external
 def foo(a: int128 = 170141183460469231731687303715884105728): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -346,7 +420,7 @@ def foo(a: int128 = 170141183460469231731687303715884105728): pass
 @external
 def foo(a: uint256[2] = [13, -42]): pass
      """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -354,7 +428,7 @@ def foo(a: uint256[2] = [13, -42]): pass
 @external
 def foo(a: int128[2] = [12, 170141183460469231731687303715884105728]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -370,7 +444,7 @@ def foo(a: uint256[2] = [12, True]): pass
 @external
 def foo(a: uint256[2] = [1, 2, 3]): pass
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """

@@ -152,7 +152,7 @@ def _increment():
 
 @external
 def returnten() -> int128:
-    for i in range(10):
+    for i: uint256 in range(10):
         self._increment()
     return self.counter
     """
@@ -436,7 +436,8 @@ def foo() -> int128:
 
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_CALL_VIOLATION)
 def test_selfcall_call_violation(failing_contract_code, assert_compile_failed):
-    assert_compile_failed(lambda: compile_code(failing_contract_code), CallViolation)
+    with pytest.raises(CallViolation):
+        _ = compile_code(failing_contract_code)
 
 
 FAILING_CONTRACTS_ARGUMENT_EXCEPTION = [
@@ -534,10 +535,9 @@ def bar():
 @pytest.mark.parametrize("failing_contract_code", FAILING_CONTRACTS_TYPE_MISMATCH)
 @pytest.mark.parametrize("decorator", ["external", "internal"])
 def test_selfcall_kwarg_raises(failing_contract_code, decorator, assert_compile_failed):
-    assert_compile_failed(
-        lambda: compile_code(failing_contract_code.format(decorator)),
-        ArgumentException if decorator == "internal" else CallViolation,
-    )
+    exc = ArgumentException if decorator == "internal" else CallViolation
+    with pytest.raises(exc):
+        _ = compile_code(failing_contract_code.format(decorator))
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
@@ -550,7 +550,7 @@ struct X:
 
 @internal
 def get_struct_x() -> X:
-    return X({{x: {i}, y: "{s}", z: b"{s}"}})
+    return X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def test() -> (int128, String[{ln}], Bytes[{ln}]):
@@ -575,7 +575,7 @@ def _foo(x: X) -> Bytes[6]:
 
 @external
 def bar() -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return self._foo(_X)
     """
 
@@ -596,7 +596,7 @@ def _foo(x: X) -> String[6]:
 
 @external
 def bar() -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return self._foo(_X)
     """
 
@@ -617,7 +617,7 @@ def _foo(s: Bytes[6]) -> Bytes[6]:
 
 @external
 def bar() -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
+    _X: X = X(x=1, y=b"hello")
     return self._foo(_X.y)
     """
 
@@ -638,7 +638,7 @@ def _foo(s: String[6]) -> String[6]:
 
 @external
 def bar() -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
+    _X: X = X(x=1, y="hello")
     return self._foo(_X.y)
     """
 

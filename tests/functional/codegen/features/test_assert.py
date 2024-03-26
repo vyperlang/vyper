@@ -28,6 +28,8 @@ def foo():
 
 def test_assert_reason(w3, get_contract_with_gas_estimation, tx_failed, memory_mocker):
     code = """
+err: String[32]
+
 @external
 def test(a: int128) -> int128:
     assert a > 1, "larger than one please"
@@ -43,6 +45,17 @@ def test2(a: int128, b: int128, extra_reason: String[32]) -> int128:
 @external
 def test3(reason_str: String[32]):
     raise reason_str
+
+@external
+def test4(a: int128, reason_str: String[32]) -> int128:
+    self.err = reason_str
+    assert a > 1, self.err
+    return 1 + a
+
+@external
+def test5(reason_str: String[32]):
+    self.err = reason_str
+    raise self.err
     """
     c = get_contract_with_gas_estimation(code)
 
@@ -65,6 +78,15 @@ def test3(reason_str: String[32]):
     with pytest.raises(TransactionFailed) as e_info:
         c.test3("An exception")
     assert _fixup_err_str(e_info.value.args[0]) == "An exception"
+
+    assert c.test4(2, "msg") == 3
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test4(0, "larger than one again please")
+    assert _fixup_err_str(e_info.value.args[0]) == "larger than one again please"
+
+    with pytest.raises(TransactionFailed) as e_info:
+        c.test5("A storage exception")
+    assert _fixup_err_str(e_info.value.args[0]) == "A storage exception"
 
 
 invalid_code = [
@@ -107,14 +129,6 @@ def test():
     assert self.ret1() == 1
     """,
     """
-@internal
-def valid_address(sender: address) -> bool:
-    selfdestruct(sender)
-@external
-def test():
-    assert self.valid_address(msg.sender)
-    """,
-    """
 @external
 def test():
     assert raw_call(msg.sender, b'', max_outsize=1, gas=10, value=1000*1000) == b''
@@ -146,7 +160,7 @@ interface ForeignContract:
 
 @external
 def test():
-    assert ForeignContract(msg.sender).not_really_constant() == 1
+    assert staticcall ForeignContract(msg.sender).not_really_constant() == 1
     """
     c1 = get_contract(foreign_code)
     c2 = get_contract(code, *[c1.address])
@@ -159,7 +173,7 @@ def test_assert_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
-    for i in range(3):
+    for i: uint256 in range(3):
         assert x[i] < 5
     return True
     """
@@ -179,7 +193,7 @@ def test_assert_with_reason_in_for_loop(get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test(x: uint256[3]) -> bool:
-    for i in range(3):
+    for i: uint256 in range(3):
         assert x[i] < 5, "because reasons"
     return True
     """

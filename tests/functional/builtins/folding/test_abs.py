@@ -2,9 +2,8 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from vyper import ast as vy_ast
-from vyper.builtins import functions as vy_fn
-from vyper.exceptions import OverflowException
+from tests.utils import parse_and_fold
+from vyper.exceptions import TypeMismatch
 
 
 @pytest.mark.fuzzing
@@ -19,9 +18,9 @@ def foo(a: int256) -> int256:
     """
     contract = get_contract(source)
 
-    vyper_ast = vy_ast.parse_to_ast(f"abs({a})")
+    vyper_ast = parse_and_fold(f"abs({a})")
     old_node = vyper_ast.body[0].value
-    new_node = vy_fn.DISPATCH_TABLE["abs"].evaluate(old_node)
+    new_node = old_node.get_folded_value()
 
     assert contract.foo(a) == new_node.value == abs(a)
 
@@ -35,7 +34,7 @@ def test_abs_upper_bound_folding(get_contract, a):
 def foo(a: int256) -> int256:
     return abs({a})
     """
-    with pytest.raises(OverflowException):
+    with pytest.raises(TypeMismatch):
         get_contract(source)
 
 
@@ -55,7 +54,7 @@ def test_abs_lower_bound_folded(get_contract, tx_failed):
     source = """
 @external
 def foo() -> int256:
-    return abs(-2**255)
+    return abs(min_value(int256))
     """
-    with pytest.raises(OverflowException):
+    with pytest.raises(TypeMismatch):
         get_contract(source)

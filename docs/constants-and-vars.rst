@@ -16,7 +16,7 @@ Name                 Type             Value
 ==================== ================ =========================================================
 ``block.coinbase``   ``address``      Current block miner's address
 ``block.difficulty`` ``uint256``      Current block difficulty
-``block.prevrandao`` ``uint256``      Current randomness beacon provided by the beacon chain
+``block.prevrandao`` ``bytes32``      Current randomness beacon provided by the beacon chain
 ``block.number``     ``uint256``      Current block number
 ``block.prevhash``   ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
 ``block.timestamp``  ``uint256``      Current block epoch timestamp
@@ -32,7 +32,7 @@ Name                 Type             Value
 
 .. note::
 
-    ``block.prevrandao`` is an alias for ``block.difficulty``. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
+    ``block.prevrandao`` is an alias for the ``block.difficulty`` opcode. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
 
 .. note::
 
@@ -57,7 +57,7 @@ Accessing State Variables
 
 ``self`` is used to access a contract's :ref:`state variables<structure-state-variables>`, as shown in the following example:
 
-.. code-block:: python
+.. code-block:: vyper
 
     state_var: uint256
 
@@ -77,7 +77,7 @@ Calling Internal Functions
 
 ``self`` is also used to call :ref:`internal functions<structure-functions-internal>` within a contract:
 
-.. code-block:: python
+.. code-block:: vyper
 
     @internal
     def _times_two(amount: uint256) -> uint256:
@@ -94,7 +94,7 @@ Custom Constants
 
 Custom constants can be defined at a global level in Vyper. To define a constant, make use of the ``constant`` keyword.
 
-.. code-block:: python
+.. code-block:: vyper
 
     TOTAL_SUPPLY: constant(uint256) = 10000000
     total_supply: public(uint256)

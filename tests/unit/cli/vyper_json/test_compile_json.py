@@ -12,7 +12,7 @@ from vyper.cli.vyper_json import (
 )
 from vyper.compiler import OUTPUT_FORMATS, compile_code, compile_from_file_input
 from vyper.compiler.input_bundle import JSONInputBundle
-from vyper.exceptions import InvalidType, JSONError, SyntaxException
+from vyper.exceptions import JSONError, SyntaxException, TypeMismatch
 
 FOO_CODE = """
 import contracts.ibar as IBar
@@ -21,7 +21,7 @@ import contracts.library as library
 
 @external
 def foo(a: address) -> bool:
-    return IBar(a).bar(1)
+    return extcall IBar(a).bar(1)
 
 @external
 def baz() -> uint256:
@@ -113,18 +113,23 @@ def test_keyerror_becomes_jsonerror(input_json):
 
 def test_compile_json(input_json, input_bundle):
     foo_input = input_bundle.load_file("contracts/foo.vy")
+    # remove bb and bb_runtime from output formats
+    # because they require venom (experimental)
+    output_formats = OUTPUT_FORMATS.copy()
+    del output_formats["bb"]
+    del output_formats["bb_runtime"]
     foo = compile_from_file_input(
-        foo_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        foo_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     library_input = input_bundle.load_file("contracts/library.vy")
     library = compile_from_file_input(
-        library_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        library_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     bar_input = input_bundle.load_file("contracts/bar.vy")
     bar = compile_from_file_input(
-        bar_input, output_formats=OUTPUT_FORMATS, input_bundle=input_bundle
+        bar_input, output_formats=output_formats, input_bundle=input_bundle
     )
 
     compile_code_results = {
@@ -146,7 +151,11 @@ def test_compile_json(input_json, input_bundle):
     for source_id, contract_name in [(0, "foo"), (2, "library"), (3, "bar")]:
         path = f"contracts/{contract_name}.vy"
         data = compile_code_results[path]
-        assert output_json["sources"][path] == {"id": source_id, "ast": data["ast_dict"]["ast"]}
+        assert output_json["sources"][path] == {
+            "id": source_id,
+            "ast": data["ast_dict"]["ast"],
+            "annotated_ast": data["annotated_ast_dict"]["ast"],
+        }
         assert output_json["contracts"][path][contract_name] == {
             "abi": data["abi"],
             "devdoc": data["devdoc"],
@@ -239,7 +248,7 @@ def test_exc_handler_to_dict_syntax(input_json):
 
 def test_exc_handler_raises_compiler(input_json):
     input_json["sources"]["badcode.vy"] = {"content": BAD_COMPILER_CODE}
-    with pytest.raises(InvalidType):
+    with pytest.raises(TypeMismatch):
         compile_json(input_json)
 
 
@@ -251,19 +260,29 @@ def test_exc_handler_to_dict_compiler(input_json):
     assert len(result["errors"]) == 1
     error = result["errors"][0]
     assert error["component"] == "compiler"
-    assert error["type"] == "InvalidType"
+    assert error["type"] == "TypeMismatch"
 
 
 def test_source_ids_increment(input_json):
-    input_json["settings"]["outputSelection"] = {"*": ["evm.deployedBytecode.sourceMap"]}
+    input_json["settings"]["outputSelection"] = {"*": ["ast", "evm.deployedBytecode.sourceMapFull"]}
     result = compile_json(input_json)
 
     def get(filename, contractname):
-        return result["contracts"][filename][contractname]["evm"]["deployedBytecode"]["sourceMap"]
+        ast = result["sources"][filename]["ast"]
+        ret = ast["source_id"]
 
-    assert get("contracts/foo.vy", "foo").startswith("-1:-1:0")
-    assert get("contracts/library.vy", "library").startswith("-1:-1:2")
-    assert get("contracts/bar.vy", "bar").startswith("-1:-1:3")
+        # grab it via source map to sanity check
+        contract_info = result["contracts"][filename][contractname]["evm"]
+        pc_ast_map = contract_info["deployedBytecode"]["sourceMapFull"]["pc_ast_map"]
+        pc_item = next(iter(pc_ast_map.values()))
+        source_id, node_id = pc_item
+        assert ret == source_id
+
+        return ret
+
+    assert get("contracts/foo.vy", "foo") == 0
+    assert get("contracts/library.vy", "library") == 2
+    assert get("contracts/bar.vy", "bar") == 3
 
 
 def test_relative_import_paths(input_json):

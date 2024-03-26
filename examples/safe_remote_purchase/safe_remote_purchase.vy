@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Safe Remote Purchase
 # Originally from
 # https://github.com/ethereum/solidity/blob/develop/docs/solidity-by-example.rst
@@ -19,11 +21,11 @@ buyer: public(address)
 unlocked: public(bool)
 ended: public(bool)
 
-@external
+@deploy
 @payable
 def __init__():
     assert (msg.value % 2) == 0
-    self.value = msg.value / 2  # The seller initializes the contract by
+    self.value = msg.value // 2  # The seller initializes the contract by
         # posting a safety deposit of 2*value of the item up for sale.
     self.seller = msg.sender
     self.unlocked = True

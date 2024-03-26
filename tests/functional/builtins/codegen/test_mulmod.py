@@ -20,7 +20,7 @@ def test_uint256_mulmod_complex(get_contract_with_gas_estimation):
 @external
 def exponential(base: uint256, exponent: uint256, modulus: uint256) -> uint256:
     o: uint256 = 1
-    for i in range(256):
+    for i: uint256 in range(256):
         o = uint256_mulmod(o, o, modulus)
         if exponent & shift(1, 255 - i) != 0:
             o = uint256_mulmod(o, base, modulus)
@@ -36,12 +36,12 @@ def test_uint256_mulmod_ext_call(
     w3, side_effects_contract, assert_side_effects_invoked, get_contract
 ):
     code = """
-@external
-def foo(f: Foo) -> uint256:
-    return uint256_mulmod(200, 3, f.foo(601))
-
 interface Foo:
     def foo(x: uint256) -> uint256: nonpayable
+
+@external
+def foo(f: Foo) -> uint256:
+    return uint256_mulmod(200, 3, extcall f.foo(601))
     """
 
     c1 = side_effects_contract("uint256")

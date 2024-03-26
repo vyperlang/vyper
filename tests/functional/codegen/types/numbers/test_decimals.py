@@ -3,7 +3,13 @@ from decimal import ROUND_DOWN, Decimal, getcontext
 
 import pytest
 
-from vyper.exceptions import DecimalOverrideException, InvalidOperation, TypeMismatch
+from vyper import compile_code
+from vyper.exceptions import (
+    DecimalOverrideException,
+    InvalidOperation,
+    OverflowException,
+    TypeMismatch,
+)
 from vyper.utils import DECIMAL_EPSILON, SizeLimits
 
 
@@ -23,24 +29,26 @@ def test_decimal_override():
         )
 
 
-@pytest.mark.parametrize("op", ["**", "&", "|", "^"])
-def test_invalid_ops(get_contract, assert_compile_failed, op):
+@pytest.mark.parametrize("op", ["//", "**", "&", "|", "^"])
+def test_invalid_ops(op):
     code = f"""
 @external
 def foo(x: decimal, y: decimal) -> decimal:
     return x {op} y
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
 
 
 @pytest.mark.parametrize("op", ["not"])
-def test_invalid_unary_ops(get_contract, assert_compile_failed, op):
+def test_invalid_unary_ops(op):
     code = f"""
 @external
 def foo(x: decimal) -> decimal:
     return {op} x
     """
-    assert_compile_failed(lambda: get_contract(code), InvalidOperation)
+    with pytest.raises(InvalidOperation):
+        compile_code(code)
 
 
 def quantize(x: Decimal) -> Decimal:
@@ -117,7 +125,7 @@ def test_harder_decimal_test(get_contract_with_gas_estimation):
 @external
 def phooey(inp: decimal) -> decimal:
     x: decimal = 10000.0
-    for i in range(4):
+    for i: uint256 in range(4):
         x = x * inp
     return x
 
@@ -263,11 +271,44 @@ def bar(num: decimal) -> decimal:
     assert c.bar(Decimal("1e37")) == Decimal("-9e37")  # Math lines up
 
 
-def test_exponents(assert_compile_failed, get_contract):
+def test_exponents():
     code = """
 @external
 def foo() -> decimal:
     return 2.2 ** 2.0
     """
 
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
+    with pytest.raises(TypeMismatch):
+        compile_code(code)
+
+
+def test_decimal_nested_intermediate_overflow():
+    code = """
+@external
+def foo():
+    a: decimal = 18707220957835557353007165858768422651595.9365500927 + 1e-10 - 1e-10
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+def test_replace_decimal_nested_intermediate_underflow(dummy_input_bundle):
+    code = """
+@external
+def foo():
+    a: decimal = -18707220957835557353007165858768422651595.9365500928 - 1e-10 + 1e-10
+    """
+    with pytest.raises(OverflowException):
+        compile_code(code)
+
+
+def test_invalid_floordiv():
+    code = """
+@external
+def foo():
+    a: decimal = 5.0 // 9.0
+    """
+    with pytest.raises(InvalidOperation) as e:
+        compile_code(code)
+
+    assert e.value._hint == "did you mean `5.0 / 9.0`?"

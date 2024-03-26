@@ -69,7 +69,7 @@ b: HashMap[Foo, uint256]
     """
 b: immutable(HashMap[uint256, uint256])
 
-@external
+@deploy
 def __init__():
     b = empty(HashMap[uint256, uint256])
     """,

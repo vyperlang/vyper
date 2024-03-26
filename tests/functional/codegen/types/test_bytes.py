@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 
 def test_test_bytes(get_contract_with_gas_estimation, tx_failed):
@@ -51,7 +51,7 @@ x: int128
 maa: Bytes[60]
 y: int128
 
-@external
+@deploy
 def __init__():
     self.x = 27
     self.y = 37
@@ -132,7 +132,7 @@ g: G
 
 @external
 def foo(inp1: Bytes[40], inp2: Bytes[45]):
-    self.g = G({a: inp1, b: inp2})
+    self.g = G(a=inp1, b=inp2)
 
 @external
 def check1() -> Bytes[50]:
@@ -144,17 +144,17 @@ def check2() -> Bytes[50]:
 
 @external
 def bar(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
-    h: H = H({a: inp1, b: inp2})
+    h: H = H(a=inp1, b=inp2)
     return h.a
 
 @external
 def bat(inp1: Bytes[40], inp2: Bytes[45]) -> Bytes[50]:
-    h: H = H({a: inp1, b: inp2})
+    h: H = H(a=inp1, b=inp2)
     return h.b
 
 @external
 def quz(inp1: Bytes[40], inp2: Bytes[45]):
-    h:  H = H({a: inp1, b: inp2})
+    h:  H = H(a=inp1, b=inp2)
     self.g.a = h.a
     self.g.b = h.b
     """
@@ -268,7 +268,7 @@ counter: uint256
 def to_little_endian_64(_value: uint256) -> Bytes[8]:
     y: uint256 = 0
     x: uint256 = _value
-    for _ in range(8):
+    for _: uint256 in range(8):
         y = (y << 8) | (x & 255)
         x >>= 8
     return slice(convert(y, bytes32), 24, 8)
@@ -310,7 +310,7 @@ def assign():
 def assign():
     xs: bytes6 = b"abcdef"
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -318,7 +318,7 @@ def assign():
 def assign():
     xs: bytes4 = 0xabcdef  # bytes3 literal
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -326,7 +326,7 @@ def assign():
 def assign():
     xs: bytes4 = 0x1234abcdef # bytes5 literal
     """,
-        InvalidType,
+        TypeMismatch,
     ),
 ]
 

@@ -99,7 +99,7 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "mwei",
     "twei",
     "pwei",
-    # sentinal constant values
+    # sentinel constant values
     # TODO remove when these are removed from the language
     "zero_address",
     "empty_bytes32",

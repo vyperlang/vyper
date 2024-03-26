@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
@@ -26,52 +26,39 @@ jobs:
     - name: Install Dependencies
       run: pip install .[lint]
 
+    - name: Debug dependencies
+      run: pip freeze
+
     - name: Run Black
       run: black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
 
     - name: Run flake8
       run: flake8 ./vyper ./tests ./setup.py
-      if: always()
 
     - name: Run isort
       run: isort --check-only --diff ./vyper ./tests ./setup.py
-      if: always()
+
+    - name: Run mypy
+      run: make mypy
 
   docs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Tox
-        run: pip install tox
+      - name: Install deps
+        # TODO these should really be in setup.py
+        run: pip install shibuya sphinx sphinx-copybutton
 
-      - name: Run Tox
-        run: TOXENV=docs tox -r
-
-  mypy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-        cache: "pip"
-
-    - name: Install Tox
-      run: pip install tox
-
-    - name: Run Tox
-      run: TOXENV=mypy tox -r
+      - name: Run docs
+        run: sphinx-build -E -b html docs dist/docs -n -q --color
 
   # "Regular"/core tests.
   tests:
@@ -79,35 +66,87 @@ jobs:
     strategy:
       matrix:
         python-version: [["3.11", "311"]]
-        # run in modes: --optimize [gas, none, codesize]
         opt-mode: ["gas", "none", "codesize"]
+        evm-version: [shanghai]
         debug: [true, false]
-        # run across other python versions.# we don't really need to run all
-        # modes across all python versions - one is enough
+        memorymock: [false]
+
+        # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
+          # test default settings with 3.11 across all supported evm versions
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: london
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: paris
+
+          # redundant rule, for clarity
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: shanghai
+
+          - python-version: ["3.11", "311"]
+            debug: false
+            opt-mode: gas
+            evm-version: cancun
+
+          # run with `--memorymock`, but only need to do it one configuration
+          # TODO: consider removing the memorymock tests
+          - python-version: ["3.11", "311"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
+            memorymock: true
+
+          # run across other python versions. we don't really need to run all
+          # modes across all python versions - one is enough
           - python-version: ["3.10", "310"]
             opt-mode: gas
             debug: false
+            evm-version: shanghai
+          - python-version: ["3.12", "312"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
+      with:
+          # need to fetch unshallow so that setuptools_scm can infer the version
+          fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version[0] }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version[0] }}
         cache: "pip"
 
-    - name: Install Tox
-      run: pip install tox
+    - name: Install dependencies
+      run: pip install .[test]
 
-    - name: Run Tox
-      run: TOXENV=py${{ matrix.python-version[1] }} tox -r -- --optimize ${{ matrix.opt-mode }} ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} -r aR tests/
+    - name: Debug dependencies
+      run: pip freeze
+
+    - name: Run tests
+      run: |
+        pytest \
+          --dist worksteal \
+          -m "not fuzzing" \
+          --optimize ${{ matrix.opt-mode }} \
+          --evm-version ${{ matrix.evm-version }} \
+          ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
+          ${{ matrix.memorymock && '--memorymock' || '' }} \
+          --showlocals -r aR \
+          tests/
 
     - name: Upload Coverage
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
@@ -132,31 +171,41 @@ jobs:
 
     strategy:
       matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
+        # note that every time this is updated, `--splits` needs to be
+        # updated below as well.
+        # python -c "print(list(range(1, 121)))"
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120]
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
 
-    - name: Install Tox
-      run: pip install tox
+    - name: Install dependencies
+      run: pip install .[test]
 
     # fetch test durations
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
-    # `TOXENV=fuzzing tox -r -- --store-durations -r aR tests/`
+    # `pytest -m "fuzzing" --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/5982755ee8459f771f2e8622427c36494646e1dd/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
-    - name: Run Tox
-      run: TOXENV=fuzzing tox -r -- --splits 60 --group ${{ matrix.group }} --splitting-algorithm least_duration -r aR tests/
+    - name: Run tests
+      run: |
+        pytest \
+          -m "fuzzing" \
+          --splits 120 \
+          --group ${{ matrix.group }} \
+          --splitting-algorithm least_duration \
+          --dist worksteal \
+          -r aR tests/
 
     - name: Upload Coverage
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
@@ -172,27 +221,3 @@ jobs:
       - name: Check slow tests all succeeded
         if: ${{ needs.fuzzing.result != 'success' }}
         run: exit 1
-
-  memory:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-        cache: "pip"
-
-    - name: Install Tox
-      run: pip install tox
-
-    - name: Run Tox
-      run: TOXENV=memory tox -r
-
-    - name: Upload Coverage
-      uses: codecov/codecov-action@v1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml

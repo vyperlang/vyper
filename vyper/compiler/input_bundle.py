@@ -2,10 +2,12 @@ import contextlib
 import json
 import os
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
 from vyper.exceptions import JSONError
+from vyper.utils import sha256sum
 
 # a type to make mypy happy
 PathLike = Path | PurePath
@@ -25,6 +27,10 @@ class CompilerInput:
 @dataclass
 class FileInput(CompilerInput):
     source_code: str
+
+    @cached_property
+    def sha256sum(self):
+        return sha256sum(self.source_code)
 
 
 @dataclass
@@ -48,6 +54,11 @@ class _NotFound(Exception):
     pass
 
 
+# an opaque object which consumers can get/set attributes on
+class _Cache(object):
+    pass
+
+
 # an "input bundle" to the compiler, representing the files which are
 # available to the compiler. it is useful because it parametrizes I/O
 # operations over different possible input types. you can think of it
@@ -66,9 +77,9 @@ class InputBundle:
         self._source_id_counter = 0
         self._source_ids: dict[PathLike, int] = {}
 
-        # this is a little bit cursed, but it allows consumers to cache data that
-        # share the same lifetime as this input bundle.
-        self._cache = lambda: None
+        # this is a little bit cursed, but it allows consumers to cache data
+        # that share the same lifetime as this input bundle.
+        self._cache = _Cache()
 
     def _normalize_path(self, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._normalize_path()")

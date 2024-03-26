@@ -16,7 +16,8 @@ Prior to testing, the Vyper specific contract conversion and the blockchain rela
 
     Since the testing is done in the pytest framework, you can make use of `pytest.ini, tox.ini and setup.cfg <https://docs.pytest.org/en/latest/customize.html>`_ and you can use most IDEs' pytest plugins.
 
-.. literalinclude:: ../tests/base_conftest.py
+.. literalinclude:: ../tests/conftest.py
+    :caption: conftest.py
     :language: python
     :linenos:
 
@@ -30,12 +31,14 @@ Writing a Basic Test
 Assume the following simple contract ``storage.vy``. It has a single integer variable and a function to set that value.
 
 .. literalinclude:: ../examples/storage/storage.vy
+  :caption: storage.vy
   :linenos:
-  :language: python
+  :language: vyper
 
 We create a test file ``test_storage.py`` where we write our tests in pytest style.
 
-.. literalinclude:: ../tests/examples/storage/test_storage.py
+.. literalinclude:: ../tests/functional/examples/storage/test_storage.py
+  :caption: test_storage.py
   :linenos:
   :language: python
 
@@ -50,18 +53,21 @@ Events and Failed Transactions
 To test events and failed transactions we expand our simple storage contract to include an event and two conditions for a failed transaction: ``advanced_storage.vy``
 
 .. literalinclude:: ../examples/storage/advanced_storage.vy
+  :caption: advanced_storage.vy
   :linenos:
-  :language: python
+  :language: vyper
 
 Next, we take a look at the two fixtures that will allow us to read the event logs and to check for failed transactions.
 
 .. literalinclude:: ../tests/conftest.py
+    :caption: conftest.py
     :language: python
     :pyobject: tx_failed
 
 The fixture to assert failed transactions defaults to check for a ``TransactionFailed`` exception, but can be used to check for different exceptions too, as shown below. Also note that the chain gets reverted to the state before the failed transaction.
 
-.. literalinclude:: ../tests/base_conftest.py
+.. literalinclude:: ../tests/conftest.py
+    :caption: conftest.py
     :language: python
     :pyobject: get_logs
 
@@ -69,6 +75,7 @@ This fixture will return a tuple with all the logs for a certain event and trans
 
 Finally, we create a new file ``test_advanced_storage.py`` where we use the new fixtures to test failed transactions and events.
 
-.. literalinclude:: ../tests/examples/storage/test_advanced_storage.py
+.. literalinclude:: ../tests/functional/examples/storage/test_advanced_storage.py
+  :caption: test_advanced_storage.py
   :linenos:
   :language: python

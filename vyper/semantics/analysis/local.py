@@ -1,13 +1,15 @@
+# CMC 2024-02-03 TODO: split me into function.py and expr.py
+
+import contextlib
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.ast.metadata import NodeMetadata
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
+    CallViolation,
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidOperation,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -18,7 +20,13 @@ from vyper.exceptions import (
     VariableDeclarationException,
     VyperException,
 )
-from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.analysis.base import (
+    Modifiability,
+    ModuleInfo,
+    ModuleOwnership,
+    VarAccess,
+    VarInfo,
+)
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
     get_common_types,
@@ -34,6 +42,7 @@ from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIR
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
+    VOID_TYPE,
     AddressT,
     BoolT,
     DArrayT,
@@ -48,6 +57,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_type_t,
+    map_void,
 )
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
 from vyper.semantics.types.utils import type_from_annotation
@@ -55,70 +65,66 @@ from vyper.semantics.types.utils import type_from_annotation
 
 def validate_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
-
     err_list = ExceptionList()
-    namespace = get_namespace()
+
     for node in vy_module.get_children(vy_ast.FunctionDef):
-        with namespace.enter_scope():
-            try:
-                analyzer = FunctionNodeVisitor(vy_module, node, namespace)
-                analyzer.analyze()
-            except VyperException as e:
-                err_list.append(e)
+        _validate_function_r(vy_module, node, err_list)
+
+    for node in vy_module.get_children(vy_ast.VariableDecl):
+        if not node.is_public:
+            continue
+        _validate_function_r(vy_module, node._expanded_getter, err_list)
 
     err_list.raise_if_not_empty()
 
 
-def _is_terminus_node(node: vy_ast.VyperNode) -> bool:
-    if getattr(node, "_is_terminus", None):
-        return True
-    if isinstance(node, vy_ast.Expr) and isinstance(node.value, vy_ast.Call):
-        func = get_exact_type_from_node(node.value.func)
-        if getattr(func, "_is_terminus", None):
-            return True
-    return False
+def _validate_function_r(
+    vy_module: vy_ast.Module, node: vy_ast.FunctionDef, err_list: ExceptionList
+):
+    func_t = node._metadata["func_type"]
+
+    for call_t in func_t.called_functions:
+        if isinstance(call_t, ContractFunctionT):
+            assert isinstance(call_t.ast_def, vy_ast.FunctionDef)  # help mypy
+            _validate_function_r(vy_module, call_t.ast_def, err_list)
+
+    namespace = get_namespace()
+
+    try:
+        with namespace.enter_scope():
+            analyzer = FunctionAnalyzer(vy_module, node, namespace)
+            analyzer.analyze()
+    except VyperException as e:
+        err_list.append(e)
 
 
-def check_for_terminus(node_list: list) -> bool:
-    if next((i for i in node_list if _is_terminus_node(i)), None):
-        return True
-    for node in [i for i in node_list if isinstance(i, vy_ast.If)][::-1]:
-        if not node.orelse or not check_for_terminus(node.orelse):
-            continue
-        if not check_for_terminus(node.body):
-            continue
-        return True
-    return False
+# finds the terminus node for a list of nodes.
+# raises an exception if any nodes are unreachable
+def find_terminating_node(node_list: list) -> Optional[vy_ast.VyperNode]:
+    ret = None
 
+    for node in node_list:
+        if ret is not None:
+            raise StructureException("Unreachable code!", node)
 
-def _check_iterator_modification(
-    target_node: vy_ast.VyperNode, search_node: vy_ast.VyperNode
-) -> Optional[vy_ast.VyperNode]:
-    similar_nodes = [
-        n
-        for n in search_node.get_descendants(type(target_node))
-        if vy_ast.compare_nodes(target_node, n)
-    ]
+        if node.is_terminus:
+            ret = node
 
-    for node in similar_nodes:
-        # raise if the node is the target of an assignment statement
-        assign_node = node.get_ancestor((vy_ast.Assign, vy_ast.AugAssign))
-        # note the use of get_descendants() blocks statements like
-        # self.my_array[i] = x
-        if assign_node and node in assign_node.target.get_descendants(include_self=True):
-            return node
+        if isinstance(node, vy_ast.If):
+            body_terminates = find_terminating_node(node.body)
 
-        attr_node = node.get_ancestor(vy_ast.Attribute)
-        # note the use of get_descendants() blocks statements like
-        # self.my_array[i].append(x)
-        if (
-            attr_node is not None
-            and node in attr_node.value.get_descendants(include_self=True)
-            and attr_node.attr in ("append", "pop", "extend")
-        ):
-            return node
+            else_terminates = None
+            if node.orelse is not None:
+                else_terminates = find_terminating_node(node.orelse)
 
-    return None
+            if body_terminates is not None and else_terminates is not None:
+                ret = else_terminates
+
+        if isinstance(node, vy_ast.For):
+            # call find_terminating_node for its side effects
+            find_terminating_node(node.body)
+
+    return ret
 
 
 # helpers
@@ -175,7 +181,89 @@ def _validate_self_reference(node: vy_ast.Name) -> None:
         raise StateAccessViolation("not allowed to query self in pure functions", node)
 
 
-class FunctionNodeVisitor(VyperNodeVisitorBase):
+# analyse the variable access for the attribute chain for a node
+# e.x. `x` will return varinfo for `x`
+# `module.foo` will return VarAccess for `module.foo`
+# `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
+def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
+    path: list[str | object] = []
+    info = get_expr_info(node)
+
+    while info.var_info is None:
+        if not isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+            # it's something like a literal
+            return None
+
+        if isinstance(node, vy_ast.Subscript):
+            # Subscript is an analysis barrier
+            # we cannot analyse if `x.y[ix1].z` overlaps with `x.y[ix2].z`.
+            path.append(VarAccess.SUBSCRIPT_ACCESS)
+
+        if (attr := info.attr) is not None:
+            path.append(attr)
+
+        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
+        node = node.value
+        info = get_expr_info(node)
+
+    # ignore `self.` as it interferes with VarAccess comparison across modules
+    if len(path) > 0 and path[-1] == "self":
+        path.pop()
+    path.reverse()
+
+    return VarAccess(info.var_info, tuple(path))
+
+
+# get the chain of modules, e.g.
+# mod1.mod2.x.y -> [ModuleInfo(mod1), ModuleInfo(mod2)]
+# CMC 2024-02-12 note that the Attribute/Subscript traversal in this and
+# _get_variable_access() are a bit gross and could probably
+# be refactored into data on ExprInfo.
+def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
+    ret: list[ModuleInfo] = []
+    info = get_expr_info(node)
+
+    while True:
+        if info.module_info is not None:
+            ret.append(info.module_info)
+
+        if not isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+            break
+
+        node = node.value
+        info = get_expr_info(node)
+
+    ret.reverse()
+    return ret
+
+
+def check_module_uses(node: vy_ast.ExprNode) -> Optional[ModuleInfo]:
+    """
+    validate module usage, and that if we use lib1.lib2.<state>, that
+    lib1 at least `uses` lib2.
+
+    Returns the left-most module referenced in the expr,
+        e.g. `lib1.lib2.foo` should return module info for `lib1`.
+    """
+    module_infos = _get_module_chain(node)
+
+    if len(module_infos) == 0:
+        return None
+
+    for module_info in module_infos:
+        if module_info.ownership < ModuleOwnership.USES:
+            msg = f"Cannot access `{module_info.alias}` state!"
+            hint = f"add `uses: {module_info.alias}` or "
+            hint += f"`initializes: {module_info.alias}` as "
+            hint += "a top-level statement to your contract"
+            raise ImmutableViolation(msg, hint=hint)
+
+    # the leftmost- referenced module
+    root_module_info = module_infos[0]
+    return root_module_info
+
+
+class FunctionAnalyzer(VyperNodeVisitorBase):
     ignored_types = (vy_ast.Pass,)
     scope_name = "function"
 
@@ -186,32 +274,53 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         self.fn_node = fn_node
         self.namespace = namespace
         self.func = fn_node._metadata["func_type"]
-        self.expr_visitor = _ExprVisitor(self.func)
+        self.expr_visitor = ExprVisitor(self)
+
+        self.loop_variables: list[Optional[VarAccess]] = []
 
     def analyze(self):
+        if self.func.analysed:
+            return
+
+        # mark seen before analysing, if analysis throws an exception which
+        # gets caught, we don't want to analyse again.
+        self.func.mark_analysed()
+
         # allow internal function params to be mutable
-        location, is_immutable = (
-            (DataLocation.MEMORY, False) if self.func.is_internal else (DataLocation.CALLDATA, True)
-        )
+        if self.func.is_internal:
+            location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)
+        else:
+            location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
+
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
-                arg.typ, location=location, is_immutable=is_immutable
+                arg.typ, location=location, modifiability=modifiability
             )
 
         for node in self.fn_node.body:
             self.visit(node)
 
         if self.func.return_type:
-            if not check_for_terminus(self.fn_node.body):
+            if not find_terminating_node(self.fn_node.body):
                 raise FunctionDeclarationException(
-                    f"Missing or unmatched return statements in function '{self.fn_node.name}'",
-                    self.fn_node,
+                    f"Missing return statement in function '{self.fn_node.name}'", self.fn_node
                 )
+        else:
+            # call find_terminator for its unreachable code detection side effect
+            find_terminating_node(self.fn_node.body)
 
         # visit default args
         assert self.func.n_keyword_args == len(self.fn_node.args.defaults)
         for kwarg in self.func.keyword_args:
             self.expr_visitor.visit(kwarg.default_value, kwarg.typ)
+
+    @contextlib.contextmanager
+    def enter_for_loop(self, varaccess: Optional[VarAccess]):
+        self.loop_variables.append(varaccess)
+        try:
+            yield
+        finally:
+            self.loop_variables.pop()
 
     def visit(self, node):
         super().visit(node)
@@ -227,12 +336,13 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        validate_expected_type(node.value, typ)
+
+        # validate the value before adding it to the namespace
+        self.expr_visitor.visit(node.value, typ)
 
         self.namespace[name] = VarInfo(typ, location=DataLocation.MEMORY)
 
         self.expr_visitor.visit(node.target, typ)
-        self.expr_visitor.visit(node.value, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
         if isinstance(msg_node, vy_ast.Str):
@@ -251,10 +361,6 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
         if node.msg:
             self._validate_revert_reason(node.msg)
 
-        try:
-            validate_expected_type(node.test, BoolT())
-        except InvalidType:
-            raise InvalidType("Assertion test value must be a boolean", node.test)
         self.expr_visitor.visit(node.test, BoolT())
 
     # repeated code for Assign and AugAssign
@@ -263,22 +369,81 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
         target = get_expr_info(node.target)
-        if isinstance(target.typ, HashMapT):
-            raise StructureException(
-                "Left-hand side of assignment cannot be a HashMap without a key", node
-            )
 
-        validate_expected_type(node.value, target.typ)
-        target.validate_modification(node, self.func.mutability)
+        # check mutability of the function
+        self._handle_modification(node.target)
 
         self.expr_visitor.visit(node.value, target.typ)
         self.expr_visitor.visit(node.target, target.typ)
+
+    def _handle_modification(self, target: vy_ast.ExprNode):
+        if isinstance(target, vy_ast.Tuple):
+            for item in target.elements:
+                self._handle_modification(item)
+            return
+
+        # check a modification of `target`. validate the modification is
+        # valid, and log the modification in relevant data structures.
+        func_t = self.func
+        info = get_expr_info(target)
+
+        if isinstance(info.typ, HashMapT):
+            raise StructureException(
+                "Left-hand side of assignment cannot be a HashMap without a key"
+            )
+
+        if (
+            info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+            and func_t.mutability <= StateMutability.VIEW
+        ):
+            raise StateAccessViolation(
+                f"Cannot modify {info.location} variable in a {func_t.mutability} function"
+            )
+
+        if info.location == DataLocation.CALLDATA:
+            raise ImmutableViolation("Cannot write to calldata")
+
+        if info.modifiability == Modifiability.RUNTIME_CONSTANT:
+            if info.location == DataLocation.CODE:
+                if not func_t.is_constructor:
+                    raise ImmutableViolation("Immutable value cannot be written to")
+
+                # handle immutables
+                if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                    # special handling for immutable variables in the ctor
+                    # TODO: maybe we want to remove this restriction.
+                    if info.var_info._modification_count != 0:
+                        raise ImmutableViolation(
+                            "Immutable value cannot be modified after assignment"
+                        )
+                    info.var_info._modification_count += 1
+            else:
+                raise ImmutableViolation("Environment variable cannot be written to")
+
+        if info.modifiability == Modifiability.CONSTANT:
+            raise ImmutableViolation("Constant value cannot be written to.")
+
+        var_access = _get_variable_access(target)
+        assert var_access is not None
+
+        info._writes.add(var_access)
+
+    def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
+        if not var_access.variable.is_module_variable():
+            return
+
+        root_module_info = check_module_uses(target)
+
+        if root_module_info is not None:
+            # log the access
+            self.func.mark_used_module(root_module_info)
 
     def visit_Assign(self, node):
         self._assign_helper(node)
 
     def visit_AugAssign(self, node):
         self._assign_helper(node)
+        node.target._expr_info.typ.validate_numeric_op(node)
 
     def visit_Break(self, node):
         for_node = node.get_ancestor(vy_ast.For)
@@ -299,178 +464,108 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 node,
             )
 
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Expressions without assignment are disallowed", node)
+        # NOTE: standalone staticcalls are banned!
+        if not isinstance(node.value, (vy_ast.Call, vy_ast.ExtCall)):
+            raise StructureException(
+                "Expressions without assignment are disallowed",
+                node,
+                hint="did you mean to assign the result to a variable?",
+            )
 
-        fn_type = get_exact_type_from_node(node.value.func)
+        if isinstance(node.value, vy_ast.ExtCall):
+            call_node = node.value.value
+        else:
+            call_node = node.value
+
+        func = call_node.func
+
+        fn_type = get_exact_type_from_node(func)
+
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
-        if isinstance(fn_type, ContractFunctionT):
-            if (
-                fn_type.mutability > StateMutability.VIEW
-                and self.func.mutability <= StateMutability.VIEW
-            ):
-                raise StateAccessViolation(
-                    f"Cannot call a mutating function from a {self.func.mutability.value} function",
-                    node,
-                )
-
-            if (
-                self.func.mutability == StateMutability.PURE
-                and fn_type.mutability != StateMutability.PURE
-            ):
-                raise StateAccessViolation(
-                    "Cannot call non-pure function from a pure function", node
-                )
-
-        if isinstance(fn_type, MemberFunctionT) and fn_type.is_modifying:
-            # it's a dotted function call like dynarray.pop()
-            expr_info = get_expr_info(node.value.func.value)
-            expr_info.validate_modification(node, self.func.mutability)
-
         # NOTE: fetch_call_return validates call args.
-        return_value = fn_type.fetch_call_return(node.value)
+        return_value = map_void(fn_type.fetch_call_return(call_node))
         if (
-            return_value
+            return_value is not VOID_TYPE
             and not isinstance(fn_type, MemberFunctionT)
             and not isinstance(fn_type, ContractFunctionT)
         ):
             raise StructureException(
-                f"Function '{fn_type._id}' cannot be called without assigning the result", node
+                f"Function `{fn_type}` cannot be called without assigning the result"
             )
-        self.expr_visitor.visit(node.value, fn_type)
+        self.expr_visitor.visit(node.value, return_value)
+
+    def _analyse_range_iter(self, iter_node, target_type):
+        # iteration via range()
+        if iter_node.get("func.id") != "range":
+            raise IteratorException("Cannot iterate over the result of a function call", iter_node)
+        _validate_range_call(iter_node)
+
+        args = iter_node.args
+        kwargs = [s.value for s in iter_node.keywords]
+        for arg in (*args, *kwargs):
+            self.expr_visitor.visit(arg, target_type)
+
+    def _analyse_list_iter(self, iter_node, target_type):
+        # iteration over a variable or literal list
+        iter_val = iter_node
+        if iter_val.has_folded_value:
+            iter_val = iter_val.get_folded_value()
+
+        if isinstance(iter_val, vy_ast.List):
+            len_ = len(iter_val.elements)
+            if len_ == 0:
+                raise StructureException("For loop must have at least 1 iteration", iter_node)
+            iter_type = SArrayT(target_type, len_)
+        else:
+            try:
+                iter_type = get_exact_type_from_node(iter_node)
+            except (InvalidType, StructureException):
+                raise InvalidType("Not an iterable type", iter_node)
+
+        # CMC 2024-02-09 TODO: use validate_expected_type once we have DArrays
+        # with generic length.
+        if not isinstance(iter_type, (DArrayT, SArrayT)):
+            raise InvalidType("Not an iterable type", iter_node)
+
+        self.expr_visitor.visit(iter_node, iter_type)
+
+        # get the root varinfo from iter_val in case we need to peer
+        # through folded constants
+        return _get_variable_access(iter_val)
 
     def visit_For(self, node):
-        if isinstance(node.iter, vy_ast.Subscript):
-            raise StructureException("Cannot iterate over a nested list", node.iter)
+        if not isinstance(node.target.target, vy_ast.Name):
+            raise StructureException("Invalid syntax for loop iterator", node.target.target)
 
+        target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
+
+        iter_var = None
         if isinstance(node.iter, vy_ast.Call):
-            # iteration via range()
-            if node.iter.get("func.id") != "range":
-                raise IteratorException(
-                    "Cannot iterate over the result of a function call", node.iter
-                )
-            type_list = _analyse_range_call(node.iter)
+            self._analyse_range_iter(node.iter, target_type)
 
+            # sanity check the postcondition of analyse_range_iter
+            assert isinstance(target_type, IntegerT)
         else:
-            # iteration over a variable or literal list
-            if isinstance(node.iter, vy_ast.List) and len(node.iter.elements) == 0:
-                raise StructureException("For loop must have at least 1 iteration", node.iter)
+            iter_var = self._analyse_list_iter(node.iter, target_type)
 
-            type_list = [
-                i.value_type
-                for i in get_possible_types_from_node(node.iter)
-                if isinstance(i, (DArrayT, SArrayT))
-            ]
+        with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
+            target_name = node.target.target.id
+            # maybe we should introduce a new Modifiability: LOOP_VARIABLE
+            self.namespace[target_name] = VarInfo(
+                target_type, modifiability=Modifiability.RUNTIME_CONSTANT
+            )
 
-        if not type_list:
-            raise InvalidType("Not an iterable type", node.iter)
+            self.expr_visitor.visit(node.target.target, target_type)
 
-        if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-            # check for references to the iterated value within the body of the loop
-            assign = _check_iterator_modification(node.iter, node)
-            if assign:
-                raise ImmutableViolation("Cannot modify array during iteration", assign)
-
-        # Check if `iter` is a storage variable. get_descendants` is used to check for
-        # nested `self` (e.g. structs)
-        # NOTE: this analysis will be borked once stateful modules are allowed!
-        iter_is_storage_var = (
-            isinstance(node.iter, vy_ast.Attribute)
-            and len(node.iter.get_descendants(vy_ast.Name, {"id": "self"})) > 0
-        )
-
-        if iter_is_storage_var:
-            # check if iterated value may be modified by function calls inside the loop
-            iter_name = node.iter.attr
-            for call_node in node.get_descendants(vy_ast.Call, {"func.value.id": "self"}):
-                fn_name = call_node.func.attr
-
-                fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": fn_name})[0]
-                if _check_iterator_modification(node.iter, fn_node):
-                    # check for direct modification
-                    raise ImmutableViolation(
-                        f"Cannot call '{fn_name}' inside for loop, it potentially "
-                        f"modifies iterated storage variable '{iter_name}'",
-                        call_node,
-                    )
-
-                for reachable_t in (
-                    self.namespace["self"].typ.members[fn_name].reachable_internal_functions
-                ):
-                    # check for indirect modification
-                    name = reachable_t.name
-                    fn_node = self.vyper_module.get_children(vy_ast.FunctionDef, {"name": name})[0]
-                    if _check_iterator_modification(node.iter, fn_node):
-                        raise ImmutableViolation(
-                            f"Cannot call '{fn_name}' inside for loop, it may call to '{name}' "
-                            f"which potentially modifies iterated storage variable '{iter_name}'",
-                            call_node,
-                        )
-
-        if not isinstance(node.target, vy_ast.Name):
-            raise StructureException("Invalid syntax for loop iterator", node.target)
-
-        for_loop_exceptions = []
-        iter_name = node.target.id
-        for possible_target_type in type_list:
-            # type check the for loop body using each possible type for iterator value
-
-            with self.namespace.enter_scope():
-                self.namespace[iter_name] = VarInfo(possible_target_type, is_constant=True)
-
-                try:
-                    with NodeMetadata.enter_typechecker_speculation():
-                        for stmt in node.body:
-                            self.visit(stmt)
-                except (TypeMismatch, InvalidOperation) as exc:
-                    for_loop_exceptions.append(exc)
-                else:
-                    self.expr_visitor.visit(node.target, possible_target_type)
-
-                    if isinstance(node.iter, (vy_ast.Name, vy_ast.Attribute)):
-                        iter_type = get_exact_type_from_node(node.iter)
-                        # note CMC 2023-10-23: slightly redundant with how type_list is computed
-                        validate_expected_type(node.target, iter_type.value_type)
-                        self.expr_visitor.visit(node.iter, iter_type)
-                    if isinstance(node.iter, vy_ast.List):
-                        len_ = len(node.iter.elements)
-                        self.expr_visitor.visit(node.iter, SArrayT(possible_target_type, len_))
-                    if isinstance(node.iter, vy_ast.Call) and node.iter.func.id == "range":
-                        for a in node.iter.args:
-                            self.expr_visitor.visit(a, possible_target_type)
-                        for a in node.iter.keywords:
-                            if a.arg == "bound":
-                                self.expr_visitor.visit(a.value, possible_target_type)
-
-                    # success -- do not enter error handling section
-                    return
-
-        # failed to find a good type. bail out
-        if len(set(str(i) for i in for_loop_exceptions)) == 1:
-            # if every attempt at type checking raised the same exception
-            raise for_loop_exceptions[0]
-
-        # return an aggregate TypeMismatch that shows all possible exceptions
-        # depending on which type is used
-        types_str = [str(i) for i in type_list]
-        given_str = f"{', '.join(types_str[:1])} or {types_str[-1]}"
-        raise TypeMismatch(
-            f"Iterator value '{iter_name}' may be cast as {given_str}, "
-            "but type checking fails with all possible types:",
-            node,
-            *(
-                (f"Casting '{iter_name}' as {typ}: {exc.message}", exc.annotations[0])
-                for typ, exc in zip(type_list, for_loop_exceptions)
-            ),
-        )
+            for stmt in node.body:
+                self.visit(stmt)
 
     def visit_If(self, node):
-        validate_expected_type(node.test, BoolT())
         self.expr_visitor.visit(node.test, BoolT())
         with self.namespace.enter_scope():
             for n in node.body:
@@ -480,18 +575,21 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 self.visit(n)
 
     def visit_Log(self, node):
-        if not isinstance(node.value, vy_ast.Call):
-            raise StructureException("Log must call an event", node)
+        # postcondition of Log.validate()
+        assert isinstance(node.value, vy_ast.Call)
+
         f = get_exact_type_from_node(node.value.func)
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
             raise StructureException(
-                f"Cannot emit logs from {self.func.mutability.value.lower()} functions", node
+                f"Cannot emit logs from {self.func.mutability} functions", node
             )
-        f.fetch_call_return(node.value)
+        t = map_void(f.fetch_call_return(node.value))
+        # CMC 2024-02-05 annotate the event type for codegen usage
+        # TODO: refactor this
         node._metadata["type"] = f.typedef
-        self.expr_visitor.visit(node.value, f.typedef)
+        self.expr_visitor.visit(node.value, t)
 
     def visit_Raise(self, node):
         if node.exc:
@@ -504,7 +602,7 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                 raise FunctionDeclarationException("Return statement is missing a value", node)
             return
         elif self.func.return_type is None:
-            raise FunctionDeclarationException("Function does not return any values", node)
+            raise FunctionDeclarationException("Function should not return any values", node)
 
         if isinstance(values, vy_ast.Tuple):
             values = values.elements
@@ -516,32 +614,72 @@ class FunctionNodeVisitor(VyperNodeVisitorBase):
                     f"expected {self.func.return_type.length}, got {len(values)}",
                     node,
                 )
-            for given, expected in zip(values, self.func.return_type.member_types):
-                validate_expected_type(given, expected)
-        else:
-            validate_expected_type(values, self.func.return_type)
+
         self.expr_visitor.visit(node.value, self.func.return_type)
 
 
-class _ExprVisitor(VyperNodeVisitorBase):
-    scope_name = "function"
+class ExprVisitor(VyperNodeVisitorBase):
+    def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
+        self.function_analyzer = function_analyzer
 
-    def __init__(self, fn_node: ContractFunctionT):
-        self.func = fn_node
+    @property
+    def func(self):
+        if self.function_analyzer is None:
+            return None
+        return self.function_analyzer.func
+
+    @property
+    def scope_name(self):
+        if self.func is not None:
+            return "function"
+        return "module"
 
     def visit(self, node, typ):
+        if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
+            validate_expected_type(node, typ)
+
         # recurse and typecheck in case we are being fed the wrong type for
-        # some reason. note that `validate_expected_type` is unnecessary
-        # for nodes that already call `get_exact_type_from_node` and
-        # `get_possible_types_from_node` because `validate_expected_type`
-        # would be calling the same function again.
-        # CMC 2023-06-27 would be cleanest to call validate_expected_type()
-        # before recursing but maybe needs some refactoring before that
-        # can happen.
+        # some reason.
         super().visit(node, typ)
 
         # annotate
         node._metadata["type"] = typ
+
+        if not isinstance(typ, TYPE_T):
+            info = get_expr_info(node)  # get_expr_info fills in node._expr_info
+
+            # log variable accesses.
+            # (note writes will get logged as both read+write)
+            var_access = _get_variable_access(node)
+            if var_access is not None:
+                info._reads.add(var_access)
+
+            if self.function_analyzer:
+                for s in self.function_analyzer.loop_variables:
+                    if s is None:
+                        continue
+
+                    for v in info._writes:
+                        if not v.contains(s):
+                            continue
+
+                        msg = "Cannot modify loop variable"
+                        var = s.variable
+                        if var.decl_node is not None:
+                            msg += f" `{var.decl_node.target.id}`"
+                        raise ImmutableViolation(msg, var.decl_node, node)
+
+                variable_accesses = info._writes | info._reads
+                for s in variable_accesses:
+                    self.function_analyzer._handle_module_access(s, node)
+
+                self.func.mark_variable_writes(info._writes)
+                self.func.mark_variable_reads(info._reads)
+
+        # validate and annotate folded value
+        if node.has_folded_value:
+            folded_node = node.get_folded_value()
+            self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
         _validate_msg_data_attribute(node)
@@ -551,77 +689,137 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # if self.func.mutability < expr_info.mutability:
         #    raise ...
 
-        if self.func.mutability != StateMutability.PAYABLE:
+        if self.func and self.func.mutability != StateMutability.PAYABLE:
             _validate_msg_value_access(node)
 
-        if self.func.mutability == StateMutability.PURE:
+        if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
         value_type = get_exact_type_from_node(node.value)
+
         _validate_address_code(node, value_type)
 
         self.visit(node.value, value_type)
 
     def visit_BinOp(self, node: vy_ast.BinOp, typ: VyperType) -> None:
-        validate_expected_type(node.left, typ)
         self.visit(node.left, typ)
 
         rtyp = typ
         if isinstance(node.op, (vy_ast.LShift, vy_ast.RShift)):
             rtyp = get_possible_types_from_node(node.right).pop()
 
-        validate_expected_type(node.right, rtyp)
-
         self.visit(node.right, rtyp)
 
     def visit_BoolOp(self, node: vy_ast.BoolOp, typ: VyperType) -> None:
         assert typ == BoolT()  # sanity check
         for value in node.values:
-            validate_expected_type(value, BoolT())
             self.visit(value, BoolT())
 
-    def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        call_type = get_exact_type_from_node(node.func)
-        # except for builtin functions, `get_exact_type_from_node`
-        # already calls `validate_expected_type` on the call args
-        # and kwargs via `call_type.fetch_call_return`
-        self.visit(node.func, call_type)
+    def _check_call_mutability(self, call_mutability: StateMutability):
+        # note: payable can be called from nonpayable functions
+        ok = (
+            call_mutability <= self.func.mutability
+            or self.func.mutability >= StateMutability.NONPAYABLE
+        )
+        if not ok:
+            msg = f"Cannot call a {call_mutability} function from a {self.func.mutability} function"
+            raise StateAccessViolation(msg)
 
-        if isinstance(call_type, ContractFunctionT):
+    def visit_ExtCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_StaticCall(self, node, typ):
+        return self.visit(node.value, typ)
+
+    def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
+        func_info = get_expr_info(node.func, is_callable=True)
+        func_type = func_info.typ
+
+        # TODO: unify the APIs for different callable types so that
+        # we don't need so much branching here.
+
+        if not node.is_plain_call and not isinstance(func_type, ContractFunctionT):
+            kind = node.kind_str
+            msg = f"cannot use `{kind}` here!"
+            hint = f"remove the `{kind}` keyword"
+            raise CallViolation(msg, node.parent, hint=hint)
+
+        if isinstance(func_type, ContractFunctionT):
             # function calls
-            if call_type.is_internal:
-                self.func.called_functions.add(call_type)
-            for arg, typ in zip(node.args, call_type.argument_types):
+            if func_type.is_external:
+                missing_keyword = node.is_plain_call
+                is_static = func_type.mutability < StateMutability.NONPAYABLE
+
+                if is_static != node.is_staticcall or missing_keyword:
+                    should = "staticcall" if is_static else "extcall"
+                    msg = f"Calls to external {func_type.mutability} functions "
+                    msg += f"must use the `{should}` keyword."
+                    hint = f"try `{should} {node.node_source_code}`"
+                    raise CallViolation(msg, hint=hint)
+            else:
+                if not node.is_plain_call:
+                    kind = node.kind_str
+                    msg = f"Calls to internal functions cannot use the `{kind}` keyword."
+                    hint = f"remove the `{kind}` keyword"
+                    raise CallViolation(msg, node.parent, hint=hint)
+
+            if not func_type.from_interface:
+                for s in func_type.get_variable_writes():
+                    if s.variable.is_module_variable():
+                        func_info._writes.add(s)
+                for s in func_type.get_variable_reads():
+                    if s.variable.is_module_variable():
+                        func_info._reads.add(s)
+
+            if self.function_analyzer:
+                self._check_call_mutability(func_type.mutability)
+
+                for s in func_type.get_variable_accesses():
+                    self.function_analyzer._handle_module_access(s, node.func)
+
+                if func_type.is_deploy and not self.func.is_deploy:
+                    raise CallViolation(
+                        f"Cannot call an @{func_type.visibility} function from "
+                        f"an @{self.func.visibility} function!",
+                        node,
+                    )
+
+            for arg, typ in zip(node.args, func_type.argument_types):
                 self.visit(arg, typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                typ = call_type.call_site_kwargs[kwarg.arg].typ
+                typ = func_type.call_site_kwargs[kwarg.arg].typ
                 self.visit(kwarg.value, typ)
 
-        elif is_type_t(call_type, EventT):
+        elif is_type_t(func_type, EventT):
             # events have no kwargs
-            expected_types = call_type.typedef.arguments.values()
+            expected_types = func_type.typedef.arguments.values()  # type: ignore
             for arg, typ in zip(node.args, expected_types):
                 self.visit(arg, typ)
-        elif is_type_t(call_type, StructT):
+        elif is_type_t(func_type, StructT):
             # struct ctors
             # ctors have no kwargs
-            expected_types = call_type.typedef.members.values()
-            for value, arg_type in zip(node.args[0].values, expected_types):
-                self.visit(value, arg_type)
-        elif isinstance(call_type, MemberFunctionT):
-            assert len(node.args) == len(call_type.arg_types)
-            for arg, arg_type in zip(node.args, call_type.arg_types):
+            expected_types = func_type.typedef.members.values()  # type: ignore
+            for kwarg, arg_type in zip(node.keywords, expected_types):
+                self.visit(kwarg.value, arg_type)
+        elif isinstance(func_type, MemberFunctionT):
+            if func_type.is_modifying and self.function_analyzer is not None:
+                # TODO refactor this
+                assert isinstance(node.func, vy_ast.Attribute)  # help mypy
+                self.function_analyzer._handle_modification(node.func.value)
+            assert len(node.args) == len(func_type.arg_types)
+            for arg, arg_type in zip(node.args, func_type.arg_types):
                 self.visit(arg, arg_type)
         else:
             # builtin functions
-            arg_types = call_type.infer_arg_types(node)
-            # `infer_arg_types` already calls `validate_expected_type`
+            arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
                 self.visit(arg, arg_type)
-            kwarg_types = call_type.infer_kwarg_types(node)
+            kwarg_types = func_type.infer_kwarg_types(node)  # type: ignore
             for kwarg in node.keywords:
                 self.visit(kwarg.value, kwarg_types[kwarg.arg])
+
+        self.visit(node.func, func_type)
 
     def visit_Compare(self, node: vy_ast.Compare, typ: VyperType) -> None:
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
@@ -632,18 +830,15 @@ class _ExprVisitor(VyperNodeVisitorBase):
 
                 rlen = len(node.right.elements)
                 rtyp = SArrayT(ltyp, rlen)
-                validate_expected_type(node.right, rtyp)
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
-                    # enum membership - `some_enum in other_enum`
+                    # flag membership - `some_flag in other_flag`
                     ltyp = rtyp
                 else:
                     # array membership - `x in my_list_variable`
                     assert isinstance(rtyp, (SArrayT, DArrayT))
                     ltyp = rtyp.value_type
-
-            validate_expected_type(node.left, ltyp)
 
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
@@ -660,38 +855,35 @@ class _ExprVisitor(VyperNodeVisitorBase):
                 rtyp = get_exact_type_from_node(node.right)
             else:
                 ltyp = rtyp = cmp_typ
-                validate_expected_type(node.left, ltyp)
-                validate_expected_type(node.right, rtyp)
 
             self.visit(node.left, ltyp)
             self.visit(node.right, rtyp)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
-        validate_expected_type(node, typ)
+        pass
 
-    def visit_Index(self, node: vy_ast.Index, typ: VyperType) -> None:
-        validate_expected_type(node.value, typ)
-        self.visit(node.value, typ)
+    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
+        self.visit(node.test, BoolT())
+        self.visit(node.body, typ)
+        self.visit(node.orelse, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
-            validate_expected_type(element, typ.value_type)
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func.mutability == StateMutability.PURE:
-            _validate_self_reference(node)
-
-        if not isinstance(typ, TYPE_T):
-            validate_expected_type(node, typ)
+        if self.func:
+            # TODO: refactor to use expr_info mutability
+            if self.func.mutability == StateMutability.PURE:
+                _validate_self_reference(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
             # don't recurse; can't annotate AST children of type definition
             return
 
-        if isinstance(node.value, vy_ast.List):
+        if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
             possible_base_types = get_possible_types_from_node(node.value)
 
             for possible_type in possible_base_types:
@@ -709,7 +901,7 @@ class _ExprVisitor(VyperNodeVisitorBase):
         # get the correct type for the index, it might
         # not be exactly base_type.key_type
         # note: index_type is validated in types_from_Subscript
-        index_types = get_possible_types_from_node(node.slice.value)
+        index_types = get_possible_types_from_node(node.slice)
         index_type = index_types.pop()
 
         self.visit(node.slice, index_type)
@@ -720,57 +912,44 @@ class _ExprVisitor(VyperNodeVisitorBase):
             # don't recurse; can't annotate AST children of type definition
             return
 
+        # these guarantees should be provided by validate_expected_type
         assert isinstance(typ, TupleT)
-        for element, subtype in zip(node.elements, typ.member_types):
-            validate_expected_type(element, subtype)
-            self.visit(element, subtype)
+        assert len(node.elements) == len(typ.member_types)
+
+        for item_ast, item_type in zip(node.elements, typ.member_types):
+            self.visit(item_ast, item_type)
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
-        validate_expected_type(node.operand, typ)
         self.visit(node.operand, typ)
 
-    def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
-        validate_expected_type(node.test, BoolT())
-        self.visit(node.test, BoolT())
-        validate_expected_type(node.body, typ)
-        self.visit(node.body, typ)
-        validate_expected_type(node.orelse, typ)
-        self.visit(node.orelse, typ)
 
-
-def _analyse_range_call(node: vy_ast.Call) -> list[VyperType]:
+def _validate_range_call(node: vy_ast.Call):
     """
     Check that the arguments to a range() call are valid.
     :param node: call to range()
     :return: None
     """
+    assert node.func.get("id") == "range"
     validate_call_args(node, (1, 2), kwargs=["bound"])
     kwargs = {s.arg: s.value for s in node.keywords or []}
     start, end = (vy_ast.Int(value=0), node.args[0]) if len(node.args) == 1 else node.args
-
-    all_args = (start, end, *kwargs.values())
-    for arg1 in all_args:
-        validate_expected_type(arg1, IntegerT.any())
-
-    type_list = get_common_types(*all_args)
-    if not type_list:
-        raise TypeMismatch("Iterator values are of different types", node)
+    start, end = [i.get_folded_value() if i.has_folded_value else i for i in (start, end)]
 
     if "bound" in kwargs:
         bound = kwargs["bound"]
-        if not isinstance(bound, vy_ast.Num):
-            raise StateAccessViolation("Bound must be a literal", bound)
+        if bound.has_folded_value:
+            bound = bound.get_folded_value()
+        if not isinstance(bound, vy_ast.Int):
+            raise StructureException("Bound must be a literal integer", bound)
         if bound.value <= 0:
             raise StructureException("Bound must be at least 1", bound)
-        if isinstance(start, vy_ast.Num) and isinstance(end, vy_ast.Num):
+        if isinstance(start, vy_ast.Int) and isinstance(end, vy_ast.Int):
             error = "Please remove the `bound=` kwarg when using range with constants"
             raise StructureException(error, bound)
     else:
         for arg in (start, end):
-            if not isinstance(arg, vy_ast.Num):
+            if not isinstance(arg, vy_ast.Int):
                 error = "Value must be a literal integer, unless a bound is specified"
-                raise StateAccessViolation(error, arg)
+                raise StructureException(error, arg)
         if end.value <= start.value:
             raise StructureException("End must be greater than start", end)
-
-    return type_list

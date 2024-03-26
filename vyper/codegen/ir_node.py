@@ -1,9 +1,11 @@
 import contextlib
+import copy
 import re
 from enum import Enum, auto
 from functools import cached_property
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
+import vyper.ast as vy_ast
 from vyper.compiler.settings import VYPER_COLOR_OUTPUT
 from vyper.evm.address_space import AddrSpace
 from vyper.evm.opcodes import get_ir_opcodes
@@ -48,7 +50,7 @@ class Encoding(Enum):
 
 
 # shortcut for chaining multiple cache_when_complex calls
-# CMC 2023-08-10 remove this and scope_together _as soon as_ we have
+# CMC 2023-08-10 remove this _as soon as_ we have
 # real variables in IR (that we can declare without explicit scoping -
 # needs liveness analysis).
 @contextlib.contextmanager
@@ -79,49 +81,10 @@ def scope_multi(ir_nodes, names):
         yield mb, scoped_ir_nodes
 
 
-# create multiple with scopes if any of the items are complex, to force
-# ordering of side effects.
-@contextlib.contextmanager
-def scope_together(ir_nodes, names):
-    assert len(ir_nodes) == len(names)
-
-    should_scope = any(s._optimized.is_complex_ir for s in ir_nodes)
-
-    class _Builder:
-        def resolve(self, body):
-            if not should_scope:
-                # uses of the variable have already been inlined
-                return body
-
-            ret = body
-            # build with scopes from inside-out (hence reversed)
-            for arg, name in reversed(list(zip(ir_nodes, names))):
-                ret = ["with", name, arg, ret]
-
-            if isinstance(body, IRnode):
-                return IRnode.from_list(
-                    ret, typ=body.typ, location=body.location, encoding=body.encoding
-                )
-            else:
-                return ret
-
-    b = _Builder()
-
-    if should_scope:
-        ir_vars = tuple(
-            IRnode.from_list(name, typ=arg.typ, location=arg.location, encoding=arg.encoding)
-            for (arg, name) in zip(ir_nodes, names)
-        )
-        yield b, ir_vars
-    else:
-        # inline them
-        yield b, ir_nodes
-
-
 # this creates a magical block which maps to IR `with`
 class _WithBuilder:
     def __init__(self, ir_node, name, should_inline=False):
-        if should_inline and ir_node._optimized.is_complex_ir:
+        if should_inline and ir_node._optimized.is_complex_ir:  # pragma: nocover
             # this can only mean trouble
             raise CompilerPanic("trying to inline a complex IR node")
 
@@ -182,7 +145,7 @@ class IRnode:
         args: List["IRnode"] = None,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
@@ -200,7 +163,7 @@ class IRnode:
         assert isinstance(typ, VyperType) or typ is None, repr(typ)
         self.typ = typ
         self.location = location
-        self.source_pos = source_pos
+        self.ast_source = ast_source
         self.error_msg = error_msg
         self.annotation = annotation
         self.mutable = mutable
@@ -362,7 +325,7 @@ class IRnode:
             # var_list names a variable number stack variables
             elif self.value == "var_list":
                 for arg in self.args:
-                    if not isinstance(arg.value, str) or len(arg.args) > 0:
+                    if not isinstance(arg.value, str) or len(arg.args) > 0:  # pragma: nocover
                         raise CodegenPanic(f"var_list only takes strings: {self.args}")
                 self.valency = 0
                 self._gas = 0
@@ -383,14 +346,17 @@ class IRnode:
             else:
                 self.valency = 1
                 self._gas = 3
-        elif self.value is None:
-            self.valency = 1
-            # None IRnodes always get compiled into something else, e.g.
-            # mzero or PUSH1 0, and the gas will get re-estimated then.
-            self._gas = 3
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Invalid value for IR AST node: {self.value}")
         assert isinstance(self.args, list)
+
+    # deepcopy is a perf hotspot; it pays to optimize it a little
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        ret = cls.__new__(cls)
+        ret.__dict__ = self.__dict__.copy()
+        ret.args = [copy.deepcopy(arg) for arg in ret.args]
+        return ret
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
@@ -502,12 +468,6 @@ class IRnode:
     def contains_self_call(self):
         return getattr(self, "is_self_call", False) or any(x.contains_self_call for x in self.args)
 
-    def __getitem__(self, i):
-        return self.to_list()[i]
-
-    def __len__(self):
-        return len(self.to_list())
-
     # TODO this seems like a not useful and also confusing function
     # check if dead code and remove - CMC 2021-12-13
     def to_list(self):
@@ -519,11 +479,8 @@ class IRnode:
             and self.args == other.args
             and self.typ == other.typ
             and self.location == other.location
-            and self.source_pos == other.source_pos
-            and self.annotation == other.annotation
             and self.mutable == other.mutable
             and self.add_gas_estimate == other.add_gas_estimate
-            and self.valency == other.valency
         )
 
     @property
@@ -557,13 +514,13 @@ class IRnode:
         if self.repr_show_gas and self.gas:
             o += OKBLUE + "{" + ENDC + str(self.gas) + OKBLUE + "} " + ENDC  # add gas for info.
         o += "[" + self._colorise_keywords(self.repr_value)
-        prev_lineno = self.source_pos[0] if self.source_pos else None
+        prev_lineno = self.ast_source.lineno if self.ast_source else None
         arg_lineno = None
         annotated = False
         has_inner_newlines = False
         for arg in self.args:
             o += ",\n  "
-            arg_lineno = arg.source_pos[0] if arg.source_pos else None
+            arg_lineno = arg.ast_source.lineno if arg.ast_source else None
             if arg_lineno is not None and arg_lineno != prev_lineno and self.value in ("seq", "if"):
                 o += f"# Line {(arg_lineno)}\n  "
                 prev_lineno = arg_lineno
@@ -594,7 +551,7 @@ class IRnode:
         obj: Any,
         typ: VyperType = None,
         location: Optional[AddrSpace] = None,
-        source_pos: Optional[Tuple[int, int]] = None,
+        ast_source: Optional[vy_ast.VyperNode] = None,
         annotation: Optional[str] = None,
         error_msg: Optional[str] = None,
         mutable: bool = True,
@@ -603,7 +560,7 @@ class IRnode:
         passthrough_metadata: dict[str, Any] = None,
         encoding: Encoding = Encoding.VYPER,
     ) -> "IRnode":
-        if isinstance(typ, str):
+        if isinstance(typ, str):  # pragma: nocover
             raise CompilerPanic(f"Expected type, not string: {typ}")
 
         if isinstance(obj, IRnode):
@@ -611,8 +568,8 @@ class IRnode:
             # the input gets modified. CC 20191121.
             if typ is not None:
                 obj.typ = typ
-            if obj.source_pos is None:
-                obj.source_pos = source_pos
+            if obj.ast_source is None:
+                obj.ast_source = ast_source
             if obj.location is None:
                 obj.location = location
             if obj.encoding is None:
@@ -630,7 +587,7 @@ class IRnode:
                 annotation=annotation,
                 mutable=mutable,
                 add_gas_estimate=add_gas_estimate,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 encoding=encoding,
                 error_msg=error_msg,
                 is_self_call=is_self_call,
@@ -639,12 +596,12 @@ class IRnode:
         else:
             return cls(
                 obj[0],
-                [cls.from_list(o, source_pos=source_pos) for o in obj[1:]],
+                [cls.from_list(o, ast_source=ast_source) for o in obj[1:]],
                 typ,
                 location=location,
                 annotation=annotation,
                 mutable=mutable,
-                source_pos=source_pos,
+                ast_source=ast_source,
                 add_gas_estimate=add_gas_estimate,
                 encoding=encoding,
                 error_msg=error_msg,

@@ -2,7 +2,7 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import InvalidType, TypeMismatch
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -11,7 +11,7 @@ fail_list = [
 def foo() -> int128[2]:
     return [3,block.timestamp]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     (
         """
@@ -19,14 +19,14 @@ def foo() -> int128[2]:
 def foo() -> int128[2]:
     return [block.timestamp - block.timestamp, block.timestamp]
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     """
 @external
 def foo() -> decimal:
     x: int128 = as_wei_value(5, "finney")
     y: int128 = block.timestamp + 50
-    return x / y
+    return x // y
     """,
     (
         """
@@ -34,7 +34,7 @@ def foo() -> decimal:
 def foo():
     x: Bytes[10] = slice(b"cow", -1, block.timestamp)
     """,
-        InvalidType,
+        TypeMismatch,
     ),
     """
 @external
@@ -63,8 +63,8 @@ struct Y:
     y: int128
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
-    b: Y = Y({y: 5})
+    a: X = X(x=block.timestamp)
+    b: Y = Y(y=5)
     a.x = b.y
     """,
     """
@@ -106,7 +106,7 @@ def add_record():
 def foo() -> uint256:
     x: uint256 = as_wei_value(5, "finney")
     y: uint256 = block.timestamp + 50 - block.timestamp
-    return x / y
+    return x // y
     """,
     """
 @external
@@ -123,7 +123,7 @@ struct X:
     x: uint256
 @external
 def add_record():
-    a: X = X({x: block.timestamp})
+    a: X = X(x=block.timestamp)
     a.x = block.gaslimit
     a.x = block.basefee
     a.x = 5
@@ -138,7 +138,7 @@ def foo():
     """
 @external
 def foo():
-    x: uint256 = block.prevrandao + 185
+    x: bytes32 = block.prevrandao
     if tx.origin == self:
         y: Bytes[35] = concat(block.prevhash, b"dog")
     """,

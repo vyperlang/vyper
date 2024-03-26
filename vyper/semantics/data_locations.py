@@ -1,11 +1,12 @@
 import enum
 
+from vyper.utils import StringEnum
 
-class DataLocation(enum.Enum):
-    UNSET = 0
-    MEMORY = 1
-    STORAGE = 2
-    CALLDATA = 3
-    CODE = 4
-    # XXX: needed for separate transient storage allocator
-    # TRANSIENT = 5
+
+class DataLocation(StringEnum):
+    UNSET = enum.auto()
+    MEMORY = enum.auto()
+    STORAGE = enum.auto()
+    CALLDATA = enum.auto()
+    CODE = enum.auto()
+    TRANSIENT = enum.auto()

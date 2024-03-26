@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.exceptions import InvalidType, OverflowException
+from vyper.exceptions import OverflowException, TypeMismatch
 from vyper.semantics.types import DecimalT, IntegerT
 from vyper.semantics.types.shortcuts import INT256_T, UINT256_T
 
@@ -39,12 +39,12 @@ def foo():
     if typ == UINT256_T:
         assert_compile_failed(lambda: get_contract(upper), OverflowException)
     else:
-        assert_compile_failed(lambda: get_contract(upper), InvalidType)
+        assert_compile_failed(lambda: get_contract(upper), TypeMismatch)
 
     if typ == INT256_T:
         assert_compile_failed(lambda: get_contract(lower), OverflowException)
     else:
-        assert_compile_failed(lambda: get_contract(lower), InvalidType)
+        assert_compile_failed(lambda: get_contract(lower), TypeMismatch)
 
 
 @pytest.mark.parametrize("typ", [DecimalT()])

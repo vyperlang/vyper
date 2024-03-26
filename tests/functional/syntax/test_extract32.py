@@ -34,7 +34,7 @@ def foo(inp: Bytes[32]) -> int128:
 def foo(inp: Bytes[32]) -> int128:
     return extract32(inp, -1, output_type=int128)
     """,
-        InvalidType,  # `start` cannot be negative
+        TypeMismatch,  # `start` cannot be negative
     ),
     (
         """

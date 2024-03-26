@@ -32,7 +32,7 @@ def get_balance(w3):
 
 
 def test_initial_state(w3, tx_failed, get_contract, get_balance, contract_code):
-    # Inital deposit has to be divisible by two
+    # Initial deposit has to be divisible by two
     with tx_failed():
         get_contract(contract_code, value=13)
     # Seller puts item up for sale
@@ -118,7 +118,7 @@ interface PurchaseContract:
 purchase_contract: PurchaseContract
 
 
-@external
+@deploy
 def __init__(_purchase_contract: address):
     self.purchase_contract = PurchaseContract(_purchase_contract)
 
@@ -126,19 +126,19 @@ def __init__(_purchase_contract: address):
 @payable
 @external
 def start_purchase():
-    self.purchase_contract.purchase(value=2)
+    extcall self.purchase_contract.purchase(value=2)
 
 
 @payable
 @external
 def start_received():
-    self.purchase_contract.received()
+   extcall self.purchase_contract.received()
 
 
 @external
 @payable
 def __default__():
-    self.purchase_contract.received()
+    extcall self.purchase_contract.received()
 
     """
 

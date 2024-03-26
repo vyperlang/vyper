@@ -95,7 +95,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x // y``     Integer division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 =============  ======================
@@ -131,6 +131,8 @@ Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int2
 .. note::
    While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
 
+.. note::
+   Integer division has different rounding semantics than Python for negative numbers: Vyper rounds towards zero, while Python rounds towards negative infinity. For example, ``-1 // 2`` will return ``-1`` in Python, but ``0`` in Vyper. This preserves the spirit (but not the text!) of the reasoning for Python's round-towards-negative-infinity behavior, which is that the behavior of ``//`` combined with the behavior of ``%`` preserves the following identity no matter if the quantities are negative or non-negative: ``(x // y) * y + (x % y) == x``.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -181,7 +183,7 @@ Operator                     Description
 ``x + y``                    Addition
 ``x - y``                    Subtraction
 ``x * y``                    Multiplication
-``x / y``                    Division
+``x // y``                   Integer division
 ``x**y``                     Exponentiation
 ``x % y``                    Modulo
 ===========================  ======================
@@ -270,7 +272,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x / y``      Decimal division
 ``x % y``      Modulo
 =============  ==========================================
 
@@ -316,7 +318,7 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
     ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
 M-byte-wide Fixed Size Byte Array
-----------------------
+---------------------------------
 
 **Keyword:** ``bytesM``
 This is an M-byte-wide byte array that is otherwise similar to dynamically sized byte arrays. On an ABI level, it is annotated as bytesM (e.g., bytes32).
@@ -358,7 +360,7 @@ On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
 Bytes literals may be given as bytes strings.
 
-.. code-block:: python
+.. code-block:: vyper
 
     bytes_string: Bytes[100] = b"\x01"
 
@@ -372,7 +374,7 @@ Strings
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     example_str: String[100] = "Test String"
 
@@ -384,7 +386,7 @@ Flags
 Flags are custom defined types. A flag must have at least one member, and can hold up to a maximum of 256 members.
 The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a flag with two members
     flag Roles:
@@ -430,7 +432,7 @@ Flag members can be combined using the above bitwise operators. While flag membe
 
 The ``in`` and ``not in`` operators can be used in conjunction with flag member combinations to check for membership.
 
-.. code-block:: python
+.. code-block:: vyper
 
     flag Roles:
         MANAGER
@@ -452,6 +454,7 @@ Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that
 The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
 
 .. code-block:: python
+
     @external
     def add_user(a: Roles) -> Roles:
         ret: Roles = a
@@ -490,7 +493,7 @@ Fixed-size lists hold a finite number of elements which belong to a specified ty
 
 Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and flags.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: int128[3]
@@ -506,7 +509,7 @@ Multidimensional lists are also possible. The notation for the declaration is re
 
 A two dimensional list can be declared with ``_name: _ValueType[inner_size][outer_size]``. Elements can be accessed with ``_name[outer_index][inner_index]``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list with 2 rows and 5 columns and set all values to 0
     exampleList2D: int128[5][2] = empty(int128[5][2])
@@ -530,7 +533,7 @@ Dynamic Arrays
 
 Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type or reference type (except mappings).
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: DynArray[int128, 3]
@@ -557,7 +560,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 .. note::
     To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         for item in self.my_array:
             self.my_array[0] = item
@@ -579,7 +582,7 @@ Struct types can be used inside mappings and arrays. Structs can contain arrays 
 
 Struct members can be accessed via ``struct.argname``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a struct
     struct MyStruct:
@@ -587,7 +590,7 @@ Struct members can be accessed via ``struct.argname``.
         value2: decimal
 
     # Declaring a struct variable
-    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2.0})
+    exampleStruct: MyStruct = MyStruct(value1=1, value2=2.0)
 
     # Accessing a value
     exampleStruct.value1 = 1
@@ -609,7 +612,7 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. note::
     Mappings are only allowed as state variables.
 
-.. code-block:: python
+.. code-block:: vyper
 
    # Defining a mapping
    exampleMapping: HashMap[int128, decimal]
@@ -674,6 +677,6 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Narrowing conversions (e.g., ``int256 -> int128``) check that the input is in bounds for the output type.
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
-* Enums can be converted to and from ``uint256`` only.
+* Flags can be converted to and from ``uint256`` only.
 
-A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`__. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`__.

@@ -29,7 +29,7 @@ interface Foo:
 
 @external
 def bar(arg1: address, arg2: int128) -> int128:
-    return Foo(arg1).foo(arg2)
+    return staticcall Foo(arg1).foo(arg2)
     """
     c2 = get_contract(contract_2)
 
@@ -41,7 +41,7 @@ def test_complicated_external_contract_calls(get_contract, get_contract_with_gas
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
 
@@ -64,7 +64,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> int128:
-    return Foo(arg1).foo()
+    return extcall Foo(arg1).foo()
     """
     c2 = get_contract(contract_2)
 
@@ -88,7 +88,7 @@ interface Foo:
 
 @external
 def get_array(arg1: address) -> Bytes[3]:
-    return Foo(arg1).array()
+    return staticcall Foo(arg1).array()
 """
 
     c2 = get_contract(contract_2)
@@ -110,7 +110,7 @@ interface Foo:
 
 @external
 def get_array(arg1: address) -> Bytes[3]:
-    return Foo(arg1).array()
+    return staticcall Foo(arg1).array()
 """
 
     c2 = get_contract(contract_2)
@@ -124,16 +124,18 @@ def get_array(arg1: address) -> Bytes[3]:
 def test_revert_propagation(get_contract, tx_failed, revert_string):
     raiser = f"""
 @external
-def run():
-    raise "{revert_string}"
+def run(x: bool) -> uint256:
+    if x:
+        raise "{revert_string}"
+    return 123
     """
     caller = """
 interface Raises:
-    def run(): pure
+    def run(x: bool) -> uint256: pure
 
 @external
 def run(raiser: address):
-    Raises(raiser).run()
+    a: uint256 = staticcall Raises(raiser).run(True)
     """
     c1 = get_contract(raiser)
     c2 = get_contract(caller)
@@ -161,7 +163,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
     a: Bytes[{a}] = b""
     b: int128 = 0
     c: Bytes[{b}] = b""
-    a, b, c = Foo(arg1).array()
+    a, b, c = staticcall Foo(arg1).array()
     return a, b, c
 """
 
@@ -190,7 +192,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
     a: Bytes[{a}] = b""
     b: int128 = 0
     c: Bytes[{b}] = b""
-    a, b, c = Foo(arg1).array()
+    a, b, c = staticcall Foo(arg1).array()
     return a, b, c
 """
 
@@ -218,7 +220,7 @@ def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
     a: Bytes[30] = b""
     b: int128 = 0
     c: Bytes[3] = b""
-    a, b, c = Foo(arg1).array()
+    a, b, c = staticcall Foo(arg1).array()
     return a, b, c
 """
 
@@ -244,7 +246,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> uint8:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -266,7 +268,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> uint8:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -294,7 +296,7 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
     a: uint{a} = 0
     b: Bytes[3] = b""
     c: uint{b} = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -322,7 +324,7 @@ def bar(arg1: address) -> (uint8, Bytes[3], uint8):
     a: uint8 = 0
     b: Bytes[3] = b""
     c: uint8 = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -351,7 +353,7 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
     a: uint{a} = 0
     b: Bytes[3] = b""
     c: uint{b} = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -377,7 +379,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> int128:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -388,7 +390,7 @@ def test_int128_too_long(get_contract, tx_failed):
     contract_1 = """
 @external
 def foo() -> int256:
-    return (2**255)-1
+    return max_value(int256)
     """
 
     c = get_contract(contract_1)
@@ -399,7 +401,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> int128:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -427,7 +429,7 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
     a: int{a} = 0
     b: Bytes[3] = b""
     c: int{b} = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -455,7 +457,7 @@ def bar(arg1: address) -> (int128, Bytes[3], int128):
     a: int128 = 0
     b: Bytes[3] = b""
     c: int128 = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -484,7 +486,7 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
     a: int{a} = 0
     b: Bytes[3] = b""
     c: int{b} = 0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -510,7 +512,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> decimal:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -532,7 +534,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> decimal:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -560,9 +562,9 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
     a: decimal = 0.0
     b: Bytes[3] = b""
     c: decimal = 0.0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
-"""
+    """
 
     c2 = get_contract(contract_2)
     assert c.foo() == [0, b"dog", 1]
@@ -589,7 +591,7 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
     a: decimal = 0.0
     b: Bytes[3] = b""
     c: decimal = 0.0
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -615,8 +617,8 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> bool:
-    return Foo(arg1).foo()
-"""
+    return staticcall Foo(arg1).foo()
+    """
 
     c2 = get_contract(contract_2)
     assert c2.bar(c.address) is True
@@ -637,8 +639,8 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> bool:
-    return Foo(arg1).foo()
-"""
+    return staticcall Foo(arg1).foo()
+    """
 
     c2 = get_contract(contract_2)
     with tx_failed():
@@ -665,7 +667,7 @@ def bar(arg1: address) -> (bool, Bytes[3], bool):
     a: bool = False
     b: Bytes[3] = b""
     c: bool = False
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -694,7 +696,7 @@ def bar(arg1: address) -> (bool, Bytes[3], bool):
     a: bool = False
     b: Bytes[3] = b""
     c: bool = False
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -720,7 +722,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> address:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -743,7 +745,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> address:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -766,7 +768,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> address:
-    return Foo(arg1).foo()
+    return staticcall Foo(arg1).foo()
 """
 
     c2 = get_contract(contract_2)
@@ -794,7 +796,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
     a: address = empty(address)
     b: Bytes[3] = b""
     c: address = empty(address)
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -827,7 +829,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
     a: address = empty(address)
     b: Bytes[3] = b""
     c: address = empty(address)
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -860,7 +862,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
     a: address = empty(address)
     b: Bytes[3] = b""
     c: address = empty(address)
-    a, b, c = Foo(arg1).foo()
+    a, b, c = staticcall Foo(arg1).foo()
     return a, b, c
 """
 
@@ -888,7 +890,7 @@ interface Foo:
 
 @external
 def set_lucky(arg1: address, arg2: int128):
-    Foo(arg1).set_lucky(arg2)
+    extcall Foo(arg1).set_lucky(arg2)
     """
     c2 = get_contract(contract_2)
 
@@ -898,26 +900,31 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-def test_constant_external_contract_call_cannot_change_state(
-    assert_compile_failed, get_contract_with_gas_estimation
-):
+def test_constant_external_contract_call_cannot_change_state():
     c = """
 interface Foo:
     def set_lucky(_lucky: int128) -> int128: nonpayable
 
 @external
 @view
-def set_lucky_expr(arg1: address, arg2: int128):
-    Foo(arg1).set_lucky(arg2)
+def set_lucky_stmt(arg1: address, arg2: int128):
+    extcall Foo(arg1).set_lucky(arg2)
+    """
 
+    with pytest.raises(StateAccessViolation):
+        compile_code(c)
+
+    c2 = """
+interface Foo:
+    def set_lucky(_lucky: int128) -> int128: nonpayable
 @external
 @view
-def set_lucky_stmt(arg1: address, arg2: int128) -> int128:
-    return Foo(arg1).set_lucky(arg2)
+def set_lucky_expr(arg1: address, arg2: int128) -> int128:
+    return extcall Foo(arg1).set_lucky(arg2)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(c), StateAccessViolation)
 
-    print("Successfully blocked an external contract call from a constant function")
+    with pytest.raises(StateAccessViolation):
+        compile_code(c2)
 
 
 def test_external_contract_can_be_changed_based_on_address(get_contract):
@@ -950,7 +957,7 @@ interface Foo:
 
 @external
 def set_lucky(arg1: address, arg2: int128):
-    Foo(arg1).set_lucky(arg2)
+    extcall Foo(arg1).set_lucky(arg2)
     """
     c3 = get_contract(contract_3)
 
@@ -968,7 +975,7 @@ def test_external_contract_calls_with_public_globals(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -982,7 +989,7 @@ interface Foo:
 
 @external
 def bar(arg1: address) -> int128:
-    return Foo(arg1).lucky()
+    return staticcall Foo(arg1).lucky()
     """
     c2 = get_contract(contract_2)
 
@@ -994,7 +1001,7 @@ def test_external_contract_calls_with_multiple_contracts(get_contract):
     contract_1 = """
 lucky: public(int128)
 
-@external
+@deploy
 def __init__(_lucky: int128):
     self.lucky = _lucky
     """
@@ -1008,9 +1015,9 @@ interface Foo:
 
 magic_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
-    self.magic_number = Foo(arg1).lucky()
+    self.magic_number = staticcall Foo(arg1).lucky()
     """
 
     c2 = get_contract(contract_2, *[c.address])
@@ -1020,9 +1027,9 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__(arg1: address):
-    self.best_number = Bar(arg1).magic_number()
+    self.best_number = staticcall Bar(arg1).magic_number()
     """
 
     c3 = get_contract(contract_3, *[c2.address])
@@ -1043,7 +1050,7 @@ interface Foo:
 
 @external
 def bar(addr: address) -> uint256:
-    return Foo(addr).foo()
+    return extcall Foo(addr).foo()
     """
 
     c1 = get_contract(contract_1)
@@ -1067,7 +1074,7 @@ interface Foo:
 
 @external
 def bar(addr: address, arg1: uint256) -> uint256:
-    return Foo(addr).foo(arg1)
+    return extcall Foo(addr).foo(arg1)
     """
 
     c1 = get_contract(contract_1)
@@ -1078,7 +1085,8 @@ def bar(addr: address, arg1: uint256) -> uint256:
     assert c2.bar(c1.address, 2) == 3
 
 
-def test_invalid_external_contract_call_to_the_same_contract(get_contract):
+def test_extcall_stmt_expr(get_contract):
+    # test ExtCall in both stmt and expr position
     contract_1 = """
 @external
 def bar() -> int128:
@@ -1087,7 +1095,7 @@ def bar() -> int128:
 
     contract_2 = """
 interface Bar:
-    def bar() -> int128: view
+    def bar() -> int128: nonpayable
 
 @external
 def bar() -> int128:
@@ -1095,11 +1103,11 @@ def bar() -> int128:
 
 @external
 def _stmt(x: address):
-    Bar(x).bar()
+    extcall Bar(x).bar()
 
 @external
 def _expr(x: address) -> int128:
-    return Bar(x).bar()
+    return extcall Bar(x).bar()
     """
 
     c1 = get_contract(contract_1)
@@ -1125,7 +1133,7 @@ interface Bar:
 
 @external
 def foo(x: address) -> int128:
-    return Bar(x).bar()
+    return staticcall Bar(x).bar()
     """
 
     c1 = get_contract(contract_1)
@@ -1145,7 +1153,7 @@ interface Bar:
 
 best_number: public(int128)
 
-@external
+@deploy
 def __init__():
     pass
 """
@@ -1170,7 +1178,7 @@ interface Foo:
 
 @external
 def bar(arg1: address, arg2: int128) -> int128:
-    return Foo(arg1).foo(arg2)
+    return staticcall Foo(arg1).foo(arg2)
 """
     with pytest.raises(UnknownType):
         compile_code(contract)
@@ -1181,7 +1189,7 @@ def test_external_contract_call_declaration_expr(get_contract):
 @external
 def bar() -> int128:
     return 1
-"""
+    """
 
     contract_2 = """
 interface Bar:
@@ -1192,7 +1200,7 @@ bar_contract: Bar
 @external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
+    return staticcall self.bar_contract.bar()
     """
 
     c1 = get_contract(contract_1)
@@ -1223,12 +1231,12 @@ bar_contract: Bar
 @external
 def set_lucky(contract_address: address):
     self.bar_contract = Bar(contract_address)
-    self.bar_contract.set_lucky(1)
+    extcall self.bar_contract.set_lucky(1)
 
 @external
 def get_lucky(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.get_lucky()
+    return staticcall self.bar_contract.get_lucky()
     """
 
     c1 = get_contract(contract_1)
@@ -1269,7 +1277,7 @@ def set_contract(contract_address: address):
 
 @external
 def get_lucky() -> int128:
-    return self.bar_contract.get_lucky()
+    return staticcall self.bar_contract.get_lucky()
 """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -1301,7 +1309,7 @@ def foo(contract_address: address):
 
 @external
 def get_bar() -> int128:
-    return self.bar_contract.bar()
+    return staticcall self.bar_contract.bar()
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
@@ -1320,10 +1328,11 @@ bar_contract: Bar
 @external
 def foo(contract_address: contract(Boo)) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
+    return staticcall self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), InvalidType)
+    with pytest.raises(InvalidType):
+        compile_code(contract_1)
 
 
 def test_invalid_external_contract_call_declaration_2(assert_compile_failed, get_contract):
@@ -1336,10 +1345,11 @@ bar_contract: Boo
 @external
 def foo(contract_address: address) -> int128:
     self.bar_contract = Bar(contract_address)
-    return self.bar_contract.bar()
+    return staticcall self.bar_contract.bar()
     """
 
-    assert_compile_failed(lambda: get_contract(contract_1), UnknownType)
+    with pytest.raises(UnknownType):
+        get_contract(contract_1)
 
 
 def test_external_with_payable_value(w3, get_contract_with_gas_estimation):
@@ -1368,9 +1378,9 @@ def set_contract(contract_address: address):
 @external
 def get_lucky(amount_to_send: uint256) -> int128:
     if amount_to_send != 0:
-        return self.bar_contract.get_lucky(value=amount_to_send)
+        return extcall self.bar_contract.get_lucky(value=amount_to_send)
     else: # send it all
-        return self.bar_contract.get_lucky(value=msg.value)
+        return extcall self.bar_contract.get_lucky(value=msg.value)
 """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -1420,8 +1430,8 @@ def set_contract(contract_address: address):
 
 @external
 def get_lucky(gas_amount: uint256) -> int128:
-    return self.bar_contract.get_lucky(gas=gas_amount)
-"""
+    return staticcall self.bar_contract.get_lucky(gas=gas_amount)
+    """
 
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
@@ -1442,18 +1452,18 @@ def bar():
     contract_1 = """
 interface Bar:
     def bar() -> uint256: view
-    def baz(): view
+    def baz(): nonpayable
 
 @external
 def call_bar(addr: address):
     # would fail if returndatasize check were on
-    x: uint256 = Bar(addr).bar(skip_contract_check=True)
+    x: uint256 = staticcall Bar(addr).bar(skip_contract_check=True)
 @external
 def call_baz():
     # some address with no code
     addr: address = 0x1234567890AbcdEF1234567890aBcdef12345678
     # would fail if extcodesize check were on
-    Bar(addr).baz(skip_contract_check=True)
+    extcall Bar(addr).baz(skip_contract_check=True)
     """
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
@@ -1471,7 +1481,7 @@ bar_contract: Bar
 
 @external
 def get_lucky(amount_to_send: int128) -> int128:
-    return self.bar_contract.get_lucky(gass=1)
+    return staticcall self.bar_contract.get_lucky(gass=1)
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), ArgumentException)
@@ -1483,7 +1493,6 @@ interface Bar:
     def set_lucky(arg1: int128): nonpayable
 
 bar_contract: Barr
-
     """
 
     assert_compile_failed(lambda: get_contract_with_gas_estimation(contract_1), UnknownType)
@@ -1497,7 +1506,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    Bar(a).bar(1, 2)
+    s: bool = staticcall Bar(a).bar(1, 2)
     """,
     """
 # expected args, none given
@@ -1506,7 +1515,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    Bar(a).bar()
+    s: bool = staticcall Bar(a).bar()
     """,
     """
 # expected no args, args given
@@ -1515,7 +1524,7 @@ interface Bar:
 
 @external
 def foo(a: address):
-    Bar(a).bar(1)
+    a: bool = staticcall Bar(a).bar(1)
     """,
     """
 interface Bar:
@@ -1523,7 +1532,7 @@ interface Bar:
 
 @external
 def foo(a: address, x: uint256, y: uint256):
-    Bar(a).bar(x, y=y)
+    s: uint256 = staticcall Bar(a).bar(x, y=y)
     """,
 ]
 
@@ -1542,9 +1551,10 @@ interface Bar:
 @external
 def foo():
     x: bool = True
-    Bar(msg.sender).bar(skip_contract_check=x)
+    extcall Bar(msg.sender).bar(skip_contract_check=x)
     """
-    assert_compile_failed(lambda: get_contract_with_gas_estimation(code), InvalidType)
+    with pytest.raises(InvalidType):
+        compile_code(code)
 
 
 def test_tuple_return_external_contract_call(get_contract):
@@ -1563,7 +1573,7 @@ def test(addr: address) -> (int128, address, Bytes[10]):
     a: int128 = 0
     b: address = empty(address)
     c: Bytes[10] = b""
-    (a, b, c) = Test(addr).out_literals()
+    (a, b, c) = staticcall Test(addr).out_literals()
     return a, b,c
 
     """
@@ -1581,7 +1591,7 @@ struct X:
     y: address
 @external
 def out_literals() -> X:
-    return X({x: 1, y: 0x0000000000000000000000000000000000012345})
+    return X(x=1, y=0x0000000000000000000000000000000000012345)
     """
 
     contract_2 = """
@@ -1593,7 +1603,7 @@ interface Test:
 
 @external
 def test(addr: address) -> (int128, address):
-    ret: X = Test(addr).out_literals()
+    ret: X = staticcall Test(addr).out_literals()
     return ret.x, ret.y
 
     """
@@ -1613,7 +1623,7 @@ struct X:
     z: Bytes[{ln}]
 @external
 def get_struct_x() -> X:
-    return X({{x: {i}, y: "{s}", z: b"{s}"}})
+    return X(x={i}, y="{s}", z=b"{s}")
     """
 
     contract_2 = f"""
@@ -1626,7 +1636,7 @@ interface Test:
 
 @external
 def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
-    ret: X = Test(addr).get_struct_x()
+    ret: X = staticcall Test(addr).get_struct_x()
     return ret.x, ret.y, ret.z
 
     """
@@ -1643,7 +1653,7 @@ struct X:
     x: int128
 @external
 def out_literals() -> X:
-    return X({x: 1})
+    return X(x=1)
     """
 
     contract_2 = """
@@ -1654,7 +1664,7 @@ interface Test:
 
 @external
 def test(addr: address) -> int128:
-    ret: X = Test(addr).out_literals()
+    ret: X = staticcall Test(addr).out_literals()
     return ret.x
 
     """
@@ -1671,7 +1681,7 @@ struct X:
     x: int128
     y: address
 
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
 
 @external
 def out_literals() -> X:
@@ -1687,7 +1697,7 @@ interface Test:
 
 @external
 def test(addr: address) -> (int128, address):
-    ret: X = Test(addr).out_literals()
+    ret: X = staticcall Test(addr).out_literals()
     return ret.x, ret.y
 
     """
@@ -1708,7 +1718,7 @@ struct X:
     y: String[{ln}]
     z: Bytes[{ln}]
 
-BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+BAR: constant(X) = X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def get_struct_x() -> X:
@@ -1721,11 +1731,11 @@ struct X:
     y: String[{ln}]
     z: Bytes[{ln}]
 interface Test:
-    def get_struct_x() -> X : view
+    def get_struct_x() -> X: view
 
 @external
 def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
-    ret: X = Test(addr).get_struct_x()
+    ret: X = staticcall Test(addr).get_struct_x()
     return ret.x, ret.y, ret.z
 
     """
@@ -1741,7 +1751,7 @@ def test_constant_struct_return_external_contract_call_3(get_contract_with_gas_e
 struct X:
     x: int128
 
-BAR: constant(X) = X({x: 1})
+BAR: constant(X) = X(x=1)
 
 @external
 def out_literals() -> X:
@@ -1752,11 +1762,11 @@ def out_literals() -> X:
 struct X:
     x: int128
 interface Test:
-    def out_literals() -> X : view
+    def out_literals() -> X: view
 
 @external
 def test(addr: address) -> int128:
-    ret: X = Test(addr).out_literals()
+    ret: X = staticcall Test(addr).out_literals()
     return ret.x
 
     """
@@ -1773,7 +1783,7 @@ struct X:
     x: int128
     y: address
 
-BAR: constant(X) = X({x: 1, y: 0x0000000000000000000000000000000000012345})
+BAR: constant(X) = X(x=1, y=0x0000000000000000000000000000000000012345)
 
 @external
 def get_y() -> address:
@@ -1782,11 +1792,11 @@ def get_y() -> address:
 
     contract_2 = """
 interface Test:
-    def get_y() -> address : view
+    def get_y() -> address: view
 
 @external
 def test(addr: address) -> address:
-    ret: address = Test(addr).get_y()
+    ret: address = staticcall Test(addr).get_y()
     return ret
     """
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -1806,7 +1816,7 @@ struct X:
     y: String[{ln}]
     z: Bytes[{ln}]
 
-BAR: constant(X) = X({{x: {i}, y: "{s}", z: b"{s}"}})
+BAR: constant(X) = X(x={i}, y="{s}", z=b"{s}")
 
 @external
 def get_y() -> String[{ln}]:
@@ -1819,7 +1829,7 @@ interface Test:
 
 @external
 def test(addr: address) -> String[{ln}]:
-    ret: String[{ln}] = Test(addr).get_y()
+    ret: String[{ln}] = staticcall Test(addr).get_y()
     return ret
 
     """
@@ -1835,7 +1845,7 @@ def test_constant_struct_member_return_external_contract_call_3(get_contract_wit
 struct X:
     x: int128
 
-BAR: constant(X) = X({x: 1})
+BAR: constant(X) = X(x=1)
 
 @external
 def get_x() -> int128:
@@ -1844,11 +1854,11 @@ def get_x() -> int128:
 
     contract_2 = """
 interface Test:
-    def get_x() -> int128 : view
+    def get_x() -> int128: view
 
 @external
 def test(addr: address) -> int128:
-    ret: int128 = Test(addr).get_x()
+    ret: int128 = staticcall Test(addr).get_x()
     return ret
 
     """
@@ -1869,7 +1879,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+BAR: constant(A) = A(a=X(x=1, y=0x0000000000000000000000000000000000012345), b=777)
 
 @external
 def out_literals() -> A:
@@ -1886,11 +1896,11 @@ struct A:
     b: uint256
 
 interface Test:
-    def out_literals() -> A : view
+    def out_literals() -> A: view
 
 @external
 def test(addr: address) -> (X, uint256):
-    ret: A = Test(addr).out_literals()
+    ret: A = staticcall Test(addr).out_literals()
     return ret.a, ret.b
     """
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -1914,7 +1924,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777}})
+BAR: constant(A) = A(a=X(x={i}, y="{s}", z=b"{s}"), b=777)
 
 @external
 def get_struct_a() -> A:
@@ -1932,11 +1942,11 @@ struct A:
     b: uint256
 
 interface Test:
-    def get_struct_a() -> A : view
+    def get_struct_a() -> A: view
 
 @external
 def test(addr: address) -> (X, uint256):
-    ret: A = Test(addr).get_struct_a()
+    ret: A = staticcall Test(addr).get_struct_a()
     return ret.a, ret.b
 
     """
@@ -1961,7 +1971,7 @@ struct C:
     c: A
     d: bool
 
-BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+BAR: constant(C) = C(c=A(a=X(x=1, y=-1), b=777), d=True)
 
 @external
 def out_literals() -> C:
@@ -1986,7 +1996,7 @@ interface Test:
 
 @external
 def test(addr: address) -> (A, bool):
-    ret: C = Test(addr).out_literals()
+    ret: C = staticcall Test(addr).out_literals()
     return ret.c, ret.d
     """
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2008,7 +2018,7 @@ struct A:
     a: X
     b: uint256
 
-BAR: constant(A) = A({a: X({x: 1, y: 0x0000000000000000000000000000000000012345}), b: 777})
+BAR: constant(A) = A(a=X(x=1, y=0x0000000000000000000000000000000000012345), b=777)
 
 @external
 def get_y() -> address:
@@ -2017,11 +2027,11 @@ def get_y() -> address:
 
     contract_2 = """
 interface Test:
-    def get_y() -> address : view
+    def get_y() -> address: view
 
 @external
 def test(addr: address) -> address:
-    ret: address = Test(addr).get_y()
+    ret: address = staticcall Test(addr).get_y()
     return ret
     """
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2046,7 +2056,7 @@ struct A:
     b: uint256
     c: bool
 
-BAR: constant(A) = A({{a: X({{x: {i}, y: "{s}", z: b"{s}"}}), b: 777, c: True}})
+BAR: constant(A) = A(a=X(x={i}, y="{s}", z=b"{s}"), b=777, c=True)
 
 @external
 def get_y() -> String[{ln}]:
@@ -2055,11 +2065,11 @@ def get_y() -> String[{ln}]:
 
     contract_2 = f"""
 interface Test:
-    def get_y() -> String[{ln}] : view
+    def get_y() -> String[{ln}]: view
 
 @external
 def test(addr: address) -> String[{ln}]:
-    ret: String[{ln}] = Test(addr).get_y()
+    ret: String[{ln}] = staticcall Test(addr).get_y()
     return ret
 
     """
@@ -2086,7 +2096,7 @@ struct C:
     c: A
     d: bool
 
-BAR: constant(C) = C({c: A({a: X({x: 1, y: -1}), b: 777}), d: True})
+BAR: constant(C) = C(c=A(a=X(x=1, y=-1), b=777), d=True)
 
 @external
 def get_y() -> int128:
@@ -2099,17 +2109,17 @@ def get_b() -> uint256:
 
     contract_2 = """
 interface Test:
-    def get_y() -> int128 : view
-    def get_b() -> uint256 : view
+    def get_y() -> int128: view
+    def get_b() -> uint256: view
 
 @external
 def test(addr: address) -> int128:
-    ret: int128 = Test(addr).get_y()
+    ret: int128 = staticcall Test(addr).get_y()
     return ret
 
 @external
 def test2(addr: address) -> uint256:
-    ret: uint256 = Test(addr).get_b()
+    ret: uint256 = staticcall Test(addr).get_b()
     return ret
     """
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2143,8 +2153,8 @@ interface Foo:
 
 @external
 def bar(addr: address) -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
-    return Foo(addr).foo(_X)
+    _X: X = X(x=1, y=b"hello")
+    return extcall Foo(addr).foo(_X)
     """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2175,8 +2185,8 @@ interface Foo:
 
 @external
 def bar(addr: address) -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
-    return Foo(addr).foo(_X)
+    _X: X = X(x=1, y="hello")
+    return extcall Foo(addr).foo(_X)
     """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2203,8 +2213,8 @@ interface Foo:
 
 @external
 def bar(addr: address) -> Bytes[6]:
-    _X: X = X({x: 1, y: b"hello"})
-    return Foo(addr).foo(_X.y)
+    _X: X = X(x=1, y=b"hello")
+    return extcall Foo(addr).foo(_X.y)
     """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2231,8 +2241,8 @@ interface Foo:
 
 @external
 def bar(addr: address) -> String[6]:
-    _X: X = X({x: 1, y: "hello"})
-    return Foo(addr).foo(_X.y)
+    _X: X = X(x=1, y="hello")
+    return extcall Foo(addr).foo(_X.y)
     """
 
     c1 = get_contract_with_gas_estimation(contract_1)
@@ -2256,8 +2266,8 @@ interface Foo:
     def array() -> int128[3]: view
 @external
 def get_array(arg1: address) -> int128[3]:
-    return Foo(arg1).array()
-"""
+    return staticcall Foo(arg1).array()
+    """
 
     c2 = get_contract(contract_2)
     assert c2.get_array(c.address) == [0, 0, 0]
@@ -2268,15 +2278,15 @@ def test_returndatasize_too_short(get_contract, tx_failed):
 @external
 def bar(a: int128) -> int128:
     return a
-"""
+    """
     contract_2 = """
 interface Bar:
     def bar(a: int128) -> (int128, int128): view
 
 @external
-def foo(_addr: address):
-    Bar(_addr).bar(456)
-"""
+def foo(_addr: address) -> (int128, int128):
+    return staticcall Bar(_addr).bar(456)
+    """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
     with tx_failed():
@@ -2295,7 +2305,7 @@ interface Bar:
 
 @external
 def foo(_addr: address) -> int128:
-    return Bar(_addr).bar(456)
+    return staticcall Bar(_addr).bar(456)
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
@@ -2315,7 +2325,7 @@ interface Bar:
 
 @external
 def foo(_addr: address) -> int128:
-    return Bar(_addr).bar(456)
+    return staticcall Bar(_addr).bar(456)
 """
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
@@ -2336,9 +2346,9 @@ interface Bar:
 
 @external
 def foo(_addr: address, _addr2: address) -> int128:
-    x: int128 = Bar(_addr).bar(456)
+    x: int128 = staticcall Bar(_addr).bar(456)
     # make two calls to confirm EVM behavior: RETURNDATA is always based on the last call
-    y: int128 = Bar(_addr2).bar(123)
+    y: int128 = staticcall Bar(_addr2).bar(123)
     return y
 
 """
@@ -2370,15 +2380,15 @@ def transfer(receiver: address, amount: uint256):
     """
 
     code = """
-from vyper.interfaces import ERC20
+from ethereum.ercs import IERC20
 @external
-def safeTransfer(erc20: ERC20, receiver: address, amount: uint256) -> uint256:
-    assert erc20.transfer(receiver, amount, default_return_value=True)
+def safeTransfer(erc20: IERC20, receiver: address, amount: uint256) -> uint256:
+    assert extcall erc20.transfer(receiver, amount, default_return_value=True)
     return 7
 
 @external
-def transferBorked(erc20: ERC20, receiver: address, amount: uint256):
-    assert erc20.transfer(receiver, amount)
+def transferBorked(erc20: IERC20, receiver: address, amount: uint256):
+    assert extcall erc20.transfer(receiver, amount)
     """
     bad_erc20 = get_contract(bad_erc20_code)
     c = get_contract(code)
@@ -2428,7 +2438,7 @@ interface Foo:
     def return_64_bytes() -> BoolPair: nonpayable
 @external
 def bar(foo: Foo):
-    t: BoolPair = foo.return_64_bytes(default_return_value=BoolPair({x: True, y:True}))
+    t: BoolPair = extcall foo.return_64_bytes(default_return_value=BoolPair(x=True, y=True))
     assert t.x and t.y
     """
     bad_1 = get_contract(bad_code_1)
@@ -2454,7 +2464,7 @@ def foo():
 
 @external
 def bar() -> address:
-    Counter(msg.sender).increment_counter()
+    extcall Counter(msg.sender).increment_counter()
     return self
     """
     code = """
@@ -2472,7 +2482,7 @@ def increment_counter():
 
 @external
 def do_stuff(f: Foo) -> uint256:
-    Foo(f.bar()).foo()
+    extcall Foo(extcall f.bar()).foo()
     return self.counter
     """
 

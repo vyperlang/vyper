@@ -160,7 +160,7 @@ flag Roles:
 
 roles: public(HashMap[address, Roles])
 
-@external
+@deploy
 def __init__():
     self.roles[msg.sender] = Roles.ADMIN
 
@@ -281,7 +281,7 @@ struct Foo:
 
 @external
 def get_flag_from_struct() -> Foobar:
-    f: Foo = Foo({a: 1, b: Foobar.BAR})
+    f: Foo = Foo(a=1, b=Foobar.BAR)
     return f.b
     """
     c = get_contract_with_gas_estimation(code)

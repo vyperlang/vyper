@@ -2,7 +2,7 @@ import copy
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Optional, Tuple
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen import module
@@ -12,10 +12,11 @@ from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputB
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import StructureException
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import set_data_positions, validate_semantics
+from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
+from vyper.utils import ERC5202_PREFIX
 from vyper.venom import generate_assembly_experimental, generate_ir
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -53,8 +54,8 @@ class CompilerData:
     ----------
     vyper_module : vy_ast.Module
         Top-level Vyper AST node
-    vyper_module_folded : vy_ast.Module
-        Folded Vyper AST
+    annotated_vyper_module: vy_ast.Module
+        Annotated+analysed Vyper AST
     global_ctx : ModuleT
         Sorted, contextualized representation of the Vyper AST
     ir_nodes : IRnode
@@ -152,42 +153,34 @@ class CompilerData:
         return self._generate_ast
 
     @cached_property
-    def vyper_module_unfolded(self) -> vy_ast.Module:
-        # This phase is intended to generate an AST for tooling use, and is not
-        # used in the compilation process.
-
-        return generate_unfolded_ast(self.vyper_module, self.input_bundle)
+    def annotated_vyper_module(self) -> vy_ast.Module:
+        return generate_annotated_ast(self.vyper_module, self.input_bundle)
 
     @cached_property
-    def _folded_module(self):
-        return generate_folded_ast(
-            self.vyper_module, self.input_bundle, self.storage_layout_override
-        )
+    def compilation_target(self):
+        """
+        Get the annotated AST, and additionally run the global checks
+        required for a compilation target.
+        """
+        module_t = self.annotated_vyper_module._metadata["type"]
+        validate_compilation_target(module_t)
+        return self.annotated_vyper_module
 
-    @property
-    def vyper_module_folded(self) -> vy_ast.Module:
-        module, storage_layout = self._folded_module
-        return module
-
-    @property
+    @cached_property
     def storage_layout(self) -> StorageLayout:
-        module, storage_layout = self._folded_module
-        return storage_layout
+        module_ast = self.compilation_target
+        return set_data_positions(module_ast, self.storage_layout_override)
 
     @property
     def global_ctx(self) -> ModuleT:
-        return self.vyper_module_folded._metadata["type"]
+        # ensure storage layout is computed
+        _ = self.storage_layout
+        return self.annotated_vyper_module._metadata["type"]
 
     @cached_property
     def _ir_output(self):
         # fetch both deployment and runtime IR
-        nodes = generate_ir_nodes(
-            self.global_ctx, self.settings.optimize, self.settings.experimental_codegen
-        )
-        if self.settings.experimental_codegen:
-            return [generate_ir(nodes[0]), generate_ir(nodes[1])]
-        else:
-            return nodes
+        return generate_ir_nodes(self.global_ctx, self.settings.optimize)
 
     @property
     def ir_nodes(self) -> IRnode:
@@ -205,14 +198,23 @@ class CompilerData:
         # ensure codegen is run:
         _ = self._ir_output
 
-        fs = self.vyper_module_folded.get_children(vy_ast.FunctionDef)
+        fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
+
+    @cached_property
+    def venom_functions(self):
+        deploy_ir, runtime_ir = self._ir_output
+        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
+        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
+        return deploy_venom, runtime_venom
 
     @cached_property
     def assembly(self) -> list:
         if self.settings.experimental_codegen:
+            deploy_code, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                self.ir_nodes, self.settings.optimize  # type: ignore
+                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
             )
         else:
             return generate_assembly(self.ir_nodes, self.settings.optimize)
@@ -220,9 +222,9 @@ class CompilerData:
     @cached_property
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
-            return generate_assembly_experimental(
-                self.ir_runtime, self.settings.optimize  # type: ignore
-            )
+            _, runtime_code = self.venom_functions
+            assert self.settings.optimize is not None  # mypy hint
+            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
@@ -237,8 +239,7 @@ class CompilerData:
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
-        blueprint_preamble = b"\xFE\x71\x00"  # ERC5202 preamble
-        blueprint_bytecode = blueprint_preamble + self.bytecode
+        blueprint_bytecode = ERC5202_PREFIX + self.bytecode
 
         # the length of the deployed code in bytes
         len_bytes = len(blueprint_bytecode).to_bytes(2, "big")
@@ -247,25 +248,9 @@ class CompilerData:
         return deploy_bytecode + blueprint_bytecode
 
 
-# destructive -- mutates module in place!
-def generate_unfolded_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-    vy_ast.folding.replace_builtin_functions(vyper_module)
-
-    with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        # note: validate_semantics does type inference on the AST
-        validate_semantics(vyper_module, input_bundle)
-
-    return vyper_module
-
-
-def generate_folded_ast(
-    vyper_module: vy_ast.Module,
-    input_bundle: InputBundle,
-    storage_layout_overrides: StorageLayout = None,
-) -> Tuple[vy_ast.Module, StorageLayout]:
+def generate_annotated_ast(vyper_module: vy_ast.Module, input_bundle: InputBundle) -> vy_ast.Module:
     """
-    Perform constant folding operations on the Vyper AST.
+    Validates and annotates the Vyper AST.
 
     Arguments
     ---------
@@ -275,27 +260,17 @@ def generate_folded_ast(
     Returns
     -------
     vy_ast.Module
-        Folded Vyper AST
-    StorageLayout
-        Layout of variables in storage
+        Annotated Vyper AST
     """
-
-    vy_ast.validation.validate_literal_nodes(vyper_module)
-
-    vyper_module_folded = copy.deepcopy(vyper_module)
-    vy_ast.folding.fold(vyper_module_folded)
-
+    vyper_module = copy.deepcopy(vyper_module)
     with input_bundle.search_path(Path(vyper_module.resolved_path).parent):
-        validate_semantics(vyper_module_folded, input_bundle)
+        # note: analyze_module does type inference on the AST
+        analyze_module(vyper_module, input_bundle)
 
-    symbol_tables = set_data_positions(vyper_module_folded, storage_layout_overrides)
-
-    return vyper_module_folded, symbol_tables
+    return vyper_module
 
 
-def generate_ir_nodes(
-    global_ctx: ModuleT, optimize: OptimizationLevel, experimental_codegen: bool
-) -> tuple[IRnode, IRnode]:
+def generate_ir_nodes(global_ctx: ModuleT, optimize: OptimizationLevel) -> tuple[IRnode, IRnode]:
     """
     Generate the intermediate representation (IR) from the contextualized AST.
 

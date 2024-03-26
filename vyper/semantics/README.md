@@ -16,7 +16,7 @@ Vyper abstract syntax tree (AST).
   * [`primitives.py`](types/primitives.py): Address, boolean, fixed length byte, integer and decimal types
   * [`shortcuts.py`](types/shortcuts.py): Helper constants for commonly used types
   * [`subscriptable.py`](types/subscriptable.py): Mapping, array and tuple types
-  * [`user.py`](types/user.py): Enum, event, interface and struct types
+  * [`user.py`](types/user.py): Flag, event, interface and struct types
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
 * [`analysis/`](analysis): Subpackage for type checking and syntax verification logic
   * [`annotation.py`](analysis/annotation.py): Annotates statements and expressions with the appropriate type information
@@ -25,6 +25,7 @@ Vyper abstract syntax tree (AST).
   * [`data_positions`](analysis/data_positions.py): Functions for tracking storage variables and allocating storage slots
   * [`levenhtein_utils.py`](analysis/levenshtein_utils.py): Helper for better error messages
   * [`local.py`](analysis/local.py): Validates the local namespace of each function within a contract
+  * [`pre_typecheck.py`](analysis/pre_typecheck.py): Evaluate foldable nodes and populate their metadata with the replacement nodes.
   * [`module.py`](analysis/module.py): Validates the module namespace of a contract.
   * [`utils.py`](analysis/utils.py): Functions for comparing and validating types
 * [`data_locations.py`](data_locations.py): `DataLocation` object for type location information
@@ -35,13 +36,23 @@ Vyper abstract syntax tree (AST).
 
 The [`analysis`](analysis) subpackage contains the top-level `validate_semantics`
 function. This function is used to verify and type-check a contract. The process
-consists of three steps:
+consists of four steps:
 
-1. Preparing the builtin namespace
-2. Validating the module-level scope
-3. Annotating and validating local scopes
+1. Populating the metadata of foldable nodes with their replacement nodes
+2. Preparing the builtin namespace
+3. Validating the module-level scope
+4. Annotating and validating local scopes
 
-### 1. Preparing the builtin namespace
+### 1. Populating the metadata of foldable nodes with their replacement nodes
+
+[`analysis/pre_typecheck.py`](analysis/pre_typecheck.py) populates the metadata of foldable nodes with their replacement nodes.
+
+This process includes:
+1. Foldable node classes and builtin functions are evaluated via their `fold` method, which attempts to create a new `Constant` from the content of the given node.
+2. Replacement nodes are generated using the `from_node` class method within the new
+node class.
+
+### 2. Preparing the builtin namespace
 
 The [`Namespace`](namespace.py) object represents the namespace for a contract.
 Builtins are added upon initialization of the object. This includes:
@@ -51,9 +62,9 @@ Builtins are added upon initialization of the object. This includes:
 * Adding builtin functions from the [`functions`](../builtins/functions.py) package
 * Adding / resetting `self` and `log`
 
-### 2. Validating the Module Scope
+### 3. Validating the Module Scope
 
-[`validation/module.py`](validation/module.py) validates the module-level scope
+[`analysis/module.py`](analysis/module.py) validates the module-level scope
 of a contract. This includes:
 
 * Generating user-defined types (e.g. structs and interfaces)
@@ -61,9 +72,9 @@ of a contract. This includes:
 and functions
 * Validating import statements and function signatures
 
-### 3. Annotating and validating the Local Scopes
+### 4. Annotating and validating the Local Scopes
 
-[`validation/local.py`](validation/local.py) validates the local scope within each
+[`analysis/local.py`](analysis/local.py) validates the local scope within each
 function in a contract. `FunctionNodeVisitor` is used to iterate over the statement
 nodes in each function body, annotate them and apply appropriate checks.
 
@@ -195,7 +206,7 @@ function.
 2. We call `fetch_call_return` on the function definition object, with the AST
 node representing the call. This method validates the input arguments, and returns
 a `BytesM_T` with `m=32`.
-3. We validation of the delcaration of `bar` in the same manner as the first
+3. We validation of the declaration of `bar` in the same manner as the first
 example, and compare the generated type to that returned by `sha256`.
 
 ### Exceptions

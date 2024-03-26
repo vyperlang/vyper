@@ -20,20 +20,23 @@ vyper
 
 To compile a contract:
 
-::
+.. code:: shell
 
     $ vyper yourFileName.vy
 
 
 Include the ``-f`` flag to specify which output formats to return. Use ``vyper --help`` for a full list of output options.
 
-::
+.. code:: shell
 
-    $ vyper -f abi,bytecode,bytecode_runtime,ir,asm,source_map,method_identifiers yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,interface,external_interface,ast,annotated_ast,ir,ir_json,ir_runtime,hex-ir,asm,opcodes,opcodes_runtime,source_map,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+
+.. note::
+    The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
 
 The ``-p`` flag allows you to set a root path that is used when searching for interface files to import.  If none is given, it will default to the current working directory. See :ref:`searching_for_imports` for more information.
 
-::
+.. code:: shell
 
     $ vyper -p yourProject yourProject/yourFileName.vy
 
@@ -45,7 +48,7 @@ Storage Layout
 
 To display the default storage layout for a contract:
 
-::
+.. code:: shell
 
     $ vyper -f layout yourFileName.vy
 
@@ -53,7 +56,7 @@ This outputs a JSON object detailing the locations for all state variables as de
 
 To override the default storage layout for a contract:
 
-::
+.. code:: shell
 
     $ vyper --storage-layout-file storageLayout.json yourFileName.vy
 
@@ -69,19 +72,19 @@ vyper-json
 
 To compile from JSON supplied via ``stdin``:
 
-::
+.. code:: shell
 
     $ vyper-json
 
 To compile from a JSON file:
 
-::
+.. code:: shell
 
     $ vyper-json yourProject.json
 
 By default, the output is sent to ``stdout``. To redirect to a file, use the ``-o`` flag:
 
-::
+.. code:: shell
 
     $ vyper-json -o compiled.json
 
@@ -143,7 +146,7 @@ When you compile your contract code, you can specify the target Ethereum Virtual
 
 For instance, the adding the following pragma to a contract indicates that it should be compiled for the "shanghai" fork of the EVM.
 
-.. code-block:: python
+.. code-block:: vyper
 
    #pragma evm-version shanghai
 
@@ -153,13 +156,13 @@ For instance, the adding the following pragma to a contract indicates that it sh
 
 When compiling via the ``vyper`` CLI, you can specify the EVM version option using the ``--evm-version`` flag:
 
-::
+.. code:: shell
 
     $ vyper --evm-version [VERSION]
 
 When using the JSON interface, you can include the ``"evmVersion"`` key within the ``"settings"`` field:
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         "settings": {
@@ -170,20 +173,10 @@ When using the JSON interface, you can include the ``"evmVersion"`` key within t
 Target Options
 --------------
 
-The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version.
+The following is a list of supported EVM versions, and changes in the compiler introduced with each version. Backward compatibility is not guaranteed between each version. In general, the compiler team maintains an informal policy that the compiler will support 3 years of hard fork rulesets, but this policy may be revisited as appropriate.
 
 
-.. py:attribute:: istanbul
-
-   - The ``CHAINID`` opcode is accessible via ``chain.id``
-   - The ``SELFBALANCE`` opcode is used for calls to ``self.balance``
-   - Gas estimates changed for ``SLOAD`` and ``BALANCE``
-
-.. py:attribute:: berlin
-
-   - Gas estimates changed for ``EXTCODESIZE``, ``EXTCODECOPY``, ``EXTCODEHASH``, ``SLOAD``, ``SSTORE``, ``CALL``, ``CALLCODE``, ``DELEGATECALL`` and ``STATICCALL``
-   - Functions marked with ``@nonreentrant`` are protected with different values (3 and 2) than contracts targeting pre-berlin.
-   - ``BASEFEE`` is accessible via ``block.basefee``
+.. py:attribute:: london
 
 .. py:attribute:: paris
 
@@ -200,8 +193,6 @@ The following is a list of supported EVM versions, and changes in the compiler i
    - The ``MCOPY`` opcode will be generated automatically by the compiler for most memory operations.
 
 
-
-
 Compiler Input and Output JSON Description
 ==========================================
 
@@ -216,7 +207,7 @@ Input JSON Description
 
 The following example describes the expected input format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         // Required: Source code language. Must be set to "Vyper".
@@ -246,7 +237,7 @@ The following example describes the expected input format of ``vyper-json``. Com
         },
         // Optional
         "settings": {
-            "evmVersion": "shanghai",  // EVM version to compile for. Can be istanbul, berlin, paris, shanghai (default) or cancun (experimental!).
+            "evmVersion": "shanghai",  // EVM version to compile for. Can be london, paris, shanghai (default) or cancun (experimental!).
             // optional, optimization mode
             // defaults to "gas". can be one of "gas", "codesize", "none",
             // false  and true (the last two are for backwards compatibility).
@@ -274,11 +265,14 @@ The following example describes the expected input format of ``vyper-json``. Com
             //    evm.bytecode.opcodes - Opcodes list
             //    evm.deployedBytecode.object - Deployed bytecode object
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
-            //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
+            //    evm.deployedBytecode.sourceMap - Solidity-style source mapping
+            //    evm.deployedBytecode.sourceMapFull - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
             // Additionally, `*` can be used as a wildcard to request everything.
+            // Note that the sourceMapFull.pc_ast_map is the recommended source map to use;
+            // the other types are included for legacy and compatibility reasons.
             //
             "outputSelection": {
                 "*": ["evm.bytecode", "abi"],  // Enable the abi and bytecode outputs for every single contract
@@ -294,7 +288,7 @@ Output JSON Description
 
 The following example describes the output format of ``vyper-json``. Comments are of course not permitted and used here *only for explanatory purposes*.
 
-.. code-block:: javascript
+.. code-block:: json
 
     {
         // The compiler version used to generate the JSON
