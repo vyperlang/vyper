@@ -201,14 +201,10 @@ class VarInfo:
         self.position = position
 
     def is_state_variable(self):
-        non_state_locations = (
-            DataLocation.UNSET,
-            DataLocation.MEMORY,
-            DataLocation.CALLDATA,
-        )
+        non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
         # `self` gets a VarInfo, but it is not considered a state
         # variable (it is magic), so we ignore it here.
-        return (self.location not in non_state_locations and not isinstance(self.typ, SelfT))
+        return self.location not in non_state_locations and not isinstance(self.typ, SelfT)
 
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)

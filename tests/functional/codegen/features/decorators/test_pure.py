@@ -76,6 +76,23 @@ def foo() -> uint256:
         compile_code(code)
 
 
+def test_invalid_immutable_access():
+    code = """
+COUNTER: immutable(uint256)
+
+@deploy
+def __init__():
+    COUNTER = 1234
+
+@pure
+@external
+def foo() -> uint256:
+    return COUNTER
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
 def test_invalid_self_access():
     code = """
 @pure
@@ -85,6 +102,50 @@ def foo() -> address:
     """
     with pytest.raises(StateAccessViolation):
         compile_code(code)
+
+
+def test_invalid_module_variable_access(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    code = """
+import lib1
+initializes: lib1
+
+@pure
+@external
+def foo() -> uint256:
+    return lib1.counter
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StateAccessViolation):
+        compile_code(code, input_bundle=input_bundle)
+
+
+def test_invalid_module_immutable_access(make_input_bundle):
+    lib1 = """
+COUNTER: immutable(uint256)
+
+@deploy
+def __init__():
+    COUNTER = 123
+    """
+    code = """
+import lib1
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+
+@pure
+@external
+def foo() -> uint256:
+    return lib1.COUNTER
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+    with pytest.raises(StateAccessViolation):
+        compile_code(code, input_bundle=input_bundle)
 
 
 def test_invalid_call():
