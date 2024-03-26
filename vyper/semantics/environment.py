@@ -23,6 +23,7 @@ class _Block(_EnvType):
         "number": UINT256_T,
         "gaslimit": UINT256_T,
         "basefee": UINT256_T,
+        "blobbasefee": UINT256_T,
         "prevhash": BYTES32_T,
         "timestamp": UINT256_T,
     }

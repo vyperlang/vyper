@@ -24,6 +24,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "calldatasize",
         "calldatacopy",
         "calldataload",
+        "blobbasefee",
         "gas",
         "gasprice",
         "gaslimit",
