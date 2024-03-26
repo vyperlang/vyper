@@ -26,9 +26,7 @@ class RevmEnv:
             gas_limit=gas_limit,
             tracing=tracing,
             spec_id="Shanghai",
-            env=Env(
-                block=BlockEnv(number=block_number),
-            ),
+            env=Env(block=BlockEnv(number=block_number)),
         )
         self.contracts: dict[HexAddress, ABIContract] = {}
         self._keys: list[PrivateKey] = get_default_account_keys()

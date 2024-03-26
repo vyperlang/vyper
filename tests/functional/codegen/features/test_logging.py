@@ -37,12 +37,7 @@ def foo():
     (log,) = revm_env.evm.result.logs
     assert log.topics[0] == event_id.hex()
     # Event abi is created correctly
-    assert c.abi[0] == {
-        "name": "MyLog",
-        "inputs": [],
-        "anonymous": False,
-        "type": "event",
-    }
+    assert c.abi[0] == {"name": "MyLog", "inputs": [], "anonymous": False, "type": "event"}
     # Event is decoded correctly
     assert c.parse_log(log).event == "MyLog"
 

@@ -19,8 +19,7 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
 
     # Make sure underlying struct is correctly right padded
     res = revm_env.execute_code(
-        to_address=c.address,
-        data=c.hardtest.prepare_calldata(b"hello" * 5, b"hello" * 10),
+        to_address=c.address, data=c.hardtest.prepare_calldata(b"hello" * 5, b"hello" * 10)
     )
     static_offset = int.from_bytes(res[:32], "big")
     assert static_offset == 32

@@ -74,9 +74,7 @@ class ABILogTopic:
 
     def parse(self, log: Log) -> ABILog:
         return ABILog(
-            address=to_checksum_address(log.address),
-            args=self._parse_args(log),
-            event=self.name,
+            address=to_checksum_address(log.address), args=self._parse_args(log), event=self.name
         )
 
     @cached_property
