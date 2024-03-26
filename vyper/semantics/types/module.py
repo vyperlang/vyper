@@ -296,6 +296,10 @@ class ModuleT(VyperType):
             # note: this checks for collisions
             self.add_member(f.name, f._metadata["func_type"])
 
+        for item in self.exports_decls:
+            for fn_t in item._metadata["exports_info"].functions:
+                self.add_member(fn_t.name, fn_t)
+
         for e in self.event_defs:
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
