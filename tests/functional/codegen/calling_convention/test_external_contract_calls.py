@@ -900,17 +900,17 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-@pytest.mark.parametrize("state_modifying_decorator", ("payable", "nonpayable"))
-@pytest.mark.parametrize("non_modifying_decorator", ("pure", "view"))
+@pytest.mark.parametrize("modifying", ("payable", "nonpayable"))
+@pytest.mark.parametrize("constant", ("pure", "view"))
 def test_constant_external_contract_call_cannot_change_state(
-    state_modifying_decorator, non_modifying_decorator
+    modifying, constant
 ):
     c = f"""
 interface Foo:
-    def set_lucky(_lucky: int128) -> int128: {state_modifying_decorator}
+    def set_lucky(_lucky: int128) -> int128: {modifying}
 
 @external
-@{non_modifying_decorator}
+@{constant}
 def set_lucky_stmt(arg1: address, arg2: int128):
     extcall Foo(arg1).set_lucky(arg2)
     """
@@ -920,9 +920,9 @@ def set_lucky_stmt(arg1: address, arg2: int128):
 
     c2 = f"""
 interface Foo:
-    def set_lucky(_lucky: int128) -> int128: {state_modifying_decorator}
+    def set_lucky(_lucky: int128) -> int128: {modifying}
 @external
-@{non_modifying_decorator}
+@{constant}
 def set_lucky_expr(arg1: address, arg2: int128) -> int128:
     return extcall Foo(arg1).set_lucky(arg2)
     """
