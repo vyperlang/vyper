@@ -26,6 +26,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "mload",
         "calldatacopy",
         "mcopy",
+        "extcodecopy",
         "returndatacopy",
         "codecopy",
         "dloadbytes",
@@ -124,6 +125,12 @@ class IRLiteral(IRValue):
         assert isinstance(value, int), "value must be an int"
         self.value = value
 
+    def __hash__(self) -> int:
+        return self.value.__hash__()
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
+
     def __repr__(self) -> str:
         return str(self.value)
 
@@ -199,6 +206,12 @@ class IRLabel(IROperand):
         self.value = value
         self.is_symbol = is_symbol
 
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
+
     def __repr__(self) -> str:
         return self.value
 
@@ -223,7 +236,7 @@ class IRInstruction:
     parent: Optional["IRBasicBlock"]
     fence_id: int
     annotation: Optional[str]
-    source_pos: Optional[int]
+    ast_source: Optional[int]
     error_msg: Optional[str]
 
     def __init__(
@@ -243,7 +256,7 @@ class IRInstruction:
         self.parent = None
         self.fence_id = -1
         self.annotation = None
-        self.source_pos = None
+        self.ast_source = None
         self.error_msg = None
 
     def get_label_operands(self) -> list[IRLabel]:
@@ -312,7 +325,7 @@ class IRInstruction:
         s += opcode
         operands = self.operands
         if opcode not in ["jmp", "jnz", "invoke"]:
-            operands.reverse()
+            operands = reversed(operands)  # type: ignore
         s += ", ".join(
             [(f"label %{op}" if isinstance(op, IRLabel) else str(op)) for op in operands]
         )
@@ -419,7 +432,7 @@ class IRBasicBlock:
 
         inst = IRInstruction(opcode, inst_args, ret)
         inst.parent = self
-        inst.source_pos = self.parent.source_pos
+        inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
@@ -442,7 +455,7 @@ class IRBasicBlock:
 
         inst = IRInstruction("invoke", inst_args, ret)
         inst.parent = self
-        inst.source_pos = self.parent.source_pos
+        inst.ast_source = self.parent.ast_source
         inst.error_msg = self.parent.error_msg
         self.instructions.append(inst)
         return ret
@@ -454,7 +467,7 @@ class IRBasicBlock:
             assert not self.is_terminated, self
             index = len(self.instructions)
         instruction.parent = self
-        instruction.source_pos = self.parent.source_pos
+        instruction.ast_source = self.parent.ast_source
         instruction.error_msg = self.parent.error_msg
         self.instructions.insert(index, instruction)
 

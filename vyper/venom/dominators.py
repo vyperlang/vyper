@@ -6,45 +6,59 @@ from vyper.venom.function import IRFunction
 
 class DominatorTree:
     """
-    Dominator tree.
+    Dominator tree implementation. This class computes the dominator tree of a
+    function and provides methods to query the tree. The tree is computed using
+    the Lengauer-Tarjan algorithm.
     """
 
     ctx: IRFunction
-    entry: IRBasicBlock
+    entry_block: IRBasicBlock
     dfs_order: dict[IRBasicBlock, int]
-    dfs: list[IRBasicBlock]
+    dfs_walk: list[IRBasicBlock]
     dominators: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    idoms: dict[IRBasicBlock, IRBasicBlock]
+    immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
-    df: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
     def __init__(self, ctx: IRFunction, entry: IRBasicBlock):
         self.ctx = ctx
-        self.entry = entry
+        self.entry_block = entry
         self.dfs_order = {}
-        self.dfs = []
+        self.dfs_walk = []
         self.dominators = {}
-        self.idoms = {}
+        self.immediate_dominators = {}
         self.dominated = {}
-        self.df = {}
+        self.dominator_frontiers = {}
         self._compute()
 
     def dominates(self, bb1, bb2):
+        """
+        Check if bb1 dominates bb2.
+        """
         return bb2 in self.dominators[bb1]
 
     def immediate_dominator(self, bb):
-        return self.idoms.get(bb)
+        """
+        Return the immediate dominator of a basic block.
+        """
+        return self.immediate_dominators.get(bb)
 
     def _compute(self):
-        self._dfs(self.entry, OrderedSet())
+        """
+        Compute the dominator tree.
+        """
+        self._dfs(self.entry_block, OrderedSet())
         self._compute_dominators()
         self._compute_idoms()
         self._compute_df()
 
     def _compute_dominators(self):
+        """
+        Compute dominators
+        """
         basic_blocks = list(self.dfs_order.keys())
         self.dominators = {bb: OrderedSet(basic_blocks) for bb in basic_blocks}
-        self.dominators[self.entry] = OrderedSet({self.entry})
+        self.dominators[self.entry_block] = OrderedSet([self.entry_block])
         changed = True
         count = len(basic_blocks) ** 2  # TODO: find a proper bound for this
         while changed:
@@ -53,7 +67,7 @@ class DominatorTree:
                 raise CompilerPanic("Dominators computation failed to converge")
             changed = False
             for bb in basic_blocks:
-                if bb == self.entry:
+                if bb == self.entry_block:
                     continue
                 preds = bb.cfg_in
                 if len(preds) == 0:
@@ -64,51 +78,36 @@ class DominatorTree:
                     self.dominators[bb] = new_dominators
                     changed = True
 
-        # for bb in basic_blocks:
-        #     print(bb.label)
-        #     for dom in self.dominators[bb]:
-        #         print("    ", dom.label)
-
     def _compute_idoms(self):
         """
         Compute immediate dominators
         """
-        self.idoms = {bb: None for bb in self.dfs_order.keys()}
-        self.idoms[self.entry] = self.entry
-        for bb in self.dfs:
-            if bb == self.entry:
+        self.immediate_dominators = {bb: None for bb in self.dfs_order.keys()}
+        self.immediate_dominators[self.entry_block] = self.entry_block
+        for bb in self.dfs_walk:
+            if bb == self.entry_block:
                 continue
             doms = sorted(self.dominators[bb], key=lambda x: self.dfs_order[x])
-            self.idoms[bb] = doms[1]
+            self.immediate_dominators[bb] = doms[1]
 
-        self.dominated = {bb: OrderedSet() for bb in self.dfs}
-        for dom, target in self.idoms.items():
+        self.dominated = {bb: OrderedSet() for bb in self.dfs_walk}
+        for dom, target in self.immediate_dominators.items():
             self.dominated[target].add(dom)
-
-        # for dom, targets in self.dominated.items():
-        #     print(dom.label)
-        #     for t in targets:
-        #         print("    ", t.label)
 
     def _compute_df(self):
         """
         Compute dominance frontier
         """
-        basic_blocks = self.dfs
-        self.df = {bb: OrderedSet() for bb in basic_blocks}
+        basic_blocks = self.dfs_walk
+        self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
 
-        for bb in self.dfs:
+        for bb in self.dfs_walk:
             if len(bb.cfg_in) > 1:
                 for pred in bb.cfg_in:
                     runner = pred
-                    while runner != self.idoms[bb]:
-                        self.df[runner].add(bb)
-                        runner = self.idoms[runner]
-
-        # for bb in self.dfs:
-        #     print(bb.label)
-        #     for df in self.df[bb]:
-        #         print("    ", df.label)
+                    while runner != self.immediate_dominators[bb]:
+                        self.dominator_frontiers[runner].add(bb)
+                        runner = self.immediate_dominators[runner]
 
     def dominance_frontier(self, basic_blocks: list[IRBasicBlock]) -> OrderedSet[IRBasicBlock]:
         """
@@ -116,27 +115,36 @@ class DominatorTree:
         """
         df = OrderedSet[IRBasicBlock]()
         for bb in basic_blocks:
-            df.update(self.df[bb])
+            df.update(self.dominator_frontiers[bb])
         return df
 
     def _intersect(self, bb1, bb2):
+        """
+        Find the nearest common dominator of two basic blocks.
+        """
         dfs_order = self.dfs_order
         while bb1 != bb2:
             while dfs_order[bb1] < dfs_order[bb2]:
-                bb1 = self.idoms[bb1]
+                bb1 = self.immediate_dominators[bb1]
             while dfs_order[bb1] > dfs_order[bb2]:
-                bb2 = self.idoms[bb2]
+                bb2 = self.immediate_dominators[bb2]
         return bb1
 
     def _dfs(self, entry: IRBasicBlock, visited):
+        """
+        Depth-first search to compute the DFS order of the basic blocks. This
+        is used to compute the dominator tree. The sequence of basic blocks in
+        the DFS order is stored in `self.dfs_walk`. The DFS order of each basic
+        block is stored in `self.dfs_order`.
+        """
         visited.add(entry)
 
         for bb in entry.cfg_out:
             if bb not in visited:
                 self._dfs(bb, visited)
 
-        self.dfs.append(entry)
-        self.dfs_order[entry] = len(self.dfs)
+        self.dfs_walk.append(entry)
+        self.dfs_order[entry] = len(self.dfs_walk)
 
     def as_graph(self) -> str:
         """
@@ -144,7 +152,7 @@ class DominatorTree:
         """
         lines = ["digraph dominator_tree {"]
         for bb in self.ctx.basic_blocks:
-            if bb == self.entry:
+            if bb == self.entry_block:
                 continue
             idom = self.immediate_dominator(bb)
             if idom is None:

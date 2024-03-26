@@ -14,12 +14,12 @@ def _add_bb(
 ) -> IRBasicBlock:
     bb = bb if bb is not None else IRBasicBlock(label, ctx)
     ctx.append_basic_block(bb)
-    cgf_outs_len = len(cfg_outs)
-    if cgf_outs_len == 0:
+    cfg_outs_len = len(cfg_outs)
+    if cfg_outs_len == 0:
         bb.append_instruction("stop")
-    elif cgf_outs_len == 1:
+    elif cfg_outs_len == 1:
         bb.append_instruction("jmp", cfg_outs[0])
-    elif cgf_outs_len == 2:
+    elif cfg_outs_len == 2:
         bb.append_instruction("jnz", IRLiteral(1), cfg_outs[0], cfg_outs[1])
     else:
         raise CompilerPanic("Invalid number of CFG outs")
@@ -50,14 +50,15 @@ def test_deminator_frontier_calculation():
 
     calculate_cfg(ctx)
     dom = DominatorTree(ctx, bb1)
+    df = dom.dominator_frontiers
 
-    assert len(dom.df[bb1]) == 0, dom.df[bb1]
-    assert dom.df[bb2] == OrderedSet({bb2}), dom.df[bb2]
-    assert dom.df[bb3] == OrderedSet({bb3, bb6}), dom.df[bb3]
-    assert dom.df[bb4] == OrderedSet({bb6}), dom.df[bb4]
-    assert dom.df[bb5] == OrderedSet({bb3, bb6}), dom.df[bb5]
-    assert dom.df[bb6] == OrderedSet({bb2}), dom.df[bb6]
-    assert len(dom.df[bb7]) == 0, dom.df[bb7]
+    assert len(df[bb1]) == 0, df[bb1]
+    assert df[bb2] == OrderedSet({bb2}), df[bb2]
+    assert df[bb3] == OrderedSet({bb3, bb6}), df[bb3]
+    assert df[bb4] == OrderedSet({bb6}), df[bb4]
+    assert df[bb5] == OrderedSet({bb3, bb6}), df[bb5]
+    assert df[bb6] == OrderedSet({bb2}), df[bb6]
+    assert len(df[bb7]) == 0, df[bb7]
 
 
 def test_phi_placement():

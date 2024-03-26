@@ -15,8 +15,14 @@ from vyper.venom.basicblock import (
 )
 from vyper.venom.function import IRFunction
 
-_BINARY_IR_INSTRUCTIONS = frozenset(
+# Instructions that are mapped to their inverse
+INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
+
+# Instructions that have a direct EVM opcode equivalent and can
+# be passed through to the EVM assembly without special handling
+PASS_THROUGH_INSTRUCTIONS = frozenset(
     [
+        # binary instructions
         "eq",
         "gt",
         "lt",
@@ -40,16 +46,6 @@ _BINARY_IR_INSTRUCTIONS = frozenset(
         "sha3",
         "sha3_64",
         "signextend",
-    ]
-)
-
-# Instructions that are mapped to their inverse
-INVERSE_MAPPED_IR_INSTRUCTIONS = {"ne": "eq", "le": "gt", "sle": "sgt", "ge": "lt", "sge": "slt"}
-
-# Instructions that have a direct EVM opcode equivalent and can
-# be passed through to the EVM assembly without special handling
-PASS_THROUGH_INSTRUCTIONS = frozenset(
-    [
         "chainid",
         "basefee",
         "timestamp",
@@ -86,11 +82,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "exit",
-    ]
-)
-
-PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
-    [
         "calldatacopy",
         "mcopy",
         "extcodecopy",
@@ -104,6 +95,9 @@ PASS_THROUGH_REVERSED_INSTRUCTIONS = frozenset(
         "create2",
         "addmod",
         "mulmod",
+        "call",
+        "delegatecall",
+        "staticcall",
     ]
 )
 
@@ -133,16 +127,6 @@ def ir_node_to_venom(ir: IRnode) -> IRFunction:
                 bb.append_instruction("exit")
 
     return ctx
-
-
-def _convert_binary_op(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, swap: bool = False
-) -> Optional[IRVariable]:
-    ir_args = ir.args[::-1] if swap else ir.args
-    arg_0, arg_1 = _convert_ir_bb_list(ctx, ir_args, symbols)
-
-    assert isinstance(ir.value, str)  # mypy hint
-    return ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
 
 
 def _append_jmp(ctx: IRFunction, label: IRLabel) -> None:
@@ -185,7 +169,7 @@ def _handle_self_call(ctx: IRFunction, ir: IRnode, symbols: SymbolTable) -> Opti
 
     bb = ctx.get_basic_block()
     if len(goto_ir.args) > 2:
-        ret_args.append(return_buf.value)  # type: ignore
+        ret_args.append(return_buf)  # type: ignore
 
     bb.append_invoke_instruction(ret_args, returns=False)  # type: ignore
 
@@ -211,11 +195,12 @@ def _handle_internal_func(
 
 
 def _convert_ir_simple_node(
-    ctx: IRFunction, ir: IRnode, symbols: SymbolTable, reverse: bool = False
+    ctx: IRFunction, ir: IRnode, symbols: SymbolTable
 ) -> Optional[IRVariable]:
-    args = [_convert_ir_bb(ctx, arg, symbols) for arg in ir.args]
-    if reverse:
-        args = reversed(args)  # type: ignore
+    # execute in order
+    args = _convert_ir_bb_list(ctx, ir.args, symbols)
+    # reverse output variables for stack
+    args.reverse()
     return ctx.get_basic_block().append_instruction(ir.value, *args)  # type: ignore
 
 
@@ -253,18 +238,14 @@ def _convert_ir_bb(ctx, ir, symbols):
 
     ctx.push_source(ir)
 
-    if ir.value in _BINARY_IR_INSTRUCTIONS:
-        return _convert_binary_op(ctx, ir, symbols, ir.value in ["sha3_64"])
-    elif ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
+    if ir.value in INVERSE_MAPPED_IR_INSTRUCTIONS:
         org_value = ir.value
         ir.value = INVERSE_MAPPED_IR_INSTRUCTIONS[ir.value]
-        new_var = _convert_binary_op(ctx, ir, symbols)
+        new_var = _convert_ir_simple_node(ctx, ir, symbols)
         ir.value = org_value
         return ctx.get_basic_block().append_instruction("iszero", new_var)
     elif ir.value in PASS_THROUGH_INSTRUCTIONS:
         return _convert_ir_simple_node(ctx, ir, symbols)
-    elif ir.value in PASS_THROUGH_REVERSED_INSTRUCTIONS:
-        return _convert_ir_simple_node(ctx, ir, symbols, reverse=True)
     elif ir.value == "return":
         ctx.get_basic_block().append_instruction(
             "return", IRVariable("ret_size"), IRVariable("ret_ofst")
@@ -306,9 +287,6 @@ def _convert_ir_bb(ctx, ir, symbols):
             ret = _convert_ir_bb(ctx, ir_node, symbols)
 
         return ret
-    elif ir.value in ["delegatecall", "staticcall", "call"]:
-        args = reversed(_convert_ir_bb_list(ctx, ir.args, symbols))
-        return ctx.get_basic_block().append_instruction(ir.value, *args)
     elif ir.value == "if":
         cond = ir.args[0]
 
@@ -396,7 +374,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                 assert 0 <= c <= 255, "data with invalid size"
                 ctx.append_data("db", [c])  # type: ignore
             elif isinstance(c.value, bytes):
-                ctx.append_data("db", [c])  # type: ignore
+                ctx.append_data("db", [c.value])  # type: ignore
             elif isinstance(c, IRnode):
                 data = _convert_ir_bb(ctx, c, symbols)
                 ctx.append_data("db", [data])  # type: ignore
@@ -462,19 +440,16 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         if isinstance(arg_1, IRVariable):
             symbols[f"&{arg_0.value}"] = arg_1
+
         ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
     elif ir.value == "ceil32":
         x = ir.args[0]
         expanded = IRnode.from_list(["and", ["add", x, 31], ["not", 31]])
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "select":
-        # b ^ ((a ^ b) * cond) where cond is 1 or 0
         cond, a, b = ir.args
-        expanded = IRnode.from_list(["xor", b, ["mul", cond, ["xor", a, b]]])
+        expanded = IRnode.from_list(["with", "b", b, ["xor", "b", ["mul", cond, ["xor", a, "b"]]]])
         return _convert_ir_bb(ctx, expanded, symbols)
-    elif ir.value in []:
-        arg_0, arg_1 = _convert_ir_bb_list(ctx, ir.args, symbols)
-        ctx.get_basic_block().append_instruction(ir.value, arg_1, arg_0)
     elif ir.value == "repeat":
 
         def emit_body_blocks():
@@ -557,6 +532,8 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols)
     elif isinstance(ir.value, str) and ir.value in symbols:
+        if "alloca" in ir.passthrough_metadata:
+            ctx.get_basic_block().append_instruction("alloca", *ir.passthrough_metadata["alloca"])
         return symbols[ir.value]
     elif ir.is_literal:
         return IRLiteral(ir.value)

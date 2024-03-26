@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.opcodes import version_check
 from vyper.ir import compile_ir
 from vyper.ir.s_expressions import parse_s_exp
 
@@ -68,4 +69,9 @@ def test_pc_debugger():
     debugger_ir = ["seq", ["mstore", 0, 32], ["pc_debugger"]]
     ir_nodes = IRnode.from_list(debugger_ir)
     _, line_number_map = compile_ir.assembly_to_evm(compile_ir.compile_to_assembly(ir_nodes))
-    assert line_number_map["pc_breakpoints"][0] == 4
+    if version_check(begin="shanghai"):
+        offset = 4  # push0 saves a byte
+    else:
+        offset = 5
+
+    assert line_number_map["pc_breakpoints"][0] == offset

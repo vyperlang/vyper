@@ -110,7 +110,7 @@ def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
     for op in asm:
         if isinstance(op, str) and not isinstance(op, Instruction):
-            ret.append(Instruction(op, inst.source_pos, inst.error_msg))
+            ret.append(Instruction(op, inst.ast_source, inst.error_msg))
         else:
             ret.append(op)
     return ret  # type: ignore
@@ -186,11 +186,11 @@ class VenomCompiler:
                     label = inst.operands[0].value
                     data_segments[label] = [DataHeader(f"_sym_{label}")]
                 elif inst.opcode == "db":
-                    data = inst.operands[0].value
-                    if isinstance(data, bytes):
-                        data_segments[label].append(data)
+                    data = inst.operands[0]
+                    if isinstance(data, IRLabel):
+                        data_segments[label].append(f"_sym_{data.value}")
                     else:
-                        data_segments[label].append(f"_sym_{inst.operands[0].value}")
+                        data_segments[label].append(data)
 
             asm.extend(list(data_segments.values()))
 
@@ -250,6 +250,10 @@ class VenomCompiler:
                 continue
 
             if isinstance(op, IRLiteral):
+                if op.value < -(2**255):
+                    raise Exception(f"Value too low: {op.value}")
+                elif op.value >= 2**256:
+                    raise Exception(f"Value too high: {op.value}")
                 assembly.extend(PUSH(op.value % 2**256))
                 stack.push(op)
                 continue
@@ -338,8 +342,7 @@ class VenomCompiler:
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet = None
     ) -> list[str]:
         assembly: list[str | int] = []
-        if next_liveness is None:
-            next_liveness = OrderedSet()
+        next_liveness = next_liveness or OrderedSet()
         opcode = inst.opcode
 
         #
@@ -352,6 +355,10 @@ class VenomCompiler:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
             operands = inst.operands[1:2]
+
+        # iload and istore are special cases because they can take a literal
+        # that is handled specialy with the _OFST macro. Look below, after the
+        # stack reordering.
         elif opcode == "iload":
             addr = inst.operands[0]
             if isinstance(addr, IRLiteral):
@@ -361,7 +368,7 @@ class VenomCompiler:
         elif opcode == "istore":
             addr = inst.operands[1]
             if isinstance(addr, IRLiteral):
-                operands = inst.operands[0:1]
+                operands = inst.operands[:1]
             else:
                 operands = inst.operands
         elif opcode == "log":
@@ -400,7 +407,7 @@ class VenomCompiler:
             # NOTE: stack in general can contain multiple copies of the same variable,
             # however we are safe in the case of jmp/djmp/jnz as it's not going to
             # have multiples.
-            target_stack_list = list(target_stack.keys())
+            target_stack_list = list(target_stack)
             self._stack_reorder(assembly, stack, target_stack_list)
 
         # final step to get the inputs to this instruction ordered
@@ -483,9 +490,9 @@ class VenomCompiler:
         elif opcode == "sha3_64":
             assembly.extend(
                 [
-                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
-                    "MSTORE",
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
+                    "MSTORE",
+                    *PUSH(MemoryPositions.FREE_VAR_SPACE2),
                     "MSTORE",
                     *PUSH(64),
                     *PUSH(MemoryPositions.FREE_VAR_SPACE),
@@ -530,8 +537,10 @@ class VenomCompiler:
         assembly.extend(["POP"] * num)
 
     def swap(self, assembly, stack, depth):
+        # Swaps of the top is no op
         if depth == 0:
             return
+
         stack.swap(depth)
         assembly.append(_evm_swap_for(depth))
 

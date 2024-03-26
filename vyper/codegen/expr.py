@@ -177,6 +177,11 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
+            ret.passthrough_metadata["alloca"] = (
+                self.expr.id,
+                var.pos,
+                var.typ.memory_bytes_required,
+            )
             ret._referenced_variables = {var}
             return ret
 
@@ -206,12 +211,9 @@ class Expr:
     def parse_Attribute(self):
         typ = self.expr._metadata["type"]
 
-        # MyFlag.foo
-        if (
-            isinstance(typ, FlagT)
-            and isinstance(self.expr.value, vy_ast.Name)
-            and typ.name == self.expr.value.id
-        ):
+        # check if we have a flag constant, e.g.
+        # [lib1].MyFlag.FOO
+        if isinstance(typ, FlagT) and is_type_t(self.expr.value._metadata["type"], FlagT):
             # 0, 1, 2, .. 255
             flag_id = typ._flag_members[self.expr.attr]
             value = 2**flag_id  # 0 => 0001, 1 => 0010, 2 => 0100, etc.
@@ -273,7 +275,7 @@ class Expr:
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
                     vyper_warn(warning, self.expr)
-                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
+                return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "

@@ -31,8 +31,9 @@ class IRFunction:
     last_variable: int
 
     # Used during code generation
-    _source_pos: list[int]
-    _error_msg: list[str]
+    _ast_source_stack: list[int]
+    _error_msg_stack: list[str]
+    _bb_index: dict[str, int]
 
     def __init__(self, name: IRLabel = None) -> None:
         if name is None:
@@ -47,8 +48,9 @@ class IRFunction:
         self.last_label = 0
         self.last_variable = 0
 
-        self._source_pos = []
-        self._error_msg = []
+        self._ast_source_stack = []
+        self._error_msg_stack = []
+        self._bb_index = {}
 
         self.add_entry_point(name)
         self.append_basic_block(IRBasicBlock(name, self))
@@ -72,9 +74,21 @@ class IRFunction:
         assert isinstance(bb, IRBasicBlock), f"append_basic_block takes IRBasicBlock, got '{bb}'"
         self.basic_blocks.append(bb)
 
-        # TODO add sanity check somewhere that basic blocks have unique labels
-
         return self.basic_blocks[-1]
+
+    def _get_basicblock_index(self, label: str):
+        # perf: keep an "index" of labels to block indices to
+        # perform fast lookup.
+        # TODO: maybe better just to throw basic blocks in an ordered
+        # dict of some kind.
+        ix = self._bb_index.get(label, -1)
+        if 0 <= ix < len(self.basic_blocks) and self.basic_blocks[ix].label == label:
+            return ix
+        # do a reindex
+        self._bb_index = dict((bb.label.name, ix) for ix, bb in enumerate(self.basic_blocks))
+        # sanity check - no duplicate labels
+        assert len(self._bb_index) == len(self.basic_blocks)
+        return self._bb_index[label]
 
     def get_basic_block(self, label: Optional[str] = None) -> IRBasicBlock:
         """
@@ -83,18 +97,16 @@ class IRFunction:
         """
         if label is None:
             return self.basic_blocks[-1]
-        for bb in self.basic_blocks:
-            if bb.label.value == label:
-                return bb
-        raise AssertionError(f"Basic block '{label}' not found")
+        ix = self._get_basicblock_index(label)
+        return self.basic_blocks[ix]
 
     def get_basic_block_after(self, label: IRLabel) -> IRBasicBlock:
         """
         Get basic block after label.
         """
-        for i, bb in enumerate(self.basic_blocks[:-1]):
-            if bb.label.value == label.value:
-                return self.basic_blocks[i + 1]
+        ix = self._get_basicblock_index(label.value)
+        if 0 <= ix < len(self.basic_blocks) - 1:
+            return self.basic_blocks[ix + 1]
         raise AssertionError(f"Basic block after '{label}' not found")
 
     def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
@@ -107,7 +119,7 @@ class IRFunction:
 
     def get_basicblocks_in(self, basic_block: IRBasicBlock) -> list[IRBasicBlock]:
         """
-        Get basic blocks that contain label.
+        Get basic blocks that point to the given basic block
         """
         return [bb for bb in self.basic_blocks if basic_block.label in bb.cfg_in]
 
@@ -211,22 +223,22 @@ class IRFunction:
 
     def push_source(self, ir):
         if isinstance(ir, IRnode):
-            self._source_pos.append(ir.ast_source)
-            self._error_msg.append(ir.error_msg)
+            self._ast_source_stack.append(ir.ast_source)
+            self._error_msg_stack.append(ir.error_msg)
 
     def pop_source(self):
-        assert len(self._source_pos) > 0, "Empty source stack"
-        self._source_pos.pop()
-        assert len(self._error_msg) > 0, "Empty error stack"
-        self._error_msg.pop()
+        assert len(self._ast_source_stack) > 0, "Empty source stack"
+        self._ast_source_stack.pop()
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     @property
-    def source_pos(self) -> Optional[int]:
-        return self._source_pos[-1] if len(self._source_pos) > 0 else None
+    def ast_source(self) -> Optional[int]:
+        return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
 
     @property
     def error_msg(self) -> Optional[str]:
-        return self._error_msg[-1] if len(self._error_msg) > 0 else None
+        return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
     def copy(self):
         new = IRFunction(self.name)
