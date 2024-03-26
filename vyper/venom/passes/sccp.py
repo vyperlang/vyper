@@ -197,7 +197,7 @@ class SCCP(IRPass):
 
     def _compute_uses(self, dom: DominatorTree):
         self.uses = {}
-        for bb in dom.dfs:
+        for bb in dom.dfs_walk:
             for var, insts in bb.get_uses().items():
                 if var not in self.uses:
                     self.uses[var] = OrderedSet()
