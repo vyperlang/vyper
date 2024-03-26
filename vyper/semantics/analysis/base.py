@@ -199,7 +199,7 @@ class VarInfo:
         assert isinstance(position, VarOffset)  # sanity check
         self.position = position
 
-    def is_module_variable(self):
+    def is_state_variable(self):
         return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
 
     def get_size(self) -> int:

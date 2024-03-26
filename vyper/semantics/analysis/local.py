@@ -175,11 +175,6 @@ def _validate_pure_access(node: vy_ast.Attribute, typ: VyperType) -> None:
         )
 
 
-def _validate_self_reference(node: vy_ast.Name) -> None:
-    # CMC 2023-10-19 this detector seems sus, things like `a.b(self)` could slip through
-    if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
-        raise StateAccessViolation("not allowed to query self in pure functions", node)
-
 
 # analyse the variable access for the attribute chain for a node
 # e.x. `x` will return varinfo for `x`
@@ -429,7 +424,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         info._writes.add(var_access)
 
     def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
-        if not var_access.variable.is_module_variable():
+        if not var_access.variable.is_state_variable():
             return
 
         root_module_info = check_module_uses(target)
@@ -765,10 +760,10 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._writes.add(s)
                 for s in func_type.get_variable_reads():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._reads.add(s)
 
             if self.function_analyzer:
@@ -873,10 +868,13 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func:
-            # TODO: refactor to use expr_info mutability
-            if self.func.mutability == StateMutability.PURE:
-                _validate_self_reference(node)
+        if not self.func:
+            return
+        if self.func.mutability == StateMutability.PURE:
+            info = get_expr_info(node)
+
+            if info.var_info is not None and info.var_info.is_state_variable():
+                raise StateAccessViolation("not allowed to query state in pure functions")
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):
