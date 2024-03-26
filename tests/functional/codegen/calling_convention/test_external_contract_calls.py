@@ -902,9 +902,7 @@ def set_lucky(arg1: address, arg2: int128):
 
 @pytest.mark.parametrize("modifying", ("payable", "nonpayable"))
 @pytest.mark.parametrize("constant", ("pure", "view"))
-def test_constant_external_contract_call_cannot_change_state(
-    modifying, constant
-):
+def test_constant_external_contract_call_cannot_change_state(modifying, constant):
     c = f"""
 interface Foo:
     def set_lucky(_lucky: int128) -> int128: {modifying}
