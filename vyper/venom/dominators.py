@@ -29,6 +29,8 @@ class DominatorTree:
         self.immediate_dominators = {}
         self.dominated = {}
         self.dominator_frontiers = {}
+
+        # REVIEW: move computation out of constructor
         self._compute()
 
     def dominates(self, bb1, bb2):
@@ -130,6 +132,7 @@ class DominatorTree:
                 bb2 = self.immediate_dominators[bb2]
         return bb1
 
+    # REVIEW: maybe _compute_dfs?
     def _dfs(self, entry: IRBasicBlock, visited):
         """
         Depth-first search to compute the DFS order of the basic blocks. This

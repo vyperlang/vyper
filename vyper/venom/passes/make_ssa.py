@@ -24,7 +24,9 @@ class MakeSSA(IRPass):
         calculate_liveness(ctx)
         self._add_phi_nodes()
 
+        # REVIEW: rename to version or var_version
         self.var_names = {var.name: 0 for var in self.defs.keys()}
+        # REVIEW: rename to versions
         self.stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
@@ -37,6 +39,7 @@ class MakeSSA(IRPass):
         """
         self._compute_defs()
         self.work = {var: 0 for var in self.dom.dfs_walk}
+        # REVIEW: rename to num_placements?
         self.has_already = {var: 0 for var in self.dom.dfs_walk}
         i = 0
 
@@ -69,6 +72,7 @@ class MakeSSA(IRPass):
             args.append(var)  # type: ignore
 
         phi = IRInstruction("phi", args, var)
+        # REVIEW: use insert_instruction or append_instruction here?
         basic_block.instructions.insert(0, phi)
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
@@ -109,10 +113,13 @@ class MakeSSA(IRPass):
             if inst.output is not None:
                 v_name = inst.output.name
                 i = self.var_names[v_name]
-                inst.output = IRVariable(v_name, version=i)
-                outs.append(inst.output.name)
+
                 self.stacks[v_name].append(i)
                 self.var_names[v_name] = i + 1
+
+                inst.output = IRVariable(v_name, version=i)
+                # note - after previous line, inst.output.name != v_name
+                outs.append(inst.output.name)
 
         for bb in basic_block.cfg_out:
             for inst in bb.instructions:
@@ -131,6 +138,7 @@ class MakeSSA(IRPass):
             self._rename_vars(bb)
 
         for op_name in outs:
+            # NOTE: each pop corresponds to an append above
             self.stacks[op_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
