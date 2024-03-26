@@ -270,7 +270,7 @@ class Expr:
                     warning = "tried to use block.prevrandao in pre-Paris "
                     warning += "environment! Suggest using block.difficulty instead."
                     vyper_warn(warning, self.expr)
-                return IRnode.from_list(["prevrandao"], typ=UINT256_T)
+                return IRnode.from_list(["prevrandao"], typ=BYTES32_T)
             elif key == "block.difficulty":
                 if version_check(begin="paris"):
                     warning = "tried to use block.difficulty in post-Paris "
