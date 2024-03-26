@@ -8,6 +8,7 @@ from vyper.compiler.input_bundle import CompilerInput, FileInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
@@ -200,7 +201,14 @@ class VarInfo:
         self.position = position
 
     def is_state_variable(self):
-        return self.location not in (DataLocation.UNSET, DataLocation.MEMORY)
+        non_state_locations = (
+            DataLocation.UNSET,
+            DataLocation.MEMORY,
+            DataLocation.CALLDATA,
+        )
+        # `self` gets a VarInfo, but it is not considered a state
+        # variable (it is magic), so we ignore it here.
+        return (self.location not in non_state_locations and not isinstance(self.typ, SelfT))
 
     def get_size(self) -> int:
         return self.typ.get_size_in(self.location)
