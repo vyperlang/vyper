@@ -91,9 +91,11 @@ class MakeSSA(IRPass):
 
     def _rename_vars(self, basic_block: IRBasicBlock):
         """
-        Rename variables in the basic block. This follows the placement of phi nodes.
+        Rename variables. This follows the placement of phi nodes.
         """
         outs = []
+
+        # Pre-action
         for inst in basic_block.instructions:
             new_ops = []
             if inst.opcode != "phi":
@@ -128,13 +130,14 @@ class MakeSSA(IRPass):
                             inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
                         )
 
+        # Post-action
         for bb in self.dom.dominated[basic_block]:
             if bb == basic_block:
                 continue
             self._rename_vars(bb)
 
         for op_name in outs:
-            # NOTE: each pop corresponds to an append above
+            # NOTE: each pop corresponds to an append in the pre-action above
             self.var_name_stacks[op_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
