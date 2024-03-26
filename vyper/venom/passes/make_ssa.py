@@ -18,9 +18,7 @@ class MakeSSA(IRPass):
         self.ctx = ctx
 
         calculate_cfg(ctx)
-        dom = DominatorTree()
-        dom.compute(ctx, entry)
-        self.dom = dom
+        self.dom = DominatorTree.build_dominator_tree(ctx, entry)
 
         calculate_liveness(ctx)
         self._add_phi_nodes()

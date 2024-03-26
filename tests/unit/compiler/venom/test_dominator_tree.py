@@ -49,8 +49,7 @@ def test_deminator_frontier_calculation():
     bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [ctx.get_basic_block(str(i)) for i in range(1, 8)]
 
     calculate_cfg(ctx)
-    dom = DominatorTree()
-    dom.compute(ctx, bb1)
+    dom = DominatorTree.build_dominator_tree(ctx, bb1)
     df = dom.dominator_frontiers
 
     assert len(df[bb1]) == 0, df[bb1]

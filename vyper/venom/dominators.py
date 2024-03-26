@@ -20,6 +20,12 @@ class DominatorTree:
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
+    @classmethod
+    def build_dominator_tree(cls, ctx, entry):
+        ret = DominatorTree()
+        ret.compute(ctx, entry)
+        return ret
+
     def compute(self, ctx: IRFunction, entry: IRBasicBlock):
         """
         Compute the dominator tree.
