@@ -32,7 +32,7 @@ def generate_assembly_experimental(
         functions = [runtime_code]
 
     compiler = VenomCompiler(functions)
-    return compiler.generate_evm(optimize == OptimizationLevel.NONE)
+    return compiler.generate_evm(optimize)
 
 
 def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
