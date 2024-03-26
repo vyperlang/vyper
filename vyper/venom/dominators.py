@@ -20,7 +20,10 @@ class DominatorTree:
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
 
-    def __init__(self, ctx: IRFunction, entry: IRBasicBlock):
+    def compute(self, ctx: IRFunction, entry: IRBasicBlock):
+        """
+        Compute the dominator tree.
+        """
         self.ctx = ctx
         self.entry_block = entry
         self.dfs_order = {}
@@ -30,8 +33,10 @@ class DominatorTree:
         self.dominated = {}
         self.dominator_frontiers = {}
 
-        # REVIEW: move computation out of constructor
-        self._compute()
+        self._compute_dfs(self.entry_block, OrderedSet())
+        self._compute_dominators()
+        self._compute_idoms()
+        self._compute_df()
 
     def dominates(self, bb1, bb2):
         """
@@ -44,15 +49,6 @@ class DominatorTree:
         Return the immediate dominator of a basic block.
         """
         return self.immediate_dominators.get(bb)
-
-    def _compute(self):
-        """
-        Compute the dominator tree.
-        """
-        self._dfs(self.entry_block, OrderedSet())
-        self._compute_dominators()
-        self._compute_idoms()
-        self._compute_df()
 
     def _compute_dominators(self):
         """
@@ -132,8 +128,7 @@ class DominatorTree:
                 bb2 = self.immediate_dominators[bb2]
         return bb1
 
-    # REVIEW: maybe _compute_dfs?
-    def _dfs(self, entry: IRBasicBlock, visited):
+    def _compute_dfs(self, entry: IRBasicBlock, visited):
         """
         Depth-first search to compute the DFS order of the basic blocks. This
         is used to compute the dominator tree. The sequence of basic blocks in
@@ -144,7 +139,7 @@ class DominatorTree:
 
         for bb in entry.cfg_out:
             if bb not in visited:
-                self._dfs(bb, visited)
+                self._compute_dfs(bb, visited)
 
         self.dfs_walk.append(entry)
         self.dfs_order[entry] = len(self.dfs_walk)
