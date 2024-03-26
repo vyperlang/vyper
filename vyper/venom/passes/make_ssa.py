@@ -18,16 +18,15 @@ class MakeSSA(IRPass):
         self.ctx = ctx
 
         calculate_cfg(ctx)
-        dom = DominatorTree(ctx, entry)
+        dom = DominatorTree()
+        dom.compute(ctx, entry)
         self.dom = dom
 
         calculate_liveness(ctx)
         self._add_phi_nodes()
 
-        # REVIEW: rename to version or var_version
-        self.var_names = {var.name: 0 for var in self.defs.keys()}
-        # REVIEW: rename to versions
-        self.stacks = {var.name: [0] for var in self.defs.keys()}
+        self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
+        self.var_name_stacks = {var.name: [0] for var in self.defs.keys()}
         self._rename_vars(entry)
         self._remove_degenerate_phis(entry)
 
@@ -38,9 +37,8 @@ class MakeSSA(IRPass):
         Add phi nodes to the function.
         """
         self._compute_defs()
-        self.work = {var: 0 for var in self.dom.dfs_walk}
-        # REVIEW: rename to num_placements?
-        self.has_already = {var: 0 for var in self.dom.dfs_walk}
+        work = {var: 0 for var in self.dom.dfs_walk}
+        has_already = {var: 0 for var in self.dom.dfs_walk}
         i = 0
 
         # Iterate over all variables
@@ -50,13 +48,13 @@ class MakeSSA(IRPass):
             while len(defs) > 0:
                 bb = defs.pop()
                 for dom in self.dom.dominator_frontiers[bb]:
-                    if self.has_already[dom] >= i:
+                    if has_already[dom] >= i:
                         continue
 
                     self._place_phi(var, dom)
-                    self.has_already[dom] = i
-                    if self.work[dom] < i:
-                        self.work[dom] = i
+                    has_already[dom] = i
+                    if work[dom] < i:
+                        work[dom] = i
                         defs.append(dom)
 
     def _place_phi(self, var: IRVariable, basic_block: IRBasicBlock):
@@ -71,9 +69,7 @@ class MakeSSA(IRPass):
             args.append(bb.label)  # type: ignore
             args.append(var)  # type: ignore
 
-        phi = IRInstruction("phi", args, var)
-        # REVIEW: use insert_instruction or append_instruction here?
-        basic_block.instructions.insert(0, phi)
+        basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
 
     def _add_phi(self, var: IRVariable, basic_block: IRBasicBlock) -> bool:
         for inst in basic_block.instructions:
@@ -106,16 +102,16 @@ class MakeSSA(IRPass):
                         new_ops.append(op)
                         continue
 
-                    new_ops.append(IRVariable(op.name, version=self.stacks[op.name][-1]))
+                    new_ops.append(IRVariable(op.name, version=self.var_name_stacks[op.name][-1]))
 
                 inst.operands = new_ops
 
             if inst.output is not None:
                 v_name = inst.output.name
-                i = self.var_names[v_name]
+                i = self.var_name_counters[v_name]
 
-                self.stacks[v_name].append(i)
-                self.var_names[v_name] = i + 1
+                self.var_name_stacks[v_name].append(i)
+                self.var_name_counters[v_name] = i + 1
 
                 inst.output = IRVariable(v_name, version=i)
                 # note - after previous line, inst.output.name != v_name
@@ -129,7 +125,7 @@ class MakeSSA(IRPass):
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         inst.operands[i + 1] = IRVariable(
-                            inst.output.name, version=self.stacks[inst.output.name][-1]
+                            inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
                         )
 
         for bb in self.dom.dominated[basic_block]:
@@ -139,7 +135,7 @@ class MakeSSA(IRPass):
 
         for op_name in outs:
             # NOTE: each pop corresponds to an append above
-            self.stacks[op_name].pop()
+            self.var_name_stacks[op_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
         for inst in entry.instructions.copy():
