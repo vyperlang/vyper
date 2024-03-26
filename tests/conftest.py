@@ -172,8 +172,13 @@ CONCISE_NORMALIZERS = (_none_addr,)
 @pytest.fixture(scope="module")
 def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
-    # (note: 2**63 - 1 is max that evm allows)
+    # (note: 2**63 - 1 is max that py-evm allows)
     return 10**10
+
+
+@pytest.fixture(scope="module")
+def initial_balance():
+    return 0
 
 
 @pytest.fixture(scope="module")
@@ -185,8 +190,10 @@ def tester(gas_limit):
 
 
 @pytest.fixture(scope="module")
-def revm_env(gas_limit):
-    return RevmEnv(gas_limit, tracing=False)
+def revm_env(gas_limit, initial_balance):
+    revm = RevmEnv(gas_limit, tracing=False, block_number=1)
+    revm.set_balance(revm.deployer, initial_balance)
+    return revm
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -364,11 +371,16 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize, output_formats):
+def get_contract_pyevm(w3, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
+
+
+@pytest.fixture(scope="module")
+def get_contract(get_contract_pyevm):
+    return get_contract_pyevm
 
 
 @pytest.fixture(scope="module")

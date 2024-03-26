@@ -213,12 +213,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2**256 - 1, ""]
-    assert c.foo(7, 5) == [2**256 - 1, "world"]
-    assert c.foo(0, 5) == [2**256 - 1, "hello"]
-    assert c.foo(0, 1) == [2**256 - 1, "h"]
-    assert c.foo(11, 1) == [2**256 - 1, "d"]
+    assert c.foo(0, 12) == (2**256 - 1, "hello, world")
+    assert c.foo(12, 0) == (2**256 - 1, "")
+    assert c.foo(7, 5) == (2**256 - 1, "world")
+    assert c.foo(0, 5) == (2**256 - 1, "hello")
+    assert c.foo(0, 1) == (2**256 - 1, "h")
+    assert c.foo(11, 1) == (2**256 - 1, "d")
 
 
 def test_slice_storage_bytes32(get_contract):

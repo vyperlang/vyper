@@ -1,4 +1,6 @@
 import json
+import re
+from contextlib import contextmanager
 from typing import Callable, Tuple
 
 from eth_keys.datatypes import PrivateKey
@@ -7,29 +9,47 @@ from eth_tester.exceptions import TransactionFailed
 from eth_typing import HexAddress
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
-from pyrevm import EVM
+from pyrevm import EVM, BlockEnv, Env
 
-from tests.revm.abi import abi_encode
+from tests.revm.abi import abi_decode, abi_encode
 from tests.revm.abi_contract import ABIContract, ABIContractFactory, ABIFunction
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import CompilerData, Settings, compile_code
 from vyper.compiler.settings import OptimizationLevel
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, method_id
 
 
 class RevmEnv:
-    def __init__(self, gas_limit: int, tracing=False) -> None:
-        self.evm = EVM(gas_limit=gas_limit, tracing=tracing)
+    def __init__(self, gas_limit: int, tracing=False, block_number=1) -> None:
+        self.gas_limit = gas_limit
+        self.evm = EVM(
+            gas_limit=gas_limit,
+            tracing=tracing,
+            spec_id="Shanghai",
+            env=Env(
+                block=BlockEnv(number=block_number),
+            ),
+        )
         self.contracts: dict[HexAddress, ABIContract] = {}
         self._keys: list[PrivateKey] = get_default_account_keys()
+        self.deployer = self._keys[0].public_key.to_checksum_address()
 
-    @property
-    def accounts(self) -> list[HexAddress]:
-        return [k.public_key.to_checksum_address() for k in self._keys]
+    @contextmanager
+    def anchor(self):
+        snapshot_id = self.evm.snapshot()
+        try:
+            yield
+        finally:
+            self.evm.revert(snapshot_id)
 
-    @property
-    def deployer(self) -> HexAddress:
-        return self._keys[0].public_key.to_checksum_address()
+    @contextmanager
+    def sender(self, address: HexAddress):
+        original_deployer = self.deployer
+        self.deployer = address
+        try:
+            yield
+        finally:
+            self.deployer = original_deployer
 
     def get_balance(self, address: HexAddress) -> int:
         return self.evm.get_balance(address)
@@ -37,33 +57,53 @@ class RevmEnv:
     def set_balance(self, address: HexAddress, value: int):
         self.evm.set_balance(address, value)
 
+    @property
+    def accounts(self) -> list[HexAddress]:
+        return [key.public_key.to_checksum_address() for key in self._keys]
+
+    @property
+    def block_number(self) -> int:
+        return self.evm.env.block.number
+
+    def get_block(self, _=None) -> BlockEnv:
+        return self.evm.env.block
+
     def contract(self, abi, bytecode) -> "ABIContract":
         return ABIContractFactory.from_abi_dict(abi).at(self, bytecode)
 
     def execute_code(
         self,
         to_address: HexAddress,
-        sender: HexAddress,
-        data: bytes | None,
+        sender: HexAddress | None = None,
+        data: bytes | str = b"",
         value: int | None = None,
-        gas: int = 0,
+        gas: int | None = None,
         is_modifying: bool = True,
         # TODO: Remove the following. They are not used.
         transact: dict | None = None,
         contract=None,
     ):
-        gas = transact.get("gas", gas) if transact else gas
+        transact = transact or {}
+        data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         try:
             output = self.evm.message_call(
                 to=to_address,
-                caller=sender,
+                caller=transact.get("from", sender) or self.deployer,
                 calldata=data,
-                value=value,
-                gas=gas,
+                value=transact.get("value", value),
+                gas=transact.get("gas", gas) or self.gas_limit,
+                gas_price=transact.get("gasPrice"),
                 is_static=not is_modifying,
             )
             return bytes(output)
         except RuntimeError as e:
+            if match := re.match(r"Revert \{ gas_used: (\d+), output: 0x([0-9a-f]+) }", e.args[0]):
+                gas_used, output_str = match.groups()
+                output_bytes = bytes.fromhex(output_str)
+                # Check EIP838 error, with ABI Error(string)
+                if output_bytes[:4] == method_id("Error(string)"):
+                    (msg,) = abi_decode("(string)", output_bytes[4:])
+                    raise TransactionFailed(msg, gas_used) from e
             raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: HexAddress):

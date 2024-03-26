@@ -180,13 +180,13 @@ def baz() -> bool:
 
 
 @pytest.mark.parametrize("code", nonpayable_code)
-def test_nonpayable_runtime_assertion(w3, keccak, tx_failed, get_contract, code):
+def test_nonpayable_runtime_assertion(revm_env, keccak, tx_failed, get_contract, code):
     c = get_contract(code)
 
     c.foo(transact={"value": 0})
     sig = keccak("foo()".encode()).hex()[:10]
     with tx_failed():
-        w3.eth.send_transaction({"to": c.address, "data": sig, "value": 10**18})
+        revm_env.execute_code(c.address, data=sig, value=10**18)
 
 
 payable_code = [
@@ -341,7 +341,7 @@ def test_payable_runtime_assertion(get_contract, code):
     c.foo(transact={"value": 0})
 
 
-def test_payable_default_func_invalid_calldata(get_contract, w3):
+def test_payable_default_func_invalid_calldata(get_contract, revm_env):
     code = """
 @external
 def foo() -> bool:
@@ -354,10 +354,10 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
+    revm_env.execute_code(c.address, value=100, data="0x12345678")
 
 
-def test_nonpayable_default_func_invalid_calldata(get_contract, w3, tx_failed):
+def test_nonpayable_default_func_invalid_calldata(get_contract, revm_env, tx_failed):
     code = """
 @external
 @payable
@@ -370,12 +370,12 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    revm_env.execute_code(c.address, value=0, data="0x12345678")
     with tx_failed():
-        w3.eth.send_transaction({"to": c.address, "value": 100, "data": "0x12345678"})
+        revm_env.execute_code(c.address, value=100, data="0x12345678")
 
 
-def test_batch_nonpayable(get_contract, w3, tx_failed):
+def test_batch_nonpayable(get_contract, revm_env, tx_failed):
     code = """
 @external
 def foo() -> bool:
@@ -387,9 +387,9 @@ def __default__():
     """
 
     c = get_contract(code)
-    w3.eth.send_transaction({"to": c.address, "value": 0, "data": "0x12345678"})
+    revm_env.execute_code(c.address, value=0, data="0x12345678")
     data = bytes([1, 2, 3, 4])
     for i in range(5):
         calldata = "0x" + data[:i].hex()
         with tx_failed():
-            w3.eth.send_transaction({"to": c.address, "value": 100, "data": calldata})
+            revm_env.execute_code(c.address, value=100, data=calldata)

@@ -67,10 +67,10 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
 
     human_t = "((string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32)))"
     human_encoded = abi.encode(human_t, (human_tuple,))
-    assert c.abi_decode_struct(human_encoded) == [
+    assert c.abi_decode_struct(human_encoded) == (
         "foobar",
-        ["vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32],
-    ]
+        ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
+    )
 
 
 @pytest.mark.parametrize(
@@ -268,7 +268,7 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     c = get_contract(code)
     bs = [1, 2, 3]
     encoded = abi.encode("(uint256[])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_private_nested_dynarray(get_contract):
@@ -292,7 +292,7 @@ def foo(bs: Bytes[1696]) -> (uint256, DynArray[DynArray[DynArray[uint256, 3], 3]
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
     encoded = abi.encode("(uint256[][][])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_return(get_contract):

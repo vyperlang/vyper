@@ -50,7 +50,7 @@ def foo() -> Bytes[5]:
     assert c.foo() == b"moose"
 
 
-def test_multiple_levels(w3, get_contract_with_gas_estimation):
+def test_multiple_levels(revm_env, get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
@@ -78,10 +78,10 @@ def create_and_return_proxy(inp: address) -> address:
 
     _, preamble, callcode = eip1167_bytecode()
 
-    c3 = c2.create_and_return_proxy(c.address, call={})
+    c3 = c2.create_and_return_proxy(c.address)
     c2.create_and_return_proxy(c.address, transact={})
 
-    c3_contract_code = w3.to_bytes(w3.eth.get_code(c3))
+    c3_contract_code = revm_env.get_code(c3)
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)

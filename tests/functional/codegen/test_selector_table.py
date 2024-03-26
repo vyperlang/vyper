@@ -512,7 +512,9 @@ def generate_methods(draw, max_calldata_bytes):
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @pytest.mark.fuzzing
-def test_selector_table_fuzz(max_calldata_bytes, opt_level, w3, get_contract, tx_failed, get_logs):
+def test_selector_table_fuzz(
+    max_calldata_bytes, opt_level, revm_env, get_contract, tx_failed, get_logs
+):
     def abi_sig(func_id, calldata_words, n_default_args):
         params = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         params.extend(["uint256"] * n_default_args)
@@ -597,9 +599,8 @@ event _Return:
                     assert event.args.val == func_id
                 else:
                     hexstr = (method_id + argsdata).hex()
-                    txdata = {"to": c.address, "data": hexstr, "value": 1}
                     with tx_failed():
-                        w3.eth.send_transaction(txdata)
+                        revm_env.execute_code(c.address, data=hexstr, value=1)
 
                 # now do calldatasize check
                 # strip some bytes
@@ -610,15 +611,15 @@ event _Return:
                     # no args, hit default function
                     if default_fn_mutability == "":
                         with tx_failed():
-                            w3.eth.send_transaction(tx_params)
+                            revm_env.execute_code(**tx_params)
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        tx = w3.eth.send_transaction(tx_params)
+                        tx = revm_env.execute_code(**tx_params)
                         logs = get_logs(tx, c, "CalledDefault")
                         assert len(logs) == 1
                     else:
-                        tx = w3.eth.send_transaction(tx_params)
+                        tx = revm_env.execute_code(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
                         # so the logging is not tested.
@@ -629,9 +630,9 @@ event _Return:
                         # check default function reverts
                         tx_params["value"] = 1
                         with tx_failed():
-                            w3.eth.send_transaction(tx_params)
+                            revm_env.execute_code(**tx_params)
                 else:
                     with tx_failed():
-                        w3.eth.send_transaction(tx_params)
+                        revm_env.execute_code(**tx_params)
 
     _test()

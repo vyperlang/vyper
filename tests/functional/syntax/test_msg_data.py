@@ -73,7 +73,7 @@ def foo() -> (uint256, Bytes[4], uint256):
 """
     contract = get_contract(code)
 
-    assert contract.foo() == [2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1]
+    assert contract.foo() == (2**256 - 1, bytes(keccak(text="foo()")[:4]), 2**256 - 1)
 
 
 def test_assignment_to_storage(w3, get_contract, keccak):

@@ -3,7 +3,7 @@ import pytest
 from vyper.exceptions import TypeMismatch
 
 
-def test_basic_bytes_keys(w3, get_contract):
+def test_basic_bytes_keys(revm_env, get_contract):
     code = """
 mapped_bytes: HashMap[Bytes[5], int128]
 

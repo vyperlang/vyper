@@ -281,7 +281,7 @@ def test_safeBatchTransferFrom_balanceOf_batch(erc1155, w3, tx_failed):  # test_
     with tx_failed():
         erc1155.balanceOfBatch([a2, a2, a2], [21, 22], transact={"from": owner})
 
-    assert erc1155.balanceOfBatch([a2, a2, a2], [21, 22, 23]) == [1, 1, 1]
+    assert erc1155.balanceOfBatch([a2, a2, a2], [21, 22, 23]) == (1, 1, 1)
     assert erc1155.balanceOf(a1, 21) == 0
 
 
@@ -316,7 +316,7 @@ def test_mint_batch_burn_batch(erc1155, w3, tx_failed):
     # mint NFTs 11-20
 
     # check the balance
-    assert erc1155.balanceOfBatch([a3, a3, a3], [11, 12, 13]) == [1, 1, 1]
+    assert erc1155.balanceOfBatch([a3, a3, a3], [11, 12, 13]) == (1, 1, 1)
 
     # try and burn a batch we don't control
     with tx_failed():
@@ -337,13 +337,13 @@ def test_mint_batch_burn_batch(erc1155, w3, tx_failed):
     # burn existing
     erc1155.burnBatch([11, 12], [1, 1], transact={"from": a3})
 
-    assert erc1155.balanceOfBatch([a3, a3, a3], [11, 12, 13]) == [0, 0, 1]
+    assert erc1155.balanceOfBatch([a3, a3, a3], [11, 12, 13]) == (0, 0, 1)
 
     # burn again, should revert
     with tx_failed():
         erc1155.burnBatch([11, 12], [1, 1], transact={"from": a3})
 
-    assert erc1155.balanceOfBatch([a3, a3, a3], [1, 2, 3]) == [0, 0, 0]
+    assert erc1155.balanceOfBatch([a3, a3, a3], [1, 2, 3]) == (0, 0, 0)
 
 
 def test_approval_functions(erc1155, w3, tx_failed):  # test_mint_batch

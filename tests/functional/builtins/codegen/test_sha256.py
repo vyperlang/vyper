@@ -29,7 +29,7 @@ def bar() -> (bytes32 , bytes32):
     """
     c = get_contract_with_gas_estimation(code)
     h = hashlib.sha256(b"test").digest()
-    assert c.bar() == [h, h]
+    assert c.bar() == (h, h)
 
 
 def test_sha256_bytes32(get_contract_with_gas_estimation):

@@ -1,8 +1,8 @@
-from collections import defaultdict, namedtuple
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, make_dataclass
 from functools import cached_property
 from os.path import basename
-from typing import TYPE_CHECKING, Any, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 from warnings import warn
 
 from eth_typing import ChecksumAddress, HexAddress
@@ -46,16 +46,28 @@ class ABILogTopic:
     def name(self) -> str:
         return self._abi.get("name") or self._abi["type"]
 
+    @property
+    def indexed_inputs(self) -> list[dict]:
+        return [item for item in self._abi["inputs"] if item["indexed"]]
+
+    @property
+    def unindexed_inputs(self) -> list[dict]:
+        return [item for item in self._abi["inputs"] if not item["indexed"]]
+
     @cached_property
-    def argument_types(self) -> list:
-        return [_abi_from_json(i) for i in self._abi["inputs"]]
+    def indexed_types(self) -> list[str]:
+        return [_abi_from_json(i) for i in self.indexed_inputs]
+
+    @cached_property
+    def unindexed_types(self) -> list[str]:
+        return [_abi_from_json(i) for i in self.unindexed_inputs]
 
     @property
     def signature(self) -> str:
-        return f"({_format_abi_type(self.argument_types)})"
+        return f"({_format_abi_type(self.indexed_types + self.unindexed_types)})"
 
     def __repr__(self) -> str:
-        return f"ABI {self._contract_name}.{self.signature} (0x{self.topic_id.hex()})"
+        return f"ABITopic {self._contract_name}.{self.signature} (0x{self.topic_id.hex()})"
 
     def __str__(self) -> str:
         return repr(self)
@@ -67,14 +79,26 @@ class ABILogTopic:
             event=self.name,
         )
 
-    @property
-    def data_type(self) -> Type[tuple]:
-        return namedtuple(self.name, [item["name"] for item in self._abi["inputs"]])
+    @cached_property
+    def data_type(self) -> type:
+        names = [
+            (item["name"], item["type"]) for item in self.indexed_inputs + self.unindexed_inputs
+        ]
+        return make_dataclass(self.name, names)
 
     def _parse_args(self, log: Log) -> tuple:
-        _, data = log.data
-        decoded = abi_decode(self.signature, data)
-        return self.data_type(*decoded)
+        topics, data = log.data
+        assert len(topics) == 1 + len(self.indexed_inputs), "Invalid log topic count"
+        indexed = [
+            t if self._is_hashed(typ) else abi_decode(f"{_format_abi_type([typ])}", t)
+            for typ, t in zip(self.indexed_types, topics[1:])
+        ]
+        decoded = abi_decode(f"({_format_abi_type(self.unindexed_types)})", data)
+        return self.data_type(*indexed, *decoded)
+
+    @staticmethod
+    def _is_hashed(typ):
+        return typ in ("bytes", "string", "tuple") or typ.endswith("[]")
 
 
 class ABIFunction:
@@ -144,6 +168,11 @@ class ABIFunction:
             for abi_type, arg in zip(self.argument_types, parsed_args)
         )
 
+    def prepare_calldata(self, *args, **kwargs) -> bytes:
+        """Prepare the call data for the function call."""
+        abi_args = self._merge_kwargs(*args, **kwargs)
+        return self.method_id + abi_encode(self.signature, abi_args)
+
     def _merge_kwargs(self, *args, **kwargs) -> list:
         """Merge positional and keyword arguments into a single list."""
         if len(kwargs) + len(args) != self.argument_count:
@@ -158,7 +187,7 @@ class ABIFunction:
             error = f"Missing keyword argument {e} for `{self.signature}`. Passed {args} {kwargs}"
             raise TypeError(error)
 
-    def __call__(self, *args, value=0, gas=None, sender=None, transact=None, **kwargs):
+    def __call__(self, *args, value=0, gas=None, sender=None, transact=None, call=None, **kwargs):
         """Calls the function with the given arguments based on the ABI contract."""
         if not self.contract or not self.contract.env:
             raise Exception(f"Cannot call {self} without deploying contract.")
@@ -166,16 +195,15 @@ class ABIFunction:
         if sender is None:
             sender = self.contract.env.deployer
 
-        args = self._merge_kwargs(*args, **kwargs)
         computation = self.contract.env.execute_code(
             to_address=self.contract.address,
             sender=sender,
-            data=self.method_id + abi_encode(self.signature, args),
+            data=self.prepare_calldata(*args, **kwargs),
             value=value,
             gas=gas,
             is_modifying=self.is_mutable,
             contract=self.contract,
-            transact=transact,
+            transact={**(transact or {}), **(call or {})},
         )
 
         match self.contract.marshal_to_python(computation, self.return_type):
@@ -184,7 +212,6 @@ class ABIFunction:
             case (single,):
                 return single
             case multiple:
-                # this should return a tuple, but for backwards compatibility we return a list
                 return multiple
 
 
@@ -327,7 +354,7 @@ class ABIContract:
         warn_str = "" if self._bytecode else " (WARNING: no bytecode at this address!)"
         return f"<{self._name} interface at {self.address}{warn_str}>{file_str}"
 
-    def parse_log(self, log: Log):
+    def parse_log(self, log: Log) -> ABILog:
         """
         Parse a log entry into an ABILog object.
         :param log: the log entry to parse
@@ -384,10 +411,8 @@ def _abi_from_json(abi: dict) -> str:
     """
     if "components" in abi:
         components = ",".join([_abi_from_json(item) for item in abi["components"]])
-        if abi["type"] == "tuple":
-            return f"({components})"
-        if abi["type"] == "tuple[]":
-            return f"({components})[]"
+        if abi["type"].startswith("tuple"):
+            return f"({components}){abi['type'][5:]}"
         raise ValueError("Components found in non-tuple type " + abi["type"])
 
     return abi["type"]

@@ -1,4 +1,5 @@
 import itertools
+from typing import Any, Callable
 
 import pytest
 
@@ -880,7 +881,7 @@ def test_values(
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
+    assert c.test_values([[1, 2]], 3) == ([[1, 2]], 3)
 
 
 def test_2d_array_input_2(get_contract):
@@ -901,7 +902,7 @@ def test_values(
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
+    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == ([[1, 2], [3, 4], [5, 6]], "abcdef")
 
 
 def test_nested_index_of_returned_array(get_contract):
@@ -936,7 +937,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 def test_nested_calls_inside_arrays_with_index_access(get_contract):
@@ -959,7 +960,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 append_pop_tests = [
@@ -1011,7 +1012,7 @@ def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
         self.my_array.append(x)
     return self.my_array, self.my_array.pop()
     """,
-        lambda xs: None if len(xs) == 0 else [xs, xs[-1]],
+        lambda xs: None if len(xs) == 0 else (xs, xs[-1]),
     ),
     # check order of evaluation.
     (
@@ -1023,7 +1024,7 @@ def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
         self.my_array.append(x)
     return self.my_array.pop(), self.my_array
     """,
-        lambda xs: None if len(xs) == 0 else [xs[-1], xs[:-1]],
+        lambda xs: None if len(xs) == 0 else (xs[-1], xs[:-1]),
     ),
     # test memory arrays
     (
@@ -1196,7 +1197,7 @@ def test_append_pop(get_contract, tx_failed, code, check_result, test_data):
         assert c.foo(test_data) == expected_result
 
 
-append_pop_complex_tests = [
+append_pop_complex_tests: list[tuple[str, Callable[[Any], Any]]] = [
     (
         """
 @external
@@ -1226,7 +1227,7 @@ def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
     self.my_array.append(x)
     return self.my_array, self.my_array.pop()
     """,
-        lambda x: [[x], x],
+        lambda x: ([x], x),
     ),
     (
         """
@@ -1236,7 +1237,7 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
     self.my_array.append(x)
     return self.my_array.pop(), self.my_array
     """,
-        lambda x: [x, []],
+        lambda x: (x, []),
     ),
     (
         """
@@ -1310,7 +1311,7 @@ def foo() -> (uint256, DynArray[uint256, 3], DynArray[uint256, 2]):
     return 666, x, [88, self._foo2()[0]]
     """
     c = get_contract(code)
-    assert c.foo() == [666, [1, 2, 3], [88, 12]]
+    assert c.foo() == (666, [1, 2, 3], [88, 12])
 
 
 def test_list_of_structs_arg(get_contract):
