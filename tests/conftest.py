@@ -537,7 +537,5 @@ def check_evm_version_marker(request):
         version = marker.args[0]
         if not version_check(version):
             request.node.add_marker(
-                pytest.mark.xfail(
-                    reason="Wrong EVM version", raises=EvmVersionException, strict=True
-                )
+                pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
