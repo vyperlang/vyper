@@ -151,8 +151,8 @@ def test(addr: address) -> (int128, address, String[10]):
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", "random"]
-    assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", "random"]
+    assert c1.out_literals() == (1, "0x0000000000000000000000000000000000000123", "random")
+    assert c2.test(c1.address) == (1, "0x0000000000000000000000000000000000000123", "random")
 
 
 def test_default_arg_string(get_contract_with_gas_estimation):

@@ -60,14 +60,14 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
     assert tuple(c.abi_decode(encoded)) == (TEST_ADDR, -1, True, Decimal("-123.4"), test_bytes32)
 
     test_bytes32 = b"".join(chr(i).encode("utf-8") for i in range(32))
-    human_tuple = (
+    human_tuple = [
         "foobar",
         ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
-    )
-    args = tuple([human_tuple[0]] + list(human_tuple[1]))
+    ]
+
     human_t = "((string,(string,address,int128,bool,fixed168x10,uint256[3],bytes32)))"
     human_encoded = abi.encode(human_t, (human_tuple,))
-    assert tuple(c.abi_decode_struct(human_encoded)) == (
+    assert c.abi_decode_struct(human_encoded) == (
         "foobar",
         ("vyper", TEST_ADDR, 123, True, Decimal("123.4"), [123, 456, 789], test_bytes32),
     )
@@ -86,9 +86,7 @@ def abi_decode_struct(x: Bytes[544]) -> Human:
         ([123, 456, 789], 160, "DynArray[uint256, 3]", "(uint256[])", True),
     ],
 )
-def test_abi_decode_single(
-    w3, get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple
-):
+def test_abi_decode_single(get_contract, expected, input_len, output_typ, abi_typ, unwrap_tuple):
     contract = f"""
 @external
 def foo(x: Bytes[{input_len}]) -> {output_typ}:
@@ -270,7 +268,7 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     c = get_contract(code)
     bs = [1, 2, 3]
     encoded = abi.encode("(uint256[])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_private_nested_dynarray(get_contract):
@@ -294,7 +292,7 @@ def foo(bs: Bytes[1696]) -> (uint256, DynArray[DynArray[DynArray[uint256, 3], 3]
         [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
     ]
     encoded = abi.encode("(uint256[][][])", (bs,))
-    assert c.foo(encoded) == [2**256 - 1, bs]
+    assert c.foo(encoded) == (2**256 - 1, bs)
 
 
 def test_abi_decode_return(get_contract):

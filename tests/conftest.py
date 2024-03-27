@@ -16,6 +16,8 @@ from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
 import vyper.evm.opcodes as evm
+from tests.revm.abi_contract import ABIContract
+from tests.revm.revm_env import RevmEnv
 from tests.utils import working_directory
 from vyper import compiler
 from vyper.ast.grammar import parse_vyper_source
@@ -67,6 +69,13 @@ def pytest_addoption(parser):
         help="set evm version",
     )
 
+    parser.addoption(
+        "--evm-backend",
+        choices=["py-evm", "revm"],
+        default="py-evm",
+        help="set evm backend",
+    )
+
 
 @pytest.fixture(scope="module")
 def output_formats():
@@ -99,6 +108,7 @@ def evm_version(pytestconfig):
     # this should get overridden by anchor_evm_version,
     # but set it anyway
     evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
+    return evm_version_str
 
 
 @pytest.fixture
@@ -168,13 +178,30 @@ CONCISE_NORMALIZERS = (_none_addr,)
 
 
 @pytest.fixture(scope="module")
-def tester():
+def gas_limit():
     # set absurdly high gas limit so that london basefee never adjusts
-    # (note: 2**63 - 1 is max that evm allows)
-    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": 10**10})
+    # (note: 2**63 - 1 is max that py-evm allows)
+    return 10**10
+
+
+@pytest.fixture(scope="module")
+def initial_balance():
+    return 0
+
+
+@pytest.fixture(scope="module")
+def tester(gas_limit):
+    custom_genesis = PyEVMBackend._generate_genesis_params(overrides={"gas_limit": gas_limit})
     custom_genesis["base_fee_per_gas"] = 0
     backend = PyEVMBackend(genesis_parameters=custom_genesis)
     return EthereumTester(backend=backend)
+
+
+@pytest.fixture(scope="module")
+def revm_env(gas_limit, initial_balance, evm_version):
+    revm = RevmEnv(gas_limit, tracing=False, block_number=1, evm_version=evm_version)
+    revm.set_balance(revm.deployer, initial_balance)
+    return revm
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -352,9 +379,22 @@ def _get_contract(
 
 
 @pytest.fixture(scope="module")
-def get_contract(w3, optimize, output_formats):
+def get_contract_pyevm(w3, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
         return _get_contract(w3, source_code, optimize, output_formats, *args, **kwargs)
+
+    return fn
+
+
+@pytest.fixture(scope="module")
+def get_contract(get_contract_pyevm):
+    return get_contract_pyevm
+
+
+@pytest.fixture(scope="module")
+def get_revm_contract(revm_env, optimize, output_formats):
+    def fn(source_code, *args, **kwargs):
+        return revm_env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
@@ -445,6 +485,24 @@ def deploy_blueprint_for(w3, optimize, output_formats):
     return deploy_blueprint_for
 
 
+@pytest.fixture(scope="module")
+def deploy_blueprint_revm(revm_env, optimize, output_formats):
+    def deploy_blueprint_revm(source_code, *args, **kwargs):
+        return revm_env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
+
+    return deploy_blueprint_revm
+
+
+@pytest.fixture(scope="module")
+def get_logs_revm(revm_env):
+    def get_logs(tx_result, c: ABIContract, event_name):
+        logs = revm_env.evm.result.logs
+        parsed_logs = [c.parse_log(log) for log in logs if c.address == log.address]
+        return [log for log in parsed_logs if log.event == event_name]
+
+    return get_logs
+
+
 # TODO: this should not be a fixture.
 # remove me and replace all uses with `with pytest.raises`.
 @pytest.fixture
@@ -484,8 +542,7 @@ def foo(s: {ret_type}) -> {ret_type}:
     self.counter += 1
     return s
     """
-        contract = get_contract(code)
-        return contract
+        return get_contract(code)
 
     return generate
 

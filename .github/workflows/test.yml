@@ -64,12 +64,14 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: [["3.11", "311"]]
         opt-mode: ["gas", "none", "codesize"]
         evm-version: [shanghai]
         debug: [true, false]
         memorymock: [false]
+        evm-backend: [revm]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
         include:
@@ -113,7 +115,7 @@ jobs:
             debug: false
             evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-${{ matrix.evm-backend }}
 
     steps:
     - uses: actions/checkout@v4
@@ -139,6 +141,7 @@ jobs:
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
+          --evm-backend ${{ matrix.evm-backend }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           --cov-branch \

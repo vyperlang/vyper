@@ -4,7 +4,7 @@ INITIAL_VALUE = 4
 
 
 @pytest.fixture
-def storage_contract(w3, get_contract):
+def storage_contract(revm_env, get_contract):
     with open("examples/storage/storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract
@@ -17,8 +17,8 @@ def test_initial_state(storage_contract):
     assert storage_contract.storedData() == INITIAL_VALUE
 
 
-def test_set(w3, storage_contract):
-    k0 = w3.eth.accounts[0]
+def test_set(revm_env, storage_contract):
+    k0 = revm_env.accounts[0]
 
     # Let k0 try to set the value to 10
     storage_contract.set(10, transact={"from": k0})

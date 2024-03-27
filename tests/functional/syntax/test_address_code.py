@@ -1,8 +1,9 @@
+import json
 from typing import Type
 
 import pytest
 from eth_tester.exceptions import TransactionFailed
-from web3 import Web3
+from hexbytes import HexBytes
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
@@ -15,30 +16,29 @@ PRECOMPILED_BYTECODE_RUNTIME = """0x600436101561000d57610035565b60046000601c3760
 PRECOMPILED = bytes.fromhex(PRECOMPILED_BYTECODE_RUNTIME[2:])
 
 
-def _deploy_precompiled_contract(w3: Web3):
-    Precompiled = w3.eth.contract(abi=PRECOMPILED_ABI, bytecode=PRECOMPILED_BYTECODE)
-    tx_hash = Precompiled.constructor().transact()
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    address = tx_receipt["contractAddress"]
-    return w3.eth.contract(address=address, abi=PRECOMPILED_ABI)
+@pytest.fixture
+def deploy_precompiled_contract(revm_env):
+    return lambda: revm_env.deploy(json.loads(PRECOMPILED_ABI), HexBytes(PRECOMPILED_BYTECODE))
 
 
 @pytest.mark.parametrize(
     ("start", "length", "expected"), [(0, 5, PRECOMPILED[:5]), (5, 10, PRECOMPILED[5:][:10])]
 )
-def test_address_code_slice(start: int, length: int, expected: bytes, w3: Web3, get_contract):
+def test_address_code_slice(
+    start: int, length: int, expected: bytes, deploy_precompiled_contract, get_contract
+):
     code = f"""
 @external
 def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = _deploy_precompiled_contract(w3)
+    precompiled_contract = deploy_precompiled_contract()
     actual = contract.code_slice(precompiled_contract.address)
     assert actual == expected
 
 
-def test_address_code_runtime_error_slice_too_long(w3: Web3, get_contract):
+def test_address_code_runtime_error_slice_too_long(deploy_precompiled_contract, get_contract):
     start = len(PRECOMPILED) - 5
     length = 10
     code = f"""
@@ -47,7 +47,7 @@ def code_slice(x: address) -> Bytes[{length}]:
     return slice(x.code, {start}, {length})
 """
     contract = get_contract(code)
-    precompiled_contract = _deploy_precompiled_contract(w3)
+    precompiled_contract = deploy_precompiled_contract()
     with pytest.raises(TransactionFailed):
         contract.code_slice(precompiled_contract.address)
 

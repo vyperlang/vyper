@@ -500,8 +500,8 @@ def e() -> X:
     c = get_contract_with_gas_estimation(code)
 
     assert c.a() == 0
-    assert c.b() == [0] * 5
-    assert c.c() == [[0] * 5] * 5
+    assert c.b() == (0) * 5
+    assert c.c() == ([0] * 5) * 5
     assert c.d() == b""
     assert c.e() == (0, "0x" + "0" * 40, 0x0, [0])
 
@@ -588,11 +588,11 @@ def delete():
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.get() == [0, 0]
+    assert c.get() == (0, 0)
     c.set(transact={})
-    assert c.get() == [333, 444]
+    assert c.get() == (333, 444)
     c.delete(transact={})
-    assert c.get() == [0, 0]
+    assert c.get() == (0, 0)
 
 
 @pytest.mark.parametrize(
@@ -622,20 +622,20 @@ def test_clear_typecheck(contract, get_contract, assert_compile_failed):
 @pytest.mark.parametrize(
     "a,b,expected",
     [
-        ("empty(Bytes[65])", "b'hello'", [b"hello", b""]),
-        ("b'hello'", "empty(Bytes[33])", [b"", b"hello"]),
+        ("empty(Bytes[65])", "b'hello'", (b"hello", b"")),
+        ("b'hello'", "empty(Bytes[33])", (b"", b"hello")),
         (
             "empty(Bytes[65])",
             "b'thirty three bytes long baby!!!!!'",
-            [b"thirty three bytes long baby!!!!!", b""],
+            (b"thirty three bytes long baby!!!!!", b""),
         ),
         (
             "b'thirty three bytes long baby!!!aathirty three bytes long baby!!!a'",
             "b'thirty three bytes long baby!!!aa'",
-            [
+            (
                 b"thirty three bytes long baby!!!aa",
                 b"thirty three bytes long baby!!!aathirty three bytes long baby!!!a",
-            ],
+            ),
         ),
     ],
 )
@@ -664,7 +664,7 @@ def bar(a: address) -> (uint256, Bytes[33], Bytes[65], uint256):
     c1 = get_contract(code_a)
     c2 = get_contract(code_b)
 
-    assert c2.bar(c1.address) == [12] + expected + [42]
+    assert c2.bar(c1.address) == (12, *expected, 42)
 
 
 def test_empty_array_in_event_logging(get_contract, get_logs):

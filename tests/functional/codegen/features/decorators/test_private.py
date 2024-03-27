@@ -1,4 +1,5 @@
 import pytest
+from eth_utils import to_checksum_address, to_wei
 
 
 def test_private_test(get_contract_with_gas_estimation):
@@ -316,8 +317,8 @@ def test2(a: bytes32) -> (bytes32, uint256, int128):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
-    assert c.test2(b"test" + b"\x00" * 28) == [b"test" + 28 * b"\x00", 1000, -1200]
+    assert c.test(b"test" + b"\x00" * 28) == (b"test" + 28 * b"\x00", 1000, -1200)
+    assert c.test2(b"test" + b"\x00" * 28) == (b"test" + 28 * b"\x00", 1000, -1200)
 
 
 def test_private_return_tuple_bytes(get_contract_with_gas_estimation):
@@ -363,10 +364,10 @@ def test4(a: Bytes[40]) -> (int128, Bytes[100], Bytes[100]):
 
     c = get_contract_with_gas_estimation(code)
 
-    assert c.test(11, b"jill") == [14, b"badabing:jill_one", b"jill_one"]
-    assert c.test2(b"jack") == [6, b"badabing:jack_one"]
-    assert c.test3(b"hill") == [10, b"hill", b"hill_two"]
-    assert c.test4(b"bucket") == [10, b"bucket", b"bucket_one_two"]
+    assert c.test(11, b"jill") == (14, b"badabing:jill_one", b"jill_one")
+    assert c.test2(b"jack") == (6, b"badabing:jack_one")
+    assert c.test3(b"hill") == (10, b"hill", b"hill_two")
+    assert c.test4(b"bucket") == (10, b"bucket", b"bucket_one_two")
 
 
 def test_private_return_list_types(get_contract_with_gas_estimation):
@@ -389,7 +390,7 @@ def test() -> int128[4]:
     assert c.test() == [0, 1, 0, 1]
 
 
-def test_private_payable(w3, get_contract_with_gas_estimation):
+def test_private_payable(revm_env, get_contract_with_gas_estimation):
     code = """
 @internal
 def _send_it(a: address, _value: uint256):
@@ -408,16 +409,16 @@ def __default__():
 
     c = get_contract_with_gas_estimation(code)
 
-    w3.eth.send_transaction({"to": c.address, "value": w3.to_wei(1, "ether")})
-    assert w3.eth.get_balance(c.address) == w3.to_wei(1, "ether")
-    a3 = w3.eth.accounts[2]
-    assert w3.eth.get_balance(a3) == w3.to_wei(1000000, "ether")
-    c.test(True, a3, w3.to_wei(0.05, "ether"), transact={})
-    assert w3.eth.get_balance(a3) == w3.to_wei(1000000.05, "ether")
-    assert w3.eth.get_balance(c.address) == w3.to_wei(0.95, "ether")
+    revm_env.execute_code(c.address, value=to_wei(1, "ether"))
+    assert revm_env.get_balance(c.address) == to_wei(1, "ether")
+    a3 = revm_env.accounts[2]
+    revm_env.set_balance(a3, to_wei(1000000, "ether"))
+    c.test(True, a3, to_wei(0.05, "ether"), transact={})
+    assert revm_env.get_balance(a3) == to_wei(1000000.05, "ether")
+    assert revm_env.get_balance(c.address) == to_wei(0.95, "ether")
 
 
-def test_private_msg_sender(get_contract, w3):
+def test_private_msg_sender(get_contract, revm_env):
     code = """
 event Addr:
     addr: address
@@ -442,11 +443,11 @@ def whoami() -> address:
     c = get_contract(code)
     assert c.i_am_me()
 
-    addr = w3.eth.accounts[1]
-    txhash = c.whoami(transact={"from": addr})
-    receipt = w3.eth.wait_for_transaction_receipt(txhash)
-    logged_addr = w3.to_checksum_address(receipt.logs[0].data[-20:])
-    assert logged_addr == addr, "oh no"
+    addr = revm_env.accounts[1]
+    c.whoami(transact={"from": addr})
+    (log,) = revm_env.evm.result.logs
+    _, data = log.data
+    assert to_checksum_address(data[-20:]) == addr, "oh no"
 
 
 def test_nested_static_params_only(get_contract, tx_failed):
@@ -585,7 +586,7 @@ def foo(a: int128) -> (int128, int128):
     return self._test(a)
     """,
         (11,),
-        [13, 2],
+        (13, 2),
     ),
     (
         """
@@ -636,7 +637,7 @@ def foo() -> (uint256[4], uint256):
     return out.many, out.one
     """,
         (),
-        [[1, 2, 3, 4], 5],
+        ([1, 2, 3, 4], 5),
     ),
     (
         """
@@ -649,7 +650,7 @@ def foo() -> (uint256[2], uint256[2], uint256[2]):
     return self._foo()[0], [3, 4], self._foo()[1]
     """,
         (),
-        [[1, 2], [3, 4], [5, 6]],
+        ([1, 2], [3, 4], [5, 6]),
     ),
     (
         """
@@ -662,7 +663,7 @@ def foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3])
     return self._foo(a, b, c)
     """,
         (6, [7, 5, 8], [1, 2, 3]),
-        [[1, 2, 3], 4, [5, 6, 7]],
+        ([1, 2, 3], 4, [5, 6, 7]),
     ),
     (
         """
@@ -675,7 +676,7 @@ def foo(a: int128, b: int128[3], c: int128[3]) -> (int128[3], int128, int128[3])
     return c, 4, self._foo(a, b, c)[2]
     """,
         (6, [7, 5, 8], [1, 2, 3]),
-        [[1, 2, 3], 4, [5, 6, 7]],
+        ([1, 2, 3], 4, [5, 6, 7]),
     ),
 ]
 

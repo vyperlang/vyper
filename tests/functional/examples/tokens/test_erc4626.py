@@ -25,8 +25,8 @@ def test_asset(vault, token):
     assert vault.asset() == token.address
 
 
-def test_max_methods(w3, vault):
-    a = w3.eth.accounts[0]
+def test_max_methods(revm_env, vault):
+    a = revm_env.accounts[0]
 
     assert vault.maxDeposit(a) == 2**256 - 1
     assert vault.maxMint(a) == 2**256 - 1
@@ -34,8 +34,8 @@ def test_max_methods(w3, vault):
     assert vault.maxRedeem(a) == 2**256 - 1
 
 
-def test_preview_methods(w3, token, vault):
-    a = w3.eth.accounts[0]
+def test_preview_methods(revm_env, token, vault):
+    a = revm_env.accounts[0]
 
     assert vault.totalAssets() == 0
     assert vault.convertToAssets(10**18) == 0  # no assets

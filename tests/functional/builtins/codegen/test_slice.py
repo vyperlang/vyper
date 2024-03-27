@@ -153,7 +153,9 @@ def do_slice(inp: Bytes[{length_bound}], start: uint256, length: uint256) -> Byt
     """
 
     def _get_contract():
-        return get_contract(code, bytesdata, override_opt_level=opt_level)
+        if "__init__" in code:
+            return get_contract(code, bytesdata, override_opt_level=opt_level)
+        return get_contract(code, override_opt_level=opt_level)
 
     # length bound is the container size; input_bound is the bound on the input
     # (which can be different, if the input is a literal)
@@ -211,12 +213,12 @@ def foo(x: uint256, y: uint256) -> (uint256, String[12]):
     return dont_clobber_me, self.bytez
     """
     c = get_contract(code)
-    assert c.foo(0, 12) == [2**256 - 1, "hello, world"]
-    assert c.foo(12, 0) == [2**256 - 1, ""]
-    assert c.foo(7, 5) == [2**256 - 1, "world"]
-    assert c.foo(0, 5) == [2**256 - 1, "hello"]
-    assert c.foo(0, 1) == [2**256 - 1, "h"]
-    assert c.foo(11, 1) == [2**256 - 1, "d"]
+    assert c.foo(0, 12) == (2**256 - 1, "hello, world")
+    assert c.foo(12, 0) == (2**256 - 1, "")
+    assert c.foo(7, 5) == (2**256 - 1, "world")
+    assert c.foo(0, 5) == (2**256 - 1, "hello")
+    assert c.foo(0, 1) == (2**256 - 1, "h")
+    assert c.foo(11, 1) == (2**256 - 1, "d")
 
 
 def test_slice_storage_bytes32(get_contract):

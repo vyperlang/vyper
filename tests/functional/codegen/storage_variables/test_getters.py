@@ -94,7 +94,7 @@ def __init__():
 
     contract = get_contract(code)
 
-    for item in contract._classic_contract.abi:
+    for item in contract.abi:
         if item["type"] == "constructor":
             continue
         assert item["stateMutability"] == "view"

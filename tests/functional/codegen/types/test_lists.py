@@ -423,7 +423,7 @@ def test_values(arr: int128[2][1], i: int128) -> (int128[2][1], int128):
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2]], 3) == [[[1, 2]], 3]
+    assert c.test_values([[1, 2]], 3) == ([[1, 2]], 3)
 
 
 def test_2d_array_input_2(get_contract):
@@ -438,7 +438,7 @@ def test_values(arr: int128[2][3], s: String[10]) -> (int128[2][3], String[10]):
     """
 
     c = get_contract(code)
-    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == [[[1, 2], [3, 4], [5, 6]], "abcdef"]
+    assert c.test_values([[1, 2], [3, 4], [5, 6]], "abcdef") == ([[1, 2], [3, 4], [5, 6]], "abcdef")
 
 
 def test_nested_index_of_returned_array(get_contract):
@@ -473,7 +473,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 def test_nested_calls_inside_arrays_with_index_access(get_contract):
@@ -493,7 +493,7 @@ def foo() -> (uint256, uint256, uint256, uint256, uint256):
     """
 
     c = get_contract(code)
-    assert c.foo() == [1, 2, 3, 4, 5]
+    assert c.foo() == (1, 2, 3, 4, 5)
 
 
 def test_so_many_things_you_should_never_do(get_contract):
@@ -514,7 +514,7 @@ def foo() -> (uint256, uint256[3], uint256[2]):
     return 666, x, [88, self._foo2()[0]]
     """
     c = get_contract(code)
-    assert c.foo() == [666, [1, 2, 3], [88, 12]]
+    assert c.foo() == (666, [1, 2, 3], [88, 12])
 
 
 def test_list_of_dynarray(get_contract):

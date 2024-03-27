@@ -69,7 +69,6 @@ def bar(arg1: address) -> int128:
     c2 = get_contract(contract_2)
 
     assert c2.bar(c.address) == lucky_number
-    print("Successfully executed a complicated external contract call")
 
 
 @pytest.mark.parametrize("length", [3, 32, 33, 64])
@@ -168,8 +167,8 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
 """
 
     c2 = get_contract(contract_2)
-    assert c.array() == [b"dog", 255, b"cat"]
-    assert c2.get_array(c.address) == [b"dog", 255, b"cat"]
+    assert c.array() == (b"dog", 255, b"cat")
+    assert c2.get_array(c.address) == (b"dog", 255, b"cat")
 
 
 @pytest.mark.parametrize("a,b", [(18, 7), (18, 18), (19, 6), (64, 6), (7, 19)])
@@ -197,7 +196,7 @@ def get_array(arg1: address) -> (Bytes[{a}], int128, Bytes[{b}]):
 """
 
     c2 = get_contract(contract_2)
-    assert c.array() == [b"nineteen characters", 255, b"seven!!"]
+    assert c.array() == (b"nineteen characters", 255, b"seven!!")
     with tx_failed():
         c2.get_array(c.address)
 
@@ -225,7 +224,7 @@ def get_array(arg1: address) -> (Bytes[30], int128, Bytes[3]):
 """
 
     c2 = get_contract(contract_2)
-    assert c.array() == [b"nineteen characters", 255, b"seven!!"]
+    assert c.array() == (b"nineteen characters", 255, b"seven!!")
     with tx_failed():
         c2.get_array(c.address)
 
@@ -301,8 +300,8 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [255, b"dog", 255]
-    assert c2.bar(c.address) == [255, b"dog", 255]
+    assert c.foo() == (255, b"dog", 255)
+    assert c2.bar(c.address) == (255, b"dog", 255)
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])
@@ -329,7 +328,7 @@ def bar(arg1: address) -> (uint8, Bytes[3], uint8):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [int(f"{(2**a)-1}"), b"dog", int(f"{(2**b)-1}")]
+    assert c.foo() == (int(f"{(2**a)-1}"), b"dog", int(f"{(2**b)-1}"))
     with tx_failed():
         c2.bar(c.address)
 
@@ -358,7 +357,7 @@ def bar(arg1: address) -> (uint{a}, Bytes[3], uint{b}):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [int(f"{(2**b)-1}"), b"dog", int(f"{(2**a)-1}")]
+    assert c.foo() == (int(f"{(2**b)-1}"), b"dog", int(f"{(2**a)-1}"))
     with tx_failed():
         c2.bar(c.address)
 
@@ -434,8 +433,8 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [255, b"dog", 255]
-    assert c2.bar(c.address) == [255, b"dog", 255]
+    assert c.foo() == (255, b"dog", 255)
+    assert c2.bar(c.address) == (255, b"dog", 255)
 
 
 @pytest.mark.parametrize("a,b", [(128, 256), (256, 128), (256, 256)])
@@ -462,7 +461,7 @@ def bar(arg1: address) -> (int128, Bytes[3], int128):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [int(f"{(2**(a-1))-1}"), b"dog", int(f"{(2**(b-1))-1}")]
+    assert c.foo() == (int(f"{(2**(a-1))-1}"), b"dog", int(f"{(2**(b-1))-1}"))
     with tx_failed():
         c2.bar(c.address)
 
@@ -491,7 +490,7 @@ def bar(arg1: address) -> (int{a}, Bytes[3], int{b}):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [int(f"{(2**(b-1))-1}"), b"dog", int(f"{(2**(a-1))-1}")]
+    assert c.foo() == (int(f"{(2**(b-1))-1}"), b"dog", int(f"{(2**(a-1))-1}"))
     with tx_failed():
         c2.bar(c.address)
 
@@ -567,9 +566,9 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
     """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [0, b"dog", 1]
+    assert c.foo() == (0, b"dog", 1)
     result = c2.bar(c.address)
-    assert result == [Decimal("0.0"), b"dog", Decimal("1e-10")]
+    assert result == (Decimal("0.0"), b"dog", Decimal("1e-10"))
 
 
 @pytest.mark.parametrize("a,b", [(8, 256), (256, 8), (256, 256)])
@@ -596,7 +595,7 @@ def bar(arg1: address) -> (decimal, Bytes[3], decimal):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [2 ** (a - 1), b"dog", 2 ** (b - 1)]
+    assert c.foo() == (2 ** (a - 1), b"dog", 2 ** (b - 1))
     with tx_failed():
         c2.bar(c.address)
 
@@ -672,8 +671,8 @@ def bar(arg1: address) -> (bool, Bytes[3], bool):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [1, b"dog", 0]
-    assert c2.bar(c.address) == [True, b"dog", False]
+    assert c.foo() == (1, b"dog", 0)
+    assert c2.bar(c.address) == (True, b"dog", False)
 
 
 @pytest.mark.parametrize("a", ["uint8", "uint256", "int128", "int256"])
@@ -701,7 +700,7 @@ def bar(arg1: address) -> (bool, Bytes[3], bool):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [1, b"dog", 2]
+    assert c.foo() == (1, b"dog", 2)
     with tx_failed():
         c2.bar(c.address)
 
@@ -801,12 +800,12 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [16, b"dog", 1]
-    assert c2.bar(c.address) == [
+    assert c.foo() == (16, b"dog", 1)
+    assert c2.bar(c.address) == (
         "0x0000000000000000000000000000000000000010",
         b"dog",
         "0x0000000000000000000000000000000000000001",
-    ]
+    )
 
 
 @pytest.mark.parametrize("a", ["uint256", "int256"])
@@ -834,7 +833,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2**160) - 1, b"dog", (2**160) - 2]
+    assert c.foo() == ((2**160) - 1, b"dog", (2**160) - 2)
     result = c2.bar(c.address)
     assert len(result) == 3
     assert result[0].lower() == "0xffffffffffffffffffffffffffffffffffffffff"
@@ -867,7 +866,7 @@ def bar(arg1: address) -> (address, Bytes[3], address):
 """
 
     c2 = get_contract(contract_2)
-    assert c.foo() == [(2**160) - 1, b"dog", 2**160]
+    assert c.foo() == ((2**160) - 1, b"dog", 2**160)
     with tx_failed():
         c2.bar(c.address)
 
@@ -1120,7 +1119,7 @@ def _expr(x: address) -> int128:
     assert c2._expr(c2.address) == 1
 
 
-def test_invalid_nonexistent_contract_call(w3, tx_failed, get_contract):
+def test_invalid_nonexistent_contract_call(revm_env, tx_failed, get_contract):
     contract_1 = """
 @external
 def bar() -> int128:
@@ -1141,9 +1140,9 @@ def foo(x: address) -> int128:
 
     assert c2.foo(c1.address) == 1
     with tx_failed():
-        c2.foo(w3.eth.accounts[0])
+        c2.foo(revm_env.deployer)
     with tx_failed():
-        c2.foo(w3.eth.accounts[3])
+        c2.foo(revm_env.accounts[3])
 
 
 def test_invalid_contract_reference_declaration(tx_failed, get_contract):
@@ -1352,7 +1351,7 @@ def foo(contract_address: address) -> int128:
         get_contract(contract_1)
 
 
-def test_external_with_payable_value(w3, get_contract_with_gas_estimation):
+def test_external_with_payable_value(revm_env, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
 @external
@@ -1393,21 +1392,26 @@ def get_lucky(amount_to_send: uint256) -> int128:
     c2.set_contract(c1.address, transact={})
 
     # Send some eth
-    assert c2.get_lucky(0, call={"value": 500}) == 1
+    revm_env.set_balance(revm_env.deployer, 10000)
+    with revm_env.anchor():
+        assert c2.get_lucky(0, transact={"value": 500}) == 1
+
     c2.get_lucky(0, transact={"value": 500})
     # Contract 1 received money.
     assert c1.get_balance() == 500
-    assert w3.eth.get_balance(c1.address) == 500
-    assert w3.eth.get_balance(c2.address) == 0
+    assert revm_env.get_balance(c1.address) == 500
+    assert revm_env.get_balance(c2.address) == 0
 
     # Send subset of amount
-    assert c2.get_lucky(250, call={"value": 500}) == 1
+    with revm_env.anchor():
+        assert c2.get_lucky(250, transact={"value": 500}) == 1
     c2.get_lucky(250, transact={"value": 500})
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750
-    assert w3.eth.get_balance(c1.address) == 750
-    assert w3.eth.get_balance(c2.address) == 250
+    assert revm_env.get_balance(c1.address) == 750
+    assert revm_env.get_balance(c2.address) == 250
+    assert revm_env.get_balance(revm_env.deployer) == 9000
 
 
 def test_external_call_with_gas(tx_failed, get_contract_with_gas_estimation):
@@ -1580,8 +1584,8 @@ def test(addr: address) -> (int128, address, Bytes[10]):
     c1 = get_contract(contract_1)
     c2 = get_contract(contract_2)
 
-    assert c1.out_literals() == [1, "0x0000000000000000000000000000000000000123", b"random"]
-    assert c2.test(c1.address) == [1, "0x0000000000000000000000000000000000000123", b"random"]
+    assert c1.out_literals() == (1, "0x0000000000000000000000000000000000000123", b"random")
+    assert c2.test(c1.address) == (1, "0x0000000000000000000000000000000000000123", b"random")
 
 
 def test_struct_return_external_contract_call_1(get_contract_with_gas_estimation):
@@ -1611,7 +1615,7 @@ def test(addr: address) -> (int128, address):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
-    assert c2.test(c1.address) == list(c1.out_literals())
+    assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
@@ -1644,7 +1648,7 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
-    assert c2.test(c1.address) == list(c1.get_struct_x())
+    assert c2.test(c1.address) == c1.get_struct_x()
 
 
 def test_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
@@ -1705,7 +1709,7 @@ def test(addr: address) -> (int128, address):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.out_literals() == (1, "0x0000000000000000000000000000000000012345")
-    assert c2.test(c1.address) == list(c1.out_literals())
+    assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
@@ -1743,7 +1747,7 @@ def test(addr: address) -> (int128, String[{ln}], Bytes[{ln}]):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.get_struct_x() == (i, s, bytes(s, "utf-8"))
-    assert c2.test(c1.address) == list(c1.get_struct_x())
+    assert c2.test(c1.address) == c1.get_struct_x()
 
 
 def test_constant_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
@@ -1907,7 +1911,7 @@ def test(addr: address) -> (X, uint256):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.out_literals() == ((1, "0x0000000000000000000000000000000000012345"), 777)
-    assert c2.test(c1.address) == list(c1.out_literals())
+    assert c2.test(c1.address) == c1.out_literals()
 
 
 @pytest.mark.parametrize("i,ln,s,", [(100, 6, "abcde"), (41, 40, "a" * 34), (57, 70, "z" * 68)])
@@ -1954,7 +1958,7 @@ def test(addr: address) -> (X, uint256):
     c2 = get_contract_with_gas_estimation(contract_2)
 
     assert c1.get_struct_a() == ((i, s, bytes(s, "utf-8")), 777)
-    assert c2.test(c1.address) == list(c1.get_struct_a())
+    assert c2.test(c1.address) == c1.get_struct_a()
 
 
 def test_constant_nested_struct_return_external_contract_call_3(get_contract_with_gas_estimation):
@@ -2002,8 +2006,8 @@ def test(addr: address) -> (A, bool):
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 
-    assert c1.out_literals() == (((1, -1), 777), True)
-    assert c2.test(c1.address) == list(c1.out_literals())
+    assert c1.out_literals() == ((((1, -1), 777)), True)
+    assert c2.test(c1.address) == c1.out_literals()
 
 
 def test_constant_nested_struct_member_return_external_contract_call_1(
@@ -2496,7 +2500,7 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 @pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
-def test_calldata_clamp(w3, get_contract, tx_failed, keccak, typ, val):
+def test_calldata_clamp(revm_env, get_contract, tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: {typ}):
@@ -2510,17 +2514,17 @@ def foo(a: {typ}):
     # Static size is short by 1 byte
     malformed = data[:-2]
     with tx_failed():
-        w3.eth.send_transaction({"to": c1.address, "data": malformed})
+        revm_env.execute_code(c1.address, data=malformed)
 
     # Static size is exact
-    w3.eth.send_transaction({"to": c1.address, "data": data})
+    revm_env.execute_code(c1.address, data=data)
 
     # Static size exceeds by 1 byte, ok
-    w3.eth.send_transaction({"to": c1.address, "data": data + "ff"})
+    revm_env.execute_code(c1.address, data=data + "ff")
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
-def test_dynamic_calldata_clamp(w3, get_contract, tx_failed, keccak, typ, val):
+def test_dynamic_calldata_clamp(revm_env, get_contract, tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: DynArray[{typ}, 3], b: String[5]):
@@ -2535,8 +2539,8 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     # Dynamic size is short by 1 byte
     malformed = data[:264]
     with tx_failed():
-        w3.eth.send_transaction({"to": c1.address, "data": malformed})
+        revm_env.execute_code(c1.address, data=malformed)
 
     # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
     valid = data[:266]
-    w3.eth.send_transaction({"to": c1.address, "data": valid})
+    revm_env.execute_code(c1.address, data=valid)

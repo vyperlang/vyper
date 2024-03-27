@@ -193,7 +193,7 @@ def __default__():
         contract.protected_function3("zzz value", True, transact={})
 
 
-def test_nonreentrant_decorator_for_default(w3, get_contract, tx_failed):
+def test_nonreentrant_decorator_for_default(revm_env, get_contract, tx_failed):
     calling_contract_code = """
 @external
 def send_funds(_amount: uint256):
@@ -262,20 +262,20 @@ def __default__():
     # Test unprotected function without callback.
     reentrant_contract.unprotected_function("some value", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "some value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 0
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert revm_env.get_balance(reentrant_contract.address) == 0
+    assert revm_env.get_balance(calling_contract.address) == 1000
 
     # Test unprotected function with callback to default.
     reentrant_contract.unprotected_function("another value", True, transact={"value": 1000})
     assert reentrant_contract.special_value() == "another value"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 1000
+    assert revm_env.get_balance(reentrant_contract.address) == 1000
+    assert revm_env.get_balance(calling_contract.address) == 1000
 
     # Test protected function without callback.
     reentrant_contract.protected_function("surprise!", False, transact={"value": 1000})
     assert reentrant_contract.special_value() == "surprise!"
-    assert w3.eth.get_balance(reentrant_contract.address) == 1000
-    assert w3.eth.get_balance(calling_contract.address) == 2000
+    assert revm_env.get_balance(reentrant_contract.address) == 1000
+    assert revm_env.get_balance(calling_contract.address) == 2000
 
     # Test protected function with callback to default.
     with tx_failed():
