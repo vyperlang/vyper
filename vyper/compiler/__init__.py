@@ -17,9 +17,10 @@ OUTPUT_FORMATS = {
     # requires annotated_vyper_module
     "annotated_ast_dict": output.build_annotated_ast_dict,
     "layout": output.build_layout_output,
-    # requires global_ctx
     "devdoc": output.build_devdoc,
     "userdoc": output.build_userdoc,
+    "archive": output.build_archive,
+    "integrity": output.build_integrity,
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
@@ -149,7 +150,7 @@ def compile_code(
         contract_path = Path(contract_path)
     file_input = FileInput(
         source_id=source_id,
-        source_code=source_code,
+        contents=source_code,
         path=contract_path,
         resolved_path=resolved_path or contract_path,  # type: ignore
     )

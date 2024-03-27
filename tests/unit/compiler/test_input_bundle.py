@@ -73,13 +73,13 @@ def test_load_abi(make_file, input_bundle, tmp_path):
 
     file = input_bundle.load_file("foo.json")
     assert isinstance(file, ABIInput)
-    assert file == ABIInput(0, "foo.json", path, "some string")
+    assert file == ABIInput(0, "foo.json", path, contents, "some string")
 
     # suffix doesn't matter
     path = make_file("foo.txt", contents)
     file = input_bundle.load_file("foo.txt")
     assert isinstance(file, ABIInput)
-    assert file == ABIInput(1, "foo.txt", path, "some string")
+    assert file == ABIInput(1, "foo.txt", path, contents, "some string")
 
 
 # check that unique paths give unique source ids
@@ -126,29 +126,31 @@ def test_source_id_json_input(make_file, input_bundle, tmp_path):
 
     file = input_bundle.load_file("foo.json")
     assert isinstance(file, ABIInput)
-    assert file == ABIInput(0, "foo.json", foopath, "some string")
+    assert file == ABIInput(0, "foo.json", foopath, contents, "some string")
 
     file2 = input_bundle.load_file("bar.json")
     assert isinstance(file2, ABIInput)
-    assert file2 == ABIInput(1, "bar.json", barpath, ["some list"])
+    assert file2 == ABIInput(1, "bar.json", barpath, contents2, ["some list"])
 
     file3 = input_bundle.load_file("foo.json")
     assert file3.source_id == 0
-    assert file3 == ABIInput(0, "foo.json", foopath, "some string")
+    assert file3 == ABIInput(0, "foo.json", foopath, contents, "some string")
 
     # test source id is stable across different search paths
     with working_directory(tmp_path):
         with input_bundle.search_path(Path(".")):
             file4 = input_bundle.load_file("foo.json")
             assert file4.source_id == 0
-            assert file4 == ABIInput(0, "foo.json", foopath, "some string")
+            assert file4 == ABIInput(0, "foo.json", foopath, contents, "some string")
 
     # test source id is stable even when requested filename is different
     with working_directory(tmp_path.parent):
         with input_bundle.search_path(Path(".")):
             file5 = input_bundle.load_file(Path(tmp_path.stem) / "foo.json")
             assert file5.source_id == 0
-            assert file5 == ABIInput(0, Path(tmp_path.stem) / "foo.json", foopath, "some string")
+            assert file5 == ABIInput(
+                0, Path(tmp_path.stem) / "foo.json", foopath, contents, "some string"
+            )
 
 
 # test some pathological case where the file changes underneath
@@ -238,7 +240,8 @@ def test_json_input_abi():
     input_bundle = JSONInputBundle(files, [PurePath(".")])
 
     file = input_bundle.load_file(foopath)
-    assert file == ABIInput(0, foopath, foopath, some_abi)
+    abi_contents = json.dumps({"abi": some_abi})
+    assert file == ABIInput(0, foopath, foopath, abi_contents, some_abi)
 
     file = input_bundle.load_file(barpath)
-    assert file == ABIInput(1, barpath, barpath, some_abi)
+    assert file == ABIInput(1, barpath, barpath, some_abi_str, some_abi)

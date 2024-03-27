@@ -1,4 +1,9 @@
+import base64
+import importlib
+import io
+import json
 import warnings
+import zipfile
 from collections import deque
 from pathlib import PurePath
 
@@ -8,6 +13,7 @@ from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
 from vyper.evm import opcodes
 from vyper.ir import compile_ir
+from vyper.semantics.analysis.module import _is_builtin
 from vyper.semantics.types.function import FunctionVisibility, StateMutability
 from vyper.typing import StorageLayout
 from vyper.warnings import ContractSizeLimitWarning
@@ -37,6 +43,86 @@ def build_devdoc(compiler_data: CompilerData) -> dict:
 def build_userdoc(compiler_data: CompilerData) -> dict:
     userdoc, devdoc = parse_natspec(compiler_data.annotated_vyper_module)
     return userdoc
+
+
+def _get_compression_method():
+    # try to find a compression library, if none are available then
+    # fall back to ZIP_STORED
+    # (note: these should all be on all modern systems and in particular
+    # they should be in the build environment for our build artifacts,
+    # write the graceful fallback anyway).
+    try:
+        importlib.import_module("zlib")
+        return zipfile.ZIP_DEFLATED
+    except ImportError:
+        pass
+
+    # fallback
+    return zipfile.ZIP_STORED
+
+
+def build_archive(compiler_data: CompilerData) -> str:
+    compilation_target = compiler_data.compilation_target._metadata["type"]
+    imports = compilation_target.reachable_imports
+
+    compiler_inputs = [
+        t.compiler_input for t in imports if not _is_builtin(t.qualified_module_name)
+    ]
+    compiler_inputs.append(compiler_data.file_input)
+
+    seen_paths = set()
+    # only write those search paths into the manifest which are actually used
+    # setup: create a dict with the input bundle's search paths, to preserve
+    # order of seen search paths.
+    used_search_paths = {sp: 0 for sp in compiler_data.input_bundle.search_paths}
+    buf = io.BytesIO()
+
+    method = _get_compression_method()
+    with zipfile.ZipFile(buf, mode="w", compression=method, compresslevel=9) as archive:
+        for c in compiler_inputs:
+            path = str(c.resolved_path)
+            # note: there should be a 1:1 correspondence between
+            # resolved_path and source_id, but for clarity use resolved_path
+            # since it corresponds more directly to zipfile semantics.
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            archive.writestr(str(path), c.contents)
+
+            # recover the search path that was used for this CompilerInput.
+            # note that it is not sufficient to thread the "search path that
+            # was used" into CompilerInput because search_paths are modified
+            # during compilation (so a search path which does not exist in
+            # the original search_paths set could be used for a given file).
+            for sp in reversed(compiler_data.input_bundle.search_paths):
+                if c.resolved_path.is_relative_to(sp):
+                    used_search_paths[sp] += 1
+                    break
+
+        # construct the manifest file
+        archive.writestr("MANIFEST/main", str(compiler_data.file_input.path))
+
+        sps = [sp for sp, count in used_search_paths.items() if count > 0]
+        archive.writestr("MANIFEST/searchpaths", "\n".join(str(sp) for sp in sps))
+
+        archive.writestr("MANIFEST/integrity", compilation_target.integrity_sum)
+
+        settings = compiler_data.original_settings
+        if settings is not None:
+            archive.writestr("MANIFEST/settings.json", json.dumps(settings.as_dict()))
+            archive.writestr("MANIFEST/cli_settings.txt", settings.as_cli())
+        else:
+            archive.writestr("MANIFEST/settings.json", json.dumps(None))
+            archive.writestr("MANIFEST/cli_settings.txt", "")
+
+        assert archive.testzip() is None  # sanity check
+
+    s = buf.getvalue()
+    return base64.b64encode(s).decode("utf-8")
+
+
+def build_integrity(compiler_data: CompilerData) -> str:
+    return compiler_data.compilation_target._metadata["type"].integrity_sum
 
 
 def build_external_interface_output(compiler_data: CompilerData) -> str:

@@ -4,7 +4,7 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import CompilerInput, FileInput
+from vyper.compiler.input_bundle import CompilerInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
@@ -118,7 +118,7 @@ class ModuleInfo(AnalysisResult):
         return hash(id(self.module_t))
 
 
-@dataclass
+@dataclass(frozen=True)
 class ImportInfo(AnalysisResult):
     typ: Union[ModuleInfo, "InterfaceT"]
     alias: str  # the name in the namespace
@@ -132,9 +132,7 @@ class ImportInfo(AnalysisResult):
         ret["source_id"] = self.compiler_input.source_id
         ret["path"] = str(self.compiler_input.path)
         ret["resolved_path"] = str(self.compiler_input.resolved_path)
-
-        if isinstance(self.compiler_input, FileInput):
-            ret["file_sha256sum"] = self.compiler_input.sha256sum
+        ret["file_sha256sum"] = self.compiler_input.sha256sum
 
         return ret
 

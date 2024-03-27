@@ -1,7 +1,7 @@
 import contextlib
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
@@ -13,7 +13,7 @@ from vyper.utils import sha256sum
 PathLike = Path | PurePath
 
 
-@dataclass
+@dataclass(frozen=True)
 class CompilerInput:
     # an input to the compiler, basically an abstraction for file contents
     source_id: int
@@ -22,30 +22,39 @@ class CompilerInput:
     # resolved_path is the real path that was resolved to.
     # mainly handy for debugging at this point
     resolved_path: PathLike
-
-
-@dataclass
-class FileInput(CompilerInput):
-    source_code: str
+    contents: str
 
     @cached_property
     def sha256sum(self):
-        return sha256sum(self.source_code)
+        return sha256sum(self.contents)
 
 
-@dataclass
+@dataclass(frozen=True)
+class FileInput(CompilerInput):
+    @cached_property
+    def source_code(self):
+        return self.contents
+
+
+@dataclass(frozen=True, unsafe_hash=True)
 class ABIInput(CompilerInput):
     # some json input, which has already been parsed into a dict or list
     # this is needed because json inputs present json interfaces as json
     # objects, not as strings. this class helps us avoid round-tripping
     # back to a string to pretend it's a file.
-    abi: Any  # something that json.load() returns
+    abi: Any = field(hash=False)  # something that json.load() returns
 
 
 def try_parse_abi(file_input: FileInput) -> CompilerInput:
     try:
         s = json.loads(file_input.source_code)
-        return ABIInput(file_input.source_id, file_input.path, file_input.resolved_path, s)
+        return ABIInput(
+            file_input.source_id,
+            file_input.path,
+            file_input.resolved_path,
+            file_input.source_code,
+            s,
+        )
     except (ValueError, TypeError):
         return file_input
 
@@ -216,7 +225,9 @@ class JSONInputBundle(InputBundle):
             return FileInput(source_id, original_path, resolved_path, value["content"])
 
         if "abi" in value:
-            return ABIInput(source_id, original_path, resolved_path, value["abi"])
+            return ABIInput(
+                source_id, original_path, resolved_path, json.dumps(value), value["abi"]
+            )
 
         # TODO: ethPM support
         # if isinstance(contents, dict) and "contractTypes" in contents:
