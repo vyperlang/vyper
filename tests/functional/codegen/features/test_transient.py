@@ -362,3 +362,38 @@ def b():
     c = get_contract(code)
     assert c.d() == 2
     assert c.x() == 0
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_view_function_transient(get_contract):
+    c1 = """
+x: transient(uint256)
+
+@external
+def set_x(i: uint256):
+    self.x = i
+
+@external
+@view
+def get_x() -> uint256:
+    return self.x
+    """
+
+    c2 = """
+interface Foo:
+    def set_x(i: uint256): nonpayable
+    def get_x() -> uint256: view
+
+@external
+def bar(i: uint256, a: address) -> uint256:
+    f: Foo = Foo(a)
+    extcall f.set_x(i)
+    return staticcall f.get_x()
+    """
+
+    c1 = get_contract(c1)
+    c2 = get_contract(c2)
+
+    value = 333
+    assert c2.bar(value, c1.address) == value
+    assert c1.get_x() == 0
