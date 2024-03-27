@@ -12,6 +12,7 @@
 # 4. Buyer confirms receiving the item. Buyer's deposit (value) is returned.
 #    Seller's deposit (2*value) + items value is returned. Balance is 0.
 import pytest
+from eth_utils import to_wei
 
 
 @pytest.fixture
@@ -22,16 +23,16 @@ def contract_code(get_contract):
 
 
 @pytest.fixture
-def get_balance(w3):
+def get_balance(revm_env):
     def get_balance():
-        a0, a1 = w3.eth.accounts[:2]
+        a0, a1 = revm_env.accounts[:2]
         # balance of a1 = seller, a2 = buyer
-        return w3.eth.get_balance(a0), w3.eth.get_balance(a1)
+        return revm_env.get_balance(a0), revm_env.get_balance(a1)
 
     return get_balance
 
 
-def test_initial_state(w3, tx_failed, get_contract, get_balance, contract_code):
+def test_initial_state(revm_env, tx_failed, get_contract, get_balance, contract_code):
     # Initial deposit has to be divisible by two
     with tx_failed():
         get_contract(contract_code, value=13)
@@ -39,21 +40,23 @@ def test_initial_state(w3, tx_failed, get_contract, get_balance, contract_code):
     a0_pre_bal, a1_pre_bal = get_balance()
     c = get_contract(contract_code, value_in_eth=2)
     # Check that the seller is set correctly
-    assert c.seller() == w3.eth.accounts[0]
+    assert c.seller() == revm_env.accounts[0]
     # Check if item value is set correctly (Half of deposit)
-    assert c.value() == w3.to_wei(1, "ether")
+    assert c.value() == to_wei(1, "ether")
     # Check if unlocked() works correctly after initialization
     assert c.unlocked() is True
     # Check that sellers (and buyers) balance is correct
-    assert get_balance() == ((a0_pre_bal - w3.to_wei(2, "ether")), a1_pre_bal)
+    assert get_balance() == ((a0_pre_bal - to_wei(2, "ether")), a1_pre_bal)
 
 
-def test_abort(w3, tx_failed, get_balance, get_contract, contract_code):
-    a0, a1, a2 = w3.eth.accounts[:3]
+def test_abort(revm_env, tx_failed, get_balance, get_contract, contract_code):
+    a0, a1, a2 = revm_env.accounts[:3]
+    revm_env.set_balance(a1, 10**18)
+    revm_env.set_balance(a2, 10**18)
 
     a0_pre_bal, a1_pre_bal = get_balance()
-    c = get_contract(contract_code, value=w3.to_wei(2, "ether"))
-    assert c.value() == w3.to_wei(1, "ether")
+    c = get_contract(contract_code, value=to_wei(2, "ether"))
+    assert c.value() == to_wei(1, "ether")
     # Only sender can trigger refund
     with tx_failed():
         c.abort(transact={"from": a2})
@@ -67,8 +70,11 @@ def test_abort(w3, tx_failed, get_balance, get_contract, contract_code):
         c.abort(transact={"from": a0})
 
 
-def test_purchase(w3, get_contract, tx_failed, get_balance, contract_code):
-    a0, a1, a2, a3 = w3.eth.accounts[:4]
+def test_purchase(revm_env, get_contract, tx_failed, get_balance, contract_code):
+    a0, a1, a2, a3 = revm_env.accounts[:4]
+    revm_env.set_balance(a0, 10**18)
+    revm_env.set_balance(a1, 10**18)
+
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
     # Purchase for too low/high price
@@ -89,8 +95,10 @@ def test_purchase(w3, get_contract, tx_failed, get_balance, contract_code):
         c.purchase(transact={"value": 2, "from": a3})
 
 
-def test_received(w3, get_contract, tx_failed, get_balance, contract_code):
-    a0, a1 = w3.eth.accounts[:2]
+def test_received(revm_env, get_contract, tx_failed, get_balance, contract_code):
+    a0, a1 = revm_env.accounts[:2]
+    revm_env.set_balance(a0, 10**18)
+    revm_env.set_balance(a1, 10**18)
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
     # Can only be called after purchase
@@ -107,7 +115,7 @@ def test_received(w3, get_contract, tx_failed, get_balance, contract_code):
     assert get_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
 
 
-def test_received_reentrancy(w3, get_contract, tx_failed, get_balance, contract_code):
+def test_received_reentrancy(revm_env, get_contract, tx_failed, get_balance, contract_code):
     buyer_contract_code = """
 interface PurchaseContract:
 
@@ -142,24 +150,27 @@ def __default__():
 
     """
 
-    a0 = w3.eth.accounts[0]
+    a0, a1 = revm_env.accounts[:2]
+    revm_env.set_balance(a1, 10**18)
+
     c = get_contract(contract_code, value=2)
     buyer_contract = get_contract(buyer_contract_code, *[c.address])
     buyer_contract_address = buyer_contract.address
     init_bal_a0, init_bal_buyer_contract = (
-        w3.eth.get_balance(a0),
-        w3.eth.get_balance(buyer_contract_address),
+        revm_env.get_balance(a0),
+        revm_env.get_balance(buyer_contract_address),
     )
     # Start purchase
-    buyer_contract.start_purchase(transact={"value": 4, "from": w3.eth.accounts[1], "gas": 100000})
+    buyer_contract.start_purchase(transact={"value": 4, "from": a1, "gas": 100000})
     assert c.unlocked() is False
     assert c.buyer() == buyer_contract_address
 
     # Trigger "re-entry"
-    buyer_contract.start_received(transact={"from": w3.eth.accounts[1], "gas": 100000})
+    with tx_failed():
+        buyer_contract.start_received(transact={"from": a1, "gas": 100000})
 
     # Final check if everything worked. 1 value has been transferred
-    assert w3.eth.get_balance(a0), w3.eth.get_balance(buyer_contract_address) == (
+    assert revm_env.get_balance(a0), revm_env.get_balance(buyer_contract_address) == (
         init_bal_a0 + 1,
         init_bal_buyer_contract - 1,
     )

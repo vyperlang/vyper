@@ -179,13 +179,13 @@ def foo() -> (address, address[2]):
 
     c = get_contract(code)
 
-    assert c.foo() == [
+    assert c.foo() == (
         c.address,
         [
             "0xF5D4020dCA6a62bB1efFcC9212AAF3c9819E30D7",
             "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
         ],
-    ]
+    )
 
 
 def test_single_type_tuple_bytes(get_contract):

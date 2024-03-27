@@ -71,7 +71,7 @@ class RevmEnv:
 
     def execute_code(
         self,
-        to_address: HexAddress,
+        to: HexAddress,
         sender: HexAddress | None = None,
         data: bytes | str = b"",
         value: int | None = None,
@@ -85,7 +85,7 @@ class RevmEnv:
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         try:
             output = self.evm.message_call(
-                to=to_address,
+                to=to,
                 caller=transact.get("from", sender) or self.deployer,
                 calldata=data,
                 value=transact.get("value", value),
@@ -101,7 +101,7 @@ class RevmEnv:
                 # Check EIP838 error, with ABI Error(string)
                 if output_bytes[:4] == method_id("Error(string)"):
                     (msg,) = abi_decode("(string)", output_bytes[4:])
-                    raise TransactionFailed(msg, gas_used) from e
+                    raise TransactionFailed(f"execution reverted: {msg}", gas_used) from e
             raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: HexAddress):
@@ -193,3 +193,19 @@ class RevmEnv:
 
         address = to_checksum_address(deployed_at)
         return factory.at(self, address)
+
+    def mine(self, num_blocks=1, time_delta: int | None = None) -> None:
+        if time_delta is None:
+            time_delta = num_blocks
+        self.evm.set_block_env(
+            BlockEnv(
+                number=self.evm.env.block.number + num_blocks,
+                coinbase=self.evm.env.block.coinbase,
+                timestamp=self.evm.env.block.timestamp + time_delta,
+                difficulty=self.evm.env.block.difficulty,
+                prevrandao=self.evm.env.block.prevrandao,
+                basefee=self.evm.env.block.basefee,
+                gas_limit=self.evm.env.block.gas_limit,
+                excess_blob_gas=self.evm.env.block.excess_blob_gas,
+            )
+        )

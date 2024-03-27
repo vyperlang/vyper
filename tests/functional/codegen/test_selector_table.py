@@ -576,6 +576,7 @@ event _Return:
         """
 
         c = get_contract(code, override_opt_level=opt_level)
+        revm_env.set_balance(revm_env.deployer, 10**18)
 
         for func_id, mutability, n_calldata_words, n_strip_bytes, n_default_args in methods:
             funcname = f"foo{func_id}"

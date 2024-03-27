@@ -175,7 +175,8 @@ class ABIFunction:
         """Merge positional and keyword arguments into a single list."""
         if len(kwargs) + len(args) != self.argument_count:
             raise TypeError(
-                f"Bad args to `{repr(self)}` (expected {self.argument_count} "
+                "invocation failed due to improper number of arguments to"
+                f" `{repr(self)}` (expected {self.argument_count} "
                 f"arguments, got {len(args)} args and {len(kwargs)} kwargs)"
             )
         try:
@@ -194,7 +195,7 @@ class ABIFunction:
             sender = self.contract.env.deployer
 
         computation = self.contract.env.execute_code(
-            to_address=self.contract.address,
+            to=self.contract.address,
             sender=sender,
             data=self.prepare_calldata(*args, **kwargs),
             value=value,
