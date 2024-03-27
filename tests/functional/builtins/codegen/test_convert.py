@@ -8,6 +8,8 @@ import eth.codecs.abi as abi
 import eth.codecs.abi.exceptions
 import pytest
 
+from tests.utils import wrap_typ_with_storage_loc
+
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
@@ -20,6 +22,7 @@ from vyper.utils import (
     round_towards_zero,
     unsigned_to_signed,
 )
+from vyper.evm.opcodes import version_check
 
 BASE_TYPES = set(IntegerT.all()) | set(BytesM_T.all()) | {DecimalT(), AddressT(), BoolT()}
 
@@ -420,10 +423,14 @@ def _vyper_literal(val, typ):
 
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
+@pytest.mark.parametrize("location", ["storage", "transient"])
 @pytest.mark.fuzzing
 def test_convert_passing(
-    get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, val
+    get_contract_with_gas_estimation, assert_compile_failed, i_typ, o_typ, location, val
 ):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
     expected_val = _py_convert(val, i_typ, o_typ)
     if isinstance(o_typ, AddressT) and expected_val == "0x" + "00" * 20:
         # web3 has special formatter for zero address
@@ -463,16 +470,16 @@ def test_input_convert(x: {i_typ}) -> {o_typ}:
     assert c2.test_input_convert(val) == expected_val
 
     contract_3 = f"""
-bar: {i_typ}
+bar: {wrap_typ_with_storage_loc(i_typ, location)}
 
 @external
-def test_state_variable_convert() -> {o_typ}:
+def test_storage_variable_convert() -> {o_typ}:
     self.bar = {_vyper_literal(val, i_typ)}
     return convert(self.bar, {o_typ})
     """
 
     c3 = get_contract_with_gas_estimation(contract_3)
-    assert c3.test_state_variable_convert() == expected_val
+    assert c3.test_storage_variable_convert() == expected_val
 
     contract_4 = f"""
 @external
@@ -633,7 +640,11 @@ def foo() -> {typ}:
 
 
 @pytest.mark.parametrize("n", range(1, 33))
-def test_Bytes_to_bytes(get_contract, n):
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_Bytes_to_bytes(get_contract, n, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
     t_bytes = f"bytes{n}"
     t_Bytes = f"Bytes[{n}]"
 
@@ -649,7 +660,7 @@ def foo() -> {t_bytes}:
     assert c1.foo() == test_data
 
     code2 = f"""
-bar: {t_Bytes}
+bar: {wrap_typ_with_storage_loc(t_Bytes, location)}
 @external
 def foo() -> {t_bytes}:
     self.bar = {test_data}

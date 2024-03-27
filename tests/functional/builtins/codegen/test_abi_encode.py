@@ -3,6 +3,9 @@ from decimal import Decimal
 import pytest
 from eth.codecs import abi
 
+from tests.utils import wrap_typ_with_storage_loc
+
+from vyper.evm.opcodes import version_check
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
 def test_abi_encode(get_contract):
@@ -259,9 +262,13 @@ def abi_encode(
     )
 
 
-def test_side_effects_evaluation(get_contract):
-    contract_1 = """
-counter: uint256
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_side_effects_evaluation(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    contract_1 = f"""
+counter: {wrap_typ_with_storage_loc("uint256", location)}
 
 @deploy
 def __init__():
@@ -295,9 +302,13 @@ def foo(addr: address) -> Bytes[164]:
 
 
 # test _abi_encode in private functions to check buffer overruns
-def test_abi_encode_private(get_contract):
-    code = """
-bytez: Bytes[96]
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_abi_encode_private(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+bytez: {wrap_typ_with_storage_loc("Bytes[96]", location)}
 @internal
 def _foo(bs: Bytes[32]):
     self.bytez = _abi_encode(bs)
@@ -313,9 +324,13 @@ def foo(bs: Bytes[32]) -> (uint256, Bytes[96]):
     assert c.foo(bs) == [2**256 - 1, abi.encode("(bytes)", (bs,))]
 
 
-def test_abi_encode_private_dynarray(get_contract):
-    code = """
-bytez: Bytes[160]
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_abi_encode_private_dynarray(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+bytez: {wrap_typ_with_storage_loc("Bytes[160]", location)}
 @internal
 def _foo(bs: DynArray[uint256, 3]):
     self.bytez = _abi_encode(bs)
@@ -330,9 +345,13 @@ def foo(bs: DynArray[uint256, 3]) -> (uint256, Bytes[160]):
     assert c.foo(bs) == [2**256 - 1, abi.encode("(uint256[])", (bs,))]
 
 
-def test_abi_encode_private_nested_dynarray(get_contract):
-    code = """
-bytez: Bytes[1696]
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_abi_encode_private_nested_dynarray(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+bytez: {wrap_typ_with_storage_loc("Bytes[1696]", location)}
 @internal
 def _foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]):
     self.bytez = _abi_encode(bs)

@@ -1,3 +1,9 @@
+import pytest
+
+from tests.utils import wrap_typ_with_storage_loc
+
+from vyper.evm.opcodes import version_check
+
 def test_uint256_addmod(tx_failed, get_contract_with_gas_estimation):
     uint256_code = """
 @external
@@ -58,9 +64,13 @@ def c() -> uint256:
     assert c.foo() == 2
 
 
-def test_uint256_addmod_evaluation_order(get_contract_with_gas_estimation):
-    code = """
-a: uint256
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_uint256_addmod_evaluation_order(get_contract_with_gas_estimation, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+a: {wrap_typ_with_storage_loc("uint256", location)}
 
 @external
 def foo1() -> uint256:

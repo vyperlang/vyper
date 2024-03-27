@@ -1,17 +1,23 @@
 import math
 from decimal import Decimal
 
+import pytest
+from tests.utils import wrap_typ_with_storage_loc
 
-def test_ceil(get_contract_with_gas_estimation):
-    code = """
-x: decimal
+from vyper.evm.opcodes import version_check
 
-@deploy
-def __init__():
-    self.x = 504.0000000001
+
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_ceil(get_contract_with_gas_estimation, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+x: {wrap_typ_with_storage_loc("decimal", location)}
 
 @external
 def x_ceil() -> int256:
+    self.x = 504.0000000001
     return ceil(self.x)
 
 @external
@@ -49,16 +55,17 @@ def fou() -> int256:
 
 
 # ceil(x) should yield the smallest integer greater than or equal to x
-def test_ceil_negative(get_contract_with_gas_estimation):
-    code = """
-x: decimal
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_ceil_negative(get_contract_with_gas_estimation, get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
 
-@deploy
-def __init__():
-    self.x = -504.0000000001
+    code = f"""
+x: {wrap_typ_with_storage_loc("decimal", location)}
 
 @external
 def x_ceil() -> int256:
+    self.x = -504.0000000001
     return ceil(self.x)
 
 @external

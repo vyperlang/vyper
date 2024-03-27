@@ -1,9 +1,12 @@
 from decimal import Decimal
 
 import pytest
+from tests.utils import wrap_typ_with_storage_loc
+
 from eth.codecs import abi
 
 from vyper.exceptions import ArgumentException, StructureException
+from vyper.evm.opcodes import version_check
 
 TEST_ADDR = "0x" + b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
@@ -220,9 +223,13 @@ def abi_decode(x: Bytes[{len}]) -> DynArray[DynArray[DynArray[uint256, 3], 3], 3
     assert c.abi_decode(encoded) == args
 
 
-def test_side_effects_evaluation(get_contract):
-    contract_1 = """
-counter: uint256
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_side_effects_evaluation(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    contract_1 = f"""
+counter: {wrap_typ_with_storage_loc("uint256", location)}
 
 @deploy
 def __init__():
@@ -253,9 +260,13 @@ def foo(addr: address) -> (uint256, String[5]):
     assert tuple(c2.foo(c.address)) == (1, "hello")
 
 
-def test_abi_decode_private_dynarray(get_contract):
-    code = """
-bytez: DynArray[uint256, 3]
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_abi_decode_private_dynarray(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+bytez: {wrap_typ_with_storage_loc("DynArray[uint256, 3]", location)}
 
 @internal
 def _foo(bs: Bytes[160]):
@@ -273,9 +284,13 @@ def foo(bs: Bytes[160]) -> (uint256, DynArray[uint256, 3]):
     assert c.foo(encoded) == [2**256 - 1, bs]
 
 
-def test_abi_decode_private_nested_dynarray(get_contract):
-    code = """
-bytez: DynArray[DynArray[DynArray[uint256, 3], 3], 3]
+@pytest.mark.parametrize('location', ["storage", "transient"])
+def test_abi_decode_private_nested_dynarray(get_contract, location):
+    if location == "transient" and not version_check(begin="cancun"):
+        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+
+    code = f"""
+bytez: {wrap_typ_with_storage_loc("DynArray[DynArray[DynArray[uint256, 3], 3], 3]", location)}
 
 @internal
 def _foo(bs: Bytes[1696]):
