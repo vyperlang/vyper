@@ -26,4 +26,4 @@ def wrap_typ_with_storage_loc(typ, loc):
         return typ
     elif loc == "transient":
         return f"transient({typ})"
-    assert False, f"unreachable storage location {loc}"
+    raise AssertionError(f"unreachable storage location {loc}")  # pragma: nocover

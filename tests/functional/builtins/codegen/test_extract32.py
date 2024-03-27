@@ -1,18 +1,15 @@
 import pytest
 
 from tests.utils import wrap_typ_with_storage_loc
-
 from vyper.evm.opcodes import version_check
 
 
-@pytest.mark.parametrize('location', ["storage", "transient"])
-def test_extract32_extraction(
-    tx_failed,
-    get_contract_with_gas_estimation,
-    location
-):
+@pytest.mark.parametrize("location", ["storage", "transient"])
+def test_extract32_extraction(tx_failed, get_contract_with_gas_estimation, location):
     if location == "transient" and not version_check(begin="cancun"):
-        pytest.skip("Skipping test as storage_location is 'transient' and EVM version is pre-Cancun")
+        pytest.skip(
+            "Skipping test as storage_location is 'transient' and EVM version is pre-Cancun"
+        )
     extract32_code = f"""
 y: {wrap_typ_with_storage_loc("Bytes[100]", location)}
 @external

@@ -837,7 +837,7 @@ def _generic_element_getter(loc):
         # - for word-addressable locations multiply by 1 which will be optimized out
         return IRnode.from_list(
             [loc.load_op, ["add", "_sub", ["add", scale, ["mul", scale, index]]]]
-            #[loc.load_op, add_ofst("_sub", ["add", scale, ["mul", scale, index]])]
+            # [loc.load_op, add_ofst("_sub", ["add", scale, ["mul", scale, index]])]
         )
 
     return f
@@ -887,7 +887,9 @@ class Extract32(BuiltinFunctionT):
                 length = get_bytearray_length(sub)
                 idx = ["div", clamp2(0, index, ["sub", length, 32], signed=True), 32]
                 ret = [load_op, ["add", sub, ["add", scale, ["mul", scale, idx]]]]
-                o = IRnode.from_list(b1.resolve(ret), typ=ret_type, annotation="extracting 32 bytes")
+                o = IRnode.from_list(
+                    b1.resolve(ret), typ=ret_type, annotation="extracting 32 bytes"
+                )
                 return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
         # General case
@@ -898,14 +900,16 @@ class Extract32(BuiltinFunctionT):
                 mi32 = IRnode.from_list(["mod", idx, 32])
                 di32 = IRnode.from_list(["div", idx, 32])
 
-                with mi32.cache_when_complex("_mi32") as (
-                        b3, mi32
-                ), di32.cache_when_complex("_di32") as (b4, di32):
-
+                with mi32.cache_when_complex("_mi32") as (b3, mi32), di32.cache_when_complex(
+                    "_di32"
+                ) as (b4, di32):
                     left_payload = [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])]
                     left_bytes = shl(["mul", 8, mi32], left_payload)
 
-                    right_payload = [load_op, add_ofst(sub, ["add", scale, ["mul", scale, ["add", di32, 1]]])]
+                    right_payload = [
+                        load_op,
+                        add_ofst(sub, ["add", scale, ["mul", scale, ["add", di32, 1]]]),
+                    ]
                     right_bytes = shr(["mul", 8, ["sub", 32, mi32]], right_payload)
 
                     ret = [
@@ -914,7 +918,11 @@ class Extract32(BuiltinFunctionT):
                         ["add", left_bytes, right_bytes],
                         [load_op, add_ofst(sub, ["add", scale, ["mul", scale, di32]])],
                     ]
-                    o = IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))), typ=ret_type, annotation="extracting 32 bytes")
+                    o = IRnode.from_list(
+                        b1.resolve(b2.resolve(b3.resolve(b4.resolve(ret)))),
+                        typ=ret_type,
+                        annotation="extracting 32 bytes",
+                    )
 
         return IRnode.from_list(clamp_basetype(o), typ=ret_type)
 
