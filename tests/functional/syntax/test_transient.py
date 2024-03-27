@@ -14,7 +14,7 @@ def foo() -> uint256:
     return self.x
     """,
         StateAccessViolation,
-    ),
+    )
 ]
 
 
