@@ -1,3 +1,6 @@
+import pytest
+
+from vyper import compile_code
 from vyper.exceptions import FunctionDeclarationException, StateAccessViolation
 
 
@@ -129,3 +132,15 @@ def foo() -> uint256:
         ),
         FunctionDeclarationException,
     )
+
+
+def test_invalid_builtin(get_contract):
+    code = """
+@external
+@pure
+def foo(x: uint256)-> bytes32:
+    return blockhash(x)
+    """
+
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
