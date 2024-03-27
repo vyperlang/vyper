@@ -2,18 +2,15 @@ import pytest
 from eth_tester.exceptions import TransactionFailed
 
 from vyper.compiler import compile_code
-from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException, VyperException
+
+pytestmark = pytest.mark.requires_evm_version("cancun")
 
 
 # with eth-tester, each call happens in an isolated transaction and so we need to
 # test get/set within a single contract call. (we should remove this restriction
 # in the future by migrating away from eth-tester).
-@pytest.mark.requires_evm_version("cancun")
 def test_transient_compiles():
-    if not version_check(begin="cancun"):
-        pytest.skip("transient storage will not compile, pre-cancun")
-
     getter_code = """
 my_map: public(transient(HashMap[address, uint256]))
     """
@@ -50,7 +47,6 @@ def setter(k: address, v: uint256):
     assert "TSTORE" in t
 
 
-@pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize(
     "typ,value,zero",
     [
@@ -82,7 +78,6 @@ def foo(a: {typ}) -> {typ}:
     assert c.bar() == zero
 
 
-@pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize("val", [0, 1, 2**256 - 1])
 def test_usage_in_constructor(get_contract, val):
     code = """
@@ -107,7 +102,6 @@ def a1() -> uint256:
     assert c.a1() == 0
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_multiple_transient_values(get_contract):
     code = """
 a: public(transient(uint256))
@@ -137,7 +131,6 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
     assert c.foo(*values) == list(values)
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_struct_transient(get_contract):
     code = """
 struct MyStruct:
@@ -166,7 +159,6 @@ def foo(_a: uint256, _b: uint256, _c: address, _d: int256) -> MyStruct:
     assert c.foo(*values) == values
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_complex_transient_modifiable(get_contract):
     code = """
 struct MyStruct:
@@ -190,7 +182,6 @@ def foo(a: uint256) -> MyStruct:
     assert c.foo(1) == (2,)
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_list_transient(get_contract):
     code = """
 my_list: public(transient(uint256[3]))
@@ -209,7 +200,6 @@ def foo(_a: uint256, _b: uint256, _c: uint256) -> uint256[3]:
     assert c.foo(*values) == list(values)
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_dynarray_transient(get_contract):
     code = """
 my_list: public(transient(DynArray[uint256, 3]))
@@ -235,7 +225,6 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
         c.my_list(0)
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_nested_dynarray_transient_2(get_contract):
     code = """
 my_list: public(transient(DynArray[DynArray[uint256, 3], 3]))
@@ -258,7 +247,6 @@ def get_idx_two(_a: uint256, _b: uint256, _c: uint256) -> uint256:
     assert c.get_idx_two(*values) == expected_values[2][2]
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_nested_dynarray_transient(get_contract):
     code = """
 my_list: public(transient(DynArray[DynArray[DynArray[int128, 3], 3], 3]))
@@ -313,7 +301,6 @@ def get_idx_two(x: int128, y: int128, z: int128) -> int128:
         c.my_list(0, 0, 0)
 
 
-@pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize("n", range(5))
 def test_internal_function_with_transient(get_contract, n):
     code = """
@@ -339,7 +326,6 @@ def bar(x: uint256) -> uint256:
     assert c.bar(n) == n + 2
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_nested_internal_function_transient(get_contract):
     code = """
 d: public(uint256)
@@ -365,7 +351,6 @@ def b():
     assert c.x() == 0
 
 
-@pytest.mark.requires_evm_version("cancun")
 def test_view_function_transient(get_contract):
     c1 = """
 x: transient(uint256)
