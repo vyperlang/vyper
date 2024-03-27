@@ -1,3 +1,6 @@
+import pytest
+
+from vyper import compile_code
 from vyper.exceptions import FunctionDeclarationException, StateAccessViolation
 
 
@@ -129,3 +132,17 @@ def foo() -> uint256:
         ),
         FunctionDeclarationException,
     )
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_invalid_transient_access():
+    code = """
+x: transient(uint256)
+
+@external
+@pure
+def foo() -> uint256:
+    return self.x
+    """
+    with pytest.raises(StateAccessViolation):
+        assert compile_code(code) is not None
