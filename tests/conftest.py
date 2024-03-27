@@ -529,14 +529,12 @@ def tx_failed(tester):
     return fn
 
 
-@pytest.fixture(autouse=True)
-def check_evm_version_marker(request):
-    marker = request.node.get_closest_marker("requires_evm_version")
+def pytest_runtest_setup(item):
+    marker = item.get_closest_marker("requires_evm_version")
     if marker:
         assert len(marker.args) == 1
         version = marker.args[0]
-        assert version in EVM_VERSIONS
-        if not version_check(version):
-            request.node.add_marker(
+        if not version_check(begin=version):
+            item.add_marker(
                 pytest.mark.xfail(reason="Wrong EVM version", raises=EvmVersionException)
             )
