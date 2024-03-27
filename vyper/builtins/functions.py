@@ -839,21 +839,6 @@ class ECMul(_ECArith):
     _precompile = 0x7
 
 
-def _generic_element_getter(loc):
-    def f(index):
-        scale = loc.word_scale
-        # Indexing is done by words
-        # - add 'scale' to skip the length slot
-        # - for byte-addressable locations multiply by 32
-        # - for word-addressable locations multiply by 1 which will be optimized out
-        return IRnode.from_list(
-            [loc.load_op, ["add", "_sub", ["add", scale, ["mul", scale, index]]]]
-            # [loc.load_op, add_ofst("_sub", ["add", scale, ["mul", scale, index]])]
-        )
-
-    return f
-
-
 class Extract32(BuiltinFunctionT):
     _id = "extract32"
     _inputs = [("b", BytesT.any()), ("start", IntegerT.unsigneds())]
