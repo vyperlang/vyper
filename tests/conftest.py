@@ -530,12 +530,14 @@ def tx_failed(tester):
 
 
 @pytest.fixture(autouse=True)
-def check_transient_storage_marker(request):
-    if request.node.get_closest_marker("uses_transient_storage") and not version_check(
-        begin="cancun"
-    ):
-        request.node.add_marker(
-            pytest.mark.xfail(
-                reason="transient storage", raises=EvmVersionException, strict=True
+def check_evm_version_marker(request):
+    marker = request.node.get_closest_marker("requires_evm_version")
+    if marker:
+        assert len(marker.args) == 1
+        version = marker.args[0]
+        if not version_check(version):
+            request.node.add_marker(
+                pytest.mark.xfail(
+                    reason="Wrong EVM version", raises=EvmVersionException, strict=True
+                )
             )
-        )
