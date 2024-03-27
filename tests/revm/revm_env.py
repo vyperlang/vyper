@@ -178,7 +178,7 @@ class RevmEnv:
         return deployer, factory
 
     def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
-        factory = ABIContractFactory.from_abi_dict(abi=abi)
+        factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
         if args or kwargs:

@@ -301,6 +301,7 @@ class ABIContract:
         abi: dict,
         functions: list[ABIFunction],
         log_topics: list[ABILogTopic],
+        bytecode: Optional[bytes],
         address: HexAddress,
         filename: Optional[str] = None,
     ):
@@ -311,8 +312,9 @@ class ABIContract:
         self._name = name
         self._functions = functions
         self.log_topics = log_topics
-        self._bytecode = self.env.get_code(address)
-        if not self._bytecode:
+        self.bytecode = bytecode
+        self._deployed_bytecode = self.env.get_code(address)
+        if not self._deployed_bytecode:
             warn(f"Requested {self} but there is no bytecode at that address!", stacklevel=2)
 
         overloads = defaultdict(list)
@@ -350,7 +352,7 @@ class ABIContract:
 
     def __repr__(self):
         file_str = f" (file {self.filename})" if self.filename else ""
-        warn_str = "" if self._bytecode else " (WARNING: no bytecode at this address!)"
+        warn_str = "" if self._deployed_bytecode else " (WARNING: no bytecode at this address!)"
         return f"<{self._name} interface at {self.address}{warn_str}>{file_str}"
 
     def parse_log(self, log: Log) -> ABILog:
@@ -377,26 +379,35 @@ class ABIContractFactory:
         abi: dict,
         functions: list[ABIFunction],
         log_topics: list[ABILogTopic],
+        bytecode: Optional[bytes] = None,
         filename: Optional[str] = None,
     ):
         self._name = name
         self._abi = abi
         self._functions = functions
         self._log_topics = log_topics
+        self._bytecode = bytecode
         self._filename = filename
 
     @classmethod
-    def from_abi_dict(cls, abi, name="<anonymous contract>"):
+    def from_abi_dict(cls, abi, name="<anonymous contract>", bytecode: Optional[bytes] = None):
         functions = [ABIFunction(item, name) for item in abi if item.get("type") == "function"]
         log_topics = [ABILogTopic(item, name) for item in abi if item.get("type") == "event"]
-        return cls(basename(name), abi, functions, log_topics, filename=name)
+        return cls(basename(name), abi, functions, log_topics, bytecode, filename=name)
 
     def at(self, env, address: HexAddress) -> ABIContract:
         """
         Create an ABI contract object for a deployed contract at `address`.
         """
         contract = ABIContract(
-            env, self._name, self._abi, self._functions, self._log_topics, address, self._filename
+            env,
+            self._name,
+            self._abi,
+            self._functions,
+            self._log_topics,
+            self._bytecode,
+            address,
+            self._filename,
         )
         env.register_contract(address, contract)
         return contract
