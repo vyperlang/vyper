@@ -327,10 +327,6 @@ class EvmVersionException(VyperException):
     """Invalid action for the active EVM ruleset."""
 
 
-class TransientStorageException(EvmVersionException):
-    """Transient storage is not supported for the active EVM ruleset."""
-
-
 class StorageLayoutException(VyperException):
     """Invalid slot for the storage layout overrides"""
 

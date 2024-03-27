@@ -3,7 +3,7 @@ from eth_tester.exceptions import TransactionFailed
 
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import TransientStorageException, VyperException
+from vyper.exceptions import EvmVersionException, VyperException
 
 
 # with eth-tester, each call happens in an isolated transaction and so we need to
@@ -124,8 +124,8 @@ def foo(_a: uint256, _b: address, _c: String[64]) -> (uint256, address, String[6
     try:
         compile_code(code)
     except VyperException as e:
-        assert e.message.count("TransientStorageException") == 3
-        raise TransientStorageException()
+        assert e.message.count("EvmVersionException") == 3
+        raise EvmVersionException()
 
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code)

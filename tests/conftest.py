@@ -23,7 +23,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import TransientStorageException
+from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import ERC5202_PREFIX
 
@@ -536,6 +536,6 @@ def check_transient_storage_marker(request):
     ):
         request.node.add_marker(
             pytest.mark.xfail(
-                reason="transient storage", raises=TransientStorageException, strict=True
+                reason="transient storage", raises=EvmVersionException, strict=True
             )
         )

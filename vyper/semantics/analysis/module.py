@@ -24,7 +24,7 @@ from vyper.exceptions import (
     ModuleNotFound,
     StateAccessViolation,
     StructureException,
-    TransientStorageException,
+    EvmVersionException,
     UndeclaredDefinition,
     VyperException,
     tag_exceptions,
@@ -609,7 +609,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_ = type_from_annotation(node.annotation, data_loc)
 
         if node.is_transient and not version_check(begin="cancun"):
-            raise TransientStorageException(
+            raise EvmVersionException(
                 "`transient` is not available pre-cancun", node.annotation
             )
 
