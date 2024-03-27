@@ -1,6 +1,7 @@
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
+from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.context import Constancy, Context
 from vyper.codegen.core import (
     LOAD,
@@ -9,20 +10,14 @@ from vyper.codegen.core import (
     clamp_le,
     get_dyn_array_count,
     get_element_ptr,
-    make_byte_array_copier,
+    get_type_for_exact_size,
     make_setter,
-    zero_pad,
+    wrap_value_for_external_return,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
 from vyper.evm.address_space import MEMORY, STORAGE
-from vyper.exceptions import (
-    CodegenPanic,
-    CompilerPanic,
-    StructureException,
-    TypeCheckFailure,
-    tag_exceptions,
-)
+from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 
@@ -132,39 +127,26 @@ class Stmt:
         finally:
             self.context.constancy = tmp
 
-        # TODO this is probably useful in codegen.core
-        # compare with eval_seq.
-        def _get_last(ir):
-            if len(ir.args) == 0:
-                return ir.value
-            return _get_last(ir.args[-1])
-
-        # TODO maybe use ensure_in_memory
-        if msg_ir.location != MEMORY:
-            buf = self.context.new_internal_variable(msg_ir.typ)
-            instantiate_msg = make_byte_array_copier(buf, msg_ir)
-        else:
-            buf = _get_last(msg_ir)
-            if not isinstance(buf, int):  # pragma: nocover
-                raise CompilerPanic(f"invalid bytestring {buf}\n{self}")
-            instantiate_msg = msg_ir
+        msg_ir = wrap_value_for_external_return(msg_ir)
+        bufsz = 64 + msg_ir.typ.memory_bytes_required
+        buf = self.context.new_internal_variable(get_type_for_exact_size(bufsz))
 
         # offset of bytes in (bytes,)
         method_id = util.method_id_int("Error(string)")
 
-        # abi encode method_id + bytestring
-        assert buf >= 36, "invalid buffer"
-        # we don't mind overwriting other memory because we are
-        # getting out of here anyway.
-        _runtime_length = ["mload", buf]
-        revert_seq = [
-            "seq",
-            instantiate_msg,
-            zero_pad(buf),
-            ["mstore", buf - 64, method_id],
-            ["mstore", buf - 32, 0x20],
-            ["revert", buf - 36, ["add", 4 + 32 + 32, ["ceil32", _runtime_length]]],
-        ]
+        # abi encode method_id + bytestring to `buf+32`, then
+        # write method_id to `buf` and get out of here
+        payload_buf = buf + 32
+        bufsz -= 32  # reduce buffer by size of `method_id` slot
+        encoded_length = abi_encode(payload_buf, msg_ir, self.context, bufsz, returns_len=True)
+        with encoded_length.cache_when_complex("encoded_len") as (b1, encoded_length):
+            revert_seq = [
+                "seq",
+                ["mstore", buf, method_id],
+                ["revert", buf + 28, ["add", 4, encoded_length]],
+            ]
+            revert_seq = b1.resolve(revert_seq)
+
         if is_raise:
             ir_node = revert_seq
         else:
