@@ -20,6 +20,8 @@ from vyper.utils import ERC5202_PREFIX, method_id
 
 
 class RevmEnv:
+    default_chain_id = 1
+
     def __init__(self, gas_limit: int, tracing=False, block_number=1) -> None:
         self.gas_limit = gas_limit
         self.evm = EVM(
