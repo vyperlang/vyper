@@ -22,7 +22,7 @@ from vyper.ast.grammar import parse_vyper_source
 from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
-from vyper.evm.opcodes import EVM_VERSIONS, version_check
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import EvmVersionException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import ERC5202_PREFIX
@@ -529,7 +529,7 @@ def tx_failed(tester):
     return fn
 
 
-def pytest_runtest_setup(item):
+def pytest_runtest_call(item):
     marker = item.get_closest_marker("requires_evm_version")
     if marker:
         assert len(marker.args) == 1

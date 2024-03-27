@@ -9,6 +9,7 @@ from vyper.exceptions import EvmVersionException, VyperException
 # with eth-tester, each call happens in an isolated transaction and so we need to
 # test get/set within a single contract call. (we should remove this restriction
 # in the future by migrating away from eth-tester).
+@pytest.mark.requires_evm_version("cancun")
 def test_transient_compiles():
     if not version_check(begin="cancun"):
         pytest.skip("transient storage will not compile, pre-cancun")
