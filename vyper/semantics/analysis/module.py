@@ -525,7 +525,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 decl_node = func_t.decl_node
 
             if not isinstance(func_t, ContractFunctionT):
-                raise StructureException("not a function!", decl_node, item)
+                raise StructureException(f"not a function: `{func_t}`", decl_node, item)
             if not func_t.is_external:
                 raise StructureException("can't export non-external functions!", decl_node, item)
 

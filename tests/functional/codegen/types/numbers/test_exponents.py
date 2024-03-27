@@ -3,6 +3,18 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
+from vyper.compiler import compile_code
+from vyper.exceptions import InvalidLiteral
+
+
+def test_compiler_hang():
+    code = """
+@external
+def f0():
+    lv0: uint256 = max_value(int128) ** max_value(int128)
+    """
+    with pytest.raises(InvalidLiteral):
+        compile_code(code)
 
 
 @pytest.mark.fuzzing
