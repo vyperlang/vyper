@@ -448,7 +448,32 @@ def _convert_ir_bb(ctx, ir, symbols):
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "select":
         cond, a, b = ir.args
-        expanded = IRnode.from_list(["with", "b", b, ["xor", "b", ["mul", cond, ["xor", a, "b"]]]])
+        expanded = IRnode.from_list(
+            [
+                "with",
+                "cond",
+                cond,
+                [
+                    "with",
+                    "a",
+                    a,
+                    [
+                        "with",
+                        "b",
+                        b,
+                        [
+                            "xor",
+                            "b",
+                            [
+                                "mul",
+                                "cond",
+                                ["xor", "a", "b"],
+                            ],
+                        ],
+                    ],
+                ],
+            ]
+        )
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "repeat":
 
