@@ -69,6 +69,13 @@ def pytest_addoption(parser):
         help="set evm version",
     )
 
+    parser.addoption(
+        "--evm-backend",
+        choices=["py-evm", "revm"],
+        default="py-evm",
+        help="set evm backend",
+    )
+
 
 @pytest.fixture(scope="module")
 def output_formats():
@@ -101,6 +108,7 @@ def evm_version(pytestconfig):
     # this should get overridden by anchor_evm_version,
     # but set it anyway
     evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
+    return evm_version_str
 
 
 @pytest.fixture
@@ -190,8 +198,8 @@ def tester(gas_limit):
 
 
 @pytest.fixture(scope="module")
-def revm_env(gas_limit, initial_balance):
-    revm = RevmEnv(gas_limit, tracing=False, block_number=1)
+def revm_env(gas_limit, initial_balance, evm_version):
+    revm = RevmEnv(gas_limit, tracing=False, block_number=1, evm_version=evm_version)
     revm.set_balance(revm.deployer, initial_balance)
     return revm
 

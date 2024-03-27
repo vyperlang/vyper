@@ -22,12 +22,12 @@ from vyper.utils import ERC5202_PREFIX, method_id
 class RevmEnv:
     default_chain_id = 1
 
-    def __init__(self, gas_limit: int, tracing=False, block_number=1) -> None:
+    def __init__(self, gas_limit: int, tracing=False, block_number=1, evm_version="latest") -> None:
         self.gas_limit = gas_limit
         self.evm = EVM(
             gas_limit=gas_limit,
             tracing=tracing,
-            spec_id="Shanghai",
+            spec_id=evm_version,
             env=Env(block=BlockEnv(number=block_number)),
         )
         self.contracts: dict[HexAddress, ABIContract] = {}
