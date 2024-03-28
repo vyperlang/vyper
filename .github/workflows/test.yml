@@ -147,14 +147,15 @@ jobs:
     - name: Run tests
       run: |
         pytest \
-          --dist worksteal \
           -m "not fuzzing" \
           --optimize ${{ matrix.opt-mode }} \
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
           ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
-          --showlocals -r aR \
+          --cov-branch \
+          --cov-report xml:coverage.xml \
+          --cov=vyper \
           tests/
 
     - name: Upload Coverage
@@ -213,8 +214,10 @@ jobs:
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
-          --dist worksteal \
-          -r aR tests/
+          --cov-branch \
+          --cov-report xml:coverage.xml \
+          --cov=vyper \
+          tests/
 
     - name: Upload Coverage
       uses: codecov/codecov-action@v4
