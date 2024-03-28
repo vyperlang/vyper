@@ -457,20 +457,7 @@ def _convert_ir_bb(ctx, ir, symbols):
                     "with",
                     "a",
                     a,
-                    [
-                        "with",
-                        "b",
-                        b,
-                        [
-                            "xor",
-                            "b",
-                            [
-                                "mul",
-                                "cond",
-                                ["xor", "a", "b"],
-                            ],
-                        ],
-                    ],
+                    ["with", "b", b, ["xor", "b", ["mul", "cond", ["xor", "a", "b"]]]],
                 ],
             ]
         )
