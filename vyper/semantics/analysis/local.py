@@ -166,14 +166,18 @@ def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
 
 
 def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
+    info = get_expr_info(node)
+
     env_vars = CONSTANT_ENVIRONMENT_VARS
     # check env variable access like `block.number`
-    if isinstance(node, vy_ast.Attribute) and node.get("value.id") in env_vars:
-        raise StateAccessViolation(
-            "not allowed to query environment variables in pure functions", node
-        )
+    if isinstance(node, vy_ast.Attribute):
+        if node.get("value.id") in env_vars:
+            raise StateAccessViolation(
+                "not allowed to query environment variables in pure functions"
+            )
+        if isinstance(info.typ, AddressT) and node.attr in AddressT._type_members:
+            raise StateAccessViolation("not allowed to query address members in pure functions")
 
-    info = get_expr_info(node)
     if (varinfo := info.var_info) is None:
         return
     # self is magic. we only need to check it if it is not the root of an Attribute
@@ -182,10 +186,10 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
         node.get_ancestor(), vy_ast.Attribute
     )
     if is_naked_self:
-        raise StateAccessViolation("not allowed to query `self` in pure functions", node)
+        raise StateAccessViolation("not allowed to query `self` in pure functions")
 
     if varinfo.is_state_variable() or is_naked_self:
-        raise StateAccessViolation("not allowed to query state variables in pure functions", node)
+        raise StateAccessViolation("not allowed to query state variables in pure functions")
 
 
 # analyse the variable access for the attribute chain for a node
