@@ -63,6 +63,17 @@ def foo() -> uint256:
         compile_code(code)
 
 
+def test_invalid_codesize_access(get_contract):
+    code = """
+@pure
+@external
+def foo() -> uint256:
+    return msg.sender.codesize
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
 def test_invalid_state_access(get_contract, assert_compile_failed):
     code = """
 x: uint256
