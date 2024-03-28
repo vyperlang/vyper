@@ -154,10 +154,6 @@ def _adjust_gas_estimate(func_t, common_ir):
     common_ir.add_gas_estimate += mem_expansion_cost
     func_t._ir_info.gas_estimate = common_ir.gas
 
-    # pass metadata through for venom pipeline:
-    common_ir.passthrough_metadata["func_t"] = func_t
-    common_ir.passthrough_metadata["frame_info"] = frame_info
-
 
 def generate_ir_for_external_function(code, compilation_target):
     # TODO type hints:

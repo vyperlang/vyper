@@ -1020,7 +1020,11 @@ def _stack_peephole_opts(assembly):
             changed = True
             del assembly[i]
             continue
-        if assembly[i : i + 2] == ["SWAP1", "SWAP1"]:
+        if (
+            isinstance(assembly[i], str)
+            and assembly[i].startswith("SWAP")
+            and assembly[i] == assembly[i + 1]
+        ):
             changed = True
             del assembly[i : i + 2]
         if assembly[i] == "SWAP1" and assembly[i + 1].lower() in COMMUTATIVE_OPS:

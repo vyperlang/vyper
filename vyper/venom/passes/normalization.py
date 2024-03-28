@@ -28,13 +28,20 @@ class NormalizationPass(IRPass):
         source = in_bb.label.value
         target = bb.label.value
 
-        split_label = IRLabel(f"{target}_split_{source}")
+        split_label = IRLabel(f"{source}_split_{target}")
         in_terminal = in_bb.instructions[-1]
         in_terminal.replace_label_operands({bb.label: split_label})
 
         split_bb = IRBasicBlock(split_label, self.ctx)
         split_bb.append_instruction("jmp", bb.label)
         self.ctx.append_basic_block(split_bb)
+
+        for inst in bb.instructions:
+            if inst.opcode != "phi":
+                continue
+            for i in range(0, len(inst.operands), 2):
+                if inst.operands[i] == in_bb.label:
+                    inst.operands[i] = split_bb.label
 
         # Update the labels in the data segment
         for inst in self.ctx.data_segment:
@@ -55,5 +62,6 @@ class NormalizationPass(IRPass):
         # If we made changes, recalculate the cfg
         if self.changes > 0:
             calculate_cfg(ctx)
+            ctx.remove_unreachable_blocks()
 
         return self.changes
