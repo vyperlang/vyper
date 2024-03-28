@@ -544,8 +544,6 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols)
     elif isinstance(ir.value, str) and ir.value in symbols:
-        if "alloca" in ir.passthrough_metadata:
-            ctx.get_basic_block().append_instruction("alloca", *ir.passthrough_metadata["alloca"])
         return symbols[ir.value]
     elif ir.is_literal:
         return IRLiteral(ir.value)
