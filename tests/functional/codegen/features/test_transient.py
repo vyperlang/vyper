@@ -180,7 +180,7 @@ def foo(_a: address, _b: MyStruct2, _c: DynArray[DynArray[uint256, 3], 3]) -> My
     )
     return self.my_struct
     """
-    values = ("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", ([1],), [[3,4], [5,6]])
+    values = ("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", ([1],), [[3, 4], [5, 6]])
 
     c = get_contract(code)
     assert c.foo(*values) == values
@@ -261,9 +261,9 @@ def do_side_effects():
     for i: uint256 in range(2):
         for j: uint256 in range(3):
             s.b[j] = i + j
-        s.a = i 
+        s.a = i
         self.my_map[i] = s
-        self.my_res[i] = self.my_map[i]     
+        self.my_res[i] = self.my_map[i]
     """
     c = get_contract(code)
     c.do_side_effects(transact={})
@@ -337,27 +337,27 @@ def test_nested_dynarray_transient(get_contract):
             [z * (-2), y * (-3), x * (-4)],
             [z * (-y), y * (-x), x * (-z)],
         ],
-    ] 
+    ]
     """
     code = f"""
 interface Iface:
-    def my_list(x: uint256, y: uint256, z: uint256) -> int128: view 
-    
+    def my_list(x: uint256, y: uint256, z: uint256) -> int128: view
+
 my_list: public(transient(DynArray[DynArray[DynArray[int128, 3], 3], 3]))
 
 @external
 def get_my_list(x: int128, y: int128, z: int128) -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
-    {set_list} 
+    {set_list}
     return self.my_list
 
 @external
 def get_idx_two(x: int128, y: int128, z: int128) -> int128:
-    {set_list} 
+    {set_list}
     return self.my_list[2][2][2]
-    
+
 @external
 def get_idx_two_using_getter(x: int128, y: int128, z: int128) -> int128:
-    {set_list} 
+    {set_list}
     #return self.my_list[2][2][2]
     return staticcall Iface(self).my_list(2, 2, 2)
     """
