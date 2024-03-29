@@ -511,13 +511,13 @@ uses: lib1
 
 struct MyStruct:
     a: uint256
-    d: uint256
+    b: uint256
 
 s: transient(MyStruct)
 
 @internal
 def foo():
-    self.s = MyStruct(a=lib1.l[0], d=lib1.l[1])
+    self.s = MyStruct(a=lib1.l[0], b=lib1.l[1])
     """
     main = """
 import lib2
@@ -529,13 +529,13 @@ initializes: lib1
 my_map: HashMap[uint256, uint256]
 
 @external
-def foo() -> (uint256[3], lib2.MyStruct, uint256):
+def foo() -> (uint256[3], uint256, uint256, uint256):
     lib1.l = [1, 2, 3]
     lib2.foo()
     self.my_map[0] = 42
-    return lib1.l, lib2.s, self.my_map[0]
+    return lib1.l, lib2.s.a, lib2.s.b, self.my_map[0]
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
 
     c = get_contract(main, input_bundle=input_bundle)
-    assert c.foo() == [[1, 2, 3], (1, 2), 42]
+    assert c.foo() == [[1, 2, 3], 1, 2, 42]
