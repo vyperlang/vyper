@@ -175,7 +175,8 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
             raise StateAccessViolation(
                 "not allowed to query environment variables in pure functions"
             )
-        if isinstance(info.typ, AddressT) and node.attr in AddressT._type_members:
+        parent_info = get_expr_info(node.value)
+        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
     if (varinfo := info.var_info) is None:
