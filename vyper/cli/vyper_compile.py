@@ -312,7 +312,7 @@ def compile_files(
             no_bytecode_metadata=no_bytecode_metadata,
         )
 
-        ret[file_path] = output
+        ret[str(file_path)] = output
 
     return ret
 
