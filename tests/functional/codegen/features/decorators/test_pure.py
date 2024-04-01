@@ -67,8 +67,8 @@ def test_invalid_codesize_access(get_contract):
     code = """
 @pure
 @external
-def foo() -> uint256:
-    return msg.sender.codesize
+def foo(s: address) -> uint256:
+    return s.codesize
     """
     with pytest.raises(StateAccessViolation):
         compile_code(code)
