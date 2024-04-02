@@ -9,7 +9,6 @@ from vyper.venom.basicblock import (
     IRLabel,
     IROperand,
     IRVariable,
-    MemType,
 )
 
 GLOBAL_LABEL = IRLabel("__global")

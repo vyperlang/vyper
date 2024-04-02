@@ -1,4 +1,3 @@
-from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Generator, Iterator, Optional, Union
 
 from vyper.utils import OrderedSet
@@ -135,11 +134,6 @@ class IRLiteral(IRValue):
 
     def __repr__(self) -> str:
         return str(self.value)
-
-
-class MemType(Enum):
-    OPERAND_STACK = auto()
-    MEMORY = auto()
 
 
 class IRVariable(IRValue):
