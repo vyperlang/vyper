@@ -173,6 +173,22 @@ class IRVariable(IRValue):
             return False
         return self.value == other.value
 
+    @property
+    def name(self) -> str:
+        return self.value.split(":")[0]
+
+    @property
+    def version(self) -> int:
+        if ":" not in self.value:
+            return 0
+        return int(self.value.split(":")[1])
+
+    def __hash__(self) -> int:
+        return self.value.__hash__()
+
+    def __eq__(self, v: object) -> bool:
+        return self.value == v
+
     def __repr__(self) -> str:
         return self.value
 
