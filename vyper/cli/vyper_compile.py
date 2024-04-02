@@ -65,6 +65,7 @@ def _parse_cli_args():
 
 def _cli_helper(f, output_formats, compiled):
     if output_formats == ("combined_json",):
+        compiled = {str(path): v for (path, v) in compiled.items()}
         print(json.dumps(compiled), file=f)
         return
 
@@ -312,7 +313,7 @@ def compile_files(
             no_bytecode_metadata=no_bytecode_metadata,
         )
 
-        ret[str(file_path)] = output
+        ret[file_path] = output
 
     return ret
 
