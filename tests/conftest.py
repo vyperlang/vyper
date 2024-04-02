@@ -70,10 +70,7 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--evm-backend",
-        choices=["py-evm", "revm"],
-        default="py-evm",
-        help="set evm backend",
+        "--evm-backend", choices=["py-evm", "revm"], default="py-evm", help="set evm backend"
     )
 
 

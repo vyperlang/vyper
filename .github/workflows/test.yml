@@ -80,21 +80,26 @@ jobs:
             debug: false
             opt-mode: gas
             evm-version: london
+            evm-backend: revm
+
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: paris
+            evm-backend: revm
 
           # redundant rule, for clarity
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: shanghai
+            evm-backend: revm
 
           - python-version: ["3.11", "311"]
             debug: false
             opt-mode: gas
             evm-version: cancun
+            evm-backend: revm
 
           # run with `--memorymock`, but only need to do it one configuration
           # TODO: consider removing the memorymock tests
@@ -103,6 +108,7 @@ jobs:
             debug: false
             evm-version: shanghai
             memorymock: true
+            evm-backend: revm
 
           # run across other python versions. we don't really need to run all
           # modes across all python versions - one is enough
@@ -110,10 +116,13 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
+            evm-backend: revm
+
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
+            evm-backend: revm
 
     name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}-${{ matrix.evm-backend }}
 
