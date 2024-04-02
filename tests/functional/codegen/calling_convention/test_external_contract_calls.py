@@ -2503,9 +2503,9 @@ def foo(a: {typ}):
     pass
     """
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ})".encode()).to_0x_hex()[:10]
+    sig = keccak(f"foo({typ})".encode()).hex()[:8]
     encoded = abi.encode(f"({typ})", (val,)).hex()
-    data = f"{sig}{encoded}"
+    data = f"0x{sig}{encoded}"
 
     # Static size is short by 1 byte
     malformed = data[:-2]
@@ -2528,9 +2528,9 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     """
 
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ}[],string)".encode()).to_0x_hex()[:10]
+    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:8]
     encoded = abi.encode(f"({typ}[],string)", val).hex()
-    data = f"{sig}{encoded}"
+    data = f"0x{sig}{encoded}"
 
     # Dynamic size is short by 1 byte
     malformed = data[:264]

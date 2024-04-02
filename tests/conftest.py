@@ -23,7 +23,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.input_bundle import FilesystemInputBundle, InputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, _set_debug_mode
 from vyper.ir import compile_ir, optimizer
-from vyper.utils import ERC5202_PREFIX
+from vyper.utils import ERC5202_PREFIX, keccak256
 
 # Import the base fixtures
 pytest_plugins = ["tests.fixtures.memorymock"]
@@ -144,7 +144,7 @@ def chdir_tmp_path(tmp_path):
 # CMC 2024-03-01 this doesn't need to be a fixture
 @pytest.fixture
 def keccak():
-    return Web3.keccak
+    return keccak256
 
 
 @pytest.fixture
