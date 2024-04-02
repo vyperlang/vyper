@@ -198,5 +198,4 @@ def foo() -> uint256:
     return self.x
     """
     with pytest.raises(StateAccessViolation):
-        assert compile_code(code) is not None
-    
+        compile_code(code)
