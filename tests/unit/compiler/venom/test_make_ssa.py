@@ -33,3 +33,16 @@ def test_phi_case():
     calculate_cfg(ctx)
     MakeSSA.run_pass(ctx, ctx.basic_blocks[0])
     calculate_liveness(ctx)
+
+    condition_block = ctx.get_basic_block("condition")
+    assert len(condition_block.instructions) == 2
+
+    phi_inst = condition_block.instructions[0]
+    assert phi_inst.opcode == "phi"
+    assert phi_inst.operands[0].name == "_global"
+    assert phi_inst.operands[1].name == "%1"
+    assert phi_inst.operands[2].name == "if_exit"
+    assert phi_inst.operands[3].name == "%1"
+    assert phi_inst.output.name == "%1"
+    assert phi_inst.output.value != phi_inst.operands[1].value
+    assert phi_inst.output.value != phi_inst.operands[3].value

@@ -448,7 +448,19 @@ def _convert_ir_bb(ctx, ir, symbols):
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "select":
         cond, a, b = ir.args
-        expanded = IRnode.from_list(["with", "b", b, ["xor", "b", ["mul", cond, ["xor", a, "b"]]]])
+        expanded = IRnode.from_list(
+            [
+                "with",
+                "cond",
+                cond,
+                [
+                    "with",
+                    "a",
+                    a,
+                    ["with", "b", b, ["xor", "b", ["mul", "cond", ["xor", "a", "b"]]]],
+                ],
+            ]
+        )
         return _convert_ir_bb(ctx, expanded, symbols)
     elif ir.value == "repeat":
 
@@ -532,8 +544,6 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif isinstance(ir.value, str) and ir.value.upper() in get_opcodes():
         _convert_ir_opcode(ctx, ir, symbols)
     elif isinstance(ir.value, str) and ir.value in symbols:
-        if "alloca" in ir.passthrough_metadata:
-            ctx.get_basic_block().append_instruction("alloca", *ir.passthrough_metadata["alloca"])
         return symbols[ir.value]
     elif ir.is_literal:
         return IRLiteral(ir.value)

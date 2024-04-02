@@ -201,11 +201,9 @@ def apply_line_numbers(func):
         ret = func(*args, **kwargs)
 
         new_ret = [
-            (
-                Instruction(i, code.ast_source, code.error_msg)
-                if isinstance(i, str) and not isinstance(i, Instruction)
-                else i
-            )
+            Instruction(i, code.ast_source, code.error_msg)
+            if isinstance(i, str) and not isinstance(i, Instruction)
+            else i
             for i in ret
         ]
         return new_ret

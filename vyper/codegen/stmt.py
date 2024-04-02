@@ -59,7 +59,6 @@ class Stmt:
         rhs = Expr(self.stmt.value, self.context).ir_node
 
         lhs = IRnode.from_list(alloced, typ=ltyp, location=MEMORY)
-        lhs.passthrough_metadata["alloca"] = (varname, alloced, ltyp.memory_bytes_required)
 
         return make_setter(lhs, rhs)
 

@@ -177,11 +177,6 @@ class Expr:
                 annotation=self.expr.id,
                 mutable=var.mutable,
             )
-            ret.passthrough_metadata["alloca"] = (
-                self.expr.id,
-                var.pos,
-                var.typ.memory_bytes_required,
-            )
             ret._referenced_variables = {var}
             return ret
 

@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_simple_export(make_input_bundle, get_contract):
     lib1 = """
 @external
@@ -131,9 +128,7 @@ exports: lib2.lib1.foo
     assert c.foo() == 5
 
 
-# not sure if this one should work
-@pytest.mark.xfail(reason="ambiguous spec")
-def test_recursive_export(make_input_bundle, get_contract):
+def test_transitive_export(make_input_bundle, get_contract):
     lib1 = """
 @external
 def foo() -> uint256:
