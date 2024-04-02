@@ -128,12 +128,12 @@ class MakeSSA(IRPass):
                             inst.output.name, version=self.var_name_stacks[inst.output.name][-1]
                         )
 
-        # Post-action
         for bb in self.dom.dominated[basic_block]:
             if bb == basic_block:
                 continue
             self._rename_vars(bb)
 
+        # Post-action
         for op_name in outs:
             # NOTE: each pop corresponds to an append in the pre-action above
             self.var_name_stacks[op_name].pop()
