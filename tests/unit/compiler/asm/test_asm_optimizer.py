@@ -121,5 +121,7 @@ def foo():
     asm = res["asm"]
     if not experimental_codegen:
         assert "some_function()" in asm
+    else:
+        assert "some_function()" not in asm
     assert "unused1()" not in asm
     assert "unused2()" not in asm
