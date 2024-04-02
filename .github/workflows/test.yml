@@ -118,7 +118,7 @@ jobs:
             debug: false
             evm-version: shanghai
 
-          - python-version: ["3.11", "311"]
+          - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
