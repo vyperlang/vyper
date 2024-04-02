@@ -67,8 +67,9 @@ jobs:
       matrix:
         python-version: [["3.11", "311"]]
         opt-mode: ["gas", "none", "codesize"]
-        evm-version: [shanghai]
         debug: [true, false]
+        evm-version: [shanghai]
+        experimental-codegen: [false]
         memorymock: [false]
 
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
@@ -94,6 +95,14 @@ jobs:
             opt-mode: gas
             evm-version: cancun
 
+          # test experimental pipeline
+          - python-version: ["3.11", "311"]
+            opt-mode: gas
+            debug: false
+            evm-version: shanghai
+            experimental-codegen: true
+          # TODO: test experimental_codegen + -Ocodesize
+
           # run with `--memorymock`, but only need to do it one configuration
           # TODO: consider removing the memorymock tests
           - python-version: ["3.11", "311"]
@@ -108,12 +117,14 @@ jobs:
             opt-mode: gas
             debug: false
             evm-version: shanghai
+
           - python-version: ["3.12", "312"]
             opt-mode: gas
             debug: false
             evm-version: shanghai
 
-    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}-${{ matrix.evm-version }}
+
+    name: py${{ matrix.python-version[1] }}-opt-${{ matrix.opt-mode }}${{ matrix.debug && '-debug' || '' }}${{ matrix.memorymock && '-memorymock' || '' }}${{ matrix.experimental-codegen && '-experimental' || '' }}-${{ matrix.evm-version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -141,6 +152,7 @@ jobs:
           --evm-version ${{ matrix.evm-version }} \
           ${{ matrix.debug && '--enable-compiler-debug-mode' || '' }} \
           ${{ matrix.memorymock && '--memorymock' || '' }} \
+          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
           --cov-branch \
           --cov-report xml:coverage.xml \
           --cov=vyper \
@@ -193,8 +205,7 @@ jobs:
     # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
     # `pytest -m "fuzzing" --store-durations -r aR tests/`
     - name: Fetch test-durations
-      run: |
-        curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
+      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
 
     - name: Run tests
       run: |

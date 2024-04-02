@@ -9,11 +9,13 @@ class IRPass:
         t = cls()
         count = 0
 
-        while True:
+        for _ in range(1000):
             changes_count = t._run_pass(*args, **kwargs) or 0
             count += changes_count
             if changes_count == 0:
                 break
+        else:
+            raise Exception("Too many iterations in IR pass!", t.__class__)
 
         return count
 
