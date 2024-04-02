@@ -184,7 +184,7 @@ def _parse_args(argv):
         settings.experimental_codegen = args.experimental_codegen
 
     if args.debug:
-        settings.debug = settings.debug
+        settings.debug = args.debug
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
