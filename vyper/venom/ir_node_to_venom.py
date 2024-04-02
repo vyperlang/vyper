@@ -442,7 +442,7 @@ def _convert_ir_bb(ctx, ir, symbols):
         # to fix upstream.
         arg_1, arg_0 = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
 
-        return ctx.get_basic_block().append_instruction("mstore", arg_0, arg_1)
+        return ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
 
     elif ir.value == "ceil32":
         x = ir.args[0]
