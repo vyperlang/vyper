@@ -2503,7 +2503,7 @@ def foo(a: {typ}):
     pass
     """
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ})".encode()).hex()[:10]
+    sig = keccak(f"foo({typ})".encode()).to_0x_hex()[:10]
     encoded = abi.encode(f"({typ})", (val,)).hex()
     data = f"{sig}{encoded}"
 
@@ -2528,7 +2528,7 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     """
 
     c1 = get_contract(code)
-    sig = keccak(f"foo({typ}[],string)".encode()).hex()[:10]
+    sig = keccak(f"foo({typ}[],string)".encode()).to_0x_hex()[:10]
     encoded = abi.encode(f"({typ}[],string)", val).hex()
     data = f"{sig}{encoded}"
 

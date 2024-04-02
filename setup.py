@@ -16,6 +16,7 @@ extras_require = {
         "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
         "py-evm>=0.10.0b4,<0.11",
+        "hexbytes>1.0,<2.0",
         "web3==6.0.0",
         "lark==1.1.9",
         "hypothesis[lark]>=6.0,<7.0",

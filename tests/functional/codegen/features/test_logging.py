@@ -34,7 +34,7 @@ def foo():
     event_id = keccak(bytes("MyLog()", "utf-8"))
 
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -66,7 +66,7 @@ def foo():
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
 
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -96,7 +96,7 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bool,address)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -172,8 +172,8 @@ def bar():
 
     event_id = keccak(bytes("MyLog(int128,address)", "utf-8"))
     # Event id is always the first topic
-    assert receipt1["logs"][0]["topics"][0] == event_id.hex()
-    assert receipt2["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt1["logs"][0]["topics"][0] == event_id.to_0x_hex()
+    assert receipt2["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -224,7 +224,7 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -260,7 +260,7 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128[2],uint256[3],int128[2][2])", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
 
     assert c._classic_contract.abi[0] == {
@@ -303,7 +303,7 @@ def foo(arg1: Bytes[29], arg2: Bytes[31]):
 
     event_id = keccak(bytes("MyLog(bytes,bytes,bytes)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -341,7 +341,7 @@ def foo(_arg1: Bytes[20]):
 
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "anonymous": False,
@@ -370,7 +370,7 @@ def foo(_arg1: Bytes[5]):
 
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "anonymous": False,
@@ -406,7 +406,7 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bytes,bytes,address,address,uint256)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -453,7 +453,7 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
     # Event id is always the first topic
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "anonymous": False,
@@ -506,8 +506,8 @@ def foo():
     event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
 
     # Event id is always the first topic
-    assert logs1["topics"][0] == event_id1.hex()
-    assert logs2["topics"][0] == event_id2.hex()
+    assert logs1["topics"][0] == event_id1.to_0x_hex()
+    assert logs2["topics"][0] == event_id2.to_0x_hex()
     # Event abi is created correctly
     assert c._classic_contract.abi[0] == {
         "name": "MyLog",
@@ -1081,7 +1081,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
 
     topic1 = f"0x{keccak256(b'bar').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
@@ -1126,7 +1126,7 @@ def foo():
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
 
     topic1 = f"0x{keccak256(b'potato').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
@@ -1180,7 +1180,7 @@ def foo():
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
 
     topic1 = f"0x{keccak256(b'zonk').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
@@ -1222,7 +1222,7 @@ def foo():
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    assert receipt["logs"][0]["topics"][0] == event_id.hex()
+    assert receipt["logs"][0]["topics"][0] == event_id.to_0x_hex()
 
     topic1 = f"0x{keccak256(b'wow').hex()}"
     assert receipt["logs"][0]["topics"][1] == topic1
