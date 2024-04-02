@@ -354,7 +354,8 @@ class VenomCompiler:
         if opcode in ["jmp", "djmp", "jnz", "invoke"]:
             operands = inst.get_non_label_operands()
         elif opcode == "alloca":
-            operands = inst.operands[1:2]
+            _size, offset = inst.operands
+            operands = [offset]
 
         # iload and istore are special cases because they can take a literal
         # that is handled specialy with the _OFST macro. Look below, after the
