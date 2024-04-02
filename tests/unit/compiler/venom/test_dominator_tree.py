@@ -72,6 +72,3 @@ def test_phi_placement():
 
     MakeSSA.run_pass(ctx, bb1)
 
-
-if __name__ == "__main__":
-    test_phi_placement()
