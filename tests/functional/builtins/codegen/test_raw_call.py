@@ -233,7 +233,7 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
-def test_forward_calldata(get_contract, w3, keccak):
+def test_forward_calldata(get_contract, revm_env, keccak):
     target_source = """
 @external
 def foo() -> uint256:
@@ -259,7 +259,7 @@ def __default__():
 
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]
-    w3.eth.send_transaction({"to": caller.address, "data": sig})
+    assert revm_env.execute_code(caller.address, data=sig) == b""
 
 
 # check max_outsize=0 does same thing as not setting max_outsize.

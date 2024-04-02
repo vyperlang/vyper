@@ -41,7 +41,7 @@ def testa(inp: String[10]) -> String[160]:
     assert c.testa("foo") == "Funny foo foo<-- return message"
 
 
-def test_basic_long_string_as_keys(get_contract, w3):
+def test_basic_long_string_as_keys(get_contract):
     code = """
 mapped_string: HashMap[String[34], int128]
 

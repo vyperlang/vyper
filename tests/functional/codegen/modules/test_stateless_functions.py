@@ -14,7 +14,7 @@ from vyper.exceptions import (
 # test modules which have no variables - "libraries"
 
 
-def test_simple_library(get_contract, make_input_bundle, w3, revm_env):
+def test_simple_library(get_contract, make_input_bundle, revm_env):
     library_source = """
 @internal
 def foo() -> uint256:
