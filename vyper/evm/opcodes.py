@@ -210,7 +210,7 @@ IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 def set_global_evm_version(evm_version: int) -> None:
     global active_evm_version
-    evm_version = evm_version
+    active_evm_version = evm_version
 
 
 @contextlib.contextmanager
