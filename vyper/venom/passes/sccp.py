@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from vyper.ir.optimizer import arith
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, SizeLimits
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IRVariable
@@ -148,7 +149,7 @@ class SCCP(IRPass):
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
-        elif opcode in ["add", "sub", "iszero", "shr", "shl"]:
+        elif opcode in arith:
             self._eval(inst)
         else:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
@@ -172,16 +173,11 @@ class SCCP(IRPass):
         ret = None
         if opcode == "store":
             ret = ops[0]
-        elif opcode == "add":
-            ret = IRLiteral((ops[0].value + ops[1].value) & SizeLimits.MAX_UINT256)
-        elif opcode == "sub":
-            ret = IRLiteral((ops[0].value - ops[1].value) & SizeLimits.MAX_UINT256)
         elif opcode == "iszero":
             ret = IRLiteral(1 if ops[0].value == 0 else 0)
-        elif opcode == "shr":
-            ret = IRLiteral((ops[0].value >> ops[1].value) & SizeLimits.MAX_UINT256)
-        elif opcode == "shl":
-            ret = IRLiteral((ops[0].value << ops[1].value) & SizeLimits.MAX_UINT256)
+        elif opcode in arith:
+            fn = arith[opcode][0]
+            ret = IRLiteral(fn(ops[0].value, ops[1].value) & SizeLimits.MAX_UINT256)
         elif len(ops) > 0:
             ret = ops[0]
         else:
