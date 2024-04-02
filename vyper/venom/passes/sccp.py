@@ -49,6 +49,7 @@ class SCCP(IRPass):
         self.ctx = ctx
         self._compute_uses(self.dom)
         self._calculate_sccp(entry)
+        print("SCCP done", self.lattice)
 
     def _calculate_sccp(self, entry: IRBasicBlock) -> dict[IRVariable, LatticeItem]:
 
@@ -104,10 +105,11 @@ class SCCP(IRPass):
     def _visitExpr(self, inst: IRInstruction):
         # print("Visit: ", inst.opcode)
         opcode = inst.opcode
-        if opcode in ["add", "sub", "iszero", "shr", "shl"]:
-            self._eval(inst)
-        elif opcode in ["push", "store"]:
-            self.lattice[inst.output] = inst.operands[0]
+        if opcode in ["push", "store"]:
+            if isinstance(inst.operands[0], IRLiteral):
+                self.lattice[inst.output] = inst.operands[0]
+            else:
+                self.lattice[inst.output] = self.lattice[inst.operands[0]]
             self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.ctx.get_basic_block(inst.operands[0].value)
@@ -123,7 +125,7 @@ class SCCP(IRPass):
                 if lat.value == 0:
                     target = self.ctx.get_basic_block(inst.operands[1].name)
                 else:
-                    target = self.ctx.get_basic_block(inst.operands[0].name)
+                    target = self.ctx.get_basic_block(inst.operands[2].name)
                 self.work_list.append(FlowWorkItem(inst.parent, target))
             # if _meet(lat, 0) == LatticeEnum.BOTTOM:
             #     target = self.ctx.get_basic_block(inst.operands[2].value)
@@ -146,6 +148,8 @@ class SCCP(IRPass):
             self._add_ssa_work_items(inst)
         elif opcode == "mload":
             self.lattice[inst.output] = LatticeEnum.BOTTOM
+        elif opcode in ["add", "sub", "iszero", "shr", "shl"]:
+            self._eval(inst)
         else:
             self.lattice[inst.output] = LatticeEnum.BOTTOM
 
@@ -183,7 +187,8 @@ class SCCP(IRPass):
         else:
             raise CompilerPanic("Bad constant evaluation")
 
-        if self.lattice[inst.output].value != ret.value:
+        old_val = self.lattice.get(inst.output, LatticeEnum.TOP)
+        if old_val != ret.value:
             self.lattice[inst.output] = ret
             self._add_ssa_work_items(inst)
 
