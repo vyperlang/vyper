@@ -11,7 +11,7 @@ extras_require = {
         "pytest>=8.0,<9.0",
         "pytest-cov>=4.1,<5.0",
         "pytest-instafail>=0.4,<1.0",
-        "pytest-xdist>=3.5,<4.0",
+        "pytest-xdist>=3.0,<3.4",
         "pytest-split>=0.7.0,<1.0",
         "eth-tester[py-evm]>=0.10.0b4,<0.11",
         "eth_abi>=4.0.0,<5.0.0",
@@ -31,13 +31,10 @@ extras_require = {
         "isort==5.13.2",
         "mypy==1.5",
     ],
-    "docs": ["recommonmark", "sphinx>=6.0,<7.0", "sphinx_rtd_theme>=1.2,<1.3"],
     "dev": ["ipython", "pre-commit", "pyinstaller", "twine"],
 }
 
-extras_require["dev"] = (
-    extras_require["test"] + extras_require["lint"] + extras_require["docs"] + extras_require["dev"]
-)
+extras_require["dev"] = extras_require["dev"] + extras_require["test"] + extras_require["lint"]
 
 with open("README.md", "r") as f:
     long_description = f.read()

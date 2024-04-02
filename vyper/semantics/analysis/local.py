@@ -38,7 +38,7 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.data_locations import DataLocation
 
 # TODO consolidate some of these imports
-from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS, MUTABLE_ENVIRONMENT_VARS
+from vyper.semantics.environment import CONSTANT_ENVIRONMENT_VARS
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types import (
     TYPE_T,
@@ -51,6 +51,7 @@ from vyper.semantics.types import (
     HashMapT,
     IntegerT,
     SArrayT,
+    SelfT,
     StringT,
     StructT,
     TupleT,
@@ -164,21 +165,32 @@ def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
         raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
 
 
-def _validate_pure_access(node: vy_ast.Attribute, typ: VyperType) -> None:
-    env_vars = set(CONSTANT_ENVIRONMENT_VARS.keys()) | set(MUTABLE_ENVIRONMENT_VARS.keys())
-    if isinstance(node.value, vy_ast.Name) and node.value.id in env_vars:
-        if isinstance(typ, ContractFunctionT) and typ.mutability == StateMutability.PURE:
-            return
+def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name) -> None:
+    info = get_expr_info(node)
 
-        raise StateAccessViolation(
-            "not allowed to query contract or environment variables in pure functions", node
-        )
+    env_vars = CONSTANT_ENVIRONMENT_VARS
+    # check env variable access like `block.number`
+    if isinstance(node, vy_ast.Attribute):
+        if node.get("value.id") in env_vars:
+            raise StateAccessViolation(
+                "not allowed to query environment variables in pure functions"
+            )
+        parent_info = get_expr_info(node.value)
+        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
+            raise StateAccessViolation("not allowed to query address members in pure functions")
 
+    if (varinfo := info.var_info) is None:
+        return
+    # self is magic. we only need to check it if it is not the root of an Attribute
+    # node. (i.e. it is bare like `self`, not `self.foo`)
+    is_naked_self = isinstance(varinfo.typ, SelfT) and not isinstance(
+        node.get_ancestor(), vy_ast.Attribute
+    )
+    if is_naked_self:
+        raise StateAccessViolation("not allowed to query `self` in pure functions")
 
-def _validate_self_reference(node: vy_ast.Name) -> None:
-    # CMC 2023-10-19 this detector seems sus, things like `a.b(self)` could slip through
-    if node.id == "self" and not isinstance(node.get_ancestor(), vy_ast.Attribute):
-        raise StateAccessViolation("not allowed to query self in pure functions", node)
+    if varinfo.is_state_variable() or is_naked_self:
+        raise StateAccessViolation("not allowed to query state variables in pure functions")
 
 
 # analyse the variable access for the attribute chain for a node
@@ -429,7 +441,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         info._writes.add(var_access)
 
     def _handle_module_access(self, var_access: VarAccess, target: vy_ast.ExprNode):
-        if not var_access.variable.is_module_variable():
+        if not var_access.variable.is_state_variable():
             return
 
         root_module_info = check_module_uses(target)
@@ -693,7 +705,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             _validate_msg_value_access(node)
 
         if self.func and self.func.mutability == StateMutability.PURE:
-            _validate_pure_access(node, typ)
+            _validate_pure_access(node)
 
         value_type = get_exact_type_from_node(node.value)
 
@@ -765,10 +777,10 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if not func_type.from_interface:
                 for s in func_type.get_variable_writes():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._writes.add(s)
                 for s in func_type.get_variable_reads():
-                    if s.variable.is_module_variable():
+                    if s.variable.is_state_variable():
                         func_info._reads.add(s)
 
             if self.function_analyzer:
@@ -873,10 +885,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(element, typ.value_type)
 
     def visit_Name(self, node: vy_ast.Name, typ: VyperType) -> None:
-        if self.func:
-            # TODO: refactor to use expr_info mutability
-            if self.func.mutability == StateMutability.PURE:
-                _validate_self_reference(node)
+        if self.func and self.func.mutability == StateMutability.PURE:
+            _validate_pure_access(node)
 
     def visit_Subscript(self, node: vy_ast.Subscript, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

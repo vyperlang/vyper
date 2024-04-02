@@ -127,8 +127,9 @@ class _BaseVyperException(Exception):
             return None
 
         if isinstance(node, vy_ast.VyperNode):
-            module_node = node.get_ancestor(vy_ast.Module)
+            module_node = node.module_node
 
+            # TODO: handle cases where module is None or vy_ast.Module
             if module_node.get("path") not in (None, "<unknown>"):
                 node_msg = f'{node_msg}contract "{module_node.path}:{node.lineno}", '
 
