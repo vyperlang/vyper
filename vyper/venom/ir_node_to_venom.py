@@ -63,7 +63,6 @@ PASS_THROUGH_INSTRUCTIONS = frozenset(
         "gaslimit",
         "returndatasize",
         "mload",
-        "mstore",
         "iload",
         "istore",
         "sload",
@@ -440,9 +439,9 @@ def _convert_ir_bb(ctx, ir, symbols):
     elif ir.value == "mstore":
         # some upstream code depends on reversed order of evaluation --
         # to fix upstream.
-        arg_1, arg_0 = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
+        val, ptr = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
 
-        return ctx.get_basic_block().append_instruction("mstore", arg_1, arg_0)
+        return ctx.get_basic_block().append_instruction("mstore", val, ptr)
 
     elif ir.value == "ceil32":
         x = ir.args[0]
