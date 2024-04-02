@@ -150,17 +150,7 @@ class IRVariable(IRValue):
     value: str
     offset: int = 0
 
-    # some variables can be in memory for conversion from legacy IR to venom
-    mem_type: MemType = MemType.OPERAND_STACK
-    mem_addr: Optional[int] = None
-
-    def __init__(
-        self,
-        value: str,
-        mem_type: MemType = MemType.OPERAND_STACK,
-        mem_addr: int = None,
-        version: Optional[str | int] = None,
-    ) -> None:
+    def __init__(self, value: str, version: Optional[str | int] = None) -> None:
         assert isinstance(value, str)
         assert ":" not in value, "Variable name cannot contain ':'"
         if version:
@@ -170,8 +160,6 @@ class IRVariable(IRValue):
             value = f"%{value}"
         self.value = value
         self.offset = 0
-        self.mem_type = mem_type
-        self.mem_addr = mem_addr
 
     @property
     def name(self) -> str:
