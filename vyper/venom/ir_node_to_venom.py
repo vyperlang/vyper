@@ -436,6 +436,8 @@ def _convert_ir_bb(ctx, ir, symbols):
 
         return bb.append_instruction("mload", arg_0)
     elif ir.value == "mstore":
+        # some upstream code depends on reversed order of evaluation --
+        # to fix upstream.
         arg_1, arg_0 = _convert_ir_bb_list(ctx, reversed(ir.args), symbols)
 
         if isinstance(arg_1, IRVariable):
