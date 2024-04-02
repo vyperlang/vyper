@@ -537,7 +537,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             # check module uses
             var_accesses = func_t.get_variable_accesses()
-            if any(s.variable.is_module_variable() for s in var_accesses):
+            if any(s.variable.is_state_variable() for s in var_accesses):
                 module_info = check_module_uses(item)
                 assert module_info is not None  # guaranteed by above checks
                 used_modules.add(module_info)
