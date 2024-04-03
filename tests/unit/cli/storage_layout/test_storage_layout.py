@@ -55,8 +55,6 @@ def public_foo3():
     pass
     """
 
-    out = compile_code(code, output_formats=["layout"])
-
     expected = {
         "storage_layout": {
             "$.nonreentrant_key": {"slot": 0, "type": "nonreentrant lock"},
@@ -68,6 +66,7 @@ def public_foo3():
     }
     _adjust_storage_layout_for_cancun(expected)
 
+    out = compile_code(code, output_formats=["layout"])
     assert out["layout"] == expected
 
 
