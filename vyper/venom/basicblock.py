@@ -186,6 +186,9 @@ class IRVariable(IRValue):
     def __hash__(self) -> int:
         return self.value.__hash__()
 
+    def __eq__(self, v: object) -> bool:
+        return self.value == v.value
+
     def __repr__(self) -> str:
         return self.value
 

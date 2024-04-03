@@ -17,6 +17,7 @@ from vyper.venom.ir_node_to_venom import ir_node_to_venom
 from vyper.venom.passes.constant_propagation import ir_pass_constant_propagation
 from vyper.venom.passes.dft import DFTPass
 from vyper.venom.passes.make_ssa import MakeSSA
+from vyper.venom.passes.mem2stack import Mem2Stack
 from vyper.venom.passes.normalization import NormalizationPass
 from vyper.venom.passes.sccp import SCCP
 from vyper.venom.passes.simplify_cfg import SimplifyCFGPass
@@ -56,6 +57,11 @@ def _run_passes(ctx: IRFunction, optimize: OptimizationLevel) -> None:
     SimplifyCFGPass().run_pass(ctx, ctx.basic_blocks[0])
     for entry in internals:
         SimplifyCFGPass().run_pass(ctx, entry)
+
+    dfg = DFG.build_dfg(ctx)
+    Mem2Stack().run_pass(ctx, ctx.basic_blocks[0], dfg)
+    for entry in internals:
+        Mem2Stack().run_pass(ctx, entry, dfg)
 
     make_ssa_pass = MakeSSA()
     make_ssa_pass.run_pass(ctx, ctx.basic_blocks[0])

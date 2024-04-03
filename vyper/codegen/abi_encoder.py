@@ -159,9 +159,9 @@ def abi_encoding_matches_vyper(typ):
 # the abi_encode routine will push the output len onto the stack,
 # otherwise it will return 0 items to the stack.
 def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
-    # TODO change dst to be an IRnode so it has type info to begin with.
-    # setting the typ of dst to ir_node.typ is a footgun.
+    # cast dst to the type of the input so that make_setter works
     dst = IRnode.from_list(dst, typ=ir_node.typ, location=MEMORY)
+
     abi_t = dst.typ.abi_type
     size_bound = abi_t.size_bound()
 

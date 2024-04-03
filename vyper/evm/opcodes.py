@@ -208,16 +208,24 @@ PSEUDO_OPCODES: OpcodeMap = {
 IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
 
 
-@contextlib.contextmanager
-def anchor_evm_version(evm_version: Optional[str] = None) -> Generator:
+def set_global_evm_version(evm_version: int) -> None:
     global active_evm_version
-    anchor = active_evm_version
-    evm_version = evm_version or DEFAULT_EVM_VERSION
-    active_evm_version = EVM_VERSIONS[evm_version]
+    active_evm_version = evm_version
+
+
+@contextlib.contextmanager
+def anchor_evm_version(evm_version: Optional[str]) -> Generator:
+    global active_evm_version
+    if evm_version is None:
+        evm_version = DEFAULT_EVM_VERSION
+
+    tmp = active_evm_version
+    evm_version_int = EVM_VERSIONS[evm_version]
+    set_global_evm_version(evm_version_int)
     try:
         yield
     finally:
-        active_evm_version = anchor
+        set_global_evm_version(tmp)
 
 
 def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:

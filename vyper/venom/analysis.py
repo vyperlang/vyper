@@ -151,6 +151,10 @@ class DFG:
     # the instruction which produces this variable.
     def get_producing_instruction(self, op: IRVariable) -> Optional[IRInstruction]:
         return self._dfg_outputs.get(op)
+    
+    @property
+    def outputs(self) -> dict[IRVariable, IRInstruction]:
+        return self._dfg_outputs
 
     @classmethod
     def build_dfg(cls, ctx: IRFunction) -> "DFG":

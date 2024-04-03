@@ -3,7 +3,8 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.codegen.ir_node import Encoding
+from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
 from vyper.semantics.types import VyperType
@@ -12,6 +13,17 @@ from vyper.semantics.types import VyperType
 class Constancy(enum.Enum):
     Mutable = 0
     Constant = 1
+
+
+@dataclass(frozen=True)
+class Alloca:
+    name: str
+    offset: int
+    typ: VyperType
+    size: int
+
+    def __post_init__(self):
+        assert self.typ.memory_bytes_required == self.size
 
 
 # Function variable
@@ -27,6 +39,9 @@ class VariableRecord:
     blockscopes: Optional[list] = None
     defined_at: Any = None
     is_internal: bool = False
+    alloca: Optional[Alloca] = None
+
+    # the following members are probably dead
     is_immutable: bool = False
     is_transient: bool = False
     data_offset: Optional[int] = None
@@ -42,6 +57,20 @@ class VariableRecord:
         ret = vars(self)
         ret["allocated"] = self.typ.memory_bytes_required
         return f"VariableRecord({ret})"
+
+    def as_ir_node(self):
+        ret = IRnode.from_list(
+            self.pos,
+            typ=self.typ,
+            annotation=self.name,
+            encoding=self.encoding,
+            mutable=self.mutable,
+            location=self.location,
+        )
+        ret._referenced_variables = {self}
+        if self.alloca is not None:
+            ret.passthrough_metadata["alloca"] = self.alloca
+        return ret
 
 
 # compilation context for a function
@@ -90,6 +119,8 @@ class Context:
 
         # either the constructor, or called from the constructor
         self.is_ctor_context = is_ctor_context
+
+        self.settings = get_global_settings()
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
@@ -140,10 +171,7 @@ class Context:
             (k, v) for k, v in self.vars.items() if v.is_internal and scope_id in v.blockscopes
         ]
         for name, var in released:
-            n = var.typ.memory_bytes_required
-            assert n == var.size
-            self.memory_allocator.deallocate_memory(var.pos, n)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
@@ -164,36 +192,58 @@ class Context:
         # Remove all variables that have specific scope_id attached
         released = [(k, v) for k, v in self.vars.items() if scope_id in v.blockscopes]
         for name, var in released:
-            n = var.typ.memory_bytes_required
-            # sanity check the type's size hasn't changed since allocation.
-            assert n == var.size
-            self.memory_allocator.deallocate_memory(var.pos, n)
-            del self.vars[name]
+            self.deallocate_variable(name, var)
 
         # Remove block scopes
         self._scopes.remove(scope_id)
 
+    def deallocate_variable(self, varname, var):
+        assert varname == var.name
+
+        # sanity check the type's size hasn't changed since allocation.
+        n = var.typ.memory_bytes_required
+        assert n == var.size
+
+        if self.settings.experimental_codegen:
+            # do not deallocate at this stage because this will break
+            # analysis in venom; venom will do its own alloc/dealloc/analysis.
+            pass
+        else:
+            self.memory_allocator.deallocate_memory(var.pos, var.size)
+
+        del self.vars[var.name]
+
     def _new_variable(
-        self, name: str, typ: VyperType, var_size: int, is_internal: bool, is_mutable: bool = True
-    ) -> int:
-        var_pos = self.memory_allocator.allocate_memory(var_size)
+        self, name: str, typ: VyperType, is_internal: bool, is_mutable: bool = True
+    ) -> IRnode:
+        size = typ.memory_bytes_required
 
-        assert var_pos + var_size <= self.memory_allocator.size_of_mem, "function frame overrun"
+        ofst = self.memory_allocator.allocate_memory(size)
+        assert ofst + size <= self.memory_allocator.size_of_mem, "function frame overrun"
 
-        self.vars[name] = VariableRecord(
+        pos = ofst
+        alloca = None
+        if self.settings.experimental_codegen:
+            # convert it into an abstract pointer
+            pos = f"$alloca_{ofst}_{size}"
+            alloca = Alloca(name=name, offset=ofst, typ=typ, size=size)
+
+        var = VariableRecord(
             name=name,
-            pos=var_pos,
+            pos=pos,
             typ=typ,
-            size=var_size,
+            size=size,
             mutable=is_mutable,
             blockscopes=self._scopes.copy(),
             is_internal=is_internal,
+            alloca=alloca,
         )
-        return var_pos
+        self.vars[name] = var
+        return var.as_ir_node()
 
-    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> int:
+    def new_variable(self, name: str, typ: VyperType, is_mutable: bool = True) -> IRnode:
         """
-        Allocate memory for a user-defined variable.
+        Allocate memory for a user-defined variable and return an IR node referencing it.
 
         Arguments
         ---------
@@ -208,8 +258,7 @@ class Context:
             Memory offset for the variable
         """
 
-        var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, False, is_mutable=is_mutable)
+        return self._new_variable(name, typ, is_internal=False, is_mutable=is_mutable)
 
     def fresh_varname(self, name: str) -> str:
         """
@@ -219,8 +268,7 @@ class Context:
         self._internal_var_iter += 1
         return f"{name}{t}"
 
-    # do we ever allocate immutable internal variables?
-    def new_internal_variable(self, typ: VyperType) -> int:
+    def new_internal_variable(self, typ: VyperType) -> IRnode:
         """
         Allocate memory for an internal variable.
 
@@ -237,10 +285,9 @@ class Context:
         # internal variable names begin with a number sign so there is no chance for collision
         name = self.fresh_varname("#internal")
 
-        var_size = typ.memory_bytes_required
-        return self._new_variable(name, typ, var_size, True)
+        return self._new_variable(name, typ, is_internal=True)
 
-    def lookup_var(self, varname):
+    def lookup_var(self, varname) -> VariableRecord:
         return self.vars[varname]
 
     # Pretty print constancy for error messages
