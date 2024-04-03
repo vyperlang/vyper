@@ -260,7 +260,7 @@ def _allocate_layout_r(
         varinfo = node.target._metadata["varinfo"]
 
         # skip things we don't need to allocate, like constants
-        if not varinfo.is_module_variable():
+        if not varinfo.is_state_variable():
             continue
 
         if immutables_only and not varinfo.is_immutable:
