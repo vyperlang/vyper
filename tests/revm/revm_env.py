@@ -24,7 +24,7 @@ class RevmEnv:
 
     def __init__(self, gas_limit: int, tracing=False, block_number=1, evm_version="latest") -> None:
         self.gas_limit = gas_limit
-        self.evm = EVM(
+        self._evm = EVM(
             gas_limit=gas_limit,
             tracing=tracing,
             spec_id=evm_version,
@@ -36,11 +36,11 @@ class RevmEnv:
 
     @contextmanager
     def anchor(self):
-        snapshot_id = self.evm.snapshot()
+        snapshot_id = self._evm.snapshot()
         try:
             yield
         finally:
-            self.evm.revert(snapshot_id)
+            self._evm.revert(snapshot_id)
 
     @contextmanager
     def sender(self, address: HexAddress):
@@ -52,10 +52,10 @@ class RevmEnv:
             self.deployer = original_deployer
 
     def get_balance(self, address: HexAddress) -> int:
-        return self.evm.get_balance(address)
+        return self._evm.get_balance(address)
 
     def set_balance(self, address: HexAddress, value: int):
-        self.evm.set_balance(address, value)
+        self._evm.set_balance(address, value)
 
     @property
     def accounts(self) -> list[HexAddress]:
@@ -63,13 +63,24 @@ class RevmEnv:
 
     @property
     def block_number(self) -> int:
-        return self.evm.env.block.number
+        return self._evm.env.block.number
 
     def get_block(self, _=None) -> BlockEnv:
-        return self.evm.env.block
+        return self._evm.env.block
 
     def contract(self, abi, bytecode) -> "ABIContract":
         return ABIContractFactory.from_abi_dict(abi).at(self, bytecode)
+
+    @property
+    def last_result(self) -> dict:
+        result = self._evm.result
+        return {
+            "gas_refunded": result.gas_refunded,
+            "gas_used": result.gas_used,
+            "is_halt": result.is_halt,
+            "is_success": result.is_success,
+            "logs": result.logs,
+        }
 
     def execute_code(
         self,
@@ -86,7 +97,7 @@ class RevmEnv:
         transact = transact or {}
         data = data if isinstance(data, bytes) else bytes.fromhex(data.removeprefix("0x"))
         try:
-            output = self.evm.message_call(
+            output = self._evm.message_call(
                 to=to,
                 caller=transact.get("from", sender) or self.deployer,
                 calldata=data,
@@ -107,7 +118,7 @@ class RevmEnv:
             raise TransactionFailed(*e.args) from e
 
     def get_code(self, address: HexAddress):
-        return HexBytes(self.evm.basic(address).code.rstrip(b"\0"))
+        return HexBytes(self._evm.basic(address).code.rstrip(b"\0"))
 
     def register_contract(self, address: HexAddress, contract: "ABIContract"):
         self.contracts[address] = contract
@@ -187,9 +198,7 @@ class RevmEnv:
             initcode += abi_encode(ctor.signature, ctor._merge_kwargs(*args, **kwargs))
 
         try:
-            deployed_at = self.evm.deploy(
-                deployer=self.deployer, code=initcode, value=value, _abi=json.dumps(abi)
-            )
+            deployed_at = self._evm.deploy(deployer=self.deployer, code=initcode, value=value)
         except RuntimeError as e:
             raise TransactionFailed(*e.args) from e
 
@@ -199,15 +208,15 @@ class RevmEnv:
     def mine(self, num_blocks=1, time_delta: int | None = None) -> None:
         if time_delta is None:
             time_delta = num_blocks
-        self.evm.set_block_env(
+        self._evm.set_block_env(
             BlockEnv(
-                number=self.evm.env.block.number + num_blocks,
-                coinbase=self.evm.env.block.coinbase,
-                timestamp=self.evm.env.block.timestamp + time_delta,
-                difficulty=self.evm.env.block.difficulty,
-                prevrandao=self.evm.env.block.prevrandao,
-                basefee=self.evm.env.block.basefee,
-                gas_limit=self.evm.env.block.gas_limit,
-                excess_blob_gas=self.evm.env.block.excess_blob_gas,
+                number=self._evm.env.block.number + num_blocks,
+                coinbase=self._evm.env.block.coinbase,
+                timestamp=self._evm.env.block.timestamp + time_delta,
+                difficulty=self._evm.env.block.difficulty,
+                prevrandao=self._evm.env.block.prevrandao,
+                basefee=self._evm.env.block.basefee,
+                gas_limit=self._evm.env.block.gas_limit,
+                excess_blob_gas=self._evm.env.block.excess_blob_gas,
             )
         )

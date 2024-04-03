@@ -1119,7 +1119,7 @@ def _expr(x: address) -> int128:
     assert c2._expr(c2.address) == 1
 
 
-def test_invalid_nonexistent_contract_call(revm_env, tx_failed, get_contract):
+def test_invalid_nonexistent_contract_call(env, tx_failed, get_contract):
     contract_1 = """
 @external
 def bar() -> int128:
@@ -1140,9 +1140,9 @@ def foo(x: address) -> int128:
 
     assert c2.foo(c1.address) == 1
     with tx_failed():
-        c2.foo(revm_env.deployer)
+        c2.foo(env.deployer)
     with tx_failed():
-        c2.foo(revm_env.accounts[3])
+        c2.foo(env.accounts[3])
 
 
 def test_invalid_contract_reference_declaration(tx_failed, get_contract):
@@ -1351,7 +1351,7 @@ def foo(contract_address: address) -> int128:
         get_contract(contract_1)
 
 
-def test_external_with_payable_value(revm_env, get_contract_with_gas_estimation):
+def test_external_with_payable_value(env, get_contract_with_gas_estimation):
     contract_1 = """
 @payable
 @external
@@ -1392,26 +1392,26 @@ def get_lucky(amount_to_send: uint256) -> int128:
     c2.set_contract(c1.address, transact={})
 
     # Send some eth
-    revm_env.set_balance(revm_env.deployer, 10000)
-    with revm_env.anchor():
+    env.set_balance(env.deployer, 10000)
+    with env.anchor():
         assert c2.get_lucky(0, transact={"value": 500}) == 1
 
     c2.get_lucky(0, transact={"value": 500})
     # Contract 1 received money.
     assert c1.get_balance() == 500
-    assert revm_env.get_balance(c1.address) == 500
-    assert revm_env.get_balance(c2.address) == 0
+    assert env.get_balance(c1.address) == 500
+    assert env.get_balance(c2.address) == 0
 
     # Send subset of amount
-    with revm_env.anchor():
+    with env.anchor():
         assert c2.get_lucky(250, transact={"value": 500}) == 1
     c2.get_lucky(250, transact={"value": 500})
 
     # Contract 1 received more money.
     assert c1.get_balance() == 750
-    assert revm_env.get_balance(c1.address) == 750
-    assert revm_env.get_balance(c2.address) == 250
-    assert revm_env.get_balance(revm_env.deployer) == 9000
+    assert env.get_balance(c1.address) == 750
+    assert env.get_balance(c2.address) == 250
+    assert env.get_balance(env.deployer) == 9000
 
 
 def test_external_call_with_gas(tx_failed, get_contract_with_gas_estimation):
@@ -2500,7 +2500,7 @@ TEST_ADDR = b"".join(chr(i).encode("utf-8") for i in range(20)).hex()
 
 
 @pytest.mark.parametrize("typ,val", [("address", TEST_ADDR)])
-def test_calldata_clamp(revm_env, get_contract, tx_failed, keccak, typ, val):
+def test_calldata_clamp(env, get_contract, tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: {typ}):
@@ -2514,17 +2514,17 @@ def foo(a: {typ}):
     # Static size is short by 1 byte
     malformed = data[:-2]
     with tx_failed():
-        revm_env.execute_code(c1.address, data=malformed)
+        env.execute_code(c1.address, data=malformed)
 
     # Static size is exact
-    revm_env.execute_code(c1.address, data=data)
+    env.execute_code(c1.address, data=data)
 
     # Static size exceeds by 1 byte, ok
-    revm_env.execute_code(c1.address, data=data + "ff")
+    env.execute_code(c1.address, data=data + "ff")
 
 
 @pytest.mark.parametrize("typ,val", [("address", ([TEST_ADDR] * 3, "vyper"))])
-def test_dynamic_calldata_clamp(revm_env, get_contract, tx_failed, keccak, typ, val):
+def test_dynamic_calldata_clamp(env, get_contract, tx_failed, keccak, typ, val):
     code = f"""
 @external
 def foo(a: DynArray[{typ}, 3], b: String[5]):
@@ -2539,8 +2539,8 @@ def foo(a: DynArray[{typ}, 3], b: String[5]):
     # Dynamic size is short by 1 byte
     malformed = data[:264]
     with tx_failed():
-        revm_env.execute_code(c1.address, data=malformed)
+        env.execute_code(c1.address, data=malformed)
 
     # Dynamic size is at least minimum (132 bytes * 2 + 2 (for 0x) = 266)
     valid = data[:266]
-    revm_env.execute_code(c1.address, data=valid)
+    env.execute_code(c1.address, data=valid)

@@ -90,7 +90,7 @@ def foo(x: int128) -> int128:
         c.foo(2**130)
 
 
-def test_large_input_code_2(revm_env, get_contract_with_gas_estimation):
+def test_large_input_code_2(env, get_contract_with_gas_estimation):
     large_input_code_2 = """
 @deploy
 def __init__(x: int128):
@@ -149,7 +149,7 @@ def check_foo(a: uint64) -> int16:
     assert c.check_foo(3) == -2
 
 
-def test_nested_dynamic_array_constructor_arg(revm_env, get_contract_with_gas_estimation):
+def test_nested_dynamic_array_constructor_arg(env, get_contract_with_gas_estimation):
     code = """
 foo: uint256
 
@@ -166,7 +166,7 @@ def get_foo() -> uint256:
 
 
 @pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
-def test_nested_dynamic_array_constructor_arg_2(revm_env, get_contract_with_gas_estimation):
+def test_nested_dynamic_array_constructor_arg_2(env, get_contract_with_gas_estimation):
     code = """
 foo: int128
 
@@ -191,7 +191,7 @@ def get_foo() -> int128:
     assert c.get_foo() == 9580
 
 
-def test_initialise_nested_dynamic_array(revm_env, get_contract_with_gas_estimation):
+def test_initialise_nested_dynamic_array(env, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[uint256, 3], 3]
 
@@ -212,7 +212,7 @@ def get_foo() -> DynArray[DynArray[uint256, 3], 3]:
 
 
 @pytest.mark.venom_xfail(raises=StackTooDeep, reason="stack scheduler regression")
-def test_initialise_nested_dynamic_array_2(revm_env, get_contract_with_gas_estimation):
+def test_initialise_nested_dynamic_array_2(env, get_contract_with_gas_estimation):
     code = """
 foo: DynArray[DynArray[DynArray[int128, 3], 3], 3]
 

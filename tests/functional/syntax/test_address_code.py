@@ -17,8 +17,8 @@ PRECOMPILED = bytes.fromhex(PRECOMPILED_BYTECODE_RUNTIME[2:])
 
 
 @pytest.fixture
-def deploy_precompiled_contract(revm_env):
-    return lambda: revm_env.deploy(json.loads(PRECOMPILED_ABI), HexBytes(PRECOMPILED_BYTECODE))
+def deploy_precompiled_contract(env):
+    return lambda: env.deploy(json.loads(PRECOMPILED_ABI), HexBytes(PRECOMPILED_BYTECODE))
 
 
 @pytest.mark.parametrize(

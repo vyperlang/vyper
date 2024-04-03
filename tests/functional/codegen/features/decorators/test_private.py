@@ -1,5 +1,5 @@
 import pytest
-from eth_utils import to_checksum_address, to_wei
+from eth_utils import to_wei
 
 
 def test_private_test(get_contract_with_gas_estimation):
@@ -390,7 +390,7 @@ def test() -> int128[4]:
     assert c.test() == [0, 1, 0, 1]
 
 
-def test_private_payable(revm_env, get_contract_with_gas_estimation):
+def test_private_payable(env, get_contract_with_gas_estimation):
     code = """
 @internal
 def _send_it(a: address, _value: uint256):
@@ -409,16 +409,16 @@ def __default__():
 
     c = get_contract_with_gas_estimation(code)
 
-    revm_env.execute_code(c.address, value=to_wei(1, "ether"))
-    assert revm_env.get_balance(c.address) == to_wei(1, "ether")
-    a3 = revm_env.accounts[2]
-    revm_env.set_balance(a3, to_wei(1000000, "ether"))
+    env.execute_code(c.address, value=to_wei(1, "ether"))
+    assert env.get_balance(c.address) == to_wei(1, "ether")
+    a3 = env.accounts[2]
+    env.set_balance(a3, to_wei(1000000, "ether"))
     c.test(True, a3, to_wei(0.05, "ether"), transact={})
-    assert revm_env.get_balance(a3) == to_wei(1000000.05, "ether")
-    assert revm_env.get_balance(c.address) == to_wei(0.95, "ether")
+    assert env.get_balance(a3) == to_wei(1000000.05, "ether")
+    assert env.get_balance(c.address) == to_wei(0.95, "ether")
 
 
-def test_private_msg_sender(get_contract, revm_env):
+def test_private_msg_sender(get_contract, env, get_logs):
     code = """
 event Addr:
     addr: address
@@ -443,11 +443,10 @@ def whoami() -> address:
     c = get_contract(code)
     assert c.i_am_me()
 
-    addr = revm_env.accounts[1]
-    c.whoami(transact={"from": addr})
-    (log,) = revm_env.evm.result.logs
-    _, data = log.data
-    assert to_checksum_address(data[-20:]) == addr, "oh no"
+    addr = env.accounts[1]
+    result = c.whoami(transact={"from": addr})
+    (log,) = get_logs(result, c)
+    assert log.args.addr == addr
 
 
 def test_nested_static_params_only(get_contract, tx_failed):

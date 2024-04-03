@@ -14,7 +14,7 @@ from vyper.exceptions import (
 # test modules which have no variables - "libraries"
 
 
-def test_simple_library(get_contract, make_input_bundle, revm_env):
+def test_simple_library(get_contract, make_input_bundle, env):
     library_source = """
 @internal
 def foo() -> uint256:
@@ -31,7 +31,7 @@ def bar() -> uint256:
 
     c = get_contract(main, input_bundle=input_bundle)
 
-    assert c.bar() == revm_env.block_number
+    assert c.bar() == env.block_number
 
 
 # is this the best place for this?

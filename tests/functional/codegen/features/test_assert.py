@@ -8,24 +8,23 @@ def _fixup_err_str(s):
     return s.replace("execution reverted: ", "")
 
 
-def test_assert_refund(revm_env, get_contract_with_gas_estimation, tx_failed):
+def test_assert_refund(env, get_contract_with_gas_estimation, tx_failed):
     code = """
 @external
 def foo():
     raise
     """
     c = get_contract_with_gas_estimation(code)
-    revm_env.set_balance(revm_env.deployer, 10**7)
+    env.set_balance(env.deployer, 10**7)
     gas_sent = 10**6
     with tx_failed():
         c.foo(transact={"gas": gas_sent, "gasPrice": 10})
 
-    result = revm_env.evm.result
-    assert result.gas_used < gas_sent, "Gas refund not received"
-    assert not result.is_success and not result.is_halt
+    assert env.last_result["gas_used"] < gas_sent, "Gas refund not received"
+    assert not env.last_result["is_success"] and not env.last_result["is_halt"]
 
 
-def test_assert_reason(revm_env, get_contract_with_gas_estimation, tx_failed, memory_mocker):
+def test_assert_reason(env, get_contract_with_gas_estimation, tx_failed, memory_mocker):
     code = """
 err: String[32]
 
@@ -145,7 +144,7 @@ def test_valid_assertions(get_contract, code):
     get_contract(code)
 
 
-def test_assert_staticcall(get_contract, revm_env, tx_failed, memory_mocker):
+def test_assert_staticcall(get_contract, env, tx_failed, memory_mocker):
     foreign_code = """
 state: uint256
 @external
@@ -209,7 +208,7 @@ def test(x: uint256[3]) -> bool:
         c.test([1, 3, 5])
 
 
-def test_assert_reason_revert_length(revm_env, get_contract, tx_failed, memory_mocker):
+def test_assert_reason_revert_length(env, get_contract, tx_failed, memory_mocker):
     code = """
 @external
 def test() -> int128:

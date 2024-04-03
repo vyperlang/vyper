@@ -13,14 +13,14 @@ TOKEN_INITIAL_SUPPLY = 0
 
 
 @pytest.fixture
-def c(get_contract, revm_env):
+def c(get_contract, env):
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
     return get_contract(code, *[TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, TOKEN_INITIAL_SUPPLY])
 
 
 @pytest.fixture
-def c_bad(get_contract, revm_env):
+def c_bad(get_contract, env):
     # Bad contract is used for overflow checks on totalSupply corrupted
     with open("examples/tokens/ERC20.vy") as f:
         code = f.read()
@@ -41,8 +41,8 @@ def get_log_args(get_logs):
     return get_log_args
 
 
-def test_initial_state(c, revm_env):
-    a1, a2, a3 = revm_env.accounts[1:4]
+def test_initial_state(c, env):
+    a1, a2, a3 = env.accounts[1:4]
     # Check total supply, name, symbol and decimals are correctly set
     assert c.totalSupply() == TOKEN_INITIAL_SUPPLY
     assert c.name() == TOKEN_NAME
@@ -59,8 +59,8 @@ def test_initial_state(c, revm_env):
     assert c.allowance(a2, a3) == 0
 
 
-def test_mint_and_burn(c, revm_env, tx_failed):
-    minter, a1, a2 = revm_env.accounts[0:3]
+def test_mint_and_burn(c, env, tx_failed):
+    minter, a1, a2 = env.accounts[0:3]
 
     # Test scenario were mints 2 to a1, burns twice (check balance consistency)
     assert c.balanceOf(a1) == 0
@@ -91,9 +91,9 @@ def test_mint_and_burn(c, revm_env, tx_failed):
         c.mint(ZERO_ADDRESS, 1, transact={"from": minter})
 
 
-def test_totalSupply(c, revm_env, tx_failed):
+def test_totalSupply(c, env, tx_failed):
     # Test total supply initially, after mint, between two burns, and after failed burn
-    minter, a1 = revm_env.accounts[0:2]
+    minter, a1 = env.accounts[0:2]
     assert c.totalSupply() == 0
     c.mint(a1, 2, transact={"from": minter})
     assert c.totalSupply() == 2
@@ -109,8 +109,8 @@ def test_totalSupply(c, revm_env, tx_failed):
     assert c.totalSupply() == 0
 
 
-def test_transfer(c, revm_env, tx_failed):
-    minter, a1, a2 = revm_env.accounts[0:3]
+def test_transfer(c, env, tx_failed):
+    minter, a1, a2 = env.accounts[0:3]
     with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 2, transact={"from": minter})
@@ -128,8 +128,8 @@ def test_transfer(c, revm_env, tx_failed):
     c.transfer(a1, 0, transact={"from": a2})
 
 
-def test_maxInts(c, revm_env, tx_failed):
-    minter, a1, a2 = revm_env.accounts[0:3]
+def test_maxInts(c, env, tx_failed):
+    minter, a1, a2 = env.accounts[0:3]
     c.mint(a1, MAX_UINT256, transact={"from": minter})
     assert c.balanceOf(a1) == MAX_UINT256
     with tx_failed():
@@ -164,8 +164,8 @@ def test_maxInts(c, revm_env, tx_failed):
     assert c.balanceOf(a1) == 0
 
 
-def test_transferFrom_and_Allowance(c, revm_env, tx_failed):
-    minter, a1, a2, a3 = revm_env.accounts[0:4]
+def test_transferFrom_and_Allowance(c, env, tx_failed):
+    minter, a1, a2, a3 = env.accounts[0:4]
     with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 1, transact={"from": minter})
@@ -217,8 +217,8 @@ def test_transferFrom_and_Allowance(c, revm_env, tx_failed):
     assert c.allowance(a2, a1) == 5
 
 
-def test_burnFrom_and_Allowance(c, revm_env, tx_failed):
-    minter, a1, a2, a3 = revm_env.accounts[0:4]
+def test_burnFrom_and_Allowance(c, env, tx_failed):
+    minter, a1, a2, a3 = env.accounts[0:4]
     with tx_failed():
         c.burn(1, transact={"from": a2})
     c.mint(a1, 1, transact={"from": minter})
@@ -273,8 +273,8 @@ def test_burnFrom_and_Allowance(c, revm_env, tx_failed):
         c.burnFrom(ZERO_ADDRESS, 0, transact={"from": a1})
 
 
-def test_raw_logs(c, revm_env, get_log_args):
-    minter, a1, a2, a3 = revm_env.accounts[0:4]
+def test_raw_logs(c, env, get_log_args):
+    minter, a1, a2, a3 = env.accounts[0:4]
 
     # Check that mint appropriately emits Transfer event
     args = get_log_args(c.mint(a1, 2, transact={"from": minter}), c, "Transfer")
@@ -332,9 +332,9 @@ def test_raw_logs(c, revm_env, get_log_args):
     assert args.value == 0
 
 
-def test_bad_transfer(c_bad, revm_env, tx_failed):
+def test_bad_transfer(c_bad, env, tx_failed):
     # Ensure transfer fails if it would otherwise overflow balance when totalSupply is corrupted
-    minter, a1, a2 = revm_env.accounts[0:3]
+    minter, a1, a2 = env.accounts[0:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
     with tx_failed():
@@ -344,9 +344,9 @@ def test_bad_transfer(c_bad, revm_env, tx_failed):
     assert c_bad.balanceOf(a2) == MAX_UINT256
 
 
-def test_bad_burn(c_bad, revm_env, tx_failed):
+def test_bad_burn(c_bad, env, tx_failed):
     # Ensure burn fails if it would otherwise underflow balance when totalSupply is corrupted
-    minter, a1 = revm_env.accounts[0:2]
+    minter, a1 = env.accounts[0:2]
     assert c_bad.balanceOf(a1) == 0
     c_bad.mint(a1, 2, transact={"from": minter})
     assert c_bad.balanceOf(a1) == 2
@@ -354,9 +354,9 @@ def test_bad_burn(c_bad, revm_env, tx_failed):
         c_bad.burn(3, transact={"from": a1})
 
 
-def test_bad_transferFrom(c_bad, revm_env, tx_failed):
+def test_bad_transferFrom(c_bad, env, tx_failed):
     # Ensure transferFrom fails if it would otherwise overflow balance when totalSupply is corrupted
-    minter, a1, a2 = revm_env.accounts[0:3]
+    minter, a1, a2 = env.accounts[0:3]
     c_bad.mint(a1, MAX_UINT256, transact={"from": minter})
     c_bad.mint(a2, 1, transact={"from": minter})
     c_bad.approve(a1, 1, transact={"from": a2})

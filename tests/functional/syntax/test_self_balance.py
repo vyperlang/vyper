@@ -1,7 +1,7 @@
 from vyper import compiler
 
 
-def test_self_balance(revm_env, get_contract_with_gas_estimation):
+def test_self_balance(env, get_contract_with_gas_estimation):
     code = """
 @external
 @view
@@ -18,9 +18,9 @@ def __default__():
     assert "SELFBALANCE" in opcodes
 
     c = get_contract_with_gas_estimation(code)
-    revm_env.set_balance(revm_env.deployer, 1337)
-    revm_env.execute_code(**{"to": c.address, "value": 1337})
+    env.set_balance(env.deployer, 1337)
+    env.execute_code(**{"to": c.address, "value": 1337})
 
     assert c.get_balance() == 1337
-    assert revm_env.get_balance(c.address) == 1337
-    assert revm_env.get_balance(revm_env.deployer) == 0
+    assert env.get_balance(c.address) == 1337
+    assert env.get_balance(env.deployer) == 0

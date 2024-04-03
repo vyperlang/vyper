@@ -110,7 +110,7 @@ def testin() -> bool:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code), TypeMismatch)
 
 
-def test_ownership(revm_env, tx_failed, get_contract_with_gas_estimation):
+def test_ownership(env, tx_failed, get_contract_with_gas_estimation):
     code = """
 
 owners: address[2]
@@ -128,7 +128,7 @@ def set_owner(i: int128, new_owner: address):
 def is_owner() -> bool:
     return msg.sender in self.owners
     """
-    a1 = revm_env.accounts[1]
+    a1 = env.accounts[1]
     c = get_contract_with_gas_estimation(code)
 
     assert c.is_owner() is True  # contract creator is owner.

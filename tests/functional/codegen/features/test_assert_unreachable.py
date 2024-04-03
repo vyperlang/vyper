@@ -6,7 +6,7 @@ def initial_balance():
     return 10**20
 
 
-def test_unreachable_refund(revm_env, get_contract, tx_failed):
+def test_unreachable_refund(env, get_contract, tx_failed):
     code = """
 @external
 def foo():
@@ -14,17 +14,15 @@ def foo():
     """
 
     c = get_contract(code)
-    a0 = revm_env.deployer
     gas_sent = 10**6
     with tx_failed():
-        c.foo(transact={"from": a0, "gas": gas_sent, "gasPrice": 10})
+        c.foo(transact={"gas": gas_sent, "gasPrice": 10})
 
-    result = revm_env.evm.result
-    assert result.gas_used == gas_sent  # Drains all gains sent
-    assert not result.is_success and result.is_halt
+    assert env.last_result["gas_used"] == gas_sent  # Drains all gains sent
+    assert not env.last_result["is_success"] and env.last_result["is_halt"]
 
 
-def test_basic_unreachable(revm_env, get_contract, tx_failed):
+def test_basic_unreachable(env, get_contract, tx_failed):
     code = """
 @external
 def foo(val: int128) -> bool:
@@ -45,7 +43,7 @@ def foo(val: int128) -> bool:
         c.foo(-2)
 
 
-def test_basic_call_unreachable(revm_env, get_contract, tx_failed):
+def test_basic_call_unreachable(env, get_contract, tx_failed):
     code = """
 
 @view
@@ -69,7 +67,7 @@ def foo(val: int128) -> int128:
         c.foo(-1)
 
 
-def test_raise_unreachable(revm_env, get_contract, tx_failed):
+def test_raise_unreachable(env, get_contract, tx_failed):
     code = """
 @external
 def foo():

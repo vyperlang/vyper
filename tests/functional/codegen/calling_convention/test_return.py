@@ -6,7 +6,7 @@ from vyper.exceptions import TypeMismatch
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_correct_abi_right_padding(revm_env, get_contract_with_gas_estimation):
+def test_correct_abi_right_padding(env, get_contract_with_gas_estimation):
     selfcall_code_6 = """
 @external
 def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
@@ -18,7 +18,7 @@ def hardtest(arg1: Bytes[64], arg2: Bytes[64]) -> Bytes[128]:
     assert c.hardtest(b"hello" * 5, b"hello" * 10) == b"hello" * 15
 
     # Make sure underlying struct is correctly right padded
-    res = revm_env.execute_code(
+    res = env.execute_code(
         to=c.address, data=c.hardtest.prepare_calldata(b"hello" * 5, b"hello" * 10)
     )
     static_offset = int.from_bytes(res[:32], "big")

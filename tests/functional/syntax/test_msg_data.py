@@ -77,7 +77,7 @@ def foo() -> (uint256, Bytes[4], uint256):
     assert contract.foo() == (2**256 - 1, bytes(keccak(b"foo()")[:4]), 2**256 - 1)
 
 
-def test_assignment_to_storage(revm_env, get_contract, keccak):
+def test_assignment_to_storage(env, get_contract, keccak):
     code = """
 cache: public(Bytes[4])
 

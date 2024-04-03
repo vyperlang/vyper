@@ -5,7 +5,7 @@ INITIAL_VALUE = 4
 
 
 @pytest.fixture
-def adv_storage_contract(revm_env, get_contract):
+def adv_storage_contract(env, get_contract):
     with open("examples/storage/advanced_storage.vy") as f:
         contract_code = f.read()
         # Pass constructor variables directly to the contract
@@ -18,9 +18,9 @@ def test_initial_state(adv_storage_contract):
     assert adv_storage_contract.storedData() == INITIAL_VALUE
 
 
-def test_failed_transactions(revm_env, adv_storage_contract, tx_failed):
-    k1 = revm_env.accounts[1]
-    revm_env.set_balance(k1, 10**18)
+def test_failed_transactions(env, adv_storage_contract, tx_failed):
+    k1 = env.accounts[1]
+    env.set_balance(k1, 10**18)
 
     # Try to set the storage to a negative amount
     with tx_failed():
@@ -45,8 +45,8 @@ def test_failed_transactions(revm_env, adv_storage_contract, tx_failed):
         adv_storage_contract.set(1, 2, transact={"from": k1})
 
 
-def test_events(revm_env, adv_storage_contract, get_logs):
-    k1, k2 = revm_env.accounts[:2]
+def test_events(env, adv_storage_contract, get_logs):
+    k1, k2 = env.accounts[:2]
 
     tx1 = adv_storage_contract.set(10, transact={"from": k1})
     logs1 = get_logs(tx1, adv_storage_contract, "DataChange")

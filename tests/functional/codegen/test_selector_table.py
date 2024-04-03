@@ -512,9 +512,7 @@ def generate_methods(draw, max_calldata_bytes):
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @pytest.mark.fuzzing
-def test_selector_table_fuzz(
-    max_calldata_bytes, opt_level, revm_env, get_contract, tx_failed, get_logs
-):
+def test_selector_table_fuzz(max_calldata_bytes, opt_level, env, get_contract, tx_failed, get_logs):
     def abi_sig(func_id, calldata_words, n_default_args):
         params = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         params.extend(["uint256"] * n_default_args)
@@ -576,7 +574,7 @@ event _Return:
         """
 
         c = get_contract(code, override_opt_level=opt_level)
-        revm_env.set_balance(revm_env.deployer, 10**18)
+        env.set_balance(env.deployer, 10**18)
 
         for func_id, mutability, n_calldata_words, n_strip_bytes, n_default_args in methods:
             funcname = f"foo{func_id}"
@@ -601,7 +599,7 @@ event _Return:
                 else:
                     hexstr = (method_id + argsdata).hex()
                     with tx_failed():
-                        revm_env.execute_code(c.address, data=hexstr, value=1)
+                        env.execute_code(c.address, data=hexstr, value=1)
 
                 # now do calldatasize check
                 # strip some bytes
@@ -612,15 +610,15 @@ event _Return:
                     # no args, hit default function
                     if default_fn_mutability == "":
                         with tx_failed():
-                            revm_env.execute_code(**tx_params)
+                            env.execute_code(**tx_params)
                     elif default_fn_mutability == "@payable":
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        tx = revm_env.execute_code(**tx_params)
+                        tx = env.execute_code(**tx_params)
                         logs = get_logs(tx, c, "CalledDefault")
                         assert len(logs) == 1
                     else:
-                        tx = revm_env.execute_code(**tx_params)
+                        tx = env.execute_code(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
                         # so the logging is not tested.
@@ -631,9 +629,9 @@ event _Return:
                         # check default function reverts
                         tx_params["value"] = 1
                         with tx_failed():
-                            revm_env.execute_code(**tx_params)
+                            env.execute_code(**tx_params)
                 else:
                     with tx_failed():
-                        revm_env.execute_code(**tx_params)
+                        env.execute_code(**tx_params)
 
     _test()

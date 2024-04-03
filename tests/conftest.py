@@ -15,7 +15,7 @@ from web3 import Web3
 from web3.contract import Contract
 from web3.providers.eth_tester import EthereumTesterProvider
 
-import vyper.evm.opcodes as evm
+import vyper.evm.opcodes as evm_opcodes
 from tests.revm.abi_contract import ABIContract
 from tests.revm.revm_env import RevmEnv
 from tests.utils import working_directory
@@ -65,13 +65,13 @@ def pytest_addoption(parser):
 
     parser.addoption(
         "--evm-version",
-        choices=list(evm.EVM_VERSIONS.keys()),
+        choices=list(evm_opcodes.EVM_VERSIONS.keys()),
         default="shanghai",
         help="set evm version",
     )
 
     parser.addoption(
-        "--evm-backend", choices=["py-evm", "revm"], default="py-evm", help="set evm backend"
+        "--evm-backend", choices=["py-evm", "revm"], default="revm", help="set evm backend"
     )
 
 
@@ -131,23 +131,24 @@ def venom_xfail(request, experimental_codegen):
 @pytest.fixture(scope="session", autouse=True)
 def evm_version(pytestconfig, evm_backend):
     evm_version_str = pytestconfig.getoption("evm_version")
-    if evm_backend != "py-evm":
+    if evm_backend != "PyevmEnv":
         # revm uses this fixture to set the evm version
         return evm_version_str
 
     # note: we configure the evm version that we emit code for,
     # but eth-tester is only configured with the latest mainnet
     # version.
-    evm.DEFAULT_EVM_VERSION = evm_version_str
+    evm_opcodes.DEFAULT_EVM_VERSION = evm_version_str
     # this should get overridden by anchor_evm_version,
     # but set it anyway
-    evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
+    evm_opcodes.active_evm_version = evm_opcodes.EVM_VERSIONS[evm_version_str]
     return evm_version_str
 
 
 @pytest.fixture(scope="session", autouse=True)
 def evm_backend(pytestconfig):
-    return pytestconfig.getoption("evm_backend")
+    backend_str = pytestconfig.getoption("evm_backend")
+    return {"py-evm": "PyevmEnv", "revm": RevmEnv}[backend_str]
 
 
 @pytest.fixture
@@ -238,10 +239,10 @@ def tester(gas_limit):
 
 
 @pytest.fixture(scope="module")
-def revm_env(gas_limit, initial_balance, evm_version):
-    revm = RevmEnv(gas_limit, tracing=False, block_number=1, evm_version=evm_version)
-    revm.set_balance(revm.deployer, initial_balance)
-    return revm
+def env(gas_limit, initial_balance, evm_version, evm_backend):
+    env = evm_backend(gas_limit, tracing=False, block_number=1, evm_version=evm_version)
+    env.set_balance(env.deployer, initial_balance)
+    return env
 
 
 def zero_gas_price_strategy(web3, transaction_params=None):
@@ -436,9 +437,9 @@ def get_contract(get_contract_pyevm):
 
 
 @pytest.fixture(scope="module")
-def get_revm_contract(revm_env, optimize, output_formats):
+def get_revm_contract(env, optimize, output_formats):
     def fn(source_code, *args, **kwargs):
-        return revm_env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
+        return env.deploy_source(source_code, optimize, output_formats, *args, **kwargs)
 
     return fn
 
@@ -547,19 +548,25 @@ def deploy_blueprint_for(w3, optimize, experimental_codegen, output_formats):
 
 
 @pytest.fixture(scope="module")
-def deploy_blueprint_revm(revm_env, optimize, output_formats):
+def deploy_blueprint_revm(env, optimize, output_formats):
     def deploy_blueprint_revm(source_code, *args, **kwargs):
-        return revm_env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
+        return env.deploy_blueprint(source_code, optimize, output_formats, *args, **kwargs)
 
     return deploy_blueprint_revm
 
 
 @pytest.fixture(scope="module")
-def get_logs_revm(revm_env):
-    def get_logs(tx_result, c: ABIContract, event_name):
-        logs = revm_env.evm.result.logs
-        parsed_logs = [c.parse_log(log) for log in logs if c.address == log.address]
-        return [log for log in parsed_logs if log.event == event_name]
+def get_logs_revm(env):
+    def get_logs(tx_result, c: ABIContract, event_name: str = None, raw=False):
+        logs = [log for log in env.last_result["logs"] if c.address == log.address]
+        if raw:
+            return [log.data for log in logs]
+
+        parsed_logs = [c.parse_log(log) for log in logs]
+        if event_name:
+            return [log for log in parsed_logs if log.event == event_name]
+
+        return parsed_logs
 
     return get_logs
 

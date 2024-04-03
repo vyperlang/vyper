@@ -23,16 +23,16 @@ def contract_code(get_contract):
 
 
 @pytest.fixture
-def get_balance(revm_env):
+def get_balance(env):
     def get_balance():
-        a0, a1 = revm_env.accounts[:2]
+        a0, a1 = env.accounts[:2]
         # balance of a1 = seller, a2 = buyer
-        return revm_env.get_balance(a0), revm_env.get_balance(a1)
+        return env.get_balance(a0), env.get_balance(a1)
 
     return get_balance
 
 
-def test_initial_state(revm_env, tx_failed, get_contract, get_balance, contract_code):
+def test_initial_state(env, tx_failed, get_contract, get_balance, contract_code):
     # Initial deposit has to be divisible by two
     with tx_failed():
         get_contract(contract_code, value=13)
@@ -40,7 +40,7 @@ def test_initial_state(revm_env, tx_failed, get_contract, get_balance, contract_
     a0_pre_bal, a1_pre_bal = get_balance()
     c = get_contract(contract_code, value_in_eth=2)
     # Check that the seller is set correctly
-    assert c.seller() == revm_env.accounts[0]
+    assert c.seller() == env.accounts[0]
     # Check if item value is set correctly (Half of deposit)
     assert c.value() == to_wei(1, "ether")
     # Check if unlocked() works correctly after initialization
@@ -49,10 +49,10 @@ def test_initial_state(revm_env, tx_failed, get_contract, get_balance, contract_
     assert get_balance() == ((a0_pre_bal - to_wei(2, "ether")), a1_pre_bal)
 
 
-def test_abort(revm_env, tx_failed, get_balance, get_contract, contract_code):
-    a0, a1, a2 = revm_env.accounts[:3]
-    revm_env.set_balance(a1, 10**18)
-    revm_env.set_balance(a2, 10**18)
+def test_abort(env, tx_failed, get_balance, get_contract, contract_code):
+    a0, a1, a2 = env.accounts[:3]
+    env.set_balance(a1, 10**18)
+    env.set_balance(a2, 10**18)
 
     a0_pre_bal, a1_pre_bal = get_balance()
     c = get_contract(contract_code, value=to_wei(2, "ether"))
@@ -70,10 +70,10 @@ def test_abort(revm_env, tx_failed, get_balance, get_contract, contract_code):
         c.abort(transact={"from": a0})
 
 
-def test_purchase(revm_env, get_contract, tx_failed, get_balance, contract_code):
-    a0, a1, a2, a3 = revm_env.accounts[:4]
-    revm_env.set_balance(a0, 10**18)
-    revm_env.set_balance(a1, 10**18)
+def test_purchase(env, get_contract, tx_failed, get_balance, contract_code):
+    a0, a1, a2, a3 = env.accounts[:4]
+    env.set_balance(a0, 10**18)
+    env.set_balance(a1, 10**18)
 
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
@@ -95,10 +95,10 @@ def test_purchase(revm_env, get_contract, tx_failed, get_balance, contract_code)
         c.purchase(transact={"value": 2, "from": a3})
 
 
-def test_received(revm_env, get_contract, tx_failed, get_balance, contract_code):
-    a0, a1 = revm_env.accounts[:2]
-    revm_env.set_balance(a0, 10**18)
-    revm_env.set_balance(a1, 10**18)
+def test_received(env, get_contract, tx_failed, get_balance, contract_code):
+    a0, a1 = env.accounts[:2]
+    env.set_balance(a0, 10**18)
+    env.set_balance(a1, 10**18)
     init_bal_a0, init_bal_a1 = get_balance()
     c = get_contract(contract_code, value=2)
     # Can only be called after purchase
@@ -115,7 +115,7 @@ def test_received(revm_env, get_contract, tx_failed, get_balance, contract_code)
     assert get_balance() == (init_bal_a0 + 1, init_bal_a1 - 1)
 
 
-def test_received_reentrancy(revm_env, get_contract, tx_failed, get_balance, contract_code):
+def test_received_reentrancy(env, get_contract, tx_failed, get_balance, contract_code):
     buyer_contract_code = """
 interface PurchaseContract:
 
@@ -150,15 +150,15 @@ def __default__():
 
     """
 
-    a0, a1 = revm_env.accounts[:2]
-    revm_env.set_balance(a1, 10**18)
+    a0, a1 = env.accounts[:2]
+    env.set_balance(a1, 10**18)
 
     c = get_contract(contract_code, value=2)
     buyer_contract = get_contract(buyer_contract_code, *[c.address])
     buyer_contract_address = buyer_contract.address
     init_bal_a0, init_bal_buyer_contract = (
-        revm_env.get_balance(a0),
-        revm_env.get_balance(buyer_contract_address),
+        env.get_balance(a0),
+        env.get_balance(buyer_contract_address),
     )
     # Start purchase
     buyer_contract.start_purchase(transact={"value": 4, "from": a1, "gas": 100000})
@@ -170,7 +170,7 @@ def __default__():
         buyer_contract.start_received(transact={"from": a1, "gas": 100000})
 
     # Final check if everything worked. 1 value has been transferred
-    assert revm_env.get_balance(a0), revm_env.get_balance(buyer_contract_address) == (
+    assert env.get_balance(a0), env.get_balance(buyer_contract_address) == (
         init_bal_a0 + 1,
         init_bal_buyer_contract - 1,
     )

@@ -231,7 +231,7 @@ def callMeMaybe() -> (Bytes[100], uint256, Bytes[20]):
     assert c.callMeMaybe() == (b"here is my number", 555123456, b"baby")
 
 
-def test_environment_vars_as_default(get_contract, revm_env):
+def test_environment_vars_as_default(get_contract, env):
     code = """
 xx: uint256
 
@@ -250,13 +250,13 @@ def get_balance() -> uint256:
     return self.balance
     """
     c = get_contract(code)
-    revm_env.set_balance(revm_env.deployer, 31337 + 9001)
+    env.set_balance(env.deployer, 31337 + 9001)
     c.foo(transact={"value": 31337})
     assert c.bar() == 31337
     c.foo(666, transact={"value": 9001})
     assert c.bar() == 31337 + 666
     assert c.get_balance() == 31337 + 9001
-    assert revm_env.get_balance(revm_env.deployer) == 0
+    assert env.get_balance(env.deployer) == 0
 
 
 PASSING_CONTRACTS = [

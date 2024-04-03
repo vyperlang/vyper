@@ -50,7 +50,7 @@ def foo() -> Bytes[5]:
     assert c.foo() == b"moose"
 
 
-def test_multiple_levels(revm_env, get_contract_with_gas_estimation):
+def test_multiple_levels(env, get_contract_with_gas_estimation):
     inner_code = """
 @external
 def returnten() -> int128:
@@ -81,7 +81,7 @@ def create_and_return_proxy(inp: address) -> address:
     c3 = c2.create_and_return_proxy(c.address)
     c2.create_and_return_proxy(c.address, transact={})
 
-    c3_contract_code = revm_env.get_code(c3)
+    c3_contract_code = env.get_code(c3)
 
     assert c3_contract_code[:10] == HexBytes(preamble)
     assert c3_contract_code[-15:] == HexBytes(callcode)
@@ -120,7 +120,7 @@ def create_and_return_proxy(inp: address) -> address:
     print("Passed minimal proxy exception test")
 
 
-def test_delegate_call(revm_env, get_contract):
+def test_delegate_call(env, get_contract):
     inner_code = """
 a: address  # this is required for storage alignment...
 owners: public(address[5])
@@ -155,7 +155,7 @@ def set(i: int128, owner: address):
     )
     """
 
-    a0, a1, a2 = revm_env.accounts[:3]
+    a0, a1, a2 = env.accounts[:3]
     outer_contract = get_contract(outer_code, inner_contract.address)
 
     # Test setting on inners contract's state setting works.
@@ -171,7 +171,7 @@ def set(i: int128, owner: address):
     assert outer_contract.owners(1) == a1
 
 
-def test_gas(get_contract, tx_failed, revm_env):
+def test_gas(get_contract, tx_failed, env):
     inner_code = """
 bar: bytes32
 
@@ -233,7 +233,7 @@ def foo(_addr: address) -> int128:
     assert caller.foo(target.address) == 42
 
 
-def test_forward_calldata(get_contract, revm_env, keccak):
+def test_forward_calldata(get_contract, env, keccak):
     target_source = """
 @external
 def foo() -> uint256:
@@ -259,7 +259,7 @@ def __default__():
 
     # manually construct msg.data for `caller` contract
     sig = keccak("foo()".encode()).hex()[:10]
-    assert revm_env.execute_code(caller.address, data=sig) == b""
+    assert env.execute_code(caller.address, data=sig) == b""
 
 
 # check max_outsize=0 does same thing as not setting max_outsize.
@@ -516,7 +516,7 @@ def foo() -> String[32]:
     assert c.foo() == "goo"
 
 
-def test_raw_call_clean_mem_kwargs_value(get_contract, revm_env):
+def test_raw_call_clean_mem_kwargs_value(get_contract, env):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs
     code = """
@@ -543,7 +543,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
     return self.buf
     """
-    revm_env.set_balance(revm_env.deployer, 1)
+    env.set_balance(env.deployer, 1)
     c = get_contract(code, value=1)
 
     assert (
@@ -552,7 +552,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
 
 
-def test_raw_call_clean_mem_kwargs_gas(get_contract, revm_env):
+def test_raw_call_clean_mem_kwargs_gas(get_contract, env):
     # test msize uses clean memory and does not get overwritten by
     # any raw_call() kwargs
     code = """
@@ -579,7 +579,7 @@ def bar(f: uint256) -> Bytes[100]:
     )
     return self.buf
     """
-    revm_env.set_balance(revm_env.deployer, 1)
+    env.set_balance(env.deployer, 1)
     c = get_contract(code, value=1)
 
     assert (

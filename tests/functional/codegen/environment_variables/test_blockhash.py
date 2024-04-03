@@ -21,8 +21,8 @@ def foo() -> bytes32:
     assert_compile_failed(lambda: get_contract_with_gas_estimation(code))
 
 
-def test_too_old_blockhash(tx_failed, get_contract_with_gas_estimation, revm_env):
-    revm_env.mine(257)
+def test_too_old_blockhash(tx_failed, get_contract_with_gas_estimation, env):
+    env.mine(257)
     code = """
 @external
 def get_50_blockhash() -> bytes32:

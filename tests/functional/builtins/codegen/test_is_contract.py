@@ -1,4 +1,4 @@
-def test_is_contract(revm_env, get_contract_with_gas_estimation):
+def test_is_contract(env, get_contract_with_gas_estimation):
     contract_1 = """
 @external
 def foo(arg1: address) -> bool:
@@ -11,7 +11,7 @@ def foo(arg1: address) -> bool:
 def foo(arg1: address) -> bool:
     return arg1.is_contract
 """
-    a0, a1 = revm_env.accounts[:2]
+    a0, a1 = env.accounts[:2]
     c1 = get_contract_with_gas_estimation(contract_1)
     c2 = get_contract_with_gas_estimation(contract_2)
 

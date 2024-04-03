@@ -29,8 +29,8 @@ mintConflictBatch = [1, 2, 3]
 
 
 @pytest.fixture
-def erc1155(get_contract, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def erc1155(get_contract, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     with open("examples/tokens/ERC1155ownable.vy") as f:
         code = f.read()
     c = get_contract(code, *[CONTRACT_NAME, CONTRACT_SYMBOL, CONTRACT_URI, CONTRACT_METADATA_URI])
@@ -82,8 +82,8 @@ def test_initial_state(erc1155):
     assert erc1155.supportsInterface(ERC1155_INTERFACE_ID_METADATA)
 
 
-def test_pause(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_pause(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # check the pause status, pause, check, unpause, check, with owner and non-owner accounts
     # this test will check all the function that should not work when paused.
     assert not erc1155.paused()
@@ -146,8 +146,8 @@ def test_pause(erc1155, revm_env, tx_failed):
         erc1155.unpause()
 
 
-def test_contractURI(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_contractURI(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # change contract URI and restore.
     assert erc1155.contractURI() == CONTRACT_METADATA_URI
     with tx_failed():
@@ -163,8 +163,8 @@ def test_contractURI(erc1155, revm_env, tx_failed):
         erc1155.setContractURI(CONTRACT_METADATA_URI)
 
 
-def test_URI(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_URI(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # change contract URI and restore.
     assert erc1155.uri(0) == CONTRACT_URI
     erc1155.setURI(NEW_CONTRACT_URI, transact={"from": owner})
@@ -183,8 +183,8 @@ def test_URI(erc1155, revm_env, tx_failed):
     assert erc1155.uri(0) == CONTRACT_DYNURI + str(0) + ".json"
 
 
-def test_safeTransferFrom_balanceOf_single(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_safeTransferFrom_balanceOf_single(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     assert erc1155.balanceOf(a1, 24) == 1
     # transfer by non-owner
     with tx_failed():
@@ -217,16 +217,16 @@ def test_safeTransferFrom_balanceOf_single(erc1155, revm_env, tx_failed):
 
 
 # TODO: mint 20 NFTs [1:20] and check the balance for each
-def test_mintBatch_balanceOf(erc1155, revm_env, tx_failed):  # test_mint_batch
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_mintBatch_balanceOf(erc1155, env, tx_failed):  # test_mint_batch
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # Use the mint three fixture to mint the tokens.
     # this test checks the balances of this test
     for i in range(1, 10):
         assert erc1155.balanceOf(a1, i) == 1
 
 
-def test_safeBatchTransferFrom_balanceOf_batch(erc1155, revm_env, tx_failed):  # test_mint_batch
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_safeBatchTransferFrom_balanceOf_batch(erc1155, env, tx_failed):  # test_mint_batch
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
 
     # check a1 balances for NFTs 21-24
     assert erc1155.balanceOf(a1, 21) == 1
@@ -285,8 +285,8 @@ def test_safeBatchTransferFrom_balanceOf_batch(erc1155, revm_env, tx_failed):  #
     assert erc1155.balanceOf(a1, 21) == 0
 
 
-def test_mint_one_burn_one(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_mint_one_burn_one(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
 
     # check the balance from an owner and non-owner account
     erc1155.mint(owner, 25, 1, transact={"from": owner})
@@ -311,8 +311,8 @@ def test_mint_one_burn_one(erc1155, revm_env, tx_failed):
     assert erc1155.balanceOf(owner, 25) == 0
 
 
-def test_mint_batch_burn_batch(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_mint_batch_burn_batch(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # mint NFTs 11-20
 
     # check the balance
@@ -346,8 +346,8 @@ def test_mint_batch_burn_batch(erc1155, revm_env, tx_failed):
     assert erc1155.balanceOfBatch([a3, a3, a3], [1, 2, 3]) == [0, 0, 0]
 
 
-def test_approval_functions(erc1155, revm_env, tx_failed):  # test_mint_batch
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_approval_functions(erc1155, env, tx_failed):  # test_mint_batch
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     # self-approval by the owner
     with tx_failed():
         erc1155.setApprovalForAll(a5, a5, True, transact={"from": a5})
@@ -366,8 +366,8 @@ def test_approval_functions(erc1155, revm_env, tx_failed):  # test_mint_batch
     erc1155.setApprovalForAll(owner, a5, False)
 
 
-def test_max_batch_size_violation(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_max_batch_size_violation(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     TOTAL_BAD_BATCH = 200
     ids = []
     amounts = []
@@ -382,8 +382,8 @@ def test_max_batch_size_violation(erc1155, revm_env, tx_failed):
 # Transferring back and forth
 
 
-def test_ownership_functions(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_ownership_functions(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     print(owner, a1, a2)
     print("___owner___", erc1155.owner())
     # change owner from account 0 to account 1 and back
@@ -405,8 +405,8 @@ def test_ownership_functions(erc1155, revm_env, tx_failed):
     assert erc1155.owner() == a1
 
 
-def test_renounce_ownership(erc1155, revm_env, tx_failed):
-    owner, a1, a2, a3, a4, a5 = revm_env.accounts[0:6]
+def test_renounce_ownership(erc1155, env, tx_failed):
+    owner, a1, a2, a3, a4, a5 = env.accounts[0:6]
     assert erc1155.owner() == owner
     # try to transfer ownership from non-owner account
     with tx_failed():

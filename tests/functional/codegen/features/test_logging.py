@@ -19,7 +19,7 @@ from vyper.utils import keccak256
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_empty_event_logging(revm_env, keccak, get_contract_with_gas_estimation):
+def test_empty_event_logging(get_logs, keccak, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog: pass
 
@@ -29,20 +29,20 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
-    c.foo(transact={})
+    tx = c.foo(transact={})
 
     event_id = keccak(bytes("MyLog()", "utf-8"))
 
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx, c)
+    assert log.topics == [event_id]
     # Event abi is created correctly
     assert c.abi[0] == {"name": "MyLog", "inputs": [], "anonymous": False, "type": "event"}
     # Event is decoded correctly
-    assert c.parse_log(log).event == "MyLog"
+    assert log.event == "MyLog"
 
 
-def test_event_logging_with_topics(revm_env, keccak, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_topics(get_logs, keccak, get_contract_with_gas_estimation):
     loggy_code = """
 
 a: Bytes[3]
@@ -57,12 +57,12 @@ def foo():
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
-    c.foo(transact={})
+    tx_hash = c.foo(transact={})
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
 
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -73,7 +73,7 @@ def foo():
 
 
 def test_event_logging_with_multiple_topics(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -91,8 +91,8 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bool,address)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -142,7 +142,7 @@ def foo(arg1: int128):
 
 
 def test_logging_the_same_event_multiple_times_with_topics(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -161,16 +161,16 @@ def bar():
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
-    c.foo(transact={})
-    logs_tx1 = revm_env.evm.result.logs
+    tx_hash1 = c.foo(transact={})
+    logs_tx1 = get_logs(tx_hash1, c)
     log1, _ = logs_tx1
-    c.bar(transact={})
-    log2, _ = revm_env.evm.result.logs
+    tx_hash2 = c.bar(transact={})
+    log2, _ = get_logs(tx_hash2, c)
 
     event_id = keccak(bytes("MyLog(int128,address)", "utf-8"))
     # Event id is always the first topic
-    assert log1.topics[0] == "0x" + event_id.hex()
-    assert log2.topics[0] == "0x" + event_id.hex()
+    assert log1.topics[0] == event_id
+    assert log2.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -183,7 +183,7 @@ def bar():
     }
 
     # Event is decoded correctly
-    logs_tx1 = [c.parse_log(log) for log in logs_tx1]
+    logs_tx1 = [log for log in logs_tx1]
     assert logs_tx1[0].args.arg1 == 1
     assert logs_tx1[0].args.arg2 == c.address
     assert logs_tx1[1].args.arg1 == 1
@@ -205,7 +205,7 @@ event MyLog:
         compile_code(loggy_code)
 
 
-def test_event_logging_with_data(revm_env, keccak, get_logs, get_contract_with_gas_estimation):
+def test_event_logging_with_data(get_logs, keccak, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: int128
@@ -220,8 +220,8 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id]
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -236,7 +236,7 @@ def foo():
 
 
 def test_event_logging_with_fixed_array_data(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -256,8 +256,8 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128[2],uint256[3],int128[2][2])", "utf-8"))
     # Event id is always the first topic
-    log, _ = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    log, _ = get_logs(tx_hash, c)
+    assert log.topics == [event_id]
     # Event abi is created correctly
 
     assert c.abi[0] == {
@@ -272,7 +272,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = revm_env.get_block(revm_env.block_number).timestamp
+    timestamp = env.get_block(env.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
 
     assert logs[0].args.arg1 == [1, 2]
@@ -281,7 +281,7 @@ def foo():
 
 
 def test_logging_with_input_bytes_1(
-    revm_env, keccak, get_logs, bytes_helper, get_contract_with_gas_estimation
+    env, keccak, get_logs, bytes_helper, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -299,8 +299,8 @@ def foo(arg1: Bytes[29], arg2: Bytes[31]):
 
     event_id = keccak(bytes("MyLog(bytes,bytes,bytes)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -320,9 +320,7 @@ def foo(arg1: Bytes[29], arg2: Bytes[31]):
     assert logs[0].args.arg3 == b"foo"
 
 
-def test_event_logging_with_bytes_input_2(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
-):
+def test_event_logging_with_bytes_input_2(env, keccak, get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 event MyLog:
     arg1: Bytes[20]
@@ -333,12 +331,12 @@ def foo(_arg1: Bytes[20]):
     """
 
     c = get_contract_with_gas_estimation(loggy_code)
-    c.foo(b"hello", transact={})
+    tx_hash = c.foo(b"hello", transact={})
 
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -347,10 +345,10 @@ def foo(_arg1: Bytes[20]):
         "type": "event",
     }
     # Event is decoded correctly
-    assert c.parse_log(log).args.arg1 == b"hello"
+    assert log.args.arg1 == b"hello"
 
 
-def test_event_logging_with_bytes_input_3(revm_env, keccak, get_logs, get_contract):
+def test_event_logging_with_bytes_input_3(get_logs, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: Bytes[5]
@@ -365,8 +363,8 @@ def foo(_arg1: Bytes[5]):
 
     event_id = keccak(bytes("MyLog(bytes)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id]
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -380,7 +378,7 @@ def foo(_arg1: Bytes[5]):
 
 
 def test_event_logging_with_data_with_different_types(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -401,8 +399,8 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bytes,bytes,address,address,uint256)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id]
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -419,7 +417,7 @@ def foo():
     }
 
     # Event is decoded correctly
-    timestamp = revm_env.get_block(revm_env.block_number).timestamp
+    timestamp = env.get_block(env.block_number).timestamp
     logs = get_logs(tx_hash, c, "MyLog")
     args = logs[0].args
     assert args.arg1 == 123
@@ -431,7 +429,7 @@ def foo():
 
 
 def test_event_logging_with_topics_and_data_1(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 event MyLog:
@@ -448,8 +446,8 @@ def foo():
 
     event_id = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
     # Event id is always the first topic
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics[0] == event_id
     # Event abi is created correctly
     assert c.abi[0] == {
         "anonymous": False,
@@ -468,7 +466,7 @@ def foo():
 
 
 def test_event_logging_with_multiple_logs_topics_and_data(
-    revm_env, keccak, get_logs, get_contract_with_gas_estimation
+    env, keccak, get_logs, get_contract_with_gas_estimation
 ):
     loggy_code = """
 struct SmallStruct:
@@ -495,13 +493,13 @@ def foo():
     c = get_contract_with_gas_estimation(loggy_code)
     tx_hash = c.foo(transact={})
 
-    log1, log2 = revm_env.evm.result.logs
+    log1, log2 = get_logs(tx_hash, c)
     event_id1 = keccak(bytes("MyLog(int128,bytes)", "utf-8"))
     event_id2 = keccak(bytes("YourLog(address,(uint256,bytes,(string,fixed168x10)))", "utf-8"))
 
     # Event id is always the first topic
-    assert log1.topics[0] == "0x" + event_id1.hex()
-    assert log2.topics[0] == "0x" + event_id2.hex()
+    assert log1.topics[0] == event_id1
+    assert log2.topics[0] == event_id2
     # Event abi is created correctly
     assert c.abi[0] == {
         "name": "MyLog",
@@ -734,7 +732,7 @@ def foo():
         get_contract_with_gas_estimation(loggy_code)
 
 
-def test_loggy_code(revm_env, get_contract_with_gas_estimation):
+def test_loggy_code(get_logs, get_contract_with_gas_estimation):
     loggy_code = """
 s: Bytes[100]
 
@@ -758,30 +756,30 @@ def ioo(inp: Bytes[100]):
 
     c = get_contract_with_gas_estimation(loggy_code)
 
-    c.foo(transact={})
-    (log,) = revm_env.evm.result.logs
+    tx_hash = c.foo(transact={})
+    ((topics, data),) = get_logs(tx_hash, c, raw=True)
 
-    assert to_text(log.data[1]) == "moo"
-    c.goo(transact={})
-    (log,) = revm_env.evm.result.logs
+    assert to_text(data) == "moo"
+    tx_hash = c.goo(transact={})
+    ((topics, data),) = get_logs(tx_hash, c, raw=True)
 
-    assert to_text(log.data[1]) == "moo2"
-    assert (
-        log.topics[0] == "0x1234567812345678123456781234567812345678123456781234567812345678"
-    )  # noqa: E501
+    assert to_text(data) == "moo2"
+    assert topics[0] == bytes.fromhex(
+        "1234567812345678123456781234567812345678123456781234567812345678"
+    )
 
-    c.hoo(transact={})
-    (log,) = revm_env.evm.result.logs
-    assert to_text(log.data[1]) == "moo3"
+    tx_hash = c.hoo(transact={})
+    ((topics, data),) = get_logs(tx_hash, c, raw=True)
+    assert to_text(data) == "moo3"
 
-    c.ioo(b"moo4", transact={})
-    (log,) = revm_env.evm.result.logs
-    assert to_text(log.data[1]) == "moo4"
+    tx_hash = c.ioo(b"moo4", transact={})
+    ((topics, data),) = get_logs(tx_hash, c, raw=True)
+    assert to_text(data) == "moo4"
 
     print("Passed raw log tests")
 
 
-def test_raw_call_bytes32_data(revm_env, get_contract_with_gas_estimation):
+def test_raw_call_bytes32_data(get_logs, get_contract_with_gas_estimation):
     code = """
 b: uint256
 
@@ -795,12 +793,12 @@ def foo():
     raw_log([], keccak256(b""))
     """
     c = get_contract_with_gas_estimation(code)
-    c.foo(transact={})
-    logs = revm_env.evm.result.logs
-    assert logs[0].data[1] == (1234).to_bytes(32, "big")
-    assert logs[1].data[1] == (4321).to_bytes(32, "big")
-    assert logs[2].data[1] == b"testmessage".ljust(32, b"\0")
-    assert logs[3].data[1] == keccak256(b"")
+    tx_hash = c.foo(transact={})
+    logs = get_logs(tx_hash, c, raw=True)
+    assert logs[0][1] == (1234).to_bytes(32, "big")
+    assert logs[1][1] == (4321).to_bytes(32, "big")
+    assert logs[2][1] == b"testmessage".ljust(32, b"\0")
+    assert logs[3][1] == keccak256(b"")
 
 
 def test_variable_list_packing(get_logs, get_contract_with_gas_estimation):
@@ -1053,7 +1051,7 @@ def set_list():
     assert log.args.arg5 == [1024, 2048]
 
 
-def test_hashed_indexed_topics_calldata(keccak, get_contract, revm_env):
+def test_hashed_indexed_topics_calldata(get_logs, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[36])
@@ -1066,24 +1064,16 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     """
 
     c = get_contract(loggy_code)
-    c.foo(b"bar", 1, "weird", transact={})
+    tx_hash = c.foo(b"bar", 1, "weird", transact={})
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    topic1 = keccak256(b"bar")
+    topic2 = abi.encode("int128", 1)
+    topic3 = keccak256(b"weird")
 
-    topic1 = f"0x{keccak256(b'bar').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[1] == topic1
-
-    topic2 = f"0x{abi.encode('int128', 1).hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[2] == topic2
-
-    topic3 = f"0x{keccak256(b'weird').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[3] == topic3
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id, topic1, topic2, topic3]
 
     # Event abi is created correctly
     assert c.abi[0] == {
@@ -1098,7 +1088,7 @@ def foo(a: Bytes[36], b: int128, c: String[7]):
     }
 
 
-def test_hashed_indexed_topics_memory(keccak, get_contract, revm_env):
+def test_hashed_indexed_topics_memory(get_logs, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[10])
@@ -1114,24 +1104,15 @@ def foo():
     """
 
     c = get_contract(loggy_code)
-    c.foo(transact={})
+    tx_hash = c.foo(transact={})
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
-
-    topic1 = f"0x{keccak256(b'potato').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[1] == topic1
-
-    topic2 = f"0x{abi.encode('int128', -777).hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[2] == topic2
-
-    topic3 = f"0x{keccak256(b'why hello, neighbor! how are you today?').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[3] == topic3
+    topic1 = keccak256(b"potato")
+    topic2 = abi.encode("int128", -777)
+    topic3 = keccak256(b"why hello, neighbor! how are you today?")
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id, topic1, topic2, topic3]
 
     # Event abi is created correctly
     assert c.abi[0] == {
@@ -1146,7 +1127,7 @@ def foo():
     }
 
 
-def test_hashed_indexed_topics_storage(keccak, get_contract, revm_env):
+def test_hashed_indexed_topics_storage(get_logs, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[32])
@@ -1171,24 +1152,16 @@ def foo():
 
     c = get_contract(loggy_code)
     c.setter(b"zonk", -2109, "yessir", transact={})
-    c.foo(transact={})
+    tx_hash = c.foo(transact={})
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    topic1 = keccak256(b"zonk")
+    topic2 = abi.encode("int128", -2109)
+    topic3 = keccak256(b"yessir")
 
-    topic1 = f"0x{keccak256(b'zonk').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[1] == topic1
-
-    topic2 = f"0x{abi.encode('int128', -2109).hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[2] == topic2
-
-    topic3 = f"0x{keccak256(b'yessir').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[3] == topic3
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id, topic1, topic2, topic3]
 
     # Event abi is created correctly
     assert c.abi[0] == {
@@ -1203,7 +1176,7 @@ def foo():
     }
 
 
-def test_hashed_indexed_topics_storxxage(keccak, get_contract, revm_env):
+def test_hashed_indexed_topics_storxxage(get_logs, keccak, get_contract):
     loggy_code = """
 event MyLog:
     arg1: indexed(Bytes[64])
@@ -1216,24 +1189,16 @@ def foo():
     """
 
     c = get_contract(loggy_code)
-    c.foo(transact={})
+    tx_hash = c.foo(transact={})
 
     # Event id is always the first topic
     event_id = keccak(b"MyLog(bytes,int128,string)")
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[0] == "0x" + event_id.hex()
+    topic1 = keccak256(b"wow")
+    topic2 = abi.encode("int128", 666)
+    topic3 = keccak256(b"madness!")
 
-    topic1 = f"0x{keccak256(b'wow').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[1] == topic1
-
-    topic2 = f"0x{abi.encode('int128', 666).hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[2] == topic2
-
-    topic3 = f"0x{keccak256(b'madness!').hex()}"
-    (log,) = revm_env.evm.result.logs
-    assert log.topics[3] == topic3
+    (log,) = get_logs(tx_hash, c)
+    assert log.topics == [event_id, topic1, topic2, topic3]
 
 
 fail_list = [

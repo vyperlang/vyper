@@ -6,13 +6,13 @@ from eth_utils import is_same_address, to_bytes, to_checksum_address, to_int
 
 
 @pytest.fixture
-def c(revm_env, get_contract):
-    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
+def c(env, get_contract):
+    a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
     with open("examples/wallet/wallet.vy") as f:
         code = f.read()
     # Sends wei to the contract for future transactions gas costs
     c = get_contract(code, *[[a1, a2, a3, a4, a5], 3])
-    revm_env.execute_code(c.address, value=10**17)
+    env.execute_code(c.address, value=10**17)
     return c
 
 
@@ -29,10 +29,10 @@ def sign(keccak):
     return _sign
 
 
-def test_approve(revm_env, c, tx_failed, sign):
-    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
-    k0, k1, k2, k3, k4, k5, k6, k7 = revm_env._keys[:8]
-    revm_env.set_balance(a1, 10**18)
+def test_approve(env, c, tx_failed, sign):
+    a0, a1, a2, a3, a4, a5, a6 = env.accounts[:7]
+    k0, k1, k2, k3, k4, k5, k6, k7 = env._keys[:8]
+    env.set_balance(a1, 10**18)
 
     to, value, data = b"\x35" * 20, 10**16, b""
     to_address = to_checksum_address(to)
@@ -68,8 +68,8 @@ def test_approve(revm_env, c, tx_failed, sign):
     print("Basic tests passed")
 
 
-def test_javascript_signatures(revm_env, get_contract, keccak):
-    a3 = revm_env.accounts[2]
+def test_javascript_signatures(env, get_contract, keccak):
+    a3 = env.accounts[2]
     # The zero address will cause `approve` to default to valid signatures
     zero_address = "0x0000000000000000000000000000000000000000"
     accounts = [
@@ -108,7 +108,7 @@ def test_javascript_signatures(revm_env, get_contract, keccak):
         owners = [to_checksum_address(x) for x in accounts + [a3, zero_address, zero_address]]
         x2 = get_contract(f.read(), *[owners, 2])
 
-    revm_env.execute_code(x2.address, value=10**17)
+    env.execute_code(x2.address, value=10**17)
 
     # There's no need to pass in signatures because the owners are 0 addresses
     # causing them to default to valid signatures

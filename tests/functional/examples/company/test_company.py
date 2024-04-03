@@ -2,19 +2,19 @@ import pytest
 
 
 @pytest.fixture
-def c(revm_env, initial_balance, get_contract):
+def c(env, initial_balance, get_contract):
     with open("examples/stock/company.vy") as f:
         contract_code = f.read()
 
-    for acc in revm_env.accounts[1:5]:
-        revm_env.set_balance(acc, initial_balance)
+    for acc in env.accounts[1:5]:
+        env.set_balance(acc, initial_balance)
 
-    return get_contract(contract_code, *[revm_env.accounts[0], 1000, 10**6])
+    return get_contract(contract_code, *[env.accounts[0], 1000, 10**6])
 
 
-def test_overbuy(revm_env, c, tx_failed):
+def test_overbuy(env, c, tx_failed):
     # If all the stock has been bought, no one can buy more
-    a1, a2 = revm_env.accounts[1:3]
+    a1, a2 = env.accounts[1:3]
     test_shares = int(c.totalShares() / 2)
     test_value = int(test_shares * c.price())
     c.buyStock(transact={"from": a1, "value": test_value})
@@ -28,8 +28,8 @@ def test_overbuy(revm_env, c, tx_failed):
         c.buyStock(transact={"from": a2, "value": one_stock})
 
 
-def test_sell_without_stock(revm_env, c, tx_failed):
-    a1, a2 = revm_env.accounts[1:3]
+def test_sell_without_stock(env, c, tx_failed):
+    a1, a2 = env.accounts[1:3]
     # If you don't have any stock, you can't sell
     with tx_failed():
         c.sellStock(1, transact={"from": a1})
@@ -46,8 +46,8 @@ def test_sell_without_stock(revm_env, c, tx_failed):
         c.sellStock(1, transact={"from": a1})
 
 
-def test_oversell(revm_env, c, tx_failed):
-    a0, a1, a2 = revm_env.accounts[:3]
+def test_oversell(env, c, tx_failed):
+    a0, a1, a2 = env.accounts[:3]
     # You can't sell more than you own
     test_shares = int(c.totalShares())
     test_value = int(test_shares * c.price())
@@ -56,9 +56,9 @@ def test_oversell(revm_env, c, tx_failed):
         c.sellStock(test_shares + 1, transact={"from": a1})
 
 
-def test_transfer(revm_env, c, tx_failed):
+def test_transfer(env, c, tx_failed):
     # If you don't have any stock, you can't transfer
-    a1, a2 = revm_env.accounts[1:3]
+    a1, a2 = env.accounts[1:3]
     with tx_failed():
         c.transferStock(a2, 1, transact={"from": a1})
     with tx_failed():
@@ -75,8 +75,8 @@ def test_transfer(revm_env, c, tx_failed):
     c.sellStock(test_shares, transact={"from": a2})
 
 
-def test_paybill(revm_env, c, tx_failed):
-    a0, a1, a2, a3 = revm_env.accounts[:4]
+def test_paybill(env, c, tx_failed):
+    a0, a1, a2, a3 = env.accounts[:4]
     # Only the company can authorize payments
     with tx_failed():
         c.payBill(a2, 1, transact={"from": a1})
@@ -95,8 +95,8 @@ def test_paybill(revm_env, c, tx_failed):
         c.sellStock(1, transact={"from": a1})
 
 
-def test_valuation(revm_env, c):
-    a1 = revm_env.accounts[1]
+def test_valuation(env, c):
+    a1 = env.accounts[1]
     # Valuation is number of shares held times price
     assert c.debt() == 0
     test_value = int(c.totalShares() * c.price())
@@ -104,8 +104,8 @@ def test_valuation(revm_env, c):
     assert c.debt() == test_value
 
 
-def test_logs(revm_env, c, get_logs):
-    a0, a1, a2, a3 = revm_env.accounts[:4]
+def test_logs(env, c, get_logs):
+    a0, a1, a2, a3 = env.accounts[:4]
     # Buy is logged
     logs = get_logs(c.buyStock(transact={"from": a1, "value": 7 * c.price()}), c, "Buy")
     assert len(logs) == 1

@@ -124,9 +124,9 @@ def test_bytecode_signature_immutables():
 
 # check that deployed bytecode actually matches the cbor metadata
 @pytest.mark.parametrize("code", [simple_contract_code, has_immutables, many_functions])
-def test_bytecode_signature_deployed(code, get_contract, revm_env):
+def test_bytecode_signature_deployed(code, get_contract, env):
     c = get_contract(code)
-    deployed_code = revm_env.get_code(c.address)
+    deployed_code = env.get_code(c.address)
 
     metadata = _parse_cbor_metadata(c.bytecode)
     runtime_len, data_section_lengths, immutables_len, compiler = metadata

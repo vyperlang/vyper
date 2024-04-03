@@ -32,8 +32,8 @@ def test_initial_state(market_maker):
     assert market_maker.owner() is None
 
 
-def test_initiate(revm_env, market_maker, erc20, tx_failed):
-    a0 = revm_env.accounts[0]
+def test_initiate(env, market_maker, erc20, tx_failed):
+    a0 = env.accounts[0]
     ether, ethers = to_wei(1, "ether"), to_wei(2, "ether")
     erc20.approve(market_maker.address, ethers, transact={})
     market_maker.initiate(erc20.address, ether, transact={"value": ethers})
@@ -49,8 +49,8 @@ def test_initiate(revm_env, market_maker, erc20, tx_failed):
         market_maker.initiate(erc20.address, ether, transact={"value": ethers})
 
 
-def test_eth_to_tokens(revm_env, market_maker, erc20):
-    a1 = revm_env.accounts[1]
+def test_eth_to_tokens(env, market_maker, erc20):
+    a1 = env.accounts[1]
     erc20.approve(market_maker.address, to_wei(2, "ether"), transact={})
     market_maker.initiate(erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether")})
     assert erc20.balanceOf(market_maker.address) == to_wei(1, "ether")
@@ -58,7 +58,7 @@ def test_eth_to_tokens(revm_env, market_maker, erc20):
     assert market_maker.totalTokenQty() == to_wei(1, "ether")
     assert market_maker.totalEthQty() == to_wei(2, "ether")
 
-    revm_env.set_balance(a1, 100)
+    env.set_balance(a1, 100)
     market_maker.ethToTokens(transact={"value": 100, "from": a1})
     assert erc20.balanceOf(market_maker.address) == 999999999999999950
     assert erc20.balanceOf(a1) == 50
@@ -66,41 +66,41 @@ def test_eth_to_tokens(revm_env, market_maker, erc20):
     assert market_maker.totalEthQty() == 2000000000000000100
 
 
-def test_tokens_to_eth(revm_env, market_maker, erc20):
-    a1 = revm_env.accounts[1]
+def test_tokens_to_eth(env, market_maker, erc20):
+    a1 = env.accounts[1]
     a1_balance_before = to_wei(2, "ether")
-    revm_env.set_balance(a1, a1_balance_before)
+    env.set_balance(a1, a1_balance_before)
 
     erc20.transfer(a1, to_wei(2, "ether"), transact={})
     erc20.approve(market_maker.address, to_wei(2, "ether"), transact={"from": a1})
     market_maker.initiate(
         erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether"), "from": a1}
     )
-    assert revm_env.get_balance(market_maker.address) == to_wei(2, "ether")
+    assert env.get_balance(market_maker.address) == to_wei(2, "ether")
     # sent 2 eth, with initiate.
-    assert revm_env.get_balance(a1) == a1_balance_before - to_wei(2, "ether")
+    assert env.get_balance(a1) == a1_balance_before - to_wei(2, "ether")
     assert market_maker.totalTokenQty() == to_wei(1, "ether")
 
     erc20.approve(market_maker.address, to_wei(1, "ether"), transact={"from": a1})
     market_maker.tokensToEth(to_wei(1, "ether"), transact={"from": a1})
     # 1 eth less in market.
-    assert revm_env.get_balance(market_maker.address) == to_wei(1, "ether")
+    assert env.get_balance(market_maker.address) == to_wei(1, "ether")
     # got 1 eth back, for trade.
-    assert revm_env.get_balance(a1) == a1_balance_before - to_wei(1, "ether")
+    assert env.get_balance(a1) == a1_balance_before - to_wei(1, "ether")
     # Tokens increased by 1
     assert market_maker.totalTokenQty() == to_wei(2, "ether")
     assert market_maker.totalEthQty() == to_wei(1, "ether")
 
 
-def test_owner_withdraw(revm_env, market_maker, erc20, tx_failed):
-    a0, a1 = revm_env.accounts[:2]
-    a0_balance_before = revm_env.get_balance(a0)
+def test_owner_withdraw(env, market_maker, erc20, tx_failed):
+    a0, a1 = env.accounts[:2]
+    a0_balance_before = env.get_balance(a0)
     # Approve 2 eth transfers.
     erc20.approve(market_maker.address, to_wei(2, "ether"), transact={})
     # Initiate market with 2 eth value.
     market_maker.initiate(erc20.address, to_wei(1, "ether"), transact={"value": to_wei(2, "ether")})
     # 2 eth was sent to market_maker contract.
-    assert revm_env.get_balance(a0) == a0_balance_before - to_wei(2, "ether")
+    assert env.get_balance(a0) == a0_balance_before - to_wei(2, "ether")
     # a0's balance is locked up in market_maker contract.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY - to_wei(1, "ether")
 
@@ -108,5 +108,5 @@ def test_owner_withdraw(revm_env, market_maker, erc20, tx_failed):
     with tx_failed():
         market_maker.ownerWithdraw(transact={"from": a1})
     market_maker.ownerWithdraw(transact={})
-    assert revm_env.get_balance(a0) == a0_balance_before  # Eth balance restored.
+    assert env.get_balance(a0) == a0_balance_before  # Eth balance restored.
     assert erc20.balanceOf(a0) == TOKEN_TOTAL_SUPPLY  # Tokens returned to a0.

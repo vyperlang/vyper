@@ -7,7 +7,7 @@ from vyper.utils import method_id
 pytestmark = pytest.mark.usefixtures("memory_mocker")
 
 
-def test_revert_reason(revm_env, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason(env, tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -21,7 +21,7 @@ def foo():
         get_contract_with_gas_estimation(reverty_code).foo(transact={})
 
 
-def test_revert_reason_typed(revm_env, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed(env, tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():
@@ -36,7 +36,7 @@ def foo():
         get_contract_with_gas_estimation(reverty_code).foo(transact={})
 
 
-def test_revert_reason_typed_no_variable(revm_env, tx_failed, get_contract_with_gas_estimation):
+def test_revert_reason_typed_no_variable(env, tx_failed, get_contract_with_gas_estimation):
     reverty_code = """
 @external
 def foo():

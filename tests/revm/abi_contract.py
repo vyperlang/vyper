@@ -26,6 +26,8 @@ class ABILog:
     address: ChecksumAddress
     args: tuple
     event: str
+    topics: list[str]
+    raw_data: bytes
 
 
 class ABILogTopic:
@@ -73,8 +75,13 @@ class ABILogTopic:
         return repr(self)
 
     def parse(self, log: Log) -> ABILog:
+        topics, raw_data = log.data
         return ABILog(
-            address=to_checksum_address(log.address), args=self._parse_args(log), event=self.name
+            address=to_checksum_address(log.address),
+            args=self._parse_args(log),
+            event=self.name,
+            topics=topics,
+            raw_data=raw_data,
         )
 
     @cached_property
