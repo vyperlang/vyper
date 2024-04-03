@@ -1,5 +1,5 @@
 # TODO: check, this is probably redundant with examples/test_crowdfund.py
-def test_crowdfund(w3, tester, get_contract_pyevm):
+def test_crowdfund(revm_env, tester, get_contract):
     crowdfund = """
 
 struct Funder:
@@ -62,10 +62,12 @@ def refund():
     self.refundIndex = ind + 30
 
     """
-    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
+    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
+    for a in revm_env.accounts[:7]:
+        revm_env.set_balance(a, 10**10)
 
-    c = get_contract_pyevm(crowdfund, *[a1, 50, 60])
-    start_timestamp = w3.eth.get_block(w3.eth.block_number).timestamp
+    c = get_contract(crowdfund, *[a1, 50, 60])
+    start_timestamp = revm_env.get_block(revm_env.block_number).timestamp
 
     c.participate(transact={"value": 5})
     assert c.timelimit() == 60
@@ -74,28 +76,28 @@ def refund():
     assert not c.reached()
     c.participate(transact={"value": 49})
     assert c.reached()
-    pre_bal = w3.eth.get_balance(a1)
-    w3.testing.mine(100)
+    pre_bal = revm_env.get_balance(a1)
+    revm_env.mine(100)
     assert c.expired()
     c.finalize(transact={})
-    post_bal = w3.eth.get_balance(a1)
+    post_bal = revm_env.get_balance(a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract_pyevm(crowdfund, *[a1, 50, 60])
+    c = get_contract(crowdfund, *[a1, 50, 60])
     c.participate(transact={"value": 1, "from": a3})
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
     c.participate(transact={"value": 4, "from": a6})
-    w3.testing.mine(100)
+    revm_env.mine(100)
     assert c.expired()
     assert not c.reached()
-    pre_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
+    pre_bals = [revm_env.get_balance(x) for x in [a3, a4, a5, a6]]
     c.refund(transact={})
-    post_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
+    post_bals = [revm_env.get_balance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]
 
 
-def test_crowdfund2(w3, tester, get_contract_pyevm):
+def test_crowdfund2(revm_env, tester, get_contract):
     crowdfund2 = """
 struct Funder:
     sender: address
@@ -156,32 +158,33 @@ def refund():
     self.refundIndex = ind + 30
 
     """
-    a0, a1, a2, a3, a4, a5, a6 = w3.eth.accounts[:7]
-    c = get_contract_pyevm(crowdfund2, *[a1, 50, 60])
+    a0, a1, a2, a3, a4, a5, a6 = revm_env.accounts[:7]
+    c = get_contract(crowdfund2, *[a1, 50, 60])
 
     c.participate(transact={"value": 5})
+    revm_env.mine(1)
     assert c.timelimit() == 60
     assert c.deadline() - c.block_timestamp() == 59
     assert not c.expired()
     assert not c.reached()
     c.participate(transact={"value": 49})
     assert c.reached()
-    pre_bal = w3.eth.get_balance(a1)
-    w3.testing.mine(100)
+    pre_bal = revm_env.get_balance(a1)
+    revm_env.mine(100)
     assert c.expired()
     c.finalize(transact={})
-    post_bal = w3.eth.get_balance(a1)
+    post_bal = revm_env.get_balance(a1)
     assert post_bal - pre_bal == 54
 
-    c = get_contract_pyevm(crowdfund2, *[a1, 50, 60])
+    c = get_contract(crowdfund2, *[a1, 50, 60])
     c.participate(transact={"value": 1, "from": a3})
     c.participate(transact={"value": 2, "from": a4})
     c.participate(transact={"value": 3, "from": a5})
     c.participate(transact={"value": 4, "from": a6})
-    w3.testing.mine(100)
+    revm_env.mine(100)
     assert c.expired()
     assert not c.reached()
-    pre_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
+    pre_bals = [revm_env.get_balance(x) for x in [a3, a4, a5, a6]]
     c.refund(transact={})
-    post_bals = [w3.eth.get_balance(x) for x in [a3, a4, a5, a6]]
+    post_bals = [revm_env.get_balance(x) for x in [a3, a4, a5, a6]]
     assert [y - x for x, y in zip(pre_bals, post_bals)] == [1, 2, 3, 4]

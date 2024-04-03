@@ -129,16 +129,25 @@ def venom_xfail(request, experimental_codegen):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def evm_version(pytestconfig):
+def evm_version(pytestconfig, evm_backend):
+    evm_version_str = pytestconfig.getoption("evm_version")
+    if evm_backend != "py-evm":
+        # revm uses this fixture to set the evm version
+        return evm_version_str
+
     # note: we configure the evm version that we emit code for,
     # but eth-tester is only configured with the latest mainnet
     # version.
-    evm_version_str = pytestconfig.getoption("evm_version")
     evm.DEFAULT_EVM_VERSION = evm_version_str
     # this should get overridden by anchor_evm_version,
     # but set it anyway
     evm.active_evm_version = evm.EVM_VERSIONS[evm_version_str]
     return evm_version_str
+
+
+@pytest.fixture(scope="session", autouse=True)
+def evm_backend(pytestconfig):
+    return pytestconfig.getoption("evm_backend")
 
 
 @pytest.fixture
